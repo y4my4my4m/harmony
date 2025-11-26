@@ -1957,8 +1957,15 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async deletePost(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // Get profile ID directly from userDataService - no extra DB query needed!
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        
+        if (!currentUser?.id) {
+          throw new Error('User not authenticated or profile not loaded');
+        }
+
+        const profileId = currentUser.id;
 
         // Get the post to verify ownership
         const { data: postData, error: fetchError } = await supabase
@@ -1970,7 +1977,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             )
           `)
           .eq('id', postId)
-          .eq('author_id', user.data.user.id)
+          .eq('author_id', profileId)
           .single();
 
         if (fetchError) throw fetchError;
@@ -1984,7 +1991,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             deleted_at: new Date().toISOString() 
           })
           .eq('id', postId)
-          .eq('author_id', user.data.user.id);
+          .eq('author_id', profileId);
 
         if (deleteError) throw deleteError;
 

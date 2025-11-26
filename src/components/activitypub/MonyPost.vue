@@ -64,61 +64,6 @@
         </div>
       </div>
 
-      <!-- Reply Context (if this is a reply) - hide in thread view since parent is already visible -->
-      <div v-if="displayReplyContext && !props.hideReplyContext && !props.isInThread" class="reply-context-container">
-        <!-- Simple reply indicator -->
-        <div class="reply-indicator-bar">
-          <Icon name="corner-up-left" class="reply-icon" :size="14" />
-          <span class="reply-text">Replying to</span>
-          <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
-            @{{ displayReplyContext.author.username }}
-          </span>
-          <button 
-            class="show-thread-btn"
-            @click.stop="showReplyTarget"
-            title="View full conversation"
-          >
-            <Icon name="message-square" :size="14" />
-            View thread
-          </button>
-        </div>
-        
-        <!-- Parent post preview -->
-        <div class="reply-parent-post" @click.stop="showReplyTarget">
-          <div class="reply-parent-header">
-            <Avatar 
-              :src="displayReplyContext.author.avatar_url"
-              :alt="displayReplyContext.author.display_name || displayReplyContext.author.username"
-              size="sm"
-            />
-            <div class="reply-parent-author-info">
-              <span class="reply-parent-name">{{ displayReplyContext.author.display_name || displayReplyContext.author.username }}</span>
-              <span class="reply-parent-handle">@{{ displayReplyContext.author.username }}</span>
-              <time class="reply-parent-time" v-if="displayReplyContext.created_at">
-                {{ formatRelativeTime(displayReplyContext.created_at) }}
-              </time>
-            </div>
-          </div>
-          
-          <div class="reply-parent-content">
-            <MonyContent 
-              :content="replyContentText" 
-              :isPreview="true" 
-              :previewLength="200" 
-            />
-          </div>
-        </div>
-      </div>
-      
-      <!-- Simple reply indicator for thread view (just shows who we're replying to) -->
-      <div v-else-if="displayReplyContext && props.isInThread" class="reply-indicator-simple">
-        <Icon name="corner-up-left" class="reply-icon" :size="12" />
-        <span class="reply-text">Replying to</span>
-        <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
-          @{{ displayReplyContext.author.username }}
-        </span>
-      </div>
-
       <!-- Content Warning -->
       <div v-if="displayContentWarning" class="content-warning">
         <div class="cw-header">
@@ -242,6 +187,51 @@
                 Your browser does not support the video tag.
               </video>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reply Context (shown AFTER the post content, like Twitter) -->
+      <!-- Only show in timeline view, not in thread view where parent is already visible -->
+      <div v-if="showReplyContextCard" class="reply-context-container">
+        <div class="reply-indicator-bar">
+          <Icon name="corner-up-left" class="reply-icon" :size="14" />
+          <span class="reply-text">Replying to</span>
+          <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
+            @{{ displayReplyContext.author.username }}
+          </span>
+          <button 
+            class="show-thread-btn"
+            @click.stop="showReplyTarget"
+            title="View full conversation"
+          >
+            <Icon name="message-square" :size="14" />
+            View thread
+          </button>
+        </div>
+        
+        <div class="reply-parent-post" @click.stop="showReplyTarget">
+          <div class="reply-parent-header">
+            <Avatar 
+              :src="displayReplyContext.author.avatar_url"
+              :alt="displayReplyContext.author.display_name || displayReplyContext.author.username"
+              size="sm"
+            />
+            <div class="reply-parent-author-info">
+              <span class="reply-parent-name">{{ displayReplyContext.author.display_name || displayReplyContext.author.username }}</span>
+              <span class="reply-parent-handle">@{{ displayReplyContext.author.username }}</span>
+              <time class="reply-parent-time" v-if="displayReplyContext.created_at">
+                {{ formatRelativeTime(displayReplyContext.created_at) }}
+              </time>
+            </div>
+          </div>
+          
+          <div class="reply-parent-content">
+            <MonyContent 
+              :content="replyContentText" 
+              :isPreview="true" 
+              :previewLength="200" 
+            />
           </div>
         </div>
       </div>
@@ -586,6 +576,11 @@ const displayReplyContext = computed(() => {
     return loadedReplyContext.value;
   }
   return null;
+});
+
+// Show reply context card only in timeline view (not in thread view)
+const showReplyContextCard = computed(() => {
+  return displayReplyContext.value && !props.hideReplyContext && !props.isInThread;
 });
 
 // Load reply context if we have in_reply_to but no reply_context

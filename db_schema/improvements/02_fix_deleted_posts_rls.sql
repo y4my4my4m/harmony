@@ -1,4 +1,13 @@
 -- =============================================
+-- ⚠️ DEPRECATED - Use 03_fix_posts_rls_and_functions.sql instead
+-- =============================================
+-- This migration has issues and has been superseded by:
+--   03_fix_posts_rls_and_functions.sql
+-- 
+-- DO NOT RUN THIS FILE. Run the 03_ migration instead.
+-- =============================================
+-- 
+-- Original Description:
 -- Fix Deleted Posts RLS Security
 -- =============================================
 -- This migration ensures deleted posts cannot be accessed via any means,
@@ -292,15 +301,40 @@ SET reblogs_count = (
 -- =============================================
 -- STEP 9: Fix UPDATE policy to allow soft-deleting own posts
 -- The existing UPDATE policy needs to allow setting is_deleted = true
+-- IMPORTANT: author_id is a PROFILE ID, not auth.uid()!
+-- We need to check via the profiles table
 -- =============================================
 
 -- Drop and recreate the update policy to ensure it works for soft-delete
 DROP POLICY IF EXISTS "Users can update their own posts" ON public.posts;
 
+-- Create a helper function to get the current user's profile ID
+CREATE OR REPLACE FUNCTION public.get_current_profile_id()
+RETURNS uuid AS $$
+  SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
 CREATE POLICY "Users can update their own posts" ON public.posts 
 FOR UPDATE 
-USING ((SELECT auth.uid()) = author_id)
-WITH CHECK ((SELECT auth.uid()) = author_id);
+USING (author_id = public.get_current_profile_id())
+WITH CHECK (author_id = public.get_current_profile_id());
+
+-- Also fix the SELECT policy for viewing own posts
+DROP POLICY IF EXISTS "Users can view their own posts" ON public.posts;
+
+CREATE POLICY "Users can view their own posts" ON public.posts 
+FOR SELECT 
+USING (
+  author_id = public.get_current_profile_id()
+  AND (is_deleted = false OR is_deleted IS NULL)
+);
+
+-- Fix DELETE policy too (in case hard delete is ever needed)
+DROP POLICY IF EXISTS "Users can delete their own posts" ON public.posts;
+
+CREATE POLICY "Users can delete their own posts" ON public.posts 
+FOR DELETE 
+USING (author_id = public.get_current_profile_id());
 
 COMMENT ON POLICY "Users can view their own posts" ON public.posts IS 
   'Users can view their own posts only if not deleted';
