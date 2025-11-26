@@ -16,22 +16,13 @@
 -- Drop the problematic self-referencing INSERT policy
 DROP POLICY IF EXISTS "conversation_participants_insert_policy" ON public.conversation_participants;
 
--- Verify the simpler policy exists (it should already)
--- If not, create it
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE tablename = 'conversation_participants' 
-      AND policyname = 'Authenticated users can manage participants'
-  ) THEN
-    CREATE POLICY "Authenticated users can manage participants" 
-    ON public.conversation_participants 
-    FOR INSERT 
-    WITH CHECK (auth.uid() IS NOT NULL);
-  END IF;
-END
-$$;
+-- Drop and recreate the simpler policy to ensure it exists correctly
+DROP POLICY IF EXISTS "Authenticated users can manage participants" ON public.conversation_participants;
+
+CREATE POLICY "Authenticated users can manage participants" 
+ON public.conversation_participants 
+FOR INSERT 
+WITH CHECK (auth.uid() IS NOT NULL);
 
 -- Also make the create_or_get_direct_conversation function use SECURITY DEFINER
 -- This ensures it can bypass RLS and work reliably, while still validating
