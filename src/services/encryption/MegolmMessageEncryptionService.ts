@@ -89,6 +89,85 @@ export class MegolmMessageEncryptionService {
 
     this.initialized = true
     console.log('✅ MegolmMessageEncryptionService initialized')
+
+    // Try to auto-unlock from session storage (persists across page refresh)
+    await this.tryAutoUnlock()
+  }
+
+  /**
+   * Try to auto-unlock encryption from stored session
+   */
+  private async tryAutoUnlock(): Promise<boolean> {
+    if (!this.currentUserId) return false
+
+    try {
+      const storedData = sessionStorage.getItem(`megolm_session_${this.currentUserId}`)
+      if (!storedData) {
+        console.log('🔐 No stored session - encryption locked')
+        return false
+      }
+
+      // Decode the stored mnemonic
+      const words = JSON.parse(atob(storedData)) as string[]
+      
+      if (!Array.isArray(words) || words.length < 12) {
+        console.warn('⚠️ Invalid stored session data')
+        sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+        return false
+      }
+
+      console.log('🔐 Found stored session - auto-unlocking...')
+      
+      // Derive keys from mnemonic
+      const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
+
+      // Initialize Megolm service with encryption key
+      await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
+
+      // Ensure identity key pair exists
+      await this.ensureIdentityKeyPair()
+
+      // Try to restore from backup
+      try {
+        const result = await megolmKeyBackupService.restoreFromBackup()
+        if (result.outboundCount + result.inboundCount > 0) {
+          console.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
+        }
+      } catch (error) {
+        // Ignore backup restore errors during auto-unlock
+      }
+
+      console.log('✅ Auto-unlocked encryption from stored session')
+      return true
+    } catch (error) {
+      console.warn('⚠️ Failed to auto-unlock:', error)
+      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+      return false
+    }
+  }
+
+  /**
+   * Store session for auto-unlock on page refresh
+   */
+  private storeSession(words: string[]): void {
+    if (!this.currentUserId) return
+    
+    // Store encoded mnemonic in sessionStorage (survives page refresh, cleared on tab close)
+    const encoded = btoa(JSON.stringify(words))
+    sessionStorage.setItem(`megolm_session_${this.currentUserId}`, encoded)
+    console.log('🔐 Session stored for auto-unlock')
+  }
+
+  /**
+   * Clear stored session (lock encryption)
+   */
+  lockEncryption(): void {
+    if (this.currentUserId) {
+      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+    }
+    megolmService.close()
+    recoveryKeyService.clear()
+    console.log('🔒 Encryption locked')
   }
 
   /**
@@ -126,6 +205,9 @@ export class MegolmMessageEncryptionService {
     } catch (error) {
       console.warn('⚠️ Failed to claim pending session shares:', error)
     }
+
+    // Store session for auto-unlock on page refresh
+    this.storeSession(words)
 
     console.log('✅ Encryption initialized with recovery key')
   }
@@ -197,6 +279,9 @@ export class MegolmMessageEncryptionService {
     } catch (backupError) {
       console.warn('⚠️ Failed to create initial backup:', backupError)
     }
+
+    // Store session for auto-unlock on page refresh
+    this.storeSession(words)
 
     console.log('🔐 Encryption setup complete!')
     console.log(`   isUnlocked: ${this.isUnlocked()}`)
@@ -652,10 +737,12 @@ export class MegolmMessageEncryptionService {
   }
 
   /**
-   * Check if encryption is unlocked
+   * Check if encryption is unlocked (user has entered recovery key this session)
    */
   isUnlocked(): boolean {
-    return megolmService.isInitialized()
+    const unlocked = megolmService.isInitialized()
+    console.log(`🔐 isUnlocked: ${unlocked}`)
+    return unlocked
   }
 
   /**
@@ -711,6 +798,9 @@ export class MegolmMessageEncryptionService {
   async resetEncryption(): Promise<void> {
     if (!this.currentUserId) return
 
+    // Clear stored session
+    sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+
     // Delete backup
     await megolmKeyBackupService.deleteBackup()
 
@@ -739,6 +829,10 @@ export class MegolmMessageEncryptionService {
    * Cleanup on logout
    */
   async cleanup(): Promise<void> {
+    // Clear stored session
+    if (this.currentUserId) {
+      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+    }
     megolmService.close()
     recoveryKeyService.clear()
     this.currentUserId = null

@@ -78,61 +78,84 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // Check if sender has encryption enabled
+      // Check server encryption settings first
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
 
-      const encryptionService = await getEncryptionService()
-      console.log('🔐 Encryption service loaded:', !!encryptionService)
-      console.log('🔐 Service initialized:', encryptionService?.isInitialized?.())
+      // Get server encryption policy
+      const { data: serverSettings } = await supabase
+        .from('server_encryption_settings')
+        .select('encryption_mode')
+        .eq('server_id', serverId)
+        .maybeSingle()
       
-      if (encryptionService && encryptionService.isInitialized()) {
-        try {
-          // Check if sender has recovery key set up and encryption unlocked
+      const encryptionMode = serverSettings?.encryption_mode || 'optional'
+      console.log(`🔐 Server encryption mode: ${encryptionMode}`)
+
+      // Skip encryption if server has it disabled
+      if (encryptionMode === 'disabled') {
+        console.log('ℹ️ Server has encryption disabled - sending plaintext')
+      } else {
+        // Encryption is optional or required - check if user can encrypt
+        const encryptionService = await getEncryptionService()
+        
+        if (encryptionService && encryptionService.isInitialized()) {
           const hasRecoveryKey = await encryptionService.hasRecoveryKey()
           const isUnlocked = encryptionService.isUnlocked()
           
           console.log(`🔐 Encryption check: hasRecoveryKey=${hasRecoveryKey}, isUnlocked=${isUnlocked}`)
           
           if (hasRecoveryKey && isUnlocked) {
-            console.log('🔐 Megolm encryption active - encrypting message for channel')
-            console.log(`🔐 Current user (sender): ${currentUser.id}`)
-            console.log(`🔐 Channel (room): ${channelId}`)
-            
-            // Get all server members to share session key with
-            const { data: members, error: membersError } = await supabase
-              .from('user_servers')
-              .select('user_id')
-              .eq('server_id', serverId)
-            
-            if (membersError) {
-              console.error('❌ Failed to get server members:', membersError)
+            try {
+              console.log('🔐 Megolm encryption active - encrypting message for channel')
+              console.log(`🔐 Channel (room): ${channelId}`)
+              
+              // Get all server members to share session key with
+              const { data: members } = await supabase
+                .from('user_servers')
+                .select('user_id')
+                .eq('server_id', serverId)
+              
+              const recipientIds = members?.map(m => m.user_id) || []
+              if (!recipientIds.includes(currentUser.id)) {
+                recipientIds.push(currentUser.id)
+              }
+              
+              console.log(`🔐 Encrypting for channel with ${recipientIds.length} members`)
+              
+              // Encrypt message with Megolm (channel-wide session key)
+              const encryptedData = await encryptionService.encryptMessage(content, channelId, recipientIds)
+              finalContent = encryptedData.content
+              encrypted = true
+              encryptionMetadata = encryptedData.encryption_metadata
+              console.log(`✅ Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
+            } catch (error) {
+              console.error('❌ Encryption failed:', error)
+              if (encryptionMode === 'required') {
+                throw this.createError('ENCRYPTION_REQUIRED', 'Server requires encryption but encryption failed')
+              }
+              console.warn('⚠️ Falling back to unencrypted message')
             }
-            
-            // Get member IDs (session will be shared with all)
-            const recipientIds = members?.map(m => m.user_id) || []
-            if (!recipientIds.includes(currentUser.id)) {
-              recipientIds.push(currentUser.id)
+          } else if (encryptionMode === 'required') {
+            // Server requires encryption but user doesn't have it set up/unlocked
+            if (!hasRecoveryKey) {
+              throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
+            } else {
+              throw this.createError('ENCRYPTION_LOCKED', 'This server requires encryption. Unlock encryption with your recovery key first.')
             }
-            
-            console.log(`🔐 Encrypting for channel with ${recipientIds.length} members`)
-            
-            // Encrypt message with Megolm (channel-wide session key)
-            const encryptedData = await encryptionService.encryptMessage(content, channelId, recipientIds)
-            finalContent = encryptedData.content
-            encrypted = true
-            encryptionMetadata = encryptedData.encryption_metadata
-            console.log(`✅ Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
-          } else if (hasRecoveryKey && !isUnlocked) {
-            console.log('🔐 Encryption locked - enter recovery key to send encrypted messages')
           } else {
-            console.log('ℹ️ No encryption set up - sending plaintext')
+            // Optional encryption - user doesn't have it, send plaintext
+            if (hasRecoveryKey && !isUnlocked) {
+              console.log('🔐 Encryption locked - enter recovery key to send encrypted messages')
+            } else {
+              console.log('ℹ️ No encryption set up - sending plaintext')
+            }
           }
-        } catch (error) {
-          console.error('❌ Encryption failed:', error)
-          // TODO: Check server encryption policy
-          console.warn('⚠️ Falling back to unencrypted message')
+        } else if (encryptionMode === 'required') {
+          throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
+        } else {
+          console.log('ℹ️ Encryption service not available - sending plaintext')
         }
       }
 
