@@ -522,10 +522,16 @@ export class MegolmMessageEncryptionService {
   ): Promise<void> {
     if (!this.currentUserId) return
 
+    console.log(`🔐 ensureSessionShared: recipientIds = [${recipientIds.join(', ')}]`)
+    console.log(`🔐 ensureSessionShared: currentUserId = ${this.currentUserId}`)
+
     // Get users who need the session
     const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds)
 
+    console.log(`🔐 Users needing session: ${usersNeedingSession.length} (${usersNeedingSession.join(', ')})`)
+
     if (usersNeedingSession.length === 0) {
+      console.log('ℹ️ All users already have the session')
       return
     }
 
@@ -564,7 +570,7 @@ export class MegolmMessageEncryptionService {
         )
 
         // Store the share - always share from index 0 so recipient can decrypt all messages
-        await supabase
+        const { error: shareError } = await supabase
           .from('megolm_session_shares')
           .upsert({
             room_id: roomId,
@@ -577,8 +583,14 @@ export class MegolmMessageEncryptionService {
             onConflict: 'room_id,session_id,recipient_user_id'
           })
 
+        if (shareError) {
+          console.error(`❌ Failed to store session share for ${userId}:`, shareError)
+          continue
+        }
+
         // Mark as shared in local state
         await megolmService.markSessionSharedWith(roomId, userId)
+        console.log(`✅ Shared session with user ${userId.substring(0, 8)}...`)
 
       } catch (error) {
         console.error(`❌ Failed to share session with ${userId}:`, error)
@@ -656,19 +668,34 @@ export class MegolmMessageEncryptionService {
    * Claim pending session shares (from other users)
    */
   async claimPendingSessionShares(): Promise<number> {
-    if (!this.currentUserId) return 0
+    if (!this.currentUserId) {
+      console.log('🔐 claimPendingSessionShares: No user ID')
+      return 0
+    }
+
+    console.log(`🔐 Checking for unclaimed session shares for user ${this.currentUserId}...`)
 
     const { data: shares, error } = await supabase
       .rpc('get_unclaimed_session_shares', { p_user_id: this.currentUserId })
 
-    if (error || !shares || shares.length === 0) {
+    if (error) {
+      console.error('❌ Error fetching session shares:', error)
       return 0
     }
+
+    if (!shares || shares.length === 0) {
+      console.log('ℹ️ No unclaimed session shares found')
+      return 0
+    }
+
+    console.log(`📥 Found ${shares.length} unclaimed session shares`)
 
     let claimedCount = 0
 
     for (const share of shares) {
       try {
+        console.log(`📥 Claiming session share from ${share.sender_user_id.substring(0, 8)}... for room ${share.room_id.substring(0, 8)}...`)
+        
         // Decrypt the session key
         const sessionKey = await this.decryptSessionKeyForMe(share.encrypted_session_key)
 
@@ -688,12 +715,13 @@ export class MegolmMessageEncryptionService {
         })
 
         claimedCount++
+        console.log(`✅ Claimed session share for session ${share.session_id.substring(0, 8)}...`)
       } catch (error) {
         console.error(`❌ Failed to claim share ${share.share_id}:`, error)
       }
     }
 
-    console.log(`📥 Claimed ${claimedCount} session shares`)
+    console.log(`📥 Claimed ${claimedCount}/${shares.length} session shares`)
     return claimedCount
   }
 
