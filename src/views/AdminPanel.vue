@@ -586,6 +586,75 @@
         </div>
       </div>
     </div>
+
+    <!-- User Servers Modal -->
+    <Teleport to="body">
+      <div v-if="showServersModal" class="modal-overlay" @click.self="closeServersModal">
+        <div class="modal-content servers-modal">
+          <div class="modal-header">
+            <h3>
+              <Icon name="server" :size="20" />
+              Servers for {{ selectedUserForServers?.display_name || selectedUserForServers?.username }}
+            </h3>
+            <button @click="closeServersModal" class="close-btn">
+              <Icon name="close" :size="20" />
+            </button>
+          </div>
+          <div class="modal-body">
+            <div v-if="loadingServers" class="loading-state">
+              <div class="loading-spinner"></div>
+              <span>Loading servers...</span>
+            </div>
+            <div v-else-if="userServers.length === 0" class="empty-state">
+              <Icon name="server" :size="32" />
+              <p>This user is not a member of any servers.</p>
+            </div>
+            <div v-else class="servers-list">
+              <div 
+                v-for="server in userServers" 
+                :key="server.id" 
+                class="server-item"
+              >
+                <div class="server-icon">
+                  <img 
+                    v-if="server.icon_url" 
+                    :src="server.icon_url" 
+                    :alt="server.name"
+                  />
+                  <div v-else class="server-icon-placeholder">
+                    {{ server.name.charAt(0).toUpperCase() }}
+                  </div>
+                </div>
+                <div class="server-info">
+                  <div class="server-name">
+                    {{ server.name }}
+                    <span v-if="server.is_owner" class="badge owner">Owner</span>
+                  </div>
+                  <div class="server-meta">
+                    <span class="member-count">
+                      <Icon name="users" :size="12" />
+                      {{ server.member_count }} members
+                    </span>
+                    <span class="join-date">
+                      Joined {{ formatDate(server.joined_at) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="server-actions">
+                  <button 
+                    @click="navigateToServer(server.id)" 
+                    class="action-btn-sm"
+                    title="View server"
+                  >
+                    <Icon name="arrow-right" :size="14" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -653,6 +722,20 @@ const loadingStates = ref({
   instances: false,
   discovering: false
 })
+
+// User servers modal
+const showServersModal = ref(false)
+const selectedUserForServers = ref<AdminUser | null>(null)
+const userServers = ref<{
+  id: string;
+  name: string;
+  icon_url: string | null;
+  member_count: number;
+  owner_id: string;
+  is_owner: boolean;
+  joined_at: string;
+}[]>([])
+const loadingServers = ref(false)
 
 // Pagination for instances
 const instancePagination = ref({
@@ -1014,11 +1097,31 @@ const navigateToUserPosts = (user: any) => {
   }
 }
 
-const navigateToUserServers = (user: any) => {
-  // For local users, could show a modal with their servers
-  // For now, just log it
-  debug.log(`Viewing servers for user ${user.username}`)
-  // TODO: Implement server list modal
+const navigateToUserServers = async (user: AdminUser) => {
+  // Open modal and load user's servers
+  selectedUserForServers.value = user
+  showServersModal.value = true
+  loadingServers.value = true
+  
+  try {
+    userServers.value = await adminService.getUserServers(user.id)
+  } catch (error) {
+    debug.error('Failed to load user servers:', error)
+    userServers.value = []
+  } finally {
+    loadingServers.value = false
+  }
+}
+
+const closeServersModal = () => {
+  showServersModal.value = false
+  selectedUserForServers.value = null
+  userServers.value = []
+}
+
+const navigateToServer = (serverId: string) => {
+  closeServersModal()
+  router.push(`/chat/${serverId}`)
 }
 
 const saveConfig = async () => {
@@ -2407,6 +2510,160 @@ const handleAddInstance = () => {
   .user-actions {
     align-self: flex-end;
   }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), rgba(0, 255, 136, 0.05));
+}
+
+.modal-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.servers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.server-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.server-item:hover {
+  border-color: var(--accent-color);
+}
+
+.server-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.server-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.server-icon-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 255, 136, 0.2));
+  color: var(--accent-color);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.server-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.server-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge.owner {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.server-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.member-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.server-actions {
+  flex-shrink: 0;
 }
 
 /* Dark theme variables (these should be in your global CSS) */

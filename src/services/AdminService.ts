@@ -1112,6 +1112,68 @@ class AdminService {
       throw error;
     }
   }
+
+  /**
+   * Get servers that a user is a member of
+   */
+  async getUserServers(userId: string): Promise<{
+    id: string;
+    name: string;
+    icon_url: string | null;
+    member_count: number;
+    owner_id: string;
+    is_owner: boolean;
+    joined_at: string;
+  }[]> {
+    try {
+      // Get user's server memberships with server details
+      const { data, error } = await supabase
+        .from('user_servers')
+        .select(`
+          joined_at,
+          server_id,
+          servers (
+            id,
+            name,
+            icon_url,
+            owner_id
+          )
+        `)
+        .eq('user_id', userId)
+        .order('joined_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Get member counts for each server
+      const serversWithCounts = await Promise.all(
+        (data || []).map(async (membership: any) => {
+          const server = membership.servers;
+          if (!server) return null;
+
+          // Get member count
+          const { count } = await supabase
+            .from('user_servers')
+            .select('*', { count: 'exact', head: true })
+            .eq('server_id', server.id);
+
+          return {
+            id: server.id,
+            name: server.name,
+            icon_url: server.icon_url,
+            member_count: count || 0,
+            owner_id: server.owner_id,
+            is_owner: server.owner_id === userId,
+            joined_at: membership.joined_at
+          };
+        })
+      );
+
+      return serversWithCounts.filter(Boolean) as any[];
+    } catch (error) {
+      debug.error('Failed to get user servers:', error);
+      return [];
+    }
+  }
 }
 
 // Export singleton instance
