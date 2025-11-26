@@ -1134,45 +1134,48 @@ const handleDecryptMessage = async (message: Message) => {
     // First, try to claim any pending session shares
     await megolmMessageEncryptionService.claimPendingSessionShares();
     
-    // Check if message has encryption metadata (might be missing if content was already replaced with glyphs)
-    if (!message.encryption_metadata) {
-      console.log('❌ No encryption metadata on message - may need to reload from database');
-      
-      // Try to reload the message from the database to get encryption_metadata
+    // Check if we have the original encrypted content (not replaced with glyphs)
+    // If content is preserved, use it directly - no DB reload needed
+    const hasOriginalContent = message.encryption_metadata && 
+      Array.isArray(message.content) && 
+      message.content[0]?.type === 'text' &&
+      message.content[0]?.text &&
+      /^[A-Za-z0-9+/=]{20,}$/.test(message.content[0].text); // Looks like base64
+    
+    let messageToDecrypt = message;
+    
+    if (!hasOriginalContent) {
+      // Content was replaced with glyphs (legacy) - reload from DB
+      console.log('🔐 Content was replaced with glyphs, reloading from database...');
       const { data: freshMessage } = await supabase
         .from('messages')
         .select('*')
         .eq('id', message.id)
         .single();
       
-      if (!freshMessage?.encryption_metadata) {
-        console.log('❌ Message has no encryption metadata in database either');
+      if (!freshMessage?.encryption_metadata || !freshMessage.encrypted) {
+        console.log('❌ Message has no encryption metadata in database');
         return;
       }
       
-      // Use the fresh message data
-      message = {
+      messageToDecrypt = {
         ...message,
         encryption_metadata: freshMessage.encryption_metadata,
-        content: freshMessage.content
+        content: freshMessage.content,
+        channel_id: freshMessage.channel_id,
+        conversation_id: freshMessage.conversation_id
       } as Message;
     }
     
     // Build the message object that decryptMessage expects
-    // Use the message's own channel_id/conversation_id, not props (which might be empty)
-    const roomId = message.channel_id || message.conversation_id || props.channelId || props.conversationId || '';
-    console.log('🔐 Decrypting with roomId:', roomId, { 
-      'message.channel_id': message.channel_id, 
-      'message.conversation_id': message.conversation_id,
-      'props.channelId': props.channelId,
-      'props.conversationId': props.conversationId
-    });
+    const roomId = messageToDecrypt.channel_id || messageToDecrypt.conversation_id || props.channelId || props.conversationId || '';
+    console.log('🔐 Decrypting with roomId:', roomId);
     
     const messageForDecryption = {
-      content: message.content,
-      channel_id: message.channel_id || props.channelId || '',
-      conversation_id: message.conversation_id || props.conversationId || '',
-      encryption_metadata: message.encryption_metadata
+      content: messageToDecrypt.content,
+      channel_id: messageToDecrypt.channel_id || props.channelId || '',
+      conversation_id: messageToDecrypt.conversation_id || props.conversationId || '',
+      encryption_metadata: messageToDecrypt.encryption_metadata
     };
     
     const decryptedContent = await megolmMessageEncryptionService.decryptMessage(messageForDecryption);
@@ -1183,17 +1186,17 @@ const handleDecryptMessage = async (message: Message) => {
       
       // Create updated message object
       const updatedMessage: Message = {
-        ...message,
+        ...messageToDecrypt,
         content: resolvedContent,
         encrypted: false,
         decrypted: true
       };
       
       // Update the message in the appropriate store
-      if (props.channelId) {
-        chatStore.updateMessageInCache(message.id, updatedMessage);
-      } else if (props.conversationId) {
-        dmStore.updateMessageInCache(message.id, updatedMessage);
+      if (props.channelId || messageToDecrypt.channel_id) {
+        chatStore.updateMessageInCache(messageToDecrypt.id, updatedMessage);
+      } else if (props.conversationId || messageToDecrypt.conversation_id) {
+        dmStore.updateMessageInCache(messageToDecrypt.id, updatedMessage);
       }
       
       console.log('✅ Message decrypted successfully on click');

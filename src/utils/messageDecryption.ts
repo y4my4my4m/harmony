@@ -31,44 +31,23 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   } catch (error) {
     console.warn('⚠️ Megolm encryption service not available:', error)
     lastDecryptionError = 'Encryption service not available'
-    return messages.map(msg => {
-      if (msg.encrypted) {
-        return {
-          ...msg,
-          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
-        }
-      }
-      return msg
-    })
+    // Preserve original content - UI shows glyphs based on encrypted && !decrypted
+    return messages
   }
   
   if (!encryptionService || !encryptionService.isInitialized()) {
     console.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
     lastDecryptionError = 'Encryption service not initialized'
-    return messages.map(msg => {
-      if (msg.encrypted) {
-        return {
-          ...msg,
-          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
-        }
-      }
-      return msg
-    })
+    // Preserve original content - UI shows glyphs based on encrypted && !decrypted
+    return messages
   }
   
   // Check if encryption is unlocked (user has entered recovery key)
   if (!encryptionService.isUnlocked()) {
     console.log('🔐 Encryption locked - enter recovery key to decrypt messages')
     lastDecryptionError = 'Enter recovery key to unlock encryption'
-    return messages.map(msg => {
-      if (msg.encrypted) {
-        return {
-          ...msg,
-          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
-        }
-      }
-      return msg
-    })
+    // Preserve original content - UI shows glyphs based on encrypted && !decrypted
+    return messages
   }
 
   // Get current user's profile ID from the encryption service (already resolved during init)
@@ -78,16 +57,8 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   if (!currentUserId) {
     console.log('ℹ️ No user ID in encryption service - encrypted messages will show as glyphs')
     lastDecryptionError = 'User ID not available in encryption service'
-    // Replace all encrypted messages with glyphs
-    return messages.map(msg => {
-      if (msg.encrypted) {
-        return {
-          ...msg,
-          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
-        }
-      }
-      return msg
-    })
+    // Preserve original content - UI shows glyphs based on encrypted && !decrypted
+    return messages
   }
 
   // Separate encrypted and non-encrypted messages
@@ -123,11 +94,12 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
           lastDecryptionError = `Decryption error`
         }
         
-        // Show placeholder
+        // PRESERVE original content - UI will show glyphs based on encrypted && !decrypted
+        // This allows retry without hitting the database
         return {
           ...message,
-          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }],
-          encrypted: true
+          encrypted: true,
+          decrypted: false
         }
       }
     })
@@ -138,16 +110,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   return messages.map(msg => decryptedMap.get(msg.id) || msg)
 }
 
-/**
- * Generate cool obfuscated placeholder text for encrypted messages
- */
-function generateObfuscatedPlaceholder(length: number): string {
-  const chars = '█▓▒░▄▀■□▪▫●○◘◙▬¤§¶ƒαßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■'
-  const displayLength = Math.min(Math.max(length / 4, 12), 64)
-  let result = ''
-  for (let i = 0; i < displayLength; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return result
-}
+// Note: Glyph generation moved to UnifiedMessageContent.vue
+// The UI now handles showing glyphs when encrypted && !decrypted
+// Original encrypted content is preserved for retry without DB reload
 

@@ -66,7 +66,7 @@
                 <span class="decrypt-spinner">🔓</span>
               </span>
               <span 
-                v-for="(char, charIdx) in part.text.split('')" 
+                v-for="(char, charIdx) in generateGlyphs(part.text || 'encrypted')" 
                 :key="`${partIndex}-${charIdx}`"
                 class="glyph-char"
                 :class="{ 'decrypting': decrypting }"
@@ -76,7 +76,7 @@
             <!-- Non-clickable version (user doesn't have encryption) -->
             <span v-else class="encrypted-no-decrypt">
               <span 
-                v-for="(char, charIdx) in part.text.split('')" 
+                v-for="(char, charIdx) in generateGlyphs(part.text || 'encrypted')" 
                 :key="`${partIndex}-${charIdx}`"
                 class="glyph-char"
                 :style="{ animationDelay: `${charIdx * 0.05}s` }"
@@ -760,6 +760,34 @@ export default defineComponent({
       emit('hashtag-click', hashtag);
     };
 
+    // Generate cool glyph characters for encrypted messages
+    // Uses message content hash for consistent but unique glyphs per message
+    const GLYPH_CHARS = '█▓▒░▄▀■□▪▫●○◘◙▬¤§¶ƒαßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■';
+    
+    // Simple hash function for seeding
+    const hashString = (str: string): number => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return Math.abs(hash);
+    };
+    
+    const generateGlyphs = (content: string): string[] => {
+      const displayLength = Math.min(Math.max(Math.floor(content.length / 4), 12), 64);
+      const seed = hashString(content + props.messageId);
+      const glyphs: string[] = [];
+      
+      for (let i = 0; i < displayLength; i++) {
+        // Pseudo-random based on seed and position
+        const charIndex = ((seed * (i + 1) * 31) % GLYPH_CHARS.length);
+        glyphs.push(GLYPH_CHARS[charIndex]);
+      }
+      return glyphs;
+    };
+
     const handleDecryptClick = (event: MouseEvent) => {
       event.stopPropagation();
       if (decrypting.value) return;
@@ -803,7 +831,8 @@ export default defineComponent({
       handleHashtagClick,
       resolveEmbedPayload,
       decrypting,
-      handleDecryptClick
+      handleDecryptClick,
+      generateGlyphs
     };
   }
 });
