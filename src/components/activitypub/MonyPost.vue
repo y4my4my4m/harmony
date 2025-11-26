@@ -195,7 +195,7 @@
       <!-- Only show in timeline view, not in thread view where parent is already visible -->
       <div v-if="showReplyContextCard" class="reply-context-container">
         <div class="reply-indicator-bar">
-          <Icon name="corner-up-left" class="reply-icon" :size="14" />
+          <Icon name="corner-down-right" class="reply-icon" :size="14" />
           <span class="reply-text">Replying to</span>
           <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
             @{{ displayReplyContext.author.username }}
@@ -289,7 +289,7 @@
         <button 
           class="action-button favorite-button"
           :class="{ active: displayInteractionCounts.is_favorited }"
-          @click="toggleFavorite(post.id)"
+          @click="toggleFavorite(originalPostId)"
           :title="displayInteractionCounts.is_favorited ? 'Unfavorite' : 'Favorite'"
         >
           <Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" />
@@ -299,7 +299,7 @@
         <button 
           ref="emojiTriggerRef"
           class="action-button add-reaction-button"
-          @click.stop="() => handleShowEmojiPicker(post)"
+          @click.stop="handleShowEmojiPickerForOriginal"
           title="Add reaction"
         >
           <Icon name="plus" />
@@ -308,7 +308,7 @@
         <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
-          @click="toggleBookmark(post.id)"
+          @click="toggleBookmark(originalPostId)"
           :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
         >
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
@@ -700,6 +700,44 @@ const loadReplyContext = async () => {
   }
 };
 
+// For reblogs, we need to fetch the user's interaction state with the ORIGINAL post
+const originalPostInteractions = ref<{
+  is_favorited: boolean;
+  is_reblogged: boolean;
+  is_bookmarked: boolean;
+} | null>(null);
+
+const loadOriginalPostInteractions = async () => {
+  if (!isReblog.value || !props.post.reblog?.id) return;
+  
+  try {
+    const { userDataService } = await import('@/services/userDataService');
+    const currentUser = userDataService.getCurrentUser();
+    if (!currentUser?.id) return;
+
+    const { data: interactions, error } = await supabase
+      .from('post_interactions')
+      .select('interaction_type')
+      .eq('post_id', props.post.reblog.id)
+      .eq('user_id', currentUser.id)
+      .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+
+    if (error) {
+      debug.error('Failed to load original post interactions:', error);
+      return;
+    }
+
+    const interactionTypes = new Set(interactions?.map(i => i.interaction_type) || []);
+    originalPostInteractions.value = {
+      is_favorited: interactionTypes.has('favorite'),
+      is_reblogged: interactionTypes.has('reblog'),
+      is_bookmarked: interactionTypes.has('bookmark')
+    };
+  } catch (err) {
+    debug.error('Failed to load original post interactions:', err);
+  }
+};
+
 // Load reply context on mount if needed
 onMounted(() => {
   // Check for reply context in post or reblog
@@ -713,23 +751,40 @@ onMounted(() => {
   if (inReplyTo && !hasReplyContext) {
     loadReplyContext();
   }
+
+  // For reblogs, fetch the user's interaction state with the original post
+  if (isReblog.value) {
+    loadOriginalPostInteractions();
+  }
+});
+
+// The ID of the original post - for reblogs, this is the reblogged post's ID
+// All interactions (favorite, reblog, bookmark) should target this ID
+const originalPostId = computed(() => {
+  if (isReblog.value && props.post.reblog?.id) {
+    return props.post.reblog.id;
+  }
+  return props.post.id;
 });
 
 const displayInteractionCounts = computed(() => {
   if (isReblog.value && props.post.reblog) {
+    // Use fetched interaction state if available, fallback to stored values
+    const interactions = originalPostInteractions.value;
     return {
-      favorites_count: props.post.reblog.favorites_count,
-      reblogs_count: props.post.reblog.reblogs_count,
-      replies_count: props.post.reblog.replies_count,
-      is_favorited: props.post.reblog.is_favorited || false,
-      is_reblogged: props.post.reblog.is_reblogged || false,
-      is_bookmarked: props.post.reblog.is_bookmarked || false
+      favorites_count: props.post.reblog.favorites_count || 0,
+      reblogs_count: props.post.reblog.reblogs_count || 0,
+      replies_count: props.post.reblog.replies_count || 0,
+      is_favorited: interactions?.is_favorited ?? props.post.reblog.is_favorited ?? false,
+      // Use fetched interaction state - don't default to true
+      is_reblogged: interactions?.is_reblogged ?? props.post.reblog.is_reblogged ?? false,
+      is_bookmarked: interactions?.is_bookmarked ?? props.post.reblog.is_bookmarked ?? false
     };
   }
   return {
-    favorites_count: props.post.favorites_count,
-    reblogs_count: props.post.reblogs_count,
-    replies_count: props.post.replies_count,
+    favorites_count: props.post.favorites_count || 0,
+    reblogs_count: props.post.reblogs_count || 0,
+    replies_count: props.post.replies_count || 0,
     is_favorited: props.post.is_favorited || false,
     is_reblogged: props.post.is_reblogged || false,
     is_bookmarked: props.post.is_bookmarked || false
@@ -1064,7 +1119,8 @@ const handleMenuToggle = () => {
 const handleReblogClick = () => {
   // If already reblogged, undo the reblog directly
   if (displayInteractionCounts.value.is_reblogged) {
-    toggleReblog(props.post.id);
+    // Always use the original post ID for reblog actions
+    toggleReblog(originalPostId.value);
     return;
   }
   // Otherwise show the menu with options
@@ -1073,16 +1129,28 @@ const handleReblogClick = () => {
 
 const handleSimpleReblog = async () => {
   showReblogMenu.value = false;
-  await toggleReblog(props.post.id);
+  // Always reblog the original post, not a reblog of a reblog
+  await toggleReblog(originalPostId.value);
 };
 
 const handleQuoteReblog = () => {
   showReblogMenu.value = false;
-  // Open composer with the post as a quote
+  // Open composer with the ORIGINAL post as a quote (not a reblog)
+  const originalPost = props.post.reblog || props.post;
+  const originalAuthor = props.post.reblog_author || props.post.author;
   activityPubStore.openComposer({
-    quotePost: props.post.reblog || props.post, // Use the original post if this is a reblog
-    quoteAuthor: props.post.reblog_author || props.post.author
+    quotePost: originalPost,
+    quoteAuthor: originalAuthor
   });
+};
+
+// Handle emoji picker for original post (for reblogs, target the original)
+const handleShowEmojiPickerForOriginal = () => {
+  // Create a post-like object with the original post ID for the emoji picker
+  const targetPost = isReblog.value && props.post.reblog 
+    ? { ...props.post.reblog, id: originalPostId.value }
+    : props.post;
+  handleShowEmojiPicker(targetPost);
 };
 
 

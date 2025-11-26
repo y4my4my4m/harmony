@@ -1111,6 +1111,7 @@ export class ActivityPubService {
 
   /**
    * Toggle reblog (share) status for a post - creates actual reblog posts with federation
+   * Always operates on the ORIGINAL post, not a reblog
    */
   async toggleReblog(postId: string): Promise<{ reblogged: boolean; reblogPost?: any }> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1119,12 +1120,22 @@ export class ActivityPubService {
     // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
+    // First, resolve to the original post ID (in case this is a reblog)
+    const { data: targetPost } = await supabase
+      .from('timeline_posts')
+      .select('id, reblog')
+      .eq('id', postId)
+      .single();
+
+    // Use the original post ID if this is a reblog
+    const actualPostId = targetPost?.reblog?.id || postId;
+
     // Check if we already have a reblog interaction for this post
     const { data: existingInteraction } = await supabase
       .from('post_interactions')
       .select('id')
       .eq('user_id', profileId)
-      .eq('post_id', postId)
+      .eq('post_id', actualPostId)
       .eq('interaction_type', 'reblog')
       .maybeSingle();
 
@@ -1140,7 +1151,7 @@ export class ActivityPubService {
         .from('posts')
         .select('id')
         .eq('author_id', profileId)
-        .eq('metadata->>reblog_of', postId)
+        .eq('metadata->>reblog_of', actualPostId)
         .maybeSingle();
 
       if (reblogPost) {
@@ -1151,19 +1162,19 @@ export class ActivityPubService {
 
       return { reblogged: false };
     } else {
-      // Add reblog interaction
+      // Add reblog interaction for the ORIGINAL post
       await supabase
         .from('post_interactions')
         .insert({
           user_id: profileId,
-          post_id: postId,
+          post_id: actualPostId,
           interaction_type: 'reblog',
           is_local: true,
           metadata: {}
         });
 
-      // Create reblog post
-      const reblogPost = await this.reblogPost(postId);
+      // Create reblog post (reblogPost already handles getting the original)
+      const reblogPost = await this.reblogPost(actualPostId);
 
       // Federation is handled automatically by database triggers
 
@@ -1173,6 +1184,7 @@ export class ActivityPubService {
 
   /**
    * Reblog (share) a post - creates an actual reblog post
+   * Always reblogs the ORIGINAL post, not a reblog of a reblog (like Twitter)
    */
   async reblogPost(postId: string): Promise<any> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1181,14 +1193,39 @@ export class ActivityPubService {
     // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Get the original post to reblog
-    const { data: originalPost, error: postError } = await supabase
+    // Get the post to reblog
+    const { data: targetPost, error: postError } = await supabase
       .from('timeline_posts')
       .select('*')
       .eq('id', postId)
       .single();
 
     if (postError) throw postError;
+
+    // If the target is itself a reblog, get the ORIGINAL post instead
+    // This prevents reblog chains (reblog of reblog of reblog...)
+    let originalPost = targetPost;
+    let actualOriginalId = postId;
+    
+    if (targetPost.reblog && targetPost.reblog.id) {
+      // This is a reblog - get the original post
+      actualOriginalId = targetPost.reblog.id;
+      const { data: rootPost, error: rootError } = await supabase
+        .from('timeline_posts')
+        .select('*')
+        .eq('id', actualOriginalId)
+        .single();
+      
+      if (!rootError && rootPost) {
+        originalPost = rootPost;
+      } else {
+        // Fallback: use the reblog data we already have
+        originalPost = {
+          ...targetPost.reblog,
+          author: targetPost.reblog_author || targetPost.reblog.author
+        };
+      }
+    }
 
     // Create reblog post
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
@@ -1201,16 +1238,16 @@ export class ActivityPubService {
       is_federated: true,
       ap_id: ap_id,
       conversation_id: originalPost.conversation_id,
-      conversation_root_id: originalPost.conversation_root_id || originalPost.id,
+      conversation_root_id: originalPost.conversation_root_id || actualOriginalId,
       reblog: {
-        id: originalPost.id,
+        id: actualOriginalId,
         content: originalPost.content,
         created_at: originalPost.created_at,
         author: originalPost.author,
         visibility: originalPost.visibility,
-        favorites_count: originalPost.favorites_count,
-        reblogs_count: originalPost.reblogs_count,
-        replies_count: originalPost.replies_count,
+        favorites_count: originalPost.favorites_count || 0,
+        reblogs_count: originalPost.reblogs_count || 0,
+        replies_count: originalPost.replies_count || 0,
         media_attachments: originalPost.media_attachments,
         reply_context: originalPost.reply_context,
         content_warning: originalPost.content_warning,
@@ -1220,8 +1257,8 @@ export class ActivityPubService {
       reblog_author: originalPost.author,
       ap_type: 'Announce',
       metadata: { 
-        reblog_of: postId,
-        original_author: originalPost.author.id 
+        reblog_of: actualOriginalId,
+        original_author: originalPost.author?.id 
       }
     };
 
@@ -1244,6 +1281,7 @@ export class ActivityPubService {
 
   /**
    * Create a quote reblog - reblog with user's own comment
+   * Always quotes the ORIGINAL post, not a reblog
    */
   async createQuoteReblog(
     postId: string, 
@@ -1258,14 +1296,36 @@ export class ActivityPubService {
     // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Get the original post to quote
-    const { data: originalPost, error: postError } = await supabase
+    // Get the post to quote
+    const { data: targetPost, error: postError } = await supabase
       .from('timeline_posts')
       .select('*')
       .eq('id', postId)
       .single();
 
     if (postError) throw postError;
+
+    // If the target is itself a reblog, get the ORIGINAL post instead
+    let originalPost = targetPost;
+    let actualOriginalId = postId;
+    
+    if (targetPost.reblog && targetPost.reblog.id) {
+      actualOriginalId = targetPost.reblog.id;
+      const { data: rootPost, error: rootError } = await supabase
+        .from('timeline_posts')
+        .select('*')
+        .eq('id', actualOriginalId)
+        .single();
+      
+      if (!rootError && rootPost) {
+        originalPost = rootPost;
+      } else {
+        originalPost = {
+          ...targetPost.reblog,
+          author: targetPost.reblog_author || targetPost.reblog.author
+        };
+      }
+    }
 
     // Parse user's content into MessagePart format
     const parsedContent = await this.formatPostContent(userContent);
@@ -1281,18 +1341,18 @@ export class ActivityPubService {
       is_federated: true,
       ap_id: ap_id,
       conversation_id: originalPost.conversation_id,
-      conversation_root_id: originalPost.conversation_root_id || originalPost.id,
+      conversation_root_id: originalPost.conversation_root_id || actualOriginalId,
       content_warning: contentWarning,
       is_sensitive: isSensitive,
       reblog: {
-        id: originalPost.id,
+        id: actualOriginalId,
         content: originalPost.content,
         created_at: originalPost.created_at,
         author: originalPost.author,
         visibility: originalPost.visibility,
-        favorites_count: originalPost.favorites_count,
-        reblogs_count: originalPost.reblogs_count,
-        replies_count: originalPost.replies_count,
+        favorites_count: originalPost.favorites_count || 0,
+        reblogs_count: originalPost.reblogs_count || 0,
+        replies_count: originalPost.replies_count || 0,
         media_attachments: originalPost.media_attachments,
         reply_context: originalPost.reply_context,
         content_warning: originalPost.content_warning,
@@ -1303,8 +1363,8 @@ export class ActivityPubService {
       reblog_author: originalPost.author,
       ap_type: 'Announce', // Still an Announce but with content
       metadata: { 
-        reblog_of: postId,
-        original_author: originalPost.author.id,
+        reblog_of: actualOriginalId,
+        original_author: originalPost.author?.id,
         is_quote: true
       }
     };
@@ -1319,18 +1379,18 @@ export class ActivityPubService {
       throw error;
     }
 
-    // Add reblog interaction
+    // Add reblog interaction for the ORIGINAL post
     await supabase
       .from('post_interactions')
       .insert({
         user_id: profileId,
-        post_id: postId,
+        post_id: actualOriginalId,
         interaction_type: 'reblog',
         is_local: true,
         metadata: { is_quote: true }
       });
 
-    debug.log(`📝 Created quote reblog post ${data.id} for original post ${postId}`);
+    debug.log(`📝 Created quote reblog post ${data.id} for original post ${actualOriginalId}`);
     return data;
   }
 

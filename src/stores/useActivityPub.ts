@@ -1782,7 +1782,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Get bookmarked posts
+     * Get bookmarked posts (excludes deleted posts)
      */
     async getBookmarks(options: { limit?: number; cursor?: string | null } = {}) {
       try {
@@ -1791,33 +1791,61 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         const limit = options.limit || 20;
         
+        // First, get bookmark interactions
         let query = supabase
           .from('post_interactions')
           .select(`
             created_at,
-            post:posts(
-              *,
-              author:profiles(*)
-            )
+            post_id
           `)
           .eq('user_id', user.data.user.id)
           .eq('interaction_type', 'bookmark')
           .order('created_at', { ascending: false })
-          .limit(limit);
+          .limit(limit * 2); // Fetch more to account for deleted posts
 
         if (options.cursor) {
           query = query.lt('created_at', options.cursor);
         }
 
-        const { data, error } = await query;
-        if (error) throw error;
+        const { data: bookmarkData, error: bookmarkError } = await query;
+        if (bookmarkError) throw bookmarkError;
 
-        const posts = data ? data.map(item => item.post).filter(Boolean) : [];
+        if (!bookmarkData || bookmarkData.length === 0) {
+          return { posts: [], cursor: null, hasMore: false };
+        }
+
+        const postIds = bookmarkData.map(item => item.post_id);
+
+        // Fetch posts, filtering out deleted ones
+        const { data: postsData, error: postsError } = await supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles(*)
+          `)
+          .in('id', postIds)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false });
+
+        if (postsError) throw postsError;
+
+        // Map posts to maintain bookmark order and limit
+        const postsMap = new Map((postsData || []).map(p => [p.id, p]));
+        const orderedPosts = bookmarkData
+          .map(item => postsMap.get(item.post_id))
+          .filter(Boolean)
+          .slice(0, limit);
+        
+        // Find the cursor from the last included bookmark
+        const lastIncludedIndex = bookmarkData.findIndex(
+          item => item.post_id === orderedPosts[orderedPosts.length - 1]?.id
+        );
+        const cursor = lastIncludedIndex >= 0 ? bookmarkData[lastIncludedIndex].created_at : null;
         
         return {
-          posts,
-          cursor: posts.length > 0 ? data[data.length - 1].created_at : null,
-          hasMore: posts.length === limit
+          posts: orderedPosts,
+          cursor,
+          hasMore: orderedPosts.length === limit && bookmarkData.length > lastIncludedIndex + 1
         };
       } catch (error) {
         debug.error('Failed to get bookmarks:', error);
@@ -1894,14 +1922,17 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleReblog(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) throw new Error('User not authenticated');
+
+        const profileId = currentUser.id;
 
         // Check if we already have a reblog interaction for this post
         const { data: existingInteraction, error: interactionError } = await supabase
           .from('post_interactions')
           .select('id')
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', profileId)
           .eq('post_id', postId)
           .eq('interaction_type', 'reblog')
           .maybeSingle();
@@ -1913,17 +1944,17 @@ export const useActivityPubStore = defineStore('activitypub', {
         const isReblogged = !!existingInteraction;
 
         if (existingInteraction) {
-          // Remove reblog interaction and reblog post using service method
+          // Remove reblog interaction and reblog post
           const { data: reblogPost } = await supabase
             .from('posts')
             .select('id')
-            .eq('author_id', user.data.user.id)
+            .eq('author_id', profileId)
             .eq('metadata->>reblog_of', postId)
             .maybeSingle();
 
           if (reblogPost) {
             await activityPubService.unreblogPost(reblogPost.id);
-            // Remove reblog from our feeds
+            // Remove ONLY the reblog post from our feeds, NOT the original
             this.removePostFromAllFeeds(reblogPost.id);
           }
 
@@ -1933,20 +1964,21 @@ export const useActivityPubStore = defineStore('activitypub', {
             .delete()
             .eq('id', existingInteraction.id);
 
+          // Update UI immediately - don't wait for realtime
+          this.updatePostInteractionState(postId, 'reblog', false);
+
           // Federation is handled automatically by database triggers
         } else {
           // Use service method for reblog (which creates both interaction and reblog post)
           const result = await activityPubService.toggleReblog(postId);
           
-          // Don't add to feeds immediately - let realtime handle it
-          // This prevents showing both the original post and reblog immediately
-          // The realtime system will properly add the reblog post to feeds
+          // Update UI immediately
+          this.updatePostInteractionState(postId, 'reblog', true);
 
           // Federation is handled automatically by database triggers
         }
 
-        // Don't update UI state here - let realtime handle it to avoid double updates
-        debug.log(`📍 Toggled reblog for post ${postId}: ${isReblogged} -> ${!isReblogged} (realtime will update UI)`);
+        debug.log(`📍 Toggled reblog for post ${postId}: ${isReblogged} -> ${!isReblogged}`);
 
       } catch (error) {
         debug.error('Failed to toggle reblog:', error);

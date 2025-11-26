@@ -234,37 +234,64 @@ class TrendingService {
       const { limit = 20, cursor } = options;
       const normalizedTag = hashtag.toLowerCase().replace(/^#/, '');
 
-      let query = supabase
-        .from('post_hashtags')
-        .select(`
-          post_id,
-          created_at,
-          post:posts!inner(
-            *,
-            author:profiles!inner(*)
-          ),
-          hashtag:hashtags!inner(normalized_tag)
-        `)
-        .eq('hashtag.normalized_tag', normalizedTag)
-        .eq('post.is_deleted', false)
-        .order('created_at', { ascending: false })
-        .limit(limit + 1); // +1 to check if there are more
+      // Step 1: Find the hashtag ID
+      const { data: hashtagData, error: hashtagError } = await supabase
+        .from('hashtags')
+        .select('id')
+        .eq('normalized_tag', normalizedTag)
+        .single();
 
-      if (cursor) {
-        query = query.lt('created_at', cursor);
+      if (hashtagError || !hashtagData) {
+        debug.log(`Hashtag not found: ${normalizedTag}`);
+        return { posts: [], hasMore: false, cursor: null };
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      // Step 2: Get post IDs with this hashtag
+      let postHashtagQuery = supabase
+        .from('post_hashtags')
+        .select('post_id, created_at')
+        .eq('hashtag_id', hashtagData.id)
+        .order('created_at', { ascending: false })
+        .limit(limit + 1);
 
-      const posts = (data || []).slice(0, limit).map((row: any) => 
-        this.transformDatabasePostToTimelinePost(row.post)
-      );
+      if (cursor) {
+        postHashtagQuery = postHashtagQuery.lt('created_at', cursor);
+      }
 
-      const hasMore = (data || []).length > limit;
-      const nextCursor = hasMore ? data![data!.length - 2].created_at : null;
+      const { data: postHashtags, error: phError } = await postHashtagQuery;
+      if (phError) throw phError;
 
-      return { posts, hasMore, cursor: nextCursor };
+      if (!postHashtags || postHashtags.length === 0) {
+        return { posts: [], hasMore: false, cursor: null };
+      }
+
+      const postIds = postHashtags.slice(0, limit).map(ph => ph.post_id);
+
+      // Step 3: Fetch posts with those IDs (excluding deleted)
+      const { data: postsData, error: postsError } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles(*)
+        `)
+        .in('id', postIds)
+        .eq('is_deleted', false);
+
+      if (postsError) throw postsError;
+
+      // Maintain the original order from post_hashtags
+      const postsMap = new Map((postsData || []).map(p => [p.id, p]));
+      const orderedPosts = postIds
+        .map(id => postsMap.get(id))
+        .filter(Boolean)
+        .map((post: any) => this.transformDatabasePostToTimelinePost(post));
+
+      const hasMore = postHashtags.length > limit;
+      const nextCursor = hasMore && postHashtags.length > 1 
+        ? postHashtags[postHashtags.length - 2].created_at 
+        : null;
+
+      return { posts: orderedPosts, hasMore, cursor: nextCursor };
     } catch (error) {
       debug.error('Failed to get posts by hashtag:', error);
       return { posts: [], hasMore: false, cursor: null };

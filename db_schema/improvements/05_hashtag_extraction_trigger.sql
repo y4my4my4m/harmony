@@ -7,6 +7,7 @@
 -- Hashtags are not being extracted from posts automatically.
 -- The process_post_hashtags function exists but is not being called.
 -- Also: upsert_hashtag function was missing.
+-- Also: extract_hashtags_from_content didn't handle 'hashtag' type parts.
 -- =============================================
 
 BEGIN;
@@ -21,8 +22,8 @@ DECLARE
   v_hashtag_id uuid;
   v_normalized_tag text;
 BEGIN
-  -- Normalize the tag (lowercase, trim)
-  v_normalized_tag := lower(trim(p_tag));
+  -- Normalize the tag (lowercase, trim, remove leading #)
+  v_normalized_tag := lower(trim(regexp_replace(p_tag, '^#', '')));
   
   -- Try to find existing hashtag
   SELECT id INTO v_hashtag_id
@@ -32,7 +33,7 @@ BEGIN
   -- If not found, insert new hashtag
   IF v_hashtag_id IS NULL THEN
     INSERT INTO public.hashtags (tag, normalized_tag, total_uses, first_used_at, last_used_at)
-    VALUES (p_tag, v_normalized_tag, 1, NOW(), NOW())
+    VALUES (v_normalized_tag, v_normalized_tag, 1, NOW(), NOW())
     ON CONFLICT (normalized_tag) DO UPDATE 
     SET 
       total_uses = hashtags.total_uses + 1,
@@ -55,14 +56,124 @@ COMMENT ON FUNCTION public.upsert_hashtag(text) IS
   'Insert or update a hashtag and return its ID. Updates usage counts on conflict.';
 
 -- =============================================
+-- STEP 0.5: Fix extract_hashtags_from_content to handle 'hashtag' type parts
+-- =============================================
+
+CREATE OR REPLACE FUNCTION public.extract_hashtags_from_content(p_content jsonb) 
+RETURNS text[]
+LANGUAGE plpgsql IMMUTABLE
+AS $$
+DECLARE
+  hashtags TEXT[] := ARRAY[]::TEXT[];
+  item JSONB;
+  text_content TEXT;
+  hashtag_text TEXT;
+  match_record RECORD;
+  result TEXT[];
+BEGIN
+  -- Return empty array if content is null or not an array
+  IF p_content IS NULL OR jsonb_typeof(p_content) != 'array' THEN
+    RETURN ARRAY[]::TEXT[];
+  END IF;
+
+  -- Extract from JSONB array format
+  FOR item IN SELECT * FROM jsonb_array_elements(p_content)
+  LOOP
+    -- Handle dedicated hashtag type parts
+    IF item->>'type' = 'hashtag' THEN
+      hashtag_text := item->>'hashtag';
+      IF hashtag_text IS NOT NULL AND hashtag_text != '' THEN
+        -- Remove leading # if present
+        hashtag_text := regexp_replace(hashtag_text, '^#', '');
+        hashtags := array_append(hashtags, hashtag_text);
+      END IF;
+    -- Also check for #hashtag patterns in text content
+    ELSIF item->>'type' = 'text' THEN
+      text_content := item->>'text';
+      IF text_content IS NOT NULL THEN
+        -- Use a loop to get all regex matches
+        FOR match_record IN SELECT (regexp_matches(text_content, '#([a-zA-Z0-9_]+)', 'g'))[1] as tag
+        LOOP
+          IF match_record.tag IS NOT NULL THEN
+            hashtags := array_append(hashtags, match_record.tag);
+          END IF;
+        END LOOP;
+      END IF;
+    END IF;
+  END LOOP;
+
+  -- Return unique hashtags (never NULL)
+  SELECT COALESCE(array_agg(DISTINCT t), ARRAY[]::TEXT[]) 
+  INTO result
+  FROM unnest(hashtags) t 
+  WHERE t IS NOT NULL;
+  
+  RETURN COALESCE(result, ARRAY[]::TEXT[]);
+END;
+$$;
+
+COMMENT ON FUNCTION public.extract_hashtags_from_content(jsonb) IS 
+  'Extract hashtags from JSONB content array. Handles both hashtag-type parts and #text patterns. Never returns NULL.';
+
+-- =============================================
+-- STEP 0.6: Recreate process_post_hashtags with NULL handling
+-- =============================================
+
+CREATE OR REPLACE FUNCTION public.process_post_hashtags(p_post_id uuid, p_content jsonb) 
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_hashtag_array TEXT[];
+    v_hashtag_text TEXT;
+    v_hashtag_id UUID;
+    v_position_counter INTEGER := 0;
+    v_processed_count INTEGER := 0;
+BEGIN
+    -- Extract hashtags from content (returns empty array, never NULL)
+    v_hashtag_array := public.extract_hashtags_from_content(p_content);
+    
+    -- Handle NULL case defensively
+    IF v_hashtag_array IS NULL THEN
+        v_hashtag_array := ARRAY[]::TEXT[];
+    END IF;
+    
+    -- Return early if no hashtags
+    IF array_length(v_hashtag_array, 1) IS NULL OR array_length(v_hashtag_array, 1) = 0 THEN
+        RETURN 0;
+    END IF;
+    
+    -- Process each hashtag
+    FOREACH v_hashtag_text IN ARRAY v_hashtag_array LOOP
+        v_position_counter := v_position_counter + 1;
+        
+        -- Upsert hashtag and get ID
+        v_hashtag_id := public.upsert_hashtag(v_hashtag_text);
+        
+        -- Link post to hashtag
+        INSERT INTO public.post_hashtags (post_id, hashtag_id, position_in_content)
+        VALUES (p_post_id, v_hashtag_id, v_position_counter)
+        ON CONFLICT (post_id, hashtag_id) DO NOTHING;
+        
+        v_processed_count := v_processed_count + 1;
+    END LOOP;
+    
+    RETURN v_processed_count;
+END;
+$$;
+
+COMMENT ON FUNCTION public.process_post_hashtags(uuid, jsonb) IS 
+  'Process a post content to extract and link hashtags. Returns count of hashtags processed.';
+
+-- =============================================
 -- STEP 1: Create trigger function to extract hashtags on post insert
 -- =============================================
 
 CREATE OR REPLACE FUNCTION public.trigger_extract_post_hashtags()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Only process if content is not null
-  IF NEW.content IS NOT NULL THEN
+  -- Only process if content is not null and is an array
+  IF NEW.content IS NOT NULL AND jsonb_typeof(NEW.content) = 'array' THEN
     PERFORM public.process_post_hashtags(NEW.id, NEW.content);
   END IF;
   
