@@ -53,9 +53,11 @@
         <template 
           v-if="part && typeof part === 'object' && part.type === 'text'"
         >
-          <!-- Encrypted glyphs (clickable to decrypt) -->
+          <!-- Encrypted glyphs -->
           <template v-if="encrypted && !decrypted">
+            <!-- Clickable version (user has encryption set up) -->
             <span 
+              v-if="canDecrypt"
               class="encrypted-click-target"
               @click="handleDecryptClick"
               :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
@@ -68,6 +70,15 @@
                 :key="`${partIndex}-${charIdx}`"
                 class="glyph-char"
                 :class="{ 'decrypting': decrypting }"
+                :style="{ animationDelay: `${charIdx * 0.05}s` }"
+              >{{ char }}</span>
+            </span>
+            <!-- Non-clickable version (user doesn't have encryption) -->
+            <span v-else class="encrypted-no-decrypt">
+              <span 
+                v-for="(char, charIdx) in part.text.split('')" 
+                :key="`${partIndex}-${charIdx}`"
+                class="glyph-char"
                 :style="{ animationDelay: `${charIdx * 0.05}s` }"
               >{{ char }}</span>
             </span>
@@ -341,6 +352,10 @@ export default defineComponent({
       default: false
     },
     decrypted: {
+      type: Boolean,
+      default: false
+    },
+    canDecrypt: {
       type: Boolean,
       default: false
     }
@@ -1284,5 +1299,12 @@ export default defineComponent({
 .glyph-char.decrypting {
   opacity: 0.3;
   animation: none;
+}
+
+/* Non-clickable encrypted message (no encryption setup) */
+.encrypted-no-decrypt {
+  display: inline;
+  cursor: default;
+  user-select: none;
 }
 </style>

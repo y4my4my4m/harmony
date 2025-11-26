@@ -155,6 +155,7 @@
               :embed-payloads="message.metadata?.embeds"
               :encrypted="message.encrypted || false"
               :decrypted="message.decrypted || false"
+              :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -186,6 +187,7 @@
               :embed-payloads="message.metadata?.embeds"
               :encrypted="message.encrypted || false"
               :decrypted="message.decrypted || false"
+              :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -352,6 +354,19 @@ const {
 // Bot data cache
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
+
+// Encryption capability check (cached - only updates when service state changes)
+const canDecryptMessages = ref(false);
+
+// Check encryption status once on mount
+onMounted(async () => {
+  try {
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
+    canDecryptMessages.value = megolmMessageEncryptionService.isUnlocked();
+  } catch {
+    canDecryptMessages.value = false;
+  }
+});
 
 // Fetch bot data from database
 const fetchBotData = async (botId: string) => {

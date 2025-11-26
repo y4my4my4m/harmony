@@ -263,7 +263,7 @@
     "newMessage": "Nuevo mensaje",
     "startConversation": "Iniciar una conversación",
     "searchUsers": "Buscar usuarios...",
-    "searchUsersPlaceholder": "Buscar usuarios o @usuario@dominio.com",
+    "searchUsersPlaceholder": "Buscar usuarios o {'@'}usuario{'@'}dominio.com",
     "noConversations": "Aún no hay conversaciones",
     "startOne": "Comienza a chatear con amigos",
     "startBySearching": "Comienza una conversación buscando un usuario arriba",
@@ -484,7 +484,7 @@
     "noUsersFound": "No se encontraron usuarios",
     "tryDifferentSearch": "Intenta buscar con un nombre de usuario o nombre para mostrar diferente.",
     "searchTips": "Consejos de búsqueda:",
-    "searchTipsExactMatch": "Usa @usuario@dominio para coincidencias exactas",
+    "searchTipsExactMatch": "Usa {'@'}usuario{'@'}dominio para coincidencias exactas",
     "searchTipsPartial": "Busca por nombre para mostrar o nombre de usuario parcial",
     "searchTipsDomain": "Incluye el dominio para usuarios federados"
   },
