@@ -29,6 +29,16 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
     cc: getCcAddresses(post.visibility, authorUrl),
   };
 
+  // Add content warning (ActivityPub uses 'summary' for CW)
+  if (post.content_warning) {
+    note.summary = post.content_warning;
+  }
+
+  // Add sensitive flag
+  if (post.is_sensitive) {
+    note.sensitive = true;
+  }
+
   // Add attachments if present
   const attachments = extractAttachments(post.content);
   if (attachments.length > 0) {

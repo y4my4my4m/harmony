@@ -242,6 +242,10 @@ export class ActivityProcessor {
           conversation_root_id: conversationRootId,
           created_at: object.published || new Date().toISOString(),
           metadata,
+          // Content warning (ActivityPub uses 'summary' for CW)
+          content_warning: object.summary || null,
+          // Sensitive flag
+          is_sensitive: object.sensitive === true,
         };
 
         // Add reblog data for quote posts (for display purposes)
@@ -469,6 +473,10 @@ export class ActivityProcessor {
           is_local: false,
           in_reply_to: remoteObject.inReplyTo || null,
           created_at: remoteObject.published || new Date().toISOString(),
+          // Content warning (ActivityPub uses 'summary' for CW)
+          content_warning: remoteObject.summary || null,
+          // Sensitive flag
+          is_sensitive: remoteObject.sensitive === true,
         })
         .select('id, in_reply_to, conversation_root_id')
         .single();
