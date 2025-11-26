@@ -1119,19 +1119,31 @@ export class ActivityProcessor {
 
   /**
    * Ensure remote user exists in database (fetch if needed)
+   * @param actorUrl - The ActivityPub actor URL
+   * @param forceRefresh - If true, refresh profile even if user exists (for stale data)
    */
-  private static async ensureRemoteUser(actorUrl: string): Promise<void> {
+  private static async ensureRemoteUser(actorUrl: string, forceRefresh: boolean = false): Promise<void> {
     const supabase = getSupabaseClient();
 
     // Check if user already exists
     const { data: existing } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, updated_at')
       .eq('federated_id', actorUrl)
       .single();
 
-    if (existing) {
-      return; // User already exists
+    if (existing && !forceRefresh) {
+      // Check if profile is stale (older than 24 hours)
+      const updatedAt = new Date(existing.updated_at);
+      const hoursSinceUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60);
+      
+      if (hoursSinceUpdate < 24) {
+        return; // User exists and is fresh enough
+      }
+      // Profile is stale, refresh it
+      logger.info(`Profile for ${actorUrl} is stale (${Math.round(hoursSinceUpdate)}h old), refreshing...`);
+    } else if (existing && forceRefresh) {
+      logger.info(`Force refreshing profile for ${actorUrl}`);
     }
 
     // Fetch actor from remote server
@@ -1150,10 +1162,30 @@ export class ActivityProcessor {
       const actor = await response.json();
       const profileData = actorToProfile(actor);
 
-      // Insert remote user
-      await supabase.from('profiles').insert(profileData);
+      // Upsert remote user - map field names to database columns
+      // This handles both initial creation and refreshing stale profiles
+      const profileRecord = {
+        username: profileData.username,
+        domain: profileData.domain,
+        display_name: profileData.display_name,
+        bio: profileData.bio,
+        avatar_url: profileData.avatar,   // Map avatar -> avatar_url
+        banner_url: profileData.banner,   // Map banner -> banner_url
+        public_key: profileData.public_key,
+        federated_id: profileData.federated_id,
+        inbox_url: profileData.inbox_url,
+        outbox_url: profileData.outbox_url,
+        followers_url: profileData.followers_url,
+        following_url: profileData.following_url,
+        is_local: false,
+      };
 
-      logger.info(`Created remote user: ${actorUrl}`);
+      await supabase.from('profiles').upsert(profileRecord, {
+        onConflict: 'federated_id',
+      });
+
+      const action = existing ? 'Refreshed' : 'Created';
+      logger.info(`${action} remote user: ${actorUrl}${profileData.banner ? ' (with banner)' : ''}`);
     } catch (error) {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
     }
