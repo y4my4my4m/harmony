@@ -161,6 +161,7 @@
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
+              @decrypt-message="handleDecryptMessage(message)"
             />
             <!-- Edited indicator for messages with headers -->
             <span 
@@ -191,6 +192,7 @@
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
+              @decrypt-message="handleDecryptMessage(message)"
             />
             <!-- Edited indicator for compact messages -->
             <span 
@@ -1099,6 +1101,62 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 // Lightbox and Media
 const handleImageLoaded = (url: string) => {
   imageLoaded.value[url] = true;
+};
+
+// Handle click-to-decrypt for encrypted messages
+const handleDecryptMessage = async (message: Message) => {
+  console.log('🔓 Attempting to decrypt message on click:', message.id);
+  
+  try {
+    // Dynamically import the encryption service
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
+    
+    if (!megolmMessageEncryptionService.isUnlocked()) {
+      console.log('🔒 Encryption not unlocked - cannot decrypt');
+      return;
+    }
+    
+    // First, try to claim any pending session shares
+    await megolmMessageEncryptionService.claimPendingSessionShares();
+    
+    // Now try to decrypt
+    const encryptionMetadata = message.encryption_metadata;
+    if (!encryptionMetadata) {
+      console.log('❌ No encryption metadata on message');
+      return;
+    }
+    
+    const decryptedContent = await megolmMessageEncryptionService.decryptMessage(
+      encryptionMetadata,
+      props.channelId || props.conversationId || '',
+      message.user_id
+    );
+    
+    if (decryptedContent) {
+      // Update the message in the store with decrypted content
+      const parsedContent = parseContentToMessageParts(decryptedContent);
+      const resolvedContent = await resolveMentionsUserData(parsedContent);
+      
+      // Create updated message object
+      const updatedMessage: Message = {
+        ...message,
+        content: resolvedContent,
+        decrypted: true
+      };
+      
+      // Update the message in the appropriate store
+      if (props.channelId) {
+        chatStore.updateMessageInCache(message.id, updatedMessage);
+      } else if (props.conversationId) {
+        dmStore.updateMessageInCache(message.id, updatedMessage);
+      }
+      
+      console.log('✅ Message decrypted successfully on click');
+    }
+  } catch (error) {
+    console.log('❌ Could not decrypt message:', error);
+    // Silently fail - the message will remain encrypted
+  }
 };
 
 const handleOpenLightbox = (url: string) => {

@@ -47,20 +47,30 @@
     </div>
     
     <!-- Display mode -->
-    <div v-else class="content-display" :class="{ 'system-message-content': isSystem, 'encrypted-glyphs': encrypted }">
+    <div v-else class="content-display" :class="{ 'system-message-content': isSystem, 'encrypted-glyphs': encrypted && !decrypted }">
       <template v-for="(part, partIndex) in content" :key="partIndex">
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
           v-if="part && typeof part === 'object' && part.type === 'text'"
         >
-          <!-- Encrypted glyphs -->
-          <template v-if="encrypted">
+          <!-- Encrypted glyphs (clickable to decrypt) -->
+          <template v-if="encrypted && !decrypted">
             <span 
-              v-for="(char, charIdx) in part.text.split('')" 
-              :key="`${partIndex}-${charIdx}`"
-              class="glyph-char"
-              :style="{ animationDelay: `${charIdx * 0.05}s` }"
-            >{{ char }}</span>
+              class="encrypted-click-target"
+              @click="handleDecryptClick"
+              :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
+            >
+              <span v-if="decrypting" class="decrypt-loading">
+                <span class="decrypt-spinner">🔓</span>
+              </span>
+              <span 
+                v-for="(char, charIdx) in part.text.split('')" 
+                :key="`${partIndex}-${charIdx}`"
+                class="glyph-char"
+                :class="{ 'decrypting': decrypting }"
+                :style="{ animationDelay: `${charIdx * 0.05}s` }"
+              >{{ char }}</span>
+            </span>
           </template>
           <!-- Normal text -->
           <template v-else v-for="(segment, segmentIndex) in renderTextSegments(part.text)" :key="`${partIndex}-${segmentIndex}`">
@@ -335,11 +345,12 @@ export default defineComponent({
       default: false
     }
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
+    const decrypting = ref(false);
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
@@ -734,6 +745,22 @@ export default defineComponent({
       emit('hashtag-click', hashtag);
     };
 
+    const handleDecryptClick = (event: MouseEvent) => {
+      event.stopPropagation();
+      if (decrypting.value) return;
+      
+      console.log('🔓 Click to decrypt message:', props.messageId);
+      decrypting.value = true;
+      
+      // Emit event to parent to handle decryption
+      emit('decrypt-message', props.messageId);
+      
+      // Reset decrypting state after a timeout (in case decryption fails silently)
+      setTimeout(() => {
+        decrypting.value = false;
+      }, 5000);
+    };
+
     return {
       getEmojiUrl,
       localEditableContent,
@@ -759,7 +786,9 @@ export default defineComponent({
       renderTextSegments,
       getFileName,
       handleHashtagClick,
-      resolveEmbedPayload
+      resolveEmbedPayload,
+      decrypting,
+      handleDecryptClick
     };
   }
 });
@@ -1206,5 +1235,54 @@ export default defineComponent({
   color: #dcddde;
   margin-bottom: 6px;
   font-weight: 500;
+}
+
+/* Clickable encrypted message target */
+.encrypted-click-target {
+  cursor: pointer;
+  display: inline;
+  position: relative;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background-color 0.2s ease;
+}
+
+.encrypted-click-target:hover {
+  background-color: rgba(88, 101, 242, 0.15);
+}
+
+.encrypted-click-target:hover .glyph-char {
+  animation-play-state: paused;
+  opacity: 0.9;
+}
+
+.encrypted-click-target:active {
+  background-color: rgba(88, 101, 242, 0.25);
+}
+
+/* Decrypting state */
+.decrypt-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+.decrypt-spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+  font-size: 1.5rem;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.glyph-char.decrypting {
+  opacity: 0.3;
+  animation: none;
 }
 </style>

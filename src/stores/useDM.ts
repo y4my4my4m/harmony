@@ -2214,6 +2214,9 @@ export const useDMStore = defineStore('dm', () => {
     extractMentionsFromMessageParts,
     generateActivityPubMentionTags,
     debugConversationQueries,
-    checkMigrationStatus
+    checkMigrationStatus,
+    
+    // Encryption support
+    updateMessageInCache
   }
 })

@@ -567,8 +567,10 @@ export class MegolmMessageEncryptionService {
           continue
         }
 
+        console.log(`🔐 Query result for ${userId.substring(0, 8)}...:`, recipientKey ? 'found row' : 'no row', recipientKey?.identity_public_key ? 'has key' : 'no key')
+
         if (!recipientKey?.identity_public_key) {
-          console.warn(`⚠️ No public key for user ${userId.substring(0, 8)}... (they haven't set up encryption)`)
+          console.log(`⚠️ No public key for user ${userId.substring(0, 8)}... (they haven't set up encryption)`)
           usersWithoutKeys++
           continue
         }
