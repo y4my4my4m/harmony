@@ -190,7 +190,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-primary, #111827);
+  background-color: var(--background-primary, #111827);
   color: var(--text-primary, #f3f4f6);
   overflow: hidden;
 }
@@ -201,7 +201,7 @@ onMounted(() => {
   gap: 1rem;
   padding: 1rem;
   border-bottom: 1px solid var(--border-color, #374151);
-  background-color: var(--bg-secondary, #1f2937);
+  background-color: var(--background-secondary, #1f2937);
   flex-shrink: 0;
 }
 
@@ -220,7 +220,7 @@ onMounted(() => {
 }
 
 .back-button:hover {
-  background-color: var(--bg-hover, #374151);
+  background-color: var(--background-hover, #374151);
 }
 
 .hashtag-info {
@@ -232,7 +232,7 @@ onMounted(() => {
 .hashtag-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #60a5fa;
+  color: var(--harmony-accent);
   margin: 0;
 }
 
@@ -294,7 +294,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background-color: var(--bg-tertiary, #374151);
+  background-color: var(--background-tertiary, #374151);
   color: var(--text-primary, #f3f4f6);
   border-radius: 0.5rem;
   border: none;
@@ -303,7 +303,7 @@ onMounted(() => {
 }
 
 .load-more-btn:hover {
-  background-color: var(--bg-hover, #4b5563);
+  background-color: var(--background-hover, #4b5563);
 }
 
 .load-more-btn:disabled {

@@ -1007,6 +1007,9 @@ export interface PostComposerState {
     expiresIn: number; // seconds
   };
   scheduledAt?: string;
+  // Quote post support
+  quotePost?: TimelinePost;
+  quoteAuthor?: FederatedUser;
 }
 
 // Feed structure for timeline management

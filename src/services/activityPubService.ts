@@ -1227,6 +1227,98 @@ export class ActivityPubService {
   }
 
   /**
+   * Create a quote reblog - reblog with user's own comment
+   */
+  async createQuoteReblog(
+    postId: string, 
+    userContent: string,
+    visibility: 'public' | 'unlisted' | 'followers' | 'direct' = 'public',
+    contentWarning?: string,
+    isSensitive: boolean = false
+  ): Promise<any> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
+    // Get the original post to quote
+    const { data: originalPost, error: postError } = await supabase
+      .from('timeline_posts')
+      .select('*')
+      .eq('id', postId)
+      .single();
+
+    if (postError) throw postError;
+
+    // Parse user's content into MessagePart format
+    const parsedContent = await this.formatPostContent(userContent);
+
+    // Create quote reblog post
+    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
+    
+    const quotePost = {
+      author_id: profileId,
+      content: parsedContent, // User's comment, not the original content
+      visibility: visibility,
+      is_local: true,
+      is_federated: true,
+      ap_id: ap_id,
+      conversation_id: originalPost.conversation_id,
+      conversation_root_id: originalPost.conversation_root_id || originalPost.id,
+      content_warning: contentWarning,
+      is_sensitive: isSensitive,
+      reblog: {
+        id: originalPost.id,
+        content: originalPost.content,
+        created_at: originalPost.created_at,
+        author: originalPost.author,
+        visibility: originalPost.visibility,
+        favorites_count: originalPost.favorites_count,
+        reblogs_count: originalPost.reblogs_count,
+        replies_count: originalPost.replies_count,
+        media_attachments: originalPost.media_attachments,
+        reply_context: originalPost.reply_context,
+        content_warning: originalPost.content_warning,
+        is_sensitive: originalPost.is_sensitive,
+        url: originalPost.url,
+        in_reply_to: originalPost.in_reply_to
+      },
+      reblog_author: originalPost.author,
+      ap_type: 'Announce', // Still an Announce but with content
+      metadata: { 
+        reblog_of: postId,
+        original_author: originalPost.author.id,
+        is_quote: true
+      }
+    };
+
+    const { data, error } = await supabase
+      .from('posts')
+      .insert(quotePost)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    // Add reblog interaction
+    await supabase
+      .from('post_interactions')
+      .insert({
+        user_id: profileId,
+        post_id: postId,
+        interaction_type: 'reblog',
+        is_local: true,
+        metadata: { is_quote: true }
+      });
+
+    debug.log(`📝 Created quote reblog post ${data.id} for original post ${postId}`);
+    return data;
+  }
+
+  /**
    * Un-reblog a post - removes the reblog post
    */
   async unreblogPost(reblogPostId: string): Promise<void> {

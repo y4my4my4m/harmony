@@ -255,15 +255,36 @@
           <span v-if="displayInteractionCounts.replies_count > 0">{{ formatCount(displayInteractionCounts.replies_count) }}</span>
         </button>
 
-        <button 
-          class="action-button reblog-button"
-          :class="{ active: displayInteractionCounts.is_reblogged }"
-          @click="toggleReblog(post.id)"
-          :title="displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog'"
-        >
-          <Icon name="reblog" />
-          <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
-        </button>
+        <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
+          <button 
+            class="action-button reblog-button"
+            :class="{ active: displayInteractionCounts.is_reblogged }"
+            @click="handleReblogClick"
+            :title="displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog options'"
+          >
+            <Icon name="reblog" />
+            <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
+          </button>
+          
+          <!-- Reblog dropdown menu -->
+          <div v-if="showReblogMenu" class="reblog-dropdown">
+            <button 
+              class="reblog-option"
+              @click="handleSimpleReblog"
+              :disabled="displayInteractionCounts.is_reblogged"
+            >
+              <Icon name="reblog" :size="16" />
+              <span>Reblog</span>
+            </button>
+            <button 
+              class="reblog-option"
+              @click="handleQuoteReblog"
+            >
+              <Icon name="edit" :size="16" />
+              <span>Quote</span>
+            </button>
+          </div>
+        </div>
 
         <button 
           class="action-button favorite-button"
@@ -461,6 +482,7 @@ const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
+const showReblogMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
@@ -591,7 +613,11 @@ const loadedReplyContext = ref<any>(null);
 const isLoadingReplyContext = ref(false);
 
 const displayReplyContext = computed(() => {
-  // First check if we have reply_context in the post
+  // For reblogs, check the reblogged post's reply context
+  if (isReblog.value && props.post.reblog?.reply_context) {
+    return props.post.reblog.reply_context;
+  }
+  // First check if we have reply_context in the post itself
   if (props.post.reply_context) {
     return props.post.reply_context;
   }
@@ -609,8 +635,15 @@ const showReplyContextCard = computed(() => {
 
 // Load reply context if we have in_reply_to but no reply_context
 const loadReplyContext = async () => {
-  const inReplyTo = props.post.in_reply_to;
-  if (!inReplyTo || props.post.reply_context || isLoadingReplyContext.value) {
+  // For reblogs, use the reblogged post's in_reply_to
+  const inReplyTo = isReblog.value 
+    ? props.post.reblog?.in_reply_to 
+    : props.post.in_reply_to;
+  const hasReplyContext = isReblog.value 
+    ? props.post.reblog?.reply_context 
+    : props.post.reply_context;
+    
+  if (!inReplyTo || hasReplyContext || isLoadingReplyContext.value) {
     return;
   }
   
@@ -658,7 +691,15 @@ const loadReplyContext = async () => {
 
 // Load reply context on mount if needed
 onMounted(() => {
-  if (props.post.in_reply_to && !props.post.reply_context) {
+  // Check for reply context in post or reblog
+  const inReplyTo = isReblog.value 
+    ? props.post.reblog?.in_reply_to 
+    : props.post.in_reply_to;
+  const hasReplyContext = isReblog.value 
+    ? props.post.reblog?.reply_context 
+    : props.post.reply_context;
+    
+  if (inReplyTo && !hasReplyContext) {
     loadReplyContext();
   }
 });
@@ -976,8 +1017,30 @@ const handleMenuToggle = () => {
   debug.log('🔘 Menu state after toggle:', showMenu.value);
 };
 
+// Reblog menu handlers
+const handleReblogClick = () => {
+  // If already reblogged, undo the reblog directly
+  if (displayInteractionCounts.value.is_reblogged) {
+    toggleReblog(props.post.id);
+    return;
+  }
+  // Otherwise show the menu with options
+  showReblogMenu.value = !showReblogMenu.value;
+};
 
+const handleSimpleReblog = async () => {
+  showReblogMenu.value = false;
+  await toggleReblog(props.post.id);
+};
 
+const handleQuoteReblog = () => {
+  showReblogMenu.value = false;
+  // Open composer with the post as a quote
+  activityPubStore.openComposer({
+    quotePost: props.post.reblog || props.post, // Use the original post if this is a reblog
+    quoteAuthor: props.post.reblog_author || props.post.author
+  });
+};
 
 
 const handleMentionClick = (handle: string) => {
@@ -1399,6 +1462,51 @@ const closeLightbox = () => {
 
 .reblog-button.active {
   color: #10b981;
+}
+
+/* Reblog dropdown menu */
+.reblog-menu-container {
+  position: relative;
+}
+
+.reblog-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.25rem;
+  min-width: 140px;
+  z-index: 100;
+  margin-bottom: 0.5rem;
+}
+
+.reblog-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reblog-option:hover:not(:disabled) {
+  background: var(--background-hover);
+  color: #10b981;
+}
+
+.reblog-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .favorite-button:hover {

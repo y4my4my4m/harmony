@@ -1400,7 +1400,9 @@ export const useActivityPubStore = defineStore('activitypub', {
          sensitive: false,
          language: 'en',
          replyTo: undefined,
-         mediaAttachments: []
+         mediaAttachments: [],
+         quotePost: undefined,
+         quoteAuthor: undefined
        };
      },
 

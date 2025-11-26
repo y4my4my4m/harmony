@@ -123,9 +123,11 @@
     <Composer
       v-if="activityPubStore.isComposerOpen"
       mode="modal"
-      :type="composerReplyPost ? 'reply' : 'post'"
+      :type="composerType"
       :is-open="activityPubStore.isComposerOpen"
       :reply-to-post="composerReplyPost"
+      :quote-post="activityPubStore.composerState.quotePost"
+      :quote-author="activityPubStore.composerState.quoteAuthor"
       @close="handleCloseComposer"
       @posted="handlePosted"
     />
@@ -294,6 +296,13 @@ const specialViewData = computed(() => props.specialViewData)
 const showSearchModal = ref(false)
 const selectedUser = ref<FederatedUser | null>(null)
 const composerReplyPost = ref<TimelinePost | null>(null)
+
+// Computed composer type - reply, quote, or post
+const composerType = computed(() => {
+  if (composerReplyPost.value) return 'reply'
+  if (activityPubStore.composerState.quotePost) return 'quote'
+  return 'post'
+})
 const trendingTopics = ref([
   { tag: 'harmony', count: 1234 },
   { tag: 'social', count: 567 },

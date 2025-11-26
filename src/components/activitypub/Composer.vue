@@ -36,6 +36,31 @@
           </div>
         </div>
 
+        <!-- Quote Post Preview (for quote posts) -->
+        <div v-if="type === 'quote' && quotePost" class="quote-preview-section">
+          <div class="quote-preview-header">
+            <Icon name="edit" :size="16" />
+            <span>Quoting</span>
+          </div>
+          <div class="quote-preview">
+            <Avatar 
+              :src="quoteAuthor?.avatar_url || quotePost.author?.avatar_url"
+              :alt="quoteAuthor?.display_name || quotePost.author?.display_name"
+              size="sm"
+              :interactive="true"
+            />
+            <div class="quote-content">
+              <div class="quote-author">
+                <span class="author-name">{{ quoteAuthor?.display_name || quotePost.author?.display_name }}</span>
+                <span class="author-handle">@{{ quoteAuthor?.username || quotePost.author?.username }}</span>
+              </div>
+              <div class="quote-text">
+                <MonyContent :content="quotePost.content" :truncate="3" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Main Composer Body -->
         <div class="composer-body">
           <div class="composer-user">
@@ -299,7 +324,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useProfileStore } from '@/stores/useProfile';
-import type { TimelinePost, Post } from '@/types';
+import type { TimelinePost, Post, FederatedUser } from '@/types';
 
 // Composables
 import { useComposerActions } from '@/composables/useComposerActions';
@@ -324,8 +349,10 @@ const { t } = useI18n();
 // Props
 interface Props {
   mode: 'modal' | 'inline';
-  type: 'post' | 'reply';
+  type: 'post' | 'reply' | 'quote';
   replyToPost?: TimelinePost;
+  quotePost?: TimelinePost;
+  quoteAuthor?: FederatedUser;
   isOpen?: boolean;
   defaultVisibility?: Post['visibility'];
 }
@@ -422,6 +449,9 @@ const placeholder = computed(() => {
   if (props.type === 'reply') {
     return t('activitypub.whatsYourReply');
   }
+  if (props.type === 'quote') {
+    return 'Add a comment...';
+  }
   return t('activitypub.whatsHappeningInMonyverse');
 });
 
@@ -429,14 +459,21 @@ const headerTitle = computed(() => {
   if (props.type === 'reply') {
     return t('activitypub.replyToMony');
   }
+  if (props.type === 'quote') {
+    return 'Quote Post';
+  }
   return t('activitypub.createAMony');
 });
 
 const submitButtonText = computed(() => {
   if (isPosting.value) {
-    return props.type === 'reply' ? t('activitypub.replying') : t('activitypub.posting');
+    if (props.type === 'reply') return t('activitypub.replying');
+    if (props.type === 'quote') return 'Quoting...';
+    return t('activitypub.posting');
   }
-  return props.type === 'reply' ? t('activitypub.reply') : t('activitypub.mony');
+  if (props.type === 'reply') return t('activitypub.reply');
+  if (props.type === 'quote') return 'Quote';
+  return t('activitypub.mony');
 });
 
 const wrapperComponent = computed(() => {
@@ -665,12 +702,27 @@ const handleSubmit = async () => {
   isPosting.value = true;
   
   try {
-    const post = await actions.submitPost(
-      visibility.value,
-      contentWarning.value,
-      isSensitive.value,
-      props.type === 'reply' ? props.replyToPost?.id : undefined
-    );
+    let post;
+    
+    if (props.type === 'quote' && props.quotePost) {
+      // Create a quote reblog using the activityPubService
+      const { activityPubService } = await import('@/services/activityPubService');
+      post = await activityPubService.createQuoteReblog(
+        props.quotePost.id,
+        content.value, // User's comment
+        visibility.value,
+        contentWarning.value,
+        isSensitive.value
+      );
+    } else {
+      // Regular post or reply
+      post = await actions.submitPost(
+        visibility.value,
+        contentWarning.value,
+        isSensitive.value,
+        props.type === 'reply' ? props.replyToPost?.id : undefined
+      );
+    }
 
     // Reset state
     resetComposer();
@@ -886,6 +938,53 @@ const vClickOutside = {
   color: #d1d5db;
   font-size: 0.875rem;
   line-height: 1.5;
+}
+
+/* Quote Preview */
+.quote-preview-section {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.quote-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #10b981;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.quote-preview {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--background-tertiary, #1f1f1f);
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+}
+
+.quote-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.quote-author {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.quote-text {
+  color: #d1d5db;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* Composer Body */
