@@ -1,8 +1,7 @@
 /**
  * Encryption Services
  * 
- * IMPORTANT: These services use @signalapp/libsignal-client which is a Node.js native module.
- * For browser compatibility, these should be imported LAZILY when needed, not at module load time.
+ * IMPORTANT: These services should be imported LAZILY when needed, not at module load time.
  * 
  * DO NOT import these directly in components that load immediately.
  * Use dynamic imports instead:
@@ -12,15 +11,62 @@
  * 
  * ✅ GOOD:
  * const { messageEncryptionService } = await import('@/services/encryption')
+ * 
+ * NEW: Megolm-style encryption (recommended for new code)
+ * const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
  */
 
-// Lazy exports - these will only load when actually called
+// =====================================================
+// NEW: MEGOLM-STYLE ENCRYPTION SERVICES (Matrix-inspired)
+// Recommended for new implementations - supports recovery keys and server backups
+// =====================================================
+
+// Lazy exports for Megolm services
+export const getMegolmService = () => import('./MegolmService').then(m => m.megolmService)
+export const getRecoveryKeyService = () => import('./RecoveryKeyService').then(m => m.recoveryKeyService)
+export const getMegolmKeyBackupService = () => import('./MegolmKeyBackupService').then(m => m.megolmKeyBackupService)
+export const getMegolmMessageEncryptionService = () => import('./MegolmMessageEncryptionService').then(m => m.megolmMessageEncryptionService)
+
+// Type exports for Megolm
+export type {
+  MegolmOutboundSession,
+  MegolmInboundSession,
+  MegolmEncryptedMessage
+} from './MegolmService'
+
+export type {
+  RecoveryKeyData,
+  DerivedKeys
+} from './RecoveryKeyService'
+
+export type {
+  MegolmBackupData,
+  BackupMetadata
+} from './MegolmKeyBackupService'
+
+export type {
+  MegolmEncryptionStatus,
+  MegolmEncryptedMessageData
+} from './MegolmMessageEncryptionService'
+
+// Direct exports for Megolm services (use lazy loading in production)
+export { megolmService } from './MegolmService'
+export { recoveryKeyService } from './RecoveryKeyService'
+export { megolmKeyBackupService } from './MegolmKeyBackupService'
+export { megolmMessageEncryptionService } from './MegolmMessageEncryptionService'
+
+// =====================================================
+// LEGACY: SIGNAL PROTOCOL SERVICES
+// Kept for backward compatibility with existing encrypted messages
+// =====================================================
+
+// Lazy exports for Signal Protocol services (legacy)
 export const getSignalProtocolService = () => import('./SignalProtocolService').then(m => m.signalProtocolService)
 export const getEncryptionKeyStore = () => import('./EncryptionKeyStore').then(m => m.EncryptionKeyStore)
 export const getMessageEncryptionService = () => import('./MessageEncryptionService').then(m => m.messageEncryptionService)
 export const getWebRTCEncryptionService = () => import('./WebRTCEncryptionService').then(m => m.webrtcEncryptionService)
 
-// Type exports (these are safe - they're compile-time only)
+// Type exports for Signal Protocol (legacy)
 export type {
   KeyPair,
   PreKey,
@@ -34,8 +80,7 @@ export type {
   EncryptedMessageData
 } from './MessageEncryptionService'
 
-// Legacy direct exports for backward compatibility - will throw error if Signal Protocol isn't available
-// These should be phased out in favor of lazy loading
+// Legacy direct exports for backward compatibility
 export { signalProtocolService } from './SignalProtocolService'
 export { EncryptionKeyStore } from './EncryptionKeyStore'
 export { messageEncryptionService } from './MessageEncryptionService'
