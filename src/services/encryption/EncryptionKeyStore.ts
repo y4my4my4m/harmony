@@ -19,6 +19,7 @@ import type {
   Direction,
   SessionRecordType
 } from '@privacyresearch/libsignal-protocol-typescript'
+
 import { debug } from '@/utils/debug'
 
 // IndexedDB database name

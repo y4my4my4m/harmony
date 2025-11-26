@@ -13,6 +13,7 @@
  * - All session keys are encrypted with derived key before server storage
  */
 
+import { debug } from '@/utils/debug'
 // BIP39 English wordlist (2048 words)
 // Using a subset for simplicity - in production, use full wordlist from bip39 library
 const WORDLIST = [

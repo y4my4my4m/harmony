@@ -14,6 +14,8 @@
  * - Message Index: Ratchets forward for each message (forward secrecy)
  */
 
+import { debug } from '@/utils/debug'
+
 // Megolm session types
 export interface MegolmOutboundSession {
   sessionId: string
