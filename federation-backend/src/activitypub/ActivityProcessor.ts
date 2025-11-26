@@ -707,16 +707,21 @@ export class ActivityProcessor {
     originalPost = postByApId;
     
     // Method 2: If not found, try extracting UUID from URL
-    if (!originalPost && objectUrl.includes('/posts/')) {
-      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+    // Support both /posts/{uuid} and /activities/{uuid} URL formats
+    if (!originalPost) {
+      const uuidMatch = objectUrl.match(/\/(?:posts|activities)\/([a-f0-9-]{36})/);
       if (uuidMatch) {
         const postId = uuidMatch[1];
+        logger.info(`🔍 Trying to find post by UUID: ${postId}`);
         const { data: postById } = await supabase
           .from('posts')
           .select('id, content, visibility, author_id, created_at, ap_id')
           .eq('id', postId)
           .maybeSingle();
         originalPost = postById;
+        if (postById) {
+          logger.info(`✅ Found post by UUID: ${postId}`);
+        }
       }
     }
 
@@ -791,7 +796,15 @@ export class ActivityProcessor {
       return;
     }
 
-    // Create reblog post with proper metadata structure
+    // Get original post author for reblog_author field
+    const { data: originalAuthor } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local')
+      .eq('id', originalPost.author_id)
+      .single();
+
+    // Create reblog post with proper metadata and reblog fields
+    // The database constraint requires either content OR reblog to be non-null
     const { error: insertError } = await supabase.from('posts').insert({
       ap_id: activity.id, // Set ap_id for the reblog itself
       author_id: user.id,
@@ -800,6 +813,15 @@ export class ActivityProcessor {
       is_local: false,
       is_federated: true,
       ap_type: 'Announce',
+      // The reblog field is required for the posts_content_not_empty constraint
+      reblog: {
+        id: originalPost.id,
+        content: originalPost.content,
+        created_at: originalPost.created_at,
+        visibility: originalPost.visibility,
+        ap_id: originalPost.ap_id || objectUrl,
+      },
+      reblog_author: originalAuthor || null,
       metadata: {
         reblog_of: originalPost.id,
         original_ap_id: originalPost.ap_id || objectUrl,

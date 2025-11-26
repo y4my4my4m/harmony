@@ -402,7 +402,7 @@
                   {{ user.postCount }} posts
                 </button>
                 <button 
-                  v-if="!user.is_local" 
+                  v-if="user.is_local" 
                   @click="navigateToUserServers(user)" 
                   class="user-stat clickable"
                 >

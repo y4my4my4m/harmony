@@ -519,25 +519,32 @@ async function handlePostDeletion(deletedPost: any, _oldPost: any): Promise<void
 
     const { createDeleteActivity, createUndoAnnounceActivity } = await import('./FederationHandlers.js');
     
-    // Check if this is a reblog (Announce) being deleted
-    const isReblog = post.ap_type === 'Announce' || post.metadata?.reblog_of;
+    // Determine post type:
+    // - Quote posts: have metadata.is_quote AND are federated as Notes → send Delete
+    // - Pure reblogs: have ap_type='Announce' but NOT is_quote → send Undo Announce
+    // - Regular posts: everything else → send Delete
+    const isQuotePost = post.metadata?.is_quote;
+    const isPureReblog = !isQuotePost && (post.ap_type === 'Announce' || post.metadata?.reblog_of);
     
     let activity;
+    let activityType: string;
     
-    if (isReblog) {
+    if (isPureReblog) {
       // This is an unreblog - send Undo Announce
       logger.info(`📢 Detected reblog deletion, creating Undo Announce activity`);
       activity = await createUndoAnnounceActivity(author, post);
+      activityType = 'Undo Announce';
     } else {
-      // Regular post deletion - send Delete
-      logger.info(`🗑️ Federating post deletion: ${post.id}`);
+      // Quote post or regular post deletion - send Delete
+      logger.info(`🗑️ Federating ${isQuotePost ? 'quote post' : 'post'} deletion: ${post.id}`);
       activity = createDeleteActivity(author, post);
+      activityType = 'Delete';
     }
 
     // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(author.id, activity);
 
-    logger.info(`✅ ${isReblog ? 'Undo Announce' : 'Delete'} activity for ${post.id} queued for federation`);
+    logger.info(`✅ ${activityType} activity for ${post.id} queued for federation`);
   } catch (error) {
     logger.error('Failed to handle post deletion:', error);
   }
