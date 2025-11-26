@@ -218,6 +218,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -230,6 +231,9 @@ import Icon from '@/components/common/Icon.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
 import Avatar from '../common/Avatar.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
+
+// Router
+const router = useRouter();
 
 const { t } = useI18n();
 
@@ -362,18 +366,9 @@ const loadInstances = async () => {
   }
 };
 
-const loadHashtagPosts = async (hashtag: string) => {
-  try {
-    const result = await activityPubService.getPostsByHashtag(hashtag, {
-      limit: 20
-    });
-    
-    // For now, just show the hashtag was clicked
-    debug.log(`Loading posts for hashtag: #${hashtag}`, result);
-    // TODO: Navigate to hashtag view or update posts display
-  } catch (error) {
-    debug.error('Failed to load hashtag posts:', error);
-  }
+const loadHashtagPosts = (hashtag: string) => {
+  // Navigate to hashtag view
+  router.push({ name: 'HashtagView', params: { tag: hashtag } });
 };
 
 const showInstanceDetails = async (instance: any) => {
@@ -755,6 +750,12 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 .hashtag-name {
   font-weight: 600;
   color: var(--harmony-primary);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.hashtag-name:hover {
+  color: var(--harmony-primary-hover);
 }
 
 .hashtag-count {

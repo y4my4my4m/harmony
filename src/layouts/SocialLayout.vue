@@ -116,9 +116,9 @@
           <div class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.instanceInfo') }}</h3>
             <div class="instance-info">
-              <p class="instance-domain">{{ instanceDomain }}</p>
-              <p class="instance-users">{{ instanceUserCount }} {{ $t('server.members') }}</p>
-              <p class="instance-posts">{{ instancePostCount }} {{ $t('activitypub.posts') }}</p>
+              <p class="instance-domain">{{ localInstanceDomain }}</p>
+              <p class="instance-users">{{ localInstanceUserCount }} {{ $t('server.members') }}</p>
+              <p class="instance-posts">{{ localInstancePostCount }} {{ $t('activitypub.posts') }}</p>
             </div>
           </div>
           </div>
@@ -169,6 +169,7 @@ import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
+import { supabase } from '@/supabase'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 // Props - Made view props optional since we extract from route
@@ -314,6 +315,11 @@ const trendingTopics = ref<Array<{ tag: string; count: number }>>([])
 const suggestedUsers = ref<FederatedUser[]>([])
 const isLoadingTrending = ref(false)
 
+// Instance stats (loaded dynamically)
+const localInstanceDomain = ref(props.instanceDomain || window.location.hostname)
+const localInstanceUserCount = ref(props.instanceUserCount)
+const localInstancePostCount = ref(props.instancePostCount)
+
 // Load trending hashtags from TrendingService
 const loadTrendingHashtags = async () => {
   try {
@@ -356,10 +362,34 @@ const loadSuggestedUsers = async () => {
   }
 }
 
+// Load local instance stats
+const loadInstanceStats = async () => {
+  try {
+    debug.log('🔄 Loading instance stats...')
+    
+    // Get counts from database
+    const [usersResult, postsResult] = await Promise.all([
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
+      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true).eq('is_deleted', false)
+    ])
+    
+    localInstanceUserCount.value = usersResult.count || 0
+    localInstancePostCount.value = postsResult.count || 0
+    
+    debug.log('✅ Instance stats loaded:', {
+      users: localInstanceUserCount.value,
+      posts: localInstancePostCount.value
+    })
+  } catch (error) {
+    debug.error('Failed to load instance stats:', error)
+  }
+}
+
 // Load sidebar data on mount
 onMounted(() => {
   loadTrendingHashtags()
   loadSuggestedUsers()
+  loadInstanceStats()
 })
 
 // Track view context in database for notification suppression
@@ -585,7 +615,7 @@ const handleUserCardClick = (user: FederatedUser) => {
 
 // Navigate to hashtag view
 const navigateToHashtag = (tag: string) => {
-  router.push({ name: 'HashtagView', params: { hashtag: tag } })
+  router.push({ name: 'HashtagView', params: { tag } })
 }
 
 // Utility functions
