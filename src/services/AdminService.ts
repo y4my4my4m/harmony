@@ -1130,7 +1130,7 @@ class AdminService {
       const { data, error } = await supabase
         .from('user_servers')
         .select(`
-          joined_at,
+          created_at,
           server_id,
           servers (
             id,
@@ -1140,7 +1140,7 @@ class AdminService {
           )
         `)
         .eq('user_id', userId)
-        .order('joined_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -1163,7 +1163,7 @@ class AdminService {
             member_count: count || 0,
             owner_id: server.owner, // servers table uses 'owner' not 'owner_id'
             is_owner: server.owner === userId,
-            joined_at: membership.joined_at
+            joined_at: membership.created_at // user_servers uses 'created_at' not 'joined_at'
           };
         })
       );
