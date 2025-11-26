@@ -556,7 +556,7 @@ export class MegolmMessageEncryptionService {
           recipientKey.identity_public_key
         )
 
-        // Store the share
+        // Store the share - always share from index 0 so recipient can decrypt all messages
         await supabase
           .from('megolm_session_shares')
           .upsert({
@@ -565,7 +565,7 @@ export class MegolmMessageEncryptionService {
             sender_user_id: this.currentUserId,
             recipient_user_id: userId,
             encrypted_session_key: encryptedSessionKey,
-            first_known_index: sessionData.messageIndex
+            first_known_index: 0 // Share from beginning so all messages can be decrypted
           }, {
             onConflict: 'room_id,session_id,recipient_user_id'
           })
