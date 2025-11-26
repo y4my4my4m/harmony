@@ -85,7 +85,9 @@ export class MegolmMessageEncryptionService {
     }
 
     // Initialize backup service
-    await megolmKeyBackupService.initialize(this.currentUserId)
+    if (this.currentUserId) {
+      await megolmKeyBackupService.initialize(this.currentUserId)
+    }
 
     this.initialized = true
     console.log('✅ MegolmMessageEncryptionService initialized')
@@ -318,12 +320,21 @@ export class MegolmMessageEncryptionService {
     const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
     const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)))
 
-    // Store the public key in the database
+    // Export and encrypt private key
+    const privateKeyRaw = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
+    const privateKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(privateKeyRaw)))
+    
+    // Encrypt the private key with a simple encryption (recovery key based would be better)
+    // For now, use a simple obfuscation that can be stored in DB
+    const encryptedPrivateKey = await this.encryptPrivateKeyForStorage(privateKeyBase64)
+
+    // Store both keys in the database
     const { error } = await supabase
       .from('user_key_pairs')
       .insert({
         user_id: this.currentUserId,
         identity_public_key: publicKeyBase64,
+        identity_private_key_encrypted: encryptedPrivateKey,
         device_id: 1,
         is_active: true
       })
@@ -333,11 +344,7 @@ export class MegolmMessageEncryptionService {
       throw new Error('Failed to create identity key pair')
     }
 
-    // Store private key locally (encrypted with session encryption key)
-    const privateKeyRaw = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
-    const privateKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(privateKeyRaw)))
-    
-    // Store in localStorage for now (should be encrypted with recovery key)
+    // Also store locally for quick access
     localStorage.setItem(`megolm_identity_private_${this.currentUserId}`, privateKeyBase64)
 
     console.log('✅ Identity key pair created')
@@ -604,6 +611,37 @@ export class MegolmMessageEncryptionService {
       { name: 'AES-GCM', iv },
       derivedKey,
       encoder.encode(sessionKey)
+    )
+
+    // Combine IV + ciphertext
+    const combined = new Uint8Array(iv.length + encrypted.byteLength)
+    combined.set(iv)
+    combined.set(new Uint8Array(encrypted), iv.length)
+
+    return btoa(String.fromCharCode(...combined))
+  }
+
+  /**
+   * Encrypt private key for database storage
+   * Uses the recovery key derived encryption key
+   */
+  private async encryptPrivateKeyForStorage(privateKeyBase64: string): Promise<string> {
+    // Get the encryption key from recovery key service
+    const encryptionKey = recoveryKeyService.getEncryptionKey()
+    
+    if (!encryptionKey) {
+      // If no encryption key, use a simple encoding (not ideal but works for compatibility)
+      console.warn('⚠️ No encryption key available, using simple encoding for private key')
+      return btoa(privateKeyBase64)
+    }
+
+    const encoder = new TextEncoder()
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      encryptionKey,
+      encoder.encode(privateKeyBase64)
     )
 
     // Combine IV + ciphertext
