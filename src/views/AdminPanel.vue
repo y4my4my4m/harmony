@@ -618,7 +618,7 @@
                 <div class="server-icon">
                   <img 
                     v-if="server.icon_url" 
-                    :src="server.icon_url" 
+                    :src="getServerIconUrl(server.icon_url)" 
                     :alt="server.name"
                   />
                   <div v-else class="server-icon-placeholder">
@@ -666,6 +666,7 @@ import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult } from '@/services/AdminService'
+import { getServerIconUrl } from '@/utils/serverUtils'
 
 const authStore = useAuthStore()
 const router = useRouter()
