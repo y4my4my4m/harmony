@@ -2175,6 +2175,7 @@ const handleAddInstance = () => {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s ease;
+  margin: 8px 0;
 }
 
 .user-item:hover {
@@ -2265,6 +2266,7 @@ const handleAddInstance = () => {
 
 /* Suspended user styling */
 .user-item.user-suspended {
+  opacity: 0.25;
   background: rgba(255, 193, 7, 0.05);
   border-color: rgba(255, 193, 7, 0.3);
 }

@@ -1135,8 +1135,8 @@ class AdminService {
           servers (
             id,
             name,
-            icon_url,
-            owner_id
+            icon,
+            owner
           )
         `)
         .eq('user_id', userId)
@@ -1159,10 +1159,10 @@ class AdminService {
           return {
             id: server.id,
             name: server.name,
-            icon_url: server.icon_url,
+            icon_url: server.icon, // servers table uses 'icon' not 'icon_url'
             member_count: count || 0,
-            owner_id: server.owner_id,
-            is_owner: server.owner_id === userId,
+            owner_id: server.owner, // servers table uses 'owner' not 'owner_id'
+            is_owner: server.owner === userId,
             joined_at: membership.joined_at
           };
         })
