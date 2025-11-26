@@ -109,6 +109,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
@@ -222,7 +223,7 @@ const handleFollowToggle = async () => {
       emit('unfollow', props.user.id);
     }
   } catch (error) {
-    console.error('Failed to toggle follow:', error);
+    debug.error('Failed to toggle follow:', error);
   } finally {
     followInProgress.value = false;
   }
@@ -243,7 +244,7 @@ const handleMute = async () => {
       emit('mute', props.user.id);
     }
   } catch (error) {
-    console.error('Failed to toggle mute:', error);
+    debug.error('Failed to toggle mute:', error);
   }
   showActionsMenu.value = false;
 };
@@ -258,7 +259,7 @@ const handleBlock = async () => {
       emit('block', props.user.id);
     }
   } catch (error) {
-    console.error('Failed to toggle block:', error);
+    debug.error('Failed to toggle block:', error);
   }
   showActionsMenu.value = false;
 };

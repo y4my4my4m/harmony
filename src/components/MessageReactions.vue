@@ -36,6 +36,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
 import type { Message, Emoji } from '@/types';
@@ -65,7 +66,7 @@ const reactions = computed(() => {
   try {
     return reactionsStore.getMessageReactions(props.message.id);
   } catch (error) {
-    console.error('❌ Error getting reactions for message:', props.message.id, error);
+    debug.error('❌ Error getting reactions for message:', props.message.id, error);
     return [];
   }
 });
@@ -97,7 +98,7 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   
   // Log result but don't show error for duplicate requests (they're expected)
   if (!result.success && result.reason !== 'Request already in progress') {
-    console.error('🎯 Failed to toggle reaction:', result.reason);
+    debug.error('🎯 Failed to toggle reaction:', result.reason);
   }
 };
 
@@ -113,7 +114,7 @@ const hideTooltip = () => {
 
 // Handle emoji loading errors
 const handleEmojiError = (emoji: Emoji) => {
-  console.warn('Failed to load emoji:', emoji);
+  debug.warn('Failed to load emoji:', emoji);
 };
 
 // ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by CoreMessageService  
@@ -121,7 +122,7 @@ const handleEmojiError = (emoji: Emoji) => {
 onMounted(() => {
   // Skip fetching for optimistic/temp messages
   if (props.message.id.startsWith('temp-') || props.message.sending) {
-    console.log('⏭️ Skipping reaction fetch for optimistic message:', props.message.id);
+    debug.log('⏭️ Skipping reaction fetch for optimistic message:', props.message.id);
     return;
   }
   
@@ -135,13 +136,13 @@ onMounted(() => {
 watch(() => props.message.id, (newMessageId, oldMessageId) => {
   // Skip if it's a temp message or optimistic message
   if (newMessageId.startsWith('temp-') || props.message.sending) {
-    console.log('⏭️ Skipping reaction fetch for optimistic message:', newMessageId);
+    debug.log('⏭️ Skipping reaction fetch for optimistic message:', newMessageId);
     return;
   }
   
   // Only fetch if message ID actually changed (temp → real)
   if (newMessageId !== oldMessageId && !reactionsStore.isLoadingReactions(newMessageId)) {
-    console.log('🔄 Message ID changed, fetching reactions:', oldMessageId, '→', newMessageId);
+    debug.log('🔄 Message ID changed, fetching reactions:', oldMessageId, '→', newMessageId);
     reactionsStore.fetchMessageReactions(newMessageId);
   }
 });

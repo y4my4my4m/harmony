@@ -3,6 +3,8 @@
  * Handles native app-like behaviors and PWA features
  */
 
+import { debug } from '@/utils/debug'
+
 export interface PWAInstallPrompt {
   prompt(): Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
@@ -44,7 +46,7 @@ export class PWAManager {
    * Initialize PWA features
    */
   async initialize(): Promise<void> {
-    console.log('🚀 PWA Manager: Initializing...')
+    debug.log('🚀 PWA Manager: Initializing...')
 
     // Detect PWA capabilities
     this.detectCapabilities()
@@ -67,7 +69,7 @@ export class PWAManager {
     // Hide loading screen when app is ready
     this.hideLoadingScreen()
 
-    console.log('✅ PWA Manager: Initialized with capabilities:', this.capabilities)
+    debug.log('✅ PWA Manager: Initialized with capabilities:', this.capabilities)
   }
 
   /**
@@ -91,7 +93,7 @@ export class PWAManager {
    */
   private setupInstallPrompt(): void {
     window.addEventListener('beforeinstallprompt', (event) => {
-      console.log('💾 PWA Manager: Install prompt available')
+      debug.log('💾 PWA Manager: Install prompt available')
       event.preventDefault()
       this.installPrompt = event as any
       this.capabilities.canInstall = true
@@ -100,7 +102,7 @@ export class PWAManager {
 
     // Listen for app installed event
     window.addEventListener('appinstalled', () => {
-      console.log('✅ PWA Manager: App installed successfully')
+      debug.log('✅ PWA Manager: App installed successfully')
       this.installPrompt = null
       this.capabilities.canInstall = false
       this.capabilities.isInstalled = true
@@ -272,7 +274,7 @@ export class PWAManager {
         url: urlParams.get('url') || ''
       }
       
-      console.log('📤 PWA Manager: Handling shared content:', sharedData)
+      debug.log('📤 PWA Manager: Handling shared content:', sharedData)
       this.handleSharedContent(sharedData)
     }
   }
@@ -285,10 +287,10 @@ export class PWAManager {
     const path = window.location.pathname
     
     if (path === '/dm') {
-      console.log('📱 PWA Manager: Launched via DM shortcut')
+      debug.log('📱 PWA Manager: Launched via DM shortcut')
       // Navigate to DMs or handle DM shortcut
     } else if (path === '/notifications') {
-      console.log('🔔 PWA Manager: Launched via notifications shortcut')
+      debug.log('🔔 PWA Manager: Launched via notifications shortcut')
       // Navigate to notifications or handle notification shortcut
     }
   }
@@ -298,7 +300,7 @@ export class PWAManager {
    */
   private setupBadgeAPI(): void {
     if (this.capabilities.supportsBadging) {
-      console.log('🏷️ PWA Manager: Badge API supported')
+      debug.log('🏷️ PWA Manager: Badge API supported')
     }
   }
 
@@ -315,7 +317,7 @@ export class PWAManager {
         await (navigator as any).clearAppBadge()
       }
     } catch (error) {
-      console.warn('⚠️ PWA Manager: Failed to update badge:', error)
+      debug.warn('⚠️ PWA Manager: Failed to update badge:', error)
     }
   }
 
@@ -324,7 +326,7 @@ export class PWAManager {
    */
   async showInstallPrompt(): Promise<boolean> {
     if (!this.installPrompt) {
-      console.warn('⚠️ PWA Manager: No install prompt available')
+      debug.warn('⚠️ PWA Manager: No install prompt available')
       return false
     }
 
@@ -332,7 +334,7 @@ export class PWAManager {
       await this.installPrompt.prompt()
       const result = await this.installPrompt.userChoice
       
-      console.log('💾 PWA Manager: Install prompt result:', result.outcome)
+      debug.log('💾 PWA Manager: Install prompt result:', result.outcome)
       
       if (result.outcome === 'accepted') {
         this.installPrompt = null
@@ -342,7 +344,7 @@ export class PWAManager {
       
       return false
     } catch (error) {
-      console.error('❌ PWA Manager: Install prompt failed:', error)
+      debug.error('❌ PWA Manager: Install prompt failed:', error)
       return false
     }
   }
@@ -352,16 +354,16 @@ export class PWAManager {
    */
   async shareContent(data: ShareData): Promise<boolean> {
     if (!this.capabilities.supportsShare) {
-      console.warn('⚠️ PWA Manager: Web Share API not supported')
+      debug.warn('⚠️ PWA Manager: Web Share API not supported')
       return false
     }
 
     try {
       await navigator.share(data)
-      console.log('📤 PWA Manager: Content shared successfully')
+      debug.log('📤 PWA Manager: Content shared successfully')
       return true
     } catch (error) {
-      console.warn('⚠️ PWA Manager: Share failed:', error)
+      debug.warn('⚠️ PWA Manager: Share failed:', error)
       return false
     }
   }
@@ -612,12 +614,12 @@ export class PWAManager {
 
   private showPullToRefreshIndicator(): void {
     // Implement pull-to-refresh UI
-    console.log('📱 PWA Manager: Show pull-to-refresh indicator')
+    debug.log('📱 PWA Manager: Show pull-to-refresh indicator')
   }
 
   private hidePullToRefreshIndicator(): void {
     // Hide pull-to-refresh UI
-    console.log('📱 PWA Manager: Hide pull-to-refresh indicator')
+    debug.log('📱 PWA Manager: Hide pull-to-refresh indicator')
   }
 
   /**
@@ -641,7 +643,7 @@ export class PWAManager {
    * Trigger a hard refresh
    */
   private triggerRefresh(): void {
-    console.log('🔄 PWA Manager: Triggering refresh')
+    debug.log('🔄 PWA Manager: Triggering refresh')
     window.location.reload()
   }
 

@@ -27,7 +27,7 @@ export default defineComponent({
           updateUserStatus(userId, UserStatus.Online);
           router.push('/chat');
         } catch (error: any) {
-          console.log(error);
+          debug.log(error);
           router.push('/new-profile');
         }
       }

@@ -20,23 +20,23 @@ export default defineComponent({
     onMounted(async () => {
       const code = route.params.code as string;
       if (!code) {
-        console.error('No invite code found in URL');
+        debug.error('No invite code found in URL');
         return;
       }
       
       const userId = authStore.session?.user?.id;
       if (!userId) {
-        console.error('User is not logged in');
+        debug.error('User is not logged in');
         return;
       }
 
       const success = await acceptInvite(code, userId);
       if (success) {
-        console.log('Invite accepted successfully');
+        debug.log('Invite accepted successfully');
         toast.success('Invite accepted successfully');
         router.push('/chat');
       } else {
-        console.error('Failed to accept invite');
+        debug.error('Failed to accept invite');
         toast.error('Failed to accept invite');
         // Show an error message or handle the failure
       }

@@ -64,6 +64,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useThemeStore } from '@/stores/useTheme'
 import { useRouter } from 'vue-router'
@@ -106,7 +107,7 @@ const initializeLocalStatus = async () => {
   try {
     localStatus.value = getCurrentUserStatus.value
   } catch (error) {
-    console.error('Error initializing local status:', error)
+    debug.error('Error initializing local status:', error)
     localStatus.value = UserStatus.Offline
   }
 }
@@ -125,7 +126,7 @@ const currentStatus = computed(() => {
     // Use local status for immediate UI responsiveness
     return localStatus.value
   } catch (error) {
-    console.error('Error getting current user status:', error)
+    debug.error('Error getting current user status:', error)
     return UserStatus.Offline
   }
 })
@@ -186,7 +187,7 @@ const toggleMic = async () => {
   try {
     await voiceChannelStore.toggleMute()
   } catch (error) {
-    console.error('Failed to toggle mute:', error)
+    debug.error('Failed to toggle mute:', error)
   }
 }
 
@@ -194,7 +195,7 @@ const toggleHeadphones = async () => {
   try {
     await voiceChannelStore.toggleDeafen()
   } catch (error) {
-    console.error('Failed to toggle deafen:', error)
+    debug.error('Failed to toggle deafen:', error)
   }
 }
 
@@ -203,27 +204,27 @@ const toggleStatusDropdown = () => {
 }
 
 const selectStatus = async (status: UserStatus) => {
-  console.log('🔄 Attempting to change status to:', UserStatus[status])
-  console.log('🔄 Current local status before change:', UserStatus[localStatus.value])
+  debug.log('🔄 Attempting to change status to:', UserStatus[status])
+  debug.log('🔄 Current local status before change:', UserStatus[localStatus.value])
   
   try {
     // Update local status immediately for instant UI feedback
     localStatus.value = status
-    console.log('✅ Local status updated immediately to:', UserStatus[status])
+    debug.log('✅ Local status updated immediately to:', UserStatus[status])
     
     // Update via unified user data system in background
     await updateCurrentUserStatus(status)
-    console.log('✅ Backend status updated successfully to:', UserStatus[status])
+    debug.log('✅ Backend status updated successfully to:', UserStatus[status])
     
   } catch (error) {
-    console.error('❌ Failed to change status:', error)
+    debug.error('❌ Failed to change status:', error)
     
     // Revert local status on error
     try {
       localStatus.value = getCurrentUserStatus.value
-      console.log('🔄 Reverted local status due to error')
+      debug.log('🔄 Reverted local status due to error')
     } catch (revertError) {
-      console.error('Failed to revert status:', revertError)
+      debug.error('Failed to revert status:', revertError)
     }
   } finally {
     showStatusDropdown.value = false
@@ -241,15 +242,15 @@ const goToSettings = () => {
 }
 
 const handleAvatarClick = () => {
-  console.log('🔘 Avatar clicked!')
-  console.log('📱 isMobile:', isMobile.value)
-  console.log('🔧 toggleMobileProfile prop:', props.toggleMobileProfile)
+  debug.log('🔘 Avatar clicked!')
+  debug.log('📱 isMobile:', isMobile.value)
+  debug.log('🔧 toggleMobileProfile prop:', props.toggleMobileProfile)
   
   if (isMobile.value && props.toggleMobileProfile) {
-    console.log('✅ Calling toggleMobileProfile')
+    debug.log('✅ Calling toggleMobileProfile')
     props.toggleMobileProfile()
   } else {
-    console.log('❌ Not calling toggleMobileProfile - conditions not met')
+    debug.log('❌ Not calling toggleMobileProfile - conditions not met')
   }
 }
 

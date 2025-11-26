@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase';
+import { debug } from '@/utils/debug'
 
 export interface UploadResult {
   success: boolean;
@@ -36,7 +37,7 @@ export async function uploadFile(
       };
     }
 
-    console.log(`Uploading file to ${bucket}/${path}...`);
+    debug.log(`Uploading file to ${bucket}/${path}...`);
 
     // Upload file to Supabase storage (Supabase will auto-generate UUID if needed)
     const { data, error } = await supabase.storage
@@ -47,7 +48,7 @@ export async function uploadFile(
       });
 
     if (error) {
-      console.error('Upload error:', error);
+      debug.error('Upload error:', error);
       return {
         success: false,
         error: error.message
@@ -59,7 +60,7 @@ export async function uploadFile(
       .from(bucket)
       .getPublicUrl(data.path);
 
-    console.log(`File uploaded successfully: ${urlData.publicUrl}`);
+    debug.log(`File uploaded successfully: ${urlData.publicUrl}`);
 
     return {
       success: true,
@@ -67,7 +68,7 @@ export async function uploadFile(
       path: data.path
     };
   } catch (error: any) {
-    console.error('Upload error:', error);
+    debug.error('Upload error:', error);
     return {
       success: false,
       error: error.message || 'Upload failed'
@@ -121,13 +122,13 @@ export async function deleteFile(bucket: string, path: string): Promise<boolean>
       .remove([path]);
 
     if (error) {
-      console.error('Delete error:', error);
+      debug.error('Delete error:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Delete error:', error);
+    debug.error('Delete error:', error);
     return false;
   }
 }

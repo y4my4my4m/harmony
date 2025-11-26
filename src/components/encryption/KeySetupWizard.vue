@@ -177,6 +177,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
 
@@ -254,10 +255,10 @@ async function handleContinue() {
     try {
       await chatStore.reprocessEncryptedMessages()
     } catch (error) {
-      console.warn('Failed to refresh messages after encryption setup:', error)
+      debug.warn('Failed to refresh messages after encryption setup:', error)
     }
   } catch (error: any) {
-    console.error('Encryption setup failed:', error)
+    debug.error('Encryption setup failed:', error)
     errorMessage.value = error.message || 'Failed to setup encryption. Please try again.'
     step.value = 2
   } finally {

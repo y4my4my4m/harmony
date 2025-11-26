@@ -145,6 +145,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import type { TimelinePost, FederatedUser } from '@/types';
@@ -229,7 +230,7 @@ const loadPost = async () => {
     await loadReplies();
     await loadRelatedPosts();
   } catch (err) {
-    console.error('Failed to load post:', err);
+    debug.error('Failed to load post:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
   } finally {
     isLoading.value = false;
@@ -283,7 +284,7 @@ const loadReplies = async () => {
     
     hasMoreReplies.value = replies.value.length < totalReplies.value;
   } catch (err) {
-    console.error('Failed to load replies:', err);
+    debug.error('Failed to load replies:', err);
   } finally {
     isLoadingReplies.value = false;
   }
@@ -296,7 +297,7 @@ const loadMoreReplies = async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     hasMoreReplies.value = false;
   } catch (err) {
-    console.error('Failed to load more replies:', err);
+    debug.error('Failed to load more replies:', err);
   } finally {
     isLoadingMoreReplies.value = false;
   }
@@ -307,7 +308,7 @@ const loadRelatedPosts = async () => {
     // TODO: Load related posts based on tags, author, etc.
     relatedPosts.value = [];
   } catch (err) {
-    console.error('Failed to load related posts:', err);
+    debug.error('Failed to load related posts:', err);
   }
 };
 
@@ -332,7 +333,7 @@ const sharePost = async () => {
         url: url
       });
     } catch (err) {
-      console.log('Share cancelled');
+      debug.log('Share cancelled');
     }
   } else {
     // Fallback: copy to clipboard
@@ -343,7 +344,7 @@ const sharePost = async () => {
 
 const openActions = () => {
   // TODO: Show actions menu
-  console.log('Open actions menu');
+  debug.log('Open actions menu');
 };
 
 const handleReply = () => {
@@ -378,18 +379,18 @@ const handleFavorite = async (postId: string) => {
       reply.favorites_count += reply.is_favorited ? 1 : -1;
     }
   } catch (error) {
-    console.error('Failed to toggle favorite:', error);
+    debug.error('Failed to toggle favorite:', error);
   }
 };
 
 const handleReblog = async (postId: string) => {
   // TODO: Implement reblog
-  console.log('Reblog post:', postId);
+  debug.log('Reblog post:', postId);
 };
 
 const handleDelete = async (postId: string) => {
   // TODO: Implement delete with confirmation
-  console.log('Delete post:', postId);
+  debug.log('Delete post:', postId);
 };
 
 const handleUserClick = (user: FederatedUser) => {
@@ -400,7 +401,7 @@ const handleFollow = async (userId: string) => {
   try {
     await activityPubStore.followUser(userId);
   } catch (error) {
-    console.error('Failed to follow user:', error);
+    debug.error('Failed to follow user:', error);
   }
 };
 
@@ -408,7 +409,7 @@ const handleUnfollow = async (userId: string) => {
   try {
     await activityPubStore.unfollowUser(userId);
   } catch (error) {
-    console.error('Failed to unfollow user:', error);
+    debug.error('Failed to unfollow user:', error);
   }
 };
 

@@ -9,6 +9,7 @@ import { nextTick, type Ref } from 'vue';
 import type { MediaAttachment, Post } from '@/types';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import type RichTextEditor from '@/components/RichTextEditor.vue';
+import { debug } from '@/utils/debug'
 
 export interface ComposerActionsOptions {
   content: Ref<string>;
@@ -75,7 +76,7 @@ export function useComposerActions(options: ComposerActionsOptions) {
 
     for (const file of Array.from(files)) {
       if (!options.canAddMedia.value) {
-        console.warn('Maximum media attachments reached');
+        debug.warn('Maximum media attachments reached');
         break;
       }
 
@@ -170,10 +171,10 @@ export function useComposerActions(options: ComposerActionsOptions) {
         is_sensitive: isSensitive
       });
 
-      console.log('✅ Post created successfully:', post.id);
+      debug.log('✅ Post created successfully:', post.id);
       return post;
     } catch (error) {
-      console.error('❌ Failed to create post:', error);
+      debug.error('❌ Failed to create post:', error);
       throw error;
     }
   };

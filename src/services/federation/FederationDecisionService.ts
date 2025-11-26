@@ -20,6 +20,7 @@
  */
 
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 export interface FederationDecision {
   shouldFederate: boolean
@@ -52,7 +53,7 @@ export class FederationDecisionService {
    */
   async shouldFederateReaction(messageId: string, userId: string): Promise<FederationDecision> {
     try {
-      console.log(`🤔 Federation: Deciding reaction federation for message: ${messageId}`)
+      debug.log(`🤔 Federation: Deciding reaction federation for message: ${messageId}`)
 
       // 1. Check user federation settings
       const userDecision = await this.checkUserFederationEnabled(userId)
@@ -95,7 +96,7 @@ export class FederationDecisionService {
       }
 
     } catch (error) {
-      console.error('❌ Federation: Failed to decide reaction federation:', error)
+      debug.error('❌ Federation: Failed to decide reaction federation:', error)
       return {
         shouldFederate: false,
         reason: `Error checking federation: ${error.message}`
@@ -108,7 +109,7 @@ export class FederationDecisionService {
    */
   async shouldFederatePostReaction(postId: string, userId: string): Promise<FederationDecision> {
     try {
-      console.log(`🤔 Federation: Deciding post reaction federation for post: ${postId}`)
+      debug.log(`🤔 Federation: Deciding post reaction federation for post: ${postId}`)
 
       // 1. Check user federation settings
       const userDecision = await this.checkUserFederationEnabled(userId)
@@ -136,7 +137,7 @@ export class FederationDecisionService {
       }
 
     } catch (error) {
-      console.error('❌ Federation: Failed to decide post reaction federation:', error)
+      debug.error('❌ Federation: Failed to decide post reaction federation:', error)
       return {
         shouldFederate: false,
         reason: `Error checking federation: ${error.message}`
@@ -153,7 +154,7 @@ export class FederationDecisionService {
    */
   async shouldFederatePost(postId: string, operation: 'create' | 'update' | 'delete'): Promise<FederationDecision> {
     try {
-      console.log(`🤔 Federation: Deciding post federation for post: ${postId} (${operation})`)
+      debug.log(`🤔 Federation: Deciding post federation for post: ${postId} (${operation})`)
 
       // Get post data
       const { data: post, error } = await supabase
@@ -206,7 +207,7 @@ export class FederationDecisionService {
       }
 
     } catch (error) {
-      console.error('❌ Federation: Failed to decide post federation:', error)
+      debug.error('❌ Federation: Failed to decide post federation:', error)
       return {
         shouldFederate: false,
         reason: `Error checking federation: ${error.message}`
@@ -223,7 +224,7 @@ export class FederationDecisionService {
    */
   async shouldFederateFollow(followerId: string, targetUserId: string, operation: 'follow' | 'unfollow'): Promise<FederationDecision> {
     try {
-      console.log(`🤔 Federation: Deciding follow federation: ${followerId} → ${targetUserId} (${operation})`)
+      debug.log(`🤔 Federation: Deciding follow federation: ${followerId} → ${targetUserId} (${operation})`)
 
       // 1. Check follower federation settings
       const followerDecision = await this.checkUserFederationEnabled(followerId)
@@ -267,7 +268,7 @@ export class FederationDecisionService {
       }
 
     } catch (error) {
-      console.error('❌ Federation: Failed to decide follow federation:', error)
+      debug.error('❌ Federation: Failed to decide follow federation:', error)
       return {
         shouldFederate: false,
         reason: `Error checking federation: ${error.message}`
@@ -284,7 +285,7 @@ export class FederationDecisionService {
    */
   async shouldFederateProfileUpdate(userId: string): Promise<FederationDecision> {
     try {
-      console.log(`🤔 Federation: Deciding profile update federation for user: ${userId}`)
+      debug.log(`🤔 Federation: Deciding profile update federation for user: ${userId}`)
 
       // 1. Check user federation settings
       const userDecision = await this.checkUserFederationEnabled(userId)
@@ -319,7 +320,7 @@ export class FederationDecisionService {
       }
 
     } catch (error) {
-      console.error('❌ Federation: Failed to decide profile update federation:', error)
+      debug.error('❌ Federation: Failed to decide profile update federation:', error)
       return {
         shouldFederate: false,
         reason: `Error checking federation: ${error.message}`
@@ -341,7 +342,7 @@ export class FederationDecisionService {
         .rpc('is_federation_enabled_for_user', { user_id: userId })
 
       if (error) {
-        console.error('❌ Federation: Error checking user federation settings:', error)
+        debug.error('❌ Federation: Error checking user federation settings:', error)
         return {
           shouldFederate: false,
           reason: 'Error checking user federation settings'
@@ -436,7 +437,7 @@ export class FederationDecisionService {
 
       return 'unknown'
     } catch (error) {
-      console.error('❌ Federation: Error determining message type:', error)
+      debug.error('❌ Federation: Error determining message type:', error)
       return 'unknown'
     }
   }

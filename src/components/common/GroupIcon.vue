@@ -40,6 +40,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
 import { GroupIconPresets, getDefaultGroupIcon } from '@/utils/groupIconUtils'
 
@@ -94,7 +95,7 @@ const iconUrl = computed(() => {
     }
   } catch (error) {
     // Error boundary: if anything fails, use a basic fallback
-    console.error('Failed to generate group icon URL:', error)
+    debug.error('Failed to generate group icon URL:', error)
     return `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#5865F2" rx="8"/><text x="24" y="30" text-anchor="middle" fill="white" font-size="18" font-family="system-ui">?</text></svg>')}`
   }
 })
@@ -111,7 +112,7 @@ function getSizePixels(size: string): number {
 }
 
 function handleImageError(event: Event) {
-  console.warn('Group icon failed to load, falling back to default:', props.iconPath)
+  debug.warn('Group icon failed to load, falling back to default:', props.iconPath)
   imageError.value = true
   emit('error', event)
 }

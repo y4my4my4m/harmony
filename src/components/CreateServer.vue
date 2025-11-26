@@ -187,6 +187,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
@@ -286,13 +287,13 @@ const createServer = async () => {
       owner: userId
     };
 
-    console.log('Creating server with data:', serverData);
+    debug.log('Creating server with data:', serverData);
     const result = await serverChannelStore.createServer(serverData);
-    console.log('Server creation result:', result);
+    debug.log('Server creation result:', result);
     
     // Handle icon upload if file exists
     if (iconFile.value && result) {
-      console.log('Uploading server icon...');
+      debug.log('Uploading server icon...');
       try {
         const { uploadServerIcon } = await import('@/utils/fileUpload');
         const uploadResult = await uploadServerIcon(iconFile.value, result.id);
@@ -303,13 +304,13 @@ const createServer = async () => {
             id: result.id,
             icon: uploadResult.url
           });
-          console.log('Server icon uploaded successfully:', uploadResult.url);
+          debug.log('Server icon uploaded successfully:', uploadResult.url);
         } else {
-          console.error('Server icon upload failed:', uploadResult.error);
+          debug.error('Server icon upload failed:', uploadResult.error);
           toast.warning('Server created but icon upload failed. You can update it later in server settings.');
         }
       } catch (uploadError) {
-        console.error('Server icon upload error:', uploadError);
+        debug.error('Server icon upload error:', uploadError);
         toast.warning('Server created but icon upload failed. You can update it later in server settings.');
       }
     }
@@ -319,7 +320,7 @@ const createServer = async () => {
     // Refresh the page to show the new server
     router.go(0);
   } catch (error: any) {
-    console.error('Server creation error:', error);
+    debug.error('Server creation error:', error);
     errorMessage.value = error.message || "An unexpected error occurred";
   } finally {
     isCreating.value = false;

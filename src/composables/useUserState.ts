@@ -1,4 +1,5 @@
 import { userDataService } from '@/services/userDataService'
+import { debug } from '@/utils/debug'
 
 /**
  * useUserState Composable
@@ -20,9 +21,9 @@ export function useUserState() {
   }) => {
     try {
       await userDataService.updateCurrentUserProfile(profileData)
-      console.log('✅ Profile update broadcasted successfully')
+      debug.log('✅ Profile update broadcasted successfully')
     } catch (error) {
-      console.error('❌ Failed to broadcast profile update:', error)
+      debug.error('❌ Failed to broadcast profile update:', error)
       throw error
     }
   }
@@ -33,9 +34,9 @@ export function useUserState() {
   const updateUserStatus = async (status: number) => {
     try {
       await userDataService.updateCurrentUserStatus(status)
-      console.log('✅ User status updated successfully')
+      debug.log('✅ User status updated successfully')
     } catch (error) {
-      console.error('❌ Failed to update user status:', error)
+      debug.error('❌ Failed to update user status:', error)
       throw error
     }
   }

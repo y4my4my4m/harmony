@@ -14,6 +14,7 @@ import { signalProtocolService } from './SignalProtocolService';
 import { EncryptionKeyStore } from './EncryptionKeyStore';
 import { supabase } from '@/supabase';
 import type { MessagePart } from '@/types';
+import { debug } from '@/utils/debug'
 
 export interface EncryptionStatus {
   enabled: boolean
@@ -74,14 +75,14 @@ export class MessageEncryptionService {
       
       if (profile?.id) {
         this.currentUserId = profile.id
-        console.log(`🔐 Using profile ID for encryption: ${this.currentUserId} (auth: ${userId})`)
+        debug.log(`🔐 Using profile ID for encryption: ${this.currentUserId} (auth: ${userId})`)
       } else {
         // Fallback to auth user ID if no profile found
         this.currentUserId = userId
-        console.warn(`⚠️ No profile found for auth user ${userId}, using auth ID as fallback`)
+        debug.warn(`⚠️ No profile found for auth user ${userId}, using auth ID as fallback`)
       }
     } catch (error) {
-      console.warn('⚠️ Failed to get profile ID, using auth user ID:', error)
+      debug.warn('⚠️ Failed to get profile ID, using auth user ID:', error)
       this.currentUserId = userId
     }
 
@@ -93,19 +94,19 @@ export class MessageEncryptionService {
     const restored = await this.keyStore.tryRestoreSessionKey()
     
     if (restored) {
-      console.log('✅ Encryption key restored from session')
+      debug.log('✅ Encryption key restored from session')
     } else if (password) {
       // Set encryption key if password provided
       await this.keyStore.setEncryptionKey(password)
     } else {
-      console.log('ℹ️ Encryption service initialized without key - operations requiring encryption will need password')
+      debug.log('ℹ️ Encryption service initialized without key - operations requiring encryption will need password')
     }
 
     // Initialize Signal Protocol Service
     await signalProtocolService.initialize(this.keyStore)
 
     this.initialized = true
-    console.log('✅ MessageEncryptionService initialized for user (profile ID):', this.currentUserId)
+    debug.log('✅ MessageEncryptionService initialized for user (profile ID):', this.currentUserId)
   }
 
   /**
@@ -134,7 +135,7 @@ export class MessageEncryptionService {
 
       return data === true
     } catch (error) {
-      console.error('❌ Error checking encryption keys:', error)
+      debug.error('❌ Error checking encryption keys:', error)
       return false
     }
   }
@@ -151,7 +152,7 @@ export class MessageEncryptionService {
       throw new Error('User ID not set')
     }
 
-    console.log('🔐 Setting up encryption for user...')
+    debug.log('🔐 Setting up encryption for user...')
 
     // Generate identity key pair
     const identityKeyPair = await signalProtocolService.generateIdentityKeyPair()
@@ -167,7 +168,7 @@ export class MessageEncryptionService {
       })
 
     if (error) {
-      console.error('❌ Failed to initialize encryption:', error)
+      debug.error('❌ Failed to initialize encryption:', error)
       throw new Error(`Failed to initialize encryption: ${error.message}`)
     }
 
@@ -188,7 +189,7 @@ export class MessageEncryptionService {
     // Generate prekeys
     await this.generatePrekeys()
 
-    console.log('✅ Encryption setup complete')
+    debug.log('✅ Encryption setup complete')
   }
 
   /**
@@ -199,7 +200,7 @@ export class MessageEncryptionService {
       throw new Error('Not initialized')
     }
 
-    console.log('🔑 Generating prekeys...')
+    debug.log('🔑 Generating prekeys...')
 
     // Delete existing prekeys first to avoid conflicts
     await supabase
@@ -260,7 +261,7 @@ export class MessageEncryptionService {
     }, { onConflict: 'user_id, device_id, prekey_id' })
 
     if (signedKeyError) {
-      console.error('❌ Failed to save signed prekey:', signedKeyError)
+      debug.error('❌ Failed to save signed prekey:', signedKeyError)
       throw new Error(`Failed to save signed prekey: ${signedKeyError.message}`)
     }
 
@@ -280,7 +281,7 @@ export class MessageEncryptionService {
       await supabase.from('prekeys').upsert(batch, { onConflict: 'user_id, device_id, prekey_id' })
     }
 
-    console.log('✅ Generated and uploaded prekeys')
+    debug.log('✅ Generated and uploaded prekeys')
   }
 
   // =====================================================
@@ -306,11 +307,11 @@ export class MessageEncryptionService {
     
     // If encrypting for others, we need the encryption key to access our identity key
     if (hasOtherRecipients && !this.keyStore.hasEncryptionKeyLoaded()) {
-      console.error('❌ Cannot encrypt for other users without encryption password')
+      debug.error('❌ Cannot encrypt for other users without encryption password')
       throw new Error('Encryption password required. Please unlock encryption in Settings > Encryption to send encrypted messages to others.')
     }
 
-    console.log(`🔐 Encrypting message (hybrid) for ${recipientIds.length} recipients`)
+    debug.log(`🔐 Encrypting message (hybrid) for ${recipientIds.length} recipients`)
 
     // Step 1: Generate random 256-bit symmetric key for AES-GCM
     const symmetricKey = crypto.getRandomValues(new Uint8Array(32))
@@ -346,7 +347,7 @@ export class MessageEncryptionService {
     for (const recipientId of recipientIds) {
       // Special case: For self-encryption, just store the key directly (no Signal Protocol needed)
       if (recipientId === this.currentUserId) {
-        console.log(`🔐 [${recipientId}] Using direct key storage (self)`)
+        debug.log(`🔐 [${recipientId}] Using direct key storage (self)`)
         encryptedKeys[recipientId] = JSON.stringify({
           type: 'direct',
           key: symmetricKeyBase64
@@ -355,26 +356,26 @@ export class MessageEncryptionService {
       }
       
       try {
-        console.log(`🔐 [${recipientId}] Encrypting with Signal Protocol...`)
+        debug.log(`🔐 [${recipientId}] Encrypting with Signal Protocol...`)
         const recipientAddress = `${recipientId}:1`
         const hasSession = await signalProtocolService.hasSession(recipientAddress)
-        console.log(`🔐 [${recipientId}] Has existing session: ${hasSession}`)
+        debug.log(`🔐 [${recipientId}] Has existing session: ${hasSession}`)
         
         if (!hasSession) {
-          console.log(`🔐 [${recipientId}] Establishing new session...`)
+          debug.log(`🔐 [${recipientId}] Establishing new session...`)
           await this.establishSession(recipientId)
-          console.log(`🔐 [${recipientId}] Session established successfully`)
+          debug.log(`🔐 [${recipientId}] Session established successfully`)
         }
 
         const encryptedKey = await signalProtocolService.encryptMessage(
           recipientAddress,
           symmetricKeyBase64
         )
-        console.log(`🔐 [${recipientId}] Key encrypted successfully, type: ${encryptedKey.type}`)
+        debug.log(`🔐 [${recipientId}] Key encrypted successfully, type: ${encryptedKey.type}`)
 
         encryptedKeys[recipientId] = JSON.stringify(encryptedKey)
       } catch (error: any) {
-        console.error(`❌ [${recipientId}] Failed to encrypt for recipient:`, error.message)
+        debug.error(`❌ [${recipientId}] Failed to encrypt for recipient:`, error.message)
         // Skip this recipient but continue with others
       }
     }
@@ -426,10 +427,10 @@ export class MessageEncryptionService {
         throw new Error('Invalid password - could not decrypt keys')
       }
       
-      console.log('✅ Encryption unlocked successfully')
+      debug.log('✅ Encryption unlocked successfully')
       return true
     } catch (error: any) {
-      console.error('❌ Failed to unlock encryption:', error.message)
+      debug.error('❌ Failed to unlock encryption:', error.message)
       // Clear the bad key
       this.keyStore.clearSessionKey()
       throw new Error('Invalid encryption password')
@@ -473,40 +474,40 @@ export class MessageEncryptionService {
     const ivBase64 = message.encryption_metadata?.iv
     
     if (!encryptedKey || !ivBase64) {
-      console.log('🔐 No encrypted key or IV for current user')
+      debug.log('🔐 No encrypted key or IV for current user')
       throw new Error('Missing encryption data')
     }
 
-    console.log(`🔓 Decrypting message (hybrid) from ${senderId}`)
+    debug.log(`🔓 Decrypting message (hybrid) from ${senderId}`)
 
     try {
       // Step 1: Decrypt the symmetric key
       const encryptedKeyData = JSON.parse(encryptedKey)
       const senderAddress = `${senderId}:1`
 
-      console.log(`  - Message type: ${encryptedKeyData.type}`)
-      console.log(`  - Decrypting symmetric key from address: ${senderAddress}`)
+      debug.log(`  - Message type: ${encryptedKeyData.type}`)
+      debug.log(`  - Decrypting symmetric key from address: ${senderAddress}`)
       
       let symmetricKeyBase64: string
       
       // Special case: Direct key storage for self-encrypted messages
       if (encryptedKeyData.type === 'direct') {
-        console.log('  - Using direct key (self-encrypted)')
+        debug.log('  - Using direct key (self-encrypted)')
         symmetricKeyBase64 = encryptedKeyData.key
       } else {
         // Regular Signal Protocol decryption for other users
         // IMPORTANT: This requires the user's encryption key to be loaded to access prekeys
-        console.log(`  - Using Signal Protocol decryption`)
-        console.log(`  - Encrypted key data:`, JSON.stringify(encryptedKeyData).substring(0, 100) + '...')
-        console.log(`  - Has encryption key loaded: ${this.keyStore?.hasEncryptionKeyLoaded()}`)
+        debug.log(`  - Using Signal Protocol decryption`)
+        debug.log(`  - Encrypted key data:`, JSON.stringify(encryptedKeyData).substring(0, 100) + '...')
+        debug.log(`  - Has encryption key loaded: ${this.keyStore?.hasEncryptionKeyLoaded()}`)
         
         try {
           symmetricKeyBase64 = await signalProtocolService.decryptMessage(senderAddress, encryptedKeyData)
-          console.log('  - Signal Protocol decryption successful')
+          debug.log('  - Signal Protocol decryption successful')
         } catch (sessionError: any) {
           const errorMsg = sessionError.message || String(sessionError)
-          console.error('❌ Signal Protocol decryption error:', errorMsg)
-          console.error('  - Full error:', sessionError)
+          debug.error('❌ Signal Protocol decryption error:', errorMsg)
+          debug.error('  - Full error:', sessionError)
           
           // Provide more specific error messages
           if (errorMsg.includes('Encryption key not set')) {
@@ -554,10 +555,10 @@ export class MessageEncryptionService {
       const decryptedJson = decoder.decode(decryptedBuffer)
       const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
 
-      console.log('✅ Message decrypted successfully (hybrid)')
+      debug.log('✅ Message decrypted successfully (hybrid)')
       return decryptedContent
     } catch (error) {
-      console.error('❌ Decryption failed:', error)
+      debug.error('❌ Decryption failed:', error)
       throw error
     }
   }
@@ -595,7 +596,7 @@ export class MessageEncryptionService {
    * Establish an encryption session with a recipient
    */
   private async establishSession(recipientId: string): Promise<void> {
-    console.log(`🤝 Establishing session with ${recipientId}`)
+    debug.log(`🤝 Establishing session with ${recipientId}`)
 
     // Fetch prekey bundle from server
     const { data: bundle, error } = await supabase
@@ -608,7 +609,7 @@ export class MessageEncryptionService {
       throw new Error(`Failed to fetch prekey bundle: ${error?.message}`)
     }
 
-    console.log('📦 Prekey bundle from database:', bundle)
+    debug.log('📦 Prekey bundle from database:', bundle)
 
     if (!bundle.signed_prekey) {
       throw new Error(`Recipient ${recipientId} has invalid encryption keys (missing signed prekey)`)
@@ -630,7 +631,7 @@ export class MessageEncryptionService {
       } : undefined
     }
 
-    console.log('🔄 Transformed bundle:', transformedBundle)
+    debug.log('🔄 Transformed bundle:', transformedBundle)
 
     // Process the prekey bundle to establish session
     await signalProtocolService.createSessionFromPreKeyBundle(
@@ -638,7 +639,7 @@ export class MessageEncryptionService {
       transformedBundle
     )
 
-    console.log(`✅ Session established with ${recipientId}`)
+    debug.log(`✅ Session established with ${recipientId}`)
   }
 
   // =====================================================
@@ -653,7 +654,7 @@ export class MessageEncryptionService {
       .rpc('check_encryption_policy', { p_server_id: serverId })
 
     if (error) {
-      console.error('❌ Error checking encryption policy:', error)
+      debug.error('❌ Error checking encryption policy:', error)
       return {
         enabled: false,
         hasKeys: false,
@@ -682,7 +683,7 @@ export class MessageEncryptionService {
       .rpc('get_conversation_encryption_status', { p_conversation_id: conversationId })
 
     if (error) {
-      console.error('❌ Error checking conversation encryption:', error)
+      debug.error('❌ Error checking conversation encryption:', error)
       return {
         enabled: false,
         hasKeys: false,
@@ -713,7 +714,7 @@ export class MessageEncryptionService {
       throw new Error(`Failed to enable encryption: ${error.message}`)
     }
 
-    console.log(`✅ Encryption enabled for conversation ${conversationId}`)
+    debug.log(`✅ Encryption enabled for conversation ${conversationId}`)
   }
 
   // =====================================================
@@ -779,12 +780,12 @@ export class MessageEncryptionService {
       throw new Error(`Failed to rotate prekeys: ${error.message}`)
     }
 
-    console.log('✅ Prekeys rotated:', data)
+    debug.log('✅ Prekeys rotated:', data)
 
     // Check if we need to generate more prekeys
     const remaining = data?.remaining_unused_prekeys || 0
     if (remaining < 20) {
-      console.log('📊 Low prekey count, generating more...')
+      debug.log('📊 Low prekey count, generating more...')
       await this.generatePrekeys()
     }
   }
@@ -813,7 +814,7 @@ export class MessageEncryptionService {
       }
       return bytes.buffer
     } catch (error) {
-      console.error('❌ Invalid base64 string:', base64?.substring(0, 50) + '...')
+      debug.error('❌ Invalid base64 string:', base64?.substring(0, 50) + '...')
       throw new Error('Invalid encrypted data format - message may be corrupted or from deleted keys')
     }
   }
@@ -852,7 +853,7 @@ export class MessageEncryptionService {
     // Then import the backup
     await this.keyStore.importBackup(encryptedBackup, backupPassword)
     
-    console.log('✅ Backup imported and encryption restored')
+    debug.log('✅ Backup imported and encryption restored')
   }
 
   /**
@@ -879,7 +880,7 @@ export class MessageEncryptionService {
       throw new Error('Not initialized - cannot reset encryption')
     }
 
-    console.log('⚠️ Resetting encryption for user:', this.currentUserId)
+    debug.log('⚠️ Resetting encryption for user:', this.currentUserId)
 
     try {
       // 1. Delete keys from database using the reset function
@@ -890,11 +891,11 @@ export class MessageEncryptionService {
         })
 
       if (error) {
-        console.error('❌ Failed to reset encryption in database:', error)
+        debug.error('❌ Failed to reset encryption in database:', error)
         throw new Error(`Database reset failed: ${error.message}`)
       }
 
-      console.log('✅ Database keys deleted:', data)
+      debug.log('✅ Database keys deleted:', data)
 
       // 2. Clear local IndexedDB
       if (this.keyStore) {
@@ -907,9 +908,9 @@ export class MessageEncryptionService {
       this.currentUserId = null
       this.initialized = false
 
-      console.log('✅ Encryption fully reset - user can now set up encryption again')
+      debug.log('✅ Encryption fully reset - user can now set up encryption again')
     } catch (error) {
-      console.error('❌ Failed to reset encryption:', error)
+      debug.error('❌ Failed to reset encryption:', error)
       throw error
     }
   }
@@ -930,7 +931,7 @@ export class MessageEncryptionService {
     this.currentUserId = null
     this.initialized = false
 
-    console.log('✅ MessageEncryptionService cleaned up')
+    debug.log('✅ MessageEncryptionService cleaned up')
   }
 }
 

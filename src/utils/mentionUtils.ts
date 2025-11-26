@@ -5,6 +5,7 @@
 
 import { supabase } from '@/supabase';
 import type { UserData } from '@/types';
+import { debug } from '@/utils/debug'
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -66,7 +67,7 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
         .single();
 
       if (error || !user) {
-        console.log(`📋 Mention ${mention.full} not found in database`);
+        debug.log(`📋 Mention ${mention.full} not found in database`);
         resolved.push({ mention });
         continue;
       }
@@ -119,7 +120,7 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
       });
 
     } catch (error) {
-      console.error(`❌ Failed to resolve mention ${mention.full}:`, error);
+      debug.error(`❌ Failed to resolve mention ${mention.full}:`, error);
       resolved.push({ mention });
     }
   }
@@ -239,7 +240,7 @@ export async function resolveRemoteMention(username: string, domain: string): Pr
       .single();
 
     if (error) {
-      console.error('Failed to save remote user:', error);
+      debug.error('Failed to save remote user:', error);
       return null;
     }
 
@@ -270,7 +271,7 @@ export async function resolveRemoteMention(username: string, domain: string): Pr
     };
 
   } catch (error) {
-    console.error(`Failed to resolve remote mention ${username}@${domain}:`, error);
+    debug.error(`Failed to resolve remote mention ${username}@${domain}:`, error);
     return null;
   }
 }

@@ -84,6 +84,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/common/Icon.vue'
@@ -191,7 +192,7 @@ const selectRandomImage = () => {
 }
 
 const handleImageError = () => {
-  console.warn('Failed to load 404 image:', selectedImage.value)
+  debug.warn('Failed to load 404 image:', selectedImage.value)
   imageError.value = true
   // Try the other image if the first one fails
   const currentIndex = images.indexOf(selectedImage.value)

@@ -149,6 +149,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
@@ -303,14 +304,14 @@ const suggestedUsers = ref<FederatedUser[]>([])
 // Load suggested users
 const loadSuggestedUsers = async () => {
   try {
-    console.log('🔄 Loading suggested users...')
+    debug.log('🔄 Loading suggested users...')
     // Use TrendingService to get suggested users with proper stats
     const trendingUserResults = await trendingService.getTrendingUsers({ limit: 3 })
-    console.log('📊 Trending user results:', trendingUserResults)
+    debug.log('📊 Trending user results:', trendingUserResults)
     suggestedUsers.value = trendingUserResults.map(result => result.user)
-    console.log('✅ Suggested users loaded:', suggestedUsers.value.length)
+    debug.log('✅ Suggested users loaded:', suggestedUsers.value.length)
   } catch (error) {
-    console.error('Failed to load suggested users:', error)
+    debug.error('Failed to load suggested users:', error)
     // Fallback to empty array
     suggestedUsers.value = []
   }
@@ -330,7 +331,7 @@ const handleToggleSearch = () => {
 }
 
 const handleSwitchFeed = async (feed: string) => {
-  console.log(`🔄 Switching to ${feed} feed`)
+  debug.log(`🔄 Switching to ${feed} feed`)
   
   // Navigate to the appropriate route
   switch (feed) {
@@ -356,7 +357,7 @@ const handleSwitchFeed = async (feed: string) => {
   
   // Only load feed data if not already loaded or loading
   if (activityPubStore.isLoadingFeed) {
-    console.log(`⏳ Feed is already loading, skipping duplicate load`)
+    debug.log(`⏳ Feed is already loading, skipping duplicate load`)
     return
   }
 
@@ -379,15 +380,15 @@ const handleSwitchFeed = async (feed: string) => {
         break
       case 'trending':
         // Trending data would be loaded by ExploreView
-        console.log('🔥 Navigating to trending view')
+        debug.log('🔥 Navigating to trending view')
         break
       case 'instances':
         // Instance data would be loaded by ExploreView  
-        console.log('🌐 Navigating to instances view')
+        debug.log('🌐 Navigating to instances view')
         break
     }
   } catch (error) {
-    console.error(`Failed to load ${feed} feed:`, error)
+    debug.error(`Failed to load ${feed} feed:`, error)
   }
 }
 
@@ -423,7 +424,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
   try {
     await activityPubStore.favoritePost(post.id)
   } catch (error) {
-    console.error('Failed to favorite post:', error)
+    debug.error('Failed to favorite post:', error)
   }
 }
 
@@ -431,7 +432,7 @@ const handleReblogPost = async (post: TimelinePost) => {
   try {
     await activityPubStore.reblogPost(post.id)
   } catch (error) {
-    console.error('Failed to reblog post:', error)
+    debug.error('Failed to reblog post:', error)
   }
 }
 
@@ -439,7 +440,7 @@ const handleBookmarkPost = async (post: TimelinePost) => {
   try {
     await activityPubStore.bookmarkPost(post.id)
   } catch (error) {
-    console.error('Failed to bookmark post:', error)
+    debug.error('Failed to bookmark post:', error)
   }
 }
 
@@ -447,7 +448,7 @@ const handleDeletePost = async (post: TimelinePost) => {
   try {
     await activityPubStore.deletePost(post.id)
   } catch (error) {
-    console.error('Failed to delete post:', error)
+    debug.error('Failed to delete post:', error)
   }
 }
 
@@ -458,7 +459,7 @@ const handleShowUserProfile = (user: FederatedUser) => {
 
 const handleLoadMorePosts = async () => {
   // Prevent duplicate loading - this is handled by TimelineView
-  console.log('⚠️ Load more handled by TimelineView component');
+  debug.log('⚠️ Load more handled by TimelineView component');
 }
 
 const handleFollow = async (user: FederatedUser | string) => {
@@ -467,14 +468,14 @@ const handleFollow = async (user: FederatedUser | string) => {
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {
-      console.error('❌ handleFollow: Invalid user ID:', user)
+      debug.error('❌ handleFollow: Invalid user ID:', user)
       return
     }
     
     await activityPubStore.followUser(userId)
-    console.log(`✅ Successfully followed user: ${userId}`)
+    debug.log(`✅ Successfully followed user: ${userId}`)
   } catch (error) {
-    console.error('Failed to follow user:', error)
+    debug.error('Failed to follow user:', error)
   }
 }
 
@@ -484,34 +485,34 @@ const handleUnfollow = async (user: FederatedUser | string) => {
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {
-      console.error('❌ handleUnfollow: Invalid user ID:', user)
+      debug.error('❌ handleUnfollow: Invalid user ID:', user)
       return
     }
     
     await activityPubStore.unfollowUser(userId)
-    console.log(`✅ Successfully unfollowed user: ${userId}`)
+    debug.log(`✅ Successfully unfollowed user: ${userId}`)
   } catch (error) {
-    console.error('Failed to unfollow user:', error)
+    debug.error('Failed to unfollow user:', error)
   }
 }
 
 const handleClearAllBookmarks = async () => {
   try {
     await activityPubStore.clearAllBookmarks()
-    console.log('All bookmarks cleared')
+    debug.log('All bookmarks cleared')
     // TODO: Refresh bookmarks view if/when bookmark loading is implemented
   } catch (error) {
-    console.error('Failed to clear bookmarks:', error)
+    debug.error('Failed to clear bookmarks:', error)
   }
 }
 
 const handleLoadMoreSpecialData = async () => {
   try {
-    console.log('Loading more special data for view:', currentView.value)
+    debug.log('Loading more special data for view:', currentView.value)
     // TODO: Implement specific loading methods for bookmarks, notifications, etc.
     // For now, just log the action
   } catch (error) {
-    console.error('Failed to load more special data:', error)
+    debug.error('Failed to load more special data:', error)
   }
 }
 
@@ -525,7 +526,7 @@ const handleCloseComposer = () => {
 }
 
 const handlePosted = (post: any) => {
-  console.log('✅ Post created:', post.id)
+  debug.log('✅ Post created:', post.id)
   composerReplyPost.value = null
   // The store's realtime subscription will handle adding the post to feeds
 }

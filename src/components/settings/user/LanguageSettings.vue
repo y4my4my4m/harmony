@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { setLocale, availableLocales } from '@/i18n'
 import { supabase } from '@/supabase'
@@ -72,9 +73,9 @@ const onLanguageChange = async () => {
         .eq('id', userId)
       
       if (error) throw error
-      console.log('✅ Language preference saved')
+      debug.log('✅ Language preference saved')
     } catch (error) {
-      console.error('Failed to save language preference:', error)
+      debug.error('Failed to save language preference:', error)
     }
   }
 }
@@ -97,7 +98,7 @@ onMounted(async () => {
         setLocale(data.locale)
       }
     } catch (error) {
-      console.error('Failed to load language preference:', error)
+      debug.error('Failed to load language preference:', error)
     }
   }
 })

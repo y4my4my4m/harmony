@@ -167,6 +167,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types'
 import { format } from 'date-fns'
@@ -290,21 +291,21 @@ const handleAvatarUpload = (file: File) => {
 }
 
 const triggerBannerUpload = () => {
-  console.log('🖼️ Banner upload triggered')
+  debug.log('🖼️ Banner upload triggered')
   bannerInput.value?.click()
 }
 
 const handleBannerFileSelect = (event: Event) => {
-  console.log('📁 Banner file selected')
+  debug.log('📁 Banner file selected')
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
-    console.log('📤 Emitting banner upload event:', file.name, file.size)
+    debug.log('📤 Emitting banner upload event:', file.name, file.size)
     emit('upload-banner', file)
     // Reset the input to allow re-uploading the same file
     target.value = ''
   } else {
-    console.log('❌ No file selected')
+    debug.log('❌ No file selected')
   }
 }
 

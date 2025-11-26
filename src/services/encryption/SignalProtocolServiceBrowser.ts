@@ -13,6 +13,7 @@
 
 import type { EncryptionKeyStore } from './EncryptionKeyStore'
 import {
+import { debug } from '@/utils/debug'
   KeyHelper,
   SignalProtocolAddress,
   SessionBuilder,
@@ -82,7 +83,7 @@ export class SignalProtocolService {
   async initialize(keyStore: EncryptionKeyStore): Promise<void> {
     this.keyStore = keyStore
     this.initialized = true
-    console.log('✅ SignalProtocolService initialized (browser-compatible)')
+    debug.log('✅ SignalProtocolService initialized (browser-compatible)')
   }
 
   /**
@@ -197,7 +198,7 @@ export class SignalProtocolService {
       } : undefined
     })
 
-    console.log(`🔐 Session created with ${recipientAddress}`)
+    debug.log(`🔐 Session created with ${recipientAddress}`)
   }
 
   /**

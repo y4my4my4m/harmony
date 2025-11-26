@@ -149,6 +149,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
@@ -307,7 +308,7 @@ async function restoreEncryption() {
     toast.success('Encryption restored successfully!')
     emit('restored')
   } catch (error: any) {
-    console.error('Failed to restore encryption:', error)
+    debug.error('Failed to restore encryption:', error)
     toast.error(error.message || 'Failed to restore encryption')
   } finally {
     isRestoring.value = false

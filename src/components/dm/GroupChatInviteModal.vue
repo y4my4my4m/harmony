@@ -199,6 +199,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
@@ -284,8 +285,8 @@ const handleSearch = () => {
     isSearching.value = true
     try {
       await dmStore.searchUsers(query, currentUserId.value)
-      console.log('🔍 Search completed, raw results:', dmStore.searchResults.length)
-      console.log('🔍 Selected users before filtering:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
+      debug.log('🔍 Search completed, raw results:', dmStore.searchResults.length)
+      debug.log('🔍 Selected users before filtering:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
       
       searchResults.value = dmStore.searchResults.filter(user => {
         // Filter out current user
@@ -297,9 +298,9 @@ const handleSearch = () => {
         return true
       })
       
-      console.log('🔍 Filtered search results:', searchResults.value.length)
+      debug.log('🔍 Filtered search results:', searchResults.value.length)
     } catch (error) {
-      console.error('Search failed:', error)
+      debug.error('Search failed:', error)
       toast.error('Failed to search users')
     } finally {
       isSearching.value = false
@@ -315,7 +316,7 @@ const clearSearch = () => {
 const refreshSearchResults = () => {
   // Re-filter the current dmStore.searchResults with updated selected users
   if (dmStore.searchResults.length > 0) {
-    console.log('🔍 Refreshing search results:', {
+    debug.log('🔍 Refreshing search results:', {
       totalResults: dmStore.searchResults.length,
       selectedUsers: selectedUsers.value.map(u => ({ id: u.id, username: u.username, hasId: !!u.id })),
       existingParticipants: props.existingParticipants?.map(p => p.id) || []
@@ -324,24 +325,24 @@ const refreshSearchResults = () => {
     searchResults.value = dmStore.searchResults.filter(user => {
       // Filter out current user
       if (user.id === currentUserId.value) {
-        console.log('🚫 Filtering out current user:', user.id)
+        debug.log('🚫 Filtering out current user:', user.id)
         return false
       }
       // Filter out existing participants
       if (props.existingParticipants?.some(p => p.id === user.id)) {
-        console.log('🚫 Filtering out existing participant:', user.id)
+        debug.log('🚫 Filtering out existing participant:', user.id)
         return false
       }
       // Filter out already selected users
       if (selectedUsers.value.some(s => s.id === user.id)) {
-        console.log('🚫 Filtering out already selected user:', user.id, 'comparing with selected:', selectedUsers.value.map(s => s.id))
+        debug.log('🚫 Filtering out already selected user:', user.id, 'comparing with selected:', selectedUsers.value.map(s => s.id))
         return false
       }
-      console.log('✅ Keeping user in results:', user.id)
+      debug.log('✅ Keeping user in results:', user.id)
       return true
     })
     
-    console.log('🔍 Final search results count:', searchResults.value.length)
+    debug.log('🔍 Final search results count:', searchResults.value.length)
   }
 }
 
@@ -352,7 +353,7 @@ const selectFirstResult = () => {
 }
 
 const toggleUserSelection = (user: DMUser) => {
-  console.log('🔄 Toggling user selection:', { user, hasId: !!user.id })
+  debug.log('🔄 Toggling user selection:', { user, hasId: !!user.id })
   
   const index = selectedUsers.value.findIndex(u => u.id === user.id)
   if (index > -1) {
@@ -361,7 +362,7 @@ const toggleUserSelection = (user: DMUser) => {
     selectedUsers.value.push(user)
   }
   
-  console.log('👥 Selected users after toggle:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
+  debug.log('👥 Selected users after toggle:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
   
   // Refresh search results to update filtering
   refreshSearchResults()
@@ -412,7 +413,7 @@ const handleCreateOrAddUsers = async () => {
       await addUsersToConversation()
     }
   } catch (error) {
-    console.error('Operation failed:', error)
+    debug.error('Operation failed:', error)
     toast.error('Failed to process request')
   } finally {
     isProcessing.value = false
@@ -434,7 +435,7 @@ const createDirectConversation = async () => {
       toast.success('Conversation created!');
     }
   } catch (error) {
-    console.error('Failed to create direct conversation:', error);
+    debug.error('Failed to create direct conversation:', error);
     throw error;
   }
 };
@@ -457,7 +458,7 @@ const createGroupConversation = async () => {
       toast.error('Failed to create group conversation');
     }
   } catch (error) {
-    console.error('Failed to create group conversation:', error);
+    debug.error('Failed to create group conversation:', error);
     throw error;
   }
 };
@@ -495,7 +496,7 @@ const addUsersToConversation = async () => {
       toast.error('Failed to add users to conversation')
     }
   } catch (error) {
-    console.error('Failed to add users to conversation:', error)
+    debug.error('Failed to add users to conversation:', error)
     toast.error('Failed to add users to conversation')
     throw error
   }

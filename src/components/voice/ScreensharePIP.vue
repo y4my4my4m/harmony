@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
@@ -205,7 +206,7 @@ watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async (
         }, { once: true });
       }
     } catch (error) {
-      console.error('Failed to enter native PIP:', error);
+      debug.error('Failed to enter native PIP:', error);
       // Fall back to fixed mode
       voiceStore.togglePIP(voiceStore.pipUserId, 'fixed');
     }

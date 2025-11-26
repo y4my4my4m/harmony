@@ -102,6 +102,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
@@ -178,12 +179,12 @@ const formatFileSize = (bytes?: number): string => {
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement;
   img.style.display = 'none';
-  console.warn('Failed to load image:', img.src);
+  debug.warn('Failed to load image:', img.src);
 };
 
 const handleVideoError = (event: Event) => {
   const video = event.target as HTMLVideoElement;
-  console.warn('Failed to load video:', video.src);
+  debug.warn('Failed to load video:', video.src);
 };
 
 const openMedia = (index: number) => {

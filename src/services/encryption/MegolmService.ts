@@ -85,10 +85,10 @@ export class MegolmService {
     this.userId = userId
     this.encryptionKey = encryptionKey
     
-    console.log(`🔐 MegolmService.initialize: userId=${userId}, hasEncryptionKey=${!!encryptionKey}`)
+    debug.log(`🔐 MegolmService.initialize: userId=${userId}, hasEncryptionKey=${!!encryptionKey}`)
 
     await this.openDatabase()
-    console.log(`🔐 MegolmService: Database opened: ${!!this.db}`)
+    debug.log(`🔐 MegolmService: Database opened: ${!!this.db}`)
     
     await this.loadSessionsFromDB()
 
@@ -97,7 +97,7 @@ export class MegolmService {
     await this.migrateOutboundToInbound()
 
     this.initialized = true
-    console.log(`✅ MegolmService initialized: db=${!!this.db}, encryptionKey=${!!this.encryptionKey}, userId=${this.userId}`)
+    debug.log(`✅ MegolmService initialized: db=${!!this.db}, encryptionKey=${!!this.encryptionKey}, userId=${this.userId}`)
   }
 
   /**
@@ -132,7 +132,7 @@ export class MegolmService {
     }
 
     if (migratedCount > 0) {
-      console.log(`🔄 Migrated ${migratedCount} outbound sessions to inbound (for self-decryption)`)
+      debug.log(`🔄 Migrated ${migratedCount} outbound sessions to inbound (for self-decryption)`)
     }
   }
 
@@ -169,48 +169,48 @@ export class MegolmService {
 
   private async loadSessionsFromDB(): Promise<void> {
     if (!this.db) {
-      console.warn('⚠️ No database - cannot load sessions')
+      debug.warn('⚠️ No database - cannot load sessions')
       return
     }
 
     // Load outbound sessions
     try {
       const outboundSessions = await this.getAllFromStore<MegolmOutboundSession>(STORES.OUTBOUND)
-      console.log(`📦 Found ${outboundSessions.length} outbound sessions in IndexedDB`)
+      debug.log(`📦 Found ${outboundSessions.length} outbound sessions in IndexedDB`)
       
       for (const session of outboundSessions) {
         try {
           const decrypted = await this.decryptSession(session)
           this.outboundSessions.set(decrypted.roomId, decrypted)
-          console.log(`  - Loaded outbound session for room ${decrypted.roomId.substring(0, 8)}... (${decrypted.sessionId.substring(0, 8)}...)`)
+          debug.log(`  - Loaded outbound session for room ${decrypted.roomId.substring(0, 8)}... (${decrypted.sessionId.substring(0, 8)}...)`)
         } catch (error) {
-          console.error(`❌ Failed to decrypt outbound session:`, error)
+          debug.error(`❌ Failed to decrypt outbound session:`, error)
         }
       }
     } catch (error) {
-      console.error('❌ Failed to load outbound sessions:', error)
+      debug.error('❌ Failed to load outbound sessions:', error)
     }
 
     // Load inbound sessions
     try {
       const inboundSessions = await this.getAllFromStore<MegolmInboundSession>(STORES.INBOUND)
-      console.log(`📦 Found ${inboundSessions.length} inbound sessions in IndexedDB`)
+      debug.log(`📦 Found ${inboundSessions.length} inbound sessions in IndexedDB`)
       
       for (const session of inboundSessions) {
         try {
           const decrypted = await this.decryptSession(session)
           const key = `${decrypted.roomId}:${decrypted.senderUserId}:${decrypted.sessionId}`
           this.inboundSessions.set(key, decrypted)
-          console.log(`  - Loaded inbound session from ${decrypted.senderUserId.substring(0, 8)}... for room ${decrypted.roomId.substring(0, 8)}...`)
+          debug.log(`  - Loaded inbound session from ${decrypted.senderUserId.substring(0, 8)}... for room ${decrypted.roomId.substring(0, 8)}...`)
         } catch (error) {
-          console.error(`❌ Failed to decrypt inbound session:`, error)
+          debug.error(`❌ Failed to decrypt inbound session:`, error)
         }
       }
     } catch (error) {
-      console.error('❌ Failed to load inbound sessions:', error)
+      debug.error('❌ Failed to load inbound sessions:', error)
     }
 
-    console.log(`📦 Loaded ${this.outboundSessions.size} outbound, ${this.inboundSessions.size} inbound sessions into memory`)
+    debug.log(`📦 Loaded ${this.outboundSessions.size} outbound, ${this.inboundSessions.size} inbound sessions into memory`)
   }
 
   // =====================================================
@@ -262,10 +262,10 @@ export class MegolmService {
 
     // Store in memory
     this.outboundSessions.set(roomId, session)
-    console.log(`🔑 Created new outbound Megolm session for room ${roomId.substring(0, 8)}... (sessionId: ${sessionId.substring(0, 8)}...)`)
+    debug.log(`🔑 Created new outbound Megolm session for room ${roomId.substring(0, 8)}... (sessionId: ${sessionId.substring(0, 8)}...)`)
     
     // Save to IndexedDB
-    console.log(`💾 Attempting to save session to IndexedDB... (db=${!!this.db}, key=${!!this.encryptionKey})`)
+    debug.log(`💾 Attempting to save session to IndexedDB... (db=${!!this.db}, key=${!!this.encryptionKey})`)
     await this.saveOutboundSession(session)
     
     // CRITICAL: Also store as inbound session (for decrypting our own messages later)
@@ -278,7 +278,7 @@ export class MegolmService {
         sessionKey,
         0 // firstKnownIndex
       )
-      console.log(`📥 Also stored as inbound session (for own message decryption)`)
+      debug.log(`📥 Also stored as inbound session (for own message decryption)`)
     }
     
     return session
@@ -333,7 +333,7 @@ export class MegolmService {
     this.inboundSessions.set(key, session)
     await this.saveInboundSession(session)
 
-    console.log(`📥 Imported inbound session from ${senderUserId.substring(0, 8)}... for room ${roomId.substring(0, 8)}...`)
+    debug.log(`📥 Imported inbound session from ${senderUserId.substring(0, 8)}... for room ${roomId.substring(0, 8)}...`)
   }
 
   /**
@@ -437,7 +437,7 @@ export class MegolmService {
   ): Promise<string> {
     // Always use inbound session lookup (this works for both own and others' messages)
     // Own messages work because createOutboundSession also saves as inbound
-    console.log(`🔓 Looking for inbound session ${encryptedMessage.sessionId.substring(0, 8)}... from ${senderUserId.substring(0, 8)}...`)
+    debug.log(`🔓 Looking for inbound session ${encryptedMessage.sessionId.substring(0, 8)}... from ${senderUserId.substring(0, 8)}...`)
     
     let inboundSession = this.getInboundSession(roomId, senderUserId, encryptedMessage.sessionId)
     
@@ -446,7 +446,7 @@ export class MegolmService {
     if (!inboundSession && senderUserId === this.userId) {
       const outboundSession = this.outboundSessions.get(roomId)
       if (outboundSession && outboundSession.sessionId === encryptedMessage.sessionId) {
-        console.log(`🔓 Using current outbound session as fallback`)
+        debug.log(`🔓 Using current outbound session as fallback`)
         // Also save it as inbound for future lookups
         await this.importInboundSession(
           roomId,
@@ -460,12 +460,12 @@ export class MegolmService {
     }
     
     if (!inboundSession) {
-      console.log(`❌ No session found for ${encryptedMessage.sessionId}`)
-      console.log(`   Available inbound sessions: ${this.inboundSessions.size}`)
+      debug.log(`❌ No session found for ${encryptedMessage.sessionId}`)
+      debug.log(`   Available inbound sessions: ${this.inboundSessions.size}`)
       // Log what sessions we have for this room
       const roomSessions = Array.from(this.inboundSessions.keys())
         .filter(k => k.startsWith(roomId))
-      console.log(`   Sessions for this room: [${roomSessions.map(k => k.split(':').pop()?.substring(0, 8)).join(', ')}]`)
+      debug.log(`   Sessions for this room: [${roomSessions.map(k => k.split(':').pop()?.substring(0, 8)).join(', ')}]`)
       throw new Error(`No inbound session found for session ${encryptedMessage.sessionId}`)
     }
     
@@ -473,7 +473,7 @@ export class MegolmService {
       throw new Error(`Message index ${encryptedMessage.messageIndex} is before first known index ${inboundSession.firstKnownIndex}`)
     }
     
-    console.log(`🔓 Decrypting with inbound session from ${senderUserId.substring(0, 8)}...`)
+    debug.log(`🔓 Decrypting with inbound session from ${senderUserId.substring(0, 8)}...`)
 
     // Derive the ratchet key for this message index
     const ratchetKey = await this.deriveRatchetKey(inboundSession.sessionKey, encryptedMessage.messageIndex)
@@ -603,11 +603,11 @@ export class MegolmService {
     // This prevents losing locally-created sessions when backup is empty.
     
     if (data.outbound.length === 0 && data.inbound.length === 0) {
-      console.log('ℹ️ Backup is empty, keeping existing sessions')
+      debug.log('ℹ️ Backup is empty, keeping existing sessions')
       return
     }
 
-    console.log(`📥 Merging ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions from backup`)
+    debug.log(`📥 Merging ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions from backup`)
 
     // Import outbound sessions (merge - newer wins)
     for (const session of data.outbound) {
@@ -616,7 +616,7 @@ export class MegolmService {
       if (!existing || session.createdAt > existing.createdAt) {
         this.outboundSessions.set(session.roomId, session)
         await this.saveOutboundSession(session)
-        console.log(`  - Imported outbound session for room ${session.roomId.substring(0, 8)}...`)
+        debug.log(`  - Imported outbound session for room ${session.roomId.substring(0, 8)}...`)
       }
       
       // MIGRATION: Also create inbound copy for self-decryption
@@ -634,7 +634,7 @@ export class MegolmService {
           }
           this.inboundSessions.set(inboundKey, inbound)
           await this.saveInboundSession(inbound)
-          console.log(`  - Created inbound copy for self-decryption`)
+          debug.log(`  - Created inbound copy for self-decryption`)
         }
       }
     }
@@ -645,11 +645,11 @@ export class MegolmService {
       if (!this.inboundSessions.has(key)) {
         this.inboundSessions.set(key, session)
         await this.saveInboundSession(session)
-        console.log(`  - Imported inbound session from ${session.senderUserId.substring(0, 8)}...`)
+        debug.log(`  - Imported inbound session from ${session.senderUserId.substring(0, 8)}...`)
       }
     }
 
-    console.log(`📥 Imported ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions`)
+    debug.log(`📥 Imported ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions`)
   }
 
   // =====================================================
@@ -658,39 +658,39 @@ export class MegolmService {
 
   private async saveOutboundSession(session: MegolmOutboundSession): Promise<void> {
     if (!this.db) {
-      console.warn('⚠️ No database - cannot save outbound session')
+      debug.warn('⚠️ No database - cannot save outbound session')
       return
     }
     if (!this.encryptionKey) {
-      console.warn('⚠️ No encryption key - cannot save outbound session')
+      debug.warn('⚠️ No encryption key - cannot save outbound session')
       return
     }
 
     try {
       const encrypted = await this.encryptSession(session)
       await this.putInStore(STORES.OUTBOUND, encrypted)
-      console.log(`💾 Saved outbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
+      debug.log(`💾 Saved outbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
     } catch (error) {
-      console.error('❌ Failed to save outbound session:', error)
+      debug.error('❌ Failed to save outbound session:', error)
     }
   }
 
   private async saveInboundSession(session: MegolmInboundSession): Promise<void> {
     if (!this.db) {
-      console.warn('⚠️ No database - cannot save inbound session')
+      debug.warn('⚠️ No database - cannot save inbound session')
       return
     }
     if (!this.encryptionKey) {
-      console.warn('⚠️ No encryption key - cannot save inbound session')
+      debug.warn('⚠️ No encryption key - cannot save inbound session')
       return
     }
 
     try {
       const encrypted = await this.encryptSession(session)
       await this.putInStore(STORES.INBOUND, encrypted)
-      console.log(`💾 Saved inbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
+      debug.log(`💾 Saved inbound session for room ${session.roomId.substring(0, 8)}... to IndexedDB`)
     } catch (error) {
-      console.error('❌ Failed to save inbound session:', error)
+      debug.error('❌ Failed to save inbound session:', error)
     }
   }
 

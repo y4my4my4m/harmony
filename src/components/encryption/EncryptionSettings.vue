@@ -287,6 +287,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
@@ -401,7 +402,7 @@ async function loadEncryptionStatus() {
 
     isInitialized.value = true
   } catch (error) {
-    console.error('Failed to load encryption status:', error)
+    debug.error('Failed to load encryption status:', error)
     toast.error('Failed to load encryption settings')
     isInitialized.value = true
   }

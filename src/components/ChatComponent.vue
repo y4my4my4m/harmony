@@ -206,7 +206,7 @@
       };
 
       const toggleGiphy = () => {
-          console.log('toggleGiphy called');
+          debug.log('toggleGiphy called');
           
           // Close emoji picker when opening GIF picker
           if (!giphyOpen.value) {
@@ -214,7 +214,7 @@
           }
           
           giphyOpen.value = !giphyOpen.value;
-          console.log('giphyOpen is now:', giphyOpen.value);
+          debug.log('giphyOpen is now:', giphyOpen.value);
           if (giphyOpen.value) {
               gifIconClicked.value = true;
           }
@@ -232,12 +232,12 @@
 
       // New drag and drop handler for the chat container (fallback)
       const triggerFileDrop = async (event: any) => {
-        console.log("triggerFileDrop called - File dropped on chat container:", event);
+        debug.log("triggerFileDrop called - File dropped on chat container:", event);
         showDragDropArea.value = false;
         
         const files = event.dataTransfer.files;
         if (files.length > 0) {
-          console.log("ChatComponent forwarding", files.length, "files to MessageInput");
+          debug.log("ChatComponent forwarding", files.length, "files to MessageInput");
           const fileArray = Array.from(files);
           // This will be handled by MessageInput's drag and drop
           // We'll emit an event to trigger file selection in MessageInput
@@ -268,14 +268,14 @@
             });
             document.dispatchEvent(messageInputEvent);
           } catch (error) {
-            console.error('Error processing file drop:', error);
+            debug.error('Error processing file drop:', error);
           }
         });
       });
 
       // Use unified content parsing system (DRY)
       const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
-        console.log('🔧 Using unified content parsing for:', input);
+        debug.log('🔧 Using unified content parsing for:', input);
         
         // Use efficient batch mention resolution
         const userDataMap = await resolveMentionsUserData(input);
@@ -294,12 +294,12 @@
           });
         }
         
-        console.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length / 2); // Divide by 2 since we map twice
+        debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length / 2); // Divide by 2 since we map twice
         
         // Parse with unified system (now with emoji data)
         const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap);
         
-        console.log('🔧 Final parsed message parts:', result);
+        debug.log('🔧 Final parsed message parts:', result);
         return result;
       };
 
@@ -315,12 +315,12 @@
         // For server channels: check if we have channel and server IDs
         if (props.isDM) {
           if (!dmStore.currentConversationId) {
-            console.warn('Cannot send DM: no conversation selected');
+            debug.warn('Cannot send DM: no conversation selected');
             return;
           }
         } else {
           if (!serverChannelStore.currentChannelId || !serverChannelStore.currentServerId) {
-            console.warn('Cannot send message: no channel or server selected');
+            debug.warn('Cannot send message: no channel or server selected');
             return;
           }
         }
@@ -330,12 +330,12 @@
         const hasFailedFiles = files.some(file => file.uploadStatus === 'error');
 
         if (hasUploadingFiles) {
-          console.warn('Cannot send message while files are still uploading');
+          debug.warn('Cannot send message while files are still uploading');
           return;
         }
 
         if (hasFailedFiles) {
-          console.warn('Cannot send message with failed uploads');
+          debug.warn('Cannot send message with failed uploads');
           return;
         }
 
@@ -393,7 +393,7 @@
             handleDontReply();
           }
         } catch (error) {
-          console.error('Error sending message:', error);
+          debug.error('Error sending message:', error);
         }
       };
 
@@ -453,7 +453,7 @@
           
           // Append emoji name to the existing message content
           messageContent.value += `:${emoji.name}:`;
-          console.log("Emoji added in Parent:", messageContent.value);
+          debug.log("Emoji added in Parent:", messageContent.value);
         }
       };
 

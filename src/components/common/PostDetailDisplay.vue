@@ -116,6 +116,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { services } from '@/services';
 import type { TimelinePost } from '@/types';
@@ -163,7 +164,7 @@ const loadPost = async () => {
   error.value = null;
 
   try {
-    console.log('🔄 Loading post via service layer:', props.postId);
+    debug.log('🔄 Loading post via service layer:', props.postId);
     
     // Use service layer directly for post loading with optimistic updates
     const loadedPost = await services.posts.loadPost(props.postId);
@@ -175,10 +176,10 @@ const loadPost = async () => {
     post.value = loadedPost;
     totalReplies.value = post.value.replies_count || 0;
     
-    console.log('✅ Post loaded successfully via service layer');
+    debug.log('✅ Post loaded successfully via service layer');
     await loadReplies();
   } catch (err) {
-    console.error('❌ Failed to load post via service layer:', err);
+    debug.error('❌ Failed to load post via service layer:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
   } finally {
     isLoading.value = false;
@@ -197,7 +198,7 @@ const loadReplies = async () => {
     replies.value = [];
     hasMoreReplies.value = false;
   } catch (err) {
-    console.error('Failed to load replies:', err);
+    debug.error('Failed to load replies:', err);
   } finally {
     isLoadingReplies.value = false;
   }
@@ -210,7 +211,7 @@ const loadMoreReplies = async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     hasMoreReplies.value = false;
   } catch (err) {
-    console.error('Failed to load more replies:', err);
+    debug.error('Failed to load more replies:', err);
   } finally {
     isLoadingMoreReplies.value = false;
   }
@@ -229,7 +230,7 @@ const sharePost = async () => {
         url: url
       });
     } catch (err) {
-      console.log('Share cancelled');
+      debug.log('Share cancelled');
     }
   } else {
     // Fallback: copy to clipboard
@@ -240,7 +241,7 @@ const sharePost = async () => {
 
 const openActions = () => {
   // TODO: Show actions menu
-  console.log('Open actions menu');
+  debug.log('Open actions menu');
 };
 
 const handleReplyCreated = (newReply: TimelinePost) => {

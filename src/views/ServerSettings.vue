@@ -168,6 +168,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, computed, watch, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
@@ -308,7 +309,7 @@ const fetchServer = async () => {
       ownerName.value = owner?.username ?? 'Unknown User'
     }
   } catch (error) {
-    console.error('Error fetching server:', error)
+    debug.error('Error fetching server:', error)
     toast.error(t('server.failedToLoadServerSettings'))
   } finally {
     loading.value = false
@@ -319,7 +320,7 @@ const fetchEmojis = async () => {
   try {
     emojis.value = await serverStore.fetchEmojis(props.serverId)
   } catch (error) {
-    console.error('Error fetching emojis:', error)
+    debug.error('Error fetching emojis:', error)
     toast.error(t('server.failedToLoadEmojis'))
   }
 }
@@ -362,7 +363,7 @@ const handleSave = async () => {
       throw new Error('Update failed')
     }
   } catch (error) {
-    console.error('Error updating server:', error)
+    debug.error('Error updating server:', error)
     toast.error(t('server.failedToUpdateServer'))
   } finally {
     loading.value = false

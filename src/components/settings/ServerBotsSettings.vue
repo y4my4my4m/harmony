@@ -196,6 +196,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -278,9 +279,9 @@ async function loadBots() {
     if (installError) throw installError
     installedBots.value = installations || []
 
-    console.log('✅ Bots loaded:', { available: bots?.length, installed: installations?.length })
+    debug.log('✅ Bots loaded:', { available: bots?.length, installed: installations?.length })
   } catch (error: any) {
-    console.error('❌ Failed to load bots:', error)
+    debug.error('❌ Failed to load bots:', error)
     showMessage('error', error.message || 'Failed to load bots')
   } finally {
     loading.value = false
@@ -336,7 +337,7 @@ async function addBot() {
     closeModal()
     await loadBots()
   } catch (error: any) {
-    console.error('❌ Failed to add bot:', error)
+    debug.error('❌ Failed to add bot:', error)
     showMessage('error', error.message || 'Failed to add bot')
   } finally {
     adding.value = false
@@ -385,7 +386,7 @@ async function updatePermissions() {
     closePermissionsModal()
     await loadBots()
   } catch (error: any) {
-    console.error('❌ Failed to update permissions:', error)
+    debug.error('❌ Failed to update permissions:', error)
     showMessage('error', error.message || 'Failed to update permissions')
   } finally {
     updatingPerms.value = false
@@ -407,7 +408,7 @@ async function removeBot(installation: any) {
     showMessage('success', `${installation.bot.username} removed from server`)
     await loadBots()
   } catch (error: any) {
-    console.error('❌ Failed to remove bot:', error)
+    debug.error('❌ Failed to remove bot:', error)
     showMessage('error', error.message || 'Failed to remove bot')
   }
 }

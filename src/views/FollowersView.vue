@@ -93,6 +93,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -193,7 +194,7 @@ const loadUsers = async (refresh = false) => {
     hasMore.value = result.length === 20;
     cursor.value = result.length > 0 ? result[result.length - 1].id : null;
   } catch (error) {
-    console.error(`Failed to load ${currentView.value}:`, error);
+    debug.error(`Failed to load ${currentView.value}:`, error);
     toast.error(`Failed to load ${currentView.value}`);
   } finally {
     isLoading.value = false;
@@ -219,14 +220,14 @@ const loadCounts = async () => {
       .single();
     
     if (error) {
-      console.error('Failed to load counts:', error);
+      debug.error('Failed to load counts:', error);
       return;
     }
     
     followersCount.value = userProfile.followers_count || 0;
     followingCount.value = userProfile.following_count || 0;
   } catch (error) {
-    console.error('Failed to load counts:', error);
+    debug.error('Failed to load counts:', error);
   }
 };
 

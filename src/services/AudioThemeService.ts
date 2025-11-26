@@ -1,4 +1,5 @@
 import type { AudioTheme, AudioAction, AudioThemeSettings } from '@/types'
+import { debug } from '@/utils/debug'
 
 /**
  * Professional Audio Theme Service
@@ -225,7 +226,7 @@ export class AudioThemeService {
   public async setTheme(themeId: string): Promise<boolean> {
     const theme = this.themes.get(themeId)
     if (!theme) {
-      console.warn(`Theme '${themeId}' not found`)
+      debug.warn(`Theme '${themeId}' not found`)
       return false
     }
 
@@ -242,10 +243,10 @@ export class AudioThemeService {
       
       this.emit('themeChanged', { from: previousTheme, to: themeId, theme })
       
-      console.log(`🎵 Switched to audio theme: ${theme.name}`)
+      debug.log(`🎵 Switched to audio theme: ${theme.name}`)
       return true
     } catch (error) {
-      console.error(`Failed to switch to theme '${themeId}':`, error)
+      debug.error(`Failed to switch to theme '${themeId}':`, error)
       // Revert on error
       this.settings.selectedTheme = previousTheme
       this.saveSettings()
@@ -293,7 +294,7 @@ export class AudioThemeService {
       // Try to get the audio with fallback
       const audio = await this.getAudioWithFallback(action)
       if (!audio) {
-        console.warn(`No sound available for action: ${action}`)
+        debug.warn(`No sound available for action: ${action}`)
         return
       }
 
@@ -309,7 +310,7 @@ export class AudioThemeService {
       const soundPath = audio.src
       this.emit('audioPlayed', { action, soundPath, theme: this.settings.selectedTheme })
     } catch (error) {
-      console.warn(`Failed to play audio for ${action}:`, error)
+      debug.warn(`Failed to play audio for ${action}:`, error)
       this.emit('audioError', { action, soundPath: '', error })
     }
   }
@@ -324,7 +325,7 @@ export class AudioThemeService {
       try {
         return await this.getOrCreateAudio(currentTheme.sounds[action])
       } catch (error) {
-        console.warn(`Failed to load ${action} from current theme, trying fallback...`, error)
+        debug.warn(`Failed to load ${action} from current theme, trying fallback...`, error)
       }
     }
 
@@ -334,7 +335,7 @@ export class AudioThemeService {
       try {
         return await this.getOrCreateAudio(defaultTheme.sounds[action])
       } catch (error) {
-        console.warn(`Failed to load ${action} from default theme`, error)
+        debug.warn(`Failed to load ${action} from default theme`, error)
       }
     }
 
@@ -402,12 +403,12 @@ export class AudioThemeService {
       return
     }
 
-    console.log(`🎵 Preloading theme: ${theme.name}`)
+    debug.log(`🎵 Preloading theme: ${theme.name}`)
     
     const soundPaths = Object.values(theme.sounds).filter(Boolean) as string[]
     const preloadPromises = soundPaths.map(path => 
       this.preloadAudio(path).catch(error => {
-        console.warn(`Failed to preload sound: ${path}`, error)
+        debug.warn(`Failed to preload sound: ${path}`, error)
         // Don't fail the entire theme loading for individual sound failures
       })
     )
@@ -417,7 +418,7 @@ export class AudioThemeService {
       this.loadedThemes.add(themeId)
       this.emit('themePreloaded', { themeId, theme })
     } catch (error) {
-      console.warn(`Theme preload completed with some failures: ${themeId}`, error)
+      debug.warn(`Theme preload completed with some failures: ${themeId}`, error)
     }
   }
 
@@ -470,7 +471,7 @@ export class AudioThemeService {
         }
       }
     } catch (error) {
-      console.warn('Failed to load audio theme settings:', error)
+      debug.warn('Failed to load audio theme settings:', error)
     }
   }
 
@@ -483,7 +484,7 @@ export class AudioThemeService {
       localStorage.setItem('harmony_audio_theme_settings', JSON.stringify(this.settings))
       this.emit('settingsChanged', this.settings)
     } catch (error) {
-      console.warn('Failed to save audio theme settings:', error)
+      debug.warn('Failed to save audio theme settings:', error)
     }
   }
 
@@ -585,7 +586,7 @@ export class AudioThemeService {
         try {
           listener(...args)
         } catch (error) {
-          console.error(`Error in event listener for '${event}':`, error)
+          debug.error(`Error in event listener for '${event}':`, error)
         }
       })
     }

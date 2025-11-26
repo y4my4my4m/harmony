@@ -2,6 +2,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/useAuth'
 import type { UnreadCount } from '@/types'
+import { debug } from '@/utils/debug'
 
 /**
  * Composable for managing unread message and mention counts
@@ -111,7 +112,7 @@ export function useUnreadCounts() {
         .single()
 
       if (!profile) {
-        console.warn('Profile not found for user:', userId)
+        debug.warn('Profile not found for user:', userId)
         return
       }
 
@@ -123,7 +124,7 @@ export function useUnreadCounts() {
         .or('unread_mentions.gt.0,unread_messages.gt.0') // Fetch where there are unread mentions or messages
 
       if (error) {
-        console.error('Failed to fetch unread counts:', error)
+        debug.error('Failed to fetch unread counts:', error)
         return
       }
 
@@ -141,9 +142,9 @@ export function useUnreadCounts() {
         })
       }
 
-      console.log('✅ Fetched unread counts:', unreadCounts.value.size)
+      debug.log('✅ Fetched unread counts:', unreadCounts.value.size)
     } catch (error) {
-      console.error('❌ Error fetching unread counts:', error)
+      debug.error('❌ Error fetching unread counts:', error)
     } finally {
       isLoading.value = false
     }
@@ -175,7 +176,7 @@ export function useUnreadCounts() {
               filter: `user_id=eq.${profile.id}`,
             },
             (payload: any) => {
-              console.log('🔄 Unread count update:', payload)
+              debug.log('🔄 Unread count update:', payload)
 
               if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                 const count = payload.new as UnreadCount
@@ -200,7 +201,7 @@ export function useUnreadCounts() {
           )
           .subscribe()
 
-        console.log('✅ Real-time subscription for unread counts established')
+        debug.log('✅ Real-time subscription for unread counts established')
       })
   }
 
@@ -211,7 +212,7 @@ export function useUnreadCounts() {
     if (realtimeSubscription) {
       supabase.removeChannel(realtimeSubscription)
       realtimeSubscription = null
-      console.log('🧹 Cleaned up unread counts real-time subscription')
+      debug.log('🧹 Cleaned up unread counts real-time subscription')
     }
   }
 

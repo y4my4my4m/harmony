@@ -6,6 +6,7 @@ import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
+import { debug } from '@/utils/debug';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -71,7 +72,7 @@ export const useChatStore = defineStore('chat', {
           .single();
 
         if (error || !message) {
-          console.error('Error fetching reply message:', error);
+          debug.error('Error fetching reply message:', error);
           return null;
         }
 
@@ -82,7 +83,7 @@ export const useChatStore = defineStore('chat', {
         this.replyMessageCache.set(messageId, message);
         return message;
       } catch (error) {
-        console.error('Error fetching reply message:', error);
+        debug.error('Error fetching reply message:', error);
         return null;
       } finally {
         this.fetchingReplyMessages.delete(messageId);
@@ -93,7 +94,7 @@ export const useChatStore = defineStore('chat', {
     loadCachedMessages(channelId: string) {
       const cached = this.messageCache.get(channelId);
       if (cached) {
-        console.log(`Loading cached messages instantly: ${channelId}`);
+        debug.log(`Loading cached messages instantly: ${channelId}`);
         this.messages = [...cached.messages];
         this.allMessagesLoaded = cached.allMessagesLoaded;
         this.currentChannelId = channelId;
@@ -141,7 +142,7 @@ export const useChatStore = defineStore('chat', {
         // Cache is invalid if any message was modified after our cache was created
         return latestModification <= cached.lastFetchedAt;
       } catch (error) {
-        console.error('Error validating cache:', error);
+        debug.error('Error validating cache:', error);
         // On error, assume cache is still valid to avoid unnecessary refetches
         return true;
       }
@@ -171,7 +172,7 @@ export const useChatStore = defineStore('chat', {
           messageCount: count || 0,
         };
       } catch (error) {
-        console.error('Error fetching cache metadata:', error);
+        debug.error('Error fetching cache metadata:', error);
         return null;
       }
     },
@@ -210,7 +211,7 @@ export const useChatStore = defineStore('chat', {
 
       if (oldestChannelId) {
         this.messageCache.delete(oldestChannelId);
-        console.log(`Evicted cache for channel: ${oldestChannelId}`);
+        debug.log(`Evicted cache for channel: ${oldestChannelId}`);
       }
     },
 
@@ -226,21 +227,21 @@ export const useChatStore = defineStore('chat', {
           const now = new Date();
           const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
           
-          console.log(`📦 Found cache for channel ${channelId}, age: ${Math.round(cacheAge / 1000)}s, valid: ${cacheAge < this.cacheValidityDuration}`);
+          debug.log(`📦 Found cache for channel ${channelId}, age: ${Math.round(cacheAge / 1000)}s, valid: ${cacheAge < this.cacheValidityDuration}`);
           
           // If cache is less than 5 minutes old, use it instantly
           if (cacheAge < this.cacheValidityDuration) {
-            console.log(`✅ Loading ${cached.messages.length} messages from cache instantly (cache is fresh)`);
+            debug.log(`✅ Loading ${cached.messages.length} messages from cache instantly (cache is fresh)`);
             this.messages = [...cached.messages];
             this.allMessagesLoaded = cached.allMessagesLoaded;
             this.currentChannelId = channelId;
             // Return immediately - truly instant loading
             return;
           } else {
-            console.log(`⚠️ Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
+            debug.log(`⚠️ Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
           }
         } else {
-          console.log(`📭 No cache found for channel ${channelId}, fetching from database`);
+          debug.log(`📭 No cache found for channel ${channelId}, fetching from database`);
         }
       }
 
@@ -248,7 +249,7 @@ export const useChatStore = defineStore('chat', {
       this.loadingOlderMessages = true;
       
       try {
-        console.log('🔄 Loading messages via MessageService:', { channelId, oldestMessageId });
+        debug.log('🔄 Loading messages via MessageService:', { channelId, oldestMessageId });
         
         // Use services.messages for consistent loading with service layer
         // Determine cursor for pagination (before timestamp)
@@ -261,11 +262,11 @@ export const useChatStore = defineStore('chat', {
             beforeTimestamp = oldestMessage.created_at instanceof Date 
               ? oldestMessage.created_at.toISOString()
               : oldestMessage.created_at;
-            console.log('📅 Using timestamp for pagination:', beforeTimestamp);
+            debug.log('📅 Using timestamp for pagination:', beforeTimestamp);
           }
         }
         
-        console.log('📤 Loading older messages with params:', { channelId, limit: 20, beforeTimestamp });
+        debug.log('📤 Loading older messages with params:', { channelId, limit: 20, beforeTimestamp });
         
         const { messages, hasMore } = await services.messages.loadChannelMessages(
           channelId,
@@ -276,13 +277,13 @@ export const useChatStore = defineStore('chat', {
           }
         );
 
-        console.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
+        debug.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
 
         // Process URL embeds asynchronously (non-blocking)
         try {
           ensureMessageEmbeds(messages);
         } catch (error) {
-          console.warn('Failed to prepare message embeds:', error);
+          debug.warn('Failed to prepare message embeds:', error);
         }
 
         // Check if request was cancelled
@@ -291,7 +292,7 @@ export const useChatStore = defineStore('chat', {
         }
 
         if (!messages || messages.length === 0) {
-          console.log('📭 No older messages found');
+          debug.log('📭 No older messages found');
           this.allMessagesLoaded = true;
           return;
         }
@@ -322,7 +323,7 @@ export const useChatStore = defineStore('chat', {
         const olderMessages = messages;
         const allLoaded = !hasMore;
 
-        console.log('📦 Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
+        debug.log('📦 Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
 
         if (oldestMessageId === '') {
           // Initial load - update cache and current messages
@@ -344,10 +345,10 @@ export const useChatStore = defineStore('chat', {
             lastModified: new Date(),
           });
 
-          console.log(`✅ Initial load: Cached ${olderMessages.length} messages for channel`);
+          debug.log(`✅ Initial load: Cached ${olderMessages.length} messages for channel`);
         } else {
           // Loading older messages - PREPEND to current (older messages go BEFORE)
-          console.log(`📤 Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
+          debug.log(`📤 Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
           this.messages = [...olderMessages, ...this.messages];
           this.allMessagesLoaded = allLoaded;
 
@@ -360,7 +361,7 @@ export const useChatStore = defineStore('chat', {
             cached.lastFetchedAt = new Date();
           }
           
-          console.log(`✅ Pagination: Now have ${this.messages.length} total messages, allLoaded: ${allLoaded}`);
+          debug.log(`✅ Pagination: Now have ${this.messages.length} total messages, allLoaded: ${allLoaded}`);
         }
       } catch (error: any) {
         if (error.message === 'Request aborted') {
@@ -377,15 +378,15 @@ export const useChatStore = defineStore('chat', {
       try {
         ensureMessageEmbeds(message);
       } catch (error) {
-        console.warn('Failed to prepare embeds for realtime message:', error);
+        debug.warn('Failed to prepare embeds for realtime message:', error);
       }
       // Skip DM messages - they should be handled by the DM store
       if (!message.channel_id || message.conversation_id) {
-        console.log('Skipping DM message in chat store - should be handled by DM store');
+        debug.log('Skipping DM message in chat store - should be handled by DM store');
         return;
       }
 
-      console.log('🔄 Adding message to cache via real-time:', {
+      debug.log('🔄 Adding message to cache via real-time:', {
         messageId: message.id,
         channelId: message.channel_id,
         currentChannelId: this.currentChannelId,
@@ -396,12 +397,12 @@ export const useChatStore = defineStore('chat', {
       if (this.currentChannelId === message.channel_id) {
         if (!this.messages.some(msg => msg.id === message.id)) {
           this.messages.push(message);
-          console.log('✅ Real-time message added to current messages:', message.id);
+          debug.log('✅ Real-time message added to current messages:', message.id);
         } else {
-          console.log('⚠️ Message already exists in current messages:', message.id);
+          debug.log('⚠️ Message already exists in current messages:', message.id);
         }
       } else {
-        console.log('🔍 Message not for current channel:', {
+        debug.log('🔍 Message not for current channel:', {
           messageChannelId: message.channel_id,
           currentChannelId: this.currentChannelId
         });
@@ -413,10 +414,10 @@ export const useChatStore = defineStore('chat', {
         if (!cached.messages.some(msg => msg.id === message.id)) {
           cached.messages.push(message);
           cached.lastModified = new Date();
-          console.log('✅ Real-time message added to cache:', message.id);
+          debug.log('✅ Real-time message added to cache:', message.id);
         }
       } else {
-        console.log('⚠️ No cache found for channel:', message.channel_id);
+        debug.log('⚠️ No cache found for channel:', message.channel_id);
       }
     },
 
@@ -431,7 +432,7 @@ export const useChatStore = defineStore('chat', {
           }
         }
       } catch (error) {
-        console.warn('Failed to reprocess encrypted messages:', error);
+        debug.warn('Failed to reprocess encrypted messages:', error);
       }
     },
 
@@ -455,7 +456,7 @@ export const useChatStore = defineStore('chat', {
       try {
         ensureMessageEmbeds(updatedMessage, { force: true });
       } catch (error) {
-        console.warn('Failed to refresh embeds for updated message:', error);
+        debug.warn('Failed to refresh embeds for updated message:', error);
       }
     },
 
@@ -474,23 +475,23 @@ export const useChatStore = defineStore('chat', {
     // Clear cache for specific channel
     invalidateChannelCache(channelId: string) {
       this.messageCache.delete(channelId);
-      console.log(`Invalidated cache for channel: ${channelId}`);
+      debug.log(`Invalidated cache for channel: ${channelId}`);
     },
 
     // Clear all caches
     clearAllCaches() {
       this.messageCache.clear();
-      console.log('Cleared all message caches');
+      debug.log('Cleared all message caches');
     },
 
     async editMessage(messageId: string, content: MessagePart[]) {
       try {
-        console.log('🔄 Editing message via MessageService:', messageId);
+        debug.log('🔄 Editing message via MessageService:', messageId);
         
         // Find the current message to get its data
         const currentMessage = this.messages.find(msg => msg.id === messageId);
         if (!currentMessage) {
-          console.error('❌ Message not found in current messages:', messageId);
+          debug.error('❌ Message not found in current messages:', messageId);
           return;
         }
         
@@ -505,26 +506,26 @@ export const useChatStore = defineStore('chat', {
         };
         
         this.updateMessageInCache(messageId, messageWithReactions);
-        console.log('✅ Message edited via service layer');
+        debug.log('✅ Message edited via service layer');
         
       } catch (error: any) {
-        console.error('❌ Error editing message via service:', error);
+        debug.error('❌ Error editing message via service:', error);
         throw new Error(error.message || 'Failed to edit message');
       }
     },
 
     async deleteMessage(messageId: string) {
       try {
-        console.log('🔄 Deleting message via MessageService:', messageId);
+        debug.log('🔄 Deleting message via MessageService:', messageId);
         
         // Use services.messages for consistent deletion with service layer
         await services.messages.deleteMessage(messageId);
         
         // Remove from local cache (service handles database deletion)
         this.removeMessageFromCache(messageId);
-        console.log('✅ Message deleted via service layer');
+        debug.log('✅ Message deleted via service layer');
       } catch (error: any) {
-        console.error('❌ Error deleting message via service:', error);
+        debug.error('❌ Error deleting message via service:', error);
         throw new Error(error.message || 'Failed to delete message');
       }
     },
@@ -546,7 +547,7 @@ export const useChatStore = defineStore('chat', {
       this.addMessageToCache(optimisticMessage as any);
       
       try {
-        console.log('🔄 Sending message via MessageService:', { channelId, userId });
+        debug.log('🔄 Sending message via MessageService:', { channelId, userId });
         
         // Use services.messages for consistent sending with service layer
         const message = await services.messages.sendChannelMessage(
@@ -556,11 +557,11 @@ export const useChatStore = defineStore('chat', {
           replyTo || undefined
         );
         
-        console.log('✅ Message saved to database:', message.id);
-        console.log('📦 Message data from server:', message);
+        debug.log('✅ Message saved to database:', message.id);
+        debug.log('📦 Message data from server:', message);
         
         // Real-time will replace the temp message with the real one
-        console.log('⏳ Waiting for real-time to replace temp message...');
+        debug.log('⏳ Waiting for real-time to replace temp message...');
         
         // Real-time INSERT will handle replacing temp → real
         // This ensures we don't interfere with the database event flow
@@ -569,36 +570,36 @@ export const useChatStore = defineStore('chat', {
       } catch (error: any) {
         // Remove optimistic message on error
         this.removeMessageFromCache(tempId);
-        console.error('❌ Error sending message via service:', error);
+        debug.error('❌ Error sending message via service:', error);
         throw new Error(error.message || 'Failed to send message');
       }
     },
 
     async addReaction(messageId: string, emojiId: string, userId: string) {
       try {
-        // console.log('🎯 Adding reaction:', { messageId, emojiId, userId });
+        // debug.log('🎯 Adding reaction:', { messageId, emojiId, userId });
         
         // Use the reactions store for consistent handling
         const reactionsStore = useReactionsStore();
         const result = await reactionsStore.toggleReaction(messageId, emojiId, userId);
         
         if (result.success) {
-          // console.log('🎯 Reaction successfully toggled');
+          // debug.log('🎯 Reaction successfully toggled');
         } else if (result.reason === 'duplicate_request') {
-          // console.log('🎯 Reaction toggle skipped (duplicate request prevented)');
+          // debug.log('🎯 Reaction toggle skipped (duplicate request prevented)');
         } else {
-          console.error('🎯 Failed to toggle reaction:', result.message || result.reason);
+          debug.error('🎯 Failed to toggle reaction:', result.message || result.reason);
         }
       } catch (e) {
-        console.error('Error during reaction toggle:', e);
+        debug.error('Error during reaction toggle:', e);
       }
     },
 
     subscribeToMessages(channelId: string) {
-      console.log('🔔 Setting up real-time subscription for channel:', channelId);
+      debug.log('🔔 Setting up real-time subscription for channel:', channelId);
       
       if (this.currentSubscription) {
-        console.log('🔄 Unsubscribing from previous channel');
+        debug.log('🔄 Unsubscribing from previous channel');
         this.currentSubscription.unsubscribe();
       }
 
@@ -609,7 +610,7 @@ export const useChatStore = defineStore('chat', {
       const listenedMessageIds = new Set();
 
       const channelName = `channel-${channelId}`;
-      console.log('📡 Creating real-time subscription:', channelName);
+      debug.log('📡 Creating real-time subscription:', channelName);
       
       this.currentSubscription = supabase
         .channel(channelName)
@@ -622,21 +623,21 @@ export const useChatStore = defineStore('chat', {
             filter: `channel_id=eq.${channelId}`
           },
           async (payload) => {
-            console.log('🟢 Real-time INSERT received:', payload);
+            debug.log('🟢 Real-time INSERT received:', payload);
             
             // Check if this is our own message (already replaced by sendMessage)
             // Real-time should NOT add it again
             const existingRealMessage = this.messages.findIndex(m => m.id === payload.new.id);
             if (existingRealMessage !== -1) {
-              console.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
+              debug.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
               return;
             }
             
             // Check if temp message exists (shouldn't happen - sendMessage should have replaced it)
             const tempMessageIndex = this.messages.findIndex(m => m.id.startsWith('temp-') && m.user_id === payload.new.user_id);
             if (tempMessageIndex !== -1) {
-              console.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
-              console.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
+              debug.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
+              debug.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
               let resolvedMessage: Message = {
                 id: payload.new.id,
                 created_at: new Date(payload.new.created_at),
@@ -672,7 +673,7 @@ export const useChatStore = defineStore('chat', {
                   resolvedMessage = decrypted[0];
                 }
               } catch (error) {
-                console.warn('Failed to prepare embeds for resolved realtime message:', error);
+                debug.warn('Failed to prepare embeds for resolved realtime message:', error);
               }
               this.messages.splice(tempMessageIndex, 1, resolvedMessage);
               return;
@@ -681,12 +682,12 @@ export const useChatStore = defineStore('chat', {
             // Check if message already exists (from manual replacement)
             const existingIndex = this.messages.findIndex(m => m.id === payload.new.id);
             if (existingIndex !== -1) {
-              console.log('⚠️ Message already exists, skipping duplicate');
+              debug.log('⚠️ Message already exists, skipping duplicate');
               return;
             }
             
             // 🔐 Debug: Log raw payload encryption fields to diagnose real-time decryption issues
-            console.log('🔐 Real-time message payload encryption fields:', {
+            debug.log('🔐 Real-time message payload encryption fields:', {
               id: payload.new.id,
               encrypted: payload.new.encrypted,
               encrypted_type: typeof payload.new.encrypted,
@@ -717,7 +718,7 @@ export const useChatStore = defineStore('chat', {
             
             // Debug: Log bot messages with metadata
             if (newMessage.bot_id) {
-              console.log('🤖 Real-time bot message received:', {
+              debug.log('🤖 Real-time bot message received:', {
                 id: newMessage.id,
                 bot_id: newMessage.bot_id,
                 has_metadata: !!newMessage.metadata,
@@ -741,7 +742,7 @@ export const useChatStore = defineStore('chat', {
               (looksLikeBase64 && newMessage.encryption_metadata);
             
             if (looksEncrypted) {
-              console.log('🔐 Real-time encrypted message received, attempting decryption...', {
+              debug.log('🔐 Real-time encrypted message received, attempting decryption...', {
                 encrypted_flag: newMessage.encrypted,
                 has_metadata: !!newMessage.encryption_metadata,
                 content_looks_like_base64: looksLikeBase64
@@ -753,22 +754,22 @@ export const useChatStore = defineStore('chat', {
                 }
                 const decrypted = await processMessageDecryption([newMessage]);
                 newMessage = decrypted[0];
-                console.log('🔓 Real-time message decryption result:', newMessage.decrypted ? 'success' : 'glyphs shown');
+                debug.log('🔓 Real-time message decryption result:', newMessage.decrypted ? 'success' : 'glyphs shown');
               } catch (error) {
-                console.warn('Failed to decrypt real-time message:', error);
+                debug.warn('Failed to decrypt real-time message:', error);
               }
             }
 
             this.addMessageToCache(newMessage);
             listenedMessageIds.add(newMessage.id);
-            console.log('📝 Real-time message processed, total listened messages:', listenedMessageIds.size);
+            debug.log('📝 Real-time message processed, total listened messages:', listenedMessageIds.size);
           }
         )
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'reactions' },
           async (payload) => {
-            // console.log('🟢 INSERT event received for reaction:', payload);
+            // debug.log('🟢 INSERT event received for reaction:', payload);
             reactionsStore.handleRealtimeUpdate(payload);
           }
         )
@@ -805,12 +806,12 @@ export const useChatStore = defineStore('chat', {
                 const decrypted = await processMessageDecryption([updatedMessage]);
                 updatedMessage = decrypted[0];
               } catch (error) {
-                console.warn('Failed to decrypt updated real-time message:', error);
+                debug.warn('Failed to decrypt updated real-time message:', error);
               }
             }
 
             this.updateMessageInCache(updatedMessage.id, updatedMessage);
-            console.log('🔄 Message updated via real-time:', updatedMessage.id);
+            debug.log('🔄 Message updated via real-time:', updatedMessage.id);
           }
         )
         .on(
@@ -824,7 +825,7 @@ export const useChatStore = defineStore('chat', {
           (payload) => {
             const deletedMessageId = payload.old.id;
             this.removeMessageFromCache(deletedMessageId);
-            console.log('🗑️ Message deleted via real-time:', deletedMessageId);
+            debug.log('🗑️ Message deleted via real-time:', deletedMessageId);
           }
         )
         .on(
@@ -836,18 +837,18 @@ export const useChatStore = defineStore('chat', {
             filter: undefined
           },
           async (payload) => {
-            // console.log('🔥 DELETE event received for reaction:', payload);
+            // debug.log('🔥 DELETE event received for reaction:', payload);
             reactionsStore.handleRealtimeUpdate(payload);
           }
         )
         .subscribe((status) => {
-          console.log('📡 Real-time subscription status:', status, 'for channel:', channelName);
+          debug.log('📡 Real-time subscription status:', status, 'for channel:', channelName);
           if (status === 'SUBSCRIBED') {
-            console.log('✅ Successfully subscribed to real-time updates for channel:', channelId);
+            debug.log('✅ Successfully subscribed to real-time updates for channel:', channelId);
           } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Real-time subscription error for channel:', channelId);
+            debug.error('❌ Real-time subscription error for channel:', channelId);
           } else if (status === 'TIMED_OUT') {
-            console.error('⏰ Real-time subscription timed out for channel:', channelId);
+            debug.error('⏰ Real-time subscription timed out for channel:', channelId);
           }
         });            
     },
@@ -877,7 +878,7 @@ export const useChatStore = defineStore('chat', {
           .single();
 
         if (error || !message) {
-          console.error('Message not found or error fetching:', error);
+          debug.error('Message not found or error fetching:', error);
           return false;
         }
 
@@ -919,7 +920,7 @@ export const useChatStore = defineStore('chat', {
 
         return true;
       } catch (error) {
-        console.error('Error jumping to message:', error);
+        debug.error('Error jumping to message:', error);
         return false;
       }
     },

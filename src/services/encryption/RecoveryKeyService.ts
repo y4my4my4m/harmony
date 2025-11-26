@@ -593,7 +593,7 @@ export class RecoveryKeyService {
     try {
       const decoded = JSON.parse(atob(qrData))
       if (decoded.v !== 1) {
-        console.error('Unknown QR version:', decoded.v)
+        debug.error('Unknown QR version:', decoded.v)
         return null
       }
 
@@ -604,7 +604,7 @@ export class RecoveryKeyService {
 
       return words
     } catch (error) {
-      console.error('Failed to parse QR data:', error)
+      debug.error('Failed to parse QR data:', error)
       return null
     }
   }

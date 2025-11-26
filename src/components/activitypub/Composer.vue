@@ -296,6 +296,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useProfileStore } from '@/stores/useProfile';
 import type { TimelinePost, Post } from '@/types';
@@ -548,7 +549,7 @@ const handleDrop = async (event: DragEvent) => {
   );
 
   if (mediaFiles.length === 0) {
-    console.warn('Only images and videos can be dropped');
+    debug.warn('Only images and videos can be dropped');
     return;
   }
 
@@ -678,7 +679,7 @@ const handleSubmit = async () => {
     emit('posted', post);
     emit('close');
   } catch (error) {
-    console.error('Failed to create post:', error);
+    debug.error('Failed to create post:', error);
     // TODO: Show error toast
   } finally {
     isPosting.value = false;

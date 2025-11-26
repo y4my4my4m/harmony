@@ -175,6 +175,7 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
@@ -227,7 +228,7 @@ const currentUserProfile = computed(() => {
       avatar_url: user.avatarUrl || '/default_avatar.png'
     };
   } catch (error) {
-    console.warn('Error getting current user profile for voice dock:', error);
+    debug.warn('Error getting current user profile for voice dock:', error);
     return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.png' };
   }
 });

@@ -10,6 +10,7 @@
 
 import { supabase } from '@/supabase'
 import type { Notification, NotificationType, NotificationPreferences } from '@/types'
+import { debug } from '@/utils/debug'
 
 export interface NotificationServiceError {
   code: string
@@ -52,7 +53,7 @@ export class NotificationService {
     }
   ): Promise<NotificationResult> {
     try {
-      console.log('🔔 Sending notification via unified system:', { type, toUserId, data })
+      debug.log('🔔 Sending notification via unified system:', { type, toUserId, data })
 
       const { data: result, error } = await supabase.rpc('send_notification_to_user', {
         notification_type: type,
@@ -69,10 +70,10 @@ export class NotificationService {
         throw this.createError('SEND_FAILED', error.message, error)
       }
 
-      console.log('✅ Notification sent successfully via unified system')
+      debug.log('✅ Notification sent successfully via unified system')
       return { success: true, notificationIds: result ? [result] : [] }
     } catch (error) {
-      console.error('❌ Failed to send notification:', error)
+      debug.error('❌ Failed to send notification:', error)
       throw error
     }
   }
@@ -90,7 +91,7 @@ export class NotificationService {
     }
   ): Promise<Notification[]> {
     try {
-      console.log('🔄 Fetching notifications via service layer:', { userId, options })
+      debug.log('🔄 Fetching notifications via service layer:', { userId, options })
 
       // Fetch notifications using RPC function (should filter blocks/mutes at DB level)
       const { data: notifications, error } = await supabase.rpc('get_user_notifications', {
@@ -103,14 +104,14 @@ export class NotificationService {
 
       if (error) {
         // Fallback to direct query if RPC fails
-        console.warn('RPC get_user_notifications failed, falling back to direct query:', error)
+        debug.warn('RPC get_user_notifications failed, falling back to direct query:', error)
         return await this._fetchNotificationsDirect(userId, options)
       }
 
-      console.log(`✅ Fetched ${notifications?.length || 0} notifications`)
+      debug.log(`✅ Fetched ${notifications?.length || 0} notifications`)
       return notifications || []
     } catch (error) {
-      console.error('❌ Failed to fetch notifications:', error)
+      debug.error('❌ Failed to fetch notifications:', error)
       throw error
     }
   }
@@ -169,7 +170,7 @@ export class NotificationService {
    */
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
-      console.log('🔄 Marking notification as read:', notificationId)
+      debug.log('🔄 Marking notification as read:', notificationId)
 
       const { error } = await supabase
         .from('notifications')
@@ -180,10 +181,10 @@ export class NotificationService {
         throw this.createError('UPDATE_FAILED', error.message, error)
       }
 
-      console.log('✅ Notification marked as read')
+      debug.log('✅ Notification marked as read')
       return true
     } catch (error) {
-      console.error('❌ Failed to mark notification as read:', error)
+      debug.error('❌ Failed to mark notification as read:', error)
       throw error
     }
   }
@@ -193,7 +194,7 @@ export class NotificationService {
    */
   async markAllAsRead(userId: string): Promise<boolean> {
     try {
-      console.log('🔄 Marking all notifications as read for user:', userId)
+      debug.log('🔄 Marking all notifications as read for user:', userId)
 
       const { error } = await supabase
         .from('notifications')
@@ -205,10 +206,10 @@ export class NotificationService {
         throw this.createError('UPDATE_FAILED', error.message, error)
       }
 
-      console.log('✅ All notifications marked as read')
+      debug.log('✅ All notifications marked as read')
       return true
     } catch (error) {
-      console.error('❌ Failed to mark all notifications as read:', error)
+      debug.error('❌ Failed to mark all notifications as read:', error)
       throw error
     }
   }
@@ -218,7 +219,7 @@ export class NotificationService {
    */
   async deleteNotification(notificationId: string): Promise<boolean> {
     try {
-      console.log('🔄 Deleting notification:', notificationId)
+      debug.log('🔄 Deleting notification:', notificationId)
 
       const { error } = await supabase
         .from('notifications')
@@ -229,10 +230,10 @@ export class NotificationService {
         throw this.createError('DELETE_FAILED', error.message, error)
       }
 
-      console.log('✅ Notification deleted')
+      debug.log('✅ Notification deleted')
       return true
     } catch (error) {
-      console.error('❌ Failed to delete notification:', error)
+      debug.error('❌ Failed to delete notification:', error)
       throw error
     }
   }
@@ -254,7 +255,7 @@ export class NotificationService {
 
       return count || 0
     } catch (error) {
-      console.error('❌ Failed to get unread count:', error)
+      debug.error('❌ Failed to get unread count:', error)
       return 0
     }
   }
@@ -264,7 +265,7 @@ export class NotificationService {
    */
   async loadPreferences(userId: string): Promise<NotificationPreferences | null> {
     try {
-      console.log('🔄 Loading notification preferences:', userId)
+      debug.log('🔄 Loading notification preferences:', userId)
 
       const { data: preferences, error } = await supabase
         .from('notification_preferences')
@@ -276,10 +277,10 @@ export class NotificationService {
         throw this.createError('LOAD_PREFERENCES_FAILED', error.message, error)
       }
 
-      console.log('✅ Notification preferences loaded')
+      debug.log('✅ Notification preferences loaded')
       return preferences
     } catch (error) {
-      console.error('❌ Failed to load notification preferences:', error)
+      debug.error('❌ Failed to load notification preferences:', error)
       return null
     }
   }
@@ -292,7 +293,7 @@ export class NotificationService {
     preferences: Partial<NotificationPreferences>
   ): Promise<NotificationPreferences | null> {
     try {
-      console.log('🔄 Updating notification preferences:', { userId, preferences })
+      debug.log('🔄 Updating notification preferences:', { userId, preferences })
 
       const { data: updated, error } = await supabase
         .from('notification_preferences')
@@ -309,10 +310,10 @@ export class NotificationService {
         throw this.createError('UPDATE_PREFERENCES_FAILED', error.message, error)
       }
 
-      console.log('✅ Notification preferences updated')
+      debug.log('✅ Notification preferences updated')
       return updated
     } catch (error) {
-      console.error('❌ Failed to update notification preferences:', error)
+      debug.error('❌ Failed to update notification preferences:', error)
       throw error
     }
   }

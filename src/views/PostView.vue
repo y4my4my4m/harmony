@@ -209,6 +209,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { activityPubService } from '@/services/activityPubService';
@@ -303,7 +304,7 @@ const loadPostWithContext = async () => {
     }
     
   } catch (err) {
-    console.error('❌ Failed to load post with context:', err);
+    debug.error('❌ Failed to load post with context:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load post';
     toast.error('Failed to load post');
   } finally {
@@ -355,7 +356,7 @@ const handleDelete = async (postId: string) => {
     toast.success('Post deleted');
     goBack();
   } catch (err) {
-    console.error('❌ Failed to delete post:', err);
+    debug.error('❌ Failed to delete post:', err);
     toast.error('Failed to delete post');
   }
 };
@@ -366,7 +367,7 @@ const handleFavorite = async (postId: string) => {
     // Reload to show updated state
     await loadPostWithContext();
   } catch (err) {
-    console.error('❌ Failed to favorite post:', err);
+    debug.error('❌ Failed to favorite post:', err);
     toast.error('Failed to favorite post');
   }
 };
@@ -378,7 +379,7 @@ const handleReblog = async (postId: string) => {
     await loadPostWithContext();
     toast.success('Post reblogged!');
   } catch (err) {
-    console.error('❌ Failed to reblog post:', err);
+    debug.error('❌ Failed to reblog post:', err);
     toast.error('Failed to reblog post');
   }
 };
@@ -390,7 +391,7 @@ const handleBookmark = async (postId: string) => {
     await loadPostWithContext();
     toast.success('Post bookmarked!');
   } catch (err) {
-    console.error('❌ Failed to bookmark post:', err);
+    debug.error('❌ Failed to bookmark post:', err);
     toast.error('Failed to bookmark post');
   }
 };

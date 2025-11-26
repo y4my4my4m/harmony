@@ -30,6 +30,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
 
 const showBanner = ref(false)
@@ -55,7 +56,7 @@ const installApp = async () => {
       localStorage.setItem('harmony-pwa-installed', 'true')
     }
   } catch (error) {
-    console.error('Failed to install app:', error)
+    debug.error('Failed to install app:', error)
   } finally {
     installing.value = false
   }

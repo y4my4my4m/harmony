@@ -243,6 +243,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
@@ -319,7 +320,7 @@ const users = computed(() => {
   // Fallback only if we have no context data and aren't loading
   const allUsers = getAllUsers.value;
   if (allUsers.length > 0) {
-    console.log(`🔄 UserSidebar: Using fallback data for server ${serverId}: ${allUsers.length} users`);
+    debug.log(`🔄 UserSidebar: Using fallback data for server ${serverId}: ${allUsers.length} users`);
     
     // Convert to legacy format for compatibility
     return allUsers.map(userData => ({
@@ -422,12 +423,12 @@ const toggleGroup = (groupName: string) => {
 
 const fetchAndSetUsers = async (serverId: string | null) => {
   fetchCallCounter++;
-  console.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
+  debug.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
     // ✅ DEBOUNCE: Prevent duplicate calls for the same server
     if (lastFetchedServerId.value === serverId && isLoadingUsers.value) {
-      console.log(`⏭️ UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
+      debug.log(`⏭️ UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
       return;
     }
     
@@ -437,19 +438,19 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     let users = getUsersInContext(serverId).value;
     
     if (users.length > 0) {
-      console.log(`💾 UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
+      debug.log(`💾 UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
       isLoadingUsers.value = false; // Ensure loading state is cleared
       return; // Use cached data, no loading needed
     }
     
     // Only show loading if we truly have no data for this server
-    console.log(`🔄 UserSidebar: No cached users found, loading for server ${serverId}...`);
+    debug.log(`🔄 UserSidebar: No cached users found, loading for server ${serverId}...`);
     isLoadingUsers.value = true;
     
     try {
       // Wait briefly for BaseLayout to establish context (for initial app load)
       if (users.length === 0) {
-        console.log(`⏳ UserSidebar: Waiting for server context to be established...`);
+        debug.log(`⏳ UserSidebar: Waiting for server context to be established...`);
         
         // Shorter wait time since we're being smarter about caching
         const maxWaitTime = 500; // 500ms max for server switches
@@ -463,16 +464,16 @@ const fetchAndSetUsers = async (serverId: string | null) => {
         }
         
         if (users.length > 0) {
-          console.log(`✅ UserSidebar: Server context ready after ${waitTime}ms wait`);
+          debug.log(`✅ UserSidebar: Server context ready after ${waitTime}ms wait`);
           return; // Found cached data during wait
         }
       }
       
       // No cached data available, create new subscription
-      console.log(`🆕 UserSidebar: Creating new subscription for server ${serverId}...`);
+      debug.log(`🆕 UserSidebar: Creating new subscription for server ${serverId}...`);
       const userIds = await getUserIdsForServer(serverId);
       await subscribeToContext(serverId, 'server', userIds);
-      console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
+      debug.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
     } finally {
       isLoadingUsers.value = false;
     }
@@ -486,7 +487,7 @@ watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId)
     return; // No change, skip
   }
   
-  console.log(`🔄 UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
+  debug.log(`🔄 UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
   
   // ✅ INSTANT FEEDBACK: Clear loading state immediately if new server has cached data
   if (newServerId) {

@@ -14,6 +14,7 @@
  */
 
 import type {
+import { debug } from '@/utils/debug'
   StorageType,
   KeyPairType,
   Direction,
@@ -68,7 +69,7 @@ export class EncryptionKeyStore implements StorageType {
       request.onerror = () => reject(request.error)
       request.onsuccess = () => {
         this.db = request.result
-        console.log('✅ IndexedDB opened')
+        debug.log('✅ IndexedDB opened')
         resolve()
       }
 
@@ -93,7 +94,7 @@ export class EncryptionKeyStore implements StorageType {
           db.createObjectStore(STORES.METADATA, { keyPath: 'key' })
         }
 
-        console.log('✅ IndexedDB object stores created')
+        debug.log('✅ IndexedDB object stores created')
       }
     })
   }
@@ -134,9 +135,9 @@ export class EncryptionKeyStore implements StorageType {
       const keyArray = Array.from(new Uint8Array(exported))
       const keyBase64 = btoa(String.fromCharCode(...keyArray))
       sessionStorage.setItem(`e2ee_key_${this.userId}`, keyBase64)
-      console.log('✅ Encryption key derived and cached for session')
+      debug.log('✅ Encryption key derived and cached for session')
     } catch (error) {
-      console.warn('⚠️ Could not cache encryption key:', error)
+      debug.warn('⚠️ Could not cache encryption key:', error)
     }
   }
 
@@ -166,10 +167,10 @@ export class EncryptionKeyStore implements StorageType {
         ['encrypt', 'decrypt']
       )
 
-      console.log('✅ Encryption key restored from session')
+      debug.log('✅ Encryption key restored from session')
       return true
     } catch (error) {
-      console.error('❌ Failed to restore session key:', error)
+      debug.error('❌ Failed to restore session key:', error)
       return false
     }
   }
@@ -250,17 +251,17 @@ export class EncryptionKeyStore implements StorageType {
   }
 
   async loadPreKey(keyId: string | number): Promise<KeyPairType | undefined> {
-    console.log(`🔑 loadPreKey: Loading prekey ID ${keyId}`)
+    debug.log(`🔑 loadPreKey: Loading prekey ID ${keyId}`)
     const stored = await this.getFromStore<any>(STORES.PREKEYS, Number(keyId))
     if (!stored) {
-      console.error(`❌ loadPreKey: Prekey ID ${keyId} NOT FOUND in IndexedDB`)
+      debug.error(`❌ loadPreKey: Prekey ID ${keyId} NOT FOUND in IndexedDB`)
       // List all available prekey IDs for debugging
       const allPrekeys = await this.getAllFromStore(STORES.PREKEYS)
-      console.log(`   Available prekey IDs in IndexedDB:`, allPrekeys.map((p: any) => p.id))
+      debug.log(`   Available prekey IDs in IndexedDB:`, allPrekeys.map((p: any) => p.id))
       return undefined
     }
 
-    console.log(`✅ loadPreKey: Found prekey ID ${keyId} in IndexedDB`)
+    debug.log(`✅ loadPreKey: Found prekey ID ${keyId} in IndexedDB`)
     const decrypted = await this.decrypt(stored.keyPair)
     const parsed = JSON.parse(decrypted)
 
@@ -308,17 +309,17 @@ export class EncryptionKeyStore implements StorageType {
   }
 
   async loadSignedPreKey(keyId: number | string): Promise<KeyPairType | undefined> {
-    console.log(`🔑 loadSignedPreKey: Loading signed prekey ID ${keyId}`)
+    debug.log(`🔑 loadSignedPreKey: Loading signed prekey ID ${keyId}`)
     const stored = await this.getFromStore<any>(STORES.SIGNED_PREKEYS, Number(keyId))
     if (!stored) {
-      console.error(`❌ loadSignedPreKey: Signed prekey ID ${keyId} NOT FOUND in IndexedDB`)
+      debug.error(`❌ loadSignedPreKey: Signed prekey ID ${keyId} NOT FOUND in IndexedDB`)
       // List all available signed prekey IDs for debugging
       const allSignedPrekeys = await this.getAllFromStore(STORES.SIGNED_PREKEYS)
-      console.log(`   Available signed prekey IDs in IndexedDB:`, allSignedPrekeys.map((p: any) => p.id))
+      debug.log(`   Available signed prekey IDs in IndexedDB:`, allSignedPrekeys.map((p: any) => p.id))
       return undefined
     }
 
-    console.log(`✅ loadSignedPreKey: Found signed prekey ID ${keyId} in IndexedDB`)
+    debug.log(`✅ loadSignedPreKey: Found signed prekey ID ${keyId} in IndexedDB`)
     const decrypted = await this.decrypt(stored.keyPair)
     const parsed = JSON.parse(decrypted)
 
@@ -465,11 +466,11 @@ export class EncryptionKeyStore implements StorageType {
    */
   async clearAllData(): Promise<void> {
     if (!this.db) {
-      console.log('⚠️ No database to clear')
+      debug.log('⚠️ No database to clear')
       return
     }
 
-    console.log('⚠️ Clearing all encryption data from IndexedDB...')
+    debug.log('⚠️ Clearing all encryption data from IndexedDB...')
 
     const storeNames = [
       STORES.IDENTITY,
@@ -486,20 +487,20 @@ export class EncryptionKeyStore implements StorageType {
           const store = transaction.objectStore(storeName)
           const request = store.clear()
           request.onsuccess = () => {
-            console.log(`  ✅ Cleared store: ${storeName}`)
+            debug.log(`  ✅ Cleared store: ${storeName}`)
             resolve()
           }
           request.onerror = () => reject(request.error)
         })
       } catch (error) {
-        console.error(`  ❌ Failed to clear store ${storeName}:`, error)
+        debug.error(`  ❌ Failed to clear store ${storeName}:`, error)
       }
     }
 
     // Also clear session storage key
     this.clearSessionKey()
 
-    console.log('✅ All IndexedDB encryption data cleared')
+    debug.log('✅ All IndexedDB encryption data cleared')
   }
 
   // =====================================================
@@ -544,7 +545,7 @@ export class EncryptionKeyStore implements StorageType {
     const backupJson = JSON.stringify(backup)
     const encrypted = await this.encryptWithPassword(backupJson, backupPassword)
     
-    console.log('✅ Backup exported successfully')
+    debug.log('✅ Backup exported successfully')
     return encrypted
   }
 
@@ -608,7 +609,7 @@ export class EncryptionKeyStore implements StorageType {
       }
     }
 
-    console.log('✅ Backup imported successfully')
+    debug.log('✅ Backup imported successfully')
   }
 
   /**
@@ -760,7 +761,7 @@ export class EncryptionKeyStore implements StorageType {
     if (this.db) {
       this.db.close()
       this.db = null
-      console.log('✅ EncryptionKeyStore database closed')
+      debug.log('✅ EncryptionKeyStore database closed')
     }
   }
 

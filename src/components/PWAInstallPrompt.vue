@@ -52,6 +52,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
 
 interface Props {
@@ -103,9 +104,9 @@ const shareApp = async () => {
     try {
       await navigator.clipboard.writeText(window.location.origin)
       // You could show a toast here
-      console.log('📋 App URL copied to clipboard')
+      debug.log('📋 App URL copied to clipboard')
     } catch (error) {
-      console.error('Failed to share or copy URL:', error)
+      debug.error('Failed to share or copy URL:', error)
     }
   }
 }

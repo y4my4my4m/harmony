@@ -54,6 +54,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -156,7 +157,7 @@ const handleJoinServer = async (serverId: string) => {
       toast.error('Failed to join the server')
     }
   } catch (error) {
-    console.error('Error joining server:', error)
+    debug.error('Error joining server:', error)
     toast.error('An error occurred while joining the server')
   } finally {
     loadingServerIds.value.delete(serverId)
@@ -184,7 +185,7 @@ const handleLeaveServer = async (serverId: string) => {
       toast.error('Failed to leave the server')
     }
   } catch (error) {
-    console.error('Error leaving server:', error)
+    debug.error('Error leaving server:', error)
     toast.error('An error occurred while leaving the server')
   } finally {
     loadingServerIds.value.delete(serverId)
@@ -211,7 +212,7 @@ const handleViewOwnerProfile = async (userId: string) => {
       toast.error('Could not load user profile')
     }
   } catch (error) {
-    console.error('Error loading user profile:', error)
+    debug.error('Error loading user profile:', error)
     toast.error('Failed to load user profile')
   }
 }
@@ -226,8 +227,8 @@ handleEscapeKey(closeModal)
 
 // Lifecycle
 onMounted(async () => {
-  console.log('🚀 PublicServers modal opened')
-  console.log('📊 Current store state:', {
+  debug.log('🚀 PublicServers modal opened')
+  debug.log('📊 Current store state:', {
     hasLoaded: publicServersStore.hasLoaded,
     serversCount: publicServersStore.servers.length,
     isLoading: publicServersStore.isLoading,
@@ -238,17 +239,17 @@ onMounted(async () => {
   try {
     // Ensure fresh data when modal opens, especially for new users
     if (publicServersStore.needsFreshData() || props.forceRefresh) {
-      console.log('🔄 Force refreshing data for new user or stale data')
+      debug.log('🔄 Force refreshing data for new user or stale data')
       await publicServersStore.forceRefresh()
     } else {
-      console.log('📋 Fetching public servers normally')
+      debug.log('📋 Fetching public servers normally')
       // Always try to fetch if we don't have data yet
       await publicServersStore.fetchPublicServers()
     }
     
-    console.log('✅ PublicServers data loaded successfully')
+    debug.log('✅ PublicServers data loaded successfully')
   } catch (error) {
-    console.error('❌ Error loading public servers in modal:', error)
+    debug.error('❌ Error loading public servers in modal:', error)
     toast.error('Failed to load communities. Please try again.')
   }
 })

@@ -9,7 +9,7 @@ import './assets/themes.css' // Theme system CSS
 //   const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
 //   if (isMobile) {
 //     await import('./assets/pwa.css');
-//     console.log('📱 Mobile styles loaded');
+//     debug.log('📱 Mobile styles loaded');
 //   }
 // }
 import { createApp } from 'vue'
@@ -34,6 +34,7 @@ import MasonryWall from '@yeger/vue-masonry-wall'
 // TODO: FIXME
 import ClickOutsideDirective from './directives/ClickOutsideDirective';
 import { vHaptic } from './utils/hapticFeedback';
+import { debug } from '@/utils/debug'
 
 const app = createApp(App);
 
@@ -72,16 +73,16 @@ async function initializeApp() {
   try {
     // Initialize PWA features first for better UX
     await pwaManager.initialize()
-    console.log('🚀 PWA Manager initialized')
+    debug.log('🚀 PWA Manager initialized')
     
     // Initialize auth store first to check for existing sessions
     const authStore = useAuthStore()
     await authStore.initializeAuth()
-    console.log('✅ Auth initialized')
+    debug.log('✅ Auth initialized')
     
     // Register service worker for enhanced notification handling
     const swSupported = await serviceWorkerManager.initialize()
-    console.log('🔔 Service Worker supported:', swSupported)
+    debug.log('🔔 Service Worker supported:', swSupported)
     
     // Request notification permission if supported
     if (swSupported) {
@@ -91,9 +92,9 @@ async function initializeApp() {
     // Start reaction cache management
     // TODO: revisit reactionCacheManager
     // reactionCacheManager.startCleanup()
-    // console.log('🎯 Reaction cache manager started')
+    // debug.log('🎯 Reaction cache manager started')
   } catch (error) {
-    console.error('❌ Error initializing service worker:', error)
+    debug.error('❌ Error initializing service worker:', error)
   }
   
   // Mount the app

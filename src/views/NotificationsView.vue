@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost, FederatedUser } from '@/types'
@@ -62,7 +63,7 @@ const loadNotifications = async () => {
   try {
     await activityPubStore.loadNotifications()
   } catch (error) {
-    console.error('Failed to load notifications:', error)
+    debug.error('Failed to load notifications:', error)
   } finally {
     isLoadingNotifications.value = false
   }
@@ -73,7 +74,7 @@ const handleLoadMore = async () => {
   try {
     await activityPubStore.loadMoreNotifications()
   } catch (error) {
-    console.error('Failed to load more notifications:', error)
+    debug.error('Failed to load more notifications:', error)
   }
 }
 
@@ -86,7 +87,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
     await activityPubStore.toggleFavorite(post.id)
     emit('favoritePost', post)
   } catch (error) {
-    console.error('Failed to favorite post:', error)
+    debug.error('Failed to favorite post:', error)
   }
 }
 
@@ -95,7 +96,7 @@ const handleReblogPost = async (post: TimelinePost) => {
     await activityPubStore.toggleReblog(post.id)
     emit('reblogPost', post)
   } catch (error) {
-    console.error('Failed to reblog post:', error)
+    debug.error('Failed to reblog post:', error)
   }
 }
 
@@ -108,7 +109,7 @@ const handleFollow = async (user: FederatedUser) => {
     await activityPubStore.followUser(user.id)
     emit('followUser', user)
   } catch (error) {
-    console.error('Failed to follow user:', error)
+    debug.error('Failed to follow user:', error)
   }
 }
 
@@ -117,7 +118,7 @@ const handleUnfollow = async (user: FederatedUser) => {
     await activityPubStore.unfollowUser(user.id)
     emit('unfollowUser', user)
   } catch (error) {
-    console.error('Failed to unfollow user:', error)
+    debug.error('Failed to unfollow user:', error)
   }
 }
 

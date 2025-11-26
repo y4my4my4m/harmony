@@ -187,6 +187,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
@@ -223,7 +224,7 @@ const togglePanel = async () => {
     
     // ⚡ OPTIMIZED: Load full notification list only when panel is opened
     if (authStore.session?.user?.id && notifications.value.length === 0) {
-      console.log('📝 Loading full notification list on panel open...')
+      debug.log('📝 Loading full notification list on panel open...')
       await notificationStore.loadFullNotificationList(authStore.session.user.id)
     }
   } else {
@@ -250,7 +251,7 @@ const markAllAsRead = async () => {
     //   2000
     // )
   } catch (error) {
-    console.error('Failed to mark all notifications as read:', error)
+    debug.error('Failed to mark all notifications as read:', error)
     notificationStore.showToast(
       'server_update',
       'Failed to mark notifications as read',
@@ -270,7 +271,7 @@ const dismissNotification = async (notificationId: string) => {
   try {
     await notificationStore.deleteNotification(notificationId)
   } catch (error) {
-    console.error('Failed to dismiss notification:', error)
+    debug.error('Failed to dismiss notification:', error)
   }
 }
 
@@ -297,7 +298,7 @@ const loadMoreNotifications = async () => {
     )
     hasMoreNotifications.value = newNotifications.length === 25
   } catch (error) {
-    console.error('Failed to load more notifications:', error)
+    debug.error('Failed to load more notifications:', error)
   } finally {
     isLoadingMore.value = false
   }
@@ -321,7 +322,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 // ✅ CLEAN ARCHITECTURE: NotificationBell is pure reactive display component
 // BaseLayout handles ALL notification initialization - we just display current state
 onMounted(() => {
-  console.log('🔔 NotificationBell: Mounted as reactive display component')
+  debug.log('🔔 NotificationBell: Mounted as reactive display component')
   
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeydown)

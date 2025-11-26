@@ -45,6 +45,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
+import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -109,13 +110,13 @@ const currentUserId = computed(() =>
 // Handle reaction click (add/remove) using the store
 const handleReactionClick = async (reaction: PostEmojiReaction) => {
   if (!currentUserId.value) {
-    console.warn('User not authenticated');
+    debug.warn('User not authenticated');
     return;
   }
   
   // Safety check for reaction object
   if (!reaction || typeof reaction !== 'object') {
-    console.warn('Invalid reaction object:', reaction);
+    debug.warn('Invalid reaction object:', reaction);
     return;
   }
   
@@ -124,7 +125,7 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     try {
       await themeStore.testAudio('reaction');
     } catch (audioError) {
-      console.warn('Failed to play reaction audio:', audioError);
+      debug.warn('Failed to play reaction audio:', audioError);
       // Don't block the reaction if audio fails
     }
     
@@ -144,18 +145,18 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     
     if (result.success) {
       const action = reaction.current_user_reacted ? 'Removed' : 'Added';
-      console.log(`${action === 'Added' ? '➕' : '➖'} ${action} reaction ${reaction.emoji_name} to post ${props.post.id}`);
+      debug.log(`${action === 'Added' ? '➕' : '➖'} ${action} reaction ${reaction.emoji_name} to post ${props.post.id}`);
     } else {
-      console.warn('Failed to toggle reaction:', result.reason);
+      debug.warn('Failed to toggle reaction:', result.reason);
     }
     
   } catch (error) {
-    console.error('Failed to toggle reaction:', error);
+    debug.error('Failed to toggle reaction:', error);
     // Play error sound if available
     try {
       await themeStore.testAudio('ui_error');
     } catch (audioError) {
-      console.warn('Failed to play error audio:', audioError);
+      debug.warn('Failed to play error audio:', audioError);
     }
   }
 };
@@ -172,13 +173,13 @@ const hideTooltip = () => {
 
 // Handle emoji loading errors
 const handleEmojiError = (reaction: PostEmojiReaction) => {
-  console.warn('Failed to load emoji:', reaction);
+  debug.warn('Failed to load emoji:', reaction);
 };
 
 // Handle emoji selection from parent components (like MonyPost)
 const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
   if (!currentUserId.value) {
-    console.warn('User not authenticated');
+    debug.warn('User not authenticated');
     return false;
   }
   
@@ -190,15 +191,15 @@ const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
     );
     
     if (result.success) {
-      console.log(`➕ Added reaction ${emoji.name} to post ${props.post.id}`);
+      debug.log(`➕ Added reaction ${emoji.name} to post ${props.post.id}`);
       return true;
     } else {
-      console.warn('Failed to add reaction:', result.reason);
+      debug.warn('Failed to add reaction:', result.reason);
       return false;
     }
     
   } catch (error) {
-    console.error('Failed to add emoji reaction:', error);
+    debug.error('Failed to add emoji reaction:', error);
     return false;
   }
 };
@@ -220,7 +221,7 @@ onMounted(() => {
         filter: `post_id=eq.${props.post.id}`
       },
       (payload) => {
-        console.log('🔔 Realtime reaction update:', payload);
+        debug.log('🔔 Realtime reaction update:', payload);
         // Use store's realtime handler for proper optimistic state management
         if (payload.new?.interaction_type === 'emoji_reaction' || 
             payload.old?.interaction_type === 'emoji_reaction') {

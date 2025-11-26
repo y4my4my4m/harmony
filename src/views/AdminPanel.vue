@@ -562,6 +562,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
@@ -773,7 +774,7 @@ const loadInitialData = async () => {
       loadFederatedInstances()
     ])
   } catch (error) {
-    console.error('Failed to load admin data:', error)
+    debug.error('Failed to load admin data:', error)
   } finally {
     loading.value = false
   }
@@ -792,7 +793,7 @@ const loadRecentActivity = async () => {
       admin_id: event.admin_id
     }))
   } catch (error) {
-    console.error('Failed to load recent activity:', error)
+    debug.error('Failed to load recent activity:', error)
     recentActivity.value = []
   }
 }
@@ -813,7 +814,7 @@ const loadSystemStats = async () => {
       postsToday: stats.postsToday || 0
     }
   } catch (error) {
-    console.error('Failed to load system stats:', error)
+    debug.error('Failed to load system stats:', error)
     // Set defaults on error
     systemStats.value = {
       uptime: Date.now() - (7 * 24 * 60 * 60 * 1000),
@@ -833,7 +834,7 @@ const loadUsers = async () => {
   try {
     users.value = await adminService.getUsers(100)
   } catch (error) {
-    console.error('Failed to load users:', error)
+    debug.error('Failed to load users:', error)
     users.value = []
   }
 }
@@ -842,7 +843,7 @@ const loadSystemHealth = async () => {
   try {
     systemHealth.value = await adminService.getSystemHealth()
   } catch (error) {
-    console.error('Failed to load system health:', error)
+    debug.error('Failed to load system health:', error)
     // Set defaults
     systemHealth.value = {
       database: { responseTime: 0, connections: 0 },
@@ -864,7 +865,7 @@ const refreshData = async () => {
 
 const exportLogs = () => {
   // Export system logs
-  console.log('Exporting logs...')
+  debug.log('Exporting logs...')
 }
 
 const blockInstance = async () => {
@@ -888,7 +889,7 @@ const blockInstance = async () => {
       // Refresh activity log
       await loadRecentActivity()
     } catch (error) {
-      console.error('Failed to block instance:', error)
+      debug.error('Failed to block instance:', error)
       alert('Failed to block instance. Check console for details.')
     }
   }
@@ -911,7 +912,7 @@ const unblockInstance = async (domain: string) => {
     // Refresh activity log
     await loadRecentActivity()
   } catch (error) {
-    console.error('Failed to unblock instance:', error)
+    debug.error('Failed to unblock instance:', error)
     alert('Failed to unblock instance. Check console for details.')
   }
 }
@@ -931,7 +932,7 @@ const moderateUser = async (user: any, action: string) => {
       
       // Refresh user list
       await loadUsers()
-      console.log(`User ${user.username} suspended`)
+      debug.log(`User ${user.username} suspended`)
     } else if (action === 'delete') {
       if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) {
         return
@@ -946,10 +947,10 @@ const moderateUser = async (user: any, action: string) => {
       
       // Refresh user list
       await loadUsers()
-      console.log(`User ${user.username} deleted`)
+      debug.log(`User ${user.username} deleted`)
     }
   } catch (error) {
-    console.error('Failed to moderate user:', error)
+    debug.error('Failed to moderate user:', error)
     alert('Failed to moderate user. Check console for details.')
   }
 }
@@ -966,17 +967,17 @@ const navigateToUserPosts = (user: any) => {
 const navigateToUserServers = (user: any) => {
   // For local users, could show a modal with their servers
   // For now, just log it
-  console.log(`Viewing servers for user ${user.username}`)
+  debug.log(`Viewing servers for user ${user.username}`)
   // TODO: Implement server list modal
 }
 
 const saveConfig = async () => {
   try {
     // Save configuration to database
-    console.log('Saving configuration...', config.value)
+    debug.log('Saving configuration...', config.value)
     configChanged.value = false
   } catch (error) {
-    console.error('Failed to save configuration:', error)
+    debug.error('Failed to save configuration:', error)
   }
 }
 
@@ -1021,7 +1022,7 @@ const refreshFederationData = async () => {
       loadFederatedInstances()
     ])
   } catch (error) {
-    console.error('Failed to refresh federation data:', error)
+    debug.error('Failed to refresh federation data:', error)
   } finally {
     loadingStates.value.federationStats = false
   }
@@ -1032,7 +1033,7 @@ const loadInstanceStats = async () => {
     const stats = await adminService.getInstanceStats()
     instanceStats.value = stats
   } catch (error) {
-    console.error('Failed to load instance stats:', error)
+    debug.error('Failed to load instance stats:', error)
   }
 }
 
@@ -1048,7 +1049,7 @@ const loadFederatedInstances = async () => {
     federatedInstances.value = instances.instances
     instancePagination.value.total = instances.total
   } catch (error) {
-    console.error('Failed to load federated instances:', error)
+    debug.error('Failed to load federated instances:', error)
   } finally {
     loadingStates.value.instances = false
   }
@@ -1104,7 +1105,7 @@ const refreshInstance = async (instanceId: string) => {
     await adminService.refreshInstanceInfo(instanceId)
     await loadFederatedInstances()
   } catch (error) {
-    console.error('Failed to refresh instance:', error)
+    debug.error('Failed to refresh instance:', error)
     alert('Failed to refresh instance info')
   }
 }
@@ -1115,7 +1116,7 @@ const toggleInstanceTrust = async (instanceId: string, trusted: boolean) => {
     await loadFederatedInstances()
     await loadInstanceStats()
   } catch (error) {
-    console.error('Failed to update instance trust:', error)
+    debug.error('Failed to update instance trust:', error)
     alert('Failed to update instance trust')
   }
 }
@@ -1127,7 +1128,7 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
     await loadFederatedInstances()
     await loadInstanceStats()
   } catch (error) {
-    console.error('Failed to update instance block status:', error)
+    debug.error('Failed to update instance block status:', error)
     alert('Failed to update instance block status')
   }
 }
@@ -1142,7 +1143,7 @@ const deleteInstance = async (instanceId: string) => {
     await loadFederatedInstances()
     await loadInstanceStats()
   } catch (error) {
-    console.error('Failed to delete instance:', error)
+    debug.error('Failed to delete instance:', error)
     alert('Failed to delete instance')
   }
 }
@@ -1152,7 +1153,7 @@ const loadDiscoveredInstances = async () => {
     const discovered = await adminService.getDiscoveredInstances()
     discoveredInstances.value = discovered
   } catch (error) {
-    console.error('Failed to load discovered instances:', error)
+    debug.error('Failed to load discovered instances:', error)
   }
 }
 
@@ -1164,7 +1165,7 @@ const addDiscoveredInstance = async (domain: string) => {
     // Remove from discovered list
     discoveredInstances.value = discoveredInstances.value.filter(i => i.domain !== domain)
   } catch (error) {
-    console.error('Failed to add discovered instance:', error)
+    debug.error('Failed to add discovered instance:', error)
     alert('Failed to add instance')
   }
 }
@@ -1177,7 +1178,7 @@ const discoverInstance = async () => {
     const result = await adminService.discoverInstance(newInstanceDomain.value)
     discoveryResult.value = result
   } catch (error) {
-    console.error('Failed to discover instance:', error)
+    debug.error('Failed to discover instance:', error)
     alert('Failed to discover instance. Check if the domain is valid and supports ActivityPub.')
   } finally {
     loadingStates.value.discovering = false
@@ -1203,7 +1204,7 @@ const addInstanceFromDiscovery = async () => {
     
     alert('Instance added successfully!')
   } catch (error) {
-    console.error('Failed to add instance:', error)
+    debug.error('Failed to add instance:', error)
     alert('Failed to add instance')
   }
 }

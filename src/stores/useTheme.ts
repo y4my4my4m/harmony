@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { audioThemeService } from '@/services/AudioThemeService'
 import type { AudioTheme, AudioAction, ThemePreferences } from '@/types'
+import { debug } from '@/utils/debug'
 
 interface ThemeState {
   // Audio themes
@@ -111,7 +112,7 @@ export const useThemeStore = defineStore('theme', {
       this.lastError = null
       
       try {
-        console.log('🎨 Initializing professional theme system...')
+        debug.log('🎨 Initializing professional theme system...')
         
         // Load available themes
         this.audioThemes = audioThemeService.getThemes()
@@ -128,10 +129,10 @@ export const useThemeStore = defineStore('theme', {
         await this.preloadCurrentTheme()
         
         this.isInitialized = true
-        console.log('✅ Theme system initialized successfully')
+        debug.log('✅ Theme system initialized successfully')
         
       } catch (error) {
-        console.error('❌ Failed to initialize theme system:', error)
+        debug.error('❌ Failed to initialize theme system:', error)
         this.lastError = error instanceof Error ? error.message : 'Unknown initialization error'
         throw error
       } finally {
@@ -145,7 +146,7 @@ export const useThemeStore = defineStore('theme', {
     setupEventListeners(): void {
       audioThemeService.on('themeChanged', (event) => {
         this.currentAudioTheme = event.to
-        console.log(`🎵 Theme changed: ${event.from} → ${event.to}`)
+        debug.log(`🎵 Theme changed: ${event.from} → ${event.to}`)
       })
 
       audioThemeService.on('themePreloaded', (event) => {
@@ -153,11 +154,11 @@ export const useThemeStore = defineStore('theme', {
           this.isPreloading = false
           this.preloadingTheme = null
         }
-        console.log(`✅ Theme preloaded: ${event.theme.name}`)
+        debug.log(`✅ Theme preloaded: ${event.theme.name}`)
       })
 
       audioThemeService.on('audioError', (event) => {
-        console.warn(`🔊 Audio playback error for ${event.action}:`, event.error)
+        debug.warn(`🔊 Audio playback error for ${event.action}:`, event.error)
       })
 
       audioThemeService.on('settingsChanged', (settings) => {
@@ -174,7 +175,7 @@ export const useThemeStore = defineStore('theme', {
       this.lastError = null
       
       try {
-        console.log(`🎵 Switching to theme: ${themeId}`)
+        debug.log(`🎵 Switching to theme: ${themeId}`)
         
         const success = await audioThemeService.setTheme(themeId)
         
@@ -186,12 +187,12 @@ export const useThemeStore = defineStore('theme', {
             this.playAudio('ui_success')
           }, 100)
           
-          console.log(`✅ Successfully switched to theme: ${themeId}`)
+          debug.log(`✅ Successfully switched to theme: ${themeId}`)
         }
         
         return success
       } catch (error) {
-        console.error(`❌ Failed to set theme ${themeId}:`, error)
+        debug.error(`❌ Failed to set theme ${themeId}:`, error)
         this.lastError = error instanceof Error ? error.message : 'Theme switch failed'
         return false
       }
@@ -216,7 +217,7 @@ export const useThemeStore = defineStore('theme', {
       try {
         await audioThemeService.preloadTheme(themeId)
       } catch (error) {
-        console.warn(`Failed to preload theme ${themeId}:`, error)
+        debug.warn(`Failed to preload theme ${themeId}:`, error)
         this.lastError = `Preload failed: ${themeId}`
       } finally {
         if (this.preloadingTheme === themeId) {
@@ -240,14 +241,14 @@ export const useThemeStore = defineStore('theme', {
      */
     async playAudio(action: AudioAction): Promise<void> {
       if (!this.isReady) {
-        console.warn(`🔊 Audio system not ready, skipping ${action}`)
+        debug.warn(`🔊 Audio system not ready, skipping ${action}`)
         return
       }
       
       try {
         await audioThemeService.playAudio(action)
       } catch (error) {
-        console.warn(`Failed to play audio for ${action}:`, error)
+        debug.warn(`Failed to play audio for ${action}:`, error)
         this.lastError = `Audio playback failed: ${action}`
       }
     },
@@ -259,7 +260,7 @@ export const useThemeStore = defineStore('theme', {
       try {
         await audioThemeService.testAudio(action)
       } catch (error) {
-        console.warn(`Failed to test audio for ${action}:`, error)
+        debug.warn(`Failed to test audio for ${action}:`, error)
         this.lastError = `Audio test failed: ${action}`
       }
     },
@@ -284,7 +285,7 @@ export const useThemeStore = defineStore('theme', {
      */
     clearAudioCache(): void {
       audioThemeService.clearCache()
-      console.log('🗑️ Audio cache cleared')
+      debug.log('🗑️ Audio cache cleared')
     },
 
     /**
@@ -331,9 +332,9 @@ export const useThemeStore = defineStore('theme', {
           this.setAudioVolume(volume)
         }
         
-        console.log('✅ Theme preferences imported successfully')
+        debug.log('✅ Theme preferences imported successfully')
       } catch (error) {
-        console.error('❌ Failed to import theme preferences:', error)
+        debug.error('❌ Failed to import theme preferences:', error)
         this.lastError = 'Failed to import preferences'
       }
     },
@@ -346,9 +347,9 @@ export const useThemeStore = defineStore('theme', {
         await this.setAudioTheme('harmony')
         this.setAudioVolume(0.7)
         this.clearError()
-        console.log('✅ Theme settings reset to defaults')
+        debug.log('✅ Theme settings reset to defaults')
       } catch (error) {
-        console.error('❌ Failed to reset settings:', error)
+        debug.error('❌ Failed to reset settings:', error)
         this.lastError = 'Failed to reset settings'
       }
     }

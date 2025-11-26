@@ -8,12 +8,13 @@ import { useVisualTheme } from '@/composables/useVisualTheme'
 import { setLocale } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 /**
  * Initialize all app settings
  */
 export async function initializeAppSettings() {
-  console.log('🚀 Initializing app settings...')
+  debug.log('🚀 Initializing app settings...')
   
   try {
     // Initialize visual theme system
@@ -26,9 +27,9 @@ export async function initializeAppSettings() {
       await loadUserSettings(authStore.session.user.id)
     }
     
-    console.log('✅ App settings initialized successfully')
+    debug.log('✅ App settings initialized successfully')
   } catch (error) {
-    console.error('❌ Failed to initialize app settings:', error)
+    debug.error('❌ Failed to initialize app settings:', error)
   }
 }
 
@@ -53,12 +54,12 @@ async function loadUserSettings(userId: string) {
     // Appearance settings are already loaded by useVisualTheme.initialize()
     // but we can verify they were loaded
     if (data?.appearance_settings) {
-      console.log('📋 User appearance settings loaded from database')
+      debug.log('📋 User appearance settings loaded from database')
     }
     
     return data
   } catch (error) {
-    console.error('Failed to load user settings:', error)
+    debug.error('Failed to load user settings:', error)
     return null
   }
 }
@@ -101,10 +102,10 @@ export async function importUserSettings(settings: any) {
       setLocale(settings.locale)
     }
     
-    console.log('✅ Settings imported successfully')
+    debug.log('✅ Settings imported successfully')
     return true
   } catch (error) {
-    console.error('❌ Failed to import settings:', error)
+    debug.error('❌ Failed to import settings:', error)
     return false
   }
 }

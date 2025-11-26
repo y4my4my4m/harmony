@@ -235,6 +235,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { uploadEmoji, deleteEmoji, renameEmoji, bulkUploadEmojis, bulkDeleteEmojis } from '@/services/emojiService'
@@ -362,7 +363,7 @@ const handleEmojiFile = async (file: File) => {
 
   try {
     uploadingEmoji.value = true
-    console.log('🎭 Uploading emoji with cache integration...')
+    debug.log('🎭 Uploading emoji with cache integration...')
     
     const newEmoji = await uploadEmoji(props.serverId, props.ownerId, file)
     
@@ -371,7 +372,7 @@ const handleEmojiFile = async (file: File) => {
       toast.success(t('server.emojiUploadedSuccess', { name: newEmoji.name }))
     }
   } catch (error) {
-    console.error('Error uploading emoji:', error)
+    debug.error('Error uploading emoji:', error)
     toast.error(t('server.failedToUploadEmoji'))
   } finally {
     uploadingEmoji.value = false
@@ -390,7 +391,7 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
 
   try {
     deletingEmoji.value = emoji.id
-    console.log('🗑️ Deleting emoji with cache integration...')
+    debug.log('🗑️ Deleting emoji with cache integration...')
     
     const success = await deleteEmoji(emoji.id, props.serverId)
     
@@ -399,7 +400,7 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
       toast.success(t('server.emojiDeletedSuccess', { name: emoji.name }))
     }
   } catch (error) {
-    console.error('Error deleting emoji:', error)
+    debug.error('Error deleting emoji:', error)
     toast.error(t('server.failedToDeleteEmoji'))
   } finally {
     deletingEmoji.value = null
@@ -444,7 +445,7 @@ const handleBulkEmojiUpload = async (files: File[]) => {
       currentFile: ''
     }
 
-    console.log('🎭 Starting bulk emoji upload...')
+    debug.log('🎭 Starting bulk emoji upload...')
     const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles)
     
     const successCount = results.filter(r => r !== null).length
@@ -464,7 +465,7 @@ const handleBulkEmojiUpload = async (files: File[]) => {
       toast.warning(t('server.emojisFailedToUpload', { count: failedCount, plural: failedCount > 1 ? 's' : '' }))
     }
   } catch (error) {
-    console.error('Error in bulk emoji upload:', error)
+    debug.error('Error in bulk emoji upload:', error)
     toast.error(t('server.failedToUploadEmojis'))
   } finally {
     uploadingEmoji.value = false
@@ -503,7 +504,7 @@ const bulkDeleteSelected = async () => {
 
   try {
     deletingEmoji.value = 'bulk'
-    console.log('🗑️ Starting bulk emoji deletion...')
+    debug.log('🗑️ Starting bulk emoji deletion...')
     
     const results = await bulkDeleteEmojis(selectedEmojis.value)
     
@@ -528,7 +529,7 @@ const bulkDeleteSelected = async () => {
     // Exit selection mode
     exitSelectionMode()
   } catch (error) {
-    console.error('Error in bulk emoji deletion:', error)
+    debug.error('Error in bulk emoji deletion:', error)
     toast.error(t('server.failedToDeleteEmojis'))
   } finally {
     deletingEmoji.value = null
@@ -567,7 +568,7 @@ const saveEmojiRename = async (emoji: Emoji) => {
       toast.error(t('server.failedToRenameEmoji'))
     }
   } catch (error) {
-    console.error('Error renaming emoji:', error)
+    debug.error('Error renaming emoji:', error)
     toast.error(t('server.failedToRenameEmoji'))
   } finally {
     cancelEmojiRename()

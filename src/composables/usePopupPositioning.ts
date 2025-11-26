@@ -4,6 +4,7 @@
  */
 
 import { computed, ref, type Ref } from 'vue';
+import { debug } from '@/utils/debug'
 
 export type PopupPosition = 'above' | 'below' | 'left' | 'right' | 'auto';
 export type PopupPositionKey = 'above' | 'below' | 'left' | 'right';
@@ -45,7 +46,7 @@ export function calculatePopupPosition(
 
   // Safety check for trigger element
   if (!triggerElement || typeof triggerElement.getBoundingClientRect !== 'function') {
-    console.warn('Invalid trigger element provided to calculatePopupPosition');
+    debug.warn('Invalid trigger element provided to calculatePopupPosition');
     return {
       x: 0,
       y: 0,

@@ -203,7 +203,7 @@ export default defineComponent({
       try {
         emit('update:message', props.messageId, localEditableContent.value);
       } catch (e) {
-        console.error('Error in handleSaveEdit:', e);
+        debug.error('Error in handleSaveEdit:', e);
       }
     };
 

@@ -527,6 +527,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
@@ -685,7 +686,7 @@ const handlePasswordChange = async () => {
     })
 
     if (updateError) {
-      console.error('Password update error:', updateError)
+      debug.error('Password update error:', updateError)
       
       // Handle specific error cases
       if (updateError.message.includes('New password should be different') || 
@@ -699,7 +700,7 @@ const handlePasswordChange = async () => {
       return
     }
 
-    console.log('✅ Password updated successfully:', data)
+    debug.log('✅ Password updated successfully:', data)
     toast.success('Password updated successfully!')
     
     // Clear form after successful update
@@ -714,7 +715,7 @@ const handlePasswordChange = async () => {
     showNewPassword.value = false
     showConfirmPassword.value = false
   } catch (error: any) {
-    console.error('Password change error:', error)
+    debug.error('Password change error:', error)
     toast.error(error.message || 'Failed to update password')
   } finally {
     passwordLoading.value = false
@@ -735,7 +736,7 @@ const check2FAStatus = async () => {
     const totpFactor = data?.totp?.find((f: any) => f.status === 'verified')
     twoFactorEnabled.value = !!totpFactor
     
-    console.log('2FA Status Check:', {
+    debug.log('2FA Status Check:', {
       allFactors: data?.totp,
       verifiedFactor: totpFactor,
       enabled: twoFactorEnabled.value
@@ -748,7 +749,7 @@ const check2FAStatus = async () => {
       factorId.value = ''
     }
   } catch (error: any) {
-    console.error('2FA status check error:', error)
+    debug.error('2FA status check error:', error)
   }
 }
 
@@ -784,7 +785,7 @@ const startEnroll2FA = async () => {
       }
     })
   } catch (error: any) {
-    console.error('2FA enrollment error:', error)
+    debug.error('2FA enrollment error:', error)
     toast.error('Failed to start 2FA enrollment')
     showEnroll2FA.value = false
     // Re-check status on error
@@ -811,7 +812,7 @@ const verifyAndEnable2FA = async () => {
     })
 
     if (error) {
-      console.error('2FA verification failed:', error)
+      debug.error('2FA verification failed:', error)
       throw error
     }
 
@@ -837,7 +838,7 @@ const verifyAndEnable2FA = async () => {
       })
 
       if (saveError) {
-        console.error('Error saving recovery codes:', saveError)
+        debug.error('Error saving recovery codes:', saveError)
         throw new Error('Failed to save recovery codes')
       }
     }
@@ -845,7 +846,7 @@ const verifyAndEnable2FA = async () => {
     enrollStep.value = 3
     toast.success('Two-Factor Authentication enabled!')
   } catch (error: any) {
-    console.error('2FA verification error:', error)
+    debug.error('2FA verification error:', error)
     twoFactorError.value = error.message || 'Invalid verification code'
     
     // Clean up unverified factor on error
@@ -857,10 +858,10 @@ const verifyAndEnable2FA = async () => {
         // Only try to unenroll if factor exists and is unverified
         if (factor && factor.status === 'unverified') {
           await supabase.auth.mfa.unenroll({ factorId: factorId.value })
-          console.log('Cleaned up unverified factor')
+          debug.log('Cleaned up unverified factor')
         }
       } catch (cleanupError) {
-        console.error('Error cleaning up failed enrollment:', cleanupError)
+        debug.error('Error cleaning up failed enrollment:', cleanupError)
       }
     }
   } finally {
@@ -892,7 +893,7 @@ const cancelEnroll2FA = async () => {
       await supabase.auth.mfa.unenroll({ factorId: factorId.value })
       }
     } catch (error) {
-      console.error('Error canceling 2FA enrollment:', error)
+      debug.error('Error canceling 2FA enrollment:', error)
     }
   }
 
@@ -960,7 +961,7 @@ const disable2FA = async () => {
         .eq('user_id', userId)
 
       if (deleteError) {
-        console.error('Error deleting recovery codes:', deleteError)
+        debug.error('Error deleting recovery codes:', deleteError)
       }
     }
 
@@ -984,7 +985,7 @@ const disable2FA = async () => {
     disable2FAPassword.value = ''
     await check2FAStatus()
   } catch (error: any) {
-    console.error('2FA disable error:', error)
+    debug.error('2FA disable error:', error)
     if (error.error_code === 'insufficient_aal') {
       toast.error('Please verify your 2FA code first. You may need to log out and log back in.')
     } else {
@@ -1000,7 +1001,7 @@ const copySecret = async () => {
     await navigator.clipboard.writeText(totpSecret.value)
     toast.success('Secret key copied to clipboard')
   } catch (error) {
-    console.error('Copy error:', error)
+    debug.error('Copy error:', error)
     toast.error('Failed to copy secret key')
   }
 }
@@ -1011,7 +1012,7 @@ const copyRecoveryCodes = async () => {
     await navigator.clipboard.writeText(codesText)
     toast.success('Recovery codes copied to clipboard')
   } catch (error) {
-    console.error('Copy error:', error)
+    debug.error('Copy error:', error)
     toast.error('Failed to copy recovery codes')
   }
 }

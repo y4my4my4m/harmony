@@ -117,6 +117,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase';
@@ -182,7 +183,7 @@ const transformActivityPubPost = (post: any): any => {
       domain = url.hostname;
       isLocal = domain === 'har.mony.lol';
     } catch (e) {
-      console.warn('Invalid actor_uri:', post.actor_uri);
+      debug.warn('Invalid actor_uri:', post.actor_uri);
     }
   }
   
@@ -275,7 +276,7 @@ const loadConversation = async () => {
     if (!postId) {
       throw new Error('Post ID is required to load conversation');
     }
-    console.log(`🔍 Loading conversation thread for post: ${postId} for ${ authStore.session?.user.id}`);
+    debug.log(`🔍 Loading conversation thread for post: ${postId} for ${ authStore.session?.user.id}`);
     
     // Load the conversation thread and context
     const [thread, context] = await Promise.all([
@@ -284,11 +285,11 @@ const loadConversation = async () => {
     ]);
     
     conversationThread.value = thread;
-    console.log(`✅ Loaded conversation thread with ${JSON.stringify(thread)} posts`);
+    debug.log(`✅ Loaded conversation thread with ${JSON.stringify(thread)} posts`);
     conversationContext.value = context.data?.[0] || null;
-    console.log(`✅ Loaded conversation context:`, conversationContext.value);
+    debug.log(`✅ Loaded conversation context:`, conversationContext.value);
     
-    console.log(`✅ Loaded conversation with ${thread.posts.length} posts`);
+    debug.log(`✅ Loaded conversation with ${thread.posts.length} posts`);
     
     // Scroll to highlighted post after DOM update
     if (highlightPostId.value) {
@@ -297,7 +298,7 @@ const loadConversation = async () => {
     }
     
   } catch (err) {
-    console.error('❌ Failed to load conversation:', err);
+    debug.error('❌ Failed to load conversation:', err);
     error.value = 'Failed to load conversation. It might have been deleted or you might not have permission to view it.';
   } finally {
     isLoading.value = false;
@@ -312,7 +313,7 @@ const scrollToHighlightedPost = async () => {
   
   const targetElement = postRefs.value.get(highlightPostId.value);
   if (targetElement) {
-    console.log(`📍 Scrolling to highlighted post: ${highlightPostId.value}`);
+    debug.log(`📍 Scrolling to highlighted post: ${highlightPostId.value}`);
     
     // Smooth scroll to the highlighted post
     targetElement.scrollIntoView({
@@ -352,7 +353,7 @@ const shareConversation = async () => {
         url: url
       });
     } catch (err) {
-      console.log('Share cancelled');
+      debug.log('Share cancelled');
     }
   } else {
     // Fallback: copy to clipboard
@@ -363,7 +364,7 @@ const shareConversation = async () => {
 
 const openActions = () => {
   // TODO: Show actions menu
-  console.log('Open conversation actions menu');
+  debug.log('Open conversation actions menu');
 };
 
 const handleReply = (post: ActivityPubPost) => {
@@ -389,7 +390,7 @@ const handleFavorite = async (postId: string) => {
   try {
     await activityPubStore.toggleFavorite(postId);
   } catch (error) {
-    console.error('Failed to toggle favorite:', error);
+    debug.error('Failed to toggle favorite:', error);
   }
 };
 
@@ -397,7 +398,7 @@ const handleReblog = async (postId: string) => {
   try {
     await activityPubStore.toggleReblog(postId);
   } catch (error) {
-    console.error('Failed to reblog:', error);
+    debug.error('Failed to reblog:', error);
   }
 };
 
@@ -405,7 +406,7 @@ const handleBookmark = async (postId: string) => {
   try {
     await activityPubStore.toggleBookmark(postId);
   } catch (error) {
-    console.error('Failed to bookmark:', error);
+    debug.error('Failed to bookmark:', error);
   }
 };
 
@@ -423,7 +424,7 @@ const handleDelete = async (postId: string) => {
         }
       }
     } catch (error) {
-      console.error('Failed to delete post:', error);
+      debug.error('Failed to delete post:', error);
     }
   }
 };
@@ -436,7 +437,7 @@ const handleFollow = async (userId: string) => {
   try {
     await activityPubStore.followUser(userId);
   } catch (error) {
-    console.error('Failed to follow user:', error);
+    debug.error('Failed to follow user:', error);
   }
 };
 
@@ -444,7 +445,7 @@ const handleUnfollow = async (userId: string) => {
   try {
     await activityPubStore.unfollowUser(userId);
   } catch (error) {
-    console.error('Failed to unfollow user:', error);
+    debug.error('Failed to unfollow user:', error);
   }
 };
 

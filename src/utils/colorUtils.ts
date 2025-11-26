@@ -541,6 +541,6 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.setAttribute('data-theme', 'custom')
   root.setAttribute('data-theme-type', palette.isLightTheme ? 'light' : 'dark')
   
-  console.log('🎨 Applied custom theme palette with OKLCH:', palette)
+  debug.log('🎨 Applied custom theme palette with OKLCH:', palette)
 }
 

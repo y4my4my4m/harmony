@@ -8,6 +8,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { debug } from '@/utils/debug'
 import { renderMarkdownToHTML, type RenderOptions } from '@/utils/markdownRenderer';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 
@@ -41,7 +42,7 @@ const emojiResolver = (name: string) => {
     }
     return null;
   } catch (error) {
-    console.warn('Error finding emoji by name:', error);
+    debug.warn('Error finding emoji by name:', error);
     return null;
   }
 };

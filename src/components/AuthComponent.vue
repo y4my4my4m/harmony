@@ -336,6 +336,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/useTheme'
@@ -545,7 +546,7 @@ const handleSubmit = async () => {
       router.push('/new-profile')
     }
   } catch (error: any) {
-    console.error('Auth error:', error)
+    debug.error('Auth error:', error)
     toast.error(error.message || 'Authentication failed')
   } finally {
     isLoading.value = false
@@ -559,11 +560,11 @@ const handle2FAVerification = async () => {
     return
   }
 
-  console.log('🔐 Starting 2FA verification...')
-  console.log('Factor ID:', pendingFactorId.value)
-  console.log('Challenge ID:', pendingChallengeId.value)
-  console.log('Code length:', twoFactorCode.value.length)
-  console.log('Using recovery code:', useRecoveryCode.value)
+  debug.log('🔐 Starting 2FA verification...')
+  debug.log('Factor ID:', pendingFactorId.value)
+  debug.log('Challenge ID:', pendingChallengeId.value)
+  debug.log('Code length:', twoFactorCode.value.length)
+  debug.log('Using recovery code:', useRecoveryCode.value)
 
   twoFactorLoading.value = true
   twoFactorError.value = ''
@@ -571,7 +572,7 @@ const handle2FAVerification = async () => {
   try {
     if (useRecoveryCode.value) {
       // Verify recovery code
-      console.log('📞 Verifying recovery code...')
+      debug.log('📞 Verifying recovery code...')
       
       // Get the current session (should be at AAL1)
       const { data: sessionData } = await supabase.auth.getSession()
@@ -592,7 +593,7 @@ const handle2FAVerification = async () => {
         throw new Error('Invalid or already used recovery code')
       }
 
-      console.log('✅ Recovery code verified successfully!')
+      debug.log('✅ Recovery code verified successfully!')
       
       // Unenroll the TOTP factor since they lost access to their authenticator
       // This makes the AAL1 session sufficient and allows them to log in
@@ -602,7 +603,7 @@ const handle2FAVerification = async () => {
       const { data: refreshedSession } = await supabase.auth.getSession()
       authStore.session = refreshedSession.session
       
-      console.log('🔓 2FA has been disabled due to recovery code usage')
+      debug.log('🔓 2FA has been disabled due to recovery code usage')
       
       show2FAModal.value = false
       toast.warning('Welcome back! Please re-enable Two-Factor Authentication in your settings.', {
@@ -613,14 +614,14 @@ const handle2FAVerification = async () => {
       router.push('/settings/privacy')
     } else {
       // Use authStore.verify2FA with challenge ID
-      console.log('📞 Calling authStore.verify2FA...')
+      debug.log('📞 Calling authStore.verify2FA...')
       await authStore.verify2FA(
         pendingFactorId.value, 
         pendingChallengeId.value,
         twoFactorCode.value
       )
       
-      console.log('✅ 2FA verification successful!')
+      debug.log('✅ 2FA verification successful!')
       
       show2FAModal.value = false
       toast.success('Welcome back!')
@@ -629,11 +630,11 @@ const handle2FAVerification = async () => {
       router.push('/chat')
     }
   } catch (error: any) {
-    console.error('❌ 2FA verification error:', error)
+    debug.error('❌ 2FA verification error:', error)
     twoFactorError.value = error.message || `Invalid ${useRecoveryCode.value ? 'recovery' : 'verification'} code. Please try again.`
   } finally {
     twoFactorLoading.value = false
-    console.log('🏁 2FA verification finished')
+    debug.log('🏁 2FA verification finished')
   }
 }
 
@@ -684,7 +685,7 @@ const handleForgotPassword = async () => {
     // Show success step
     forgotPasswordStep.value = 2
   } catch (error: any) {
-    console.error('Password reset error:', error)
+    debug.error('Password reset error:', error)
     
     // Supabase returns error even if email doesn't exist (for security)
     // But we'll still show success to prevent email enumeration

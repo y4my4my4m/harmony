@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase';
 import { v4 as uuidv4 } from 'uuid';
+import { debug } from '@/utils/debug'
 
 export interface UploadProgressCallback {
   (progress: number): void;
@@ -23,11 +24,11 @@ async function handleFileDrop(userId: string, file: any) {
         .from('user_media')
         .getPublicUrl(filePath);
 
-        console.log(data);
+        debug.log(data);
 
         return data.publicUrl; // Return the public URL of the uploaded file
     } catch (error) {
-        console.error('Error uploading file:', error);
+        debug.error('Error uploading file:', error);
         return null;
     }
 }
@@ -77,7 +78,7 @@ async function handleFileUploadWithProgress(
 
         return data.publicUrl;
     } catch (error) {
-        console.error('Error uploading file:', error);
+        debug.error('Error uploading file:', error);
         if (onProgress) onProgress(0);
         throw error;
     }

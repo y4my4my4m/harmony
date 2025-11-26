@@ -262,6 +262,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
@@ -327,15 +328,15 @@ const checkMFAStatus = async () => {
     const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
     
     if (totpFactor) {
-      console.log('🔒 User has MFA enabled - will require 2FA verification for password reset')
+      debug.log('🔒 User has MFA enabled - will require 2FA verification for password reset')
       requiresMFA.value = true
       mfaFactorId.value = totpFactor.id
     } else {
-      console.log('✅ User does not have MFA enabled')
+      debug.log('✅ User does not have MFA enabled')
       requiresMFA.value = false
     }
   } catch (error: any) {
-    console.error('Error checking MFA status:', error)
+    debug.error('Error checking MFA status:', error)
     // If we can't check MFA status, assume it's not enabled
     requiresMFA.value = false
   }
@@ -351,7 +352,7 @@ onMounted(async () => {
   // Note: The auth store will also catch this and set isPasswordResetMode flag
   const authListenerData = supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === 'PASSWORD_RECOVERY' && session) {
-      console.log('🔒 PASSWORD_RECOVERY event detected in ResetPasswordView')
+      debug.log('🔒 PASSWORD_RECOVERY event detected in ResetPasswordView')
       isValidToken.value = true
       isPasswordResetMode.value = true
       // Router guard will handle preventing navigation
@@ -417,7 +418,7 @@ onMounted(async () => {
       // Router guard will handle preventing navigation
     }
   } catch (error: any) {
-    console.error('Error checking recovery token:', error)
+    debug.error('Error checking recovery token:', error)
     isError.value = true
     errorMessage.value = 'Failed to verify password reset link. Please try again.'
     authStateListener?.subscription.unsubscribe()
@@ -480,7 +481,7 @@ const handleResetPassword = async () => {
   
   // If user has MFA enabled, show MFA modal instead of proceeding directly
   if (requiresMFA.value) {
-    console.log('🔒 User has MFA - showing 2FA verification modal')
+    debug.log('🔒 User has MFA - showing 2FA verification modal')
     
     // Create MFA challenge
     try {
@@ -489,7 +490,7 @@ const handleResetPassword = async () => {
       })
       
       if (challengeError) {
-        console.error('MFA challenge error:', challengeError)
+        debug.error('MFA challenge error:', challengeError)
         passwordError.value = 'Failed to create MFA challenge. Please try again.'
         return
       }
@@ -497,7 +498,7 @@ const handleResetPassword = async () => {
       mfaChallengeId.value = challengeData.id
       showMFAModal.value = true
     } catch (error: any) {
-      console.error('MFA challenge error:', error)
+      debug.error('MFA challenge error:', error)
       passwordError.value = 'Failed to create MFA challenge. Please try again.'
     }
     return
@@ -519,7 +520,7 @@ const performPasswordReset = async () => {
     })
     
     if (error) {
-      console.error('Password reset error:', error)
+      debug.error('Password reset error:', error)
       
       // Handle specific error cases
       if (error.message.includes('expired') || error.message.includes('invalid')) {
@@ -537,7 +538,7 @@ const performPasswordReset = async () => {
     }
     
     // Success!
-    console.log('✅ Password reset successful:', data)
+    debug.log('✅ Password reset successful:', data)
     isSuccess.value = true
     isPasswordResetMode.value = false
     
@@ -555,7 +556,7 @@ const performPasswordReset = async () => {
       router.push('/login')
     }, 3000)
   } catch (error: any) {
-    console.error('Password reset error:', error)
+    debug.error('Password reset error:', error)
     passwordError.value = error.message || 'Failed to reset password. Please try again.'
   } finally {
     isLoading.value = false
@@ -581,14 +582,14 @@ const handleMFAVerification = async () => {
     return
   }
 
-  console.log('🔐 Starting MFA verification for password reset...')
+  debug.log('🔐 Starting MFA verification for password reset...')
   mfaLoading.value = true
   mfaError.value = ''
 
   try {
     if (useRecoveryCode.value) {
       // Verify recovery code
-      console.log('📞 Verifying recovery code...')
+      debug.log('📞 Verifying recovery code...')
       
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
@@ -608,7 +609,7 @@ const handleMFAVerification = async () => {
         throw new Error('Invalid or already used recovery code')
       }
 
-      console.log('✅ Recovery code verified successfully!')
+      debug.log('✅ Recovery code verified successfully!')
       
       // Unenroll the TOTP factor since they lost access to their authenticator
       await supabase.auth.mfa.unenroll({ factorId: mfaFactorId.value })
@@ -624,7 +625,7 @@ const handleMFAVerification = async () => {
       toast.warning('2FA has been disabled. Please re-enable it after logging in with your new password.')
     } else {
       // Verify TOTP code
-      console.log('📞 Verifying TOTP code...')
+      debug.log('📞 Verifying TOTP code...')
       
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId: mfaFactorId.value,
@@ -634,7 +635,7 @@ const handleMFAVerification = async () => {
 
       if (verifyError) throw verifyError
 
-      console.log('✅ MFA verified - session upgraded to AAL2')
+      debug.log('✅ MFA verified - session upgraded to AAL2')
       
       // Close modal and proceed with password reset
       showMFAModal.value = false
@@ -644,7 +645,7 @@ const handleMFAVerification = async () => {
       await performPasswordReset()
     }
   } catch (error: any) {
-    console.error('❌ MFA verification error:', error)
+    debug.error('❌ MFA verification error:', error)
     mfaError.value = error.message || 'Invalid code. Please try again.'
   } finally {
     mfaLoading.value = false

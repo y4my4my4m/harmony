@@ -135,6 +135,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
@@ -230,7 +231,7 @@ const confirmDeleteServer = async () => {
       throw new Error('Failed to delete server')
     }
   } catch (error: any) {
-    console.error('Error deleting server:', error)
+    debug.error('Error deleting server:', error)
     toast.error(error.message || 'Failed to delete server')
   } finally {
     deleting.value = false

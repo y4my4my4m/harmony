@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { debug } from '@/utils/debug'
 
 // =============================================================================
 // TYPES
@@ -128,7 +129,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       
       // Only log occasionally to avoid spam
       if (Math.random() < 0.1) {
-        console.log(`🎧 Audio gain for ${userId2}: ${gain.toFixed(3)} (distance: ${distance.toFixed(1)}px)`);
+        debug.log(`🎧 Audio gain for ${userId2}: ${gain.toFixed(3)} (distance: ${distance.toFixed(1)}px)`);
       }
       return gain;
     },
@@ -148,7 +149,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       const panning = Math.max(-1, Math.min(1, dx / maxPan));
       // Only log occasionally to avoid spam
       if (Math.random() < 0.1) {
-        console.log(`🎧 Audio panning for ${userId2}: ${panning.toFixed(3)} (dx: ${dx.toFixed(1)}px)`);
+        debug.log(`🎧 Audio panning for ${userId2}: ${panning.toFixed(3)} (dx: ${dx.toFixed(1)}px)`);
       }
       return panning;
     }
@@ -163,7 +164,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
     async toggleSpatialAudio(): Promise<void> {
       this.settings.enabled = !this.settings.enabled;
       
-      console.log('🎧 Toggling spatial audio:', this.settings.enabled ? 'ON' : 'OFF');
+      debug.log('🎧 Toggling spatial audio:', this.settings.enabled ? 'ON' : 'OFF');
       
       try {
         // Import services
@@ -173,11 +174,11 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
         if (this.settings.enabled) {
           // First disable traditional audio to prevent double output
           unifiedWebRTC.setTraditionalAudioEnabled(false);
-          console.log('🔇 Traditional audio disabled');
+          debug.log('🔇 Traditional audio disabled');
           
           // Then enable spatial audio - this will create AudioContext if needed
           await spatialAudioService.enableSpatialAudio();
-          console.log('🎧 Spatial audio enabled');
+          debug.log('🎧 Spatial audio enabled');
           
           // Setup spatial audio for any existing users
           const allUsers = unifiedWebRTC.getAllUsers();
@@ -193,12 +194,12 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
               // Initialize remote user position if not set
               if (!this.userPositions.has(user.userId)) {
                 this.initializeUserPosition(user.userId, false); // false = remote user
-                console.log(`🎧 Initialized position for user: ${user.userId}`);
+                debug.log(`🎧 Initialized position for user: ${user.userId}`);
               }
               
               const userStream = unifiedWebRTC.getUserStream(user.userId);
               if (userStream) {
-                console.log(`🎧 Setting up spatial audio for existing user: ${user.userId}`);
+                debug.log(`🎧 Setting up spatial audio for existing user: ${user.userId}`);
                 await spatialAudioService.setupSpatialForUser(user.userId, userStream);
               }
             }
@@ -206,21 +207,21 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
           
           // Force an immediate spatial effects update
           spatialAudioService.updateSpatialEffects();
-          console.log('🎧 Initial spatial effects applied');
+          debug.log('🎧 Initial spatial effects applied');
           
         } else {
           // Disable spatial audio but keep AudioContext for potential re-enabling
           spatialAudioService.disableSpatialAudio();
-          console.log('🎧 Spatial audio disabled');
+          debug.log('🎧 Spatial audio disabled');
           
           // Re-enable traditional HTMLAudioElement playback
           unifiedWebRTC.setTraditionalAudioEnabled(true);
-          console.log('🔊 Traditional audio re-enabled');
+          debug.log('🔊 Traditional audio re-enabled');
         }
         
-        console.log('✅ Spatial audio toggle completed');
+        debug.log('✅ Spatial audio toggle completed');
       } catch (error) {
-        console.error('❌ Failed to toggle spatial audio:', error);
+        debug.error('❌ Failed to toggle spatial audio:', error);
         // Revert the setting on error
         this.settings.enabled = !this.settings.enabled;
         throw error;
@@ -230,16 +231,16 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
     // Initialize spatial audio when first needed
     async initializeSpatialAudio(): Promise<void> {
       if (!this.settings.enabled) {
-        console.log('🎧 Spatial audio disabled - skipping initialization');
+        debug.log('🎧 Spatial audio disabled - skipping initialization');
         return;
       }
       
       try {
         const { spatialAudioService } = await import('@/services/spatialAudio');
         await spatialAudioService.initialize();
-        console.log('✅ Spatial audio initialized');
+        debug.log('✅ Spatial audio initialized');
       } catch (error) {
-        console.error('❌ Failed to initialize spatial audio:', error);
+        debug.error('❌ Failed to initialize spatial audio:', error);
         throw error;
       }
     },
@@ -278,7 +279,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       if (isLocalUser) {
         // Local user (listener) always at center
         this.setUserPosition(userId, centerX, centerY);
-        console.log(`🎧 Initialized LOCAL user at center: (${centerX}, ${centerY})`);
+        debug.log(`🎧 Initialized LOCAL user at center: (${centerX}, ${centerY})`);
       } else {
         // Remote users at random positions around center
         const radius = Math.min(this.panelSize.width, this.panelSize.height) / 4;
@@ -290,7 +291,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
         const y = centerY + Math.sin(angle) * distance;
         
         this.setUserPosition(userId, x, y);
-        console.log(`🎧 Initialized remote user at random: (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        debug.log(`🎧 Initialized remote user at random: (${x.toFixed(0)}, ${y.toFixed(0)})`);
       }
     },
     
@@ -337,7 +338,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
     
     // Reset all audio effects (called when disabling spatial audio)
     resetAudioEffects(): void {
-      console.log('Resetting spatial audio effects');
+      debug.log('Resetting spatial audio effects');
       // Import and call spatial audio service
       import('@/services/spatialAudio').then(({ spatialAudioService }) => {
         spatialAudioService.disableSpatialAudio();

@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { statePersistence } from '@/services/StatePersistence'
+import { debug } from '@/utils/debug'
 
 // Global application state for preventing splash flashes
 const _isInitializing = ref(true)
@@ -65,10 +66,10 @@ export function useApplicationState() {
         await new Promise(resolve => setTimeout(resolve, 100))
       }
       
-      console.log('🚀 Application state initialization started')
+      debug.log('🚀 Application state initialization started')
       
     } catch (error) {
-      console.error('❌ Failed to initialize application state:', error)
+      debug.error('❌ Failed to initialize application state:', error)
       _initializationError.value = error instanceof Error ? error.message : 'Unknown error'
     }
   }
@@ -86,13 +87,13 @@ export function useApplicationState() {
       statePersistence.setHasServers(serverCount > 0)
       await statePersistence.setAppInitialized(true)
       
-      console.log('✅ Application initialization completed', {
+      debug.log('✅ Application initialization completed', {
         hasServers: _hasServers.value,
         serverCount
       })
       
     } catch (error) {
-      console.error('❌ Failed to complete initialization:', error)
+      debug.error('❌ Failed to complete initialization:', error)
       _initializationError.value = error instanceof Error ? error.message : 'Initialization completion failed'
     }
   }
@@ -106,7 +107,7 @@ export function useApplicationState() {
     
     if (hadServers !== _hasServers.value) {
       statePersistence.setHasServers(_hasServers.value)
-      console.log('📊 Server count updated:', { count, hasServers: _hasServers.value })
+      debug.log('📊 Server count updated:', { count, hasServers: _hasServers.value })
     }
   }
   
@@ -117,7 +118,7 @@ export function useApplicationState() {
     _initializationError.value = error
     if (error) {
       _isInitializing.value = false
-      console.error('❌ Initialization error set:', error)
+      debug.error('❌ Initialization error set:', error)
     }
   }
   
@@ -130,7 +131,7 @@ export function useApplicationState() {
     _hasServers.value = false
     _initializationError.value = null
     
-    console.log('🔄 Application state reset')
+    debug.log('🔄 Application state reset')
   }
   
   /**

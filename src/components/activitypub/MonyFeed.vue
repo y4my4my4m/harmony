@@ -118,6 +118,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
@@ -199,7 +200,7 @@ const switchFeed = async (feedType: 'home' | 'public' | 'local') => {
 const loadMore = () => {
   // Prevent duplicate loading if already loading
   if (isLoadingAnyFeed.value || isManualLoading.value) {
-    console.log('🚫 Load more ignored - already loading');
+    debug.log('🚫 Load more ignored - already loading');
     return;
   }
 
@@ -208,7 +209,7 @@ const loadMore = () => {
   switch (currentView.value) {
     case 'home': {
       const homeLastPost = activityPubStore.homeFeed.posts[activityPubStore.homeFeed.posts.length - 1];
-      console.log('📄 Loading more home posts after:', homeLastPost?.id);
+      debug.log('📄 Loading more home posts after:', homeLastPost?.id);
       activityPubStore.loadHomeFeed(homeLastPost?.id).finally(() => {
         isManualLoading.value = false;
       });
@@ -216,7 +217,7 @@ const loadMore = () => {
     }
     case 'public': {
       const publicLastPost = activityPubStore.publicFeed.posts[activityPubStore.publicFeed.posts.length - 1];
-      console.log('📄 Loading more public posts after:', publicLastPost?.id);
+      debug.log('📄 Loading more public posts after:', publicLastPost?.id);
       activityPubStore.loadPublicFeed(publicLastPost?.id).finally(() => {
         isManualLoading.value = false;
       });
@@ -224,7 +225,7 @@ const loadMore = () => {
     }
     case 'local': {
       const localLastPost = activityPubStore.localFeed.posts[activityPubStore.localFeed.posts.length - 1];
-      console.log('📄 Loading more local posts after:', localLastPost?.id);
+      debug.log('📄 Loading more local posts after:', localLastPost?.id);
       activityPubStore.loadLocalFeed(localLastPost?.id).finally(() => {
         isManualLoading.value = false;
       });
@@ -279,16 +280,16 @@ const closePost = () => {
 };
 
 const showConversation = (postId: string) => {
-  console.log(`🎯 MonyFeed showConversation called with ID: ${postId}`);
-  console.log(`🧭 Router available:`, !!router);
+  debug.log(`🎯 MonyFeed showConversation called with ID: ${postId}`);
+  debug.log(`🧭 Router available:`, !!router);
   try {
     router.push({ 
       name: 'PostDetail', 
       params: { postId } 
     });
-    console.log(`✅ Navigation to PostDetail attempted`);
+    debug.log(`✅ Navigation to PostDetail attempted`);
   } catch (error) {
-    console.error(`❌ Navigation failed:`, error);
+    debug.error(`❌ Navigation failed:`, error);
   }
 };
 
@@ -302,7 +303,7 @@ const closeComposer = () => {
 };
 
 const handlePosted = (post: any) => {
-  console.log('✅ Post created from composer:', post.id);
+  debug.log('✅ Post created from composer:', post.id);
   // The store's realtime subscription will handle adding the post to feeds
 };
 

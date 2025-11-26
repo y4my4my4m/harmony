@@ -13,6 +13,7 @@
 
 import type { EncryptionKeyStore } from './EncryptionKeyStore'
 import {
+import { debug } from '@/utils/debug'
   KeyHelper,
   SignalProtocolAddress,
   SessionBuilder,
@@ -82,7 +83,7 @@ export class SignalProtocolService {
   async initialize(keyStore: EncryptionKeyStore): Promise<void> {
     this.keyStore = keyStore
     this.initialized = true
-    console.log('✅ SignalProtocolService initialized (browser-compatible)')
+    debug.log('✅ SignalProtocolService initialized (browser-compatible)')
   }
 
   /**
@@ -194,10 +195,10 @@ export class SignalProtocolService {
     const address = new SignalProtocolAddress(userId, parseInt(deviceId))
     const sessionBuilder = new SessionBuilder(this.keyStore!, address)
 
-    console.log(`🔐 Creating session with ${recipientAddress}`)
-    console.log(`   - Signed prekey ID: ${bundle.signedPreKey.id}`)
-    console.log(`   - One-time prekey ID: ${bundle.oneTimePreKey?.id ?? 'NONE'}`)
-    console.log(`   - Identity key (first 20 chars): ${bundle.identityKey.substring(0, 20)}...`)
+    debug.log(`🔐 Creating session with ${recipientAddress}`)
+    debug.log(`   - Signed prekey ID: ${bundle.signedPreKey.id}`)
+    debug.log(`   - One-time prekey ID: ${bundle.oneTimePreKey?.id ?? 'NONE'}`)
+    debug.log(`   - Identity key (first 20 chars): ${bundle.identityKey.substring(0, 20)}...`)
 
     // Build the prekey bundle in the format expected by the library
     await sessionBuilder.processPreKey({
@@ -214,7 +215,7 @@ export class SignalProtocolService {
       } : undefined
     })
 
-    console.log(`✅ Session created with ${recipientAddress}`)
+    debug.log(`✅ Session created with ${recipientAddress}`)
   }
 
   /**
@@ -280,35 +281,35 @@ export class SignalProtocolService {
   ): Promise<string> {
     this.ensureInitialized()
 
-    console.log(`🔓 SignalProtocol: Decrypting from ${senderAddress}`)
-    console.log(`🔓 SignalProtocol: Message type: ${encryptedMessage.type}`)
+    debug.log(`🔓 SignalProtocol: Decrypting from ${senderAddress}`)
+    debug.log(`🔓 SignalProtocol: Message type: ${encryptedMessage.type}`)
 
     // Parse the address (format: "userId:deviceId")
     const [userId, deviceId] = senderAddress.split(':')
     const address = new SignalProtocolAddress(userId, parseInt(deviceId))
     
-    console.log(`🔓 SignalProtocol: Creating SessionCipher for ${userId}:${deviceId}`)
+    debug.log(`🔓 SignalProtocol: Creating SessionCipher for ${userId}:${deviceId}`)
     const sessionCipher = new SessionCipher(this.keyStore!, address)
 
     const messageBody = this.decodeFromBase64(encryptedMessage.body)
-    console.log(`🔓 SignalProtocol: Decoded message body, length: ${messageBody.byteLength}`)
+    debug.log(`🔓 SignalProtocol: Decoded message body, length: ${messageBody.byteLength}`)
 
     let plaintext: ArrayBuffer
 
     try {
       if (encryptedMessage.type === 'prekey') {
         // PreKeySignalMessage (type 3)
-        console.log(`🔓 SignalProtocol: Decrypting PreKey message...`)
+        debug.log(`🔓 SignalProtocol: Decrypting PreKey message...`)
         plaintext = await sessionCipher.decryptPreKeyWhisperMessage(messageBody, 'binary')
       } else {
         // Regular SignalMessage (type 1)
-        console.log(`🔓 SignalProtocol: Decrypting regular message...`)
+        debug.log(`🔓 SignalProtocol: Decrypting regular message...`)
         plaintext = await sessionCipher.decryptWhisperMessage(messageBody, 'binary')
       }
-      console.log(`🔓 SignalProtocol: Decryption successful, plaintext length: ${plaintext.byteLength}`)
+      debug.log(`🔓 SignalProtocol: Decryption successful, plaintext length: ${plaintext.byteLength}`)
     } catch (error: any) {
-      console.error(`❌ SignalProtocol: Decryption failed:`, error.message)
-      console.error(`❌ SignalProtocol: Full error:`, error)
+      debug.error(`❌ SignalProtocol: Decryption failed:`, error.message)
+      debug.error(`❌ SignalProtocol: Full error:`, error)
       throw error
     }
 
@@ -375,7 +376,7 @@ export class SignalProtocolService {
   ): Promise<string> {
     // For now, this is a placeholder that returns the encrypted message body
     // In production, implement proper sender key distribution
-    console.warn('⚠️ Group encryption using simplified 1:1 approach')
+    debug.warn('⚠️ Group encryption using simplified 1:1 approach')
     return this.encodeToBase64(this.stringToArrayBuffer(plaintext))
   }
 
@@ -389,7 +390,7 @@ export class SignalProtocolService {
     encryptedBody: string
   ): Promise<string> {
     // For now, this is a placeholder
-    console.warn('⚠️ Group decryption using simplified approach')
+    debug.warn('⚠️ Group decryption using simplified approach')
     return this.arrayBufferToString(this.decodeFromBase64(encryptedBody))
   }
 }

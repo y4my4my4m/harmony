@@ -287,6 +287,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -428,7 +429,7 @@ const orphanChannels = computed({
     try {
       await serverChannelStore.reorderChannelsInCategory(null, newChannels);
     } catch (error) {
-      console.error('Failed to reorder orphan channels:', error);
+      debug.error('Failed to reorder orphan channels:', error);
     }
   }
 });
@@ -454,7 +455,7 @@ const getCategoryChannelsComputed = (categoryId: string) => {
       try {
         await serverChannelStore.reorderChannelsInCategory(categoryId, newChannels);
       } catch (error) {
-        console.error(`Failed to reorder channels in category ${categoryId}:`, error);
+        debug.error(`Failed to reorder channels in category ${categoryId}:`, error);
       }
     }
   });
@@ -496,7 +497,7 @@ const initializeCategoryStates = async () => {
     });
     collapsedCategories.value = newCollapsedSet;
   } catch (error) {
-    console.warn('⚠️ Failed to initialize category states:', error);
+    debug.warn('⚠️ Failed to initialize category states:', error);
   }
 };
 
@@ -541,7 +542,7 @@ const onChannelAddedToCategory = async (evt: { item: HTMLElement }, categoryId: 
   try {
     await serverChannelStore.moveChannelToCategory(channelId, categoryId);
   } catch (error) {
-    console.error('Failed to move channel to category:', error);
+    debug.error('Failed to move channel to category:', error);
   }
 };
 
@@ -552,7 +553,7 @@ const onChannelAddedToOrphans = async (evt: any) => {
   try {
     await serverChannelStore.moveChannelToCategory(channelId, null);
   } catch (error) {
-    console.error('Failed to move channel to orphan channels:', error);
+    debug.error('Failed to move channel to orphan channels:', error);
   }
 };
 
@@ -560,7 +561,7 @@ const onChannelRemovedFromCategory = (evt: any) => {
   // This handles when a channel is removed from a category during drag operations
   // The actual move logic is handled by the corresponding @add event handler
   // This is mainly for cleanup or visual feedback if needed
-  console.log('Channel removed from category during drag operation');
+  debug.log('Channel removed from category during drag operation');
 };
 
 
@@ -588,7 +589,7 @@ const toggleCategory = async (categoryId: string) => {
     try {
       await statePersistence.setCategoryCollapseState(props.currentServer.id, categoryId, !wasCollapsed);
     } catch (error) {
-      console.warn('⚠️ Failed to persist category collapse state:', error);
+      debug.warn('⚠️ Failed to persist category collapse state:', error);
     }
   }
 };
@@ -598,7 +599,7 @@ const selectChannel = (channelId: string) => {
   // Professional navigation with proper route structure
   const serverId = props.currentServer.id;
   if (!serverId) {
-    console.warn('Cannot navigate to channel: No server ID available');
+    debug.warn('Cannot navigate to channel: No server ID available');
     return;
   }
   
@@ -619,7 +620,7 @@ const createCategory = async (categoryName: string) => {
   try {
     await serverChannelStore.createCategory(categoryName, props.currentServer.id);
   } catch (error) {
-    console.error('Failed to create category:', error);
+    debug.error('Failed to create category:', error);
   } finally {
     isCategoryCreatorOpen.value = false;
   }
@@ -705,7 +706,7 @@ const handleDeleteChannel = (channel: Channel) => {
         await serverChannelStore.deleteChannel(channel.id);
         closeConfirmationModal();
       } catch (error) {
-        console.error('Failed to delete channel:', error);
+        debug.error('Failed to delete channel:', error);
         closeConfirmationModal();
       }
     }
@@ -735,7 +736,7 @@ const handleDeleteCategory = (category: Category) => {
         await serverChannelStore.deleteCategory(category.id);
         closeConfirmationModal();
       } catch (error) {
-        console.error('Failed to delete category:', error);
+        debug.error('Failed to delete category:', error);
         closeConfirmationModal();
       }
     }
@@ -751,23 +752,23 @@ const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handle
 
 // Lifecycle Hooks
 watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
-  console.log('🔄 Server changed:', { old: oldServerId, new: newServerId });
+  debug.log('🔄 Server changed:', { old: oldServerId, new: newServerId });
   if (newServerId) {
     initializeCategoryStates();
     // Setup voice channel broadcast for real-time updates
     // Await this to ensure voice channel state is fetched before rendering
-    console.log('📞 Setting up voice channel broadcast for server:', newServerId);
+    debug.log('📞 Setting up voice channel broadcast for server:', newServerId);
     await serverUsersStore.setupVoiceChannelBroadcast(newServerId);
-    console.log('✅ Voice channel broadcast setup complete for server:', newServerId);
-    console.log('👥 Users in voice channels:', serverUsersStore.usersInVoiceChannels);
+    debug.log('✅ Voice channel broadcast setup complete for server:', newServerId);
+    debug.log('👥 Users in voice channels:', serverUsersStore.usersInVoiceChannels);
   }
 }, { immediate: true });
 
 onMounted(() => {
-  console.log('🎬 ChannelSidebar mounted, current server:', props.currentServer?.id);
+  debug.log('🎬 ChannelSidebar mounted, current server:', props.currentServer?.id);
   // If we have a server on mount, ensure voice channel state is loaded
   if (props.currentServer?.id) {
-    console.log('🔄 Fetching voice channel state on mount for server:', props.currentServer.id);
+    debug.log('🔄 Fetching voice channel state on mount for server:', props.currentServer.id);
     serverUsersStore.setupVoiceChannelBroadcast(props.currentServer.id);
   }
 });

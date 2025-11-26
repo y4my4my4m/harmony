@@ -28,6 +28,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { debug } from '@/utils/debug'
 import type { Message } from '@/types';
 
 interface Props {
@@ -75,9 +76,9 @@ const copyMessageURL = async () => {
   
   try {
     await navigator.clipboard.writeText(messageURL);
-    console.log('Message URL copied to clipboard');
+    debug.log('Message URL copied to clipboard');
   } catch (error) {
-    console.error('Failed to copy message URL:', error);
+    debug.error('Failed to copy message URL:', error);
   }
   
   emit('close');
@@ -102,9 +103,9 @@ const copyLinkURL = async () => {
   if (linkURL) {
     try {
       await navigator.clipboard.writeText(linkURL);
-      console.log('Link URL copied to clipboard');
+      debug.log('Link URL copied to clipboard');
     } catch (error) {
-      console.error('Failed to copy link URL:', error);
+      debug.error('Failed to copy link URL:', error);
     }
   }
   

@@ -123,6 +123,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
@@ -302,7 +303,7 @@ const handleSendMessage = async (content: any, replyTo?: string) => {
 const navigateToDefaultIfNeeded = async () => {
   // Only auto-navigate if we're on the bare /chat route with no params
   if (!props.isDM && route.name === 'Chat' && !route.params.serverId && !route.params.channelId) {
-    console.log('🔄 Auto-navigating to default server/channel')
+    debug.log('🔄 Auto-navigating to default server/channel')
     
     // Wait for servers to be loaded
     if (serverChannelStore.servers.length === 0) {
@@ -334,7 +335,7 @@ const navigateToDefaultIfNeeded = async () => {
       
       // Navigate to the server/channel
       if (targetServerId && targetChannelId) {
-        console.log('🎯 Navigating to:', { serverId: targetServerId, channelId: targetChannelId })
+        debug.log('🎯 Navigating to:', { serverId: targetServerId, channelId: targetChannelId })
         router.replace({ 
           name: 'ChatChannel', 
           params: { 

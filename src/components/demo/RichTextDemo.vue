@@ -66,12 +66,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import { parseMarkdownToNodes } from '@/utils/markdownParser';
 import { highlightSyntax, getSupportedLanguages } from '@/utils/syntaxHighlighter';
 
 const testText = ref('');
-const markdownTest = ref('**Bold text** and *italic text* with `inline code` and:\n\n```javascript\nfunction hello() {\n  console.log("Hello World!");\n}\n```\n\nAnd some :fire: emoji!');
+const markdownTest = ref('**Bold text** and *italic text* with `inline code` and:\n\n```javascript\nfunction hello() {\n  debug.log("Hello World!");\n}\n```\n\nAnd some :fire: emoji!');
 const codeTest = ref(`function greet(name: string): string {
   return \`Hello, \${name}!\`;
 }
@@ -83,7 +84,7 @@ const users = [
 
 // This is a comment
 for (const user of users) {
-  console.log(greet(user.name));
+  debug.log(greet(user.name));
 }`);
 
 const selectedLanguage = ref('typescript');
@@ -98,12 +99,12 @@ const highlightedTokens = computed(() => {
 });
 
 const handleCursorChange = (position: number) => {
-  console.log('Cursor position:', position);
+  debug.log('Cursor position:', position);
 };
 
 // Watch for changes in test text
 watch(testText, (newValue) => {
-  console.log('Rich text content changed:', newValue);
+  debug.log('Rich text content changed:', newValue);
 });
 </script>
 

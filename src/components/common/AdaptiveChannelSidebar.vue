@@ -152,6 +152,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -349,7 +350,7 @@ const navigateToProfile = () => {
       handle = handle.replace('@har.mony.lol', '');
     }
     
-    console.log(`🔗 Navigating to profile with handle: ${handle}`);
+    debug.log(`🔗 Navigating to profile with handle: ${handle}`);
     router.push({ 
       name: 'UserProfile', 
       params: { handle } 

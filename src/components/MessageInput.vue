@@ -62,6 +62,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { debug } from '@/utils/debug'
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
@@ -118,12 +119,12 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 // Auto-suggest setup
 const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
 const updateText = (newText: string, cursorPosition?: number) => {
-  console.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
+  debug.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
   
   // Set cursor position after text update if provided
   if (cursorPosition !== undefined && richEditorRef.value) {
     // Set the skip flag BEFORE emitting the update
-    console.log('🔧 Setting skipNextWatch to true');
+    debug.log('🔧 Setting skipNextWatch to true');
     richEditorRef.value.skipNextWatch = true;
     
     emit('update:modelValue', newText);
@@ -132,27 +133,27 @@ const updateText = (newText: string, cursorPosition?: number) => {
     nextTick(() => {
       // Now render the content manually with skip cursor restore
       if (richEditorRef.value?.renderContent) {
-        console.log('🔧 Calling manual renderContent with skipCursorRestore=true');
+        debug.log('🔧 Calling manual renderContent with skipCursorRestore=true');
         richEditorRef.value.renderContent(newText, true); // Skip cursor restore
       }
       
       // IMPORTANT: Focus FIRST, then set cursor position
       nextTick(() => {
         if (richEditorRef.value) {
-          console.log('🔧 Focusing editor FIRST');
+          debug.log('🔧 Focusing editor FIRST');
           richEditorRef.value.focus();
           
           // Wait longer to ensure focus and DOM are stable
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               if (richEditorRef.value) {
-                console.log('🔧 Now setting cursor position to:', cursorPosition);
+                debug.log('🔧 Now setting cursor position to:', cursorPosition);
                 richEditorRef.value.setCursorPosition(cursorPosition);
-                console.log('🔧 Verifying final state:');
-                console.log('  - activeElement:', document.activeElement);
-                console.log('  - selection:', window.getSelection());
-                console.log('  - rangeCount:', window.getSelection()?.rangeCount);
-                console.log('🔧 Cursor should now be visible and ready for typing');
+                debug.log('🔧 Verifying final state:');
+                debug.log('  - activeElement:', document.activeElement);
+                debug.log('  - selection:', window.getSelection());
+                debug.log('  - rangeCount:', window.getSelection()?.rangeCount);
+                debug.log('🔧 Cursor should now be visible and ready for typing');
               }
             });
           });

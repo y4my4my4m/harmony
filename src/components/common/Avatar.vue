@@ -46,6 +46,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import CameraIcon from '@/components/icons/Camera.vue'
 
@@ -132,7 +133,7 @@ const handleFileSelect = (event: Event) => {
 }
 
 const handleImageError = () => {
-  console.log('Avatar image error for URL:', avatarUrl.value)
+  debug.log('Avatar image error for URL:', avatarUrl.value)
   imageError.value = true
   // Don't attempt to reload the URL on error to prevent infinite loops
 }

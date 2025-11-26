@@ -244,6 +244,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { generateInviteUrl, getInviteHistory, revokeInvite, type Invite, type InviteOptions } from '@/services/inviteService'
 import { getInviteConstraints } from '@/services/permissionsService'
@@ -325,7 +326,7 @@ const generateInvite = async () => {
       toast.error(result.error || 'Failed to generate invite link')
     }
   } catch (error) {
-    console.error('Error generating invite:', error)
+    debug.error('Error generating invite:', error)
     const errorMsg = 'Failed to generate invite link'
     permissionError.value = errorMsg
     toast.error(errorMsg)
@@ -356,7 +357,7 @@ const copyInviteLink = async () => {
       linkCopied.value = false
     }, 3000)
   } catch (error) {
-    console.error('Failed to copy invite link:', error)
+    debug.error('Failed to copy invite link:', error)
     toast.error('Failed to copy invite link')
   }
 }
@@ -416,7 +417,7 @@ const revokeInviteLink = async (invite: Invite) => {
       toast.error('Failed to revoke invite')
     }
   } catch (error) {
-    console.error('Error revoking invite:', error)
+    debug.error('Error revoking invite:', error)
     toast.error('Failed to revoke invite')
   }
 }
@@ -467,7 +468,7 @@ const loadInviteConstraints = async () => {
       permissionError.value = 'You do not have permission to create invites for this server'
     }
   } catch (error) {
-    console.error('Error loading invite constraints:', error)
+    debug.error('Error loading invite constraints:', error)
     // Temporarily allow invite creation even if constraints fail
     canCreateInvites.value = true
     inviteConstraints.value = {
@@ -487,7 +488,7 @@ const loadInviteHistory = async () => {
     const history = await getInviteHistory(authStore.session.user.id, props.serverId)
     inviteHistory.value = history
   } catch (error) {
-    console.error('Error loading invite history:', error)
+    debug.error('Error loading invite history:', error)
   }
 }
 

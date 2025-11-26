@@ -9,6 +9,7 @@ import { activityPubService } from '@/services/activityPubService';
 import { services } from '@/services';
 import router from '@/router';
 import { usePostReactionsStore } from '@/stores/postReactions';
+import { debug } from '@/utils/debug';
 // InteractionService removed - using direct database operations
 import type { 
   Post, 
@@ -210,7 +211,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async initialize() {
       try {
-        console.log('🌐 Initializing ActivityPub store...');
+        debug.log('🌐 Initializing ActivityPub store...');
         
         // Initialize post reactions store for batch loading
         const postReactionsStore = usePostReactionsStore();
@@ -226,9 +227,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Debug methods removed - no longer needed
         // getTimelineStats, createTestFederatedPost, and exposeDebugMethods removed
         
-        console.log('✅ ActivityPub store initialized successfully');
+        debug.log('✅ ActivityPub store initialized successfully');
       } catch (error) {
-        console.error('❌ Failed to initialize ActivityPub store:', error);
+        debug.error('❌ Failed to initialize ActivityPub store:', error);
         throw error;
       }
     },
@@ -260,9 +261,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.followingCount = followingCount || 0;
         this.followersCount = followersCount || 0;
 
-        console.log(`📊 Follow counts loaded: ${this.followingCount} following, ${this.followersCount} followers`);
+        debug.log(`📊 Follow counts loaded: ${this.followingCount} following, ${this.followersCount} followers`);
       } catch (error) {
-        console.error('❌ Failed to load follow counts:', error);
+        debug.error('❌ Failed to load follow counts:', error);
       }
     },
 
@@ -283,11 +284,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         // if (error) throw error;
 
         // Store preferences in state if needed
-        // console.log('⚙️ User preferences loaded');
+        // debug.log('⚙️ User preferences loaded');
 
         // TODO: were currently storing everything in notificaiton_preferences i believe? all preferences are separates columns in the database.
       } catch (error) {
-        console.error('❌ Failed to load user preferences:', error);
+        debug.error('❌ Failed to load user preferences:', error);
       }
     },
 
@@ -316,11 +317,11 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       const interactionsChannel = activityPubService.subscribeToInteractionUpdates(
         (interaction) => {
-          console.log('🔔 REALTIME: Interaction CREATE received:', interaction);
+          debug.log('🔔 REALTIME: Interaction CREATE received:', interaction);
           this.handleRealtimeInteractionChange({ event: 'INSERT', new: interaction });
         },
         (interaction) => {
-          console.log('🔔 REALTIME: Interaction DELETE received:', interaction);
+          debug.log('🔔 REALTIME: Interaction DELETE received:', interaction);
           this.handleRealtimeInteractionChange({ event: 'DELETE', old: interaction });
         }
       );
@@ -330,7 +331,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.realtimeSubscriptions.set('follows', followsChannel);
       this.realtimeSubscriptions.set('interactions', interactionsChannel);
 
-      console.log('🔔 Enhanced realtime subscriptions established using ActivityPub service');
+      debug.log('🔔 Enhanced realtime subscriptions established using ActivityPub service');
     },
 
 
@@ -339,19 +340,19 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime post creation
      */
     async handleRealtimePostCreate(post: any) {
-      console.log('📝 New post received via realtime:', post);
+      debug.log('📝 New post received via realtime:', post);
       
       try {
         // Realtime data NEVER has author joins, always fetch complete data
-        console.log('🔄 Fetching complete post data with author information...');
+        debug.log('🔄 Fetching complete post data with author information...');
         const completePost = await activityPubService.loadPostWithAuthor(post.id);
         
         if (!completePost) {
-          console.warn('❌ Could not load complete post data for:', post.id);
+          debug.warn('❌ Could not load complete post data for:', post.id);
           return;
         }
         
-        console.log('📝 Complete post data:', {
+        debug.log('📝 Complete post data:', {
           id: completePost.id,
           author: completePost.author?.username,
           display_name: completePost.author?.display_name,
@@ -385,7 +386,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
         }
       } catch (error) {
-        console.error('❌ Failed to handle realtime post creation:', error);
+        debug.error('❌ Failed to handle realtime post creation:', error);
         // Fallback: use post data directly (now in timeline format)
         if (post.visibility === 'public') {
           this.publicFeed.posts.unshift(post);
@@ -404,7 +405,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime post updates (ignore count-only updates to prevent loops)
      */
     handleRealtimePostUpdate(post: any) {
-      console.log('📝 Post updated:', post);
+      debug.log('📝 Post updated:', post);
       
       // Ignore updates that are likely just count changes from interaction triggers
       // These updates have updated_at very close to now and no content changes
@@ -414,7 +415,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       // If updated less than 3 seconds ago, likely a trigger update - ignore it
       if (timeDiff < 3000) {
-        console.log('🚫 Ignoring likely count-only post update');
+        debug.log('🚫 Ignoring likely count-only post update');
         return;
       }
       
@@ -426,7 +427,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime post deletion
      */
     handleRealtimePostDelete(post: any) {
-      console.log('🗑️ Post deleted:', post);
+      debug.log('🗑️ Post deleted:', post);
       
       this.removePostFromAllFeeds(post.id);
     },
@@ -435,7 +436,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime follow creation
      */
     async handleRealtimeFollowCreate(follow: any) {
-      console.log('👥 New follow relationship:', follow);
+      debug.log('👥 New follow relationship:', follow);
       
       // Get current user PROFILE ID
       const { userDataService } = await import('@/services/userDataService');
@@ -460,7 +461,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime follow updates (status changes)
      */
     async handleRealtimeFollowUpdate(follow: any) {
-      console.log('👥 Follow relationship updated:', follow);
+      debug.log('👥 Follow relationship updated:', follow);
       
       // Get current user PROFILE ID
       const { userDataService } = await import('@/services/userDataService');
@@ -483,7 +484,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime follow deletion
      */
     async handleRealtimeFollowDelete(follow: any) {
-      console.log('👥 Follow relationship deleted:', follow);
+      debug.log('👥 Follow relationship deleted:', follow);
       
       // Get current user PROFILE ID
       const { userDataService } = await import('@/services/userDataService');
@@ -505,45 +506,45 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime interaction changes - clean and direct
      */
     handleRealtimeInteractionChange(payload: any) {
-      console.log('💫💫💫 REALTIME INTERACTION TRIGGER 💫💫💫');
-      console.log('💫 Raw payload:', payload);
-      console.log('💫 DETAILED Interaction payload:', JSON.stringify(payload, null, 2));
+      debug.log('💫💫💫 REALTIME INTERACTION TRIGGER 💫💫💫');
+      debug.log('💫 Raw payload:', payload);
+      debug.log('💫 DETAILED Interaction payload:', JSON.stringify(payload, null, 2));
       
       // Also log current user info for debugging
       supabase.auth.getUser().then(user => {
-        console.log('💫 Current user receiving realtime event:', user.data.user?.id);
+        debug.log('💫 Current user receiving realtime event:', user.data.user?.id);
       });
       
       const interaction = payload.new || payload.old;
       if (!interaction) {
-        console.error('❌ No interaction data in realtime payload:', payload);
+        debug.error('❌ No interaction data in realtime payload:', payload);
         return;
       }
 
       // Check event type first and handle DELETE events early
-      console.log('💫 Event type check:', payload.event, 'interaction data:', interaction);
+      debug.log('💫 Event type check:', payload.event, 'interaction data:', interaction);
       
       // For DELETE events, we only get minimal data (usually just ID)
       // Skip processing if we don't have enough information
       if (payload.event === 'DELETE') {
-        console.log('💫 DELETE event detected, skipping detailed processing (insufficient data in payload.old)');
-        console.log('💫 This is normal behavior - DELETE events only provide minimal data');
+        debug.log('💫 DELETE event detected, skipping detailed processing (insufficient data in payload.old)');
+        debug.log('💫 This is normal behavior - DELETE events only provide minimal data');
         return;
       }
 
       // Validate required fields (only for non-DELETE events)
       if (!interaction.post_id) {
-        console.error('❌ Missing post_id in interaction:', interaction);
+        debug.error('❌ Missing post_id in interaction:', interaction);
         return;
       }
       
       if (!interaction.interaction_type) {
-        console.error('❌ Missing interaction_type in interaction:', interaction);
+        debug.error('❌ Missing interaction_type in interaction:', interaction);
         return;
       }
       
       if (!interaction.user_id) {
-        console.error('❌ Missing user_id in interaction:', interaction);
+        debug.error('❌ Missing user_id in interaction:', interaction);
         return;
       }
 
@@ -588,9 +589,9 @@ export const useActivityPubStore = defineStore('activitypub', {
             expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
           });
 
-        console.log('🔔 Follow notification created');
+        debug.log('🔔 Follow notification created');
       } catch (error) {
-        console.error('❌ Failed to create follow notification:', error);
+        debug.error('❌ Failed to create follow notification:', error);
       }
     },
 
@@ -606,7 +607,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         .single();
 
       if (countsError) {
-        console.error('❌ Failed to get server counts:', countsError);
+        debug.error('❌ Failed to get server counts:', countsError);
         return;
       }
 
@@ -620,7 +621,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           post.reblogs_count = postCounts.reblogs_count;
           post.replies_count = postCounts.replies_count;
           
-          console.log(`📊 Updated post ${postId} counts from server (${interactionType} ${eventType}):`, {
+          debug.log(`📊 Updated post ${postId} counts from server (${interactionType} ${eventType}):`, {
             favorites_count: post.favorites_count,
             reblogs_count: post.reblogs_count,
             replies_count: post.replies_count
@@ -638,17 +639,17 @@ export const useActivityPubStore = defineStore('activitypub', {
     async updatePostInteractionFromRealtime(postId: string, interactionType: string, eventType: string, userId: string) {
       // Early validation to prevent undefined errors
       if (!postId || postId === 'undefined') {
-        console.error('❌ Invalid postId in realtime update:', postId);
+        debug.error('❌ Invalid postId in realtime update:', postId);
         return;
       }
 
       if (!interactionType) {
-        console.error('❌ Invalid interactionType in realtime update:', interactionType);
+        debug.error('❌ Invalid interactionType in realtime update:', interactionType);
         return;
       }
 
       if (!userId || userId === 'undefined') {
-        console.error('❌ Invalid userId in realtime update:', userId);
+        debug.error('❌ Invalid userId in realtime update:', userId);
         return;
       }
 
@@ -664,11 +665,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         .single();
 
       if (countsError) {
-        console.error('❌ Failed to get server counts for realtime update:', countsError);
+        debug.error('❌ Failed to get server counts for realtime update:', countsError);
         return;
       }
 
-      console.log(`📊 Realtime: Server counts for post ${postId}:`, {
+      debug.log(`📊 Realtime: Server counts for post ${postId}:`, {
         favorites_count: postCounts.favorites_count,
         reblogs_count: postCounts.reblogs_count,
         replies_count: postCounts.replies_count,
@@ -729,10 +730,10 @@ export const useActivityPubStore = defineStore('activitypub', {
             // Apply updates by creating new object (triggers reactivity!)
             Object.assign(post, updates);
             
-            console.log(`✅ Updated post.is_${interactionType === 'favorite' ? 'favorited' : interactionType === 'bookmark' ? 'bookmarked' : 'reblogged'}:`, updates);
+            debug.log(`✅ Updated post.is_${interactionType === 'favorite' ? 'favorited' : interactionType === 'bookmark' ? 'bookmarked' : 'reblogged'}:`, updates);
           }
 
-          console.log(`🔍 DEBUG: Realtime update complete:`, {
+          debug.log(`🔍 DEBUG: Realtime update complete:`, {
             postId: post.id,
             favorites_count: post.favorites_count,
             is_favorited: post.is_favorited,
@@ -741,7 +742,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             isCurrentUser
           });
         } else {
-          console.log(`🔍 DEBUG: Post not found in feed for postId: ${postId}`);
+          debug.log(`🔍 DEBUG: Post not found in feed for postId: ${postId}`);
         }
       });
 
@@ -791,7 +792,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       });
 
-      console.log(`💫 Realtime interaction update with server sync: ${interactionType} ${eventType} for post ${postId} (user: ${userId}, current: ${isCurrentUser})`);
+      debug.log(`💫 Realtime interaction update with server sync: ${interactionType} ${eventType} for post ${postId} (user: ${userId}, current: ${isCurrentUser})`);
     },
 
     /**
@@ -800,7 +801,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     async updateTimelineCache() {
       // Skip RPC calls that have database schema issues
       // Client-side post updates in updatePostInteractionCounts are sufficient
-      console.log('📋 Timeline cache update skipped - using client-side updates for better stability');
+      debug.log('📋 Timeline cache update skipped - using client-side updates for better stability');
       return;
     },
 
@@ -873,7 +874,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       });
 
-      console.log(`📍 Updated ${interactionType} state to ${state} for post ${postId} across all feeds (counts handled by realtime)`);
+      debug.log(`📍 Updated ${interactionType} state to ${state} for post ${postId} across all feeds (counts handled by realtime)`);
     },
 
     /**
@@ -901,7 +902,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       });
       this.realtimeSubscriptions.clear();
       
-      console.log('🧹 Realtime subscriptions cleaned up');
+      debug.log('🧹 Realtime subscriptions cleaned up');
     },
 
     /**
@@ -927,7 +928,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (posts.length > 0) {
           const postReactionsStore = usePostReactionsStore();
           const postIds = posts.map(p => p.id)
-          console.log(`🔄 Batch loading reactions for ${postIds.length} home timeline posts`)
+          debug.log(`🔄 Batch loading reactions for ${postIds.length} home timeline posts`)
           // Force batch fetch to ensure reactions load before components render
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
@@ -944,7 +945,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.homeFeed.cursor = posts[posts.length - 1]?.id;
 
       } catch (error) {
-        console.error('Failed to load home feed:', error);
+        debug.error('Failed to load home feed:', error);
       } finally {
         this.isLoadingFeed = false;
       }
@@ -966,7 +967,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (posts.length > 0) {
           const postReactionsStore = usePostReactionsStore();
           const postIds = posts.map(p => p.id)
-          console.log(`🔄 Batch loading reactions for ${postIds.length} public timeline posts`)
+          debug.log(`🔄 Batch loading reactions for ${postIds.length} public timeline posts`)
           // Force batch fetch to ensure reactions load before components render
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
@@ -980,7 +981,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         // DEBUG: Log the problematic post's data when loaded
         const debugPost = posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
         if (debugPost) {
-          console.log(`🔍 DEBUG - Timeline loaded post ${debugPost.id}:`, {
+          debug.log(`🔍 DEBUG - Timeline loaded post ${debugPost.id}:`, {
             is_favorited: debugPost.is_favorited,
             favorites_count: debugPost.favorites_count,
             typeof_is_favorited: typeof debugPost.is_favorited,
@@ -991,7 +992,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         // DEBUG: Check the post data after store assignment
         const storePost = this.publicFeed.posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
         if (storePost) {
-          console.log(`🔍 DEBUG - Post in store after assignment:`, {
+          debug.log(`🔍 DEBUG - Post in store after assignment:`, {
             is_favorited: storePost.is_favorited,
             favorites_count: storePost.favorites_count,
             typeof_is_favorited: typeof storePost.is_favorited,
@@ -1005,10 +1006,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Debug logging for federated content
         const localCount = posts.filter(p => p.is_local).length;
         const federatedCount = posts.filter(p => !p.is_local).length;
-        console.log(`🌐 Public feed updated: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
+        debug.log(`🌐 Public feed updated: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
 
       } catch (error) {
-        console.error('Failed to load public feed:', error);
+        debug.error('Failed to load public feed:', error);
       } finally {
         this.isLoadingFeed = false;
       }
@@ -1030,7 +1031,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (posts.length > 0) {
           const postReactionsStore = usePostReactionsStore();
           const postIds = posts.map(p => p.id)
-          console.log(`🔄 Batch loading reactions for ${postIds.length} local timeline posts`)
+          debug.log(`🔄 Batch loading reactions for ${postIds.length} local timeline posts`)
           // Force batch fetch to ensure reactions load before components render
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
@@ -1044,10 +1045,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.localFeed.has_more = posts.length === 20;
         this.localFeed.cursor = posts[posts.length - 1]?.id;
 
-        console.log(`📍 Local feed loaded: ${posts.length} posts`);
+        debug.log(`📍 Local feed loaded: ${posts.length} posts`);
 
       } catch (error) {
-        console.error('Failed to load local feed:', error);
+        debug.error('Failed to load local feed:', error);
       } finally {
         this.isLoadingFeed = false;
       }
@@ -1128,7 +1129,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         return post;
       } catch (error) {
-        console.error('Failed to create post:', error);
+        debug.error('Failed to create post:', error);
         throw error;
       } finally {
         this.isPosting = false;
@@ -1193,7 +1194,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             });
 
           if (error) {
-            console.error('Upload error:', error);
+            debug.error('Upload error:', error);
             // Provide more helpful error messages
             if (error.message?.includes('413') || error.message?.includes('too large')) {
               throw new Error(`File "${file.name}" is too large. Maximum file size is 50MB.`);
@@ -1213,7 +1214,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             name: file.name
           };
         } catch (error: any) {
-          console.error(`Failed to upload file "${file.name}":`, error);
+          debug.error(`Failed to upload file "${file.name}":`, error);
           throw error;
         }
       });
@@ -1257,15 +1258,15 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async loadPostWithAuthor(postId: string): Promise<TimelinePost | null> {
       try {
-        console.log('🔄 Loading post via PostService:', postId);
+        debug.log('🔄 Loading post via PostService:', postId);
         
         // Use services.posts for consistent loading with service layer
         const post = await services.posts.loadPost(postId);
         
-        console.log('✅ Post loaded via service layer:', post ? 'found' : 'not found');
+        debug.log('✅ Post loaded via service layer:', post ? 'found' : 'not found');
         return post;
       } catch (error) {
-        console.error('❌ Failed to load post via service:', error);
+        debug.error('❌ Failed to load post via service:', error);
         return null;
       }
     },
@@ -1291,7 +1292,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             post.reblogs_count += isActive ? 1 : -1;
           } else if (type === 'bookmark') {
             // Bookmark state would be tracked separately if needed
-            console.log(`Bookmark ${isActive ? 'added' : 'removed'} for post ${postId}`);
+            debug.log(`Bookmark ${isActive ? 'added' : 'removed'} for post ${postId}`);
           }
         }
       });
@@ -1353,7 +1354,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'posts' },
           (payload) => {
-            console.log('New post received:', payload.new);
+            debug.log('New post received:', payload.new);
             // TODO: Add to appropriate timelines based on visibility and following
           }
         )
@@ -1366,7 +1367,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'post_interactions' },
           (payload) => {
-            console.log('Post interaction update:', payload);
+            debug.log('Post interaction update:', payload);
             // TODO: Update post interaction counts
           }
         )
@@ -1379,7 +1380,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'follows' },
           async (payload) => {
-            console.log('👥 Follow relationship update:', payload);
+            debug.log('👥 Follow relationship update:', payload);
             
             // Get current user PROFILE ID (not auth.uid!)
             const { userDataService } = await import('@/services/userDataService');
@@ -1391,10 +1392,10 @@ export const useActivityPubStore = defineStore('activitypub', {
             
             // Only update if this affects the current user's PROFILE
             if (payload.eventType === 'INSERT' && follow.follower_id === currentUser.id) {
-              console.log('👥 New follow relationship:', follow);
+              debug.log('👥 New follow relationship:', follow);
               this.followedUsers.add(follow.following_id);
             } else if (payload.eventType === 'DELETE' && oldFollow.follower_id === currentUser.id) {
-              console.log('👥 Follow relationship deleted:', oldFollow);
+              debug.log('👥 Follow relationship deleted:', oldFollow);
               this.followedUsers.delete(oldFollow.following_id);
             } else if (payload.eventType === 'UPDATE') {
               const isCurrentUserFollower = follow.follower_id === currentUser.id;
@@ -1431,10 +1432,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     async muteUser(userId: string) {
       try {
         // TODO: Implement mute API call
-        console.log('Muting user:', userId);
+        debug.log('Muting user:', userId);
         this.mutedUsers.add(userId);
       } catch (error) {
-        console.error('Failed to mute user:', error);
+        debug.error('Failed to mute user:', error);
         throw error;
       }
     },
@@ -1445,10 +1446,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     async unmuteUser(userId: string) {
       try {
         // TODO: Implement unmute API call
-        console.log('Unmuting user:', userId);
+        debug.log('Unmuting user:', userId);
         this.mutedUsers.delete(userId);
       } catch (error) {
-        console.error('Failed to unmute user:', error);
+        debug.error('Failed to unmute user:', error);
         throw error;
       }
     },
@@ -1459,7 +1460,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     async blockUser(userId: string) {
       try {
         // TODO: Implement block API call
-        console.log('Blocking user:', userId);
+        debug.log('Blocking user:', userId);
         this.blockedUsers.add(userId);
         
         // Also unfollow if following
@@ -1467,7 +1468,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           await this.unfollowUser(userId);
         }
       } catch (error) {
-        console.error('Failed to block user:', error);
+        debug.error('Failed to block user:', error);
         throw error;
       }
     },
@@ -1478,10 +1479,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     async unblockUser(userId: string) {
       try {
         // TODO: Implement unblock API call
-        console.log('Unblocking user:', userId);
+        debug.log('Unblocking user:', userId);
         this.blockedUsers.delete(userId);
       } catch (error) {
-        console.error('Failed to unblock user:', error);
+        debug.error('Failed to unblock user:', error);
         throw error;
       }
     },
@@ -1490,13 +1491,13 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Toggle post favorite (like) with optimistic UI updates
      */
     async toggleFavorite(postId: string) {
-      console.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
+      debug.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
       
       try {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        console.log(`🔍 DEBUG: User authenticated: ${user.data.user.id}`);
+        debug.log(`🔍 DEBUG: User authenticated: ${user.data.user.id}`);
 
         // Check current state first
         const { data: existing, error: existingError } = await supabase
@@ -1512,16 +1513,16 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         const isFavorited = !!existing;
-        console.log(`🔍 DEBUG: Current favorite state: ${isFavorited} (existing: ${JSON.stringify(existing)})`);
+        debug.log(`🔍 DEBUG: Current favorite state: ${isFavorited} (existing: ${JSON.stringify(existing)})`);
 
         // Step 1: Handle local database state FIRST
         if (existing) {
           // Remove favorite
-          console.log(`🔍 DEBUG: Removing favorite with id: ${existing.id}`);
+          debug.log(`🔍 DEBUG: Removing favorite with id: ${existing.id}`);
           await activityPubService.unfavoritePost(postId);
         } else {
           // Add favorite
-          console.log(`🔍 DEBUG: Adding new favorite`);
+          debug.log(`🔍 DEBUG: Adding new favorite`);
           await activityPubService.favoritePost(postId);
         }
 
@@ -1530,7 +1531,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.updatePostInteractionInAllFeeds(postId, 'favorite', newFavoriteState);
 
         // Step 3: Get the updated post state from server (with correct counts)
-        console.log(`🔄 Refreshing post data after ${newFavoriteState ? 'favoriting' : 'unfavoriting'}`);
+        debug.log(`🔄 Refreshing post data after ${newFavoriteState ? 'favoriting' : 'unfavoriting'}`);
         
         // Get fresh counts from the posts table (more reliable than timeline RPC)
         const { data: postCounts, error: countsError } = await supabase
@@ -1540,7 +1541,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           .single();
 
         if (!countsError && postCounts) {
-          console.log(`📊 Server counts for post ${postId}:`, {
+          debug.log(`📊 Server counts for post ${postId}:`, {
             favorites_count: postCounts.favorites_count,
             reblogs_count: postCounts.reblogs_count,
             replies_count: postCounts.replies_count,
@@ -1552,17 +1553,17 @@ export const useActivityPubStore = defineStore('activitypub', {
           // Update UI with correct server state - only update counts, keep user state consistent
           this.updatePostCountsFromServer(postId, postCounts, newFavoriteState);
         } else {
-          console.error('❌ Failed to get server counts:', countsError);
+          debug.error('❌ Failed to get server counts:', countsError);
           // State is already updated from step 2, no need for fallback
         }
         
         // Step 4: Federation is handled automatically by database triggers
         // No need for manual federation calls
 
-        console.log(`✅ Toggled favorite for post ${postId}: ${isFavorited} -> ${newFavoriteState} (synced with server state)`);
+        debug.log(`✅ Toggled favorite for post ${postId}: ${isFavorited} -> ${newFavoriteState} (synced with server state)`);
 
       } catch (error) {
-        console.error('Failed to toggle favorite:', error);
+        debug.error('Failed to toggle favorite:', error);
         throw error;
       }
     },
@@ -1589,7 +1590,7 @@ export const useActivityPubStore = defineStore('activitypub', {
               post.is_bookmarked = isActive;
               break;
           }
-          console.log(`🔄 Updated ${interactionType} state for post ${postId} in feed: ${isActive} (counts will be synced from server)`);
+          debug.log(`🔄 Updated ${interactionType} state for post ${postId} in feed: ${isActive} (counts will be synced from server)`);
         }
       });
     },
@@ -1611,7 +1612,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           post.reblogs_count = serverPost.reblogs_count;
           post.replies_count = serverPost.replies_count;
           
-          console.log(`🔄 Updated post ${postId} with server state:`, {
+          debug.log(`🔄 Updated post ${postId} with server state:`, {
             is_favorited: post.is_favorited,
             favorites_count: post.favorites_count,
             is_reblogged: post.is_reblogged,
@@ -1636,7 +1637,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           post.replies_count = serverCounts.replies_count;
           post.is_favorited = userFavoriteState; // User state from our action
           
-          console.log(`🔄 Updated post ${postId} counts from server:`, {
+          debug.log(`🔄 Updated post ${postId} counts from server:`, {
             favorites_count: post.favorites_count,
             is_favorited: post.is_favorited,
             reblogs_count: post.reblogs_count
@@ -1688,10 +1689,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         // Don't update UI state here - let realtime handle it to avoid double updates
-        console.log(`📍 Toggled bookmark for post ${postId}: ${isBookmarked} -> ${!isBookmarked} (realtime will update UI)`);
+        debug.log(`📍 Toggled bookmark for post ${postId}: ${isBookmarked} -> ${!isBookmarked} (realtime will update UI)`);
 
       } catch (error) {
-        console.error('Failed to toggle bookmark:', error);
+        debug.error('Failed to toggle bookmark:', error);
         throw error;
       }
     },
@@ -1735,7 +1736,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           hasMore: posts.length === limit
         };
       } catch (error) {
-        console.error('Failed to get bookmarks:', error);
+        debug.error('Failed to get bookmarks:', error);
         throw error;
       }
     },
@@ -1749,9 +1750,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.bookmarks = result.posts as TimelinePost[];
         this.bookmarksCursor = result.cursor;
         this.hasMoreBookmarks = result.hasMore;
-        console.log('📚 Bookmarks loaded:', this.bookmarks.length);
+        debug.log('📚 Bookmarks loaded:', this.bookmarks.length);
       } catch (error) {
-        console.error('Failed to load bookmarks:', error);
+        debug.error('Failed to load bookmarks:', error);
         throw error;
       }
     },
@@ -1771,9 +1772,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.bookmarks.push(...(result.posts as TimelinePost[]));
         this.bookmarksCursor = result.cursor;
         this.hasMoreBookmarks = result.hasMore;
-        console.log('📚 More bookmarks loaded:', result.posts.length);
+        debug.log('📚 More bookmarks loaded:', result.posts.length);
       } catch (error) {
-        console.error('Failed to load more bookmarks:', error);
+        debug.error('Failed to load more bookmarks:', error);
         throw error;
       }
     },
@@ -1799,7 +1800,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.hasMoreBookmarks = true;
         this.bookmarksCursor = null;
       } catch (error) {
-        console.error('Failed to clear bookmarks:', error);
+        debug.error('Failed to clear bookmarks:', error);
         throw error;
       }
     },
@@ -1861,10 +1862,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         // Don't update UI state here - let realtime handle it to avoid double updates
-        console.log(`📍 Toggled reblog for post ${postId}: ${isReblogged} -> ${!isReblogged} (realtime will update UI)`);
+        debug.log(`📍 Toggled reblog for post ${postId}: ${isReblogged} -> ${!isReblogged} (realtime will update UI)`);
 
       } catch (error) {
-        console.error('Failed to toggle reblog:', error);
+        debug.error('Failed to toggle reblog:', error);
         throw error;
       }
     },
@@ -1911,7 +1912,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.removePostFromFeeds(postId);
 
       } catch (error) {
-        console.error('Failed to delete post:', error);
+        debug.error('Failed to delete post:', error);
         throw error;
       }
     },
@@ -1938,37 +1939,37 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async loadFollowedUsers() {
        try {
-         console.log('🔄 Loading followed users via InteractionService');
+         debug.log('🔄 Loading followed users via InteractionService');
          
          // Get current user PROFILE ID (not auth_user_id!)
         const { userDataService } = await import('@/services/userDataService');
         const currentUser = userDataService.getCurrentUser();
         if (!currentUser?.id) {
-          console.log('ℹ️ No current user available, skipping followed users loading');
+          debug.log('ℹ️ No current user available, skipping followed users loading');
           return;
         }
         
-        console.log('🔄 Current user PROFILE ID for loading followed users:', currentUser.id);
+        debug.log('🔄 Current user PROFILE ID for loading followed users:', currentUser.id);
          
          // Use InteractionService with PROFILE ID
         const result = await services.interactions.getFollowing(currentUser.id);
-         console.log('🔄 Service result:', result);
+         debug.log('🔄 Service result:', result);
          
          this.followedUsers = new Set(result.users.map(user => user.id));
          
-         console.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
-         console.log('✅ followedUsers Set contents:', Array.from(this.followedUsers));
+         debug.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
+         debug.log('✅ followedUsers Set contents:', Array.from(this.followedUsers));
        } catch (error) {
-         console.error('❌ Failed to load followed users via service:', error);
+         debug.error('❌ Failed to load followed users via service:', error);
          
          // Fallback to direct query if service fails
          try {
-           console.log('🔄 Trying fallback method...');
+           debug.log('🔄 Trying fallback method...');
            await this._loadFollowedUsersFallback();
-           console.log(`✅ Fallback loaded ${this.followedUsers.size} followed users`);
-           console.log('✅ Fallback followedUsers Set contents:', Array.from(this.followedUsers));
+           debug.log(`✅ Fallback loaded ${this.followedUsers.size} followed users`);
+           debug.log('✅ Fallback followedUsers Set contents:', Array.from(this.followedUsers));
          } catch (fallbackError) {
-           console.error('❌ Fallback loading also failed:', fallbackError);
+           debug.error('❌ Fallback loading also failed:', fallbackError);
          }
        }
      },
@@ -1999,7 +2000,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async followUser(userId: string) {
        try {
-         console.log('🔄 Following user via InteractionService:', userId);
+         debug.log('🔄 Following user via InteractionService:', userId);
          
          // Use InteractionService for optimistic follow with federation
          const result = await services.interactions.toggleFollow(userId);
@@ -2007,12 +2008,12 @@ export const useActivityPubStore = defineStore('activitypub', {
          if (result.following) {
            this.followedUsers.add(userId);
            this.followingCount++;
-           console.log('✅ User followed successfully via service layer');
+           debug.log('✅ User followed successfully via service layer');
          }
          
          return result;
        } catch (error) {
-         console.error('❌ Failed to follow user via service:', error);
+         debug.error('❌ Failed to follow user via service:', error);
          throw error;
        }
      },
@@ -2022,7 +2023,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async unfollowUser(userId: string) {
        try {
-         console.log('🔄 Unfollowing user via InteractionService:', userId);
+         debug.log('🔄 Unfollowing user via InteractionService:', userId);
          
          // Use InteractionService for optimistic unfollow with federation
          const result = await services.interactions.toggleFollow(userId);
@@ -2030,12 +2031,12 @@ export const useActivityPubStore = defineStore('activitypub', {
          if (!result.following) {
            this.followedUsers.delete(userId);
            this.followingCount--;
-           console.log('✅ User unfollowed successfully via service layer');
+           debug.log('✅ User unfollowed successfully via service layer');
          }
          
          return result;
        } catch (error) {
-         console.error('❌ Failed to unfollow user via service:', error);
+         debug.error('❌ Failed to unfollow user via service:', error);
          throw error;
        }
      },
@@ -2045,7 +2046,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async toggleFollow(userId: string): Promise<{ following: boolean }> {
        try {
-         console.log('🔄 Toggling follow via InteractionService:', userId);
+         debug.log('🔄 Toggling follow via InteractionService:', userId);
          
          // Use InteractionService for optimistic toggle with federation
          const result = await services.interactions.toggleFollow(userId);
@@ -2059,10 +2060,10 @@ export const useActivityPubStore = defineStore('activitypub', {
            this.followingCount--;
          }
          
-         console.log(`✅ Follow toggled via service: ${result.following ? 'following' : 'unfollowed'}`);
+         debug.log(`✅ Follow toggled via service: ${result.following ? 'following' : 'unfollowed'}`);
          return result;
        } catch (error) {
-         console.error('❌ Failed to toggle follow via service:', error);
+         debug.error('❌ Failed to toggle follow via service:', error);
          throw error;
        }
      },
@@ -2081,7 +2082,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          if (error) throw error;
          return count || 0;
        } catch (error) {
-         console.error('Failed to get followers count:', error);
+         debug.error('Failed to get followers count:', error);
          return 0;
        }
      },
@@ -2100,7 +2101,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          if (error) throw error;
          return count || 0;
        } catch (error) {
-         console.error('Failed to get following count:', error);
+         debug.error('Failed to get following count:', error);
          return 0;
        }
      },
@@ -2126,10 +2127,10 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        console.log('🔔 Notifications loaded:', data);
+        debug.log('🔔 Notifications loaded:', data);
         this.notifications = data;
       } catch (error) {
-        console.error('Failed to load notifications:', error);
+        debug.error('Failed to load notifications:', error);
         throw error;
       }
      },
@@ -2157,7 +2158,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          
          return context;
        } catch (error) {
-         console.error('Failed to get conversation context:', error);
+         debug.error('Failed to get conversation context:', error);
          return null;
        } finally {
          this.isLoadingConversation = false;
@@ -2181,7 +2182,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          
          return thread;
        } catch (error) {
-         console.error('Failed to get conversation thread:', error);
+         debug.error('Failed to get conversation thread:', error);
          return null;
        } finally {
          this.isLoadingConversation = false;
@@ -2195,7 +2196,7 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          return await activityPubService.getPostReplies(postId, options);
        } catch (error) {
-         console.error('Failed to get post replies:', error);
+         debug.error('Failed to get post replies:', error);
          return [];
        }
      },
@@ -2226,7 +2227,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          
          return reply;
        } catch (error) {
-         console.error('Failed to reply to post:', error);
+         debug.error('Failed to reply to post:', error);
          throw error;
        }
      },
@@ -2235,20 +2236,20 @@ export const useActivityPubStore = defineStore('activitypub', {
       * Navigate to conversation view
       */
      showConversation(postId: string) {
-       console.log(`🏪 Store showConversation called with postId: ${postId}`);
+       debug.log(`🏪 Store showConversation called with postId: ${postId}`);
        
        try {
          // Navigate to post detail view
-         console.log(`🧭 Attempting to navigate to PostView route`);
+         debug.log(`🧭 Attempting to navigate to PostView route`);
          router.push({
            name: 'PostView',
            params: { postId }
          });
-         console.log(`✅ Navigation initiated successfully`);
+         debug.log(`✅ Navigation initiated successfully`);
        } catch (error) {
-         console.error(`❌ Navigation failed:`, error);
+         debug.error(`❌ Navigation failed:`, error);
          // Fallback: try using window.location
-         console.log(`🔄 Trying fallback navigation method`);
+         debug.log(`🔄 Trying fallback navigation method`);
          window.location.href = `/social/post/${postId}`;
        }
      },
@@ -2272,7 +2273,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      switchView(view: 'home' | 'public' | 'local') {
        this.currentView = view;
-       console.log(`🔄 Switched to ${view} timeline`);
+       debug.log(`🔄 Switched to ${view} timeline`);
      },
 
      cleanup() {
@@ -2280,7 +2281,7 @@ export const useActivityPubStore = defineStore('activitypub', {
        this.conversations.clear();
        this.conversationContexts.clear();
        this.unreadCount = 0;
-       console.log('🧹 ActivityPub store cleaned up');
+       debug.log('🧹 ActivityPub store cleaned up');
      },
 
 
@@ -2293,14 +2294,14 @@ export const useActivityPubStore = defineStore('activitypub', {
        options: PostContextOptions = {}
      ): Promise<PostWithContext> {
        try {
-         console.log(`🔄 Store: Loading post ${postId} with context: ${options.context || 'minimal'}`);
+         debug.log(`🔄 Store: Loading post ${postId} with context: ${options.context || 'minimal'}`);
          
          const result = await activityPubService.getPostWithContext(postId, options);
          
-         console.log(`✅ Store: Post with context loaded successfully`);
+         debug.log(`✅ Store: Post with context loaded successfully`);
          return result;
        } catch (error) {
-         console.error('❌ Store: Failed to get post with context:', error);
+         debug.error('❌ Store: Failed to get post with context:', error);
          throw error;
        }
      },

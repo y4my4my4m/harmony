@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { debug } from '@/utils/debug'
 import type { ActivityPubPost } from '@/types';
 
 // Components
@@ -120,7 +121,7 @@ const handleReplyCreated = (newReply: ActivityPubPost) => {
 const expandThread = () => {
   // TODO: Navigate to a dedicated expanded thread view
   // For now, we could emit an event or navigate to the conversation root
-  console.log(`Expanding thread for post: ${props.post.id}`);
+  debug.log(`Expanding thread for post: ${props.post.id}`);
 };
 </script>
 

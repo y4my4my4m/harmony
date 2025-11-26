@@ -6,6 +6,7 @@
 
 import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { debug } from '@/utils/debug'
 
 export interface CallSignal {
   type: 'initiate' | 'accept' | 'decline' | 'end' | 'join' | 'leave' | 'busy' | 'timeout'
@@ -52,7 +53,7 @@ class DMCallSignalingService {
       channel
         .on('broadcast', { event: 'call-signal' }, (payload) => {
           const signal = payload.payload as CallSignal
-          console.log('📞 Received call signal:', {
+          debug.log('📞 Received call signal:', {
             conversation: conversationId,
             type: signal.type,
             from: signal.callerId,
@@ -62,14 +63,14 @@ class DMCallSignalingService {
           // Notify all listeners
           const listeners = this.listeners.get(conversationId)
           if (listeners) {
-            console.log(`📞 Notifying ${listeners.size} listener(s)`)
+            debug.log(`📞 Notifying ${listeners.size} listener(s)`)
             listeners.forEach(listener => listener(signal))
           } else {
-            console.warn('📞 No listeners for conversation:', conversationId)
+            debug.warn('📞 No listeners for conversation:', conversationId)
           }
         })
         .subscribe((status) => {
-          console.log(`📡 Call channel ${channelName} status:`, status)
+          debug.log(`📡 Call channel ${channelName} status:`, status)
         })
       
       this.channels.set(conversationId, channel)
@@ -101,11 +102,11 @@ class DMCallSignalingService {
     const channel = this.channels.get(conversationId)
     
     if (!channel) {
-      console.error('❌ No channel for conversation:', conversationId)
+      debug.error('❌ No channel for conversation:', conversationId)
       return
     }
     
-    console.log('📤 Sending call signal:', {
+    debug.log('📤 Sending call signal:', {
       conversation: conversationId,
       type: signal.type,
       from: signal.callerId,
@@ -118,7 +119,7 @@ class DMCallSignalingService {
       payload: signal
     })
     
-    console.log('✅ Call signal sent successfully')
+    debug.log('✅ Call signal sent successfully')
   }
 
   /**
@@ -166,7 +167,7 @@ class DMCallSignalingService {
    */
   private async sendSignalToUser(userId: string, signal: CallSignal): Promise<void> {
     const channelName = `dm-calls:${userId}`
-    console.log(`📤 Sending call signal to user ${userId} on channel ${channelName}`)
+    debug.log(`📤 Sending call signal to user ${userId} on channel ${channelName}`)
     
     const tempChannel = supabase.channel(channelName)
     
@@ -176,7 +177,7 @@ class DMCallSignalingService {
       payload: signal
     })
     
-    console.log('✅ Signal sent to user:', userId)
+    debug.log('✅ Signal sent to user:', userId)
     
     // Unsubscribe temp channel
     await tempChannel.unsubscribe()
@@ -188,13 +189,13 @@ class DMCallSignalingService {
   private async handleCallTimeout(conversationId: string, callerId: string): Promise<void> {
     const call = this.activeCalls.get(conversationId)
     if (!call) {
-      console.log('⏰ Timeout fired but call already ended/answered')
+      debug.log('⏰ Timeout fired but call already ended/answered')
       return
     }
     
     // Only timeout if still ringing (only caller in participants)
     if (call.participants.length === 1 && call.participants[0] === callerId) {
-      console.log('⏰ Call timeout - no answer after 30 seconds')
+      debug.log('⏰ Call timeout - no answer after 30 seconds')
       
       // Send timeout signal to all participants
       for (const participantId of call.participants) {
@@ -210,7 +211,7 @@ class DMCallSignalingService {
       
       this.activeCalls.delete(conversationId)
     } else {
-      console.log('⏰ Timeout fired but call was answered (has', call.participants.length, 'participants)')
+      debug.log('⏰ Timeout fired but call was answered (has', call.participants.length, 'participants)')
     }
   }
 
@@ -226,7 +227,7 @@ class DMCallSignalingService {
     
     // Clear timeout timer since call was answered
     if (call.timeoutTimer) {
-      console.log('⏰ Clearing timeout timer - call accepted')
+      debug.log('⏰ Clearing timeout timer - call accepted')
       clearTimeout(call.timeoutTimer)
       call.timeoutTimer = undefined
     }
@@ -247,7 +248,7 @@ class DMCallSignalingService {
     // Send accept signal to the caller's user channel
     await this.sendSignalToUser(call.callerId, signal)
     
-    console.log('✅ Accept signal sent to caller:', call.callerId)
+    debug.log('✅ Accept signal sent to caller:', call.callerId)
   }
 
   /**

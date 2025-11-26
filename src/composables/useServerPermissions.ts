@@ -4,6 +4,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
 import { supabase } from '@/supabase'
 import type { Server } from '@/types'
+import { debug } from '@/utils/debug'
 
 export enum ServerPermission {
   MANAGE_SERVER = 'MANAGE_SERVER',
@@ -53,7 +54,7 @@ export function useServerPermissions() {
         .eq('auth_user_id', authId)
         .maybeSingle()
       if (error) {
-        console.warn('Failed to load profile id for auth user', error)
+        debug.warn('Failed to load profile id for auth user', error)
       }
       fetchedProfileId.value = data?.id || null
     } finally {

@@ -130,6 +130,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useThemeStore } from '@/stores/useTheme'
 import type { AudioAction } from '@/types'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
@@ -184,7 +185,7 @@ const testAction = async (actionId: string): Promise<void> => {
     await themeStore.testAudio(actionId as AudioAction)
     showToast('success', `Tested ${actionId} successfully`)
   } catch (error) {
-    console.error('Test failed:', error)
+    debug.error('Test failed:', error)
     showToast('error', `Failed to test ${actionId}`)
   }
 }
@@ -240,7 +241,7 @@ const updateCacheInfo = (): void => {
   try {
     cacheInfo.value = themeStore.getCacheInfo()
   } catch (error) {
-    console.warn('Failed to get cache info:', error)
+    debug.warn('Failed to get cache info:', error)
   }
 }
 
@@ -283,7 +284,7 @@ onMounted(async () => {
     updateCacheInfo()
     showToast('success', 'Audio theme system initialized')
   } catch (error) {
-    console.error('Failed to initialize:', error)
+    debug.error('Failed to initialize:', error)
     showToast('error', 'Failed to initialize audio system')
   }
 })

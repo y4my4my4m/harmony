@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { debug } from '@/utils/debug'
 import Avatar from '@/components/common/Avatar.vue';
 import { useUserData } from '@/composables/useUserData';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
@@ -52,9 +53,9 @@ const updateSessionDuration = () => {
   
   // Debug logging
   if (voiceStore.callStartTime) {
-    console.log('🕐 Using callStartTime:', voiceStore.callStartTime);
+    debug.log('🕐 Using callStartTime:', voiceStore.callStartTime);
   } else if (props.sessionStartTime) {
-    console.log('⚠️ callStartTime not set, falling back to sessionStartTime:', props.sessionStartTime);
+    debug.log('⚠️ callStartTime not set, falling back to sessionStartTime:', props.sessionStartTime);
   }
   
   if (!startTime) {

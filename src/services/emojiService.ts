@@ -3,6 +3,7 @@ import { supabase } from '@/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import type { Emoji } from '@/types';
+import { debug } from '@/utils/debug'
 
 const cleanFileName = (originalName: string) => {
     // Remove unwanted characters and trim leading/trailing spaces
@@ -50,10 +51,10 @@ async function recordEmojiUsage(
         });
         
         if (error) {
-            console.error('Error recording emoji usage:', error);
+            debug.error('Error recording emoji usage:', error);
         }
     } catch (error) {
-        console.error('Error calling record_emoji_usage:', error);
+        debug.error('Error calling record_emoji_usage:', error);
     }
 }
 
@@ -67,13 +68,13 @@ async function getDetailedEmojiAnalytics(serverId: string, userId?: string, limi
         });
         
         if (error) {
-            console.error('Error fetching emoji analytics:', error);
+            debug.error('Error fetching emoji analytics:', error);
             return [];
         }
         
         return data;
     } catch (error) {
-        console.error('Error in getDetailedEmojiAnalytics:', error);
+        debug.error('Error in getDetailedEmojiAnalytics:', error);
         return [];
     }
 }
@@ -88,13 +89,13 @@ async function getUserEmojiStats(userId: string, serverId?: string, limit = 20) 
         });
         
         if (error) {
-            console.error('Error fetching user emoji stats:', error);
+            debug.error('Error fetching user emoji stats:', error);
             return [];
         }
         
         return data;
     } catch (error) {
-        console.error('Error in getUserEmojiStats:', error);
+        debug.error('Error in getUserEmojiStats:', error);
         return [];
     }
 }
@@ -133,7 +134,7 @@ async function getEmoji(emojiId: string, trackUsage?: {
             .single();
 
         if (error) {
-            console.error('Error getting emoji:', error);
+            debug.error('Error getting emoji:', error);
             return null;
         }
         
@@ -155,7 +156,7 @@ async function getEmoji(emojiId: string, trackUsage?: {
         
         return data;
     } catch (error) {
-        console.error('Error fetching emoji:', error);
+        debug.error('Error fetching emoji:', error);
         return null;
     }
 }
@@ -190,7 +191,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
             .from('emojis')
             .getPublicUrl(filePath);
 
-        console.log("Emoji uploaded successfully");
+        debug.log("Emoji uploaded successfully");
 
         // Add entry to database
         const newEmoji = {
@@ -213,7 +214,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
 
         return emojiData;
     } catch (error) {
-        console.error('Error uploading emoji:', error);
+        debug.error('Error uploading emoji:', error);
         return null;
     }
 }
@@ -226,7 +227,7 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
         // Get emoji details before deletion for cache invalidation
         const emoji = await getEmoji(emojiId);
         if (!emoji) {
-            console.error('Emoji not found for deletion:', emojiId);
+            debug.error('Emoji not found for deletion:', emojiId);
             return false;
         }
 
@@ -240,7 +241,7 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
             .remove([filePath]);
 
         if (storageError) {
-            console.error('Error deleting emoji from storage:', storageError);
+            debug.error('Error deleting emoji from storage:', storageError);
             // Continue with database deletion even if storage fails
         }
 
@@ -255,10 +256,10 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
         // Invalidate cache
         await emojiCache.invalidate({ serverId: emoji.server_id });
 
-        console.log('Emoji deleted successfully:', emoji.name);
+        debug.log('Emoji deleted successfully:', emoji.name);
         return true;
     } catch (error) {
-        console.error('Error deleting emoji:', error);
+        debug.error('Error deleting emoji:', error);
         return false;
     }
 }
@@ -283,7 +284,7 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
         
         // If the name isn't changing, just return success
         if (currentEmoji.name === cleanedName) {
-            console.log('Emoji name unchanged:', cleanedName);
+            debug.log('Emoji name unchanged:', cleanedName);
             return true;
         }
         
@@ -303,10 +304,10 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
         // Invalidate cache to reflect the changes
         await emojiCache.invalidate({ serverId });
 
-        console.log('Emoji renamed successfully:', cleanedName);
+        debug.log('Emoji renamed successfully:', cleanedName);
         return true;
     } catch (error) {
-        console.error('Error renaming emoji:', error);
+        debug.error('Error renaming emoji:', error);
         return false;
     }
 }
@@ -317,7 +318,7 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
     const results = { success: [] as string[], failed: [] as string[] };
     const serverIds = new Set<string>();
     
-    console.log(`Starting bulk deletion of ${emojiIds.length} emojis`);
+    debug.log(`Starting bulk deletion of ${emojiIds.length} emojis`);
     
     for (const emojiId of emojiIds) {
         try {
@@ -336,7 +337,7 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
                     .remove([filePath]);
 
                 if (storageError) {
-                    console.warn('Storage deletion failed for emoji:', emoji.name, storageError);
+                    debug.warn('Storage deletion failed for emoji:', emoji.name, storageError);
                     // Continue with database deletion
                 }
                 
@@ -349,7 +350,7 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
                 if (dbError) throw dbError;
                 
                 results.success.push(emojiId);
-                console.log('Emoji deleted successfully:', emoji.name);
+                debug.log('Emoji deleted successfully:', emoji.name);
             } else {
                 results.failed.push(emojiId);
             }
@@ -357,7 +358,7 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
             // Small delay to prevent overwhelming the server
             await new Promise(resolve => setTimeout(resolve, 50));
         } catch (error) {
-            console.error(`Failed to delete emoji ${emojiId}:`, error);
+            debug.error(`Failed to delete emoji ${emojiId}:`, error);
             results.failed.push(emojiId);
         }
     }
@@ -367,7 +368,7 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
         await emojiCache.invalidate({ serverId });
     }
     
-    console.log(`Bulk deletion completed: ${results.success.length}/${emojiIds.length} successful`);
+    debug.log(`Bulk deletion completed: ${results.success.length}/${emojiIds.length} successful`);
     
     return results;
 }
@@ -393,13 +394,13 @@ async function doesEmojiNameExist(serverId: string, name: string): Promise<boole
             .eq('name', name);
 
         if (error) {
-            console.error('Error checking emoji name existence:', error);
+            debug.error('Error checking emoji name existence:', error);
             throw error;
         }
         
         return data.length > 0;
     } catch (error) {
-        console.error('Error in name existence check:', error);
+        debug.error('Error in name existence check:', error);
         return false;
     }
 }
@@ -409,7 +410,7 @@ async function bulkUploadEmojis(serverId: string, userId: string, files: File[])
     const results: (Emoji | null)[] = [];
     const emojiCache = useEmojiCacheStore();
     
-    console.log(`Starting bulk upload of ${files.length} emojis for server ${serverId}`);
+    debug.log(`Starting bulk upload of ${files.length} emojis for server ${serverId}`);
     
     for (const file of files) {
         try {
@@ -419,7 +420,7 @@ async function bulkUploadEmojis(serverId: string, userId: string, files: File[])
             // Small delay to prevent overwhelming the server
             await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
-            console.error(`Failed to upload ${file.name}:`, error);
+            debug.error(`Failed to upload ${file.name}:`, error);
             results.push(null);
         }
     }
@@ -428,7 +429,7 @@ async function bulkUploadEmojis(serverId: string, userId: string, files: File[])
     await emojiCache.invalidate({ serverId });
     
     const successCount = results.filter(r => r !== null).length;
-    console.log(`Bulk upload completed: ${successCount}/${files.length} successful`);
+    debug.log(`Bulk upload completed: ${successCount}/${files.length} successful`);
     
     return results;
 }
@@ -507,7 +508,7 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
             });
             
         if (error) {
-            console.error('Error fetching frequent emojis:', error);
+            debug.error('Error fetching frequent emojis:', error);
             return;
         }
         
@@ -517,9 +518,9 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
             await getEmoji(emojiId); // This will cache them
         }
         
-        console.log(`🚀 Preloaded ${emojiIds.length} frequent emojis`);
+        debug.log(`🚀 Preloaded ${emojiIds.length} frequent emojis`);
     } catch (error) {
-        console.error('Error preloading frequent emojis:', error);
+        debug.error('Error preloading frequent emojis:', error);
     }
 }
 

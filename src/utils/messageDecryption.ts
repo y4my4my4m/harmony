@@ -7,6 +7,7 @@
  */
 
 import type { Message, MessagePart } from '@/types'
+import { debug } from '@/utils/debug'
 
 // Track decryption failures for debugging
 let lastDecryptionError: string | null = null
@@ -29,14 +30,14 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     const module = await import('@/services/encryption/MegolmMessageEncryptionService')
     encryptionService = module.megolmMessageEncryptionService
   } catch (error) {
-    console.warn('⚠️ Megolm encryption service not available:', error)
+    debug.warn('⚠️ Megolm encryption service not available:', error)
     lastDecryptionError = 'Encryption service not available'
     // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages
   }
   
   if (!encryptionService || !encryptionService.isInitialized()) {
-    console.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
+    debug.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
     lastDecryptionError = 'Encryption service not initialized'
     // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages
@@ -44,7 +45,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   
   // Check if encryption is unlocked (user has entered recovery key)
   if (!encryptionService.isUnlocked()) {
-    console.log('🔐 Encryption locked - enter recovery key to decrypt messages')
+    debug.log('🔐 Encryption locked - enter recovery key to decrypt messages')
     lastDecryptionError = 'Enter recovery key to unlock encryption'
     // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages
@@ -55,7 +56,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   const currentUserId = encryptionService.getCurrentUserId()
   
   if (!currentUserId) {
-    console.log('ℹ️ No user ID in encryption service - encrypted messages will show as glyphs')
+    debug.log('ℹ️ No user ID in encryption service - encrypted messages will show as glyphs')
     lastDecryptionError = 'User ID not available in encryption service'
     // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages

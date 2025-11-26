@@ -187,6 +187,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -336,7 +337,7 @@ const handleLogout = async () => {
     await authStore.logout()
     toast.success('Logged out successfully')
   } catch (error) {
-    console.error('Error logging out:', error)
+    debug.error('Error logging out:', error)
     toast.error('Failed to log out')
   }
 }
@@ -360,7 +361,7 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
     
     toast.success('Profile updated successfully')
   } catch (error) {
-    console.error('Error updating profile:', error)
+    debug.error('Error updating profile:', error)
     toast.error('Failed to update profile')
   } finally {
     loading.value = false
@@ -390,7 +391,7 @@ const handleAvatarUpload = async (file: File) => {
     
     toast.success('Avatar updated successfully')
   } catch (error) {
-    console.error('Error uploading avatar:', error)
+    debug.error('Error uploading avatar:', error)
     toast.error('Failed to upload avatar')
   } finally {
     loading.value = false
@@ -398,42 +399,42 @@ const handleAvatarUpload = async (file: File) => {
 }
 
 const handleBannerUpload = async (file: File) => {
-  console.log('🖼️ Banner upload started:', file.name, file.size)
+  debug.log('🖼️ Banner upload started:', file.name, file.size)
   
   if (!authStore.session?.user) {
-    console.error('❌ No authenticated user for banner upload')
+    debug.error('❌ No authenticated user for banner upload')
     return
   }
   
   try {
     loading.value = true
-    console.log('📤 Uploading banner to storage...')
+    debug.log('📤 Uploading banner to storage...')
     const result = await uploadBanner(file, authStore.session.user.id)
     
     if (!result.success) {
       throw new Error(result.error || 'Upload failed')
     }
     
-    console.log('✅ Banner uploaded to:', result.url)
+    debug.log('✅ Banner uploaded to:', result.url)
     
     // Ensure we normalize the banner URL for storage
     const normalizedPath = normalizeBannerForStorage(result.url || '')
-    console.log('🔄 Normalized path:', normalizedPath)
+    debug.log('🔄 Normalized path:', normalizedPath)
     
-    console.log('💾 Updating profile with banner...')
+    debug.log('💾 Updating profile with banner...')
     await updateProfile({ banner_url: normalizedPath || undefined })
     profile.value = { ...profile.value, banner_url: normalizedPath } as User
     
     // Broadcast banner update to all connected clients for real-time updates
-    console.log('📡 Broadcasting banner update...')
+    debug.log('📡 Broadcasting banner update...')
     await updateCurrentUserProfile({
       bannerUrl: normalizedPath || undefined
     })
     
     toast.success('Banner updated successfully')
-    console.log('🎉 Banner upload completed successfully')
+    debug.log('🎉 Banner upload completed successfully')
   } catch (error) {
-    console.error('❌ Error uploading banner:', error)
+    debug.error('❌ Error uploading banner:', error)
     toast.error('Failed to upload banner')
   } finally {
     loading.value = false
@@ -446,38 +447,38 @@ const isAdmin = computed(() => {
 
 const handlePrivacyUpdate = async (privacySettings: any) => {
   // Handle privacy settings update
-  console.log('Privacy settings updated:', privacySettings)
+  debug.log('Privacy settings updated:', privacySettings)
 }
 
 const handleAppearanceUpdate = async (appearanceSettings: any) => {
   // Handle appearance settings update
-  console.log('Appearance settings updated:', appearanceSettings)
+  debug.log('Appearance settings updated:', appearanceSettings)
 }
 
 const handleNotificationsUpdate = async (notificationSettings: any) => {
   // Handle notification settings update
-  console.log('Notification settings updated:', notificationSettings)
+  debug.log('Notification settings updated:', notificationSettings)
 }
 
 
 const handleVoiceSettingsUpdate = async (voiceSettings: any) => {
   // Handle voice settings update
-  console.log('Voice settings updated:', voiceSettings)
+  debug.log('Voice settings updated:', voiceSettings)
 }
 
 const handleKeybindsUpdate = async (keybinds: any) => {
   // Handle keybinds update
-  console.log('Keybinds updated:', keybinds)
+  debug.log('Keybinds updated:', keybinds)
 }
 
 const handleLanguageUpdate = async (language: string) => {
   // Handle language update
-  console.log('Language updated:', language)
+  debug.log('Language updated:', language)
 }
 
 const handleAdvancedUpdate = async (advancedSettings: any) => {
   // Handle advanced settings update
-  console.log('Advanced settings updated:', advancedSettings)
+  debug.log('Advanced settings updated:', advancedSettings)
 }
 
 // Watchers
@@ -521,7 +522,7 @@ onMounted(async () => {
       loading.value = true
       profile.value = await getProfileWithAvatarUrl(authStore.session.user.id) as User
     } catch (error) {
-      console.error('Error fetching profile:', error)
+      debug.error('Error fetching profile:', error)
       toast.error('Failed to load profile')
     } finally {
       loading.value = false

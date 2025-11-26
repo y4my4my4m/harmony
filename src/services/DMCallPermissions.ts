@@ -11,6 +11,7 @@
 import { supabase } from '@/supabase'
 import { UserStatus } from '@/types'
 import { userDataService } from '@/services/userDataService'
+import { debug } from '@/utils/debug'
 
 export interface CallPermissionCheck {
   allowed: boolean
@@ -27,15 +28,15 @@ class DMCallPermissionService {
     receiverId: string,
     conversationId: string
   ): Promise<CallPermissionCheck> {
-    console.log('🔍 Checking call permissions:', { callerId, receiverId, conversationId })
+    debug.log('🔍 Checking call permissions:', { callerId, receiverId, conversationId })
     
     try {
       // 1. Check if caller is blocked by receiver
       // TEMPORARILY DISABLED due to RLS permissions on user_blocks table
       // TODO: Add RLS policies then re-enable
-      console.log('🔍 Checking if caller is blocked... (SKIPPED - RLS not configured)')
+      debug.log('🔍 Checking if caller is blocked... (SKIPPED - RLS not configured)')
       // const isBlocked = await this.isUserBlocked(receiverId, callerId)
-      // console.log('🔍 Blocked check result:', isBlocked)
+      // debug.log('🔍 Blocked check result:', isBlocked)
       // if (isBlocked) {
       //   return {
       //     allowed: false,
@@ -46,9 +47,9 @@ class DMCallPermissionService {
 
       // 2. Check if caller has blocked receiver (shouldn't be able to call)
       // TEMPORARILY DISABLED due to RLS permissions on user_blocks table
-      console.log('🔍 Checking if caller has blocked receiver... (SKIPPED - RLS not configured)')
+      debug.log('🔍 Checking if caller has blocked receiver... (SKIPPED - RLS not configured)')
       // const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
-      // console.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
+      // debug.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
       // if (hasBlockedReceiver) {
       //   return {
       //     allowed: false,
@@ -59,9 +60,9 @@ class DMCallPermissionService {
 
       // 3. Check if receiver is in Do Not Disturb mode
       // TEMPORARILY DISABLED - Implement later
-      console.log('🔍 Checking DND status... (SKIPPED)')
+      debug.log('🔍 Checking DND status... (SKIPPED)')
       // const isDND = await this.isUserInDND(receiverId)
-      // console.log('🔍 DND check result:', isDND)
+      // debug.log('🔍 DND check result:', isDND)
       // if (isDND) {
       //   return {
       //     allowed: false,
@@ -72,9 +73,9 @@ class DMCallPermissionService {
 
       // 4. Check if receiver is busy (already in another call)
       // TEMPORARILY DISABLED - Implement later
-      console.log('🔍 Checking busy status... (SKIPPED)')
+      debug.log('🔍 Checking busy status... (SKIPPED)')
       // const isBusy = await this.isUserBusy(receiverId)
-      // console.log('🔍 Busy check result:', isBusy)
+      // debug.log('🔍 Busy check result:', isBusy)
       // if (isBusy) {
       //   return {
       //     allowed: false,
@@ -85,9 +86,9 @@ class DMCallPermissionService {
 
       // 5. Check if receiver has muted this conversation
       // TEMPORARILY DISABLED - Implement later
-      console.log('🔍 Checking if conversation is muted... (SKIPPED)')
+      debug.log('🔍 Checking if conversation is muted... (SKIPPED)')
       // const isMuted = await this.isConversationMuted(receiverId, conversationId)
-      // console.log('🔍 Muted check result:', isMuted)
+      // debug.log('🔍 Muted check result:', isMuted)
       // if (isMuted) {
       //   return {
       //     allowed: false,
@@ -98,9 +99,9 @@ class DMCallPermissionService {
 
       // 6. Check notification preferences
       // TEMPORARILY DISABLED - Implement later
-      console.log('🔍 Checking notification preferences... (SKIPPED)')
+      debug.log('🔍 Checking notification preferences... (SKIPPED)')
       // const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
-      // console.log('🔍 Notifications enabled result:', notificationsEnabled)
+      // debug.log('🔍 Notifications enabled result:', notificationsEnabled)
       // if (!notificationsEnabled) {
       //   return {
       //     allowed: false,
@@ -110,12 +111,12 @@ class DMCallPermissionService {
       // }
 
       // All checks passed
-      console.log('✅ All permission checks passed - call allowed!')
+      debug.log('✅ All permission checks passed - call allowed!')
       return { allowed: true }
     } catch (error) {
-      console.error('❌ Error checking call permissions:', error)
+      debug.error('❌ Error checking call permissions:', error)
       // On error, allow the call (fail open)
-      console.log('⚠️ Failing open - allowing call despite error')
+      debug.log('⚠️ Failing open - allowing call despite error')
       return { allowed: true }
     }
   }
@@ -133,14 +134,14 @@ class DMCallPermissionService {
         .maybeSingle() // Use maybeSingle instead of single to handle no results
 
       if (error) {
-        console.warn('⚠️ Error checking block status (RLS?):', error.message)
+        debug.warn('⚠️ Error checking block status (RLS?):', error.message)
         // If RLS error, assume not blocked (fail open for calls)
         return false
       }
 
       return !!data
     } catch (error) {
-      console.warn('⚠️ Exception checking block status:', error)
+      debug.warn('⚠️ Exception checking block status:', error)
       // No block found or error - assume not blocked
       return false
     }

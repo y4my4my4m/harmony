@@ -7,6 +7,7 @@ import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { getUserIdsForServer } from '@/services/usersService'
+import { debug } from '@/utils/debug'
 
 export interface MembershipEvent {
   id: string
@@ -53,7 +54,7 @@ export class MembershipService {
       // Clean up existing subscription for this server
       this.unsubscribeFromServer(serverId)
 
-      console.log(`🔔 Setting up membership subscription for server: ${serverId}`)
+      debug.log(`🔔 Setting up membership subscription for server: ${serverId}`)
 
       const channel = supabase
         .channel(`server-membership-${serverId}`)
@@ -66,23 +67,23 @@ export class MembershipService {
             filter: `server_id=eq.${serverId}`
           },
           async (payload) => {
-            console.log('🚨 Membership event received:', payload)
+            debug.log('🚨 Membership event received:', payload)
             await this.handleMembershipEvent(payload.new as MembershipEvent)
           }
         )
         .subscribe((status) => {
-          console.log(`📡 Membership subscription status for ${serverId}:`, status)
+          debug.log(`📡 Membership subscription status for ${serverId}:`, status)
           if (status === 'SUBSCRIBED') {
-            console.log(`✅ Successfully subscribed to membership events for server ${serverId}`)
+            debug.log(`✅ Successfully subscribed to membership events for server ${serverId}`)
           } else if (status === 'CHANNEL_ERROR') {
-            console.error(`❌ Failed to subscribe to membership events for server ${serverId}`)
+            debug.error(`❌ Failed to subscribe to membership events for server ${serverId}`)
             this.options.onError?.(new Error(`Failed to subscribe to membership events for server ${serverId}`))
           }
         })
 
       this.subscriptions.set(serverId, channel)
     } catch (error) {
-      console.error('❌ Error setting up membership subscription:', error)
+      debug.error('❌ Error setting up membership subscription:', error)
       this.options.onError?.(error as Error)
     }
   }
@@ -93,7 +94,7 @@ export class MembershipService {
   unsubscribeFromServer(serverId: string): void {
     const existingChannel = this.subscriptions.get(serverId)
     if (existingChannel) {
-      console.log(`🧹 Cleaning up membership subscription for server: ${serverId}`)
+      debug.log(`🧹 Cleaning up membership subscription for server: ${serverId}`)
       supabase.removeChannel(existingChannel)
       this.subscriptions.delete(serverId)
     }
@@ -112,7 +113,7 @@ export class MembershipService {
    * Unsubscribe from all membership events
    */
   cleanup(): void {
-    console.log('🧹 Cleaning up all membership subscriptions')
+    debug.log('🧹 Cleaning up all membership subscriptions')
     for (const [, channel] of this.subscriptions) {
       supabase.removeChannel(channel)
     }
@@ -124,7 +125,7 @@ export class MembershipService {
    */
   private async handleMembershipEvent(event: MembershipEvent): Promise<void> {
     try {
-      console.log(`👥 Processing ${event.event_type} event for user ${event.user_id} in server ${event.server_id}`)
+      debug.log(`👥 Processing ${event.event_type} event for user ${event.user_id} in server ${event.server_id}`)
       
       if (event.event_type === 'join') {
         await this.handleUserJoin(event)
@@ -134,7 +135,7 @@ export class MembershipService {
         this.options.onUserLeave?.(event)
       }
     } catch (error) {
-      console.error('❌ Error handling membership event:', error)
+      debug.error('❌ Error handling membership event:', error)
       this.options.onError?.(error as Error)
     }
   }
@@ -143,7 +144,7 @@ export class MembershipService {
    * Handle user join events
    */
   private async handleUserJoin(event: MembershipEvent): Promise<void> {
-    console.log(`🎉 User ${event.metadata.username || event.user_id} joined server ${event.server_id}`)
+    debug.log(`🎉 User ${event.metadata.username || event.user_id} joined server ${event.server_id}`)
     
     // Refresh the user list to include the new member
     await this.refreshServerUserList(event.server_id)
@@ -156,7 +157,7 @@ export class MembershipService {
    * Handle user leave events
    */
   private async handleUserLeave(event: MembershipEvent): Promise<void> {
-    console.log(`👋 User ${event.metadata.username || event.user_id} left server ${event.server_id}`)
+    debug.log(`👋 User ${event.metadata.username || event.user_id} left server ${event.server_id}`)
     
     // Refresh the complete user list to ensure consistency
     await this.refreshServerUserList(event.server_id)
@@ -167,7 +168,7 @@ export class MembershipService {
    */
   private async refreshServerUserList(serverId: string): Promise<void> {
     try {
-      console.log(`🔄 Refreshing user list for server: ${serverId}`)
+      debug.log(`🔄 Refreshing user list for server: ${serverId}`)
       
       // Get current server members
       const userIds = await getUserIdsForServer(serverId)
@@ -175,9 +176,9 @@ export class MembershipService {
       // Update the store with fresh user data
       await this.getServerUsersStore().fetchUserProfiles(userIds)
       
-      console.log(`✅ User list refreshed for server ${serverId}. Current members: ${userIds.length}`)
+      debug.log(`✅ User list refreshed for server ${serverId}. Current members: ${userIds.length}`)
     } catch (error) {
-      console.error('❌ Error refreshing server user list:', error)
+      debug.error('❌ Error refreshing server user list:', error)
       this.options.onError?.(error as Error)
     }
   }
@@ -204,7 +205,7 @@ export class MembershipService {
       if (error) throw error
       return data || []
     } catch (error) {
-      console.error('Error fetching membership history:', error)
+      debug.error('Error fetching membership history:', error)
       return []
     }
   }
@@ -217,13 +218,13 @@ export function getMembershipService(): MembershipService {
   if (!_membershipServiceInstance) {
     _membershipServiceInstance = new MembershipService({
       onUserJoin: (event) => {
-        console.log(`🎉 ${event.metadata.display_name || event.metadata.username} joined the server!`)
+        debug.log(`🎉 ${event.metadata.display_name || event.metadata.username} joined the server!`)
       },
       onUserLeave: (event) => {
-        console.log(`👋 ${event.metadata.display_name || event.metadata.username} left the server`)
+        debug.log(`👋 ${event.metadata.display_name || event.metadata.username} left the server`)
       },
       onError: (error) => {
-        console.error('🚨 Membership service error:', error)
+        debug.error('🚨 Membership service error:', error)
       }
     })
   }

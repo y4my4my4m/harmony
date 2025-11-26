@@ -285,6 +285,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { formatDistanceToNow, format } from 'date-fns'
 import { getInviteHistory, revokeInvite, type Invite } from '@/services/inviteService'
@@ -403,7 +404,7 @@ const loadInvites = async () => {
     // Load user information for creators
     await loadUserData(invites)
   } catch (error) {
-    console.error('Error loading invites:', error)
+    debug.error('Error loading invites:', error)
     toast.error('Failed to load invites')
   } finally {
     isLoading.value = false
@@ -529,7 +530,7 @@ const confirmRevokeInvite = async () => {
       toast.error('Failed to revoke invite')
     }
   } catch (error) {
-    console.error('Error revoking invite:', error)
+    debug.error('Error revoking invite:', error)
     toast.error('Failed to revoke invite')
   } finally {
     isRevoking.value = false

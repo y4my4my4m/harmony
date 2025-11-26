@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase';
 import type { ActivityPubPost, ConversationThread } from '@/types';
+import { debug } from '@/utils/debug'
 /**
  * ConversationService - Professional ActivityPub conversation threading system
  * 
@@ -14,7 +15,7 @@ export class ConversationService {
    * Uses denormalized conversation_root_id for instant lookups
    */
   static async findConversationRoot(postId: string): Promise<string> {
-    console.log(`🔍 Finding ActivityPub conversation root for post: ${postId} (O(1) lookup)`);
+    debug.log(`🔍 Finding ActivityPub conversation root for post: ${postId} (O(1) lookup)`);
     
     try {
       // O(1) lookup using conversation_root_id - no recursive queries!
@@ -23,16 +24,16 @@ export class ConversationService {
       });
       
       if (error) {
-        console.error('❌ Error finding ActivityPub conversation root:', error);
+        debug.error('❌ Error finding ActivityPub conversation root:', error);
         return postId; // Fallback to original post
       }
       
       const rootId = data?.[0]?.root_id || postId;
-      console.log(`✅ Found ActivityPub conversation root: ${rootId} (instant lookup)`);
+      debug.log(`✅ Found ActivityPub conversation root: ${rootId} (instant lookup)`);
       return rootId;
       
     } catch (error) {
-      console.error('❌ Exception finding ActivityPub conversation root:', error);
+      debug.error('❌ Exception finding ActivityPub conversation root:', error);
       return postId; // Fallback to original post
     }
   }
@@ -42,7 +43,7 @@ export class ConversationService {
    * Uses indexed conversation_root_id for fast retrieval
    */
   static async getConversationThread(conversationRootId: string): Promise<ConversationThread> {
-    console.log(`🧵 Loading ActivityPub conversation thread: ${conversationRootId} (indexed lookup)`);
+    debug.log(`🧵 Loading ActivityPub conversation thread: ${conversationRootId} (indexed lookup)`);
     
     try {
       // O(log n) lookup using indexed conversation_root_id
@@ -51,12 +52,12 @@ export class ConversationService {
       });
       
       if (error) {
-        console.error('❌ Error loading ActivityPub conversation thread:', error);
+        debug.error('❌ Error loading ActivityPub conversation thread:', error);
         throw error;
       }
       
       const posts = data || [];
-      console.log(`✅ Loaded ${posts.length} posts in ActivityPub conversation (fast indexed lookup)`);
+      debug.log(`✅ Loaded ${posts.length} posts in ActivityPub conversation (fast indexed lookup)`);
       
       return {
         id: conversationRootId,
@@ -67,7 +68,7 @@ export class ConversationService {
       };
       
     } catch (error) {
-      console.error('❌ Failed to load ActivityPub conversation thread:', error);
+      debug.error('❌ Failed to load ActivityPub conversation thread:', error);
       throw error;
     }
   }
@@ -77,7 +78,7 @@ export class ConversationService {
    * Fast statistics lookup using conversation_root_id index
    */
   static async getConversationContext(postId: string) {
-    console.log(`📊 Getting ActivityPub conversation context for: ${postId}`);
+    debug.log(`📊 Getting ActivityPub conversation context for: ${postId}`);
     
     try {
       const { data, error } = await supabase.rpc('get_activitypub_conversation_context', {
@@ -85,16 +86,16 @@ export class ConversationService {
       });
       
       if (error) {
-        console.error('❌ Error getting ActivityPub conversation context:', error);
+        debug.error('❌ Error getting ActivityPub conversation context:', error);
         return null;
       }
       
       const context = data?.[0];
-      console.log(`✅ Got ActivityPub conversation context:`, context);
+      debug.log(`✅ Got ActivityPub conversation context:`, context);
       return context;
       
     } catch (error) {
-      console.error('❌ Failed to get ActivityPub conversation context:', error);
+      debug.error('❌ Failed to get ActivityPub conversation context:', error);
       return null;
     }
   }
@@ -193,13 +194,13 @@ export class ConversationService {
     };
     error?: any;
   }> {
-    console.log(`🧭 Getting conversation navigation data for post: ${postId}`);
+    debug.log(`🧭 Getting conversation navigation data for post: ${postId}`);
     
     try {
       // O(1) lookup to get conversation_root_id
       const conversationRootId = await this.findConversationRoot(postId);
 
-      console.log(`🔗 Conversation root ID: ${conversationRootId}`);
+      debug.log(`🔗 Conversation root ID: ${conversationRootId}`);
       
       // Create navigation context
       const context = this.createNavigationContext(
@@ -229,7 +230,7 @@ export class ConversationService {
       };
       
     } catch (error) {
-      console.error('❌ Failed to get conversation navigation data:', error);
+      debug.error('❌ Failed to get conversation navigation data:', error);
       
       return {
         success: false,

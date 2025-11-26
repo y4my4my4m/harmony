@@ -12,6 +12,7 @@
 import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'
 import type { Profile } from '@/types'
+import { debug } from '@/utils/debug'
 
 export interface ProfileData {
   username?: string
@@ -58,7 +59,7 @@ export class ProfileService {
 
       return profile
     } catch (error) {
-      console.error('❌ Failed to get current profile:', error)
+      debug.error('❌ Failed to get current profile:', error)
       throw error
     }
   }
@@ -87,12 +88,12 @@ export class ProfileService {
       try {
         await userDataService.refreshCurrentUser()
       } catch (refreshError) {
-        console.warn('⚠️ Failed to refresh userDataService cache:', refreshError)
+        debug.warn('⚠️ Failed to refresh userDataService cache:', refreshError)
       }
 
       return profile
     } catch (error) {
-      console.error('❌ Failed to update profile:', error)
+      debug.error('❌ Failed to update profile:', error)
       throw error
     }
   }
@@ -117,12 +118,12 @@ export class ProfileService {
       try {
         await userDataService.refreshCurrentUser()
       } catch (initError) {
-        console.warn('⚠️ Failed to initialize userDataService:', initError)
+        debug.warn('⚠️ Failed to initialize userDataService:', initError)
       }
 
       return profile
     } catch (error) {
-      console.error('❌ Failed to create profile:', error)
+      debug.error('❌ Failed to create profile:', error)
       throw error
     }
   }
@@ -144,7 +145,7 @@ export class ProfileService {
 
       return profile
     } catch (error) {
-      console.error('❌ Failed to get profile by ID:', error)
+      debug.error('❌ Failed to get profile by ID:', error)
       throw error
     }
   }
@@ -173,7 +174,7 @@ export class ProfileService {
 
       return profile
     } catch (error) {
-      console.error('❌ Failed to get profile by username:', error)
+      debug.error('❌ Failed to get profile by username:', error)
       throw error
     }
   }
@@ -218,7 +219,7 @@ export class ProfileService {
         total: count || 0
       }
     } catch (error) {
-      console.error('❌ Failed to search profiles:', error)
+      debug.error('❌ Failed to search profiles:', error)
       throw error
     }
   }
@@ -245,7 +246,7 @@ export class ProfileService {
         available: !existing || existing.length === 0
       }
     } catch (error) {
-      console.error('❌ Failed to check username availability:', error)
+      debug.error('❌ Failed to check username availability:', error)
       throw error
     }
   }
@@ -268,12 +269,12 @@ export class ProfileService {
         .eq('id', userId)
 
       if (error) {
-        console.error('Error updating status:', error)
+        debug.error('Error updating status:', error)
         throw error
       }
       return data
     } catch (error) {
-      console.error('❌ Failed to update user status:', error)
+      debug.error('❌ Failed to update user status:', error)
       throw error
     }
   }
@@ -310,7 +311,7 @@ export class ProfileService {
 
       return profile
     } catch (error) {
-      console.error('❌ Failed to get profile by auth user ID:', error)
+      debug.error('❌ Failed to get profile by auth user ID:', error)
       return null
     }
   }
@@ -365,7 +366,7 @@ export class ProfileService {
         error: result.error
       }
     } catch (error: any) {
-      console.error('❌ Failed to upload avatar:', error)
+      debug.error('❌ Failed to upload avatar:', error)
       return {
         success: false,
         error: error.message || 'Failed to upload avatar'
@@ -389,7 +390,7 @@ export class ProfileService {
       
       return result
     } catch (error: any) {
-      console.error('❌ Failed to upload banner:', error)
+      debug.error('❌ Failed to upload banner:', error)
       return {
         success: false,
         error: error.message || 'Failed to upload banner'

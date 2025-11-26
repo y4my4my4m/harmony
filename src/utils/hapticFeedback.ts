@@ -75,7 +75,7 @@ class HapticFeedbackManager {
         ;(navigator as any).webkitVibrate(vibrationPattern)
       }
     } catch (error) {
-      console.warn('Haptic feedback failed:', error)
+      debug.warn('Haptic feedback failed:', error)
     }
   }
 

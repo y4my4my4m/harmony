@@ -3,6 +3,7 @@
  * Manages communication between the main app and service worker for notifications
  */
 
+import { debug } from '@/utils/debug'
 export class ServiceWorkerManager {
   private static instance: ServiceWorkerManager
   private registration: ServiceWorkerRegistration | null = null
@@ -20,11 +21,11 @@ export class ServiceWorkerManager {
    */
   async initialize(): Promise<boolean> {
     try {
-      console.log('🔧 ServiceWorker: Initializing...')
+      debug.log('🔧 ServiceWorker: Initializing...')
 
       // Check if service workers are supported
       if (!('serviceWorker' in navigator)) {
-        console.warn('⚠️ ServiceWorker: Not supported in this browser')
+        debug.warn('⚠️ ServiceWorker: Not supported in this browser')
         return false
       }
 
@@ -33,17 +34,17 @@ export class ServiceWorkerManager {
         scope: '/'
       })
 
-      console.log('✅ ServiceWorker: Registered successfully')
+      debug.log('✅ ServiceWorker: Registered successfully')
 
       // Handle service worker updates with better UX - Mobile friendly
       this.registration.addEventListener('updatefound', () => {
-        console.log('🔄 ServiceWorker: Update found')
+        debug.log('🔄 ServiceWorker: Update found')
         const newWorker = this.registration!.installing
         
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('🆕 ServiceWorker: New version available - waiting for user action')
+              debug.log('🆕 ServiceWorker: New version available - waiting for user action')
               // Don't force immediate activation - let user control updates
               // Emit custom event for update notification (non-intrusive)
               window.dispatchEvent(new CustomEvent('sw-update-available', {
@@ -70,7 +71,7 @@ export class ServiceWorkerManager {
       return true
 
     } catch (error) {
-      console.error('❌ ServiceWorker: Registration failed:', error)
+      debug.error('❌ ServiceWorker: Registration failed:', error)
       return false
     }
   }
@@ -81,7 +82,7 @@ export class ServiceWorkerManager {
   async requestNotificationPermission(): Promise<NotificationPermission> {
     try {
       if (!('Notification' in window)) {
-        console.warn('⚠️ Notifications not supported')
+        debug.warn('⚠️ Notifications not supported')
         return 'denied'
       }
 
@@ -90,11 +91,11 @@ export class ServiceWorkerManager {
       }
 
       const permission = await Notification.requestPermission()
-      console.log('🔔 Notification permission:', permission)
+      debug.log('🔔 Notification permission:', permission)
       
       return permission
     } catch (error) {
-      console.error('❌ Error requesting notification permission:', error)
+      debug.error('❌ Error requesting notification permission:', error)
       return 'denied'
     }
   }
@@ -105,7 +106,7 @@ export class ServiceWorkerManager {
   async subscribeToPushNotifications(userId: string): Promise<PushSubscription | null> {
     try {
       if (!this.registration) {
-        console.error('❌ ServiceWorker not registered')
+        debug.error('❌ ServiceWorker not registered')
         return null
       }
 
@@ -117,7 +118,7 @@ export class ServiceWorkerManager {
         const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
         
         if (!vapidPublicKey) {
-          console.error('❌ VAPID public key not configured')
+          debug.error('❌ VAPID public key not configured')
           return null
         }
 
@@ -126,7 +127,7 @@ export class ServiceWorkerManager {
           applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey)
         })
 
-        console.log('✅ Push subscription created:', subscription)
+        debug.log('✅ Push subscription created:', subscription)
       }
 
       // Send subscription to server
@@ -134,7 +135,7 @@ export class ServiceWorkerManager {
       
       return subscription
     } catch (error) {
-      console.error('❌ Error subscribing to push notifications:', error)
+      debug.error('❌ Error subscribing to push notifications:', error)
       return null
     }
   }
@@ -160,9 +161,9 @@ export class ServiceWorkerManager {
         throw error
       }
 
-      console.log('✅ Push subscription saved to server')
+      debug.log('✅ Push subscription saved to server')
     } catch (error) {
-      console.error('❌ Error saving push subscription:', error)
+      debug.error('❌ Error saving push subscription:', error)
     }
   }
 
@@ -170,7 +171,7 @@ export class ServiceWorkerManager {
    * Handle messages from service worker
    */
   private handleServiceWorkerMessage(event: MessageEvent): void {
-    console.log('📧 Message from ServiceWorker:', event.data)
+    debug.log('📧 Message from ServiceWorker:', event.data)
 
     switch (event.data.type) {
       case 'NAVIGATE_TO_NOTIFICATION':
@@ -180,7 +181,7 @@ export class ServiceWorkerManager {
         this.handleMarkNotificationRead(event.data.data)
         break
       default:
-        console.log('⚠️ Unknown ServiceWorker message type:', event.data.type)
+        debug.log('⚠️ Unknown ServiceWorker message type:', event.data.type)
     }
   }
 
@@ -207,7 +208,7 @@ export class ServiceWorkerManager {
       // Mark notification as read
       await this.handleMarkNotificationRead(data.data)
     } catch (error) {
-      console.error('❌ Error navigating to notification:', error)
+      debug.error('❌ Error navigating to notification:', error)
     }
   }
 
@@ -229,7 +230,7 @@ export class ServiceWorkerManager {
         await notificationStore.markAsRead(notification.id)
       }
     } catch (error) {
-      console.error('❌ Error marking notification as read:', error)
+      debug.error('❌ Error marking notification as read:', error)
     }
   }
 
@@ -238,7 +239,7 @@ export class ServiceWorkerManager {
    */
   private handleServiceWorkerUpdate(): void {
     // Show update available notification
-    console.log('🆕 ServiceWorker update available')
+    debug.log('🆕 ServiceWorker update available')
     
     // You could show a toast notification here
     // For now, just log it
@@ -249,7 +250,7 @@ export class ServiceWorkerManager {
    */
   async sendMessage(message: any): Promise<void> {
     if (!this.registration?.active) {
-      console.warn('⚠️ ServiceWorker not active, cannot send message')
+      debug.warn('⚠️ ServiceWorker not active, cannot send message')
       return
     }
 
@@ -294,13 +295,13 @@ export class ServiceWorkerManager {
           .delete()
           .eq('user_id', userId)
 
-        console.log('✅ Unsubscribed from push notifications')
+        debug.log('✅ Unsubscribed from push notifications')
         return true
       }
 
       return false
     } catch (error) {
-      console.error('❌ Error unsubscribing from push:', error)
+      debug.error('❌ Error unsubscribing from push:', error)
       return false
     }
   }
@@ -328,18 +329,18 @@ export class ServiceWorkerManager {
    */
   async activateWaitingServiceWorker(): Promise<void> {
     if (!this.registration?.waiting) {
-      console.warn('⚠️ No waiting service worker to activate')
+      debug.warn('⚠️ No waiting service worker to activate')
       return
     }
 
-    console.log('⏭️ Manually activating waiting service worker')
+    debug.log('⏭️ Manually activating waiting service worker')
     
     // Send skip waiting message to the waiting service worker
     this.registration.waiting.postMessage({ type: 'SKIP_WAITING' })
     
     // Listen for the controlling change
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('🔄 Service worker controller changed - reloading page')
+      debug.log('🔄 Service worker controller changed - reloading page')
       window.location.reload()
     })
   }
@@ -373,9 +374,9 @@ export class ServiceWorkerManager {
 
     try {
       await this.sendMessage({ type: 'PREFETCH_CRITICAL' })
-      console.log('📦 ServiceWorker: Critical resources prefetched')
+      debug.log('📦 ServiceWorker: Critical resources prefetched')
     } catch (error) {
-      console.warn('⚠️ ServiceWorker: Failed to prefetch critical resources:', error)
+      debug.warn('⚠️ ServiceWorker: Failed to prefetch critical resources:', error)
     }
   }
 
@@ -402,7 +403,7 @@ export class ServiceWorkerManager {
         setTimeout(() => resolve(null), 5000)
       })
     } catch (error) {
-      console.error('❌ Failed to get service worker version:', error)
+      debug.error('❌ Failed to get service worker version:', error)
       return null
     }
   }
@@ -417,7 +418,7 @@ export class ServiceWorkerManager {
       await this.registration.update()
       return this.registration.waiting !== null
     } catch (error) {
-      console.error('❌ Failed to check for updates:', error)
+      debug.error('❌ Failed to check for updates:', error)
       return false
     }
   }

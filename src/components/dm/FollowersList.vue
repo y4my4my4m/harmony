@@ -116,6 +116,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useDMStore } from '@/stores/useDM'
@@ -172,7 +173,7 @@ const loadFollowingUsers = async (offset = 0, showLoading = true) => {
     currentOffset.value = offset + limit
 
   } catch (error) {
-    console.error('Failed to load following users:', error)
+    debug.error('Failed to load following users:', error)
     toast.error('Failed to load following users')
   } finally {
     isLoading.value = false
@@ -210,7 +211,7 @@ const startConversation = async (user: Profile) => {
       emit('conversationStarted', conversationId)
     }
   } catch (error) {
-    console.error('Failed to start conversation:', error)
+    debug.error('Failed to start conversation:', error)
     toast.error('Failed to start conversation')
   }
 }

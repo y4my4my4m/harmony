@@ -47,6 +47,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import type { Category } from '@/types'
 
@@ -104,7 +105,7 @@ const saveChanges = async () => {
     emit('updated', updatedCategory)
     closeModal()
   } catch (error) {
-    console.error('Failed to update category:', error)
+    debug.error('Failed to update category:', error)
     // TODO: Show error notification
   } finally {
     isLoading.value = false

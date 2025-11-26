@@ -103,6 +103,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 
 interface Props {
@@ -133,12 +134,12 @@ const onSettingChange = () => {
 
 const clearCache = () => {
   // Clear cache logic
-  console.log('Clearing cache...')
+  debug.log('Clearing cache...')
 }
 
 const exportData = () => {
   // Export data logic
-  console.log('Exporting data...')
+  debug.log('Exporting data...')
 }
 
 const showDeleteConfirmation = () => {
@@ -151,7 +152,7 @@ const hideDeleteConfirmation = () => {
 
 const deleteAccount = () => {
   // Delete account logic
-  console.log('Deleting account...')
+  debug.log('Deleting account...')
   showDeleteModal.value = false
 }
 </script>

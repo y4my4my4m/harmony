@@ -9,6 +9,7 @@ import { computed, ref } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { UserStatus } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
+import { debug } from '@/utils/debug'
 
 export function useUserData() {
   const isInitialized = ref(false)
@@ -379,7 +380,7 @@ export function useUserData() {
     const contextId = 'friends-list'
     await userDataService.subscribeToContext(contextId, 'friends', friendUserIds)
     
-    console.log(`👥 Friends Presence: Tracking ${friendUserIds.length} friends`)
+    debug.log(`👥 Friends Presence: Tracking ${friendUserIds.length} friends`)
     return contextId
   }
   
@@ -457,7 +458,7 @@ export function useUserData() {
       return await subscribeToFriendsPresence(friendUserIds)
     }
     
-    console.log(`👥 Friends Presence: No friends to track`)
+    debug.log(`👥 Friends Presence: No friends to track`)
     return null
   }
   

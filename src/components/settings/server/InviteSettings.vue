@@ -221,6 +221,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { 
   getServerSettings, 
@@ -278,7 +279,7 @@ const loadSettings = async () => {
     
     serverRoles.value = roles
   } catch (error) {
-    console.error('Error loading invite settings:', error)
+    debug.error('Error loading invite settings:', error)
     toast.error('Failed to load invite settings')
   } finally {
     isLoading.value = false
@@ -322,7 +323,7 @@ const saveSettings = async () => {
       throw new Error('Failed to save settings')
     }
   } catch (error) {
-    console.error('Error saving invite settings:', error)
+    debug.error('Error saving invite settings:', error)
     saveMessage.value = {
       type: 'error',
       text: 'Failed to save invite settings. Please try again.'

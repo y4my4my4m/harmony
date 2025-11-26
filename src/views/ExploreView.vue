@@ -38,6 +38,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
@@ -97,7 +98,7 @@ const loadExploreData = async () => {
         break
     }
   } catch (error) {
-    console.error('Failed to load explore data:', error)
+    debug.error('Failed to load explore data:', error)
   } finally {
     isLoading.value = false
   }
@@ -123,9 +124,9 @@ const loadTrending = async () => {
     // Use placeholder suggested users (same as original)
     suggestedUsers.value = []
     
-    console.log('📈 Trending data loaded (using public feed)')
+    debug.log('📈 Trending data loaded (using public feed)')
   } catch (error) {
-    console.error('Failed to load trending data:', error)
+    debug.error('Failed to load trending data:', error)
   }
 }
 
@@ -140,9 +141,9 @@ const loadInstances = async () => {
       { domain: 'har.mony.lol', users: 1500, posts: 42000 }
     ]
     
-    console.log('🌐 Instance data loaded')
+    debug.log('🌐 Instance data loaded')
   } catch (error) {
-    console.error('Failed to load instances:', error)
+    debug.error('Failed to load instances:', error)
   }
 }
 
@@ -162,7 +163,7 @@ const handleLoadMore = async () => {
     }
     // Instances don't need pagination for now
   } catch (error) {
-    console.error('Failed to load more explore data:', error)
+    debug.error('Failed to load more explore data:', error)
   }
 }
 
@@ -221,7 +222,7 @@ const handleOpenComposer = () => {
 
 const handleOpenSearch = () => {
   // TODO: Implement search functionality
-  console.log('Open search')
+  debug.log('Open search')
 }
 
 // Watch for route changes

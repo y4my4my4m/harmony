@@ -307,6 +307,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
 import { useVisualTheme } from '@/composables/useVisualTheme'
@@ -439,7 +440,7 @@ const previewTheme = () => {
       )
       applyThemePalette(palette)
     } catch (error) {
-      console.error('Failed to preview custom theme:', error)
+      debug.error('Failed to preview custom theme:', error)
     }
   } else {
     visualTheme.setTheme(settings.value.theme)

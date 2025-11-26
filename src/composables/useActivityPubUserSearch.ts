@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
+import { debug } from '@/utils/debug'
 
 export function useActivityPubUserSearch() {
   const isSearching = ref(false);
@@ -62,7 +63,7 @@ export function useActivityPubUserSearch() {
             }
           });
         } catch (federatedError) {
-          console.warn('Federated user search failed:', federatedError);
+          debug.warn('Federated user search failed:', federatedError);
         }
       }
 
@@ -103,7 +104,7 @@ export function useActivityPubUserSearch() {
       searchResults.value = uniqueSuggestions;
       return uniqueSuggestions.slice(0, 10);
     } catch (error) {
-      console.error('Failed to search ActivityPub users:', error);
+      debug.error('Failed to search ActivityPub users:', error);
       return [];
     } finally {
       isSearching.value = false;

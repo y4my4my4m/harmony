@@ -289,6 +289,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { debug } from '@/utils/debug'
 import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -387,7 +388,7 @@ const fetchBotData = async (botId: string) => {
       botDataCache.value.set(botId, data);
     }
   } catch (error) {
-    console.error('Failed to fetch bot data:', error);
+    debug.error('Failed to fetch bot data:', error);
   } finally {
     fetchingBots.value.delete(botId);
   }
@@ -407,10 +408,10 @@ const isMessageFromBot = (message: Message): boolean => {
 const hasDiscordUserMetadata = (message: Message): boolean => {
   const hasMetadata = !!message.metadata?.discord_user;
   // if (message.bot_id && !hasMetadata) {
-  //   console.log('🔍 Bot message without Discord metadata:', message.id, message.metadata);
+  //   debug.log('🔍 Bot message without Discord metadata:', message.id, message.metadata);
   // }
   // if (hasMetadata) {
-  //   console.log('✅ Discord user found:', message.metadata?.discord_user);
+  //   debug.log('✅ Discord user found:', message.metadata?.discord_user);
   // }
   return hasMetadata;
 };
@@ -641,7 +642,7 @@ watch(() => props.messages, (newMessages) => {
   if (userIds.size > 0) {
     setTimeout(() => {
       ensureProfilesAvailable(Array.from(userIds)).catch(error => {
-        console.error('Error ensuring user profiles are available:', error);
+        debug.error('Error ensuring user profiles are available:', error);
       });
     }, 0);
   }
@@ -654,7 +655,7 @@ watch(() => props.messages, (newMessages) => {
         
         // If this is the initial load (old height was 0), scroll to bottom
         if (oldScrollHeight === 0 && newMessages.length > 0) {
-          console.log('📜 Initial load - scrolling to bottom');
+          debug.log('📜 Initial load - scrolling to bottom');
           // Use setTimeout to ensure DOM is fully rendered
           setTimeout(() => {
             if (messageDisplayContainer.value) {
@@ -664,7 +665,7 @@ watch(() => props.messages, (newMessages) => {
         } 
         // When loading older messages, maintain scroll position by compensating for new content
         else if (scrollOffset > 0 && oldScrollHeight > 0) {
-          console.log('📜 Maintaining scroll position after loading older messages');
+          debug.log('📜 Maintaining scroll position after loading older messages');
           messageDisplayContainer.value.scrollTop += scrollOffset;
         }
         
@@ -759,9 +760,9 @@ const clearUnreadCount = async (messageId: string) => {
       .eq(channelId ? 'channel_id' : 'conversation_id', channelId || conversationId);
     
     if (error) {
-      console.error('Failed to clear unread count:', error);
+      debug.error('Failed to clear unread count:', error);
     } else {
-      console.log('✅ Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
+      debug.log('✅ Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
     }
     
     // Mark related notifications as read
@@ -774,7 +775,7 @@ const clearUnreadCount = async (messageId: string) => {
       await notificationStore.markAsRead(notification.id);
     }
   } catch (error) {
-    console.error('Error clearing unread count:', error);
+    debug.error('Error clearing unread count:', error);
   }
 };
 
@@ -829,7 +830,7 @@ onUnmounted(() => {
 const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   const userIds = reaction.reactions.map(r => r.user_id);
-  await ensureProfilesAvailable(userIds).catch(error => console.error("Error ensuring profiles for tooltip:", error));
+  await ensureProfilesAvailable(userIds).catch(error => debug.error("Error ensuring profiles for tooltip:", error));
 
   const usersDetails = reaction.reactions.map(r => ({
     id: r.user_id,
@@ -869,12 +870,12 @@ const handleScroll = () => {
   if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
   
   if (isAtTop.value) {
-    console.log('📜 At top! hasScrollbar:', hasScrollbar.value, 'loadMoreMessages:', !!props.loadMoreMessages);
+    debug.log('📜 At top! hasScrollbar:', hasScrollbar.value, 'loadMoreMessages:', !!props.loadMoreMessages);
     
     if (props.loadMoreMessages) {
       props.loadMoreMessages();
     } else {
-      console.log('❌ No loadMoreMessages function provided!');
+      debug.log('❌ No loadMoreMessages function provided!');
     }
   }
 
@@ -1046,7 +1047,7 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     await chatStore.editMessage(messageId, parsedContent);
     cancelEdit();
   } catch (error) {
-    console.error('Error saving message edit:', error);
+    debug.error('Error saving message edit:', error);
   }
 };
 
@@ -1077,7 +1078,7 @@ const replyTo = (message: Message) => {
 const handleReplyClick = async (replyMessageId: string) => {
   if (!chatStore.currentChannelId) return;
   const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
-  if (!success) console.warn(`Could not jump to message: ${replyMessageId}`);
+  if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
 };
 
 const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
@@ -1086,7 +1087,7 @@ const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
     const message = await chatStore.fetchReplyMessage(replyMessageId);
     if (message) replyMessages.value[replyMessageId] = message;
   } catch (error) {
-    console.error('Error fetching reply message:', error);
+    debug.error('Error fetching reply message:', error);
   }
 };
 
@@ -1120,14 +1121,14 @@ const handleImageLoaded = (url: string) => {
 
 // Handle click-to-decrypt for encrypted messages
 const handleDecryptMessage = async (message: Message) => {
-  console.log('🔓 Attempting to decrypt message on click:', message.id);
+  debug.log('🔓 Attempting to decrypt message on click:', message.id);
   
   try {
     // Dynamically import the encryption service
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
     
     if (!megolmMessageEncryptionService.isUnlocked()) {
-      console.log('🔒 Encryption not unlocked - cannot decrypt');
+      debug.log('🔒 Encryption not unlocked - cannot decrypt');
       return;
     }
     
@@ -1146,7 +1147,7 @@ const handleDecryptMessage = async (message: Message) => {
     
     if (!hasOriginalContent) {
       // Content was replaced with glyphs (legacy) - reload from DB
-      console.log('🔐 Content was replaced with glyphs, reloading from database...');
+      debug.log('🔐 Content was replaced with glyphs, reloading from database...');
       const { data: freshMessage } = await supabase
         .from('messages')
         .select('*')
@@ -1154,7 +1155,7 @@ const handleDecryptMessage = async (message: Message) => {
         .single();
       
       if (!freshMessage?.encryption_metadata || !freshMessage.encrypted) {
-        console.log('❌ Message has no encryption metadata in database');
+        debug.log('❌ Message has no encryption metadata in database');
         return;
       }
       
@@ -1169,7 +1170,7 @@ const handleDecryptMessage = async (message: Message) => {
     
     // Build the message object that decryptMessage expects
     const roomId = messageToDecrypt.channel_id || messageToDecrypt.conversation_id || props.channelId || props.conversationId || '';
-    console.log('🔐 Decrypting with roomId:', roomId);
+    debug.log('🔐 Decrypting with roomId:', roomId);
     
     const messageForDecryption = {
       content: messageToDecrypt.content,
@@ -1199,10 +1200,10 @@ const handleDecryptMessage = async (message: Message) => {
         dmStore.updateMessageInCache(messageToDecrypt.id, updatedMessage);
       }
       
-      console.log('✅ Message decrypted successfully on click');
+      debug.log('✅ Message decrypted successfully on click');
     }
   } catch (error) {
-    console.log('❌ Could not decrypt message:', error);
+    debug.log('❌ Could not decrypt message:', error);
     // Silently fail - the message will remain encrypted
   }
 };
@@ -1241,12 +1242,12 @@ const closeContextMenu = () => {
 // Modals (User Profile, Invite)
 const showUserProfile = async (userId: string, event?: MouseEvent) => {
   event?.stopPropagation();
-  let user = getUserProfile(userId).value || await fetchUserProfile(userId).catch(e => console.error(e));
+  let user = getUserProfile(userId).value || await fetchUserProfile(userId).catch(e => debug.error(e));
   if (user) {
     selectedUser.value = user;
     showProfileModal.value = true;
   } else {
-    console.error("Failed to fetch user profile for ID:", userId);
+    debug.error("Failed to fetch user profile for ID:", userId);
   }
 };
 

@@ -3,6 +3,7 @@ import { useToast } from 'vue-toastification'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { debug } from '@/utils/debug'
 
 // Types for server membership events
 export interface ServerMembershipEvent {
@@ -68,10 +69,10 @@ export class ServerMembershipService {
         }
       )
       .subscribe((status) => {
-        console.log(`🔔 Server membership subscription for ${serverId}:`, status)
+        debug.log(`🔔 Server membership subscription for ${serverId}:`, status)
         
         if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Membership subscription error, retrying in 5s...')
+          debug.error('❌ Membership subscription error, retrying in 5s...')
           setTimeout(() => {
             this.subscribeToServerMembership(serverId)
           }, 5000)
@@ -103,7 +104,7 @@ export class ServerMembershipService {
         }
       )
       .subscribe((status) => {
-        console.log('🌐 Global membership subscription:', status)
+        debug.log('🌐 Global membership subscription:', status)
       })
   }
 
@@ -114,7 +115,7 @@ export class ServerMembershipService {
     const serverUsersStore = useServerUsersStore()
     const serverChannelStore = useServerChannelStore()
     
-    console.log('👥 Membership event:', event)
+    debug.log('👥 Membership event:', event)
 
     try {
       switch (event.event_type) {
@@ -130,7 +131,7 @@ export class ServerMembershipService {
           break
       }
     } catch (error) {
-      console.error('❌ Error handling membership event:', error)
+      debug.error('❌ Error handling membership event:', error)
     }
   }
 
@@ -144,9 +145,9 @@ export class ServerMembershipService {
     if (event.event_type === 'join') {
       try {
         await serverUsersStore.fetchUserProfiles([event.user_id])
-        console.log(`✅ User profile fetched for new member: ${event.user_id}`)
+        debug.log(`✅ User profile fetched for new member: ${event.user_id}`)
       } catch (error) {
-        console.error('❌ Error fetching new user profile:', error)
+        debug.error('❌ Error fetching new user profile:', error)
       }
     }
   }
@@ -163,7 +164,7 @@ export class ServerMembershipService {
     
     // If this is the current server, refresh the server users
     if (serverChannelStore.currentServerId === event.server_id) {
-      console.log(`🎉 User ${event.user_id} joined current server`)
+      debug.log(`🎉 User ${event.user_id} joined current server`)
       
       // You could add additional UI feedback here like:
       // - Show a toast notification
@@ -181,7 +182,7 @@ export class ServerMembershipService {
     
     // If this is the current server, we might want to remove from user list
     if (serverChannelStore.currentServerId === event.server_id) {
-      console.log(`👋 User ${event.user_id} left current server`)
+      debug.log(`👋 User ${event.user_id} left current server`)
       
       // Clean up user from voice channels if they were in any
       await serverUsersStore.leaveAllVoiceChannels(event.server_id, event.user_id)
@@ -194,7 +195,7 @@ export class ServerMembershipService {
    * Handle user removed (kicked/banned) event
    */
   private async handleUserRemoved(event: ServerMembershipEvent): Promise<void> {
-    console.log(`🚫 User ${event.user_id} was ${event.event_type} from server ${event.server_id}`)
+    debug.log(`🚫 User ${event.user_id} was ${event.event_type} from server ${event.server_id}`)
     
     // Handle similar to user left but with different messaging
     await this.handleUserLeft(event)
@@ -218,18 +219,18 @@ export class ServerMembershipService {
       if (error) {
         // Handle duplicate membership gracefully
         if (error.code === '23505') { // Unique constraint violation
-          console.log(`✅ User ${userId} is already a member of server ${serverId}`)
+          debug.log(`✅ User ${userId} is already a member of server ${serverId}`)
           toast.info("User is already a member of this server")
           return true; // Consider it successful since the desired state is achieved
         }
         throw error
       }
       
-      console.log(`✅ User ${userId} manually added to server ${serverId}`)
+      debug.log(`✅ User ${userId} manually added to server ${serverId}`)
       toast.success("User successfully added to server")
       return true
     } catch (error) {
-      console.error('❌ Error manually adding user to server:', error)
+      debug.error('❌ Error manually adding user to server:', error)
       toast.error("Failed to add user to server")
       return false
     }
@@ -248,10 +249,10 @@ export class ServerMembershipService {
 
       if (error) throw error
       
-      console.log(`✅ User ${userId} manually removed from server ${serverId}`)
+      debug.log(`✅ User ${userId} manually removed from server ${serverId}`)
       return true
     } catch (error) {
-      console.error('❌ Error manually removing user from server:', error)
+      debug.error('❌ Error manually removing user from server:', error)
       return false
     }
   }
@@ -271,7 +272,7 @@ export class ServerMembershipService {
       if (error) throw error
       return data || []
     } catch (error) {
-      console.error('❌ Error fetching membership history:', error)
+      debug.error('❌ Error fetching membership history:', error)
       return []
     }
   }

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import type { Server, Emoji } from '@/types';
+import { debug } from '@/utils/debug'
 
 export const useServerStore = defineStore('server', {
   actions: {
@@ -27,7 +28,7 @@ export const useServerStore = defineStore('server', {
           if (!ext) throw new Error('File must have an extension');
           const filePath = `${serverData.id}/${serverData.id}.${ext}`;
 
-          console.log('Uploading server icon to:', filePath);
+          debug.log('Uploading server icon to:', filePath);
           // Upload to Supabase storage
           const { error: uploadError } = await supabase.storage
             .from('server_icons')
@@ -55,10 +56,10 @@ export const useServerStore = defineStore('server', {
 
         if (error) throw error;
 
-        console.log("Server updated successfully");
+        debug.log("Server updated successfully");
         return true;
       } catch (error) {
-        console.error('Error updating server:', error);
+        debug.error('Error updating server:', error);
         return false;
       }
     },
@@ -84,18 +85,18 @@ export const useServerStore = defineStore('server', {
         if (error) {
           // Handle duplicate membership gracefully
           if (error.code === '23505') { // Unique constraint violation
-            console.log("User is already a member of this server");
+            debug.log("User is already a member of this server");
             toast.info("You're already a member of this server!");
             return true; // Consider it successful since the desired state is achieved
           }
           throw error;
         }
 
-        // console.log("Server joined successfully", data);
+        // debug.log("Server joined successfully", data);
         // toast.success("Successfully joined the server!");
         return true;
       } catch (error) {
-        console.error('Error joining server:', error);
+        debug.error('Error joining server:', error);
         toast.error("Failed to join server. Please try again.");
         return false;
       }
@@ -110,10 +111,10 @@ export const useServerStore = defineStore('server', {
 
         if (error) throw error;
 
-        console.log("Server left successfully", data);
+        debug.log("Server left successfully", data);
         return true;
       } catch (error) {
-        console.error('Error leaving server:', error);
+        debug.error('Error leaving server:', error);
         return false;
       }
     },
@@ -135,7 +136,7 @@ export const useServerStore = defineStore('server', {
         if (error) {
           // If the RPC function doesn't exist, fall back to the original method
           if (error.code === '42883') { // function does not exist
-            console.warn('Server cleanup function not found, using fallback deletion');
+            debug.warn('Server cleanup function not found, using fallback deletion');
             
             // Delete the server (this will cascade delete related data due to foreign key constraints)
             const { error: deleteError } = await supabase
@@ -160,15 +161,15 @@ export const useServerStore = defineStore('server', {
                 .remove([`${serverId}/${iconPath}`]);
             }
           } catch (iconError) {
-            console.warn('Failed to delete server icon:', iconError);
+            debug.warn('Failed to delete server icon:', iconError);
             // Don't fail the entire operation if icon deletion fails
           }
         }
 
-        console.log("Server deleted successfully");
+        debug.log("Server deleted successfully");
         return true;
       } catch (error) {
-        console.error('Error deleting server:', error);
+        debug.error('Error deleting server:', error);
         throw error; // Re-throw to allow proper error handling in the component
       }
     }

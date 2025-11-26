@@ -20,6 +20,7 @@
  */
 
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 export interface ActivityCreationResult {
   success: boolean
@@ -57,7 +58,7 @@ export class FederationActivityService {
     operation: 'add' | 'remove'
   ): Promise<ActivityCreationResult> {
     try {
-      console.log(`📤 Federation: Creating message reaction activity (${operation})`)
+      debug.log(`📤 Federation: Creating message reaction activity (${operation})`)
 
       // Get message and emoji data
       const messageData = await this.getMessageData(messageId)
@@ -102,15 +103,15 @@ export class FederationActivityService {
         .single()
 
       if (error) {
-        console.error('❌ Federation: Failed to create reaction activity:', error)
+        debug.error('❌ Federation: Failed to create reaction activity:', error)
         return { success: false, error: error.message }
       }
 
-      console.log(`✅ Federation: Message reaction activity created: ${activityId}`)
+      debug.log(`✅ Federation: Message reaction activity created: ${activityId}`)
       return { success: true, activityId: data.id }
 
     } catch (error) {
-      console.error('❌ Federation: Error creating message reaction activity:', error)
+      debug.error('❌ Federation: Error creating message reaction activity:', error)
       return { success: false, error: error.message }
     }
   }
@@ -125,7 +126,7 @@ export class FederationActivityService {
     operation: 'add' | 'remove'
   ): Promise<ActivityCreationResult> {
     try {
-      console.log(`📤 Federation: Creating post reaction activity (${operation})`)
+      debug.log(`📤 Federation: Creating post reaction activity (${operation})`)
 
       // Get post and emoji data
       const postData = await this.getPostData(postId)
@@ -170,15 +171,15 @@ export class FederationActivityService {
         .single()
 
       if (error) {
-        console.error('❌ Federation: Failed to create post reaction activity:', error)
+        debug.error('❌ Federation: Failed to create post reaction activity:', error)
         return { success: false, error: error.message }
       }
 
-      console.log(`✅ Federation: Post reaction activity created: ${activityId}`)
+      debug.log(`✅ Federation: Post reaction activity created: ${activityId}`)
       return { success: true, activityId: data.id }
 
     } catch (error) {
-      console.error('❌ Federation: Error creating post reaction activity:', error)
+      debug.error('❌ Federation: Error creating post reaction activity:', error)
       return { success: false, error: error.message }
     }
   }
@@ -195,7 +196,7 @@ export class FederationActivityService {
     operation: 'create' | 'update' | 'delete'
   ): Promise<ActivityCreationResult> {
     try {
-      console.log(`📤 Federation: Creating post activity (${operation})`)
+      debug.log(`📤 Federation: Creating post activity (${operation})`)
 
       // Get post data
       const postData = await this.getPostData(postId)
@@ -245,15 +246,15 @@ export class FederationActivityService {
         .single()
 
       if (error) {
-        console.error('❌ Federation: Failed to create post activity:', error)
+        debug.error('❌ Federation: Failed to create post activity:', error)
         return { success: false, error: error.message }
       }
 
-      console.log(`✅ Federation: Post activity created: ${activityId}`)
+      debug.log(`✅ Federation: Post activity created: ${activityId}`)
       return { success: true, activityId: data.id }
 
     } catch (error) {
-      console.error('❌ Federation: Error creating post activity:', error)
+      debug.error('❌ Federation: Error creating post activity:', error)
       return { success: false, error: error.message }
     }
   }
@@ -271,7 +272,7 @@ export class FederationActivityService {
     operation: 'follow' | 'unfollow'
   ): Promise<ActivityCreationResult> {
     try {
-      console.log(`📤 Federation: Creating follow activity (${operation})`)
+      debug.log(`📤 Federation: Creating follow activity (${operation})`)
 
       // Get actor and target data
       const actorData = await this.getActorData(followerId)
@@ -314,15 +315,15 @@ export class FederationActivityService {
         .single()
 
       if (error) {
-        console.error('❌ Federation: Failed to create follow activity:', error)
+        debug.error('❌ Federation: Failed to create follow activity:', error)
         return { success: false, error: error.message }
       }
 
-      console.log(`✅ Federation: Follow activity created: ${activityId}`)
+      debug.log(`✅ Federation: Follow activity created: ${activityId}`)
       return { success: true, activityId: data.id }
 
     } catch (error) {
-      console.error('❌ Federation: Error creating follow activity:', error)
+      debug.error('❌ Federation: Error creating follow activity:', error)
       return { success: false, error: error.message }
     }
   }
@@ -336,7 +337,7 @@ export class FederationActivityService {
    */
   async createProfileUpdateActivity(userId: string): Promise<ActivityCreationResult> {
     try {
-      console.log(`📤 Federation: Creating profile update activity`)
+      debug.log(`📤 Federation: Creating profile update activity`)
 
       // Get actor data
       const actorData = await this.getActorData(userId)
@@ -374,15 +375,15 @@ export class FederationActivityService {
         .single()
 
       if (error) {
-        console.error('❌ Federation: Failed to create profile update activity:', error)
+        debug.error('❌ Federation: Failed to create profile update activity:', error)
         return { success: false, error: error.message }
       }
 
-      console.log(`✅ Federation: Profile update activity created: ${activityId}`)
+      debug.log(`✅ Federation: Profile update activity created: ${activityId}`)
       return { success: true, activityId: data.id }
 
     } catch (error) {
-      console.error('❌ Federation: Error creating profile update activity:', error)
+      debug.error('❌ Federation: Error creating profile update activity:', error)
       return { success: false, error: error.message }
     }
   }
@@ -653,7 +654,7 @@ export class FederationActivityService {
         .rpc('get_instance_domain')
 
       if (error) {
-        console.warn('Failed to get instance domain, using fallback:', error)
+        debug.warn('Failed to get instance domain, using fallback:', error)
         return 'https://localhost'  // FIXED: Include protocol in fallback
       }
 
@@ -661,7 +662,7 @@ export class FederationActivityService {
       const domain = data || 'localhost'
       return domain.startsWith('http') ? domain : `https://${domain}`
     } catch (error) {
-      console.warn('Failed to get instance domain, using fallback:', error)
+      debug.warn('Failed to get instance domain, using fallback:', error)
       return 'https://localhost'  // FIXED: Include protocol in fallback
     }
   }

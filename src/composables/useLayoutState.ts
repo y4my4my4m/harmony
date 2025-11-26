@@ -1,4 +1,5 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { debug } from '@/utils/debug'
 
 // Global layout state
 const leftSidebarOpen = ref(false)
@@ -70,9 +71,9 @@ export function useLayoutState() {
   }
 
   const toggleMobileProfile = () => {
-    console.log('🔄 toggleMobileProfile called, current state:', mobileProfileOpen.value)
+    debug.log('🔄 toggleMobileProfile called, current state:', mobileProfileOpen.value)
     mobileProfileOpen.value = !mobileProfileOpen.value
-    console.log('🔄 toggleMobileProfile new state:', mobileProfileOpen.value)
+    debug.log('🔄 toggleMobileProfile new state:', mobileProfileOpen.value)
   }
 
   const closeMobileSidebars = () => {

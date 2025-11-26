@@ -243,6 +243,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification';
 import Icon from '@/components/common/Icon.vue';
 import BaseModal from '@/components/common/BaseModal.vue';
@@ -343,7 +344,7 @@ const removeLanguage = (langCode: string) => {
 const updateFilters = () => {
   // Emit filter changes to parent component
   // This would be used by the ExploreView to apply filters
-  console.log('Filters updated:', filters);
+  debug.log('Filters updated:', filters);
 };
 
 const loadSettings = async () => {
@@ -364,7 +365,7 @@ const loadSettings = async () => {
       selectedLanguages.value = data.content_filter_preferences.preferredLanguages || ['en'];
     }
   } catch (error) {
-    console.error('Failed to load content filter settings:', error);
+    debug.error('Failed to load content filter settings:', error);
   }
 };
 
@@ -387,7 +388,7 @@ const saveSettings = async () => {
 
     toast.success('Content filter settings saved');
   } catch (error) {
-    console.error('Failed to save content filter settings:', error);
+    debug.error('Failed to save content filter settings:', error);
     toast.error('Failed to save settings');
   }
 };

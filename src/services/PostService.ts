@@ -23,6 +23,7 @@ import type { Post, TimelinePost, MessagePart } from '@/types'
 
 // Import only core service - database handles federation
 import { corePostService } from './core'
+import { debug } from '@/utils/debug'
 
 export interface CreatePostData {
   content: MessagePart[]
@@ -59,16 +60,16 @@ export class PostService {
    */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
-      console.log(`🚀 Simplified: Creating post with visibility: ${data.visibility}`)
+      debug.log(`🚀 Simplified: Creating post with visibility: ${data.visibility}`)
 
       // Just create the post - database triggers handle federation automatically
       const post = await corePostService.createPost(data)
 
-      console.log(`✅ Simplified: Post created successfully - database handling federation: ${post.id}`)
+      debug.log(`✅ Simplified: Post created successfully - database handling federation: ${post.id}`)
       return post
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to create post:', error)
+      debug.error('❌ Simplified: Failed to create post:', error)
       throw error
     }
   }
@@ -78,16 +79,16 @@ export class PostService {
    */
   async updatePost(postId: string, updates: UpdatePostData): Promise<TimelinePost> {
     try {
-      console.log(`🚀 Simplified: Updating post: ${postId}`)
+      debug.log(`🚀 Simplified: Updating post: ${postId}`)
 
       // Just update the post - database triggers handle federation automatically
       const post = await corePostService.updatePost(postId, updates)
 
-      console.log(`✅ Simplified: Post updated successfully - database handling federation: ${postId}`)
+      debug.log(`✅ Simplified: Post updated successfully - database handling federation: ${postId}`)
       return post
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to update post:', error)
+      debug.error('❌ Simplified: Failed to update post:', error)
       throw error
     }
   }
@@ -97,15 +98,15 @@ export class PostService {
    */
   async deletePost(postId: string): Promise<void> {
     try {
-      console.log(`🚀 Simplified: Deleting post: ${postId}`)
+      debug.log(`🚀 Simplified: Deleting post: ${postId}`)
 
       // Just delete the post - database triggers handle federation automatically
       await corePostService.deletePost(postId)
 
-      console.log(`✅ Simplified: Post deleted successfully - database handling federation: ${postId}`)
+      debug.log(`✅ Simplified: Post deleted successfully - database handling federation: ${postId}`)
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to delete post:', error)
+      debug.error('❌ Simplified: Failed to delete post:', error)
       throw error
     }
   }
@@ -120,16 +121,16 @@ export class PostService {
    */
   async toggleLike(postId: string): Promise<{ liked: boolean; newCount: number }> {
     try {
-      console.log(`🚀 Simplified: Toggling like for post: ${postId}`)
+      debug.log(`🚀 Simplified: Toggling like for post: ${postId}`)
 
       // Just toggle the like - database triggers handle federation automatically
       const result = await corePostService.toggleLike(postId)
 
-      console.log(`✅ Simplified: Post like toggled - database handling federation: ${result.liked ? 'liked' : 'unliked'}`)
+      debug.log(`✅ Simplified: Post like toggled - database handling federation: ${result.liked ? 'liked' : 'unliked'}`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle like:', error)
+      debug.error('❌ Simplified: Failed to toggle like:', error)
       throw error
     }
   }
@@ -140,13 +141,13 @@ export class PostService {
    */
   async toggleShare(postId: string): Promise<{ shared: boolean; newCount: number }> {
     try {
-      console.log(`🚀 PostService: Delegating reblog to ActivityPub service for post: ${postId}`)
+      debug.log(`🚀 PostService: Delegating reblog to ActivityPub service for post: ${postId}`)
 
       // Import ActivityPub service dynamically to avoid circular dependencies
       const { activityPubService } = await import('./activityPubService')
       const result = await activityPubService.toggleReblog(postId)
 
-      console.log(`✅ PostService: Reblog delegated to ActivityPub service: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
+      debug.log(`✅ PostService: Reblog delegated to ActivityPub service: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
       
       // Return in the expected format for backward compatibility
       return { 
@@ -155,7 +156,7 @@ export class PostService {
       }
 
     } catch (error) {
-      console.error('❌ PostService: Failed to toggle reblog via ActivityPub service:', error)
+      debug.error('❌ PostService: Failed to toggle reblog via ActivityPub service:', error)
       throw error
     }
   }
@@ -166,13 +167,13 @@ export class PostService {
    */
   async toggleReblog(postId: string): Promise<{ reblogged: boolean; newCount: number }> {
     try {
-      console.log(`🚀 PostService: Toggling reblog for post: ${postId}`)
+      debug.log(`🚀 PostService: Toggling reblog for post: ${postId}`)
 
       // Import ActivityPub service dynamically to avoid circular dependencies
       const { activityPubService } = await import('./activityPubService')
       const result = await activityPubService.toggleReblog(postId)
 
-      console.log(`✅ PostService: Reblog toggled: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
+      debug.log(`✅ PostService: Reblog toggled: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
       
       // Return in the expected format for the UI
       return { 
@@ -181,7 +182,7 @@ export class PostService {
       }
 
     } catch (error) {
-      console.error('❌ PostService: Failed to toggle reblog:', error)
+      debug.error('❌ PostService: Failed to toggle reblog:', error)
       throw error
     }
   }
@@ -192,16 +193,16 @@ export class PostService {
    */
   async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
     try {
-      console.log(`🚀 Simplified: Toggling bookmark for post: ${postId}`)
+      debug.log(`🚀 Simplified: Toggling bookmark for post: ${postId}`)
 
       // Bookmarks are always local-only (no federation)
       const result = await corePostService.toggleBookmark(postId)
 
-      console.log(`✅ Simplified: Post bookmark toggled: ${result.bookmarked ? 'bookmarked' : 'unbookmarked'}`)
+      debug.log(`✅ Simplified: Post bookmark toggled: ${result.bookmarked ? 'bookmarked' : 'unbookmarked'}`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle bookmark:', error)
+      debug.error('❌ Simplified: Failed to toggle bookmark:', error)
       throw error
     }
   }
@@ -212,7 +213,7 @@ export class PostService {
    */
   async toggleReaction(postId: string, emojiId: string): Promise<{ added: boolean; newCount: number }> {
     try {
-      console.log(`🚀 Simplified: Toggling reaction for post: ${postId}, emoji: ${emojiId}`)
+      debug.log(`🚀 Simplified: Toggling reaction for post: ${postId}, emoji: ${emojiId}`)
 
       // Just toggle the reaction - database triggers handle federation automatically
       const coreResult = await corePostService.toggleReaction(postId, emojiId)
@@ -230,11 +231,11 @@ export class PostService {
         newCount: count || 0
       }
 
-      console.log(`✅ Simplified: Post reaction toggled - database handling federation: ${result.added ? 'added' : 'removed'}`)
+      debug.log(`✅ Simplified: Post reaction toggled - database handling federation: ${result.added ? 'added' : 'removed'}`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle post reaction:', error)
+      debug.error('❌ Simplified: Failed to toggle post reaction:', error)
       throw error
     }
   }
@@ -261,7 +262,7 @@ export class PostService {
     nextCursor?: string;
   }> {
     try {
-      console.log(`🚀 Simplified: Loading ${timelineType} timeline posts`)
+      debug.log(`🚀 Simplified: Loading ${timelineType} timeline posts`)
       
       // Map federated to public for core service (core doesn't distinguish federated)
       const coreTimelineType = timelineType === 'federated' ? 'public' : timelineType
@@ -280,11 +281,11 @@ export class PostService {
         nextCursor
       }
       
-      console.log(`✅ Simplified: Loaded ${posts.length} timeline posts`)
+      debug.log(`✅ Simplified: Loaded ${posts.length} timeline posts`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load timeline posts:', error)
+      debug.error('❌ Simplified: Failed to load timeline posts:', error)
       throw error
     }
   }
@@ -295,7 +296,7 @@ export class PostService {
    */
   async loadPost(postId: string): Promise<TimelinePost> {
     try {
-      console.log(`🚀 Simplified: Loading post: ${postId}`)
+      debug.log(`🚀 Simplified: Loading post: ${postId}`)
       
       // Delegate to core service (no federation needed for reads)
       const post = await corePostService.loadPost(postId)
@@ -304,11 +305,11 @@ export class PostService {
         throw this.createError('POST_NOT_FOUND', `Post not found: ${postId}`)
       }
       
-      console.log(`✅ Simplified: Post loaded successfully`)
+      debug.log(`✅ Simplified: Post loaded successfully`)
       return post
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load post:', error)
+      debug.error('❌ Simplified: Failed to load post:', error)
       throw error
     }
   }
@@ -328,16 +329,16 @@ export class PostService {
     users: Array<{ id: string; username: string; display_name?: string }>;
   }>> {
     try {
-      console.log(`🚀 Simplified: Loading reactions for post: ${postId}`)
+      debug.log(`🚀 Simplified: Loading reactions for post: ${postId}`)
       
       // Delegate to core service (no federation needed for reads)
       const reactions = await corePostService.getPostReactions(postId)
       
-      console.log(`✅ Simplified: Loaded ${reactions.length} reaction groups`)
+      debug.log(`✅ Simplified: Loaded ${reactions.length} reaction groups`)
       return reactions
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load post reactions:', error)
+      debug.error('❌ Simplified: Failed to load post reactions:', error)
       throw error
     }
   }

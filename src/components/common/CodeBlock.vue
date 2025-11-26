@@ -61,7 +61,7 @@ export default defineComponent({
           copied.value = false;
         }, 2000);
       } catch (error) {
-        console.error('Failed to copy code:', error);
+        debug.error('Failed to copy code:', error);
         // Fallback for older browsers
         fallbackCopyTextToClipboard(props.code);
       }
@@ -86,7 +86,7 @@ export default defineComponent({
           }, 2000);
         }
       } catch (err) {
-        console.error('Fallback: Oops, unable to copy', err);
+        debug.error('Fallback: Oops, unable to copy', err);
       }
       
       document.body.removeChild(textArea);

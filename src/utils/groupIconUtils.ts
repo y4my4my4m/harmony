@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 /**
  * Group Icon Utilities
@@ -44,13 +45,13 @@ export function getGroupIconUrl(
 
     // Ensure we have a valid URL before returning
     if (!data.publicUrl) {
-      console.warn('No public URL returned for icon path:', iconPath)
+      debug.warn('No public URL returned for icon path:', iconPath)
       return getDefaultGroupIcon(conversationId, size)
     }
 
     return data.publicUrl
   } catch (error) {
-    console.error('Failed to get group icon URL:', error)
+    debug.error('Failed to get group icon URL:', error)
     return getDefaultGroupIcon(conversationId, options.size)
   }
 }
@@ -127,7 +128,7 @@ export async function uploadGroupIcon(
       })
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
+      debug.error('Upload error:', uploadError)
       return { success: false, error: uploadError.message }
     }
 
@@ -156,7 +157,7 @@ export async function uploadGroupIcon(
     })
 
     if (updateError) {
-      console.error('Database update error:', updateError)
+      debug.error('Database update error:', updateError)
       // Clean up uploaded file if database update fails
       await supabase.storage.from(BUCKET_NAME).remove([filePath])
       return { success: false, error: 'Failed to update group settings' }
@@ -165,7 +166,7 @@ export async function uploadGroupIcon(
     return { success: true, iconPath: filePath }
 
   } catch (error: any) {
-    console.error('Group icon upload failed:', error)
+    debug.error('Group icon upload failed:', error)
     return { success: false, error: error.message || 'Upload failed' }
   }
 }
@@ -212,7 +213,7 @@ export async function deleteGroupIcon(conversationId: string): Promise<{ success
     })
 
     if (updateError) {
-      console.error('Database update error:', updateError)
+      debug.error('Database update error:', updateError)
       return { success: false, error: 'Failed to update group settings' }
     }
 
@@ -222,14 +223,14 @@ export async function deleteGroupIcon(conversationId: string): Promise<{ success
       .remove([iconPath])
 
     if (deleteError) {
-      console.warn('Failed to delete icon file from storage:', deleteError)
+      debug.warn('Failed to delete icon file from storage:', deleteError)
       // Don't fail the operation since database was updated successfully
     }
 
     return { success: true }
 
   } catch (error: any) {
-    console.error('Group icon deletion failed:', error)
+    debug.error('Group icon deletion failed:', error)
     return { success: false, error: error.message || 'Deletion failed' }
   }
 }

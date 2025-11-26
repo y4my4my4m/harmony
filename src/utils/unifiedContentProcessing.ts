@@ -9,6 +9,7 @@
 import type { MessagePart } from '@/types';
 import { getEmoji } from '@/services/emojiService';
 import { supabase } from '@/supabase';
+import { debug } from '@/utils/debug'
 
 // Support both UUID-based emojis (legacy) and shortcode emojis (new)
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
@@ -75,12 +76,12 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
             .single();
           
           if (error && error.code !== 'PGRST116') { // PGRST116 is "not found", which is ok
-            console.warn(`Error fetching remote user ${usernameDomain}:`, error);
+            debug.warn(`Error fetching remote user ${usernameDomain}:`, error);
           }
           
           return data;
         } catch (error) {
-          console.warn(`Error querying remote user ${usernameDomain}:`, error);
+          debug.warn(`Error querying remote user ${usernameDomain}:`, error);
           return null;
         }
       });
@@ -101,7 +102,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
       }
     }
   } catch (error) {
-    console.warn('Error resolving mention user data:', error);
+    debug.warn('Error resolving mention user data:', error);
   }
   
   return userDataMap;
@@ -168,7 +169,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
       }
     }
   } catch (error) {
-    console.warn('Error resolving emoji data:', error);
+    debug.warn('Error resolving emoji data:', error);
   }
   
   return emojiDataMap;
@@ -202,7 +203,7 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
     .in('normalized_tag', Array.from(uniqueHashtags));
     
   if (error) {
-    console.warn('Error fetching hashtag data:', error);
+    debug.warn('Error fetching hashtag data:', error);
     return hashtagDataMap;
   }
   
@@ -396,15 +397,15 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
             .maybeSingle();
           
           if (error) {
-            console.warn('⚠️ Error fetching emoji by shortcode:', emojiIdentifier, error.message);
+            debug.warn('⚠️ Error fetching emoji by shortcode:', emojiIdentifier, error.message);
           } else if (data) {
             emojiData = data;
-            console.log('✅ Fetched emoji by shortcode:', emojiIdentifier, data);
+            debug.log('✅ Fetched emoji by shortcode:', emojiIdentifier, data);
           } else {
-            console.warn('⚠️ Emoji not found by shortcode:', emojiIdentifier);
+            debug.warn('⚠️ Emoji not found by shortcode:', emojiIdentifier);
           }
         } catch (error) {
-          console.warn('❌ Exception fetching emoji by shortcode:', emojiIdentifier, error);
+          debug.warn('❌ Exception fetching emoji by shortcode:', emojiIdentifier, error);
         }
       }
     }
@@ -412,7 +413,7 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     if (emojiData) {
       parts.push({ type: 'emoji', emoji: emojiData });
     } else {
-      console.warn('⚠️ Emoji not resolved, showing as text:', emojiMatch[0]);
+      debug.warn('⚠️ Emoji not resolved, showing as text:', emojiMatch[0]);
       parts.push({ type: 'text', text: emojiMatch[0] });
     }
     

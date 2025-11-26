@@ -188,6 +188,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import Icon from '@/components/common/Icon.vue';
 
@@ -247,7 +248,7 @@ const getDevices = async () => {
       selectedVideoDevice.value = videoDevices.value[0].deviceId;
     }
   } catch (error) {
-    console.error('Error getting devices:', error);
+    debug.error('Error getting devices:', error);
   }
 };
 
@@ -275,10 +276,10 @@ const loadStoredSettings = () => {
       if (settings.frameRate) frameRate.value = settings.frameRate;
     }
     
-    console.log('🎛️ [VoiceSettingsInline] Loaded settings - Audio constraints:', currentConstraints);
-    console.log('🎛️ [VoiceSettingsInline] Loaded localStorage settings:', stored ? JSON.parse(stored) : 'None');
+    debug.log('🎛️ [VoiceSettingsInline] Loaded settings - Audio constraints:', currentConstraints);
+    debug.log('🎛️ [VoiceSettingsInline] Loaded localStorage settings:', stored ? JSON.parse(stored) : 'None');
   } catch (error) {
-    console.warn('⚠️ Failed to load stored settings:', error);
+    debug.warn('⚠️ Failed to load stored settings:', error);
   }
 };
 
@@ -323,7 +324,7 @@ const testMicrophone = async () => {
     }, 10000);
 
   } catch (error) {
-    console.error('Error testing microphone:', error);
+    debug.error('Error testing microphone:', error);
     isTesting.value = false;
   }
 };
@@ -354,7 +355,7 @@ const updateVideoPreview = async () => {
       previewStream.value = await navigator.mediaDevices.getUserMedia(constraints);
       previewVideo.value.srcObject = previewStream.value;
     } catch (error) {
-      console.error('Error starting video preview:', error);
+      debug.error('Error starting video preview:', error);
     }
   }
 };
@@ -366,9 +367,9 @@ const updateInputDevice = async () => {
   try {
     // Use the WebRTC service method to properly switch devices
     await unifiedWebRTC.updateInputDevice(selectedInputDevice.value);
-    console.log('✅ Successfully switched to new input device');
+    debug.log('✅ Successfully switched to new input device');
   } catch (error) {
-    console.error('❌ Failed to switch input device:', error);
+    debug.error('❌ Failed to switch input device:', error);
     // Could show user notification here
   }
   
@@ -382,9 +383,9 @@ const updateOutputDevice = async () => {
   try {
     // Use the WebRTC service method to properly switch output devices
     await unifiedWebRTC.updateOutputDevice(selectedOutputDevice.value);
-    console.log('🔊 Successfully switched to new output device');
+    debug.log('🔊 Successfully switched to new output device');
   } catch (error) {
-    console.error('❌ Failed to switch output device:', error);
+    debug.error('❌ Failed to switch output device:', error);
     // Could show user notification here
   }
   
@@ -448,9 +449,9 @@ const saveSettings = () => {
     };
 
     localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
-    console.log('💾 [VoiceSettingsInline] Saved settings:', settings);
+    debug.log('💾 [VoiceSettingsInline] Saved settings:', settings);
   } catch (error) {
-    console.warn('⚠️ Failed to save settings:', error);
+    debug.warn('⚠️ Failed to save settings:', error);
   }
 };
 
@@ -459,7 +460,7 @@ watch(selectedVideoDevice, updateVideoPreview);
 
 // Lifecycle
 onMounted(() => {
-  console.log('🎛️ [VoiceSettingsInline] Component mounted, loading settings...');
+  debug.log('🎛️ [VoiceSettingsInline] Component mounted, loading settings...');
   getDevices();
   loadStoredSettings();
   navigator.mediaDevices.addEventListener('devicechange', getDevices);

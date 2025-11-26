@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import HashTagIcon from '@/components/icons/HashTag.vue'
 import SpeakerIcon from '@/components/icons/Speaker.vue'
@@ -135,7 +136,7 @@ const saveChanges = async () => {
     emit('updated', updatedChannel)
     closeModal()
   } catch (error) {
-    console.error('Failed to update channel:', error)
+    debug.error('Failed to update channel:', error)
     // TODO: Show error notification
   } finally {
     isLoading.value = false

@@ -90,6 +90,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
@@ -164,7 +165,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
     await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId)
     
     // Navigate to the DM conversation
-    console.log('📞 Navigating to DM conversation:', incomingCall.conversationId)
+    debug.log('📞 Navigating to DM conversation:', incomingCall.conversationId)
     await router.push(`/dm/${incomingCall.conversationId}`)
     
     // Join the voice channel
@@ -181,10 +182,10 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
       voiceStore.isOverlayVisible = true
       // Give it a moment to initialize, then ensure it's maximized
       await new Promise(resolve => setTimeout(resolve, 100))
-      console.log('✅ Joined call with maximized voice overlay')
+      debug.log('✅ Joined call with maximized voice overlay')
     }
   } catch (error) {
-    console.error('Error accepting call:', error)
+    debug.error('Error accepting call:', error)
   } finally {
     globalDMCallListener.dismissIncomingCall()
   }
@@ -201,7 +202,7 @@ const handleGlobalCallDecline = async () => {
     // Send decline signal
     await dmCallSignaling.declineCall(incomingCall.conversationId, currentUserId)
   } catch (error) {
-    console.error('Error declining call:', error)
+    debug.error('Error declining call:', error)
   } finally {
     globalDMCallListener.dismissIncomingCall()
   }
@@ -267,7 +268,7 @@ const initializeApp = async () => {
         const voiceStore = useUnifiedVoiceChannelStore()
         await voiceStore.reconnectToVoiceChannel()
       } catch (error) {
-        console.error('Failed to reconnect to voice channel:', error)
+        debug.error('Failed to reconnect to voice channel:', error)
       }
     }, 500) // Small delay to ensure everything is initialized
     
@@ -280,7 +281,7 @@ const initializeApp = async () => {
     isAppInitialized.value = true
     
   } catch (error) {
-    console.error('❌ Failed to initialize app:', error)
+    debug.error('❌ Failed to initialize app:', error)
     isAppInitialized.value = true
     hasServersLoaded.value = true
   }
@@ -431,7 +432,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
             const serverUserIds = await getUserIdsForServer(server.id)
             serverUserIds.forEach(id => baselineUserIds.add(id))
           } catch (error) {
-            console.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
+            debug.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
           }
         }))
       })(),
@@ -462,7 +463,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
             }
           }
         } catch (error) {
-          console.warn('⚠️ Failed to load DM contacts for global presence:', error)
+          debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
         }
       })()
     ])
@@ -473,7 +474,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
   } catch (error) {
-    console.error('❌ Failed to initialize route-specific data:', error)
+    debug.error('❌ Failed to initialize route-specific data:', error)
   }
 }
 
@@ -490,7 +491,7 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
     const userData = useUserData()
     await userData.initializeBackgroundFeatures()
   } catch (error) {
-    console.error('❌ Background loading failed:', error)
+    debug.error('❌ Background loading failed:', error)
   }
 }
 
@@ -516,18 +517,18 @@ watch(() => authStore.session, async (newSession, oldSession) => {
     try {
       const { userDataService } = await import('@/services/userDataService')
       await userDataService.cleanup()
-      console.log('✅ Global presence cleanup completed')
+      debug.log('✅ Global presence cleanup completed')
     } catch (error) {
-      console.error('Failed to cleanup user data:', error)
+      debug.error('Failed to cleanup user data:', error)
     }
     
     // ✅ PERFORMANCE FIX: Cleanup state persistence
     try {
       const { statePersistence } = await import('@/services/StatePersistence')
       await statePersistence.cleanup()
-      console.log('✅ State persistence cleanup completed')
+      debug.log('✅ State persistence cleanup completed')
     } catch (error) {
-      console.error('Failed to cleanup state persistence:', error)
+      debug.error('Failed to cleanup state persistence:', error)
     }
     
     // Cleanup global call listener
@@ -558,7 +559,7 @@ watch(() => route.name, async (newRouteName, oldRouteName) => {
         const userData = useUserData()
         await userData.refreshGlobalPresence()
       } catch (error) {
-        console.error('Failed to refresh global presence:', error)
+        debug.error('Failed to refresh global presence:', error)
       }
     }, PRESENCE_REFRESH_DEBOUNCE_MS)
   }
@@ -577,11 +578,11 @@ const wrappedTouchMove = (event: TouchEvent) => {
 const wrappedTouchEnd = (event: TouchEvent) => {
   handleTouchEnd(event, isMobile.value, {
     onSwipeRight: () => {
-      console.log('🔄 Edge swipe right detected, opening left sidebar')
+      debug.log('🔄 Edge swipe right detected, opening left sidebar')
       toggleLeftSidebar()
     },
     onSwipeLeft: () => {
-      console.log('🔄 Edge swipe left detected, opening right sidebar')
+      debug.log('🔄 Edge swipe left detected, opening right sidebar')
       toggleRightSidebar()
     }
   })

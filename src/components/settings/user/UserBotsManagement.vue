@@ -214,6 +214,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { formatDistanceToNow } from 'date-fns'
@@ -292,9 +293,9 @@ async function loadMyBots() {
     if (error) throw error
 
     myBots.value = bots || []
-    console.log('✅ Loaded', myBots.value.length, 'bots')
+    debug.log('✅ Loaded', myBots.value.length, 'bots')
   } catch (error: any) {
-    console.error('❌ Failed to load bots:', error)
+    debug.error('❌ Failed to load bots:', error)
     toast.error(error.message || 'Failed to load bots')
   } finally {
     isLoading.value = false
@@ -372,7 +373,7 @@ async function createBot() {
 
     toast.success(`Bot "${bot.username}" created successfully!`)
   } catch (error: any) {
-    console.error('❌ Failed to create bot:', error)
+    debug.error('❌ Failed to create bot:', error)
     toast.error(error.message || 'Failed to create bot')
   } finally {
     creating.value = false
@@ -380,7 +381,7 @@ async function createBot() {
 }
 
 function viewBotDetails(bot: any) {
-  console.log('Viewing bot:', bot)
+  debug.log('Viewing bot:', bot)
   // TODO: Implement bot details view
   toast.info('Bot details view coming soon!')
 }
@@ -445,13 +446,13 @@ async function regenerateToken() {
     newBotToken.value = true
     toast.success('Token regenerated successfully!')
   } catch (error: any) {
-    console.error('❌ Failed to regenerate token:', error)
+    debug.error('❌ Failed to regenerate token:', error)
     toast.error('Failed to regenerate token')
   }
 }
 
 function editBot(bot: any) {
-  console.log('Editing bot:', bot)
+  debug.log('Editing bot:', bot)
   // TODO: Implement edit modal
   toast.info('Edit bot coming soon!')
 }
@@ -471,7 +472,7 @@ async function deleteBot(bot: any) {
     toast.success(`Bot "${bot.username}" deleted`)
     await loadMyBots()
   } catch (error: any) {
-    console.error('❌ Failed to delete bot:', error)
+    debug.error('❌ Failed to delete bot:', error)
     toast.error('Failed to delete bot')
   }
 }

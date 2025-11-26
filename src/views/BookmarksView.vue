@@ -21,6 +21,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost, FederatedUser } from '@/types'
@@ -64,7 +65,7 @@ const loadBookmarks = async () => {
   try {
     await activityPubStore.loadBookmarks()
   } catch (error) {
-    console.error('Failed to load bookmarks:', error)
+    debug.error('Failed to load bookmarks:', error)
   } finally {
     isLoadingBookmarks.value = false
   }
@@ -75,7 +76,7 @@ const handleLoadMore = async () => {
   try {
     await activityPubStore.loadMoreBookmarks()
   } catch (error) {
-    console.error('Failed to load more bookmarks:', error)
+    debug.error('Failed to load more bookmarks:', error)
   }
 }
 
@@ -88,7 +89,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
     await activityPubStore.toggleFavorite(post.id)
     emit('favoritePost', post)
   } catch (error) {
-    console.error('Failed to favorite post:', error)
+    debug.error('Failed to favorite post:', error)
   }
 }
 
@@ -97,7 +98,7 @@ const handleReblogPost = async (post: TimelinePost) => {
     await activityPubStore.toggleReblog(post.id)
     emit('reblogPost', post)
   } catch (error) {
-    console.error('Failed to reblog post:', error)
+    debug.error('Failed to reblog post:', error)
   }
 }
 
@@ -106,7 +107,7 @@ const handleBookmarkPost = async (post: TimelinePost) => {
     await activityPubStore.toggleBookmark(post.id)
     emit('bookmarkPost', post)
   } catch (error) {
-    console.error('Failed to toggle bookmark:', error)
+    debug.error('Failed to toggle bookmark:', error)
   }
 }
 
@@ -117,7 +118,7 @@ const handleDeletePost = async (post: TimelinePost) => {
     // Refresh bookmarks after deletion
     loadBookmarks()
   } catch (error) {
-    console.error('Failed to delete post:', error)
+    debug.error('Failed to delete post:', error)
   }
 }
 
@@ -131,7 +132,7 @@ const handleClearAllBookmarks = async () => {
     emit('clearAllBookmarks')
     loadBookmarks()
   } catch (error) {
-    console.error('Failed to clear all bookmarks:', error)
+    debug.error('Failed to clear all bookmarks:', error)
   }
 }
 

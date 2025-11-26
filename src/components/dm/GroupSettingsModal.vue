@@ -206,6 +206,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Avatar from '@/components/common/Avatar.vue'
@@ -330,7 +331,7 @@ async function uploadIconFile(file: File) {
       toast.error(result.error || 'Failed to upload icon')
     }
   } catch (error: any) {
-    console.error('Icon upload failed:', error)
+    debug.error('Icon upload failed:', error)
     toast.error(error.message || 'Upload failed')
   } finally {
     uploadingIcon.value = false
@@ -352,7 +353,7 @@ async function removeIcon() {
       toast.error(result.error || 'Failed to remove icon')
     }
   } catch (error: any) {
-    console.error('Icon removal failed:', error)
+    debug.error('Icon removal failed:', error)
     toast.error(error.message || 'Removal failed')
   }
 }
@@ -368,7 +369,7 @@ async function updateGroupName() {
     })
     
     if (error) {
-      console.error('Failed to update group name:', error)
+      debug.error('Failed to update group name:', error)
       toast.error('Failed to update group name')
       return
     }
@@ -376,7 +377,7 @@ async function updateGroupName() {
     toast.success('Group name updated!')
     emit('updated')
   } catch (error: any) {
-    console.error('Group name update failed:', error)
+    debug.error('Group name update failed:', error)
     toast.error(error.message || 'Update failed')
   }
 }
@@ -397,7 +398,7 @@ async function removeParticipant(participant: DMUser) {
     // TODO: Implement participant removal
     toast.info('Participant removal not yet implemented')
   } catch (error: any) {
-    console.error('Failed to remove participant:', error)
+    debug.error('Failed to remove participant:', error)
     toast.error(error.message || 'Removal failed')
   }
 }
@@ -415,7 +416,7 @@ async function leaveGroup() {
     toast.info('Leave group not yet implemented')
     showLeaveConfirm.value = false
   } catch (error: any) {
-    console.error('Failed to leave group:', error)
+    debug.error('Failed to leave group:', error)
     toast.error(error.message || 'Failed to leave group')
   }
 }
@@ -428,7 +429,7 @@ async function deleteGroup() {
     toast.info('Delete group not yet implemented')
     showDeleteConfirm.value = false
   } catch (error: any) {
-    console.error('Failed to delete group:', error)
+    debug.error('Failed to delete group:', error)
     toast.error(error.message || 'Failed to delete group')
   }
 }

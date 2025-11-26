@@ -7,6 +7,7 @@
 
 import type { Notification, NotificationType } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
+import { debug } from '@/utils/debug'
 
 export interface NotificationMessage {
   title: string
@@ -315,7 +316,7 @@ export class NotificationFormatter {
         shortTitle: template.shortTitle?.(notification.data) || template.title(notification.data)
       }
     } catch (error) {
-      console.warn('Error formatting notification:', error, notification)
+      debug.warn('Error formatting notification:', error, notification)
       
       // Fallback for malformed data
       return {

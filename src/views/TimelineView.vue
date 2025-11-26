@@ -42,6 +42,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
+import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -125,7 +126,7 @@ const loadTimeline = async () => {
         break
     }
   } catch (error) {
-    console.error('Failed to load timeline:', error)
+    debug.error('Failed to load timeline:', error)
   }
 }
 
@@ -158,7 +159,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
       emit('favoritePost', post)
     }
   } catch (error) {
-    console.error('Failed to favorite post:', error)
+    debug.error('Failed to favorite post:', error)
   }
 }
 
@@ -169,7 +170,7 @@ const handleReblogPost = async (post: TimelinePost) => {
       emit('reblogPost', post)
     }
   } catch (error) {
-    console.error('Failed to reblog post:', error)
+    debug.error('Failed to reblog post:', error)
   }
 }
 
@@ -180,7 +181,7 @@ const handleBookmarkPost = async (post: TimelinePost) => {
       emit('bookmarkPost', post)
     }
   } catch (error) {
-    console.error('Failed to bookmark post:', error)
+    debug.error('Failed to bookmark post:', error)
   }
 }
 
@@ -189,7 +190,7 @@ const handleDeletePost = async (post: TimelinePost) => {
     await activityPubStore.deletePost(post.id)
     emit('deletePost', post)
   } catch (error) {
-    console.error('Failed to delete post:', error)
+    debug.error('Failed to delete post:', error)
   }
 }
 
@@ -218,7 +219,7 @@ const handleLoadMorePosts = async () => {
     }
     emit('loadMorePosts')
   } catch (error) {
-    console.error('Failed to load more posts:', error)
+    debug.error('Failed to load more posts:', error)
   }
 }
 
@@ -227,7 +228,7 @@ const handleFollow = async (user: FederatedUser) => {
     await activityPubStore.followUser(user.id)
     emit('followUser', user)
   } catch (error) {
-    console.error('Failed to follow user:', error)
+    debug.error('Failed to follow user:', error)
   }
 }
 
@@ -236,7 +237,7 @@ const handleUnfollow = async (user: FederatedUser) => {
     await activityPubStore.unfollowUser(user.id)
     emit('unfollowUser', user)
   } catch (error) {
-    console.error('Failed to unfollow user:', error)
+    debug.error('Failed to unfollow user:', error)
   }
 }
 
@@ -246,13 +247,13 @@ const handleOpenComposer = () => {
 
 const handleOpenSearch = () => {
   // TODO: Implement search functionality
-  console.log('Open search')
+  debug.log('Open search')
 }
 
 // Single source of truth for timeline loading - only watch currentView prop changes
 watch(() => props.currentView, (newView, oldView) => {
   if (newView && newView !== oldView) {
-    console.log(`🔄 Timeline view changed from ${oldView} to ${newView}, loading content`)
+    debug.log(`🔄 Timeline view changed from ${oldView} to ${newView}, loading content`)
     loadTimeline()
   }
 }, { immediate: true }) // Load on initial mount via currentView prop
@@ -261,7 +262,7 @@ watch(() => props.currentView, (newView, oldView) => {
 onMounted(() => {
   // Only load if currentView is not provided (legacy support)
   if (!props.currentView) {
-    console.log(`🔄 Timeline mounted without currentView prop, loading default timeline`)
+    debug.log(`🔄 Timeline mounted without currentView prop, loading default timeline`)
     loadTimeline()
   }
 })

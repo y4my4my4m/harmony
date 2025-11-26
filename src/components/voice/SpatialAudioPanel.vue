@@ -264,6 +264,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { debug } from '@/utils/debug'
 import { useEventListener } from '@vueuse/core';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
@@ -501,7 +502,7 @@ const stopSettingsUpdateTimer = () => {
 
 const handleAvatarRightClick = (event: MouseEvent, userId: string) => {
   // Could show context menu for avatar-specific actions
-  console.log('Right clicked on user:', userId);
+  debug.log('Right clicked on user:', userId);
 };
 
 // =============================================================================
@@ -599,9 +600,9 @@ watch(allParticipants, async (newParticipants) => {
   if (userIds.length > 0) {
     try {
       await ensureProfilesAvailable(userIds);
-      console.log('✅ Loaded profiles for spatial audio participants:', userIds.length);
+      debug.log('✅ Loaded profiles for spatial audio participants:', userIds.length);
     } catch (error) {
-      console.warn('⚠️ Failed to load profiles for spatial audio participants:', error);
+      debug.warn('⚠️ Failed to load profiles for spatial audio participants:', error);
     }
   }
 }, { immediate: true });

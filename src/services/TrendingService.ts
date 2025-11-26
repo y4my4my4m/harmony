@@ -5,6 +5,7 @@
 
 import { supabase } from '@/supabase';
 import type { TimelinePost, FederatedUser } from '@/types';
+import { debug } from '@/utils/debug'
 
 // ============================================================================
 // INTERFACES
@@ -98,7 +99,7 @@ class TrendingService {
         trend: this.calculateTrend(parseFloat(row.change_percent) || 0)
       }));
     } catch (error) {
-      console.error('Failed to get trending hashtags:', error);
+      debug.error('Failed to get trending hashtags:', error);
       return [];
     }
   }
@@ -127,7 +128,7 @@ class TrendingService {
         peak_daily_date: data.peak_daily_date
       };
     } catch (error) {
-      console.error('Failed to get hashtag stats:', error);
+      debug.error('Failed to get hashtag stats:', error);
       return null;
     }
   }
@@ -158,7 +159,7 @@ class TrendingService {
         trend: 'stable' as const
       }));
     } catch (error) {
-      console.error('Failed to search hashtags:', error);
+      debug.error('Failed to search hashtags:', error);
       return [];
     }
   }
@@ -214,7 +215,7 @@ class TrendingService {
         };
       });
     } catch (error) {
-      console.error('Failed to get trending posts:', error);
+      debug.error('Failed to get trending posts:', error);
       return [];
     }
   }
@@ -262,7 +263,7 @@ class TrendingService {
 
       return { posts, hasMore, cursor: nextCursor };
     } catch (error) {
-      console.error('Failed to get posts by hashtag:', error);
+      debug.error('Failed to get posts by hashtag:', error);
       return { posts: [], hasMore: false, cursor: null };
     }
   }
@@ -342,7 +343,7 @@ class TrendingService {
         };
       });
     } catch (error) {
-      console.error('Failed to get trending users:', error);
+      debug.error('Failed to get trending users:', error);
       return [];
     }
   }
@@ -407,7 +408,7 @@ class TrendingService {
         status: this.getInstanceStatus(instance)
       }));
     } catch (error) {
-      console.error('Failed to get federated instances:', error);
+      debug.error('Failed to get federated instances:', error);
       return [];
     }
   }
@@ -439,7 +440,7 @@ class TrendingService {
         last_activity: data.last_seen_at
       };
     } catch (error) {
-      console.error('Failed to get instance stats:', error);
+      debug.error('Failed to get instance stats:', error);
       return null;
     }
   }
@@ -467,7 +468,7 @@ class TrendingService {
 
       return { posts, hashtags, users, instances };
     } catch (error) {
-      console.error('Failed to get explore content:', error);
+      debug.error('Failed to get explore content:', error);
       return { posts: [], hashtags: [], users: [], instances: [] };
     }
   }
@@ -514,7 +515,7 @@ class TrendingService {
 
       return (data || []).map(row => this.transformDatabasePostToTimelinePost(row));
     } catch (error) {
-      console.error('Failed to get explore posts:', error);
+      debug.error('Failed to get explore posts:', error);
       return [];
     }
   }
@@ -533,7 +534,7 @@ class TrendingService {
         supabase.rpc('update_trending_posts')
       ]);
     } catch (error) {
-      console.error('Failed to update trending scores:', error);
+      debug.error('Failed to update trending scores:', error);
     }
   }
 
@@ -544,7 +545,7 @@ class TrendingService {
     try {
       await supabase.rpc('reset_daily_hashtag_counters');
     } catch (error) {
-      console.error('Failed to reset daily counters:', error);
+      debug.error('Failed to reset daily counters:', error);
     }
   }
 

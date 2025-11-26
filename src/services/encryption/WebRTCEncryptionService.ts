@@ -14,6 +14,7 @@
 
 import { signalProtocolService } from './SignalProtocolService'
 import { messageEncryptionService } from './MessageEncryptionService'
+import { debug } from '@/utils/debug'
 
 /**
  * Frame encryption using AES-GCM
@@ -33,7 +34,7 @@ class FrameEncryptor {
       ['encrypt', 'decrypt']
     )
     this.counter = 0
-    console.log('🔐 Frame encryptor initialized')
+    debug.log('🔐 Frame encryptor initialized')
   }
 
   async encrypt(frame: Uint8Array): Promise<Uint8Array> {
@@ -61,7 +62,7 @@ class FrameEncryptor {
 
       return result
     } catch (error) {
-      console.error('❌ Frame encryption failed:', error)
+      debug.error('❌ Frame encryption failed:', error)
       // Return original frame if encryption fails (fail open for real-time)
       return frame
     }
@@ -85,7 +86,7 @@ class FrameEncryptor {
 
       return new Uint8Array(decrypted)
     } catch (error) {
-      console.error('❌ Frame decryption failed:', error)
+      debug.error('❌ Frame decryption failed:', error)
       // Return original frame if decryption fails
       return encryptedFrame
     }
@@ -126,14 +127,14 @@ export class WebRTCEncryptionService {
     this.currentUserId = userId
     this.enabled = true
 
-    console.log(`🔐 Initializing WebRTC encryption for ${participantIds.length} participants`)
+    debug.log(`🔐 Initializing WebRTC encryption for ${participantIds.length} participants`)
 
     // Generate encryption keys for each participant using Signal Protocol
     for (const participantId of participantIds) {
       await this.initializeParticipant(participantId)
     }
 
-    console.log('✅ WebRTC encryption initialized')
+    debug.log('✅ WebRTC encryption initialized')
   }
 
   /**
@@ -149,7 +150,7 @@ export class WebRTCEncryptionService {
       const hasSession = await signalProtocolService.hasSession(sessionAddress)
 
       if (!hasSession) {
-        console.log(`🤝 No session with ${participantId}, establishing...`)
+        debug.log(`🤝 No session with ${participantId}, establishing...`)
         // This will be handled by messageEncryptionService
         // For now, we'll use a temporary key
         await this.setupTemporaryKey(participantId)
@@ -178,9 +179,9 @@ export class WebRTCEncryptionService {
       await decryptor.initialize(keyMaterial)
       this.decryptors.set(participantId, decryptor)
 
-      console.log(`✅ Encryption initialized for participant: ${participantId}`)
+      debug.log(`✅ Encryption initialized for participant: ${participantId}`)
     } catch (error) {
-      console.error(`❌ Failed to initialize encryption for ${participantId}:`, error)
+      debug.error(`❌ Failed to initialize encryption for ${participantId}:`, error)
       // Fall back to temporary key
       await this.setupTemporaryKey(participantId)
     }
@@ -190,7 +191,7 @@ export class WebRTCEncryptionService {
    * Setup temporary encryption key (fallback)
    */
   private async setupTemporaryKey(participantId: string): Promise<void> {
-    console.warn(`⚠️ Using temporary key for ${participantId}`)
+    debug.warn(`⚠️ Using temporary key for ${participantId}`)
 
     // Generate a temporary shared key
     // In production, this would be exchanged securely via signaling
@@ -244,19 +245,19 @@ export class WebRTCEncryptionService {
    */
   async encryptSender(sender: RTCRtpSender, receiverId: string): Promise<void> {
     if (!this.enabled) {
-      console.log('📤 Encryption not enabled, skipping sender encryption')
+      debug.log('📤 Encryption not enabled, skipping sender encryption')
       return
     }
 
     const encryptor = this.encryptors.get(receiverId)
     if (!encryptor) {
-      console.warn(`⚠️ No encryptor found for ${receiverId}`)
+      debug.warn(`⚠️ No encryptor found for ${receiverId}`)
       return
     }
 
     // Check if Insertable Streams is supported
     if (!sender.createEncodedStreams) {
-      console.error('❌ Insertable Streams not supported by browser')
+      debug.error('❌ Insertable Streams not supported by browser')
       return
     }
 
@@ -265,7 +266,7 @@ export class WebRTCEncryptionService {
       const streams = sender.createEncodedStreams()
       const { readable, writable } = streams
 
-      console.log(`🔐 Encrypting outgoing stream for ${receiverId}`)
+      debug.log(`🔐 Encrypting outgoing stream for ${receiverId}`)
 
       // Create transform stream for encryption
       const transformStream = new TransformStream({
@@ -281,7 +282,7 @@ export class WebRTCEncryptionService {
             encodedFrame.data = encrypted.buffer
             controller.enqueue(encodedFrame)
           } catch (error) {
-            console.error('❌ Frame encryption error:', error)
+            debug.error('❌ Frame encryption error:', error)
             // Forward original frame on error
             controller.enqueue(encodedFrame)
           }
@@ -293,12 +294,12 @@ export class WebRTCEncryptionService {
         .pipeThrough(transformStream)
         .pipeTo(writable)
         .catch(error => {
-          console.error('❌ Encryption pipeline error:', error)
+          debug.error('❌ Encryption pipeline error:', error)
         })
 
-      console.log(`✅ Sender encryption active for ${receiverId}`)
+      debug.log(`✅ Sender encryption active for ${receiverId}`)
     } catch (error) {
-      console.error('❌ Failed to setup sender encryption:', error)
+      debug.error('❌ Failed to setup sender encryption:', error)
     }
   }
 
@@ -307,19 +308,19 @@ export class WebRTCEncryptionService {
    */
   async decryptReceiver(receiver: RTCRtpReceiver, senderId: string): Promise<void> {
     if (!this.enabled) {
-      console.log('📥 Encryption not enabled, skipping receiver decryption')
+      debug.log('📥 Encryption not enabled, skipping receiver decryption')
       return
     }
 
     const decryptor = this.decryptors.get(senderId)
     if (!decryptor) {
-      console.warn(`⚠️ No decryptor found for ${senderId}`)
+      debug.warn(`⚠️ No decryptor found for ${senderId}`)
       return
     }
 
     // Check if Insertable Streams is supported
     if (!receiver.createEncodedStreams) {
-      console.error('❌ Insertable Streams not supported by browser')
+      debug.error('❌ Insertable Streams not supported by browser')
       return
     }
 
@@ -328,7 +329,7 @@ export class WebRTCEncryptionService {
       const streams = receiver.createEncodedStreams()
       const { readable, writable } = streams
 
-      console.log(`🔓 Decrypting incoming stream from ${senderId}`)
+      debug.log(`🔓 Decrypting incoming stream from ${senderId}`)
 
       // Create transform stream for decryption
       const transformStream = new TransformStream({
@@ -344,7 +345,7 @@ export class WebRTCEncryptionService {
             encodedFrame.data = decrypted.buffer
             controller.enqueue(encodedFrame)
           } catch (error) {
-            console.error('❌ Frame decryption error:', error)
+            debug.error('❌ Frame decryption error:', error)
             // Forward original frame on error
             controller.enqueue(encodedFrame)
           }
@@ -356,12 +357,12 @@ export class WebRTCEncryptionService {
         .pipeThrough(transformStream)
         .pipeTo(writable)
         .catch(error => {
-          console.error('❌ Decryption pipeline error:', error)
+          debug.error('❌ Decryption pipeline error:', error)
         })
 
-      console.log(`✅ Receiver decryption active for ${senderId}`)
+      debug.log(`✅ Receiver decryption active for ${senderId}`)
     } catch (error) {
-      console.error('❌ Failed to setup receiver decryption:', error)
+      debug.error('❌ Failed to setup receiver decryption:', error)
     }
   }
 
@@ -373,11 +374,11 @@ export class WebRTCEncryptionService {
     remoteUserId: string
   ): Promise<void> {
     if (!this.enabled) {
-      console.log('🔒 E2EE not enabled for this call')
+      debug.log('🔒 E2EE not enabled for this call')
       return
     }
 
-    console.log(`🔐 Setting up E2EE for peer connection with ${remoteUserId}`)
+    debug.log(`🔐 Setting up E2EE for peer connection with ${remoteUserId}`)
 
     // Wait for transceivers to be ready
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -398,7 +399,7 @@ export class WebRTCEncryptionService {
       }
     }
 
-    console.log(`✅ E2EE setup complete for ${remoteUserId}`)
+    debug.log(`✅ E2EE setup complete for ${remoteUserId}`)
   }
 
   // =====================================================
@@ -411,7 +412,7 @@ export class WebRTCEncryptionService {
   async addParticipant(participantId: string): Promise<void> {
     if (!this.enabled) return
 
-    console.log(`➕ Adding encryption for new participant: ${participantId}`)
+    debug.log(`➕ Adding encryption for new participant: ${participantId}`)
     await this.initializeParticipant(participantId)
   }
 
@@ -419,7 +420,7 @@ export class WebRTCEncryptionService {
    * Remove a participant from the call
    */
   removeParticipant(participantId: string): void {
-    console.log(`➖ Removing encryption for participant: ${participantId}`)
+    debug.log(`➖ Removing encryption for participant: ${participantId}`)
     this.encryptors.delete(participantId)
     this.decryptors.delete(participantId)
   }
@@ -445,7 +446,7 @@ export class WebRTCEncryptionService {
                        'createEncodedStreams' in RTCRtpReceiver.prototype
 
       if (!supported) {
-        console.warn('⚠️ Insertable Streams API not supported in this browser')
+        debug.warn('⚠️ Insertable Streams API not supported in this browser')
       }
 
       return supported
@@ -479,7 +480,7 @@ export class WebRTCEncryptionService {
    * Cleanup and disable encryption
    */
   cleanup(): void {
-    console.log('🧹 Cleaning up WebRTC encryption')
+    debug.log('🧹 Cleaning up WebRTC encryption')
     
     this.encryptors.clear()
     this.decryptors.clear()
@@ -493,7 +494,7 @@ export class WebRTCEncryptionService {
   async renegotiateKeys(participantIds: string[]): Promise<void> {
     if (!this.enabled) return
 
-    console.log('🔄 Renegotiating encryption keys')
+    debug.log('🔄 Renegotiating encryption keys')
 
     for (const participantId of participantIds) {
       // Reset encryptors/decryptors
@@ -504,7 +505,7 @@ export class WebRTCEncryptionService {
       await this.initializeParticipant(participantId)
     }
 
-    console.log('✅ Keys renegotiated')
+    debug.log('✅ Keys renegotiated')
   }
 }
 

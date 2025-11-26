@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
+import { debug } from '@/utils/debug'
 import type { EmbedPayload, TimelinePost } from '@/types';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
@@ -206,7 +207,7 @@ function handleYouTubeMessage(event: MessageEvent) {
       const isVideoPlaying = data.info === 1;
       isPlaying.value = isVideoPlaying;
       
-      console.log('[YouTube] State change:', { info: data.info, isPlaying: isVideoPlaying });
+      debug.log('[YouTube] State change:', { info: data.info, isPlaying: isVideoPlaying });
       
       // If this video started playing, check if a different video is floating
       if (isVideoPlaying && props.messageId) {
@@ -227,7 +228,7 @@ function handleYouTubeMessage(event: MessageEvent) {
     
     // Handle ready event to request initial state
     if (data.event === 'onReady') {
-      console.log('[YouTube] Player ready');
+      debug.log('[YouTube] Player ready');
       // Listen for state changes
       if (youtubeIframe.value && youtubeIframe.value.contentWindow) {
         youtubeIframe.value.contentWindow.postMessage(
@@ -269,7 +270,7 @@ async function loadHarmonyPost() {
     }
     harmonyPost.value = post;
   } catch (error) {
-    console.warn('Failed to hydrate Harmony post:', error);
+    debug.warn('Failed to hydrate Harmony post:', error);
     harmonyError.value = 'Unable to load Harmony post';
   }
 }

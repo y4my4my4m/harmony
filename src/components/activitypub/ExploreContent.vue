@@ -218,6 +218,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { activityPubService } from '@/services/activityPubService';
@@ -328,7 +329,7 @@ const loadTrendingContent = async () => {
     trendingPosts.value = posts;
     suggestedUsers.value = users;
   } catch (error) {
-    console.error('Failed to load trending content:', error);
+    debug.error('Failed to load trending content:', error);
   } finally {
     isLoading.value = false;
   }
@@ -345,7 +346,7 @@ const loadInstances = async () => {
     
     knownInstances.value = instances;
   } catch (error) {
-    console.error('Failed to load instances:', error);
+    debug.error('Failed to load instances:', error);
     // Fallback to AdminService
     try {
       const adminInstances = await adminService.getFederatedInstances({
@@ -354,7 +355,7 @@ const loadInstances = async () => {
       });
       knownInstances.value = adminInstances.instances || [];
     } catch (adminError) {
-      console.error('Failed to load instances from admin service:', adminError);
+      debug.error('Failed to load instances from admin service:', adminError);
     }
   } finally {
     isLoading.value = false;
@@ -368,10 +369,10 @@ const loadHashtagPosts = async (hashtag: string) => {
     });
     
     // For now, just show the hashtag was clicked
-    console.log(`Loading posts for hashtag: #${hashtag}`, result);
+    debug.log(`Loading posts for hashtag: #${hashtag}`, result);
     // TODO: Navigate to hashtag view or update posts display
   } catch (error) {
-    console.error('Failed to load hashtag posts:', error);
+    debug.error('Failed to load hashtag posts:', error);
   }
 };
 
@@ -387,7 +388,7 @@ const showInstanceDetails = async (instance: any) => {
     
     showInstanceModal.value = true;
   } catch (error) {
-    console.error('Failed to load instance details:', error);
+    debug.error('Failed to load instance details:', error);
     selectedInstanceDetails.value = instance;
     showInstanceModal.value = true;
   }
@@ -408,7 +409,7 @@ const searchInstances = async (searchTerm: string) => {
     
     knownInstances.value = instances;
   } catch (error) {
-    console.error('Failed to search instances:', error);
+    debug.error('Failed to search instances:', error);
   }
 };
 
@@ -482,7 +483,7 @@ const loadMore = async () => {
     // Add more loading logic for other tabs if needed
     
   } catch (error) {
-    console.error('Failed to load more content:', error);
+    debug.error('Failed to load more content:', error);
   } finally {
     isLoadingMore.value = false;
   }

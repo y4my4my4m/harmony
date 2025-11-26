@@ -16,6 +16,7 @@ import { interactionService, InteractionService } from './InteractionService'
 import { profileService, ProfileService } from './ProfileService'
 import { notificationService, NotificationService } from './NotificationService'
 import { activityPubService, ActivityPubService } from './activityPubService'
+import { debug } from '@/utils/debug'
 
 // Re-export services and types
 export { postService, PostService } from './PostService'
@@ -59,14 +60,14 @@ export const services = {
 export const debugServices = {
   debugConversation: (conversationId: string) => messageService.debugConversation(conversationId),
   debugMessages: async (conversationId: string) => {
-    console.log('🔍 Manual debug for conversation:', conversationId)
+    debug.log('🔍 Manual debug for conversation:', conversationId)
     await messageService.debugConversation(conversationId)
     try {
       const result = await messageService.loadConversationMessages(conversationId, 20)
-      console.log('🔍 Manual debug result:', result)
+      debug.log('🔍 Manual debug result:', result)
       return result
     } catch (error) {
-      console.error('❌ Manual debug failed:', error)
+      debug.error('❌ Manual debug failed:', error)
       throw error
     }
   }

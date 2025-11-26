@@ -25,6 +25,7 @@ import { supabase } from '@/supabase'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmService, type MegolmOutboundSession, type MegolmInboundSession } from './MegolmService'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { debug } from '@/utils/debug'
 
 // Key request from the database
 export interface KeyRequest {
@@ -107,7 +108,7 @@ export class MegolmKeyBackupService {
     // Set up realtime subscriptions for key requests
     await this.setupRealtimeSubscriptions()
     
-    console.log('✅ MegolmKeyBackupService initialized with realtime key request support')
+    debug.log('✅ MegolmKeyBackupService initialized with realtime key request support')
   }
 
   /**
@@ -132,7 +133,7 @@ export class MegolmKeyBackupService {
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('🔔 Subscribed to incoming key requests')
+          debug.log('🔔 Subscribed to incoming key requests')
         }
       })
 
@@ -157,7 +158,7 @@ export class MegolmKeyBackupService {
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('🔔 Subscribed to fulfilled key requests')
+          debug.log('🔔 Subscribed to fulfilled key requests')
         }
       })
   }
@@ -167,10 +168,10 @@ export class MegolmKeyBackupService {
    * Auto-fulfill if we have the session key
    */
   private async handleIncomingKeyRequest(request: KeyRequest): Promise<void> {
-    console.log(`📩 Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
+    debug.log(`📩 Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
 
     if (!megolmService.isInitialized()) {
-      console.log('⏸️ Megolm not initialized, cannot fulfill request')
+      debug.log('⏸️ Megolm not initialized, cannot fulfill request')
       return
     }
 
@@ -179,11 +180,11 @@ export class MegolmKeyBackupService {
       const session = megolmService.findInboundSessionBySessionId(request.room_id, request.session_id)
       
       if (!session) {
-        console.log(`ℹ️ Don't have session ${request.session_id.substring(0, 8)}...`)
+        debug.log(`ℹ️ Don't have session ${request.session_id.substring(0, 8)}...`)
         return
       }
 
-      console.log(`✅ Found session, fulfilling request...`)
+      debug.log(`✅ Found session, fulfilling request...`)
 
       // Get the requester's public key for encryption
       const { data: requesterKey } = await supabase
@@ -194,7 +195,7 @@ export class MegolmKeyBackupService {
         .maybeSingle()
 
       if (!requesterKey?.identity_public_key) {
-        console.log(`⚠️ Requester has no public key, cannot fulfill`)
+        debug.log(`⚠️ Requester has no public key, cannot fulfill`)
         return
       }
 
@@ -215,13 +216,13 @@ export class MegolmKeyBackupService {
         .eq('id', request.id)
 
       if (error) {
-        console.error('❌ Failed to fulfill request:', error)
+        debug.error('❌ Failed to fulfill request:', error)
         return
       }
 
-      console.log(`✅ Fulfilled key request ${request.id.substring(0, 8)}...`)
+      debug.log(`✅ Fulfilled key request ${request.id.substring(0, 8)}...`)
     } catch (error) {
-      console.error('❌ Error handling key request:', error)
+      debug.error('❌ Error handling key request:', error)
     }
   }
 
@@ -229,10 +230,10 @@ export class MegolmKeyBackupService {
    * Handle a fulfilled key request (we requested a key and got it)
    */
   private async handleFulfilledRequest(request: KeyRequest): Promise<void> {
-    console.log(`📬 Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
+    debug.log(`📬 Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
 
     if (!request.encrypted_key) {
-      console.log('⚠️ Fulfilled request has no encrypted key')
+      debug.log('⚠️ Fulfilled request has no encrypted key')
       return
     }
 
@@ -249,7 +250,7 @@ export class MegolmKeyBackupService {
         0 // firstKnownIndex
       )
 
-      console.log(`✅ Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
+      debug.log(`✅ Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
 
       // Remove from pending requests
       this.pendingRequests.delete(request.session_id)
@@ -259,14 +260,14 @@ export class MegolmKeyBackupService {
         try {
           callback(request.room_id, request.session_id)
         } catch (e) {
-          console.error('Error in key received callback:', e)
+          debug.error('Error in key received callback:', e)
         }
       }
 
       // Create backup with the new session
       this.triggerAutoBackup().catch(() => {})
     } catch (error) {
-      console.error('❌ Error importing fulfilled key:', error)
+      debug.error('❌ Error importing fulfilled key:', error)
     }
   }
 
@@ -413,11 +414,11 @@ export class MegolmKeyBackupService {
       })
 
     if (error) {
-      console.error('❌ Failed to create backup:', error)
+      debug.error('❌ Failed to create backup:', error)
       throw new Error(`Failed to create backup: ${error.message}`)
     }
 
-    console.log(`✅ Backup created with ${sessions.outbound.length} outbound, ${sessions.inbound.length} inbound sessions`)
+    debug.log(`✅ Backup created with ${sessions.outbound.length} outbound, ${sessions.inbound.length} inbound sessions`)
   }
 
   /**
@@ -447,7 +448,7 @@ export class MegolmKeyBackupService {
     }
 
     if (!backup) {
-      console.log('ℹ️ No backup found for user')
+      debug.log('ℹ️ No backup found for user')
       return { outboundCount: 0, inboundCount: 0 }
     }
 
@@ -462,7 +463,7 @@ export class MegolmKeyBackupService {
     // Verify integrity
     const hash = await this.calculateHash(backupJson)
     if (hash !== backup.backup_hash) {
-      console.warn('⚠️ Backup hash mismatch - data may be corrupted')
+      debug.warn('⚠️ Backup hash mismatch - data may be corrupted')
       // Continue anyway - user might want partial recovery
     }
 
@@ -480,7 +481,7 @@ export class MegolmKeyBackupService {
     // Import sessions into MegolmService
     await megolmService.importAllSessions(backupData.sessions)
 
-    console.log(`✅ Restored ${backupData.sessions.outbound.length} outbound, ${backupData.sessions.inbound.length} inbound sessions`)
+    debug.log(`✅ Restored ${backupData.sessions.outbound.length} outbound, ${backupData.sessions.inbound.length} inbound sessions`)
 
     return {
       outboundCount: backupData.sessions.outbound.length,
@@ -534,11 +535,11 @@ export class MegolmKeyBackupService {
       .eq('user_id', this.userId)
 
     if (error) {
-      console.error('❌ Failed to delete backup:', error)
+      debug.error('❌ Failed to delete backup:', error)
       throw new Error(`Failed to delete backup: ${error.message}`)
     }
 
-    console.log('✅ Backup deleted')
+    debug.log('✅ Backup deleted')
   }
 
   // =====================================================
@@ -562,7 +563,7 @@ export class MegolmKeyBackupService {
     try {
       await this.createBackup()
     } catch (error) {
-      console.warn('⚠️ Auto-backup failed:', error)
+      debug.warn('⚠️ Auto-backup failed:', error)
       // Don't throw - auto-backup failure shouldn't block operations
     }
   }
@@ -587,7 +588,7 @@ export class MegolmKeyBackupService {
     // Check if we already have a pending request for this session
     const existingRequestId = this.pendingRequests.get(sessionId)
     if (existingRequestId) {
-      console.log(`ℹ️ Already have pending request for session ${sessionId.substring(0, 8)}...`)
+      debug.log(`ℹ️ Already have pending request for session ${sessionId.substring(0, 8)}...`)
       return existingRequestId
     }
 
@@ -613,7 +614,7 @@ export class MegolmKeyBackupService {
     // Track pending request
     this.pendingRequests.set(sessionId, requestId)
 
-    console.log(`📤 Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
+    debug.log(`📤 Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
     return requestId
   }
 
@@ -631,7 +632,7 @@ export class MegolmKeyBackupService {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('❌ Failed to fetch my pending requests:', error)
+      debug.error('❌ Failed to fetch my pending requests:', error)
       return []
     }
 
@@ -652,7 +653,7 @@ export class MegolmKeyBackupService {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('❌ Failed to fetch requests to me:', error)
+      debug.error('❌ Failed to fetch requests to me:', error)
       return []
     }
 
@@ -672,12 +673,12 @@ export class MegolmKeyBackupService {
         await this.handleIncomingKeyRequest(request)
         fulfilledCount++
       } catch (error) {
-        console.warn(`⚠️ Failed to process request ${request.id}:`, error)
+        debug.warn(`⚠️ Failed to process request ${request.id}:`, error)
       }
     }
 
     if (fulfilledCount > 0) {
-      console.log(`✅ Processed ${fulfilledCount} pending key requests`)
+      debug.log(`✅ Processed ${fulfilledCount} pending key requests`)
     }
 
     return fulfilledCount
@@ -694,7 +695,7 @@ export class MegolmKeyBackupService {
       .eq('requester_user_id', this.userId)
 
     if (error) {
-      console.error('❌ Failed to cancel request:', error)
+      debug.error('❌ Failed to cancel request:', error)
     }
 
     // Remove from pending
@@ -768,7 +769,7 @@ export class MegolmKeyBackupService {
       throw new Error(`Failed to fulfill key request: ${error.message}`)
     }
 
-    console.log(`✅ Fulfilled key request ${requestId}`)
+    debug.log(`✅ Fulfilled key request ${requestId}`)
   }
 
   // =====================================================

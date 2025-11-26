@@ -302,7 +302,7 @@ export default defineComponent({
           selectedVideoDevice.value = videoDevices.value[0].deviceId;
         }
       } catch (error) {
-        console.error('Error getting devices:', error);
+        debug.error('Error getting devices:', error);
       }
     };
 
@@ -330,9 +330,9 @@ export default defineComponent({
           if (settings.frameRate) frameRate.value = settings.frameRate;
         }
         
-        console.log('🎛️ Loaded settings - Audio constraints:', currentConstraints);
+        debug.log('🎛️ Loaded settings - Audio constraints:', currentConstraints);
       } catch (error) {
-        console.warn('⚠️ Failed to load stored settings:', error);
+        debug.warn('⚠️ Failed to load stored settings:', error);
       }
     };
 
@@ -377,7 +377,7 @@ export default defineComponent({
         }, 10000);
 
       } catch (error) {
-        console.error('Error testing microphone:', error);
+        debug.error('Error testing microphone:', error);
         isTesting.value = false;
       }
     };
@@ -408,7 +408,7 @@ export default defineComponent({
           previewStream.value = await navigator.mediaDevices.getUserMedia(constraints);
           previewVideo.value.srcObject = previewStream.value;
         } catch (error) {
-          console.error('Error starting video preview:', error);
+          debug.error('Error starting video preview:', error);
         }
       }
     };
@@ -420,9 +420,9 @@ export default defineComponent({
       try {
         // Use the WebRTC service method to properly switch devices
         await unifiedWebRTC.updateInputDevice(selectedInputDevice.value);
-        console.log('✅ [VoiceSettingsPanel] Successfully switched to new input device');
+        debug.log('✅ [VoiceSettingsPanel] Successfully switched to new input device');
       } catch (error) {
-        console.error('❌ [VoiceSettingsPanel] Failed to switch input device:', error);
+        debug.error('❌ [VoiceSettingsPanel] Failed to switch input device:', error);
       }
       
       // Save to localStorage
@@ -432,7 +432,7 @@ export default defineComponent({
         settings.selectedInputDevice = selectedInputDevice.value;
         localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
       } catch (error) {
-        console.warn('Failed to save input device:', error);
+        debug.warn('Failed to save input device:', error);
       }
       
       emit('update-settings', { type: 'inputDevice', value: selectedInputDevice.value });
@@ -444,9 +444,9 @@ export default defineComponent({
       try {
         // Use the WebRTC service method to properly switch output devices
         await unifiedWebRTC.updateOutputDevice(selectedOutputDevice.value);
-        console.log('✅ [VoiceSettingsPanel] Successfully switched to new output device');
+        debug.log('✅ [VoiceSettingsPanel] Successfully switched to new output device');
       } catch (error) {
-        console.error('❌ [VoiceSettingsPanel] Failed to switch output device:', error);
+        debug.error('❌ [VoiceSettingsPanel] Failed to switch output device:', error);
       }
       
       // Save to localStorage
@@ -456,7 +456,7 @@ export default defineComponent({
         settings.selectedOutputDevice = selectedOutputDevice.value;
         localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
       } catch (error) {
-        console.warn('Failed to save output device:', error);
+        debug.warn('Failed to save output device:', error);
       }
       
       emit('update-settings', { type: 'outputDevice', value: selectedOutputDevice.value });
@@ -470,7 +470,7 @@ export default defineComponent({
         settings.inputVolume = inputVolume.value;
         localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
       } catch (error) {
-        console.warn('Failed to save input volume:', error);
+        debug.warn('Failed to save input volume:', error);
       }
       
       emit('update-settings', { type: 'inputVolume', value: inputVolume.value });
@@ -484,7 +484,7 @@ export default defineComponent({
         settings.outputVolume = outputVolume.value;
         localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
       } catch (error) {
-        console.warn('Failed to save output volume:', error);
+        debug.warn('Failed to save output volume:', error);
       }
       
       emit('update-settings', { type: 'outputVolume', value: outputVolume.value });

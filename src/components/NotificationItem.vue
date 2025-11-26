@@ -179,6 +179,7 @@
 
 <script setup lang="ts">
 import { ref, computed, defineAsyncComponent } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
 import type { Notification } from '@/types'
@@ -436,12 +437,12 @@ const handleDismiss = () => {
 }
 // Quick action handlers using NotificationFormatter navigation data
 const acceptInvite = () => {
-  console.log('Accepting server invite:', props.notification.data?.invite_id)
+  debug.log('Accepting server invite:', props.notification.data?.invite_id)
   emit('dismiss', props.notification.id)
 }
 
 const declineInvite = () => {
-  console.log('Declining server invite:', props.notification.data?.invite_id)
+  debug.log('Declining server invite:', props.notification.data?.invite_id)
   emit('dismiss', props.notification.id)
 }
 

@@ -139,6 +139,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
@@ -183,7 +184,7 @@ const userProfile = computed(() => {
     
     // Debug logging for troubleshooting
     if (!profileData) {
-      console.warn(`No profile data found for user ${props.userState.userId}`);
+      debug.warn(`No profile data found for user ${props.userState.userId}`);
     }
     
     // Ensure we always return a valid profile object
@@ -195,7 +196,7 @@ const userProfile = computed(() => {
     
     return result;
   } catch (error) {
-    console.warn('Error getting user profile for voice card:', error);
+    debug.warn('Error getting user profile for voice card:', error);
     return {
       display_name: null,
       username: 'Unknown User',
@@ -302,7 +303,7 @@ const getBarHeight = (barIndex: number) => {
 };
 
 const onVideoLoaded = () => {
-  console.log('📹 Video loaded for user:', props.userState.userId);
+  debug.log('📹 Video loaded for user:', props.userState.userId);
 };
 
 /**
@@ -347,11 +348,11 @@ watch(
       if (hasVideoTracks > 0) {
         // Has video tracks - update srcObject
         videoElement.value.srcObject = newStream;
-        console.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
+        debug.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
       } else if (!isVideoEnabled && !isScreenSharing) {
         // No video tracks AND state says off - clear to remove frozen frame
         videoElement.value.srcObject = null;
-        console.log(`📹 Clearing video stream for user ${props.userState.userId} (camera/screen off)`);
+        debug.log(`📹 Clearing video stream for user ${props.userState.userId} (camera/screen off)`);
       }
       // else: No tracks yet but state says on - keep old srcObject temporarily (negotiation in progress)
     }

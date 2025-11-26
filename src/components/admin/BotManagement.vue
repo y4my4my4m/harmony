@@ -145,6 +145,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
@@ -216,7 +217,7 @@ async function loadBots() {
       botStatuses.value[bot.id] = presence?.status === 'online'
     }
   } catch (error: any) {
-    console.error('Failed to load bots:', error)
+    debug.error('Failed to load bots:', error)
     toast.error('Failed to load bots')
   } finally {
     loading.value = false
@@ -279,7 +280,7 @@ async function createBot() {
     
     toast.success('Bot created successfully!')
   } catch (error: any) {
-    console.error('Failed to create bot:', error)
+    debug.error('Failed to create bot:', error)
     toast.error(error.message || 'Failed to create bot')
   } finally {
     creating.value = false
@@ -330,7 +331,7 @@ function copyToken() {
 
 function viewBot(bot: any) {
   // Navigate to bot details page
-  console.log('View bot:', bot)
+  debug.log('View bot:', bot)
 }
 
 async function deleteBot(bot: any) {

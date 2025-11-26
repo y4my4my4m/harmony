@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
 import { useChatStore } from '@/stores/useChat';
 import { UserStatus } from '@/types';
+import { debug } from '@/utils/debug';
 import router from '@/router';
 
 export const useAuthStore = defineStore('auth', {
@@ -31,7 +32,7 @@ export const useAuthStore = defineStore('auth', {
         }).join(''));
         return JSON.parse(jsonPayload);
       } catch (e) {
-        console.error('Failed to decode JWT:', e);
+        debug.error('Failed to decode JWT:', e);
         return null;
       }
     },
@@ -45,7 +46,7 @@ export const useAuthStore = defineStore('auth', {
         const decoded = this.decodeJWT(session.access_token);
         return decoded?.aal || 'aal1';
       } catch (e) {
-        console.error('Failed to get AAL from token:', e);
+        debug.error('Failed to get AAL from token:', e);
         return 'aal1';
       }
     },
@@ -74,7 +75,7 @@ export const useAuthStore = defineStore('auth', {
         
         // If already at AAL2, session is valid
         if (aal === 'aal2') {
-          console.log('✅ Session at AAL2 - MFA verified');
+          debug.log('✅ Session at AAL2 - MFA verified');
           return true;
         }
         
@@ -82,7 +83,7 @@ export const useAuthStore = defineStore('auth', {
         const { data: factors, error } = await supabase.auth.mfa.listFactors();
         
         if (error) {
-          console.error('❌ Failed to check MFA factors:', error);
+          debug.error('❌ Failed to check MFA factors:', error);
           // On error, be conservative - reject the session
           return false;
         }
@@ -91,16 +92,16 @@ export const useAuthStore = defineStore('auth', {
         
         if (has2FA) {
           // User has MFA but session is AAL1 - this is an incomplete login!
-          console.warn('🚨 AAL1 session detected for user with MFA enabled - blocking access');
+          debug.warn('🚨 AAL1 session detected for user with MFA enabled - blocking access');
           return false;
         }
         
         // User doesn't have MFA, AAL1 is sufficient
-        console.log('✅ Session at AAL1, no MFA required');
+        debug.log('✅ Session at AAL1, no MFA required');
         return true;
         
       } catch (error) {
-        console.error('❌ Error validating session MFA:', error);
+        debug.error('❌ Error validating session MFA:', error);
         // On error, be conservative - reject the session
         return false;
       }
@@ -119,7 +120,7 @@ export const useAuthStore = defineStore('auth', {
       
       if (currentPath === '/reset-password' && (type === 'recovery' || session)) {
         // This is likely a recovery session - don't treat it as logged in
-        console.log('🔒 Recovery session detected on initialization - entering password reset mode');
+        debug.log('🔒 Recovery session detected on initialization - entering password reset mode');
         this.isPasswordResetMode = true;
         // Keep the session - it's needed for updateUser to work
         // But isLoggedIn will return false because of isPasswordResetMode
@@ -133,7 +134,7 @@ export const useAuthStore = defineStore('auth', {
         if (isValid) {
           this.session = session;
         } else {
-          console.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
+          debug.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
           // Sign out the incomplete session to prevent other tabs from using it
           await supabase.auth.signOut();
           this.session = null;
@@ -157,13 +158,13 @@ export const useAuthStore = defineStore('auth', {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
-        console.log(`🔐 Auth event: ${event}, AAL: ${this.getAAL(session)}`);
+        debug.log(`🔐 Auth event: ${event}, AAL: ${this.getAAL(session)}`);
         
         // Handle PASSWORD_RECOVERY event - don't treat recovery sessions as full logins
         // When Supabase processes a recovery token, it creates a session and fires this event
         // We need to prevent this session from granting full app access
         if (event === 'PASSWORD_RECOVERY') {
-          console.log('🔒 PASSWORD_RECOVERY event detected - entering password reset mode');
+          debug.log('🔒 PASSWORD_RECOVERY event detected - entering password reset mode');
           
           // Set password reset mode flag - this prevents isLoggedIn from returning true
           this.isPasswordResetMode = true;
@@ -190,7 +191,7 @@ export const useAuthStore = defineStore('auth', {
         // IMPORTANT: During MFA_CHALLENGE_VERIFIED, the AAL upgrade happens AFTER the event
         // So we must allow this event through without AAL checking
         if (event === 'MFA_CHALLENGE_VERIFIED') {
-          console.log('✅ MFA challenge verified - allowing session through');
+          debug.log('✅ MFA challenge verified - allowing session through');
           this.session = session;
           
           if (session?.user?.id) {
@@ -212,7 +213,7 @@ export const useAuthStore = defineStore('auth', {
           const isValid = await this.validateSessionForMFA(session);
           
           if (!isValid) {
-            console.warn(`🚨 ${event} event with invalid AAL1 session (MFA enabled) - rejecting`);
+            debug.warn(`🚨 ${event} event with invalid AAL1 session (MFA enabled) - rejecting`);
             // Don't set the session - this is an incomplete MFA login from another tab
             // or an attempted bypass
             return;
@@ -234,24 +235,24 @@ export const useAuthStore = defineStore('auth', {
     async setUserOnline(userId: string) {
       try {
         await updateUserStatus(userId, UserStatus.Online);
-        console.log('User set to online:', userId);
+        debug.log('User set to online:', userId);
       } catch (error) {
-        console.error('Error setting user online:', error);
+        debug.error('Error setting user online:', error);
       }
     },
 
     async setUserOffline(userId: string) {
       try {
         await updateUserStatus(userId, UserStatus.Offline);
-        console.log('User set to offline:', userId);
+        debug.log('User set to offline:', userId);
       } catch (error) {
-        console.error('Error setting user offline:', error);
+        debug.error('Error setting user offline:', error);
       }
     },
 
     async initializeEncryptionIfAvailable(authUserId: string) {
       try {
-        console.log('🔐 Initializing Megolm encryption service...');
+        debug.log('🔐 Initializing Megolm encryption service...');
         
         // Initialize the Megolm encryption service
         // The service internally converts auth_user_id to profile_id
@@ -262,17 +263,17 @@ export const useAuthStore = defineStore('auth', {
         const hasRecoveryKey = await megolmMessageEncryptionService.hasRecoveryKey();
         
         if (hasRecoveryKey) {
-          console.log('🔐 User has recovery key set up');
-          console.log('ℹ️ User needs to enter recovery phrase to unlock encryption');
+          debug.log('🔐 User has recovery key set up');
+          debug.log('ℹ️ User needs to enter recovery phrase to unlock encryption');
           
           // Encryption is set up but NOT unlocked
           // User must enter recovery phrase in Settings > Encryption to unlock
         } else {
-          console.log('ℹ️ Encryption service initialized but user has no recovery key yet');
-          console.log('ℹ️ User can set up encryption in Settings > Encryption');
+          debug.log('ℹ️ Encryption service initialized but user has no recovery key yet');
+          debug.log('ℹ️ User can set up encryption in Settings > Encryption');
         }
       } catch (error) {
-        console.error('❌ Failed to initialize encryption:', error);
+        debug.error('❌ Failed to initialize encryption:', error);
       }
     },
 
@@ -297,10 +298,10 @@ export const useAuthStore = defineStore('auth', {
         if (document.hidden) {
           // The ActivityTracker will handle automatic Away/Offline transitions
           // No need to set timers here - let the activity system manage it
-          console.log('📱 Tab hidden - activity tracker will handle status changes')
+          debug.log('📱 Tab hidden - activity tracker will handle status changes')
         } else {
           // User returned to tab - activity tracker will detect this automatically
-          console.log('📱 Tab visible - activity tracker will restore status if needed')
+          debug.log('📱 Tab visible - activity tracker will restore status if needed')
         }
       };
 
@@ -342,7 +343,7 @@ export const useAuthStore = defineStore('auth', {
         // User has 2FA enabled
         // IMPORTANT: Do NOT set this.session yet - even though a session exists,
         // it's at AAL1 (password-only) and should not grant access until AAL2
-        console.log('🔒 2FA required - session is AAL1, need AAL2 verification');
+        debug.log('🔒 2FA required - session is AAL1, need AAL2 verification');
         
         // The session exists in Supabase's storage but at AAL1
         // Our RLS policies should check for AAL2, providing backend protection
@@ -383,7 +384,7 @@ export const useAuthStore = defineStore('auth', {
       });
 
       if (verifyError) {
-        console.error('❌ MFA verify error:', verifyError)
+        debug.error('❌ MFA verify error:', verifyError)
         throw verifyError;
       }
 
@@ -394,7 +395,7 @@ export const useAuthStore = defineStore('auth', {
       const { data: sessionData } = await supabase.auth.getSession();
       this.session = sessionData.session;
       
-      console.log('✅ 2FA verified - session upgraded to AAL2');
+      debug.log('✅ 2FA verified - session upgraded to AAL2');
       
       return { session: sessionData.session };
     },
@@ -431,9 +432,9 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { statePersistence } = await import('@/services/StatePersistence')
         await statePersistence.cleanup()
-        console.log('✅ State persistence cleaned up on logout')
+        debug.log('✅ State persistence cleaned up on logout')
       } catch (error) {
-        console.error('❌ Error cleaning up state persistence:', error)
+        debug.error('❌ Error cleaning up state persistence:', error)
       }
       
       // should make it async but for some reason it's bugging...
@@ -449,7 +450,7 @@ export const useAuthStore = defineStore('auth', {
      */
     async initializeNotificationSystem(userId: string) {
       try {
-        console.log('🔔 Initializing notification system for user:', userId);
+        debug.log('🔔 Initializing notification system for user:', userId);
         
         // Dynamic import to avoid circular dependencies
         const { useNotificationStore } = await import('@/stores/useNotification');
@@ -457,16 +458,16 @@ export const useAuthStore = defineStore('auth', {
         
         // Check if already initialized
         if (notificationStore.isInitialized) {
-          console.log('⚠️ Notification system already initialized, skipping...');
+          debug.log('⚠️ Notification system already initialized, skipping...');
           return;
         }
         
         // Initialize the notification store
         await notificationStore.initialize(userId);
         
-        console.log('✅ Notification system initialized successfully');
+        debug.log('✅ Notification system initialized successfully');
       } catch (error) {
-        console.error('❌ Failed to initialize notification system:', error);
+        debug.error('❌ Failed to initialize notification system:', error);
       }
     },
 
@@ -475,7 +476,7 @@ export const useAuthStore = defineStore('auth', {
      */
     cleanupNotificationSystem() {
       try {
-        console.log('🔔 Cleaning up notification system');
+        debug.log('🔔 Cleaning up notification system');
         
         // Dynamic import to avoid issues during cleanup
         import('@/stores/useNotification').then(({ useNotificationStore }) => {
@@ -491,20 +492,20 @@ export const useAuthStore = defineStore('auth', {
           notificationStore.$reset();
           notificationStore.isInitialized = false;
           
-          console.log('✅ Notification system cleaned up');
+          debug.log('✅ Notification system cleaned up');
         }).catch(error => {
-          console.error('❌ Error during notification cleanup:', error);
+          debug.error('❌ Error during notification cleanup:', error);
         });
         
         // Reset view context
         import('@/services/ViewContextTracker').then(({ viewContextTracker }) => {
           viewContextTracker.reset();
         }).catch(error => {
-          console.error('❌ Error resetting view context:', error);
+          debug.error('❌ Error resetting view context:', error);
         });
         
       } catch (error) {
-        console.error('❌ Error cleaning up notification system:', error);
+        debug.error('❌ Error cleaning up notification system:', error);
       }
     },
   },

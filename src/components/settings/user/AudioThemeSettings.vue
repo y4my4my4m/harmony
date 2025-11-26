@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useThemeStore } from '@/stores/useTheme'
 import { useNotificationStore } from '@/stores/useNotification'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
@@ -151,7 +152,7 @@ const testSound = async (actionId: string): Promise<void> => {
       2000
     )
   } catch (error) {
-    console.error('Failed to test sound:', error)
+    debug.error('Failed to test sound:', error)
     notificationStore.showToast(
       'ui_error' as any,
       'Sound Test Failed',
@@ -172,7 +173,7 @@ const clearCache = async (): Promise<void> => {
       2000
     )
   } catch (error) {
-    console.error('Failed to clear cache:', error)
+    debug.error('Failed to clear cache:', error)
     notificationStore.showToast(
       'ui_error' as any,
       'Cache Clear Failed',
@@ -195,7 +196,7 @@ const resetSystem = async (): Promise<void> => {
       2000
     )
   } catch (error) {
-    console.error('Failed to reset system:', error)
+    debug.error('Failed to reset system:', error)
     notificationStore.showToast(
       'ui_error' as any,
       'Reset Failed',
@@ -225,7 +226,7 @@ onMounted(async () => {
   try {
     await themeStore.initialize()
   } catch (error) {
-    console.error('Failed to initialize audio theme store:', error)
+    debug.error('Failed to initialize audio theme store:', error)
     notificationStore.showToast(
       'ui_error' as any,
       'Initialization Failed',

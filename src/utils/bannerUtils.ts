@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 /**
  * Get banner URL for a user
@@ -33,13 +34,13 @@ export function getPublicBannerUrl(storagePath: string, options?: { width?: numb
       })
 
     if (!data.publicUrl) {
-      console.error('Error getting public banner URL: No public URL returned')
+      debug.error('Error getting public banner URL: No public URL returned')
       return null
     }
 
     return data.publicUrl
   } catch (error) {
-    console.error('Error getting public banner URL:', error)
+    debug.error('Error getting public banner URL:', error)
     return null
   }
 }

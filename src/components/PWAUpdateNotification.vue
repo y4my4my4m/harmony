@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 
 const showUpdate = ref(false)
 const updating = ref(false)
@@ -59,7 +60,7 @@ const installUpdate = async () => {
     // Reload the page to use the new service worker
     window.location.reload()
   } catch (error) {
-    console.error('Failed to update app:', error)
+    debug.error('Failed to update app:', error)
     updating.value = false
   }
 }

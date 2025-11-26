@@ -321,6 +321,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive } from 'vue'
+import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useToast } from 'vue-toastification'
 import type { NotificationPreferences, NotificationType } from '@/types'
@@ -521,7 +522,7 @@ const updatePreferences = async () => {
     await notificationStore.updatePreferences(preferences)
     toast.success('Notification preferences updated')
   } catch (error) {
-    console.error('Failed to update preferences:', error)
+    debug.error('Failed to update preferences:', error)
     toast.error('Failed to update preferences')
   }
 }
@@ -543,7 +544,7 @@ const requestPermission = async () => {
       toast.error('Desktop notification permission denied')
     }
   } catch (error) {
-    console.error('Failed to request permission:', error)
+    debug.error('Failed to request permission:', error)
     toast.error('Failed to request permission')
   } finally {
     isRequestingPermission.value = false
@@ -573,7 +574,7 @@ const testNotification = async (type: NotificationType) => {
     
     // Show desktop notification
     if (hasNotificationPermission.value) {
-      console.error(testData.avatar);
+      debug.error(testData.avatar);
       new Notification(testData.title, {
         body: testData.message,
         icon: testData.avatar.value || '/img/app_icon_square.png',
@@ -583,7 +584,7 @@ const testNotification = async (type: NotificationType) => {
     
     // toast.success(`Test notification sent for ${type}`)
   } catch (error) {
-    console.error('Failed to test notification:', error)
+    debug.error('Failed to test notification:', error)
     toast.error('Failed to test notification')
   } finally {
     setTimeout(() => {
@@ -698,7 +699,7 @@ const testAllNotifications = async () => {
     
     toast.success('All enabled notifications tested')
   } catch (error) {
-    console.error('Failed to test all notifications:', error)
+    debug.error('Failed to test all notifications:', error)
     toast.error('Failed to test all notifications')
   } finally {
     isTesting.value = false

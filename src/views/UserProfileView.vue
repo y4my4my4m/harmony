@@ -240,6 +240,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -414,11 +415,11 @@ const handleOpenComposer = () => {
 
 const handleOpenSearch = () => {
   // TODO: Implement search functionality
-  console.log('Open search')
+  debug.log('Open search')
 }
 
 const handleRefresh = () => {
-  console.log('🔄 Refreshing profile data...');
+  debug.log('🔄 Refreshing profile data...');
   loadUserProfile(currentHandle.value);
 };
 
@@ -450,7 +451,7 @@ const formatJoinDate = (dateString: string): string => {
 };
 
 const loadUserProfile = async (handle: string) => {
-  console.log(`🔄 Loading profile for handle: ${handle}`);
+  debug.log(`🔄 Loading profile for handle: ${handle}`);
   isLoading.value = true;
   error.value = null;
   user.value = null; // Clear previous user data
@@ -461,28 +462,28 @@ const loadUserProfile = async (handle: string) => {
       handle = handle.substring(1);
     }
     
-    console.log(`🔍 Processing handle: ${handle}`);
+    debug.log(`🔍 Processing handle: ${handle}`);
     
     // Check if it's a federated handle (contains @) or local handle
     if (handle.includes('@')) {
-      console.log('🌐 Resolving federated user...');
+      debug.log('🌐 Resolving federated user...');
       user.value = await activityPubService.getUserByHandle(handle);
     } else {
-      console.log('👤 Looking up local user...');
+      debug.log('👤 Looking up local user...');
       
       // For local users, try to get from activity pub service first
       try {
-        console.log(`🔎 Fetching user by handle: @${handle}`);
+        debug.log(`🔎 Fetching user by handle: @${handle}`);
         user.value = await activityPubService.getUserByHandle(`@${handle}`);
       } catch (localError) {
-        console.log('⚠️ ActivityPub lookup failed, trying profile service...');
+        debug.log('⚠️ ActivityPub lookup failed, trying profile service...');
         
         // Fallback: check if this is the current user
         const currentUser = authStore.session?.user;
         const currentUsername = currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0];
         
         if (currentUser && currentUsername === handle) {
-          console.log('✅ Loading current user profile...');
+          debug.log('✅ Loading current user profile...');
           
           // Load current user's profile
           await profileStore.fetchProfile(currentUser.id);
@@ -495,9 +496,9 @@ const loadUserProfile = async (handle: string) => {
               // Try to get a sample of posts to validate the user exists and has posts
               const userPostsSample = await activityPubService.getUserPosts(currentUser.id, { limit: 5 });
               posts_count = userPostsSample?.length || 0;
-              console.log(`📊 Post count sample: ${posts_count} (this will be updated after full posts load)`);
+              debug.log(`📊 Post count sample: ${posts_count} (this will be updated after full posts load)`);
             } catch (error) {
-              console.log('Could not get post count, using 0 as default:', error);
+              debug.log('Could not get post count, using 0 as default:', error);
               posts_count = 0;
             }
             
@@ -517,7 +518,7 @@ const loadUserProfile = async (handle: string) => {
               updated_at: profile.updated_at || new Date().toISOString()
             };
             
-            console.log(`✅ Created user object with ActivityPub counts:`, {
+            debug.log(`✅ Created user object with ActivityPub counts:`, {
               followers_count: user.value.followers_count,
               following_count: user.value.following_count,
               posts_count: user.value.posts_count
@@ -525,7 +526,7 @@ const loadUserProfile = async (handle: string) => {
           }
         } else {
           // Try to find user by username in the system
-          console.log('🔎 Searching for user in system...');
+          debug.log('🔎 Searching for user in system...');
           
           // Create a basic user object for display
           user.value = {
@@ -548,8 +549,8 @@ const loadUserProfile = async (handle: string) => {
     }
     
     if (user.value) {
-      console.log('✅ User profile loaded:', user.value.display_name);
-      console.log('📊 User stats:', {
+      debug.log('✅ User profile loaded:', user.value.display_name);
+      debug.log('📊 User stats:', {
         posts: user.value.posts_count,
         following: user.value.following_count,
         followers: user.value.followers_count
@@ -558,11 +559,11 @@ const loadUserProfile = async (handle: string) => {
       await loadFollowing();
       await loadFollowers();
     } else {
-      console.log('❌ User not found');
+      debug.log('❌ User not found');
       error.value = 'User not found';
     }
   } catch (err) {
-    console.error('❌ Failed to load user profile:', err);
+    debug.error('❌ Failed to load user profile:', err);
     error.value = 'Failed to load profile. The user might not exist or be unavailable.';
   } finally {
     isLoading.value = false;
@@ -574,7 +575,7 @@ const loadUserPosts = async () => {
   
   isLoadingPosts.value = true;
   try {
-    console.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})`);
     
     // Use consistent getUserPosts method for all users
     // This ensures the same data structure and behavior regardless of whether it's the current user or not
@@ -582,7 +583,7 @@ const loadUserPosts = async () => {
     userPosts.value = posts as TimelinePost[] || [];
     
     hasMorePostsRef.value = posts && posts.length >= 20; // Enable pagination if we got a full page
-    console.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
+    debug.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
     
     // Update post count for current user with actual loaded posts
     if (isCurrentUser.value && user.value) {
@@ -591,7 +592,7 @@ const loadUserPosts = async () => {
     
     // Safe debugging with error handling
     try {
-      console.log('📋 Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
+      debug.log('📋 Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
         id: p.id, 
         content: p.content ? (typeof p.content === 'string' ? (p.content as string).substring(0, 50) : JSON.stringify(p.content).substring(0, 50)) : 'No content',
         content_type: typeof p.content,
@@ -600,11 +601,11 @@ const loadUserPosts = async () => {
         created_at: p.created_at
       })));
     } catch (debugError) {
-      console.log('📋 Posts debug error:', debugError);
-      console.log('📋 Raw posts data:', userPosts.value.slice(0, 2));
+      debug.log('📋 Posts debug error:', debugError);
+      debug.log('📋 Raw posts data:', userPosts.value.slice(0, 2));
     }
   } catch (error) {
-    console.error('❌ Failed to load user posts:', error);
+    debug.error('❌ Failed to load user posts:', error);
     userPosts.value = [];
     hasMorePostsRef.value = false;
   } finally {
@@ -616,22 +617,22 @@ const loadFollowing = async () => {
   if (!user.value) return;
   
   try {
-    console.log(`👥 Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`👥 Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
     
     // Use consistent getFollowing method for all users
     // This ensures the same data structure and behavior regardless of whether it's the current user or not
     const following = await activityPubService.getFollowing(user.value.id, { limit: 50 });
     followingUsers.value = following || [];
     
-    console.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
-    console.log('👥 Following users:', followingUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
+    debug.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
+    debug.log('👥 Following users:', followingUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
     
     // Update following count with actual loaded data
     if (user.value) {
       user.value.following_count = followingUsers.value.length;
     }
   } catch (error) {
-    console.error('❌ Failed to load following:', error);
+    debug.error('❌ Failed to load following:', error);
     followingUsers.value = [];
   }
 };
@@ -640,20 +641,20 @@ const loadFollowers = async () => {
   if (!user.value) return;
   
   try {
-    console.log(`👥 Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`👥 Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
     
     // Use consistent getFollowers method for all users
     // This ensures the same data structure and behavior regardless of whether it's the current user or not
     const followers = await activityPubService.getFollowers(user.value.id, { limit: 50 });
     followerUsers.value = followers || [];
     
-    console.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
-    console.log('👥 Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
+    debug.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
+    debug.log('👥 Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
     
     // Don't override the database count - trust profiles.followers_count
     isLoading.value = false;
   } catch (error) {
-    console.error('❌ Failed to load followers:', error);
+    debug.error('❌ Failed to load followers:', error);
     followerUsers.value = [];
   }
 };
@@ -663,14 +664,14 @@ const loadMorePosts = async () => {
   
   isLoadingPosts.value = true;
   try {
-    console.log(`📖 Loading more posts for user: ${user.value.username}`);
+    debug.log(`📖 Loading more posts for user: ${user.value.username}`);
     
     // Get the oldest post's created_at as max_id for pagination
     const oldestPost = userPosts.value[userPosts.value.length - 1];
     const maxId = oldestPost?.created_at;
     
     if (!maxId) {
-      console.log('❌ No max_id found for pagination');
+      debug.log('❌ No max_id found for pagination');
       hasMorePostsRef.value = false;
       return;
     }
@@ -683,13 +684,13 @@ const loadMorePosts = async () => {
     if (posts && posts.length > 0) {
       userPosts.value.push(...(posts as TimelinePost[]));
       hasMorePostsRef.value = posts.length >= 20; // Continue pagination if we got a full page
-      console.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
+      debug.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
     } else {
       hasMorePostsRef.value = false;
-      console.log('📭 No more posts available');
+      debug.log('📭 No more posts available');
     }
   } catch (error) {
-    console.error('❌ Failed to load more posts:', error);
+    debug.error('❌ Failed to load more posts:', error);
     hasMorePostsRef.value = false;
   } finally {
     isLoadingPosts.value = false;
@@ -707,7 +708,7 @@ const toggleFollow = async () => {
       await activityPubStore.followUser(user.value.id);
     }
   } catch (error) {
-    console.error('Failed to toggle follow:', error);
+    debug.error('Failed to toggle follow:', error);
   } finally {
     isFollowLoading.value = false;
   }
@@ -735,7 +736,7 @@ const handleMute = async () => {
       await activityPubStore.muteUser(user.value.id);
     }
   } catch (error) {
-    console.error('Failed to toggle mute:', error);
+    debug.error('Failed to toggle mute:', error);
   }
   showActionsMenu.value = false;
 };
@@ -750,7 +751,7 @@ const handleBlock = async () => {
       await activityPubStore.blockUser(user.value.id);
     }
   } catch (error) {
-    console.error('Failed to toggle block:', error);
+    debug.error('Failed to toggle block:', error);
   }
   showActionsMenu.value = false;
 };
@@ -769,17 +770,17 @@ const showUserProfile = (clickedUser: FederatedUser) => {
     handle = handle.replace('@har.mony.lol', '');
   }
   
-  console.log(`🔗 Navigating to profile: ${handle} (from ${clickedUser.handle})`);
-  console.log(`📍 Current route before navigation:`, route.path);
+  debug.log(`🔗 Navigating to profile: ${handle} (from ${clickedUser.handle})`);
+  debug.log(`📍 Current route before navigation:`, route.path);
   
   // Use named route navigation to ensure proper handling
   router.push({ 
     name: 'UserProfile', 
     params: { handle: encodeURIComponent(handle) } 
   }).then(() => {
-    console.log(`✅ Navigation completed to: /social/profile/${handle}`);
+    debug.log(`✅ Navigation completed to: /social/profile/${handle}`);
   }).catch((error) => {
-    console.error(`❌ Navigation failed:`, error);
+    debug.error(`❌ Navigation failed:`, error);
   });
 };
 
@@ -796,7 +797,7 @@ const handleFavorite = async (postId: string) => {
   try {
     await activityPubStore.toggleFavorite(postId);
   } catch (error) {
-    console.error('Failed to toggle favorite:', error);
+    debug.error('Failed to toggle favorite:', error);
   }
 };
 
@@ -804,7 +805,7 @@ const handleReblog = async (postId: string) => {
   try {
     await activityPubStore.toggleReblog(postId);
   } catch (error) {
-    console.error('Failed to toggle reblog:', error);
+    debug.error('Failed to toggle reblog:', error);
   }
 };
 
@@ -815,10 +816,10 @@ const currentHandle = computed(() => {
 
 // Watch for handle changes (from both props and route)
 watch(currentHandle, (newHandle, oldHandle) => {
-  console.log(`👤 Profile handle changed from ${oldHandle} to ${newHandle}`);
-  console.log(`📍 Current route:`, route.path);
-  console.log(`🏷️ Props handle:`, props.profileHandle);
-  console.log(`🔗 Route handle:`, route.params.handle);
+  debug.log(`👤 Profile handle changed from ${oldHandle} to ${newHandle}`);
+  debug.log(`📍 Current route:`, route.path);
+  debug.log(`🏷️ Props handle:`, props.profileHandle);
+  debug.log(`🔗 Route handle:`, route.params.handle);
   
   if (newHandle && typeof newHandle === 'string') {
     loadUserProfile(newHandle);
@@ -827,9 +828,9 @@ watch(currentHandle, (newHandle, oldHandle) => {
 
 // Watch route changes specifically (for direct URL access)
 watch(() => route.params.handle, (newHandle) => {
-  console.log(`🔗 Route handle changed to: ${newHandle}`);
-  console.log(`📍 Full route path:`, route.path);
-  console.log(`🎯 Route name:`, route.name);
+  debug.log(`🔗 Route handle changed to: ${newHandle}`);
+  debug.log(`📍 Full route path:`, route.path);
+  debug.log(`🎯 Route name:`, route.name);
   
   if (newHandle && typeof newHandle === 'string' && !props.profileHandle) {
     loadUserProfile(newHandle);
@@ -839,7 +840,7 @@ watch(() => route.params.handle, (newHandle) => {
 // Ensure profile loads on mount
 onMounted(async () => {
   const handle = currentHandle.value;
-  console.log(`🔄 UserProfileView mounted with handle: ${handle}`);
+  debug.log(`🔄 UserProfileView mounted with handle: ${handle}`);
   
   // Initialize ActivityPub store to load followed users
   await activityPubStore.initialize();

@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 
@@ -49,7 +50,7 @@ const loadLists = async () => {
     // This is a placeholder for loading lists from the ActivityPub store
     // await activityPubStore.loadLists()
   } catch (error) {
-    console.error('Failed to load lists:', error)
+    debug.error('Failed to load lists:', error)
   } finally {
     isLoadingLists.value = false
   }
@@ -60,7 +61,7 @@ const handleLoadMore = async () => {
   try {
     await activityPubStore.loadMoreLists()
   } catch (error) {
-    console.error('Failed to load more lists:', error)
+    debug.error('Failed to load more lists:', error)
   }
 }
 

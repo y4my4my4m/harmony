@@ -99,6 +99,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
 import ModernButton from '@/components/common/ModernButton.vue'
@@ -247,7 +248,7 @@ const createChannel = async () => {
     emit('channelCreated', data)
     closeForm()
   } catch (error) {
-    console.error('Error creating channel:', error)
+    debug.error('Error creating channel:', error)
     channelNameError.value = 'Failed to create channel. Please try again.'
   } finally {
     isCreating.value = false

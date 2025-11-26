@@ -490,7 +490,7 @@ export default defineComponent({
           return `@${mentionPart.username}@${mentionPart.domain}`;
         }
       } catch (error) {
-        console.error('Error formatting mention display:', error, { mentionPart });
+        debug.error('Error formatting mention display:', error, { mentionPart });
         // Fallback to legacy format handling if needed
         if (mentionPart.mention) {
           return formatLegacyMentionDisplay(mentionPart.mention, mentionPart.userId);
@@ -531,7 +531,7 @@ export default defineComponent({
           return storedMention;
         }
       } catch (error) {
-        console.error('Error formatting legacy mention display:', error, { storedMention, userId });
+        debug.error('Error formatting legacy mention display:', error, { storedMention, userId });
         return storedMention; // Fallback to stored format
       }
     };
@@ -724,26 +724,26 @@ export default defineComponent({
     };
 
     const handleSaveEdit = () => {
-      // console.log('handleSaveEdit called');
+      // debug.log('handleSaveEdit called');
       autoSuggest.closeSuggestions();
       
       const content = localEditableContent.value.trim();
-      // console.log('handleSaveEdit called with content:', content);
-      // console.log('messageId:', props.messageId);
-      // console.log('editableMessageId:', props.editableMessageId);
+      // debug.log('handleSaveEdit called with content:', content);
+      // debug.log('messageId:', props.messageId);
+      // debug.log('editableMessageId:', props.editableMessageId);
       
       if (!content) {
-        // console.log('Content is empty, canceling edit');
+        // debug.log('Content is empty, canceling edit');
         handleCancelEdit();
         return;
       }
       
       try {
-        // console.log('Emitting update:message with messageId:', props.messageId, 'content:', content);
+        // debug.log('Emitting update:message with messageId:', props.messageId, 'content:', content);
         emit('update:message', props.messageId, content);
-        // console.log('update:message emitted successfully');
+        // debug.log('update:message emitted successfully');
       } catch (e) {
-        console.error('Error in handleSaveEdit:', e);
+        debug.error('Error in handleSaveEdit:', e);
       }
     };
 
@@ -755,7 +755,7 @@ export default defineComponent({
     const handleHashtagClick = (hashtag: string, event: MouseEvent) => {
       event.stopPropagation();
       // Emit an event or handle the hashtag click as needed
-      console.log('Hashtag clicked:', hashtag);
+      debug.log('Hashtag clicked:', hashtag);
       // For example, you might want to emit an event to notify the parent component
       emit('hashtag-click', hashtag);
     };
@@ -792,7 +792,7 @@ export default defineComponent({
       event.stopPropagation();
       if (decrypting.value) return;
       
-      console.log('🔓 Click to decrypt message:', props.messageId);
+      debug.log('🔓 Click to decrypt message:', props.messageId);
       decrypting.value = true;
       
       // Emit event to parent to handle decryption

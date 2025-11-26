@@ -28,6 +28,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import BaseLayout from '@/layouts/BaseLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
@@ -97,7 +98,7 @@ onMounted(async () => {
   if (import.meta.env.DEV) {
     import('@/services/StatusLifecycleDebugger').then(({ statusDebugger }) => {
       statusDebugger.startDebugging()
-      console.log('🔍 Status lifecycle debugger started. Type showHelp() for available commands.')
+      debug.log('🔍 Status lifecycle debugger started. Type showHelp() for available commands.')
     })
   }
 })

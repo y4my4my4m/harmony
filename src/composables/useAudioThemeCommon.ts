@@ -1,6 +1,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useThemeStore } from '@/stores/useTheme'
 import { useNotificationStore } from '@/stores/useNotification'
+import { debug } from '@/utils/debug'
 
 /**
  * Shared composable for common audio theme functionality
@@ -61,7 +62,7 @@ export function useAudioThemeCommon() {
         return false
       }
     } catch (error) {
-      console.error('Failed to set theme:', error)
+      debug.error('Failed to set theme:', error)
       notificationStore.showToast(
         'ui_error' as any,
         'Theme Error',
@@ -90,7 +91,7 @@ export function useAudioThemeCommon() {
         1500
       )
     } catch (error) {
-      console.error('Failed to test theme:', error)
+      debug.error('Failed to test theme:', error)
       notificationStore.showToast(
         'ui_error' as any,
         'Audio Test Failed',
@@ -131,7 +132,7 @@ export function useAudioThemeCommon() {
         }, 100)
       }
     } catch (error) {
-      console.error('Failed to test theme:', error)
+      debug.error('Failed to test theme:', error)
       notificationStore.showToast(
         'ui_error' as any,
         'Test Failed',
@@ -186,7 +187,7 @@ export function useAudioThemeCommon() {
         2000
       )
     } catch (error) {
-      console.error('Failed to clear cache:', error)
+      debug.error('Failed to clear cache:', error)
       notificationStore.showToast(
         'ui_error' as any,
         'Clear Cache Failed',
@@ -203,7 +204,7 @@ export function useAudioThemeCommon() {
     try {
       await themeStore.preloadTheme(themeId)
     } catch (error) {
-      console.warn('Failed to preload theme:', error)
+      debug.warn('Failed to preload theme:', error)
     }
   }
 
@@ -226,7 +227,7 @@ export function useAudioThemeCommon() {
         2000
       )
     } catch (error) {
-      console.error('Failed to export settings:', error)
+      debug.error('Failed to export settings:', error)
       notificationStore.showToast(
         'ui_error' as any,
         'Export Failed',
@@ -255,7 +256,7 @@ export function useAudioThemeCommon() {
               2000
             )
           } catch (error) {
-            console.error('Failed to import settings:', error)
+            debug.error('Failed to import settings:', error)
             notificationStore.showToast(
               'ui_error' as any,
               'Import Failed',
@@ -281,7 +282,7 @@ export function useAudioThemeCommon() {
         2000
       )
     } catch (error) {
-      console.error('Failed to reset settings:', error)
+      debug.error('Failed to reset settings:', error)
       notificationStore.showToast(
         'ui_error' as any,
         'Reset Failed',

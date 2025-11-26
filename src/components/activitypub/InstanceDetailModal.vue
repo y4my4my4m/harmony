@@ -150,6 +150,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
+import { debug } from '@/utils/debug'
 import type { FederatedInstance, TimelinePost } from '@/types';
 import BaseModal from '@/components/common/BaseModal.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -276,7 +277,7 @@ const loadRecentPosts = async () => {
       }
     ];
   } catch (error) {
-    console.error('Failed to load recent posts:', error);
+    debug.error('Failed to load recent posts:', error);
   } finally {
     isLoadingPosts.value = false;
   }
@@ -284,12 +285,12 @@ const loadRecentPosts = async () => {
 
 const viewPost = (post: TimelinePost) => {
   // TODO: Navigate to post detail view
-  console.log('View post:', post.id);
+  debug.log('View post:', post.id);
 };
 
 const viewAllPosts = () => {
   // TODO: Navigate to instance timeline
-  console.log('View all posts from:', props.instance.domain);
+  debug.log('View all posts from:', props.instance.domain);
 };
 
 const copyInstanceUrl = async () => {
@@ -297,7 +298,7 @@ const copyInstanceUrl = async () => {
     await navigator.clipboard.writeText(`https://${props.instance.domain}`);
     // TODO: Show success toast
   } catch (error) {
-    console.error('Failed to copy URL:', error);
+    debug.error('Failed to copy URL:', error);
   }
 };
 

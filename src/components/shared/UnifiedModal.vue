@@ -98,6 +98,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { debug } from '@/utils/debug'
 
 export interface ModalAction {
   key: string
@@ -194,7 +195,7 @@ const handleAction = async (action: ModalAction) => {
     await action.handler()
     emit('action', action)
   } catch (error) {
-    console.error('Modal action error:', error)
+    debug.error('Modal action error:', error)
   }
 }
 

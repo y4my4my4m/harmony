@@ -299,6 +299,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
@@ -485,7 +486,7 @@ const copyUserId = async () => {
     // Show toast notification
     showActionsMenu.value = false
   } catch (error) {
-    console.error('Failed to copy user ID:', error)
+    debug.error('Failed to copy user ID:', error)
   }
 }
 
@@ -514,7 +515,7 @@ const handleFollowToggle = async () => {
       emit('follow', props.user.id)
     }
   } catch (error) {
-    console.error('Failed to toggle follow:', error)
+    debug.error('Failed to toggle follow:', error)
   }
 }
 
@@ -541,12 +542,12 @@ const blockUser = async () => {
   
   try {
     await activityPubStore.blockUser(props.user.id)
-    console.log('User blocked successfully:', props.user.id)
+    debug.log('User blocked successfully:', props.user.id)
     // Show success toast
     showActionsMenu.value = false
     emit('close')
   } catch (error) {
-    console.error('Failed to block user:', error)
+    debug.error('Failed to block user:', error)
     // Show error toast
   }
 }
@@ -613,9 +614,9 @@ const initializeProfilePresence = async () => {
   if (props.user?.id && props.show && !profileContextId) {
     try {
       profileContextId = await subscribeToProfilePresence(props.user.id)
-      console.log(`👤 ProfileModal: Tracking presence for user ${props.user.id}`)
+      debug.log(`👤 ProfileModal: Tracking presence for user ${props.user.id}`)
     } catch (error) {
-      console.error('Failed to subscribe to profile presence:', error)
+      debug.error('Failed to subscribe to profile presence:', error)
     }
   }
 }
@@ -625,9 +626,9 @@ const cleanupProfilePresence = async () => {
     try {
       await unsubscribeFromProfilePresence(props.user.id)
       profileContextId = null
-      console.log(`👤 ProfileModal: Stopped tracking presence for user ${props.user.id}`)
+      debug.log(`👤 ProfileModal: Stopped tracking presence for user ${props.user.id}`)
     } catch (error) {
-      console.error('Failed to unsubscribe from profile presence:', error)
+      debug.error('Failed to unsubscribe from profile presence:', error)
     }
   }
 }

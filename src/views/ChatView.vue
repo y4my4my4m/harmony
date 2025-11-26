@@ -17,6 +17,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
+import { debug } from '@/utils/debug'
 import { useRoute } from 'vue-router'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 
@@ -105,39 +106,39 @@ const loadMessages = async () => {
 }
 
 const fetchMoreMessages = async () => {
-  console.log('📜 fetchMoreMessages called, isDM:', props.isDM)
+  debug.log('📜 fetchMoreMessages called, isDM:', props.isDM)
   
   if (props.isDM) {
     const conversationId = route.params.conversationId as string
     if (conversationId && dmStore.currentDMMessages.length > 0) {
       const oldestMessage = dmStore.currentDMMessages[0]
-      console.log('📜 Fetching older DM messages before:', oldestMessage.id)
+      debug.log('📜 Fetching older DM messages before:', oldestMessage.id)
       await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
     } else {
-      console.log('📜 Cannot fetch DM messages: no conversation or no messages yet')
+      debug.log('📜 Cannot fetch DM messages: no conversation or no messages yet')
     }
   } else {
     const channelId = route.params.channelId as string
-    console.log('📜 Current channel:', channelId, 'Message count:', chatStore.messages.length)
-    console.log('📜 allMessagesLoaded:', chatStore.allMessagesLoaded)
-    console.log('📜 loadingOlderMessages:', chatStore.loadingOlderMessages)
+    debug.log('📜 Current channel:', channelId, 'Message count:', chatStore.messages.length)
+    debug.log('📜 allMessagesLoaded:', chatStore.allMessagesLoaded)
+    debug.log('📜 loadingOlderMessages:', chatStore.loadingOlderMessages)
     
     if (chatStore.allMessagesLoaded) {
-      console.log('📜 All messages already loaded, not fetching more')
+      debug.log('📜 All messages already loaded, not fetching more')
       return
     }
     
     if (chatStore.loadingOlderMessages) {
-      console.log('📜 Already loading older messages, skipping')
+      debug.log('📜 Already loading older messages, skipping')
       return
     }
     
     if (channelId && chatStore.messages.length > 0) {
       const oldestMessage = chatStore.messages[0]
-      console.log('📜 Fetching older messages before message:', oldestMessage.id, oldestMessage.created_at)
+      debug.log('📜 Fetching older messages before message:', oldestMessage.id, oldestMessage.created_at)
       await chatStore.fetchMessages(channelId, oldestMessage.id)
     } else {
-      console.log('📜 Cannot fetch messages: no channel or no messages yet')
+      debug.log('📜 Cannot fetch messages: no channel or no messages yet')
     }
   }
 }

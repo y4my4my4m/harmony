@@ -91,6 +91,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
@@ -125,13 +126,13 @@ const loadingOwnerData = ref(false)
 // Fetch owner profile when component mounts
 onMounted(async () => {
   if (!getUser(props.server.owner).value) {
-    console.log('ServerCard: Owner not in cache, fetching from database...')
+    debug.log('ServerCard: Owner not in cache, fetching from database...')
     loadingOwnerData.value = true
     try {
       await fetchUserProfile(props.server.owner, true) // Force refresh
-      console.log('ServerCard: Owner profile fetched successfully')
+      debug.log('ServerCard: Owner profile fetched successfully')
     } catch (error) {
-      console.error('ServerCard: Failed to fetch owner profile:', error)
+      debug.error('ServerCard: Failed to fetch owner profile:', error)
     } finally {
       loadingOwnerData.value = false
     }
@@ -142,9 +143,9 @@ const ownerAvatar = computed(() => {
   const user = getUser(props.server.owner).value
   const avatarUrl = getUserAvatarUrl(props.server.owner).value
   
-  console.log('ServerCard: Owner user:', user)
-  console.log('ServerCard: Owner avatar URL:', avatarUrl)
-  console.log('ServerCard: Loading state:', loadingOwnerData.value)
+  debug.log('ServerCard: Owner user:', user)
+  debug.log('ServerCard: Owner avatar URL:', avatarUrl)
+  debug.log('ServerCard: Loading state:', loadingOwnerData.value)
   
   // Return actual avatar URL if available and not default
   if (avatarUrl && avatarUrl !== '/default_avatar.png') {
@@ -157,7 +158,7 @@ const ownerAvatar = computed(() => {
 
 const ownerName = computed(() => {
   const displayName = getUserDisplayName(props.server.owner).value
-  console.log('ServerCard: Owner display name:', displayName)
+  debug.log('ServerCard: Owner display name:', displayName)
   return displayName || 'Loading...'
 })
 

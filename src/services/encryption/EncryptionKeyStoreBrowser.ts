@@ -14,6 +14,7 @@
  */
 
 import type {
+import { debug } from '@/utils/debug'
   StorageType,
   KeyPairType,
   Direction,
@@ -68,7 +69,7 @@ export class EncryptionKeyStore implements StorageType {
       request.onerror = () => reject(request.error)
       request.onsuccess = () => {
         this.db = request.result
-        console.log('✅ IndexedDB opened')
+        debug.log('✅ IndexedDB opened')
         resolve()
       }
 
@@ -93,7 +94,7 @@ export class EncryptionKeyStore implements StorageType {
           db.createObjectStore(STORES.METADATA, { keyPath: 'key' })
         }
 
-        console.log('✅ IndexedDB object stores created')
+        debug.log('✅ IndexedDB object stores created')
       }
     })
   }
@@ -127,7 +128,7 @@ export class EncryptionKeyStore implements StorageType {
       ['encrypt', 'decrypt']
     )
 
-    console.log('✅ Encryption key derived from password')
+    debug.log('✅ Encryption key derived from password')
   }
 
   // =====================================================

@@ -1,4 +1,5 @@
 import { useReactionsStore } from '@/stores/useReactions';
+import { debug } from '@/utils/debug'
 
 /**
  * Utility to manage reaction cache cleanup
@@ -12,7 +13,7 @@ export class ReactionCacheManager {
   clearOptimisticState(messageId: string) {
     const reactionsStore = useReactionsStore();
     reactionsStore.clearOptimisticState(messageId);
-    console.log(`🧹 Cleared optimistic state for message ${messageId}`);
+    debug.log(`🧹 Cleared optimistic state for message ${messageId}`);
   }
 
   /**
@@ -25,7 +26,7 @@ export class ReactionCacheManager {
     Object.keys(reactionsStore.reactionsByMessage).forEach(messageId => {
       reactionsStore.clearOptimisticState(messageId);
     });
-    console.log('🧹 Cleared all reaction cache data');
+    debug.log('🧹 Cleared all reaction cache data');
   }
 }
 

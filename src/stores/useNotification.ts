@@ -965,7 +965,7 @@ export const useNotificationStore = defineStore('notification', {
         }
 
       } catch (error) {
-        console.error('Failed to mark all notifications as read:', error)
+        debug.error('Failed to mark all notifications as read:', error)
         this.showToast('server_update', 'Failed to mark notifications as read', 'Please try again', 3000)
       }
     },

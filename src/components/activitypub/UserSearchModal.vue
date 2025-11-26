@@ -149,6 +149,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
+import { debug } from '@/utils/debug'
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
@@ -240,7 +241,7 @@ const performSearch = async () => {
           addToRecentSearches(user);
         }
       } catch (error) {
-        console.error('Failed to resolve user:', error);
+        debug.error('Failed to resolve user:', error);
         // Fallback to regular search
         await performRegularSearch(query);
       }
@@ -248,7 +249,7 @@ const performSearch = async () => {
       await performRegularSearch(query);
     }
   } catch (error) {
-    console.error('Search failed:', error);
+    debug.error('Search failed:', error);
   } finally {
     isSearching.value = false;
   }
@@ -261,7 +262,7 @@ const performRegularSearch = async (query: string) => {
     searchResults.value = results;
     hasMoreResults.value = results.length >= 20; // More results might be available if we got the full limit
   } catch (error) {
-    console.error('Regular search failed:', error);
+    debug.error('Regular search failed:', error);
     searchResults.value = [];
   }
 };
@@ -275,7 +276,7 @@ const loadMoreResults = async () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     hasMoreResults.value = false;
   } catch (error) {
-    console.error('Failed to load more results:', error);
+    debug.error('Failed to load more results:', error);
   } finally {
     isLoadingMore.value = false;
   }
@@ -306,7 +307,7 @@ const addToRecentSearches = (user: FederatedUser) => {
   try {
     localStorage.setItem('monyverse_recent_searches', JSON.stringify(recentSearches.value));
   } catch (error) {
-    console.warn('Failed to save recent searches:', error);
+    debug.warn('Failed to save recent searches:', error);
   }
 };
 
@@ -317,7 +318,7 @@ const loadRecentSearches = () => {
       recentSearches.value = JSON.parse(saved);
     }
   } catch (error) {
-    console.warn('Failed to load recent searches:', error);
+    debug.warn('Failed to load recent searches:', error);
   }
 };
 
@@ -326,7 +327,7 @@ const loadSuggestedUsers = async () => {
     // TODO: Load from API
     suggestedUsers.value = [];
   } catch (error) {
-    console.error('Failed to load suggested users:', error);
+    debug.error('Failed to load suggested users:', error);
   }
 };
 

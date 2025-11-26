@@ -17,6 +17,7 @@ import type {
   PostWithContext,
   ThreadInfo
 } from '@/types';
+import { debug } from '@/utils/debug'
 
 /**
  * Core ActivityPub service for database operations
@@ -64,7 +65,7 @@ export class ActivityPubService {
     // Validate and normalize content format
     let normalizedContent = postData.content;
     if (!Array.isArray(normalizedContent)) {
-      console.warn('⚠️ Content is not an array, normalizing:', typeof normalizedContent);
+      debug.warn('⚠️ Content is not an array, normalizing:', typeof normalizedContent);
       normalizedContent = [{ type: 'text', text: String(normalizedContent || '') }];
     }
 
@@ -209,7 +210,7 @@ export class ActivityPubService {
       };
     });
 
-    console.log(`📊 Public timeline loaded: ${posts.length} posts (with user interactions)`);
+    debug.log(`📊 Public timeline loaded: ${posts.length} posts (with user interactions)`);
     
     return posts;
   }
@@ -262,11 +263,11 @@ export class ActivityPubService {
       // Log statistics
       const localCount = posts.filter((p: any) => p.is_local).length;
       const federatedCount = posts.filter((p: any) => !p.is_local).length;
-      console.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
+      debug.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
       
       return posts as TimelinePost[];
     } catch (error) {
-      console.error('Failed to load enhanced public timeline:', error);
+      debug.error('Failed to load enhanced public timeline:', error);
       return [];
     }
   }
@@ -294,10 +295,10 @@ export class ActivityPubService {
       // Filter for federated posts only and limit
       const federatedPosts = (data || []).filter((post: any) => !post.is_local).slice(0, limit);
 
-      console.log(`🌐 Federated timeline loaded: ${federatedPosts.length} posts from remote instances`);
+      debug.log(`🌐 Federated timeline loaded: ${federatedPosts.length} posts from remote instances`);
       return federatedPosts as TimelinePost[];
     } catch (error) {
-      console.error('Failed to load federated timeline:', error);
+      debug.error('Failed to load federated timeline:', error);
       return [];
     }
   }
@@ -312,7 +313,7 @@ export class ActivityPubService {
     const limit = options.limit || 20;
 
     // Direct query for local timeline with user interactions
-    console.log('🔄 Loading local timeline with direct query');
+    debug.log('🔄 Loading local timeline with direct query');
     
     let query = supabase
       .from('posts')
@@ -351,13 +352,13 @@ export class ActivityPubService {
     // DEBUG: Verify all posts are truly local
     const localCount = posts.filter((p: any) => p.is_local).length || 0;
     const federatedCount = posts.filter((p: any) => !p.is_local).length || 0;
-    console.log(`📊 Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
+    debug.log(`📊 Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
     
     if (federatedCount > 0) {
-      console.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
+      debug.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
       const federatedPosts = data?.filter((p: any) => !p.is_local) || [];
       federatedPosts.forEach((post: any) => {
-        console.warn(`🌐 Federated post in local timeline:`, {
+        debug.warn(`🌐 Federated post in local timeline:`, {
           id: post.id,
           author: post.author?.username,
           domain: post.author?.domain,
@@ -392,7 +393,7 @@ export class ActivityPubService {
     } = options;
 
     try {
-      console.log(`🔄 Loading post with context: ${postId} (${context})`);
+      debug.log(`🔄 Loading post with context: ${postId} (${context})`);
       
       const { data, error } = await supabase.rpc('get_post_with_context', {
         p_context_type: context,
@@ -404,7 +405,7 @@ export class ActivityPubService {
       });
 
       if (error) {
-        console.error('❌ Failed to get post with context:', error);
+        debug.error('❌ Failed to get post with context:', error);
         throw error;
       }
 
@@ -412,7 +413,7 @@ export class ActivityPubService {
         throw new Error(data.error);
       }
 
-      console.log(`✅ Post with context loaded: ${data.ancestors?.length || 0} ancestors, ${data.descendants?.length || 0} descendants`);
+      debug.log(`✅ Post with context loaded: ${data.ancestors?.length || 0} ancestors, ${data.descendants?.length || 0} descendants`);
       
       return {
         mainPost: data.mainPost,
@@ -429,7 +430,7 @@ export class ActivityPubService {
         contextType: context
       };
     } catch (error) {
-      console.error('❌ Failed to get post with context:', error);
+      debug.error('❌ Failed to get post with context:', error);
       throw error;
     }
   }
@@ -499,7 +500,7 @@ export class ActivityPubService {
         last_updated: data?.last_updated || new Date().toISOString()
       };
     } catch (error) {
-      console.error('Failed to get conversation thread:', error);
+      debug.error('Failed to get conversation thread:', error);
       throw error;
     }
   }
@@ -524,7 +525,7 @@ export class ActivityPubService {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Failed to get post replies:', error);
+      debug.error('Failed to get post replies:', error);
       return [];
     }
   }
@@ -642,7 +643,7 @@ export class ActivityPubService {
       if (error) throw error;
       return data as TimelinePost[];
     } catch (error) {
-      console.error('Failed to search posts:', error);
+      debug.error('Failed to search posts:', error);
       return [];
     }
   }
@@ -691,7 +692,7 @@ export class ActivityPubService {
 
       return { posts, hasMore, cursor: nextCursor };
     } catch (error) {
-      console.error('Failed to get instance activity:', error);
+      debug.error('Failed to get instance activity:', error);
       return { posts: [], hasMore: false, cursor: null };
     }
   }
@@ -1140,7 +1141,7 @@ export class ActivityPubService {
       throw error;
     }
 
-    console.log(`📍 Created reblog post ${data.id} for original post ${postId}`);
+    debug.log(`📍 Created reblog post ${data.id} for original post ${postId}`);
     return data;
   }
 
@@ -1354,14 +1355,14 @@ export class ActivityPubService {
       
       // If not found locally and it's a remote user, try to fetch
       if (error?.code === 'PGRST116' && domain !== 'har.mony.lol') {
-        console.log(`User ${handle} not found locally, attempting to fetch from remote...`);
+        debug.log(`User ${handle} not found locally, attempting to fetch from remote...`);
         
         // Try to resolve using the existing mentionUtils function
         const { resolveRemoteMention } = await import('@/utils/mentionUtils');
         const remoteUser = await resolveRemoteMention(username, domain);
         
         if (remoteUser) {
-          console.log(`Successfully fetched and created remote user: ${handle}`);
+          debug.log(`Successfully fetched and created remote user: ${handle}`);
           return remoteUser;
         }
       }
@@ -1369,7 +1370,7 @@ export class ActivityPubService {
       // Not found locally or remotely
       return null;
     } catch (error) {
-      console.error('Failed to resolve user by handle:', error);
+      debug.error('Failed to resolve user by handle:', error);
       return null;
     }
   }
@@ -1379,7 +1380,7 @@ export class ActivityPubService {
    */
   async fetchRemoteActor(actorId: string): Promise<FederatedUser | null> {
     try {
-      console.log(`Fetching remote actor: ${actorId}`);
+      debug.log(`Fetching remote actor: ${actorId}`);
       
       // Check if profile already exists
       const { data: existingProfile } = await supabase
@@ -1389,7 +1390,7 @@ export class ActivityPubService {
         .single();
       
       if (existingProfile) {
-        console.log('Actor profile already exists');
+        debug.log('Actor profile already exists');
         return {
           id: existingProfile.id,
           username: existingProfile.username,
@@ -1428,7 +1429,7 @@ export class ActivityPubService {
       });
       
       if (!actorResponse.ok) {
-        console.error(`Failed to fetch actor: ${actorResponse.status}`);
+        debug.error(`Failed to fetch actor: ${actorResponse.status}`);
         return null;
       }
       
@@ -1458,7 +1459,7 @@ export class ActivityPubService {
         });
       
       if (createError) {
-        console.error('Failed to create federated profile:', createError);
+        debug.error('Failed to create federated profile:', createError);
         return null;
       }
       
@@ -1470,11 +1471,11 @@ export class ActivityPubService {
         .single();
       
       if (fetchError || !newProfile) {
-        console.error('Failed to fetch created profile:', fetchError);
+        debug.error('Failed to fetch created profile:', fetchError);
         return null;
       }
       
-      console.log(`Successfully created federated profile for ${actorId}`);
+      debug.log(`Successfully created federated profile for ${actorId}`);
       
       return {
         id: newProfile.id,
@@ -1505,7 +1506,7 @@ export class ActivityPubService {
       } as FederatedUser;
       
     } catch (error) {
-      console.error(`Failed to fetch remote actor ${actorId}:`, error);
+      debug.error(`Failed to fetch remote actor ${actorId}:`, error);
       return null;
     }
   }
@@ -1553,7 +1554,7 @@ export class ActivityPubService {
         last_synced_at: data.last_synced_at
       } as FederatedUser;
     } catch (error) {
-      console.error('Failed to get user by ID:', error);
+      debug.error('Failed to get user by ID:', error);
       return null;
     }
   }
@@ -2294,13 +2295,13 @@ export class ActivityPubService {
       });
 
     if (error) {
-      console.error('Failed to create activity:', error);
+      debug.error('Failed to create activity:', error);
       throw error;
     }
 
     // Queue for delivery to federated instances
     // This would be handled by a background job in production
-    console.log(`📤 Queued ${activity.type} activity for federation:`, ap_id);
+    debug.log(`📤 Queued ${activity.type} activity for federation:`, ap_id);
   }
 
   /**
@@ -2532,7 +2533,7 @@ export class ActivityPubService {
         is_reblogged: false
       };
     } catch (error) {
-      console.error('Failed to load post with author:', error);
+      debug.error('Failed to load post with author:', error);
       return null;
     }
   }

@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import { canUserCreateInvites, getInviteConstraints } from './permissionsService';
+import { debug } from '@/utils/debug'
 
 export interface InviteOptions {
   expiresIn?: number; // minutes, 0 = never expires
@@ -104,7 +105,7 @@ async function generateInviteUrl(
     
     return { success: true, url };
   } catch (error) {
-    console.error('Error generating invite URL:', error);
+    debug.error('Error generating invite URL:', error);
     return { success: false, error: 'Failed to generate invite link' };
   }
 }
@@ -162,11 +163,11 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
     if (userServerError) {
       // Handle duplicate membership gracefully
       if (userServerError.code === '23505') { // Unique constraint violation
-        console.log('User is already a member of this server');
+        debug.log('User is already a member of this server');
         toast.info("You're already a member of this server!");
         // Still update invite usage since the invite was "used" even if they were already a member
       } else {
-        console.error('Error adding user to server:', userServerError);
+        debug.error('Error adding user to server:', userServerError);
         toast.error("Failed to join server. Please try again.");
         return { success: false, error: 'Failed to join server' };
       }
@@ -186,7 +187,7 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
 
     return { success: true, serverId: invite.server_id };
   } catch (error) {
-    console.error('Error accepting invite:', error);
+    debug.error('Error accepting invite:', error);
     return { success: false, error: 'An unexpected error occurred' };
   }
 }
@@ -208,7 +209,7 @@ async function getInviteHistory(userId: string, serverId?: string): Promise<Invi
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('Error fetching invite history:', error);
+    debug.error('Error fetching invite history:', error);
     return [];
   }
 }
@@ -224,7 +225,7 @@ async function revokeInvite(inviteId: string, userId: string): Promise<boolean> 
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Error revoking invite:', error);
+    debug.error('Error revoking invite:', error);
     return false;
   }
 }
@@ -250,7 +251,7 @@ async function getInviteDetails(code: string): Promise<{ invite: Invite; serverN
       serverName: data.servers.name
     };
   } catch (error) {
-    console.error('Error fetching invite details:', error);
+    debug.error('Error fetching invite details:', error);
     return null;
   }
 }

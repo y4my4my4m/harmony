@@ -171,6 +171,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { userDataService } from '@/services/userDataService'
 
@@ -306,9 +307,9 @@ async function loadSettings() {
     // Load member statistics
     await loadMemberStats()
 
-    console.log('✅ Encryption settings loaded')
+    debug.log('✅ Encryption settings loaded')
   } catch (err: any) {
-    console.error('❌ Failed to load encryption settings:', err)
+    debug.error('❌ Failed to load encryption settings:', err)
     error.value = err.message || 'Failed to load settings'
   } finally {
     loading.value = false
@@ -326,7 +327,7 @@ async function createDefaultPolicy() {
     })
 
   if (createError) {
-    console.error('Failed to create default policy:', createError)
+    debug.error('Failed to create default policy:', createError)
   }
 }
 
@@ -364,7 +365,7 @@ async function loadMemberStats() {
         : 0
     }
   } catch (err) {
-    console.error('Failed to load member stats:', err)
+    debug.error('Failed to load member stats:', err)
   }
 }
 
@@ -432,9 +433,9 @@ async function saveSettings() {
       successMessage.value = null
     }, 3000)
 
-    console.log('✅ Encryption settings saved')
+    debug.log('✅ Encryption settings saved')
   } catch (err: any) {
-    console.error('❌ Failed to save encryption settings:', err)
+    debug.error('❌ Failed to save encryption settings:', err)
     error.value = err.message || 'Failed to save settings'
   } finally {
     saving.value = false

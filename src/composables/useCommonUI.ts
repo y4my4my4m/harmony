@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue'
+import { debug } from '@/utils/debug'
 
 export function useClickOutside() {
   const targetRef = ref<HTMLElement | null>(null)
@@ -70,10 +71,10 @@ export function useAudioEffects() {
   // Import and use: const themeStore = useThemeStore()
   // Then call: themeStore.testAudio(audioAction)
   const playSound = (soundPath: string, volume = 0.5) => {
-    console.warn('useAudioEffects.playSound is deprecated. Use the theme system: themeStore.testAudio(audioAction)')
+    debug.warn('useAudioEffects.playSound is deprecated. Use the theme system: themeStore.testAudio(audioAction)')
     const audio = new Audio(soundPath)
     audio.volume = volume
-    audio.play().catch(console.error)
+    audio.play().catch(debug.error)
   }
 
   return {

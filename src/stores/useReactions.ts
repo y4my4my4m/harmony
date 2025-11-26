@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { services } from '@/services'
 import type { ReactionGroup, Emoji } from '@/types'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+import { debug } from '@/utils/debug'
 
 export const useReactionsStore = defineStore('reactions', () => {
   // State - SIMPLE AND CLEAN
@@ -45,7 +46,7 @@ export const useReactionsStore = defineStore('reactions', () => {
     
     // CRITICAL: Skip temp messages to avoid UUID errors
     if (messageId.startsWith('temp-')) {
-      console.log('⚠️ Skipping reaction fetch for temp message:', messageId)
+      debug.log('⚠️ Skipping reaction fetch for temp message:', messageId)
       return
     }
     
@@ -59,7 +60,7 @@ export const useReactionsStore = defineStore('reactions', () => {
 
     try {
       isLoading.value.add(messageId)
-      console.log('🔄 Fetching reactions via service layer for message:', messageId)
+      debug.log('🔄 Fetching reactions via service layer for message:', messageId)
 
       const reactions = await services.messages.getMessageReactions(messageId)
       
@@ -67,9 +68,9 @@ export const useReactionsStore = defineStore('reactions', () => {
       reactionsByMessage.value.set(messageId, reactions)
       lastFetched.value.set(messageId, now)
       
-      console.log('✅ Successfully fetched reactions via service layer')
+      debug.log('✅ Successfully fetched reactions via service layer')
     } catch (error) {
-      console.error('❌ Failed to fetch reactions:', error)
+      debug.error('❌ Failed to fetch reactions:', error)
     } finally {
       isLoading.value.delete(messageId)
     }
@@ -93,7 +94,7 @@ export const useReactionsStore = defineStore('reactions', () => {
         })
 
     if (!idsToFetch.length) {
-      console.log('✅ All message reactions already cached, skipping batch fetch')
+      debug.log('✅ All message reactions already cached, skipping batch fetch')
       return
     }
 
@@ -101,7 +102,7 @@ export const useReactionsStore = defineStore('reactions', () => {
     idsToFetch.forEach(id => isLoading.value.add(id))
 
     try {
-      console.log(`🔄 Batch fetching reactions for ${idsToFetch.length} messages via service layer`)
+      debug.log(`🔄 Batch fetching reactions for ${idsToFetch.length} messages via service layer`)
 
       // Use the core service directly for batch operations
       const batchReactions = await services.messages.getBatchMessageReactions(idsToFetch)
@@ -112,15 +113,15 @@ export const useReactionsStore = defineStore('reactions', () => {
         lastFetched.value.set(messageId, now)
       }
       
-      console.log(`✅ Successfully batch fetched reactions for ${Object.keys(batchReactions).length} messages`)
+      debug.log(`✅ Successfully batch fetched reactions for ${Object.keys(batchReactions).length} messages`)
     } catch (error) {
-      console.error('❌ Failed to batch fetch reactions:', error)
+      debug.error('❌ Failed to batch fetch reactions:', error)
       
       // Fallback: fetch individually (graceful degradation)
-      console.log('🔄 Falling back to individual fetches...')
+      debug.log('🔄 Falling back to individual fetches...')
       const promises = idsToFetch.map(id => 
         fetchMessageReactions(id, force).catch(err => 
-          console.error(`❌ Failed individual fetch for ${id}:`, err)
+          debug.error(`❌ Failed individual fetch for ${id}:`, err)
         )
       )
       await Promise.allSettled(promises)
@@ -168,11 +169,11 @@ export const useReactionsStore = defineStore('reactions', () => {
       
       // Show optimistic version immediately
       optimisticReactions.value.set(messageId, optimisticVersion)
-      console.log(`⚡ Optimistic reaction ${currentlyHasReaction ? 'remove' : 'add'} applied instantly`)
+      debug.log(`⚡ Optimistic reaction ${currentlyHasReaction ? 'remove' : 'add'} applied instantly`)
 
       // 2. API CALL
       const result = await services.messages.toggleReaction(messageId, emojiId)
-      console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
+      debug.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
       
       // 3. SUCCESS: Keep optimistic state! (No flash)  
       // Our optimistic state has real emoji data, so just keep it
@@ -188,7 +189,7 @@ export const useReactionsStore = defineStore('reactions', () => {
       return { success: true }
       
     } catch (error: any) {
-      console.error('❌ Reaction toggle failed:', error)
+      debug.error('❌ Reaction toggle failed:', error)
       
       // ROLLBACK: Clear optimistic state immediately
       optimisticReactions.value.delete(messageId)
@@ -208,15 +209,15 @@ export const useReactionsStore = defineStore('reactions', () => {
     const messageId = payload.new?.message_id || payload.old?.message_id
     
     if (!messageId) {
-      console.warn('🎯 No message_id in realtime payload:', payload)
+      debug.warn('🎯 No message_id in realtime payload:', payload)
       return
     }
 
-    console.log('🔄 Realtime reaction update for message:', messageId)
+    debug.log('🔄 Realtime reaction update for message:', messageId)
     
     // If we have fresh optimistic state, delay realtime to prevent flash
     if (optimisticReactions.value.has(messageId)) {
-      console.log('🔄 Delaying realtime - optimistic update present')
+      debug.log('🔄 Delaying realtime - optimistic update present')
       
       // Allow realtime updates after optimistic state has settled
       setTimeout(async () => {
@@ -269,7 +270,7 @@ export const useReactionsStore = defineStore('reactions', () => {
          if (providedEmojiData) {
            // Use provided emoji data (fastest - zero lookup delay!)
            emoji = providedEmojiData
-           console.log('⚡ Using provided emoji data:', emoji.name, emoji.url)
+           debug.log('⚡ Using provided emoji data:', emoji.name, emoji.url)
          } else {
            // Fallback to cache lookup
            const emojiCache = useEmojiCacheStore()
@@ -277,7 +278,7 @@ export const useReactionsStore = defineStore('reactions', () => {
            
            if (cachedEmojiData) {
              emoji = cachedEmojiData
-             console.log('✅ Found emoji in cache:', emoji.name, emoji.url)
+             debug.log('✅ Found emoji in cache:', emoji.name, emoji.url)
            } else {
              emoji = {
                id: emojiId,
@@ -290,7 +291,7 @@ export const useReactionsStore = defineStore('reactions', () => {
                usage_count: 0,
                last_used: ''
              }
-             console.warn('❌ Emoji not found in cache:', emojiId)
+             debug.warn('❌ Emoji not found in cache:', emojiId)
            }
          }
          

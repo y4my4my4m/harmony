@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 export enum ServerPermission {
   ADMINISTRATOR = 'administrator',
@@ -96,7 +97,7 @@ async function getUserPermissions(userId: string, serverId: string): Promise<Use
       isAdmin
     }
   } catch (error) {
-    console.error('Error getting user permissions:', error)
+    debug.error('Error getting user permissions:', error)
     return {
       userId,
       serverId,
@@ -124,7 +125,7 @@ async function getServerSettings(serverId: string): Promise<ServerSettings | nul
     if (error) throw error
     return data
   } catch (error) {
-    console.error('Error getting server settings:', error)
+    debug.error('Error getting server settings:', error)
     return null
   }
 }
@@ -141,7 +142,7 @@ async function updateServerSettings(serverId: string, settings: Partial<ServerSe
     if (error) throw error
     return true
   } catch (error) {
-    console.error('Error updating server settings:', error)
+    debug.error('Error updating server settings:', error)
     return false
   }
 }
@@ -198,7 +199,7 @@ async function canUserCreateInvites(userId: string, serverId: string): Promise<b
         return false
     }
   } catch (error) {
-    console.error('Error checking invite permissions:', error)
+    debug.error('Error checking invite permissions:', error)
     return false
   }
 }
@@ -253,7 +254,7 @@ async function getInviteConstraints(userId: string, serverId: string): Promise<{
       defaultExpiration: invitePerms.default_expiration
     }
   } catch (error) {
-    console.error('Error getting invite constraints:', error)
+    debug.error('Error getting invite constraints:', error)
     return {
       canCreate: false,
       maxExpiration: 0,

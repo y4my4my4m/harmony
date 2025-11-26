@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/supabase';
+import { debug } from '@/utils/debug'
 
 export interface SystemStats {
   total_users: number;
@@ -158,7 +159,7 @@ class AdminService {
         postsToday: newPostsResult.count || 0
       };
     } catch (error) {
-      console.error('Failed to get system stats:', error);
+      debug.error('Failed to get system stats:', error);
       // Return safe defaults on error
       return {
         total_users: 0,
@@ -198,7 +199,7 @@ class AdminService {
         active_instances: instancesResult.count || 0
       };
     } catch (error) {
-      console.error('Failed to get federation stats:', error);
+      debug.error('Failed to get federation stats:', error);
       // Return safe defaults on error
       return {
         pending_deliveries: 0,
@@ -235,7 +236,7 @@ class AdminService {
         memory: { used: 72, total: '16GB' } // Mock
       };
     } catch (error) {
-      console.error('Failed to get system health:', error);
+      debug.error('Failed to get system health:', error);
       throw error;
     }
   }
@@ -300,7 +301,7 @@ class AdminService {
 
       return usersWithCounts;
     } catch (error) {
-      console.error('Failed to get users:', error);
+      debug.error('Failed to get users:', error);
       throw error;
     }
   }
@@ -330,7 +331,7 @@ class AdminService {
 
       return mockActivity.slice(0, limit);
     } catch (error) {
-      console.error('Failed to get recent activity:', error);
+      debug.error('Failed to get recent activity:', error);
       return [];
     }
   }
@@ -394,7 +395,7 @@ class AdminService {
           throw new Error(`Unknown moderation action: ${action}`);
       }
     } catch (error) {
-      console.error('Failed to moderate user:', error);
+      debug.error('Failed to moderate user:', error);
       throw error;
     }
   }
@@ -442,7 +443,7 @@ class AdminService {
           throw new Error(`Unknown instance moderation action: ${action}`);
       }
     } catch (error) {
-      console.error('Failed to moderate instance:', error);
+      debug.error('Failed to moderate instance:', error);
       throw error;
     }
   }
@@ -467,7 +468,7 @@ class AdminService {
         blocked_by: instance.metadata?.blocked_by
       }));
     } catch (error) {
-      console.error('Failed to get blocked instances:', error);
+      debug.error('Failed to get blocked instances:', error);
       return [];
     }
   }
@@ -501,7 +502,7 @@ class AdminService {
         }
       };
     } catch (error) {
-      console.error('Failed to get instance config:', error);
+      debug.error('Failed to get instance config:', error);
       return null;
     }
   }
@@ -517,7 +518,7 @@ class AdminService {
   ): Promise<void> {
     try {
       // For now, log the config change since we don't have a config table yet
-      console.log(`Config update request: ${key} = ${value} by ${adminId}`);
+      debug.log(`Config update request: ${key} = ${value} by ${adminId}`);
       
       // In the future, this would update an instance_config table
       // await supabase.from('instance_config').upsert({
@@ -529,7 +530,7 @@ class AdminService {
       
       // For now, just succeed silently
     } catch (error) {
-      console.error('Failed to set instance config:', error);
+      debug.error('Failed to set instance config:', error);
       throw error;
     }
   }
@@ -544,7 +545,7 @@ class AdminService {
         await this.setInstanceConfig(key, value, adminId);
       }
     } catch (error) {
-      console.error('Failed to set instance configs:', error);
+      debug.error('Failed to set instance configs:', error);
       throw error;
     }
   }
@@ -564,7 +565,7 @@ class AdminService {
 
       return data?.is_admin || false;
     } catch (error) {
-      console.error('Failed to check admin permissions:', error);
+      debug.error('Failed to check admin permissions:', error);
       return false;
     }
   }
@@ -593,7 +594,7 @@ class AdminService {
 
       return new Blob([csvContent], { type: 'text/csv' });
     } catch (error) {
-      console.error('Failed to export logs:', error);
+      debug.error('Failed to export logs:', error);
       throw error;
     }
   }
@@ -616,7 +617,7 @@ class AdminService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Failed to update instance trust:', error);
+      debug.error('Failed to update instance trust:', error);
       throw error;
     }
   }
@@ -646,7 +647,7 @@ class AdminService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Failed to update instance block status:', error);
+      debug.error('Failed to update instance block status:', error);
       throw error;
     }
   }
@@ -663,7 +664,7 @@ class AdminService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Failed to delete instance:', error);
+      debug.error('Failed to delete instance:', error);
       throw error;
     }
   }
@@ -699,7 +700,7 @@ class AdminService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Failed to add instance from domain:', error);
+      debug.error('Failed to add instance from domain:', error);
       throw error;
     }
   }
@@ -750,7 +751,7 @@ class AdminService {
         total: count || 0
       };
     } catch (error) {
-      console.error('Failed to get federated instances:', error);
+      debug.error('Failed to get federated instances:', error);
       throw error;
     }
   }
@@ -778,7 +779,7 @@ class AdminService {
         recently_discovered: recentResult.count || 0
       };
     } catch (error) {
-      console.error('Failed to get instance stats:', error);
+      debug.error('Failed to get instance stats:', error);
       return {
         total_instances: 0,
         blocked_instances: 0,
@@ -802,7 +803,7 @@ class AdminService {
       
       return instanceInfo;
     } catch (error) {
-      console.error(`Failed to discover instance ${domain}:`, error);
+      debug.error(`Failed to discover instance ${domain}:`, error);
       return null;
     }
   }
@@ -876,7 +877,7 @@ class AdminService {
 
       return null;
     } catch (error) {
-      console.error(`Failed to fetch instance info for ${domain}:`, error);
+      debug.error(`Failed to fetch instance info for ${domain}:`, error);
       return null;
     }
   }
@@ -948,11 +949,11 @@ class AdminService {
       if (error) throw error;
 
       // Log admin activity
-      console.log(`Instance ${cleanDomain} ${existing ? 'updated' : 'added'} by admin ${adminId}`);
+      debug.log(`Instance ${cleanDomain} ${existing ? 'updated' : 'added'} by admin ${adminId}`);
 
       return data;
     } catch (error) {
-      console.error('Failed to add federated instance:', error);
+      debug.error('Failed to add federated instance:', error);
       throw error;
     }
   }
@@ -983,11 +984,11 @@ class AdminService {
       if (error) throw error;
 
       // Log admin activity
-      console.log(`Instance ${data.domain} updated by admin ${adminId}:`, updates);
+      debug.log(`Instance ${data.domain} updated by admin ${adminId}:`, updates);
 
       return data;
     } catch (error) {
-      console.error('Failed to update federated instance:', error);
+      debug.error('Failed to update federated instance:', error);
       throw error;
     }
   }
@@ -1012,9 +1013,9 @@ class AdminService {
       if (error) throw error;
 
       // Log admin activity
-      console.log(`Instance ${instance?.domain} deleted by admin ${adminId}`);
+      debug.log(`Instance ${instance?.domain} deleted by admin ${adminId}`);
     } catch (error) {
-      console.error('Failed to delete federated instance:', error);
+      debug.error('Failed to delete federated instance:', error);
       throw error;
     }
   }
@@ -1032,10 +1033,10 @@ class AdminService {
       // - fediverse.info API
       // - Manual domain validation
       
-      console.log(`Searching for instances matching: ${query}`);
+      debug.log(`Searching for instances matching: ${query}`);
       return [];
     } catch (error) {
-      console.error('Failed to search ActivityPub instances:', error);
+      debug.error('Failed to search ActivityPub instances:', error);
       return [];
     }
   }
@@ -1075,7 +1076,7 @@ class AdminService {
 
       return discovered;
     } catch (error) {
-      console.error('Failed to get discovered instances:', error);
+      debug.error('Failed to get discovered instances:', error);
       return [];
     }
   }
@@ -1125,7 +1126,7 @@ class AdminService {
 
       return instance;
     } catch (error) {
-      console.error('Failed to refresh instance info:', error);
+      debug.error('Failed to refresh instance info:', error);
       throw error;
     }
   }

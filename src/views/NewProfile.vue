@@ -285,6 +285,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { debug } from '@/utils/debug'
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
@@ -442,7 +443,7 @@ const checkUsernameAvailability = async (usernameToCheck: string) => {
       .maybeSingle();
 
     if (error) {
-      console.error('Error checking username availability:', error);
+      debug.error('Error checking username availability:', error);
       usernameError.value = 'Error checking username availability';
       checkingUsername.value = false;
       return;
@@ -458,7 +459,7 @@ const checkUsernameAvailability = async (usernameToCheck: string) => {
       usernameAvailable.value = true;
     }
   } catch (error) {
-    console.error('Exception checking username:', error);
+    debug.error('Exception checking username:', error);
     usernameError.value = 'Error checking username availability';
   } finally {
     checkingUsername.value = false;
@@ -540,7 +541,7 @@ const createProfile = async () => {
 
   // Add loading state and better error handling
   try {
-    console.log('Creating profile with data:', {
+    debug.log('Creating profile with data:', {
       id: authStore.session.user.id,
       username: username.value.trim().toLowerCase(),
       display_name: displayName.value.trim(),
@@ -578,17 +579,17 @@ const createProfile = async () => {
       following_url: `https://${instanceDomain}/users/${username.value.trim().toLowerCase()}/following`,
     };
 
-    console.log('Calling profileStore.createProfile...');
+    debug.log('Calling profileStore.createProfile...');
     creationStep.value = 'Setting up your profile...';
     const result = await profileStore.createProfile(profileData);
-    console.log('Profile creation result:', result);
+    debug.log('Profile creation result:', result);
     
     // ActivityPub keys are generated lazily by federation-backend when first needed
     // This keeps profile creation fast and non-blocking
     
     // Handle avatar upload if file exists
     if (avatarFile.value && result) {
-      console.log('Uploading avatar...');
+      debug.log('Uploading avatar...');
       creationStep.value = 'Uploading avatar...';
       try {
         const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
@@ -598,20 +599,20 @@ const createProfile = async () => {
           await profileStore.updateProfile({
             avatar_url: uploadResult.url
           });
-          console.log('Avatar uploaded successfully:', uploadResult.url);
+          debug.log('Avatar uploaded successfully:', uploadResult.url);
         } else {
-          console.error('Avatar upload failed:', uploadResult.error);
+          debug.error('Avatar upload failed:', uploadResult.error);
           toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
         }
       } catch (uploadError) {
-        console.error('Avatar upload error:', uploadError);
+        debug.error('Avatar upload error:', uploadError);
         toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
       }
     }
 
     // Handle banner upload if file exists
     if (bannerFile.value && result) {
-      console.log('Uploading banner...');
+      debug.log('Uploading banner...');
       creationStep.value = 'Uploading banner...';
       try {
         const uploadResult = await uploadBanner(bannerFile.value, authStore.session.user.id);
@@ -621,13 +622,13 @@ const createProfile = async () => {
           await profileStore.updateProfile({
             banner_url: uploadResult.url
           });
-          console.log('Banner uploaded successfully:', uploadResult.url);
+          debug.log('Banner uploaded successfully:', uploadResult.url);
         } else {
-          console.error('Banner upload failed:', uploadResult.error);
+          debug.error('Banner upload failed:', uploadResult.error);
           toast.warning('Profile created but banner upload failed. You can update it later in settings.');
         }
       } catch (uploadError) {
-        console.error('Banner upload error:', uploadError);
+        debug.error('Banner upload error:', uploadError);
         toast.warning('Profile created but banner upload failed. You can update it later in settings.');
       }
     }
@@ -655,16 +656,16 @@ const createProfile = async () => {
         color: selectedColor.value
       });
       
-      console.log('✅ UserDataService updated and re-initialized with new profile data');
+      debug.log('✅ UserDataService updated and re-initialized with new profile data');
     } catch (updateError) {
-      console.warn('⚠️ Failed to update userDataService, but profile was created successfully:', updateError);
+      debug.warn('⚠️ Failed to update userDataService, but profile was created successfully:', updateError);
     }
 
     toast.success('Welcome to Harmony! Your profile has been created.');
-    console.log('Navigating to /chat...');
+    debug.log('Navigating to /chat...');
     await router.push('/chat');
   } catch (error: any) {
-    console.error('Profile creation error:', error);
+    debug.error('Profile creation error:', error);
     
     // More detailed error messaging
     let errorMessage = 'Failed to create profile';

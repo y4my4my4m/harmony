@@ -21,6 +21,7 @@
 
 import { supabase } from '@/supabase'
 import type { User } from '@supabase/supabase-js'
+import { debug } from '@/utils/debug'
 
 export interface AuthContext {
   authUser: User
@@ -82,7 +83,7 @@ export class AuthContextService {
         .single()
 
       if (profileError || !profile) {
-        console.warn('Auth user found but no profile exists:', user.id)
+        debug.warn('Auth user found but no profile exists:', user.id)
         this.cachedContext = this.createUnauthenticatedContext()
         return this.cachedContext
       }
@@ -93,11 +94,11 @@ export class AuthContextService {
         isAuthenticated: true
       }
 
-      console.log(`✅ Auth context resolved: ${user.id} → ${profile.id}`)
+      debug.log(`✅ Auth context resolved: ${user.id} → ${profile.id}`)
       return this.cachedContext
 
     } catch (error) {
-      console.error('❌ Failed to resolve auth context:', error)
+      debug.error('❌ Failed to resolve auth context:', error)
       this.cachedContext = this.createUnauthenticatedContext()
       return this.cachedContext
     } finally {
@@ -146,7 +147,7 @@ export class AuthContextService {
    */
   clearCache(): void {
     this.cachedContext = null
-    console.log('🧹 Auth context cache cleared')
+    debug.log('🧹 Auth context cache cleared')
   }
 
   /**
@@ -154,7 +155,7 @@ export class AuthContextService {
    */
   initializeAuthListener(): void {
     supabase.auth.onAuthStateChange((event) => {
-      console.log(`🔄 Auth state changed: ${event}`)
+      debug.log(`🔄 Auth state changed: ${event}`)
       this.clearCache()
     })
   }

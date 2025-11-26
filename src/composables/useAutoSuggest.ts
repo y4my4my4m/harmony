@@ -6,6 +6,7 @@ import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
 import type { ResolvedEmoji } from '@/types';
+import { debug } from '@/utils/debug'
 
 export interface AutoSuggestTrigger {
   char: string;
@@ -156,12 +157,12 @@ export function useAutoSuggest(
       if (currentServerId) {
         // Get users only from the current server context
         usersToSearch = userDataService.getUsersInContext(currentServerId);
-        console.log(`🎯 AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
+        debug.log(`🎯 AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
       } else {
         // Fallback to all users only if no server context is available
         // This should rarely happen in normal chat usage
         usersToSearch = userDataService.getAllUsers();
-        console.log(`⚠️ AutoSuggest: No server context, falling back to all users (${usersToSearch.length} total)`);
+        debug.log(`⚠️ AutoSuggest: No server context, falling back to all users (${usersToSearch.length} total)`);
       }
 
       const seenUsers = new Set<string>(); // Track already processed users
@@ -284,7 +285,7 @@ export function useAutoSuggest(
       const users = await activityPubService.searchUsers(query, finalConfig.maxSuggestions);
       activityPubUsers.value = users;
     } catch (error) {
-      console.error('Failed to search ActivityPub users:', error);
+      debug.error('Failed to search ActivityPub users:', error);
       activityPubUsers.value = [];
     }
   };
@@ -470,7 +471,7 @@ export function useAutoSuggest(
   const selectSuggestion = (suggestion: SuggestionItem): string => {
     // Prevent duplicate selections
     if (isSelecting.value) {
-      console.log('🔧 Preventing duplicate selection');
+      debug.log('🔧 Preventing duplicate selection');
       return '';
     }
     
@@ -489,7 +490,7 @@ export function useAutoSuggest(
       const triggerLength = endMatch ? endMatch[0].length : 1;
       const triggerEnd = triggerStart + triggerLength;
       
-      console.log('🔧 selectSuggestion detailed debug:', {
+      debug.log('🔧 selectSuggestion detailed debug:', {
         currentText,
         triggerPosition: state.value.triggerPosition,
         query: state.value.query,
@@ -508,7 +509,7 @@ export function useAutoSuggest(
       } else if (state.value.triggerType === 'mention') {
         if (finalConfig.mode === 'activitypub') {
           insertText = (suggestion.handle || `@${suggestion.username}`) + ' '; // Add space after mention
-          console.log('🔧 ActivityPub mention insert:', {
+          debug.log('🔧 ActivityPub mention insert:', {
             handle: suggestion.handle,
             username: suggestion.username,
             domain: suggestion.user?.domain,
@@ -532,7 +533,7 @@ export function useAutoSuggest(
       // Calculate new cursor position (should be right after the inserted text including the space)
       const newCursorPosition = triggerStart + insertText.length;
       
-      console.log('🔧 Final replacement:', { 
+      debug.log('🔧 Final replacement:', { 
         insertText, 
         newText,
         oldLength: currentText.length,

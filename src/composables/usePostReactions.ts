@@ -2,6 +2,7 @@ import { computed, onMounted, watch } from 'vue'
 import { usePostReactionsStore } from '@/stores/postReactions'
 import { useAuthStore } from '@/stores/auth'
 import type { TimelinePost } from '@/types'
+import { debug } from '@/utils/debug'
 
 interface Props {
   post: TimelinePost
@@ -45,7 +46,7 @@ export function usePostReactions(props: Props) {
   // Handle reaction toggle
   const handleReactionClick = async (reaction: any) => {
     if (!currentUserId.value) {
-      console.warn('User not authenticated')
+      debug.warn('User not authenticated')
       return
     }
     
@@ -60,14 +61,14 @@ export function usePostReactions(props: Props) {
     )
     
     if (!result.success && result.reason !== 'duplicate_request') {
-      console.error('Failed to toggle reaction:', result.reason)
+      debug.error('Failed to toggle reaction:', result.reason)
     }
   }
 
   // Handle adding new reaction from emoji picker
   const handleEmojiSelected = async (emoji: any) => {
     if (!currentUserId.value) {
-      console.warn('User not authenticated')
+      debug.warn('User not authenticated')
       return
     }
     
@@ -82,7 +83,7 @@ export function usePostReactions(props: Props) {
     )
     
     if (!result.success && result.reason !== 'duplicate_request') {
-      console.error('Failed to add reaction:', result.reason)
+      debug.error('Failed to add reaction:', result.reason)
     }
     
     return result.success

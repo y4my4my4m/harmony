@@ -226,6 +226,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
@@ -366,9 +367,9 @@ async function generateRecoveryKey() {
     await recoveryKeyService.deriveKeysFromMnemonic(recoveryWords.value)
     verificationCode.value = await recoveryKeyService.generateVerificationCode()
     
-    console.log('✅ Recovery key generated')
+    debug.log('✅ Recovery key generated')
   } catch (error: any) {
-    console.error('Failed to generate recovery key:', error)
+    debug.error('Failed to generate recovery key:', error)
     toast.error('Failed to generate recovery key')
   } finally {
     isGenerating.value = false
@@ -406,7 +407,7 @@ async function completeSetup() {
     currentStep.value = 3
     toast.success('Encryption setup complete!')
   } catch (error: any) {
-    console.error('Failed to complete setup:', error)
+    debug.error('Failed to complete setup:', error)
     toast.error(error.message || 'Failed to complete setup')
   } finally {
     isProcessing.value = false

@@ -8,6 +8,7 @@ import { updateUserStatus } from '@/services/ProfileService';
 import { getMembershipService } from '@/services/membershipService';
 import { userDataService } from '@/services/userDataService';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { debug } from '@/utils/debug'
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
@@ -70,8 +71,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
      * This is now simplified since userDataService IS the source of truth
      */
     initializeUserDataIntegration() {
-      console.log('🔗 UserDataService is now the single source of truth for user data')
-      console.log('✅ UserDataService integration initialized')
+      debug.log('🔗 UserDataService is now the single source of truth for user data')
+      debug.log('✅ UserDataService integration initialized')
     },
 
     // Fetch individual user profile with caching - delegate to userDataService
@@ -79,7 +80,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       try {
         return await userDataService.fetchUserProfile(userId, forceRefresh);
       } catch (error) {
-        console.error(`Error fetching profile for user ${userId}:`, error);
+        debug.error(`Error fetching profile for user ${userId}:`, error);
         return null;
       }
     },
@@ -89,7 +90,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       try {
         return await userDataService.fetchMultipleUserProfiles(userIds, forceRefresh);
       } catch (error) {
-        console.error('Error batch fetching profiles:', error);
+        debug.error('Error batch fetching profiles:', error);
         return {};
       }
     },
@@ -99,7 +100,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       try {
         await userDataService.ensureUsersLoaded(userIds);
       } catch (error) {
-        console.error('Error ensuring profiles are available:', error);
+        debug.error('Error ensuring profiles are available:', error);
       }
     },
 
@@ -153,7 +154,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     updateOnlineUsers(presenceState: Record<string, any>) {
-      console.log('📊 Updating online users from presence:', presenceState);
+      debug.log('📊 Updating online users from presence:', presenceState);
       
       // Extract user IDs from presence data, not from keys
       const onlineUserIds = new Set<string>();
@@ -166,13 +167,13 @@ export const useServerUsersStore = defineStore('serverUsers', {
         });
       });
       
-      console.log('👥 Online user IDs:', Array.from(onlineUserIds));
+      debug.log('👥 Online user IDs:', Array.from(onlineUserIds));
       
       // First, mark users who were previously online but are no longer in presence as offline
       const previouslyOnlineUsers = Array.from(this.onlineUsers);
       previouslyOnlineUsers.forEach((userId: string) => {
         if (!onlineUserIds.has(userId)) {
-          console.log('🔴 User went offline:', userId);
+          debug.log('🔴 User went offline:', userId);
           this.setUserOnlineStatus(userId, false);
         }
       });
@@ -184,7 +185,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.setUserOnlineStatus(userId, true);
       });
       
-      console.log('✅ Online users updated:', this.onlineUsers.size, 'online');
+      debug.log('✅ Online users updated:', this.onlineUsers.size, 'online');
     },
 
     setUserOnlineStatus(userId: string, isOnline: boolean) {
@@ -227,7 +228,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       try {
         // Only set up if we're switching to a different server
         if (this.currentServerId !== serverId) {
-          console.log(`🔄 Initializing membership tracking for server: ${serverId}`)
+          debug.log(`🔄 Initializing membership tracking for server: ${serverId}`)
           
           // Clean up previous server's membership subscription
           this.cleanupMembershipTracking()
@@ -238,10 +239,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
           this.currentServerId = serverId
           this.membershipSubscriptionActive = true
           
-          console.log(`✅ Membership tracking initialized for server: ${serverId}`)
+          debug.log(`✅ Membership tracking initialized for server: ${serverId}`)
         }
       } catch (error) {
-        console.error('❌ Failed to initialize membership tracking:', error)
+        debug.error('❌ Failed to initialize membership tracking:', error)
       }
     },
 
@@ -250,7 +251,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
      */
     cleanupMembershipTracking() {
       if (this.currentServerId && this.membershipSubscriptionActive) {
-        console.log(`🧹 Cleaning up membership tracking for server: ${this.currentServerId}`)
+        debug.log(`🧹 Cleaning up membership tracking for server: ${this.currentServerId}`)
         getMembershipService().unsubscribeFromServer(this.currentServerId)
         this.membershipSubscriptionActive = false
       }
@@ -290,7 +291,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         await this.voiceChannelBroadcast.unsubscribe();
       }
 
-      console.log('🎙️ Setting up voice channel broadcast for server:', serverId);
+      debug.log('🎙️ Setting up voice channel broadcast for server:', serverId);
 
       // NOTE: There is no database table to fetch initial state from.
       // Voice channel state is ephemeral and tracked through broadcast events only.
@@ -304,7 +305,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       });
 
       this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
-        console.log('🎙️ Received voice channel event:', payload);
+        debug.log('🎙️ Received voice channel event:', payload);
         const { event, userId, channelId, callStartTime } = payload.payload;
 
         if (event === 'user-joined') {
@@ -318,33 +319,33 @@ export const useServerUsersStore = defineStore('serverUsers', {
           // Set call start time if provided
           if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
             this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
-            console.log(`🕐 Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+            debug.log(`🕐 Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
           }
           
-          console.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+          debug.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
         } else if (event === 'user-left') {
           if (this.usersInVoiceChannels[channelId]) {
             this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
-            console.log(`✅ User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+            debug.log(`✅ User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
             
             // Clear call start time if last user left
             if (this.usersInVoiceChannels[channelId].length === 0) {
               delete this.voiceChannelCallStartTimes[channelId];
-              console.log(`🕐 Cleared call start time for channel ${channelId} (empty)`);
+              debug.log(`🕐 Cleared call start time for channel ${channelId} (empty)`);
             }
           }
         } else if (event === 'call-start-time-sync') {
           // Sync call start time from other users
           if (callStartTime) {
             this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
-            console.log(`🕐 Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+            debug.log(`🕐 Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
           }
         } else if (event === 'request-state') {
           // Someone is requesting current voice channel state
           // If we're in a voice channel, broadcast our presence
           const voiceStore = useUnifiedVoiceChannelStore();
           if (voiceStore.isConnected && voiceStore.currentChannelId) {
-            console.log('📡 Responding to state request with our voice channel presence');
+            debug.log('📡 Responding to state request with our voice channel presence');
             this.broadcastVoiceChannelEvent(
               serverId,
               voiceStore.currentChannelId,
@@ -357,12 +358,12 @@ export const useServerUsersStore = defineStore('serverUsers', {
       });
 
       await this.voiceChannelBroadcast.subscribe();
-      console.log('✅ Voice channel broadcast subscribed for server:', serverId);
+      debug.log('✅ Voice channel broadcast subscribed for server:', serverId);
       
       // Request current voice channel state from any active users
       // This allows new viewers to see who's in voice channels
       this.broadcastVoiceChannelEvent(serverId, '', 'request-state', '');
-      console.log('📡 Requested current voice channel state from active users');
+      debug.log('📡 Requested current voice channel state from active users');
     },
 
     /**
@@ -370,7 +371,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
      */
     async fetchVoiceChannelState(serverId: string) {
       try {
-        console.log('📞 Fetching voice channel state for server:', serverId);
+        debug.log('📞 Fetching voice channel state for server:', serverId);
         
         const { data, error } = await supabase
           .from('user_presence')
@@ -379,7 +380,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
           .not('voice_channel_id', 'is', null);
 
         if (error) {
-          console.error('Failed to fetch voice channel state:', error);
+          debug.error('Failed to fetch voice channel state:', error);
           return;
         }
 
@@ -399,16 +400,16 @@ export const useServerUsersStore = defineStore('serverUsers', {
         // Update local state - REPLACE instead of merge to clear stale data
         this.usersInVoiceChannels = { ...channelUsers };
         
-        console.log('✅ Fetched voice channel state:', this.usersInVoiceChannels);
-        console.log('📊 Channels with users:', Object.keys(this.usersInVoiceChannels).length);
+        debug.log('✅ Fetched voice channel state:', this.usersInVoiceChannels);
+        debug.log('📊 Channels with users:', Object.keys(this.usersInVoiceChannels).length);
       } catch (error) {
-        console.error('Error fetching voice channel state:', error);
+        debug.error('Error fetching voice channel state:', error);
       }
     },
 
     broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string, callStartTime?: string) {
       if (!this.voiceChannelBroadcast) {
-        console.error('❌ Voice channel broadcast not initialized');
+        debug.error('❌ Voice channel broadcast not initialized');
         return;
       }
 
@@ -418,7 +419,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         payload: { event, userId, channelId, callStartTime }
       });
       
-      console.log(`📡 Broadcasted ${event} for user ${userId} in channel ${channelId}`, callStartTime ? `with start time ${callStartTime}` : '');
+      debug.log(`📡 Broadcasted ${event} for user ${userId} in channel ${channelId}`, callStartTime ? `with start time ${callStartTime}` : '');
     },
 
     // Get all users in a specific voice channel
@@ -450,7 +451,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         if (isFirstUser) {
           this.voiceChannelCallStartTimes[channelId] = new Date();
           callStartTime = this.voiceChannelCallStartTimes[channelId].toISOString();
-          console.log(`🕐 First user - setting call start time for channel ${channelId}`);
+          debug.log(`🕐 First user - setting call start time for channel ${channelId}`);
         } else {
           // Use existing call start time
           callStartTime = this.voiceChannelCallStartTimes[channelId]?.toISOString();
@@ -459,10 +460,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
         // Broadcast to other users with call start time
         this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId, callStartTime);
         
-        console.log(`User ${userId} joined voice channel ${channelId}`);
+        debug.log(`User ${userId} joined voice channel ${channelId}`);
         return true;
       } catch (error) {
-        console.error('Error joining voice channel:', error);
+        debug.error('Error joining voice channel:', error);
         return false;
       }
     },
@@ -476,17 +477,17 @@ export const useServerUsersStore = defineStore('serverUsers', {
           // Clear call start time if last user left
           if (this.usersInVoiceChannels[channelId].length === 0) {
             delete this.voiceChannelCallStartTimes[channelId];
-            console.log(`🕐 Cleared call start time for channel ${channelId}`);
+            debug.log(`🕐 Cleared call start time for channel ${channelId}`);
           }
         }
 
         // Broadcast to other users
         this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);
         
-        console.log(`User ${userId} left voice channel ${channelId}`);
+        debug.log(`User ${userId} left voice channel ${channelId}`);
         return true;
       } catch (error) {
-        console.error('Error leaving voice channel:', error);
+        debug.error('Error leaving voice channel:', error);
         return false;
       }
     },

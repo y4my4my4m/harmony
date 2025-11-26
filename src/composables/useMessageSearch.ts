@@ -12,6 +12,7 @@ import { ref, computed, watch } from 'vue'
 import { searchService, type MessageSearchFilters, type MessageSearchResponse } from '@/services/SearchService'
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import type { Message } from '@/types'
+import { debug } from '@/utils/debug'
 
 export interface SearchFilters {
   query: string
@@ -180,7 +181,7 @@ export function useMessageSearch() {
       try {
         ensureMessageEmbeds(response.results)
       } catch (error) {
-        console.warn('Failed to prepare embeds for search results:', error)
+        debug.warn('Failed to prepare embeds for search results:', error)
       }
 
       hasMore.value = response.hasMore
@@ -196,7 +197,7 @@ export function useMessageSearch() {
         return
       }
 
-      console.error('Search error:', err)
+      debug.error('Search error:', err)
       error.value = err.message || 'Search failed'
       searchResults.value = []
       hasMore.value = false

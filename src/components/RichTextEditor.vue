@@ -33,6 +33,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, nextTick, computed } from 'vue';
+import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
@@ -93,7 +94,7 @@ const findEmojiByName = (name: string) => {
     }
     return null;
   } catch (error) {
-    console.warn('Error finding emoji by name:', error);
+    debug.warn('Error finding emoji by name:', error);
     return null;
   }
 };
@@ -219,7 +220,7 @@ const getCursorPosition = (): number => {
 const setCursorPosition = (targetPosition: number) => {
   if (!editorRef.value) return;
   
-  console.log('🔧 setCursorPosition called with:', targetPosition);
+  debug.log('🔧 setCursorPosition called with:', targetPosition);
   
   const selection = window.getSelection();
   if (!selection) return;
@@ -261,11 +262,11 @@ const setCursorPosition = (targetPosition: number) => {
   while (node) {
     if (node.nodeType === Node.TEXT_NODE) {
       const nodeLength = (node.textContent || '').length;
-      console.log('🔧 Processing text node:', { text: JSON.stringify(node.textContent), length: nodeLength, currentPos, targetPosition });
+      debug.log('🔧 Processing text node:', { text: JSON.stringify(node.textContent), length: nodeLength, currentPos, targetPosition });
       if (currentPos + nodeLength >= targetPosition) {
         targetNode = node;
         targetOffset = targetPosition - currentPos;
-        console.log('🔧 Found target in text node:', { targetOffset, text: JSON.stringify(node.textContent) });
+        debug.log('🔧 Found target in text node:', { targetOffset, text: JSON.stringify(node.textContent) });
         break;
       }
       currentPos += nodeLength;
@@ -283,7 +284,7 @@ const setCursorPosition = (targetPosition: number) => {
         if (displayText) {
           nodeLength = displayText.length; // Count the display text length (@username or @username@domain)
         }
-        console.log('🔧 Processing mention element:', { displayText, length: nodeLength, currentPos, targetPosition });
+        debug.log('🔧 Processing mention element:', { displayText, length: nodeLength, currentPos, targetPosition });
       } else if (el.tagName === 'BR') {
         nodeLength = 1;
       }
@@ -292,7 +293,7 @@ const setCursorPosition = (targetPosition: number) => {
         // Position cursor after this element
         targetNode = el.parentNode;
         targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el) + 1;
-        console.log('🔧 Found target after element:', { element: el.tagName, targetOffset });
+        debug.log('🔧 Found target after element:', { element: el.tagName, targetOffset });
         break;
       }
       currentPos += nodeLength;
@@ -302,7 +303,7 @@ const setCursorPosition = (targetPosition: number) => {
   
   if (targetNode) {
     try {
-      console.log('🔧 Setting range:', { 
+      debug.log('🔧 Setting range:', { 
         nodeType: targetNode.nodeType, 
         nodeName: targetNode.nodeName, 
         targetOffset,
@@ -317,12 +318,12 @@ const setCursorPosition = (targetPosition: number) => {
       range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
-      console.log('🔧 Cursor position set successfully');
+      debug.log('🔧 Cursor position set successfully');
     } catch (e) {
-      console.warn('Error setting cursor position:', e);
+      debug.warn('Error setting cursor position:', e);
     }
   } else {
-    console.warn('🔧 Could not find target node for position:', targetPosition);
+    debug.warn('🔧 Could not find target node for position:', targetPosition);
   }
 };
 
@@ -335,13 +336,13 @@ const processMentionsInText = (text: string): DocumentFragment => {
   // @username (local mention)
   const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
   
-  console.log('🔧 processMentionsInText called with:', text);
+  debug.log('🔧 processMentionsInText called with:', text);
   
   let lastIndex = 0;
   let match;
   
   while ((match = mentionRegex.exec(text)) !== null) {
-    console.log('🔧 Found mention match:', match);
+    debug.log('🔧 Found mention match:', match);
     const matchStart = match.index;
     const matchEnd = match.index + match[0].length;
     
@@ -365,7 +366,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   // Add remaining text after last mention
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
-    console.log('🔧 Adding remaining text after mentions:', JSON.stringify(remainingText));
+    debug.log('🔧 Adding remaining text after mentions:', JSON.stringify(remainingText));
     // Convert spaces to &nbsp; for proper cursor positioning after mention elements
     const textNode = document.createTextNode(remainingText.replace(/ /g, '\u00A0'));
     fragment.appendChild(textNode);
@@ -374,7 +375,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   // If no mentions found, just return the text as a text node
   // Removed redundant fallback block that appended the full text again.
   
-  console.log('🔧 Fragment children count:', fragment.childNodes.length);
+  debug.log('🔧 Fragment children count:', fragment.childNodes.length);
   return fragment;
 };
 
@@ -399,7 +400,7 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
       actualDomain = userProfile?.domain || domain || 'har.mony.lol';
     }
   } catch (error) {
-    console.error('Error looking up user for mention:', error);
+    debug.error('Error looking up user for mention:', error);
   }
   
   // Normalize display text to use @ separator (even if user typed with .)
@@ -428,19 +429,19 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
 
 // Render content with Discord-like markdown styling
 const renderContent = (text: string, skipCursorRestore = false) => {
-  console.log('🔧 renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
+  debug.log('🔧 renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
   if (!editorRef.value || isRendering.value) {
-    console.log('🔧 renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
+    debug.log('🔧 renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
     return;
   }
   
   isRendering.value = true;
   const currentCursorPos = getCursorPosition();
-  console.log('🔧 Current cursor position:', currentCursorPos);
+  debug.log('🔧 Current cursor position:', currentCursorPos);
   
   // Clear content
   editorRef.value.innerHTML = '';
-  console.log('🔧 Cleared editor content');
+  debug.log('🔧 Cleared editor content');
   
   if (!text) {
     isRendering.value = false;
@@ -486,13 +487,13 @@ const renderContent = (text: string, skipCursorRestore = false) => {
     nextTick(() => {
       if (editorRef.value && (document.activeElement === editorRef.value || 
           editorRef.value.contains(document.activeElement))) {
-        console.log('🔧 Restoring cursor position to:', currentCursorPos);
+        debug.log('🔧 Restoring cursor position to:', currentCursorPos);
         setCursorPosition(currentCursorPos);
       }
       isRendering.value = false;
     });
   } else {
-    console.log('🔧 Skipping cursor restore, will be set externally');
+    debug.log('🔧 Skipping cursor restore, will be set externally');
     nextTick(() => {
       isRendering.value = false;
     });
@@ -778,11 +779,11 @@ const autoExpand = () => {
 // Focus the editor
 const focus = () => {
   if (editorRef.value) {
-    console.log('🔧 focus() called, editor exists:', !!editorRef.value);
+    debug.log('🔧 focus() called, editor exists:', !!editorRef.value);
     
     // Blur first to ensure clean state
     if (document.activeElement === editorRef.value) {
-      console.log('🔧 Editor already focused, blurring first');
+      debug.log('🔧 Editor already focused, blurring first');
       editorRef.value.blur();
     }
     
@@ -792,14 +793,14 @@ const focus = () => {
     // Double-check focus was established
     requestAnimationFrame(() => {
       if (editorRef.value && document.activeElement !== editorRef.value) {
-        console.warn('🔧 Focus attempt failed, trying again');
+        debug.warn('🔧 Focus attempt failed, trying again');
         editorRef.value.focus();
       }
-      console.log('🔧 After focus(), activeElement:', document.activeElement === editorRef.value);
-      console.log('🔧 Has selection:', !!window.getSelection()?.rangeCount);
+      debug.log('🔧 After focus(), activeElement:', document.activeElement === editorRef.value);
+      debug.log('🔧 Has selection:', !!window.getSelection()?.rangeCount);
     });
   } else {
-    console.warn('🔧 focus() called but editorRef is null');
+    debug.warn('🔧 focus() called but editorRef is null');
   }
 };
 
@@ -827,19 +828,19 @@ watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     // Check if we should skip this watch cycle (manual cursor control)
     if (skipNextWatch.value) {
-      console.log('🔧 Skipping watch cycle due to manual cursor control');
+      debug.log('🔧 Skipping watch cycle due to manual cursor control');
       skipNextWatch.value = false;
       return;
     }
     
     const currentText = getPlainText();
-    console.log('🔧 RichTextEditor watch triggered:', { 
+    debug.log('🔧 RichTextEditor watch triggered:', { 
       newValue: JSON.stringify(newValue), 
       currentText: JSON.stringify(currentText), 
       different: currentText !== newValue 
     });
     if (currentText !== newValue) {
-      console.log('🔧 Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
+      debug.log('🔧 Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
       // Don't skip cursor restore here - this is for normal typing
       renderContent(newValue, false);
       autoExpand();

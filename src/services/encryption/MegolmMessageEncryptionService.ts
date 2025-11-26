@@ -17,6 +17,7 @@ import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmKeyBackupService } from './MegolmKeyBackupService'
 import type { MessagePart } from '@/types'
+import { debug } from '@/utils/debug'
 
 export interface MegolmEncryptionStatus {
   enabled: boolean
@@ -74,13 +75,13 @@ export class MegolmMessageEncryptionService {
       
       if (profile?.id) {
         this.currentUserId = profile.id
-        console.log(`🔐 MegolmMessageEncryptionService: Using profile ID ${this.currentUserId}`)
+        debug.log(`🔐 MegolmMessageEncryptionService: Using profile ID ${this.currentUserId}`)
       } else {
         this.currentUserId = authUserId
-        console.warn(`⚠️ No profile found for auth user ${authUserId}`)
+        debug.warn(`⚠️ No profile found for auth user ${authUserId}`)
       }
     } catch (error) {
-      console.warn('⚠️ Failed to get profile ID:', error)
+      debug.warn('⚠️ Failed to get profile ID:', error)
       this.currentUserId = authUserId
     }
 
@@ -90,7 +91,7 @@ export class MegolmMessageEncryptionService {
       
       // Register callback for when keys are received via realtime
       megolmKeyBackupService.onKeyReceived((roomId, sessionId) => {
-        console.log(`🔑 Key received for room ${roomId.substring(0, 8)}..., session ${sessionId.substring(0, 8)}...`)
+        debug.log(`🔑 Key received for room ${roomId.substring(0, 8)}..., session ${sessionId.substring(0, 8)}...`)
         // Emit event for UI to retry decryption
         window.dispatchEvent(new CustomEvent('megolm-key-received', { 
           detail: { roomId, sessionId } 
@@ -99,7 +100,7 @@ export class MegolmMessageEncryptionService {
     }
 
     this.initialized = true
-    console.log('✅ MegolmMessageEncryptionService initialized')
+    debug.log('✅ MegolmMessageEncryptionService initialized')
 
     // Try to auto-unlock from session storage (persists across page refresh)
     await this.tryAutoUnlock()
@@ -114,7 +115,7 @@ export class MegolmMessageEncryptionService {
     try {
       const storedData = sessionStorage.getItem(`megolm_session_${this.currentUserId}`)
       if (!storedData) {
-        console.log('🔐 No stored session - encryption locked')
+        debug.log('🔐 No stored session - encryption locked')
         return false
       }
 
@@ -122,12 +123,12 @@ export class MegolmMessageEncryptionService {
       const words = JSON.parse(atob(storedData)) as string[]
       
       if (!Array.isArray(words) || words.length < 12) {
-        console.warn('⚠️ Invalid stored session data')
+        debug.warn('⚠️ Invalid stored session data')
         sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
         return false
       }
 
-      console.log('🔐 Found stored session - auto-unlocking...')
+      debug.log('🔐 Found stored session - auto-unlocking...')
       
       // Derive keys from mnemonic
       const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
@@ -142,7 +143,7 @@ export class MegolmMessageEncryptionService {
       try {
         const result = await megolmKeyBackupService.restoreFromBackup()
         if (result.outboundCount + result.inboundCount > 0) {
-          console.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
+          debug.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
         }
       } catch (error) {
         // Ignore backup restore errors during auto-unlock
@@ -155,10 +156,10 @@ export class MegolmMessageEncryptionService {
         // Ignore errors during auto-unlock
       }
 
-      console.log('✅ Auto-unlocked encryption from stored session')
+      debug.log('✅ Auto-unlocked encryption from stored session')
       return true
     } catch (error) {
-      console.warn('⚠️ Failed to auto-unlock:', error)
+      debug.warn('⚠️ Failed to auto-unlock:', error)
       sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
       return false
     }
@@ -173,7 +174,7 @@ export class MegolmMessageEncryptionService {
     // Store encoded mnemonic in sessionStorage (survives page refresh, cleared on tab close)
     const encoded = btoa(JSON.stringify(words))
     sessionStorage.setItem(`megolm_session_${this.currentUserId}`, encoded)
-    console.log('🔐 Session stored for auto-unlock')
+    debug.log('🔐 Session stored for auto-unlock')
   }
 
   /**
@@ -185,7 +186,7 @@ export class MegolmMessageEncryptionService {
     }
     megolmService.close()
     recoveryKeyService.clear()
-    console.log('🔒 Encryption locked')
+    debug.log('🔒 Encryption locked')
   }
 
   /**
@@ -209,35 +210,35 @@ export class MegolmMessageEncryptionService {
     // Try to restore from backup
     try {
       const result = await megolmKeyBackupService.restoreFromBackup()
-      console.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
+      debug.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
     } catch (error) {
-      console.log('ℹ️ No backup to restore or restore failed:', error)
+      debug.log('ℹ️ No backup to restore or restore failed:', error)
     }
 
     // Claim any pending session shares
     try {
       const claimedCount = await this.claimPendingSessionShares()
       if (claimedCount > 0) {
-        console.log(`📥 Claimed ${claimedCount} pending session shares`)
+        debug.log(`📥 Claimed ${claimedCount} pending session shares`)
       }
     } catch (error) {
-      console.warn('⚠️ Failed to claim pending session shares:', error)
+      debug.warn('⚠️ Failed to claim pending session shares:', error)
     }
 
     // Process any pending key requests to us (from while we were offline)
     try {
       const fulfilledCount = await megolmKeyBackupService.processPendingRequestsToMe()
       if (fulfilledCount > 0) {
-        console.log(`📤 Fulfilled ${fulfilledCount} pending key requests`)
+        debug.log(`📤 Fulfilled ${fulfilledCount} pending key requests`)
       }
     } catch (error) {
-      console.warn('⚠️ Failed to process pending key requests:', error)
+      debug.warn('⚠️ Failed to process pending key requests:', error)
     }
 
     // Store session for auto-unlock on page refresh
     this.storeSession(words)
 
-    console.log('✅ Encryption initialized with recovery key')
+    debug.log('✅ Encryption initialized with recovery key')
   }
 
   /**
@@ -255,7 +256,7 @@ export class MegolmMessageEncryptionService {
     // Complete setup with the generated words
     await this.completeSetupWithWords(words)
 
-    console.log('✅ New encryption setup complete')
+    debug.log('✅ New encryption setup complete')
     return words
   }
 
@@ -268,18 +269,18 @@ export class MegolmMessageEncryptionService {
       throw new Error('Not initialized')
     }
 
-    console.log('🔐 Completing encryption setup...')
+    debug.log('🔐 Completing encryption setup...')
 
     // Derive keys from mnemonic
     const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
 
     // Initialize Megolm service
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
-    console.log('✅ Megolm service initialized')
+    debug.log('✅ Megolm service initialized')
 
     // Generate identity key pair for session key exchange
     await this.ensureIdentityKeyPair()
-    console.log('✅ Identity key pair ready')
+    debug.log('✅ Identity key pair ready')
 
     // Initialize backup service
     await megolmKeyBackupService.initialize(this.currentUserId)
@@ -295,25 +296,25 @@ export class MegolmMessageEncryptionService {
     })
     
     if (error) {
-      console.error('Failed to register recovery key:', error)
+      debug.error('Failed to register recovery key:', error)
       throw new Error('Failed to register recovery key metadata')
     }
-    console.log('✅ Recovery key metadata registered')
+    debug.log('✅ Recovery key metadata registered')
 
     // Create initial backup
     try {
       await megolmKeyBackupService.createBackup()
-      console.log('✅ Initial backup created')
+      debug.log('✅ Initial backup created')
     } catch (backupError) {
-      console.warn('⚠️ Failed to create initial backup:', backupError)
+      debug.warn('⚠️ Failed to create initial backup:', backupError)
     }
 
     // Store session for auto-unlock on page refresh
     this.storeSession(words)
 
-    console.log('🔐 Encryption setup complete!')
-    console.log(`   isUnlocked: ${this.isUnlocked()}`)
-    console.log(`   hasRecoveryKey: ${await this.hasRecoveryKey()}`)
+    debug.log('🔐 Encryption setup complete!')
+    debug.log(`   isUnlocked: ${this.isUnlocked()}`)
+    debug.log(`   hasRecoveryKey: ${await this.hasRecoveryKey()}`)
   }
 
   /**
@@ -331,7 +332,7 @@ export class MegolmMessageEncryptionService {
       .maybeSingle()
 
     if (existingKey) {
-      console.log('✅ Identity key pair already exists')
+      debug.log('✅ Identity key pair already exists')
       return
     }
 
@@ -366,14 +367,14 @@ export class MegolmMessageEncryptionService {
       })
 
     if (error) {
-      console.error('❌ Failed to store identity key:', error)
+      debug.error('❌ Failed to store identity key:', error)
       throw new Error('Failed to create identity key pair')
     }
 
     // Also store locally for quick access
     localStorage.setItem(`megolm_identity_private_${this.currentUserId}`, privateKeyBase64)
 
-    console.log('✅ Identity key pair created')
+    debug.log('✅ Identity key pair created')
   }
 
   // =====================================================
@@ -405,7 +406,7 @@ export class MegolmMessageEncryptionService {
     // Share session with recipients in the background (non-blocking)
     // This allows the message to be sent immediately while keys are shared
     this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
-      .catch(err => console.warn('⚠️ Background session sharing failed:', err))
+      .catch(err => debug.warn('⚠️ Background session sharing failed:', err))
 
     // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
@@ -463,7 +464,7 @@ export class MegolmMessageEncryptionService {
       return this.decryptMegolmMessage(message, roomId)
     } else if (metadata.algorithm === 'signal_protocol_v1_hybrid') {
       // Legacy Signal Protocol message - can't decrypt without old keys
-      console.warn('⚠️ Legacy Signal Protocol message - cannot decrypt')
+      debug.warn('⚠️ Legacy Signal Protocol message - cannot decrypt')
       throw new Error('Legacy encrypted message - keys no longer available')
     }
 
@@ -519,7 +520,7 @@ export class MegolmMessageEncryptionService {
     } catch (error: any) {
       // SLOW PATH: Key not in memory, try to get it from server
       if (error.message.includes('No inbound session') || error.message.includes('No outbound session')) {
-        console.log(`ℹ️ Missing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
+        debug.log(`ℹ️ Missing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
         
         // Try to claim pending session shares from server
         const claimed = await this.claimPendingSessionShares()
@@ -537,9 +538,9 @@ export class MegolmMessageEncryptionService {
         
         // No shares available - request the key from the sender
         // The sender will receive this via realtime and auto-fulfill if they have the key
-        console.log(`📤 Requesting session key from sender ${senderId.substring(0, 8)}...`)
+        debug.log(`📤 Requesting session key from sender ${senderId.substring(0, 8)}...`)
         megolmKeyBackupService.createKeyRequest(roomId, sessionId, senderId)
-          .catch(err => console.warn('⚠️ Key request failed:', err))
+          .catch(err => debug.warn('⚠️ Key request failed:', err))
         throw new Error('Session key not available - key request sent to sender')
       }
       throw error
@@ -572,7 +573,7 @@ export class MegolmMessageEncryptionService {
     // Get session key data
     const sessionData = megolmService.getSessionKeyForSharing(roomId)
     if (!sessionData) {
-      console.error('❌ Failed to get session data for sharing')
+      debug.error('❌ Failed to get session data for sharing')
       return
     }
 
@@ -584,7 +585,7 @@ export class MegolmMessageEncryptionService {
       .eq('is_active', true)
 
     if (keyError) {
-      console.error('❌ Error fetching public keys:', keyError)
+      debug.error('❌ Error fetching public keys:', keyError)
       return
     }
 
@@ -601,12 +602,12 @@ export class MegolmMessageEncryptionService {
 
     if (usersWithKeys === 0) {
       if (usersWithoutKeys > 0) {
-        console.log(`ℹ️ ${usersWithoutKeys} users haven't set up encryption yet`)
+        debug.log(`ℹ️ ${usersWithoutKeys} users haven't set up encryption yet`)
       }
       return
     }
 
-    console.log(`📤 Sharing session with ${usersWithKeys} users...`)
+    debug.log(`📤 Sharing session with ${usersWithKeys} users...`)
 
     // PARALLEL: Encrypt and store shares concurrently
     const sharePromises = Array.from(keyMap.entries()).map(async ([userId, publicKey]) => {
@@ -632,7 +633,7 @@ export class MegolmMessageEncryptionService {
           })
 
         if (shareError) {
-          console.error(`❌ Failed to store session share for ${userId.substring(0, 8)}:`, shareError)
+          debug.error(`❌ Failed to store session share for ${userId.substring(0, 8)}:`, shareError)
           return false
         }
 
@@ -640,14 +641,14 @@ export class MegolmMessageEncryptionService {
         megolmService.markSessionSharedWith(roomId, userId)
         return true
       } catch (error) {
-        console.error(`❌ Failed to share session with ${userId.substring(0, 8)}:`, error)
+        debug.error(`❌ Failed to share session with ${userId.substring(0, 8)}:`, error)
         return false
       }
     })
 
     const results = await Promise.all(sharePromises)
     const successCount = results.filter(Boolean).length
-    console.log(`✅ Session shared with ${successCount}/${usersWithKeys} users`)
+    debug.log(`✅ Session shared with ${successCount}/${usersWithKeys} users`)
   }
 
   /**
@@ -695,7 +696,7 @@ export class MegolmMessageEncryptionService {
     
     if (!encryptionKey) {
       // If no encryption key, use a simple encoding (not ideal but works for compatibility)
-      console.warn('⚠️ No encryption key available, using simple encoding for private key')
+      debug.warn('⚠️ No encryption key available, using simple encoding for private key')
       return btoa(privateKeyBase64)
     }
 
@@ -730,7 +731,7 @@ export class MegolmMessageEncryptionService {
       return 0
     }
 
-    console.log(`📥 Found ${shares.length} unclaimed session shares`)
+    debug.log(`📥 Found ${shares.length} unclaimed session shares`)
 
     // Process shares in parallel
     const results = await Promise.all(shares.map(async (share: any) => {
@@ -761,7 +762,7 @@ export class MegolmMessageEncryptionService {
 
     const claimedCount = results.filter(Boolean).length
     if (claimedCount > 0) {
-      console.log(`✅ Claimed ${claimedCount} session shares`)
+      debug.log(`✅ Claimed ${claimedCount} session shares`)
     }
     return claimedCount
   }
@@ -848,7 +849,7 @@ export class MegolmMessageEncryptionService {
    */
   isUnlocked(): boolean {
     const unlocked = megolmService.isInitialized()
-    console.log(`🔐 isUnlocked: ${unlocked}`)
+    debug.log(`🔐 isUnlocked: ${unlocked}`)
     return unlocked
   }
 
@@ -857,7 +858,7 @@ export class MegolmMessageEncryptionService {
    */
   async hasRecoveryKey(): Promise<boolean> {
     if (!this.currentUserId) {
-      console.log('🔐 hasRecoveryKey: No user ID')
+      debug.log('🔐 hasRecoveryKey: No user ID')
       return false
     }
 
@@ -869,12 +870,12 @@ export class MegolmMessageEncryptionService {
       .maybeSingle()
 
     if (error) {
-      console.warn('⚠️ hasRecoveryKey check failed:', error)
+      debug.warn('⚠️ hasRecoveryKey check failed:', error)
       return false
     }
 
     const hasKey = !!data
-    console.log(`🔐 hasRecoveryKey: ${hasKey}`)
+    debug.log(`🔐 hasRecoveryKey: ${hasKey}`)
     return hasKey
   }
 
@@ -929,7 +930,7 @@ export class MegolmMessageEncryptionService {
     // Clear recovery key service
     recoveryKeyService.clear()
 
-    console.log('✅ Encryption reset complete')
+    debug.log('✅ Encryption reset complete')
   }
 
   /**

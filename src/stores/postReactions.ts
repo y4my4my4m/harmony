@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 export interface PostReactionGroup {
   emoji_id: string | null
@@ -92,16 +93,16 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       })
 
       if (error) {
-        console.error('❌ Failed to fetch post reactions:', error)
+        debug.error('❌ Failed to fetch post reactions:', error)
         return
       }
 
       reactionsByPost.value.set(postId, data || [])
       lastFetched.value.set(postId, now)
       
-      console.log(`✅ Fetched ${data?.length || 0} reaction groups for post ${postId}`)
+      debug.log(`✅ Fetched ${data?.length || 0} reaction groups for post ${postId}`)
     } catch (error) {
-      console.error('❌ Error fetching post reactions:', error)
+      debug.error('❌ Error fetching post reactions:', error)
     } finally {
       isLoading.value.delete(postId)
     }
@@ -125,7 +126,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
         })
 
     if (!idsToFetch.length) {
-      console.log('📊 All post reactions already cached, skipping fetch')
+      debug.log('📊 All post reactions already cached, skipping fetch')
       return
     }
 
@@ -133,7 +134,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
     idsToFetch.forEach(id => isLoading.value.add(id))
 
     try {
-      console.log(`🔄 Batch fetching reactions for ${idsToFetch.length} posts`)
+      debug.log(`🔄 Batch fetching reactions for ${idsToFetch.length} posts`)
       
       const { data, error } = await supabase.rpc('get_batch_post_emoji_reactions', {
         p_post_ids: idsToFetch,
@@ -141,7 +142,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       })
 
       if (error) {
-        console.error('❌ Failed to batch fetch post reactions:', error)
+        debug.error('❌ Failed to batch fetch post reactions:', error)
         return
       }
 
@@ -178,9 +179,9 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
         }
       })
 
-      console.log(`✅ Batch fetched reactions for ${idsToFetch.length} posts`)
+      debug.log(`✅ Batch fetched reactions for ${idsToFetch.length} posts`)
     } catch (error) {
-      console.error('❌ Error in batch fetch:', error)
+      debug.error('❌ Error in batch fetch:', error)
     } finally {
       idsToFetch.forEach(id => isLoading.value.delete(id))
     }
@@ -252,9 +253,9 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
           userId, 
           operation
         )
-        console.log(`✅ Federation: Post reaction ${operation} activity created for post ${postId}`)
+        debug.log(`✅ Federation: Post reaction ${operation} activity created for post ${postId}`)
       } catch (federationError) {
-        console.warn('⚠️ Federation failed, but local reaction succeeded:', federationError)
+        debug.warn('⚠️ Federation failed, but local reaction succeeded:', federationError)
         // Don't fail the entire operation if federation fails - user experience first!
       }
 
@@ -263,7 +264,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       
       return { success: true }
     } catch (error: any) {
-      console.error('❌ Failed to toggle post reaction:', error)
+      debug.error('❌ Failed to toggle post reaction:', error)
       // Remove optimistic state on error
       optimisticReactions.value.delete(postId)
       return { success: false, reason: error.message }
@@ -338,11 +339,11 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
     
     if (!postId) return
 
-    console.log('🔄 Realtime reaction update for post:', postId)
+    debug.log('🔄 Realtime reaction update for post:', postId)
     
     // If we have optimistic state, enhance it with real user data instead of ignoring
     if (optimisticReactions.value.has(postId)) {
-      console.log('🔄 Enhancing optimistic state with real user data from realtime')
+      debug.log('🔄 Enhancing optimistic state with real user data from realtime')
       
       // Fetch fresh data to get real user information for tooltips
       lastFetched.value.delete(postId)
@@ -372,7 +373,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       
       // Update optimistic state with enhanced data
       optimisticReactions.value.set(postId, enhancedOptimistic)
-      console.log('✅ Enhanced optimistic state with real user data')
+      debug.log('✅ Enhanced optimistic state with real user data')
       return
     }
     

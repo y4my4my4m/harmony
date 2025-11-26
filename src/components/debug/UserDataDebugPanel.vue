@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { debug } from '@/utils/debug'
 import { useUserData } from '@/composables/useUserData'
 import { UserStatus } from '@/types'
 
@@ -112,14 +113,14 @@ const getStatusClass = (status: UserStatus) => {
 }
 
 const refreshData = async () => {
-  console.log('🔄 Refreshing user data...')
+  debug.log('🔄 Refreshing user data...')
   await refresh()
-  console.log('✅ User data refreshed')
+  debug.log('✅ User data refreshed')
 }
 
 const logStats = () => {
   const currentStats = stats.value
-  console.log('📊 Current User Data Stats:', currentStats)
+  debug.log('📊 Current User Data Stats:', currentStats)
 }
 </script>
 

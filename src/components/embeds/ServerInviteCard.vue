@@ -76,6 +76,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { supabase } from '@/supabase';
@@ -127,7 +128,7 @@ async function loadInviteData() {
   loading.value = true;
   error.value = null;
   
-  console.log('🎫 Loading invite data for code:', props.inviteCode);
+  debug.log('🎫 Loading invite data for code:', props.inviteCode);
   
   try {
     // Step 1: Fetch invite details
@@ -137,10 +138,10 @@ async function loadInviteData() {
       .eq('code', props.inviteCode)
       .single();
 
-    console.log('🎫 Invite query result:', { invite, inviteError });
+    debug.log('🎫 Invite query result:', { invite, inviteError });
 
     if (inviteError || !invite) {
-      console.error('🎫 Invite fetch error:', inviteError);
+      debug.error('🎫 Invite fetch error:', inviteError);
       error.value = 'Invite not found or has expired';
       return;
     }
@@ -164,10 +165,10 @@ async function loadInviteData() {
       .eq('id', invite.server_id)
       .single();
 
-    console.log('🎫 Server query result:', { server, serverError });
+    debug.log('🎫 Server query result:', { server, serverError });
 
     if (serverError || !server) {
-      console.error('🎫 Server fetch error:', serverError);
+      debug.error('🎫 Server fetch error:', serverError);
       error.value = 'Server not found';
       return;
     }
@@ -192,7 +193,7 @@ async function loadInviteData() {
 
     // Use getServerIconUrl to construct the full icon URL from the relative path
     const iconUrl = getServerIconUrl(server.icon);
-    console.log('🎫 Server icon processing:', { 
+    debug.log('🎫 Server icon processing:', { 
       rawIcon: server.icon, 
       constructedUrl: iconUrl 
     });
@@ -205,9 +206,9 @@ async function loadInviteData() {
       server_id: server.id
     };
     
-    console.log('🎫 Server data loaded:', serverData.value);
+    debug.log('🎫 Server data loaded:', serverData.value);
   } catch (err) {
-    console.error('🎫 Error loading invite:', err);
+    debug.error('🎫 Error loading invite:', err);
     error.value = 'Failed to load invite details';
   } finally {
     loading.value = false;
@@ -236,7 +237,7 @@ async function handleJoin() {
       toast.error(result.error || 'Failed to join server');
     }
   } catch (err) {
-    console.error('Error joining server:', err);
+    debug.error('Error joining server:', err);
     toast.error('Failed to join server');
   } finally {
     isJoining.value = false;

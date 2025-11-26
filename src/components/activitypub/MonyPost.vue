@@ -392,6 +392,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -649,17 +650,17 @@ const onReply = () => {
 };
 
 const handleReplySent = (reply: any) => {
-  console.log('Reply sent:', reply);
+  debug.log('Reply sent:', reply);
   showInlineReply.value = false;
   // Could emit a success event or update local state here
 };
 
 const handleShowEmojiPicker = (post: TimelinePost) => {
-  console.log('Show emoji picker for post:', post.id);
-  console.log('emojiTriggerRef:', emojiTriggerRef.value);
-  console.log('Current showEmojiPopup:', showEmojiPopup.value);
+  debug.log('Show emoji picker for post:', post.id);
+  debug.log('emojiTriggerRef:', emojiTriggerRef.value);
+  debug.log('Current showEmojiPopup:', showEmojiPopup.value);
   showEmojiPopup.value = true;
-  console.log('Set showEmojiPopup to:', showEmojiPopup.value);
+  debug.log('Set showEmojiPopup to:', showEmojiPopup.value);
 };
 
 const closeEmojiPopup = () => {
@@ -667,11 +668,11 @@ const closeEmojiPopup = () => {
 };
 
 const handleEmojiSelected = async (emoji: any) => {
-  console.log('Emoji selected:', emoji);
+  debug.log('Emoji selected:', emoji);
   
   const currentUser = getCurrentUser.value;
   if (!currentUser) {
-    console.warn('User not authenticated');
+    debug.warn('User not authenticated');
     return;
   }
   
@@ -680,7 +681,7 @@ const handleEmojiSelected = async (emoji: any) => {
     try {
       await themeStore.testAudio('reaction');
     } catch (audioError) {
-      console.warn('Failed to play reaction audio:', audioError);
+      debug.warn('Failed to play reaction audio:', audioError);
       // Don't block the reaction if audio fails
     }
     
@@ -688,7 +689,7 @@ const handleEmojiSelected = async (emoji: any) => {
     if (postReactionsRef.value?.handleEmojiSelected) {
       const success = await postReactionsRef.value.handleEmojiSelected(emoji);
       if (success) {
-        console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
       }
     } else {
@@ -701,15 +702,15 @@ const handleEmojiSelected = async (emoji: any) => {
       });
 
       if (error) {
-        console.error('Failed to add emoji reaction:', error);
+        debug.error('Failed to add emoji reaction:', error);
         // Play error sound if available
         try {
           await themeStore.testAudio('ui_error');
         } catch (audioError) {
-          console.warn('Failed to play error audio:', audioError);
+          debug.warn('Failed to play error audio:', audioError);
         }
       } else {
-        console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        debug.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
         // Refresh the reactions display
         if (postReactionsRef.value) {
@@ -718,12 +719,12 @@ const handleEmojiSelected = async (emoji: any) => {
       }
     }
   } catch (error) {
-    console.error('Error adding emoji reaction:', error);
+    debug.error('Error adding emoji reaction:', error);
     // Play error sound if available
     try {
       await themeStore.testAudio('ui_error');
     } catch (audioError) {
-      console.warn('Failed to play error audio:', audioError);
+      debug.warn('Failed to play error audio:', audioError);
     }
   }
 };
@@ -791,10 +792,10 @@ const handleDeleteConfirm = async () => {
       3000
     );
     
-    console.log('✅ Post successfully deleted:', props.post.id);
+    debug.log('✅ Post successfully deleted:', props.post.id);
     
   } catch (error) {
-    console.error('❌ Failed to delete post:', error);
+    debug.error('❌ Failed to delete post:', error);
     
     // Show error toast
     notificationStore.showToast(
@@ -827,20 +828,20 @@ const showReplyTarget = async () => {
         // Handle navigation in the component
         await router.push(navigationData.route);
       } else {
-        console.error('❌ Failed to get conversation navigation data:', navigationData.error);
+        debug.error('❌ Failed to get conversation navigation data:', navigationData.error);
         
         // Use fallback route
         await router.push(navigationData.fallbackRoute);
       }
       
     } catch (error) {
-      console.error('❌ Failed to navigate to conversation:', error);
+      debug.error('❌ Failed to navigate to conversation:', error);
       
       // Fallback: emit the event as before
       emit('show-conversation', props.post.id);
     }
   } else {
-    console.warn('⚠️ No reply context found for post:', props.post.id);
+    debug.warn('⚠️ No reply context found for post:', props.post.id);
   }
 };
 
@@ -850,7 +851,7 @@ const copyLink = async () => {
     await navigator.clipboard.writeText(url);
     // You could show a toast here
   } catch (error) {
-    console.error('Failed to copy link:', error);
+    debug.error('Failed to copy link:', error);
   }
   closeMenu();
 };
@@ -860,9 +861,9 @@ const closeMenu = () => {
 };
 
 const handleMenuToggle = () => {
-  console.log('🔘 Menu button clicked, current state:', showMenu.value);
+  debug.log('🔘 Menu button clicked, current state:', showMenu.value);
   showMenu.value = !showMenu.value;
-  console.log('🔘 Menu state after toggle:', showMenu.value);
+  debug.log('🔘 Menu state after toggle:', showMenu.value);
 };
 
 
@@ -870,7 +871,7 @@ const handleMenuToggle = () => {
 
 
 const handleMentionClick = (handle: string) => {
-  console.log('Mention clicked:', handle);
+  debug.log('Mention clicked:', handle);
   router.push({ name: 'UserProfile', params: { handle } });
 };
 

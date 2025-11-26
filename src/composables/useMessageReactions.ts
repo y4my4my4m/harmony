@@ -2,6 +2,7 @@ import { defineComponent, computed, onMounted, watch } from 'vue';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
 import type { Message, Emoji } from '@/types';
+import { debug } from '@/utils/debug'
 
 interface Props {
   message: Message;
@@ -56,7 +57,7 @@ export default defineComponent({
       
       // Log result but don't show error for duplicate requests (they're expected)
       if (!result.success && result.reason !== 'duplicate_request') {
-        console.error('🎯 Failed to toggle reaction:', result.message || result.reason);
+        debug.error('🎯 Failed to toggle reaction:', result.message || result.reason);
       }
     };
 

@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { debug } from '@/utils/debug'
 import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
 import type { Gif } from '@/types';
 
@@ -95,13 +96,13 @@ const getImageSource = (gif: Gif) => {
                 const data = await response.json();
                 gifs.value = data.results;
             } catch (error) {
-                console.error('Fetch error:', error);
+                debug.error('Fetch error:', error);
             }
         };
 
         const searchGifs = async () => {
             if (!searchQuery.value.trim()) {
-                console.log('empty search');
+                debug.log('empty search');
                 await fetchTrendingGifs();
             } else {
                 try {
@@ -112,7 +113,7 @@ const getImageSource = (gif: Gif) => {
                     const data = await response.json();
                     gifs.value = data.results;
                 } catch (error) {
-                    console.error('Fetch error:', error);
+                    debug.error('Fetch error:', error);
                 }
             }
         };
