@@ -1782,13 +1782,15 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Get bookmarked posts (excludes deleted posts)
+     * Get bookmarked posts (excludes deleted posts, includes interaction states)
      */
     async getBookmarks(options: { limit?: number; cursor?: string | null } = {}) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) throw new Error('User not authenticated');
 
+        const profileId = currentUser.id;
         const limit = options.limit || 20;
         
         // First, get bookmark interactions
@@ -1798,7 +1800,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             created_at,
             post_id
           `)
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', profileId)
           .eq('interaction_type', 'bookmark')
           .order('created_at', { ascending: false })
           .limit(limit * 2); // Fetch more to account for deleted posts
@@ -1829,10 +1831,43 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (postsError) throw postsError;
 
-        // Map posts to maintain bookmark order and limit
+        // Fetch user's interactions with these posts
+        const { data: userInteractions, error: interactionsError } = await supabase
+          .from('post_interactions')
+          .select('post_id, interaction_type')
+          .eq('user_id', profileId)
+          .in('post_id', postIds)
+          .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+
+        if (interactionsError) {
+          debug.error('Failed to fetch user interactions:', interactionsError);
+        }
+
+        // Create a map of interactions per post
+        const interactionMap = new Map<string, Set<string>>();
+        (userInteractions || []).forEach(interaction => {
+          if (!interactionMap.has(interaction.post_id)) {
+            interactionMap.set(interaction.post_id, new Set());
+          }
+          interactionMap.get(interaction.post_id)!.add(interaction.interaction_type);
+        });
+
+        // Map posts to maintain bookmark order and add interaction states
         const postsMap = new Map((postsData || []).map(p => [p.id, p]));
         const orderedPosts = bookmarkData
-          .map(item => postsMap.get(item.post_id))
+          .map(item => {
+            const post = postsMap.get(item.post_id);
+            if (!post) return null;
+            
+            // Add interaction states
+            const interactions = interactionMap.get(post.id) || new Set();
+            return {
+              ...post,
+              is_favorited: interactions.has('favorite'),
+              is_reblogged: interactions.has('reblog'),
+              is_bookmarked: interactions.has('bookmark') // Should always be true for bookmarks
+            };
+          })
           .filter(Boolean)
           .slice(0, limit);
         
