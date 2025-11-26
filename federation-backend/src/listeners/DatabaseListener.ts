@@ -10,9 +10,7 @@
 
 import { getSupabaseClient } from '../config/supabase.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
-import { createPostActivity, createLikeActivity, createAnnounceActivity } from './FederationHandlers.js';
-import { handleChannelMessageFederation } from './ChannelMessageHandler.js';
-import { handleServerMembershipEvents } from './ServerMembershipHandler.js';
+import { createPostActivity, createLikeActivity, createReblogActivity } from './FederationHandlers.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -130,6 +128,48 @@ export async function startDatabaseListener(): Promise<void> {
         await handleProfileUpdate(payload.old, payload.new);
       }
     )
+    // Listen for post deletions (soft-delete via UPDATE)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'posts',
+      },
+      async (payload) => {
+        // Only handle deletion events (is_deleted changed from false to true)
+        if (payload.new.is_deleted && !payload.old?.is_deleted) {
+          logger.info('🗑️ Post deletion detected:', payload.new.id);
+          await handlePostDeletion(payload.new, payload.old);
+        }
+      }
+    )
+    // Listen for unfollow events
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'follows',
+      },
+      async (payload) => {
+        logger.info('👤 Unfollow detected:', payload.old?.id);
+        await handleUnfollow(payload.old);
+      }
+    )
+    // Listen for reaction/reblog removals
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'post_interactions',
+      },
+      async (payload) => {
+        logger.info('↩️ Interaction removal detected:', payload.old?.id);
+        await handleInteractionRemoval(payload.old);
+      }
+    )
     .subscribe((status, err) => {
       logger.info(`📡 Realtime subscription status: ${status}`);
       
@@ -194,14 +234,40 @@ async function handleNewPost(postEvent: any): Promise<void> {
       return;
     }
 
-    // Create ActivityPub activity
-    const activity = await createPostActivity(post, author);
+    // Determine the type of post:
+    // 1. Quote post: has metadata.is_quote AND metadata.reblog_of → Create Note with quoteUrl
+    // 2. Pure reblog: has ap_type='Announce' or metadata.reblog_of but NOT is_quote → Announce
+    // 3. Regular post: everything else → Create Note
+    const isQuotePost = post.metadata?.is_quote && post.metadata?.reblog_of;
+    const isPureReblog = !isQuotePost && (post.ap_type === 'Announce' || post.metadata?.reblog_of);
+    
+    let activity;
+    
+    if (isQuotePost) {
+      // Quote post - create a Note with quoteUrl (handled in createPostActivity)
+      logger.info(`📝 Detected quote post, creating Note with quoteUrl`);
+      activity = await createPostActivity(post, author);
+    } else if (isPureReblog) {
+      // Pure reblog - create an Announce activity
+      logger.info(`📢 Detected reblog post, creating Announce activity`);
+      
+      try {
+        activity = await createReblogActivity(author, post);
+        logger.info(`📢 Created Announce activity for reblog of ${post.metadata?.reblog_of}`);
+      } catch (reblogError) {
+        logger.error('Failed to create reblog activity:', reblogError);
+        return;
+      }
+    } else {
+      // Regular post - create a Create activity with Note
+      activity = await createPostActivity(post, author);
+    }
 
     // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(author.id, activity);
     
-    // Also deliver to mentioned users (they might not be followers)
-    if (Array.isArray(post.content)) {
+    // Also deliver to mentioned users (they might not be followers) - for posts and quote posts
+    if (!isPureReblog && Array.isArray(post.content)) {
       const mentions = post.content.filter((part: any) => part.type === 'mention');
       
       for (const mention of mentions) {
@@ -222,7 +288,8 @@ async function handleNewPost(postEvent: any): Promise<void> {
       }
     }
 
-    logger.info(`✅ Post ${post.id} queued for federation`);
+    const postType = isQuotePost ? 'Quote post' : isPureReblog ? 'Reblog' : 'Post';
+    logger.info(`✅ ${postType} ${post.id} queued for federation`);
   } catch (error) {
     logger.error('Failed to handle new post:', error);
   }
@@ -410,6 +477,194 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
     logger.info(`✅ Profile update for ${profile.username} queued for federation`);
   } catch (error) {
     logger.error('Failed to handle profile update:', error);
+  }
+}
+
+/**
+ * Handle post deletion - send Delete or Undo Announce activity
+ */
+async function handlePostDeletion(deletedPost: any, oldPost: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Only federate deletions for local posts that were previously federated
+    if (!oldPost?.is_local) {
+      logger.debug('Deletion of remote post, skipping federation');
+      return;
+    }
+
+    // Get full post data
+    const { data: post } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', deletedPost.id)
+      .single();
+
+    if (!post) {
+      logger.error(`Post not found for deletion: ${deletedPost.id}`);
+      return;
+    }
+
+    // Get author profile
+    const { data: author } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', post.author_id)
+      .single();
+
+    if (!author) {
+      logger.error(`Author not found for post deletion: ${post.author_id}`);
+      return;
+    }
+
+    const { createDeleteActivity, createUndoAnnounceActivity } = await import('./FederationHandlers.js');
+    
+    // Check if this is a reblog (Announce) being deleted
+    const isReblog = post.ap_type === 'Announce' || post.metadata?.reblog_of;
+    
+    let activity;
+    
+    if (isReblog) {
+      // This is an unreblog - send Undo Announce
+      logger.info(`📢 Detected reblog deletion, creating Undo Announce activity`);
+      activity = await createUndoAnnounceActivity(author, post);
+    } else {
+      // Regular post deletion - send Delete
+      logger.info(`🗑️ Federating post deletion: ${post.id}`);
+      activity = createDeleteActivity(author, post);
+    }
+
+    // Broadcast to followers
+    await DeliveryQueue.broadcastToFollowers(author.id, activity);
+
+    logger.info(`✅ ${isReblog ? 'Undo Announce' : 'Delete'} activity for ${post.id} queued for federation`);
+  } catch (error) {
+    logger.error('Failed to handle post deletion:', error);
+  }
+}
+
+/**
+ * Handle unfollow - send Undo Follow activity
+ */
+async function handleUnfollow(deletedFollow: any): Promise<void> {
+  try {
+    if (!deletedFollow) {
+      logger.debug('No follow data in deletion event');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Get follower (must be local)
+    const { data: follower } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', deletedFollow.follower_id)
+      .single();
+
+    if (!follower || !follower.is_local) {
+      logger.debug('Unfollow from remote user, skipping outgoing federation');
+      return;
+    }
+
+    // Get following (check if remote)
+    const { data: following } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', deletedFollow.following_id)
+      .single();
+
+    if (!following || following.is_local) {
+      logger.debug('Unfollow of local user, no federation needed');
+      return;
+    }
+
+    logger.info(`🌐 Federating unfollow: ${follower.username} → ${following.username}`);
+
+    const { createUndoFollowActivity } = await import('./FederationHandlers.js');
+    const activity = createUndoFollowActivity(follower, following, deletedFollow);
+
+    // Send to following's inbox
+    if (following.inbox_url) {
+      await DeliveryQueue.sendToInbox(following.inbox_url, activity, follower.id);
+      logger.info(`✅ Undo Follow queued for delivery to ${following.inbox_url}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle unfollow:', error);
+  }
+}
+
+/**
+ * Handle interaction removal - send Undo Like for reactions
+ */
+async function handleInteractionRemoval(deletedInteraction: any): Promise<void> {
+  try {
+    if (!deletedInteraction) {
+      logger.debug('No interaction data in deletion event');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Get the user who removed the interaction
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', deletedInteraction.user_id)
+      .single();
+
+    if (!user || !user.is_local) {
+      logger.debug('Interaction removal from remote user, skipping');
+      return;
+    }
+
+    // Get the post
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id, ap_id, author_id')
+      .eq('id', deletedInteraction.post_id)
+      .single();
+
+    if (!post) {
+      logger.debug('Post not found for interaction removal');
+      return;
+    }
+
+    // Only federate if the post has an ap_id (is federated)
+    if (!post.ap_id) {
+      logger.debug('Interaction on non-federated post, skipping');
+      return;
+    }
+
+    // Get post author to send Undo
+    const { data: postAuthor } = await supabase
+      .from('profiles')
+      .select('inbox_url, is_local')
+      .eq('id', post.author_id)
+      .single();
+
+    // Only need to send if author is remote
+    if (!postAuthor || postAuthor.is_local) {
+      logger.debug('Post author is local, no federation needed for interaction removal');
+      return;
+    }
+
+    // Handle based on interaction type
+    if (deletedInteraction.interaction_type === 'emoji_reaction' || 
+        deletedInteraction.interaction_type === 'favorite') {
+      logger.info(`🌐 Federating reaction removal on post ${post.id}`);
+      
+      const { createUndoLikeActivity } = await import('./FederationHandlers.js');
+      const activity = createUndoLikeActivity(user, post.ap_id);
+
+      if (postAuthor.inbox_url) {
+        await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
+        logger.info(`✅ Undo Like queued for delivery to ${postAuthor.inbox_url}`);
+      }
+    }
+    // Note: Reblog removals are handled via post deletion (Undo Announce)
+  } catch (error) {
+    logger.error('Failed to handle interaction removal:', error);
   }
 }
 

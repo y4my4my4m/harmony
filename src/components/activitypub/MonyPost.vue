@@ -1374,10 +1374,10 @@ const closeLightbox = () => {
 }
 
 .reply-parent-post {
-  border: 1px solid #374151;
-  border-radius: 0.75rem;
+  /* border: 1px solid var(--border-color); */
+  border-radius: 0.5rem;
   padding: 0.75rem 1rem;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: var(--background-primary);
   cursor: pointer;
   transition: border-color 0.2s ease;
 }

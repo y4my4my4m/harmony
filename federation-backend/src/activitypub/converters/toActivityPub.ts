@@ -4,14 +4,22 @@ import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
 
 /**
  * Convert internal post format to ActivityPub Note
+ * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
  */
-export function postToNote(post: any, author: any): any {
+export function postToNote(post: any, author: any, quoteUrl?: string): any {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
   const postUrl = post.ap_id || `https://${domain}/posts/${post.id}`;
 
   const note: any = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      {
+        'quoteUrl': 'as:quoteUrl',
+        'misskey': 'https://misskey-hub.net/ns#',
+        '_misskey_quote': 'misskey:_misskey_quote',
+      }
+    ],
     id: postUrl,
     type: 'Note',
     attributedTo: authorUrl,
@@ -39,6 +47,12 @@ export function postToNote(post: any, author: any): any {
     // For federated posts, this is their original ActivityPub URL
     // For local posts, this is our generated URL
     note.inReplyTo = post.in_reply_to; // Will be resolved in createPostActivity
+  }
+
+  // Add quote post URL if this is a quote post
+  if (quoteUrl) {
+    note.quoteUrl = quoteUrl;
+    note._misskey_quote = quoteUrl; // Misskey compatibility
   }
 
   return note;

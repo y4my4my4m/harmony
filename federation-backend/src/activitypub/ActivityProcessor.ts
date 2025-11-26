@@ -183,9 +183,13 @@ export class ActivityProcessor {
       // Convert content (returns raw HTML for now)
       const rawContent = noteToContent(object);
       
+      // Check for quote post (quoteUrl for Fediverse, _misskey_quote for Misskey)
+      const quoteUrl = object.quoteUrl || object._misskey_quote;
+      
       logger.info('📝 Processing ActivityPub Note: ' + JSON.stringify({
         id: object.id,
         inReplyTo: object.inReplyTo,
+        quoteUrl: quoteUrl,
         contentPreview: object.content?.substring(0, 100)
       }));
       
@@ -208,10 +212,27 @@ export class ActivityProcessor {
           conversationRootId = replyResult.conversationRootId;
         }
 
-        // Create post with proper reply threading
+        // Handle quote posts - fetch/create the quoted post and store reference
+        let quotedPostData: any = null;
+        if (quoteUrl) {
+          logger.info(`📝 Processing quote post, quoted URL: ${quoteUrl}`);
+          quotedPostData = await this.resolveQuotedPost(quoteUrl);
+        }
+
+        // Build metadata object
+        const metadata: any = {};
+        if (object.inReplyTo) {
+          metadata.in_reply_to_ap_url = object.inReplyTo;
+        }
+        if (quotedPostData) {
+          metadata.is_quote = true;
+          metadata.reblog_of = quotedPostData.id;
+          metadata.quote_ap_url = quoteUrl;
+        }
+
+        // Create post with proper reply threading and quote support
         // in_reply_to is a UUID column for the parent post ID
-        // The original AP URL is stored in metadata for federation reference
-        const { error } = await supabase.from('posts').upsert({
+        const postData: any = {
           ap_id: object.id,
           author_id: author.id,
           content,
@@ -220,16 +241,86 @@ export class ActivityProcessor {
           in_reply_to: parentPostId,
           conversation_root_id: conversationRootId,
           created_at: object.published || new Date().toISOString(),
-          metadata: object.inReplyTo ? { in_reply_to_ap_url: object.inReplyTo } : {},
-        });
+          metadata,
+        };
+
+        // Add reblog data for quote posts (for display purposes)
+        if (quotedPostData) {
+          postData.reblog = {
+            id: quotedPostData.id,
+            content: quotedPostData.content,
+            created_at: quotedPostData.created_at,
+            visibility: quotedPostData.visibility,
+          };
+          
+          // Get quoted post author for reblog_author field
+          const { data: quotedAuthor } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url, domain, is_local')
+            .eq('id', quotedPostData.author_id)
+            .single();
+          
+          if (quotedAuthor) {
+            postData.reblog_author = quotedAuthor;
+          }
+        }
+
+        const { error } = await supabase.from('posts').upsert(postData);
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
         } else {
-          logger.info(`✅ Created post from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}`);
+          const postType = quotedPostData ? 'quote post' : 'post';
+          logger.info(`✅ Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
         }
       }
     }
+  }
+
+  /**
+   * Resolve a quoted post - fetch if not local
+   */
+  private static async resolveQuotedPost(quoteUrl: string): Promise<any | null> {
+    const supabase = getSupabaseClient();
+
+    // First check if quoted post exists locally by ap_id
+    const { data: existingPost } = await supabase
+      .from('posts')
+      .select('id, content, created_at, visibility, author_id')
+      .eq('ap_id', quoteUrl)
+      .maybeSingle();
+
+    if (existingPost) {
+      logger.info(`📝 Found quoted post locally: ${existingPost.id}`);
+      return existingPost;
+    }
+
+    // Try extracting UUID from URL (for local posts)
+    if (quoteUrl.includes('/posts/')) {
+      const uuidMatch = quoteUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id, content, created_at, visibility, author_id')
+          .eq('id', uuidMatch[1])
+          .maybeSingle();
+        
+        if (postById) {
+          logger.info(`📝 Found quoted post by UUID: ${postById.id}`);
+          return postById;
+        }
+      }
+    }
+
+    // Fetch the quoted post from remote
+    logger.info(`📝 Fetching quoted post from remote: ${quoteUrl}`);
+    const fetchedPost = await this.fetchAndCreateRemotePost(quoteUrl);
+    
+    if (fetchedPost) {
+      logger.info(`📝 Created quoted post from remote: ${fetchedPost.id}`);
+    }
+    
+    return fetchedPost;
   }
 
   /**
