@@ -52,6 +52,7 @@ export interface HashtagStats {
 
 export interface TrendingOptions {
   limit?: number;
+  days?: number;
   timeframe?: 'hourly' | 'daily' | 'weekly';
   includeLocal?: boolean;
   includeFederated?: boolean;
@@ -81,22 +82,24 @@ class TrendingService {
    */
   async getTrendingHashtags(options: TrendingOptions = {}): Promise<TrendingHashtag[]> {
     try {
-      const { limit = 20 } = options;
+      const { limit = 20, days = 7 } = options;
 
       const { data, error } = await supabase.rpc('get_trending_hashtags', {
-        p_limit_count: limit
+        p_days: days,
+        p_limit: limit
       });
 
       if (error) throw error;
 
-      return (data || []).map((row: any) => ({
+      // Map database columns (tag, uses_count, unique_users) to TrendingHashtag format
+      return (data || []).map((row: any, index: number) => ({
         tag: row.tag,
-        daily_uses: row.daily_uses || 0,
-        weekly_uses: 0, // Will be populated from separate query if needed
-        trending_score: parseFloat(row.trending_score) || 0,
-        trending_rank: row.trending_rank || 0,
-        change_percent: parseFloat(row.change_percent) || 0,
-        trend: this.calculateTrend(parseFloat(row.change_percent) || 0)
+        daily_uses: Number(row.uses_count) || 0,
+        weekly_uses: Number(row.uses_count) || 0, // Uses count over the days period
+        trending_score: Number(row.uses_count) || 0, // Use count as score
+        trending_rank: index + 1,
+        change_percent: 0, // Not available from this query
+        trend: 'stable' as const
       }));
     } catch (error) {
       debug.error('Failed to get trending hashtags:', error);

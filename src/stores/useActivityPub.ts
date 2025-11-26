@@ -1955,10 +1955,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         const result = await services.interactions.getFollowing(currentUser.id);
          debug.log('🔄 Service result:', result);
          
-         this.followedUsers = new Set(result.users.map(user => user.id));
+         // Result returns { following, hasMore, total } not { users }
+         const followingList = result?.following || [];
+         this.followedUsers = new Set(followingList.map((user: any) => user.id));
          
          debug.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
-         debug.log('✅ followedUsers Set contents:', Array.from(this.followedUsers));
        } catch (error) {
          debug.error('❌ Failed to load followed users via service:', error);
          
