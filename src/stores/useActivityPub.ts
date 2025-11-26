@@ -495,9 +495,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       } else if (follow.following_id === currentUser.id) {
         // Someone started following current user
         this.followersCount++;
-        
-        // Create notification for new follower
-        this.createFollowNotification(follow);
+        // Note: Notification is now created by DB trigger (handle_unified_notification_processing)
+        // with complete follower profile data - no need for client-side notification creation
       }
     },
 
@@ -633,42 +632,9 @@ export const useActivityPubStore = defineStore('activitypub', {
       );
     },
 
-    /**
-     * Create notification for new follower
-     */
-    async createFollowNotification(follow: any) {
-      try {
-        // Get follower profile
-        const { data: follower } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', follow.follower_id)
-          .single();
-
-        if (!follower) return;
-
-        // Create notification
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: follow.following_id,
-            type: 'activitypub_follow',
-            data: {
-              follower_id: follow.follower_id,
-              follower_username: follower.username,
-              follower_display_name: follower.display_name,
-              follower_avatar_url: follower.avatar_url,
-              follow_id: follow.id,
-              timestamp: new Date().toISOString()
-            },
-            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-          });
-
-        debug.log('🔔 Follow notification created');
-      } catch (error) {
-        debug.error('❌ Failed to create follow notification:', error);
-      }
-    },
+    // Note: createFollowNotification was removed - notifications are now created
+    // by the database trigger (handle_unified_notification_processing) with
+    // complete follower profile data to avoid duplicate notifications
 
     /**
      * Update post interaction counts - now uses server sync for consistency

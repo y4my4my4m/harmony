@@ -28,6 +28,7 @@ export async function startDatabaseListener(): Promise<void> {
     .channel('federation-events')
     
     // DEBUG: Listen to ALL events on ALL tables to see if realtime works at all
+    // Filter out high-frequency tables that create noise (timeline_entries, notifications, ap_activities)
     .on(
       'postgres_changes',
       {
@@ -36,6 +37,17 @@ export async function startDatabaseListener(): Promise<void> {
         table: '*',
       },
       async (payload) => {
+        // Skip logging for high-frequency tables that aren't relevant to federation debugging
+        const noisyTables = ['timeline_entries', 'notifications', 'ap_activities'];
+        if (noisyTables.includes(payload.table)) {
+          // Use debug level for noisy tables
+          logger.debug(`🔔 REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
+            id: payload.new?.id || payload.old?.id,
+            table: payload.table
+          });
+          return;
+        }
+        
         logger.info(`🔔 REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
           id: payload.new?.id || payload.old?.id,
           table: payload.table

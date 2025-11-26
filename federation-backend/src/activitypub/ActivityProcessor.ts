@@ -209,16 +209,18 @@ export class ActivityProcessor {
         }
 
         // Create post with proper reply threading
+        // in_reply_to is a UUID column for the parent post ID
+        // The original AP URL is stored in metadata for federation reference
         const { error } = await supabase.from('posts').upsert({
           ap_id: object.id,
           author_id: author.id,
           content,
           visibility,
           is_local: false,
-          in_reply_to: object.inReplyTo,
-          in_reply_to_id: parentPostId,
+          in_reply_to: parentPostId,
           conversation_root_id: conversationRootId,
           created_at: object.published || new Date().toISOString(),
+          metadata: object.inReplyTo ? { in_reply_to_ap_url: object.inReplyTo } : {},
         });
 
         if (error) {
@@ -742,12 +744,44 @@ export class ActivityProcessor {
     const object = activity.object;
     const supabase = getSupabaseClient();
 
-    if (!object) return;
+    logger.info(`🔄 Processing Undo activity from ${activity.actor}`);
+    logger.debug(`Undo object: ${JSON.stringify(object)?.substring(0, 500)}`);
 
-    switch (object.type) {
+    if (!object) {
+      logger.warn('Undo activity has no object, skipping');
+      return;
+    }
+
+    // Handle string object (just the ID of the original activity)
+    const objectType = typeof object === 'string' ? null : object.type;
+    
+    // If object is a string, we need to look up what type it was
+    if (typeof object === 'string') {
+      logger.info(`🔍 Undo object is a string ID: ${object}`);
+      // Try to find the original activity by its ID
+      const { data: originalActivity } = await supabase
+        .from('ap_activities')
+        .select('ap_type, activity_data')
+        .eq('ap_id', object)
+        .maybeSingle();
+      
+      if (originalActivity) {
+        logger.info(`Found original activity type: ${originalActivity.ap_type}`);
+        // Process based on the original activity type
+        await this.processUndoByType(originalActivity.ap_type, originalActivity.activity_data, activity.actor);
+        return;
+      } else {
+        logger.warn(`Could not find original activity: ${object}`);
+        return;
+      }
+    }
+
+    switch (objectType) {
       case 'Follow': {
         // Remove follow
         const { followerUrl, followingUrl } = extractFollowData(object);
+        logger.info(`🔄 Undoing follow: ${followerUrl} → ${followingUrl}`);
+        
         const { data: follower } = await supabase
           .from('profiles')
           .select('id')
@@ -760,68 +794,39 @@ export class ActivityProcessor {
           .eq('federated_id', followingUrl)
           .single();
 
+        if (!follower) {
+          logger.warn(`Follower not found: ${followerUrl}`);
+        }
+        if (!following) {
+          logger.warn(`Following not found: ${followingUrl}`);
+        }
+
         if (follower && following) {
-          await supabase
+          const { error } = await supabase
             .from('follows')
             .delete()
             .eq('follower_id', follower.id)
             .eq('following_id', following.id);
 
-          logger.info(`Undid follow: ${followerUrl} → ${followingUrl}`);
+          if (error) {
+            logger.error(`Failed to delete follow:`, error);
+          } else {
+            logger.info(`✅ Undid follow: ${followerUrl} → ${followingUrl}`);
+          }
         }
         break;
       }
 
       case 'Like':
       case 'EmojiReaction': {
-        // Remove reaction from post_interactions (correct table)
-        const { actorUrl, objectUrl } = extractLikeData(object);
-        const { data: user } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('federated_id', actorUrl)
-          .single();
-
-        // Try by ap_id first (correct column)
-        let post = null;
-        const { data: postByApId } = await supabase
-          .from('posts')
-          .select('id')
-          .eq('ap_id', objectUrl)
-          .maybeSingle();
-        
-        post = postByApId;
-        
-        // Fallback: try extracting UUID from URL
-        if (!post && objectUrl.includes('/posts/')) {
-          const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
-          if (uuidMatch) {
-            const { data: postById } = await supabase
-              .from('posts')
-              .select('id')
-              .eq('id', uuidMatch[1])
-              .maybeSingle();
-            post = postById;
-          }
-        }
-
-        if (user && post) {
-          // Delete from post_interactions (correct table, not post_reactions)
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('post_id', post.id)
-            .in('interaction_type', ['favorite', 'emoji_reaction']);
-
-          logger.info(`Undid reaction on ${objectUrl}`);
-        }
+        await this.processUndoReaction(object, activity.actor);
         break;
       }
 
       case 'Announce': {
         // Remove reblog by ap_id (correct column)
         const announceId = typeof object === 'string' ? object : object.id;
+        logger.info(`🔄 Undoing announce: ${announceId}`);
         
         // First get the reblog post to find the original
         const { data: reblogPost } = await supabase
@@ -832,10 +837,14 @@ export class ActivityProcessor {
         
         if (reblogPost) {
           // Delete the reblog post
-          await supabase
+          const { error: deleteError } = await supabase
             .from('posts')
             .delete()
             .eq('id', reblogPost.id);
+          
+          if (deleteError) {
+            logger.error(`Failed to delete reblog post:`, deleteError);
+          }
           
           // Also remove the interaction record if the original post is known
           const originalPostId = reblogPost.metadata?.reblog_of;
@@ -856,11 +865,134 @@ export class ActivityProcessor {
                 .eq('interaction_type', 'reblog');
             }
           }
+          logger.info(`✅ Undid announce: ${announceId}`);
+        } else {
+          logger.warn(`Reblog post not found for Undo: ${announceId}`);
         }
-
-        logger.info(`Undid announce: ${announceId}`);
         break;
       }
+      
+      default:
+        logger.warn(`Unhandled Undo object type: ${objectType}`);
+    }
+  }
+
+  /**
+   * Process Undo for Like/EmojiReaction
+   */
+  private static async processUndoReaction(object: any, actorUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { actorUrl: likeActorUrl, objectUrl } = extractLikeData(object);
+    
+    logger.info(`🔄 Undoing reaction from ${likeActorUrl} on ${objectUrl}`);
+    
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', likeActorUrl)
+      .single();
+
+    if (!user) {
+      logger.warn(`User not found for Undo reaction: ${likeActorUrl}`);
+      return;
+    }
+
+    // Try by ap_id first
+    let post = null;
+    const { data: postByApId } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
+    
+    post = postByApId;
+    
+    // Fallback: try extracting UUID from URL (for local posts)
+    if (!post && objectUrl.includes('/posts/')) {
+      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        logger.info(`🔍 Trying to find local post by UUID: ${uuidMatch[1]}`);
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('id', uuidMatch[1])
+          .maybeSingle();
+        post = postById;
+      }
+    }
+
+    if (!post) {
+      logger.warn(`Post not found for Undo reaction: ${objectUrl}`);
+      return;
+    }
+
+    // Delete from post_interactions
+    const { error, count } = await supabase
+      .from('post_interactions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('post_id', post.id)
+      .in('interaction_type', ['favorite', 'emoji_reaction']);
+
+    if (error) {
+      logger.error(`Failed to delete reaction:`, error);
+    } else {
+      logger.info(`✅ Undid reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
+    }
+  }
+
+  /**
+   * Process Undo by looking up the original activity type
+   */
+  private static async processUndoByType(activityType: string, activityData: any, actorUrl: string): Promise<void> {
+    logger.info(`🔄 Processing Undo by type: ${activityType}`);
+    
+    switch (activityType) {
+      case 'Like':
+      case 'EmojiReaction':
+        await this.processUndoReaction(activityData, actorUrl);
+        break;
+      case 'Follow':
+        // Extract follow data from the stored activity
+        if (activityData) {
+          const supabase = getSupabaseClient();
+          const { followerUrl, followingUrl } = extractFollowData(activityData);
+          
+          const { data: follower } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('federated_id', followerUrl)
+            .single();
+
+          const { data: following } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('federated_id', followingUrl)
+            .single();
+
+          if (follower && following) {
+            await supabase
+              .from('follows')
+              .delete()
+              .eq('follower_id', follower.id)
+              .eq('following_id', following.id);
+            logger.info(`✅ Undid follow: ${followerUrl} → ${followingUrl}`);
+          }
+        }
+        break;
+      case 'Announce':
+        // Handle via ap_id lookup
+        if (activityData?.id) {
+          const supabase = getSupabaseClient();
+          await supabase
+            .from('posts')
+            .delete()
+            .eq('ap_id', activityData.id);
+          logger.info(`✅ Undid announce: ${activityData.id}`);
+        }
+        break;
+      default:
+        logger.warn(`Unknown activity type for Undo: ${activityType}`);
     }
   }
 
