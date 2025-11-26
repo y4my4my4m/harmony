@@ -77,6 +77,7 @@
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+  import { debug } from '@/utils/debug';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
