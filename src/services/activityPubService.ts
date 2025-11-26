@@ -568,15 +568,43 @@ export class ActivityPubService {
     const limit = options.limit || 20;
 
     try {
-      const { data, error } = await supabase.rpc('get_post_replies', {
-        p_post_id: postId,
-        p_user_id: user.id,
-        p_limit: limit,
-        p_max_id: options.max_id || null
-      });
+      // Direct query for replies - posts where in_reply_to matches the postId
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey (
+            id, username, display_name, domain, avatar_url, is_local
+          ),
+          reply_context:reply_context
+        `)
+        .eq('in_reply_to', postId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .order('created_at', { ascending: true })
+        .limit(limit);
+
+      // Pagination using max_id
+      if (options.max_id) {
+        // Get the created_at of the max_id post for cursor-based pagination
+        const { data: cursorPost } = await supabase
+          .from('posts')
+          .select('created_at')
+          .eq('id', options.max_id)
+          .single();
+        
+        if (cursorPost) {
+          query = query.gt('created_at', cursorPost.created_at);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Transform replies to TimelinePost format
+      const replies = (data || []).map(post => this.transformDatabasePostToTimelinePost(post));
+      
+      return replies;
     } catch (error) {
       debug.error('Failed to get post replies:', error);
       return [];

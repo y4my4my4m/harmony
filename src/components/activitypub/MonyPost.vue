@@ -510,19 +510,43 @@ const isReblog = computed(() => {
 });
 
 const isQuotePost = computed(() => {
-  // A quote post has both reblog data AND non-empty content
+  // A quote post has both reblog data AND unique user-added content
   if (!isReblog.value) return false;
-  const content = props.post.content;
   
-  // Check if content is empty (pure reblog) or has actual content (quote post)
-  if (Array.isArray(content)) {
-    return content.length > 0 && content.some(part => 
-      part.type === 'text' && part.text && part.text.trim().length > 0
-    );
+  const content = props.post.content;
+  const reblogContent = props.post.reblog?.content;
+  
+  // If no content, it's a pure reblog
+  if (!content || !Array.isArray(content) || content.length === 0) {
+    return false;
   }
   
-  // Fallback: if content exists but is not array (shouldn't happen per interface)
-  return false;
+  // Check if user actually added their own content
+  const hasUserContent = content.some(part => 
+    part.type === 'text' && part.text && part.text.trim().length > 0
+  );
+  
+  if (!hasUserContent) return false;
+  
+  // Additional check: if content is identical to reblog content, it's a pure reblog
+  // (This catches cases where content was incorrectly duplicated)
+  if (reblogContent && Array.isArray(reblogContent)) {
+    const contentText = content
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text.trim())
+      .join(' ');
+    const reblogText = reblogContent
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text.trim())
+      .join(' ');
+    
+    // If the content is the same as the reblogged content, it's NOT a quote
+    if (contentText === reblogText) {
+      return false;
+    }
+  }
+  
+  return true;
 });
 
 const displayAuthor = computed(() => {

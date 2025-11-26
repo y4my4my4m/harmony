@@ -62,8 +62,9 @@
         </div>
 
         <!-- Replies section -->
-        <div v-if="replies.length > 0 || isLoadingReplies" class="replies-section">
-          <h3 class="replies-title">
+        <div v-if="replies.length > 0 || isLoadingReplies" class="replies-section" :class="{ 'inline-replies': shouldShowInline }">
+          <!-- Only show header if more than 5 replies (Twitter-style) -->
+          <h3 v-if="!shouldShowInline" class="replies-title">
             Replies ({{ totalReplies }})
           </h3>
 
@@ -90,7 +91,7 @@
               @user-click="$emit('user-click', $event)"
             />
 
-            <!-- Load more replies -->
+            <!-- Load more replies (only show if > 5 total and we haven't loaded them all) -->
             <button
               v-if="hasMoreReplies"
               @click="loadMoreReplies"
@@ -98,13 +99,13 @@
               class="load-more-btn"
             >
               <Icon v-if="isLoadingMoreReplies" name="loader" class="spinning" />
-              <span>{{ isLoadingMoreReplies ? 'Loading...' : 'Load more replies' }}</span>
+              <span>{{ isLoadingMoreReplies ? 'Loading...' : `Load more replies (${totalReplies - replies.length} remaining)` }}</span>
             </button>
           </div>
         </div>
 
         <!-- Empty replies state -->
-        <div v-else-if="!isLoadingReplies" class="empty-replies">
+        <div v-else-if="!isLoadingReplies && totalReplies === 0" class="empty-replies">
           <Icon name="message-circle" :size="32" />
           <p>No replies yet. Be the first to reply!</p>
           <button @click="showReplyComposer = true" class="reply-cta-btn">
@@ -117,10 +118,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { services } from '@/services';
+import { activityPubService } from '@/services/activityPubService';
 import type { TimelinePost } from '@/types';
 
 // Components
@@ -160,6 +162,14 @@ const showReplyComposer = ref(false);
 const error = ref<string | null>(null);
 const totalReplies = ref(0);
 
+// Twitter-style: show inline (without header) if 5 or fewer replies
+const INLINE_REPLY_THRESHOLD = 5;
+
+// Computed: should show replies inline (without "Replies" header)
+const shouldShowInline = computed(() => {
+  return totalReplies.value <= INLINE_REPLY_THRESHOLD;
+});
+
 // Methods
 const loadPost = async () => {
   isLoading.value = true;
@@ -193,12 +203,22 @@ const loadReplies = async () => {
 
   isLoadingReplies.value = true;
   try {
-    // TODO: Implement actual replies loading from ActivityPub service
-    // For now, use mock data
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Load replies using the activityPubService
+    // If <= 5 total replies, load them all at once
+    // Otherwise load first batch (20)
+    const limit = totalReplies.value <= INLINE_REPLY_THRESHOLD 
+      ? totalReplies.value 
+      : 20;
     
-    replies.value = [];
-    hasMoreReplies.value = false;
+    const loadedReplies = await activityPubService.getPostReplies(
+      post.value.id,
+      { limit }
+    );
+    
+    replies.value = loadedReplies;
+    hasMoreReplies.value = loadedReplies.length < totalReplies.value;
+    
+    debug.log(`✅ Loaded ${loadedReplies.length}/${totalReplies.value} replies`);
   } catch (err) {
     debug.error('Failed to load replies:', err);
   } finally {
@@ -207,11 +227,27 @@ const loadReplies = async () => {
 };
 
 const loadMoreReplies = async () => {
+  if (!post.value) return;
+  
   isLoadingMoreReplies.value = true;
   try {
-    // TODO: Implement pagination
-    await new Promise(resolve => setTimeout(resolve, 500));
-    hasMoreReplies.value = false;
+    // Get the oldest reply ID for pagination
+    const lastReply = replies.value[replies.value.length - 1];
+    const maxId = lastReply?.id;
+    
+    const moreReplies = await activityPubService.getPostReplies(
+      post.value.id,
+      { limit: 20, max_id: maxId }
+    );
+    
+    if (moreReplies.length > 0) {
+      replies.value = [...replies.value, ...moreReplies];
+    }
+    
+    // Check if there are more to load
+    hasMoreReplies.value = replies.value.length < totalReplies.value;
+    
+    debug.log(`✅ Loaded ${moreReplies.length} more replies (total: ${replies.value.length}/${totalReplies.value})`);
   } catch (err) {
     debug.error('Failed to load more replies:', err);
   } finally {
@@ -417,6 +453,26 @@ onMounted(() => {
   border-radius: 12px;
   padding: 1.5rem;
   border: 1px solid var(--border-color);
+}
+
+/* Inline mode: seamless flow without header (Twitter-style for ≤5 replies) */
+.replies-section.inline-replies {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.replies-section.inline-replies .reply-thread {
+  gap: 0;
+}
+
+.replies-section.inline-replies .reply-thread > :deep(.mony-post) {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .replies-title {
