@@ -44,7 +44,6 @@
             @favorite="toggleFavorite"
             @reblog="toggleReblog"
             @bookmark="toggleBookmark"
-            @reply="replyToPost"
             @delete="deletePost"
             @click="openPost"
             @show-conversation="showConversation"
@@ -261,10 +260,6 @@ const handleScroll = () => {
 
 // Post interactions using composable for consistency
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
-
-const replyToPost = (post: TimelinePost) => {
-  activityPubStore.openComposer(post.id);
-};
 
 const deletePost = async (postId: string) => {
   if (confirm('Are you sure you want to delete this mony?')) {

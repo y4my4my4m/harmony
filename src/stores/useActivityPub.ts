@@ -444,6 +444,13 @@ export const useActivityPubStore = defineStore('activitypub', {
     handleRealtimePostUpdate(post: any) {
       debug.log('📝 Post updated:', post);
       
+      // Check for soft delete (is_deleted = true) - remove from feeds
+      if (post.is_deleted) {
+        debug.log('🗑️ Post soft-deleted, removing from feeds:', post.id);
+        this.removePostFromAllFeeds(post.id);
+        return;
+      }
+      
       // Ignore updates that are likely just count changes from interaction triggers
       // These updates have updated_at very close to now and no content changes
       const now = new Date();
@@ -946,19 +953,26 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Remove post from all feeds
+     * Remove post from all feeds (used by realtime and delete)
      */
     removePostFromAllFeeds(postId: string) {
+      debug.log('🗑️ Removing post from all feeds:', postId);
+      
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
       
       feeds.forEach(feed => {
         feed.posts = feed.posts.filter(p => p.id !== postId);
       });
       
-      // Remove from user feeds
-      this.userFeeds.forEach(feed => {
-        feed.posts = feed.posts.filter(p => p.id !== postId);
+      // Remove from user feeds (properly update the map)
+      this.userFeeds.forEach((feed, key) => {
+        this.userFeeds.set(key, {
+          ...feed,
+          posts: feed.posts.filter(p => p.id !== postId)
+        });
       });
+      
+      debug.log('✅ Post removed from all feeds:', postId);
     },
 
     /**
@@ -1908,7 +1922,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           if (reblogPost) {
             await activityPubService.unreblogPost(reblogPost.id);
             // Remove reblog from our feeds
-            this.removePostFromFeeds(reblogPost.id);
+            this.removePostFromAllFeeds(reblogPost.id);
           }
 
           // Remove the interaction record
@@ -1977,29 +1991,26 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Federation is handled automatically by database triggers
 
         // Remove from local feeds
-        this.removePostFromFeeds(postId);
+        this.removePostFromAllFeeds(postId);
 
       } catch (error) {
         debug.error('Failed to delete post:', error);
         throw error;
       }
     },
-
+    
     /**
-     * Remove post from all feeds
+     * Remove reblog from feeds (when un-reblogging)
      */
-    removePostFromFeeds(postId: string) {
-      // Remove from home feed
-      this.homeFeed.posts = this.homeFeed.posts.filter(p => p.id !== postId);
+    removeReblogFromFeeds(originalPostId: string, rebloggerId: string) {
+      debug.log('🗑️ Removing reblog from feeds:', { originalPostId, rebloggerId });
       
-      // Remove from public feed
-      this.publicFeed.posts = this.publicFeed.posts.filter(p => p.id !== postId);
+      const filterReblog = (posts: TimelinePost[]) => 
+        posts.filter(p => !(p.reblog?.id === originalPostId && p.author_id === rebloggerId));
       
-      // Remove from local feed
-      this.localFeed.posts = this.localFeed.posts.filter(p => p.id !== postId);
-      
-      // Remove from user feeds
-      this.userFeeds.forEach(feed => feed.posts.filter(p => p.id !== postId));
+      this.homeFeed.posts = filterReblog(this.homeFeed.posts);
+      this.publicFeed.posts = filterReblog(this.publicFeed.posts);
+      this.localFeed.posts = filterReblog(this.localFeed.posts);
     },
 
          /**

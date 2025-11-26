@@ -64,39 +64,59 @@
         </div>
       </div>
 
-      <!-- Reply Context (if this is a reply) -->
-      <div v-if="displayReplyContext" class="reply-context">
-        <div class="reply-header">
-          <div class="reply-indicator">
-            <Icon name="reply" class="reply-icon" />
-            <span class="reply-text">Replying to</span>
-          </div>
+      <!-- Reply Context (if this is a reply) - hide in thread view since parent is already visible -->
+      <div v-if="displayReplyContext && !props.hideReplyContext && !props.isInThread" class="reply-context-container">
+        <!-- Simple reply indicator -->
+        <div class="reply-indicator-bar">
+          <Icon name="corner-up-left" class="reply-icon" :size="14" />
+          <span class="reply-text">Replying to</span>
+          <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
+            @{{ displayReplyContext.author.username }}
+          </span>
           <button 
-            class="show-conversation-btn"
-            @click="showReplyTarget"
+            class="show-thread-btn"
+            @click.stop="showReplyTarget"
             title="View full conversation"
           >
-            <Icon name="thread" :size="16" />
-            <span>Show thread</span>
+            <Icon name="message-square" :size="14" />
+            View thread
           </button>
         </div>
-        <div class="reply-preview-card">
-          <Avatar 
-            :src="displayReplyContext.author.avatar_url"
-            :alt="displayReplyContext.author.display_name"
-            size="xs"
-          />
-          <div class="reply-details">
-            <span class="reply-author">@{{ displayReplyContext.author.username }}</span>
-            <span class="reply-content-preview">
-              <MonyContent 
-                :content="replyContentText" 
-                :isPreview="true" 
-                :previewLength="100" 
-              />
-            </span>
+        
+        <!-- Parent post preview -->
+        <div class="reply-parent-post" @click.stop="showReplyTarget">
+          <div class="reply-parent-header">
+            <Avatar 
+              :src="displayReplyContext.author.avatar_url"
+              :alt="displayReplyContext.author.display_name || displayReplyContext.author.username"
+              size="sm"
+            />
+            <div class="reply-parent-author-info">
+              <span class="reply-parent-name">{{ displayReplyContext.author.display_name || displayReplyContext.author.username }}</span>
+              <span class="reply-parent-handle">@{{ displayReplyContext.author.username }}</span>
+              <time class="reply-parent-time" v-if="displayReplyContext.created_at">
+                {{ formatRelativeTime(displayReplyContext.created_at) }}
+              </time>
+            </div>
+          </div>
+          
+          <div class="reply-parent-content">
+            <MonyContent 
+              :content="replyContentText" 
+              :isPreview="true" 
+              :previewLength="200" 
+            />
           </div>
         </div>
+      </div>
+      
+      <!-- Simple reply indicator for thread view (just shows who we're replying to) -->
+      <div v-else-if="displayReplyContext && props.isInThread" class="reply-indicator-simple">
+        <Icon name="corner-up-left" class="reply-icon" :size="12" />
+        <span class="reply-text">Replying to</span>
+        <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
+          @{{ displayReplyContext.author.username }}
+        </span>
       </div>
 
       <!-- Content Warning -->
@@ -391,7 +411,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
@@ -418,9 +438,14 @@ import router from '@/router';
 // Props
 interface Props {
   post: TimelinePost;
+  hideReplyContext?: boolean; // Hide reply context when in thread view (parent is already visible)
+  isInThread?: boolean; // True when this post is displayed within a thread/conversation view
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  hideReplyContext: false,
+  isInThread: false
+});
 
 // Emits
 const emit = defineEmits<{
@@ -547,10 +572,76 @@ const displayIsSensitive = computed(() => {
   return (isReblog.value && props.post.reblog) ? props.post.reblog.is_sensitive : props.post.is_sensitive;
 });
 
+// Track dynamically loaded reply context
+const loadedReplyContext = ref<any>(null);
+const isLoadingReplyContext = ref(false);
+
 const displayReplyContext = computed(() => {
-  // For now, ignore reblog logic and focus on regular posts
-  const context = props.post.reply_context;
-  return context;
+  // First check if we have reply_context in the post
+  if (props.post.reply_context) {
+    return props.post.reply_context;
+  }
+  // Use dynamically loaded context if available
+  if (loadedReplyContext.value) {
+    return loadedReplyContext.value;
+  }
+  return null;
+});
+
+// Load reply context if we have in_reply_to but no reply_context
+const loadReplyContext = async () => {
+  const inReplyTo = props.post.in_reply_to;
+  if (!inReplyTo || props.post.reply_context || isLoadingReplyContext.value) {
+    return;
+  }
+  
+  isLoadingReplyContext.value = true;
+  try {
+    const { data: parentPost, error } = await supabase
+      .from('posts')
+      .select(`
+        id, content, created_at, visibility,
+        author:profiles!posts_author_id_fkey(
+          id, username, display_name, avatar_url, domain
+        )
+      `)
+      .eq('id', inReplyTo)
+      .single();
+    
+    if (!error && parentPost && parentPost.author) {
+      // Handle author being either an object or array (Supabase join result)
+      const author = Array.isArray(parentPost.author) ? parentPost.author[0] : parentPost.author;
+      if (author) {
+        loadedReplyContext.value = {
+          id: parentPost.id,
+          content: parentPost.content,
+          content_preview: Array.isArray(parentPost.content) 
+            ? parentPost.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ').slice(0, 200)
+            : String(parentPost.content).slice(0, 200),
+          author: {
+            id: author.id,
+            username: author.username,
+            display_name: author.display_name || author.username,
+            avatar_url: author.avatar_url || '/default_avatar.png',
+            domain: author.domain || 'har.mony.lol'
+          },
+          created_at: parentPost.created_at,
+          visibility: parentPost.visibility
+        };
+      }
+    }
+  } catch (err) {
+    debug.error('Failed to load reply context:', err);
+  } finally {
+    isLoadingReplyContext.value = false;
+  }
+};
+
+// Load reply context on mount if needed
+onMounted(() => {
+  if (props.post.in_reply_to && !props.post.reply_context) {
+    loadReplyContext();
+  }
 });
 
 const displayInteractionCounts = computed(() => {
@@ -644,9 +735,9 @@ const formatCount = (count: number) => {
 };
 
 const onReply = () => {
+  // Toggle inline reply - handled entirely within MonyPost
   showInlineReply.value = !showInlineReply.value;
-  // Also emit for parent components that might want to handle it differently
-  emit('reply', props.post);
+  // Don't emit to parent - we handle replies inline now
 };
 
 const handleReplySent = (reply: any) => {
@@ -1021,73 +1112,136 @@ const closeLightbox = () => {
   background: var(--background-primary);
 }
 
-.reply-context {
+/* Reply Context - looks like quoted post */
+.reply-context-container {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
-  padding: 0.75rem;
-  background-color: rgba(59, 130, 246, 0.05);
-  border-radius: 0.5rem;
-  border-left: 3px solid #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.1);
 }
 
-.reply-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.reply-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  color: #9ca3af;
-  font-size: 0.875rem;
-}
-
-.reply-icon {
-  color: #9ca3af;
-  font-size: 0.875rem;
-}
-
-.reply-text {
-  color: #9ca3af;
-  font-size: 0.875rem;
-}
-
-.reply-preview-card {
+.reply-indicator-bar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background-color: #374151;
-  border-radius: 0.375rem;
-  padding: 0.375rem 0.75rem;
+  color: #9ca3af;
+  font-size: 0.8rem;
 }
 
-.reply-details {
-  display: flex;
-  flex-direction: column;
+.reply-icon {
+  color: #6b7280;
 }
 
-.reply-author {
-  color: #3b82f6;
+.reply-text {
+  color: #6b7280;
+}
+
+.reply-author-link {
+  color: #60a5fa;
+  cursor: pointer;
   font-weight: 500;
-  text-decoration: none;
 }
 
-.reply-author:hover {
+.reply-author-link:hover {
   text-decoration: underline;
 }
 
-.reply-content-preview {
+.show-thread-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.show-thread-btn:hover {
+  background: #374151;
   color: white;
-  font-size: 0.875rem;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
+}
+
+.reply-parent-post {
+  border: 1px solid #374151;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.reply-parent-post:hover {
+  border-color: #4b5563;
+}
+
+.reply-parent-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.reply-parent-author-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.reply-parent-name {
+  font-weight: 600;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.reply-parent-handle {
+  color: #9ca3af;
+  font-size: 0.85rem;
+}
+
+.reply-parent-time {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.reply-parent-content {
+  color: #d1d5db;
+  font-size: 0.9rem;
+}
+
+/* Simple reply indicator for thread view */
+.reply-indicator-simple {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #6b7280;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.reply-indicator-simple .reply-icon {
+  color: #6b7280;
+}
+
+.reply-indicator-simple .reply-text {
+  color: #6b7280;
+}
+
+.reply-indicator-simple .reply-author-link {
+  color: #60a5fa;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.reply-indicator-simple .reply-author-link:hover {
+  text-decoration: underline;
+  line-height: 1.5;
 }
 
 .show-conversation-btn {

@@ -90,6 +90,8 @@
             >
               <MonyPost
                 :post="ancestor"
+                :is-in-thread="true"
+                :hide-reply-context="true"
                 @reply="handleReply"
                 @delete="handleDelete"
                 @user-click="handleUserClick"
@@ -153,6 +155,8 @@
             >
               <MonyPost
                 :post="reply"
+                :is-in-thread="true"
+                :hide-reply-context="true"
                 @reply="handleReply"
                 @favorite="handleFavorite"
                 @reblog="handleReblog"
@@ -185,6 +189,8 @@
             >
               <MonyPost
                 :post="reply"
+                :is-in-thread="true"
+                :hide-reply-context="true"
                 @reply="handleReply"
                 @delete="handleDelete"
                 @user-click="handleUserClick"

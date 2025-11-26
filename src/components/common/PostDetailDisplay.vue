@@ -80,6 +80,8 @@
               :key="reply.id"
               :post="reply"
               :is-reply="true"
+              :is-in-thread="true"
+              :hide-reply-context="true"
               @reply="$emit('reply', $event)"
               @favorite="$emit('favorite', $event)"
               @reblog="$emit('reblog', $event)"

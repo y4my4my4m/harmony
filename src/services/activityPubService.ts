@@ -238,6 +238,7 @@ export class ActivityPubService {
       `)
       .eq('my_interactions.user_id', user.id)
       .in('visibility', ['public', 'unlisted'])
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -287,6 +288,7 @@ export class ActivityPubService {
         `)
         .eq('my_interactions.user_id', user.id)
         .in('visibility', ['public', 'unlisted'])
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -377,6 +379,7 @@ export class ActivityPubService {
       .eq('my_interactions.user_id', user.id)
       .eq('is_local', true)
       .in('visibility', ['public', 'unlisted'])
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -1669,7 +1672,9 @@ export class ActivityPubService {
         .in('visibility', ['public', 'unlisted']);
     }
 
+    // Filter out deleted posts and apply ordering
     query = query
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(limit);
 

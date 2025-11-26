@@ -4,8 +4,8 @@
   <component :is="wrapperComponent" v-bind="wrapperProps">
     <div :class="composerClasses" @click.self="handleOverlayClick">
       <div :class="contentClasses">
-        <!-- Header -->
-        <div class="composer-header">
+        <!-- Header (hidden for inline replies) -->
+        <div v-if="!(mode === 'inline' && type === 'reply')" class="composer-header">
           <h2 class="composer-title">
             {{ headerTitle }}
           </h2>
@@ -244,9 +244,9 @@
                   Draft saved
                 </span>
                 
-                <!-- Cancel Button (modal only) -->
+                <!-- Cancel Button (modal and inline reply) -->
                 <button
-                  v-if="mode === 'modal'"
+                  v-if="mode === 'modal' || (mode === 'inline' && type === 'reply')"
                   class="cancel-button"
                   @click="handleClose"
                   :disabled="isPosting"
