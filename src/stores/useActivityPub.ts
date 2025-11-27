@@ -54,6 +54,10 @@ interface ActivityPubState {
   instancePostCount: number;
   instanceStatsFetchedAt: number | null;
   
+  // Timeline cache state
+  hasEverLoadedTimeline: boolean;
+  timelineCacheTimestamp: number | null;
+  
   // UI state
   isComposerOpen: boolean;
   composerState: PostComposerState;
@@ -120,6 +124,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     instanceUserCount: 0,
     instancePostCount: 0,
     instanceStatsFetchedAt: null,
+    
+    // Timeline cache state
+    hasEverLoadedTimeline: false,
+    timelineCacheTimestamp: null,
     
     // UI state
     isComposerOpen: false,
@@ -286,6 +294,89 @@ export const useActivityPubStore = defineStore('activitypub', {
         });
       } catch (error) {
         debug.error('Failed to fetch instance stats:', error);
+      }
+    },
+
+    /**
+     * Load timeline from localStorage cache (instant display)
+     */
+    loadTimelineFromCache() {
+      try {
+        const cached = localStorage.getItem('harmony-timeline-cache');
+        if (!cached) return false;
+        
+        const { posts, timestamp, hasEverLoaded } = JSON.parse(cached);
+        const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 minutes
+        
+        if (Date.now() - timestamp > CACHE_MAX_AGE) {
+          debug.log('📋 Timeline cache expired, will fetch fresh');
+          this.hasEverLoadedTimeline = hasEverLoaded || false;
+          return false;
+        }
+        
+        if (posts && posts.length > 0) {
+          this.homeFeed.posts = posts;
+          this.hasEverLoadedTimeline = true;
+          this.timelineCacheTimestamp = timestamp;
+          debug.log(`📋 Loaded ${posts.length} posts from cache`);
+          return true;
+        }
+        
+        this.hasEverLoadedTimeline = hasEverLoaded || false;
+        return false;
+      } catch (error) {
+        debug.warn('Failed to load timeline from cache:', error);
+        return false;
+      }
+    },
+
+    /**
+     * Save timeline to localStorage cache (for instant loading next time)
+     */
+    saveTimelineToCache() {
+      try {
+        const postsToCache = this.homeFeed.posts.slice(0, 30); // Only cache first 30 posts
+        
+        // Strip heavy data to reduce storage size
+        const lightPosts = postsToCache.map(post => ({
+          ...post,
+          // Remove any embedded blobs or heavy content
+          author: post.author ? {
+            id: post.author.id,
+            username: post.author.username,
+            display_name: post.author.display_name,
+            avatar_url: post.author.avatar_url,
+            domain: post.author.domain,
+            is_local: post.author.is_local,
+          } : null,
+        }));
+        
+        const cacheData = {
+          posts: lightPosts,
+          timestamp: Date.now(),
+          hasEverLoaded: true,
+        };
+        
+        localStorage.setItem('harmony-timeline-cache', JSON.stringify(cacheData));
+        this.hasEverLoadedTimeline = true;
+        this.timelineCacheTimestamp = Date.now();
+        debug.log(`💾 Cached ${lightPosts.length} timeline posts`);
+      } catch (error) {
+        debug.warn('Failed to save timeline to cache:', error);
+      }
+    },
+
+    /**
+     * Clear timeline cache (on logout, etc.)
+     */
+    clearTimelineCache() {
+      try {
+        localStorage.removeItem('harmony-timeline-cache');
+        this.hasEverLoadedTimeline = false;
+        this.timelineCacheTimestamp = null;
+        debug.log('🗑️ Timeline cache cleared');
+      } catch (error) {
+        debug.warn('Failed to clear timeline cache:', error);
       }
     },
 
@@ -1009,9 +1100,20 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Load the user's home timeline
+     * Load the user's home timeline (with cache support)
      */
     async loadHomeFeed(maxId?: string) {
+      // On first load (no maxId), try cache first for instant display
+      if (!maxId) {
+        const hasCachedPosts = this.loadTimelineFromCache();
+        if (hasCachedPosts) {
+          debug.log('📋 Showing cached timeline, fetching fresh in background...');
+          // Don't block UI - fetch fresh data in background
+          this.refreshHomeFeedInBackground();
+          return;
+        }
+      }
+      
       this.isLoadingFeed = true;
       try {
         const user = await supabase.auth.getUser();
@@ -1042,15 +1144,52 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.homeFeed.posts = posts;
           // Clear unread count when refreshing home feed
           this.unreadCount = 0;
+          // Save to cache for next visit
+          this.saveTimelineToCache();
         }
 
         this.homeFeed.has_more = posts.length === 20;
         this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.hasEverLoadedTimeline = true;
 
       } catch (error) {
         debug.error('Failed to load home feed:', error);
       } finally {
         this.isLoadingFeed = false;
+      }
+    },
+
+    /**
+     * Refresh home feed in background (after showing cached data)
+     */
+    async refreshHomeFeedInBackground() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) return;
+
+        const posts = await activityPubService.getUserTimeline(
+          user.data.user.id,
+          'home',
+          { limit: 20 }
+        );
+        
+        // Batch load reactions
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          await postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
+        }
+        
+        // Update with fresh data
+        this.homeFeed.posts = posts;
+        this.homeFeed.has_more = posts.length === 20;
+        this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.unreadCount = 0;
+        
+        // Update cache with fresh data
+        this.saveTimelineToCache();
+        debug.log('✅ Background refresh complete');
+      } catch (error) {
+        debug.warn('Background refresh failed (cached data still shown):', error);
       }
     },
 
