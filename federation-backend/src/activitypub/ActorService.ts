@@ -250,8 +250,6 @@ router.post(
         Math.min(limit, 20) // Cap at 20
       );
 
-      logger.info(`📬 Result: saved new posts, has_more=${result.hasMore}`);
-
       return res.json({
         success: true,
         has_more: result.hasMore,
@@ -477,6 +475,15 @@ router.get(
 // Cache for next page URLs per user
 const userNextPageCache = new Map<string, string | null>();
 
+// Track fetched URLs per user to detect loops
+const userFetchedUrls = new Map<string, Set<string>>();
+
+// Track consecutive zero-save fetches per user
+const userZeroSaveCount = new Map<string, number>();
+
+// Max consecutive zero-save fetches before giving up
+const MAX_ZERO_SAVES = 3;
+
 /**
  * Fetch recent posts from a remote user's outbox in the background
  * Uses proper ActivityPub pagination via 'next' links
@@ -498,6 +505,9 @@ async function fetchRecentPostsInBackground(
       if (!cachedNextUrl) {
         logger.info(`📬 No cached next page for user ${authorId}, fetching first page`);
         fetchUrl = outboxUrl;
+        // Reset tracking for fresh start
+        userFetchedUrls.delete(authorId);
+        userZeroSaveCount.delete(authorId);
       } else {
         fetchUrl = cachedNextUrl;
         logger.info(`📬 Using cached next page: ${fetchUrl}`);
@@ -505,8 +515,24 @@ async function fetchRecentPostsInBackground(
     } else {
       // Initial fetch - start from the beginning
       fetchUrl = outboxUrl;
-      userNextPageCache.delete(authorId); // Clear any old cache
+      userNextPageCache.delete(authorId);
+      userFetchedUrls.delete(authorId);
+      userZeroSaveCount.delete(authorId);
     }
+    
+    // Check if we've already fetched this URL (loop detection)
+    const fetchedUrls = userFetchedUrls.get(authorId) || new Set<string>();
+    if (fetchedUrls.has(fetchUrl)) {
+      logger.info(`📬 Loop detected - already fetched ${fetchUrl}, stopping pagination`);
+      userNextPageCache.delete(authorId);
+      userFetchedUrls.delete(authorId);
+      userZeroSaveCount.delete(authorId);
+      return { hasMore: false };
+    }
+    
+    // Track this URL
+    fetchedUrls.add(fetchUrl);
+    userFetchedUrls.set(authorId, fetchedUrls);
     
     logger.info(`📬 Fetching posts from: ${fetchUrl}`);
     
@@ -676,8 +702,29 @@ async function fetchRecentPostsInBackground(
     
     logger.info(`📬 Saved ${savedCount} new posts from remote user`);
     
-    // Has more if we saved any posts OR there's a next page
-    const hasMore = savedCount > 0 || !!nextPageUrl;
+    // Track consecutive zero-save fetches to avoid infinite pagination
+    if (savedCount === 0) {
+      const zeroCount = (userZeroSaveCount.get(authorId) || 0) + 1;
+      userZeroSaveCount.set(authorId, zeroCount);
+      
+      if (zeroCount >= MAX_ZERO_SAVES) {
+        logger.info(`📬 ${MAX_ZERO_SAVES} consecutive fetches with 0 new posts, stopping pagination`);
+        userNextPageCache.delete(authorId);
+        userFetchedUrls.delete(authorId);
+        userZeroSaveCount.delete(authorId);
+        return { hasMore: false };
+      }
+      
+      logger.info(`📬 Zero new posts (${zeroCount}/${MAX_ZERO_SAVES} before giving up)`);
+    } else {
+      // Reset zero counter on successful save
+      userZeroSaveCount.delete(authorId);
+    }
+    
+    // Has more only if there's a valid next page
+    const hasMore = !!nextPageUrl;
+    
+    logger.info(`📬 Result: saved ${savedCount} new posts, has_more=${hasMore}`);
     
     return { 
       hasMore,
@@ -688,6 +735,8 @@ async function fetchRecentPostsInBackground(
   } catch (error) {
     logger.warn(`Failed to fetch outbox posts:`, error);
     userNextPageCache.delete(authorId);
+    userFetchedUrls.delete(authorId);
+    userZeroSaveCount.delete(authorId);
     return { hasMore: false };
   }
 }
