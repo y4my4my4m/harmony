@@ -9,7 +9,7 @@
       <!-- Reaction groups -->
       <div
         v-for="reaction in reactions"
-        :key="reaction.emoji_id || reaction.custom_emoji_content"
+        :key="reaction.emoji_id || reaction.emoji_name || reaction.custom_emoji_content"
         class="reaction"
         :class="{ 
           'reacted': reaction.current_user_reacted,
@@ -103,21 +103,31 @@ const reactions = computed(() => {
   }
   
   // Convert remote reactions to the same format and merge with local
-  const remoteReactionGroups: PostEmojiReaction[] = Object.entries(remoteReactions).map(([emoji, count]) => ({
-    emoji_id: null,
-    emoji_name: emoji,
-    emoji_url: null,
-    custom_emoji_content: emoji,
-    reaction_count: count as number,
-    user_reactions: [], // Remote reactions don't have individual user data
-    current_user_reacted: false,
-  }));
+  // Format can be either { emoji: count } (old) or { emoji: { count, url } } (new)
+  const remoteReactionGroups: PostEmojiReaction[] = Object.entries(remoteReactions).map(([emoji, value]) => {
+    // Handle both formats
+    const count = typeof value === 'number' ? value : (value as any)?.count || 0;
+    const url = typeof value === 'object' ? (value as any)?.url : null;
+    
+    // Check if it's a custom emoji (starts and ends with :)
+    const isCustomEmoji = emoji.startsWith(':') && emoji.endsWith(':');
+    
+    return {
+      emoji_id: null,
+      emoji_name: emoji,
+      emoji_url: url || null, // Use the URL from the fetched data
+      // For custom emojis without URL, show the emoji name; for unicode, show the emoji itself
+      custom_emoji_content: isCustomEmoji ? (url ? null : emoji) : emoji,
+      reaction_count: count,
+      user_reactions: [], // Remote reactions don't have individual user data
+      current_user_reacted: false,
+    };
+  });
   
   // Merge: local reactions take priority, add remote ones that don't exist locally
   const mergedReactions = [...localReactions];
   for (const remote of remoteReactionGroups) {
     const existingIndex = mergedReactions.findIndex(r => 
-      r.custom_emoji_content === remote.custom_emoji_content ||
       r.emoji_name === remote.emoji_name
     );
     
@@ -128,6 +138,10 @@ const reactions = computed(() => {
       // Use the higher count between local and remote
       if (remote.reaction_count > mergedReactions[existingIndex].reaction_count) {
         mergedReactions[existingIndex].reaction_count = remote.reaction_count;
+      }
+      // Also use the URL if we have one and the existing doesn't
+      if (remote.emoji_url && !mergedReactions[existingIndex].emoji_url) {
+        mergedReactions[existingIndex].emoji_url = remote.emoji_url;
       }
     }
   }

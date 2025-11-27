@@ -402,22 +402,67 @@ async function fetchMisskeyReactions(
     logger.info(`📬 Misskey returned ${reactionsData.length} reactions`);
 
     // Aggregate reactions by emoji type for counting
-    const reactionCounts: Map<string, { count: number; emoji_url?: string }> = new Map();
+    // Store emoji URLs for custom emojis
+    const reactionCounts: Map<string, { count: number; emoji_url?: string; is_custom: boolean }> = new Map();
     const reactions: any[] = [];
+    
+    // Also fetch the note to get emoji definitions
+    let noteEmojis: Record<string, string> = {};
+    try {
+      const noteResponse = await fetch(`https://${domain}/api/notes/show`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        },
+        body: JSON.stringify({ noteId }),
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (noteResponse.ok) {
+        const noteData = await noteResponse.json();
+        // Extract emoji URLs from the note's reaction emojis
+        if (noteData.reactionEmojis) {
+          noteEmojis = noteData.reactionEmojis;
+          logger.info(`📬 Found ${Object.keys(noteEmojis).length} custom emoji definitions`);
+        }
+      }
+    } catch (e) {
+      logger.warn(`📬 Could not fetch note emoji definitions: ${e}`);
+    }
     
     // Just aggregate reactions by emoji - no need to create profiles for every reactor
     for (const reaction of reactionsData) {
       const user = reaction.user;
       const emoji = reaction.type || '❤️';
       
-      // Track counts per emoji
-      const existing = reactionCounts.get(emoji) || { count: 0 };
+      // Check if this is a custom emoji and get its URL
+      const isCustomEmoji = emoji.startsWith(':') && emoji.endsWith(':');
+      let emojiUrl: string | undefined;
+      
+      if (isCustomEmoji) {
+        // Try to find emoji URL from note's reactionEmojis
+        // The key in reactionEmojis is the emoji name without colons
+        const emojiName = emoji.slice(1, -1); // Remove : from both ends
+        emojiUrl = noteEmojis[emojiName] || noteEmojis[emoji];
+        
+        if (emojiUrl) {
+          logger.debug(`📬 Found URL for custom emoji ${emoji}: ${emojiUrl}`);
+        }
+      }
+      
+      // Track counts per emoji with URL if available
+      const existing = reactionCounts.get(emoji) || { count: 0, is_custom: isCustomEmoji };
       existing.count++;
+      if (emojiUrl && !existing.emoji_url) {
+        existing.emoji_url = emojiUrl;
+      }
       reactionCounts.set(emoji, existing);
       
       // Build reaction object with actor info (for display purposes only, no DB storage)
       reactions.push({
         emoji,
+        emoji_url: emojiUrl,
         content: emoji,
         actor: {
           username: user?.username || 'unknown',
@@ -439,10 +484,13 @@ async function fetchMisskeyReactions(
         .eq('id', postId)
         .single();
       
-      // Build reaction summary
-      const reactionSummary: Record<string, number> = {};
+      // Build reaction summary with emoji URLs for custom emojis
+      const reactionSummary: Record<string, { count: number; url?: string }> = {};
       for (const [emoji, data] of reactionCounts) {
-        reactionSummary[emoji] = data.count;
+        reactionSummary[emoji] = { 
+          count: data.count,
+          url: data.emoji_url, // Include URL for custom emojis
+        };
       }
       
       // Update post metadata with remote reactions
@@ -463,7 +511,7 @@ async function fetchMisskeyReactions(
       if (updateError) {
         logger.warn(`📬 Failed to update post metadata: ${updateError.message}`);
       } else {
-        logger.info(`📬 Updated post with ${reactionCounts.size} reaction types`);
+        logger.info(`📬 Updated post with ${reactionCounts.size} reaction types (${Object.values(reactionSummary).filter(r => r.url).length} with custom emoji URLs)`);
       }
     }
     

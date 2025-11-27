@@ -155,6 +155,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { activityPubService } from '@/services/activityPubService';
 import type { TimelinePost, FederatedUser } from '@/types';
 
 // Components
@@ -199,48 +200,25 @@ const loadPost = async () => {
   error.value = null;
 
   try {
-    // TODO: Implement actual post loading from API
-    // For now, simulate loading
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Fetch the actual post from the database
+    const fetchedPost = await activityPubService.getPost(props.postId);
     
-    // Mock post data
-    post.value = {
-      id: props.postId,
-      content: `This is a detailed view of post ${props.postId}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`,
-      created_at: new Date().toISOString(),
-      author: {
-        id: 'user1',
-        username: 'alice',
-        domain: 'har.mony.lol',
-        handle: '@alice',
-        display_name: 'Alice Johnson',
-        avatar_url: '/default_avatar.png',
-        bio: 'Software developer and ActivityPub enthusiast',
-        is_local: true,
-        verified: false,
-        followers_count: 142,
-        following_count: 89,
-        posts_count: 234,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      visibility: 'public',
-      favorites_count: 5,
-      reblogs_count: 2,
-      replies_count: 3,
-      is_favorited: false,
-      is_reblogged: false,
-      media_attachments: [],
-      reblog: null,
-      reblog_author: null,
-      in_reply_to: null,
-      content_warning: null,
-      is_sensitive: false
-    };
-
-    totalReplies.value = post.value.replies_count;
+    if (!fetchedPost) {
+      throw new Error('Post not found');
+    }
+    
+    post.value = fetchedPost;
+    totalReplies.value = fetchedPost.replies_count || 0;
+    
+    // Load local replies
     await loadReplies();
     await loadRelatedPosts();
+    
+    // If this is a remote post, auto-fetch reactions and replies in the background
+    if (!fetchedPost.is_local && fetchedPost.ap_id) {
+      debug.log(`🌐 Remote post detected, auto-fetching reactions and replies...`);
+      fetchRemoteDataInBackground(fetchedPost);
+    }
   } catch (err) {
     debug.error('Failed to load post:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
@@ -249,54 +227,78 @@ const loadPost = async () => {
   }
 };
 
+// Auto-fetch remote reactions and replies in the background
+const fetchRemoteDataInBackground = async (remotePost: TimelinePost) => {
+  const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+  
+  try {
+    // Fetch reactions
+    debug.log(`📬 Auto-fetching reactions for remote post: ${remotePost.ap_id}`);
+    const reactionsResponse = await fetch(`${federationBackendUrl}/fetch-reactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: remotePost.ap_id,
+        post_id: remotePost.id,
+      }),
+    });
+    
+    if (reactionsResponse.ok) {
+      const result = await reactionsResponse.json();
+      debug.log(`✅ Auto-fetched ${result.count} reactions`);
+      
+      // Refetch post to get updated metadata
+      if (result.count > 0) {
+        const updatedPost = await activityPubService.getPost(remotePost.id);
+        if (updatedPost) {
+          post.value = updatedPost;
+        }
+      }
+    }
+  } catch (err) {
+    debug.warn('Failed to auto-fetch remote reactions:', err);
+  }
+  
+  try {
+    // Fetch replies
+    debug.log(`📬 Auto-fetching replies for remote post: ${remotePost.ap_id}`);
+    const repliesResponse = await fetch(`${federationBackendUrl}/fetch-replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: remotePost.ap_id,
+        post_id: remotePost.id,
+        limit: 10,
+      }),
+    });
+    
+    if (repliesResponse.ok) {
+      const result = await repliesResponse.json();
+      debug.log(`✅ Auto-fetched ${result.count} replies`);
+      
+      // Reload replies to include the newly fetched ones
+      if (result.count > 0) {
+        await loadReplies();
+      }
+    }
+  } catch (err) {
+    debug.warn('Failed to auto-fetch remote replies:', err);
+  }
+};
+
 const loadReplies = async () => {
   if (!post.value) return;
 
   isLoadingReplies.value = true;
   try {
-    // TODO: Implement actual replies loading
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Mock replies data
-    replies.value = [
-      {
-        id: 'reply1',
-        content: 'Great post! Thanks for sharing.',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        author: {
-          id: 'user2',
-          username: 'bob',
-          domain: 'mastodon.social',
-          handle: '@bob@mastodon.social',
-          display_name: 'Bob Smith',
-          avatar_url: '/default_avatar.png',
-          bio: 'Federated social media user',
-          is_local: false,
-          verified: false,
-          followers_count: 67,
-          following_count: 123,
-          posts_count: 89,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        visibility: 'public',
-        favorites_count: 1,
-        reblogs_count: 0,
-        replies_count: 0,
-        is_favorited: false,
-        is_reblogged: false,
-        media_attachments: [],
-        reblog: null,
-        reblog_author: null,
-        in_reply_to: post.value.id,
-        content_warning: null,
-        is_sensitive: false
-      }
-    ];
-    
-    hasMoreReplies.value = replies.value.length < totalReplies.value;
+    // Fetch actual replies from the database
+    const fetchedReplies = await activityPubService.getPostReplies(post.value.id, { limit: 20 });
+    replies.value = fetchedReplies || [];
+    hasMoreReplies.value = fetchedReplies.length >= 20;
+    debug.log(`✅ Loaded ${replies.value.length} replies for post ${post.value.id}`);
   } catch (err) {
     debug.error('Failed to load replies:', err);
+    replies.value = [];
   } finally {
     isLoadingReplies.value = false;
   }
