@@ -299,6 +299,12 @@ onBeforeUnmount(() => {
   padding: 1rem;
   transition: all 0.2s;
   position: relative;
+  z-index: 1;
+}
+
+/* When menu is open, raise the card above others */
+.user-card:has(.actions-menu) {
+  z-index: 100;
 }
 
 .user-card:hover {

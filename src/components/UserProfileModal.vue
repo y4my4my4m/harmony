@@ -97,16 +97,16 @@
             <span class="stat-label">Status</span>
           </div>
           
-          <!-- ActivityPub/Federated User Stats -->
-          <div v-if="socialStats" class="stat-item">
+          <!-- ActivityPub/Federated User Stats (clickable to navigate to profile) -->
+          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View all posts">
             <span class="stat-value">{{ formatSocialCount(socialStats.posts) }}</span>
             <span class="stat-label">Posts</span>
           </div>
-          <div v-if="socialStats" class="stat-item">
+          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View following">
             <span class="stat-value">{{ formatSocialCount(socialStats.following) }}</span>
             <span class="stat-label">{{ t('activitypub.following') }}</span>
           </div>
-          <div v-if="socialStats" class="stat-item">
+          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View followers">
             <span class="stat-value">{{ formatSocialCount(socialStats.followers) }}</span>
             <span class="stat-label">{{ t('activitypub.followers') }}</span>
           </div>
@@ -199,7 +199,7 @@
             
             <!-- Federated User Activities -->
             <template v-else>
-              <div class="activity-card">
+              <div class="activity-card clickable" @click="navigateToProfile" title="View all posts">
                 <div class="activity-icon">
                   <Icon name="post" class="activity-icon-svg" />
                 </div>
@@ -209,7 +209,7 @@
                 </div>
               </div>
               
-              <div class="activity-card">
+              <div class="activity-card clickable" @click="navigateToProfile" title="View profile">
                 <div class="activity-icon">
                   <Icon name="interaction" class="activity-icon-svg" />
                 </div>
@@ -545,6 +545,31 @@ const mentionUser = () => {
   // Navigate to Monyverse and close modal
   router.push('/monyverse')
   emit('close')
+}
+
+const navigateToProfile = () => {
+  if (!props.user) return
+  
+  // Close modal and navigate to full profile
+  emit('close')
+  
+  // Build the handle for navigation
+  const user = props.user as any
+  let handle = user.handle || `@${user.username}`
+  
+  // Remove leading @ for routing
+  handle = handle.replace(/^@/, '')
+  
+  // Remove local domain if present
+  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+  if (handle.endsWith(`@${currentDomain}`)) {
+    handle = handle.replace(`@${currentDomain}`, '')
+  }
+  
+  router.push({ 
+    name: 'UserProfile', 
+    params: { handle: encodeURIComponent(handle) }
+  })
 }
 
 const openInviteModal = () => {
@@ -952,6 +977,22 @@ onMounted(() => {
   text-align: center;
 }
 
+.stat-item.clickable {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.stat-item.clickable:hover {
+  background: rgba(88, 101, 242, 0.15);
+  transform: scale(1.05);
+}
+
+.stat-item.clickable:hover .stat-value {
+  color: #5865f2;
+}
+
 .stat-value {
   font-size: 16px;
   font-weight: 700;
@@ -1077,6 +1118,20 @@ onMounted(() => {
 .activity-card:hover {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+.activity-card.clickable {
+  cursor: pointer;
+}
+
+.activity-card.clickable:hover {
+  background: rgba(88, 101, 242, 0.1);
+  border-color: rgba(88, 101, 242, 0.3);
+  transform: translateY(-1px);
+}
+
+.activity-card.clickable:hover .activity-icon {
+  background: rgba(88, 101, 242, 0.3);
 }
 
 .activity-icon {
