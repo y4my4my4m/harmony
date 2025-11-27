@@ -201,6 +201,7 @@ const loadPost = async () => {
 
   try {
     // Fetch the actual post from the database
+    console.log(`[PostDetail] Loading post: ${props.postId}`);
     const fetchedPost = await activityPubService.getPost(props.postId);
     
     if (!fetchedPost) {
@@ -210,6 +211,13 @@ const loadPost = async () => {
     post.value = fetchedPost;
     totalReplies.value = fetchedPost.replies_count || 0;
     
+    // Log full post data for debugging
+    console.log(`[PostDetail] Loaded post:`, {
+      id: fetchedPost.id,
+      is_local: fetchedPost.is_local,
+      ap_id: fetchedPost.ap_id,
+      author: fetchedPost.author?.username,
+    });
     debug.log(`📝 Loaded post: id=${fetchedPost.id}, is_local=${fetchedPost.is_local}, ap_id=${fetchedPost.ap_id}`);
     
     // Load local replies
@@ -221,12 +229,15 @@ const loadPost = async () => {
     // 1. Remote posts (is_local=false) - fetch from their origin instance
     // 2. Local posts (is_local=true) - fetch reactions/replies from remote instances
     if (fetchedPost.ap_id) {
+      console.log(`[PostDetail] Post has ap_id (${fetchedPost.ap_id}), auto-fetching remote data...`);
       debug.log(`🌐 Post has ap_id, auto-fetching remote reactions and replies...`);
       fetchRemoteDataInBackground(fetchedPost);
     } else {
+      console.warn(`[PostDetail] Post has NO ap_id, skipping remote fetch. Post keys:`, Object.keys(fetchedPost));
       debug.log(`⚠️ Post has no ap_id, skipping remote fetch`);
     }
   } catch (err) {
+    console.error('[PostDetail] Failed to load post:', err);
     debug.error('Failed to load post:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
   } finally {
@@ -240,12 +251,19 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
   const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
   const postType = targetPost.is_local ? 'local' : 'remote';
   
+  console.log(`[PostDetail] fetchRemoteDataInBackground called for ${postType} post:`, {
+    ap_id: targetPost.ap_id,
+    post_id: targetPost.id,
+    federationBackendUrl,
+  });
   debug.log(`🌐 Starting background fetch for ${postType} post: ${targetPost.ap_id}`);
   
   // Fetch reactions
   try {
+    const fetchUrl = `${federationBackendUrl}/fetch-reactions`;
+    console.log(`[PostDetail] Fetching reactions from: ${fetchUrl}`);
     debug.log(`📬 Fetching reactions for ${postType} post...`);
-    const reactionsResponse = await fetch(`${federationBackendUrl}/fetch-reactions`, {
+    const reactionsResponse = await fetch(fetchUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -253,6 +271,7 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
         post_id: targetPost.id,
       }),
     });
+    console.log(`[PostDetail] Reactions response status: ${reactionsResponse.status}`);
     
     if (reactionsResponse.ok) {
       const result = await reactionsResponse.json();
