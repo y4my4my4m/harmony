@@ -167,6 +167,7 @@ import ProfileCard from '@/components/common/ProfileCard.vue'
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useInstanceStore } from '@/stores/useInstance'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { supabase } from '@/supabase'
@@ -221,6 +222,7 @@ const emit = defineEmits<{
 
 // Store
 const activityPubStore = useActivityPubStore()
+const instanceStore = useInstanceStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -315,10 +317,10 @@ const trendingTopics = ref<Array<{ tag: string; count: number }>>([])
 const suggestedUsers = ref<FederatedUser[]>([])
 const isLoadingTrending = ref(false)
 
-// Instance stats (loaded dynamically)
-const localInstanceDomain = ref(props.instanceDomain || window.location.hostname)
-const localInstanceUserCount = ref(props.instanceUserCount)
-const localInstancePostCount = ref(props.instancePostCount)
+// Instance stats (cached in store)
+const localInstanceDomain = computed(() => instanceStore.domain)
+const localInstanceUserCount = computed(() => instanceStore.userCount)
+const localInstancePostCount = computed(() => instanceStore.postCount)
 
 // Load trending hashtags from TrendingService
 const loadTrendingHashtags = async () => {
@@ -362,34 +364,14 @@ const loadSuggestedUsers = async () => {
   }
 }
 
-// Load local instance stats
-const loadInstanceStats = async () => {
-  try {
-    debug.log('🔄 Loading instance stats...')
-    
-    // Get counts from database
-    const [usersResult, postsResult] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
-      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true).eq('is_deleted', false)
-    ])
-    
-    localInstanceUserCount.value = usersResult.count || 0
-    localInstancePostCount.value = postsResult.count || 0
-    
-    debug.log('✅ Instance stats loaded:', {
-      users: localInstanceUserCount.value,
-      posts: localInstancePostCount.value
-    })
-  } catch (error) {
-    debug.error('Failed to load instance stats:', error)
-  }
-}
+// Instance stats are now cached in the instance store
+// No need to load them here - they're fetched on demand with 5-minute cache
 
 // Load sidebar data on mount
 onMounted(() => {
   loadTrendingHashtags()
   loadSuggestedUsers()
-  loadInstanceStats()
+  instanceStore.fetchStats() // Uses cached values if fresh, otherwise fetches
 })
 
 // Track view context in database for notification suppression
