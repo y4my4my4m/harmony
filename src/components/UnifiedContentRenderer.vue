@@ -422,6 +422,7 @@ const formatFileSize = (bytes: number): string => {
 .content-html :deep(.hashtag),
 :deep(.hashtag) {
   background-color: var(--harmony-primary);
+  margin: 0 2px;
   border-radius: 3px;
   padding: 0 3px;
   cursor: pointer;

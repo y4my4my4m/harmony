@@ -321,10 +321,36 @@ async function fetchRemotePostReactions(
 
     const post = await postResponse.json();
     
-    // Get likes collection URL
-    const likesUrl = post.likes || post.reactions;
+    // Log the post structure for debugging
+    logger.info(`📬 Post structure keys: ${Object.keys(post).join(', ')}`);
+    
+    // Extract counts from the post object itself if available
+    // Mastodon style: favouritesCount, repliesCount, sharesCount
+    // Misskey style: _misskey_reaction, _misskey_votes
+    const counts = {
+      likes: post.likes?.totalItems || post.favouritesCount || post._misskey_likes || 0,
+      replies: post.replies?.totalItems || post.repliesCount || 0,
+      shares: post.shares?.totalItems || post.sharesCount || 0,
+    };
+    
+    // Update the local post with these counts if we have a post_id
+    if (postId && (counts.likes > 0 || counts.replies > 0 || counts.shares > 0)) {
+      logger.info(`📬 Updating post counts: likes=${counts.likes}, replies=${counts.replies}, shares=${counts.shares}`);
+      await supabase
+        .from('posts')
+        .update({
+          favorites_count: counts.likes,
+          replies_count: counts.replies,
+          reblogs_count: counts.shares,
+        })
+        .eq('id', postId);
+    }
+    
+    // Get likes collection URL - check multiple possible locations
+    const likesUrl = post.likes || post.reactions || post._misskey_likes;
     if (!likesUrl) {
-      logger.info(`📬 No likes collection found for post`);
+      logger.info(`📬 No likes collection found for post (available: ${Object.keys(post).filter(k => k.includes('like') || k.includes('reaction')).join(', ') || 'none'})`);
+      // Return with counts even if no likes collection
       return [];
     }
 
@@ -477,6 +503,249 @@ async function fetchRemotePostReactions(
 
   } catch (error) {
     logger.warn(`Failed to fetch remote reactions:`, error);
+    return [];
+  }
+}
+
+/**
+ * Fetch replies for a remote post
+ * POST /api/federation/fetch-replies
+ * Body: { post_ap_id: string, post_id?: string, limit?: number }
+ */
+router.post(
+  '/api/federation/fetch-replies',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { post_ap_id, post_id, limit = 10 } = req.body;
+
+    if (!post_ap_id) {
+      return res.status(400).json({ error: 'post_ap_id is required' });
+    }
+
+    const supabase = getSupabaseClient();
+    
+    logger.info(`📬 Fetching replies for remote post: ${post_ap_id}`);
+
+    try {
+      const replies = await fetchRemotePostReplies(post_ap_id, post_id, supabase, Math.min(limit, 20));
+      
+      return res.json({
+        success: true,
+        replies,
+        count: replies.length,
+      });
+    } catch (error: any) {
+      logger.error('Failed to fetch replies:', error);
+      return res.status(500).json({ error: 'Failed to fetch replies' });
+    }
+  })
+);
+
+/**
+ * Fetch replies from a remote post's replies collection
+ */
+async function fetchRemotePostReplies(
+  postApId: string,
+  postId: string | undefined,
+  supabase: any,
+  limit: number = 10
+): Promise<any[]> {
+  try {
+    // Fetch the post object to get the replies collection URL
+    const postResponse = await fetch(postApId, {
+      headers: {
+        'Accept': 'application/activity+json, application/ld+json',
+        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!postResponse.ok) {
+      logger.warn(`Failed to fetch post: ${postResponse.status}`);
+      return [];
+    }
+
+    const post = await postResponse.json();
+    
+    // Get replies collection URL
+    const repliesUrl = post.replies;
+    if (!repliesUrl) {
+      logger.info(`📬 No replies collection found for post`);
+      return [];
+    }
+
+    const repliesCollectionUrl = typeof repliesUrl === 'string' ? repliesUrl : repliesUrl.id;
+    logger.info(`📬 Fetching replies from: ${repliesCollectionUrl}`);
+
+    const repliesResponse = await fetch(repliesCollectionUrl, {
+      headers: {
+        'Accept': 'application/activity+json, application/ld+json',
+        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!repliesResponse.ok) {
+      logger.warn(`Failed to fetch replies collection: ${repliesResponse.status}`);
+      return [];
+    }
+
+    const repliesCollection = await repliesResponse.json();
+    
+    // Extract reply items
+    let items: any[] = [];
+    
+    if (repliesCollection.orderedItems) {
+      items = repliesCollection.orderedItems;
+    } else if (repliesCollection.items) {
+      items = repliesCollection.items;
+    } else if (repliesCollection.first) {
+      // Need to fetch first page
+      const firstPageUrl = typeof repliesCollection.first === 'string' 
+        ? repliesCollection.first 
+        : repliesCollection.first.id;
+      
+      const pageResponse = await fetch(firstPageUrl, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        },
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (pageResponse.ok) {
+        const page = await pageResponse.json();
+        items = page.orderedItems || page.items || [];
+      }
+    }
+
+    logger.info(`📬 Found ${items.length} replies`);
+
+    // Import converters
+    const { noteToContent } = await import('./converters/fromActivityPub.js');
+    
+    // Process replies and save them
+    const savedReplies: any[] = [];
+    
+    for (const item of items.slice(0, limit)) {
+      try {
+        // Get the actual Note object
+        let note = item;
+        if (typeof item === 'string') {
+          // It's a URL - need to fetch it
+          const noteResponse = await fetch(item, {
+            headers: {
+              'Accept': 'application/activity+json, application/ld+json',
+              'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+            },
+            signal: AbortSignal.timeout(5000)
+          });
+          if (!noteResponse.ok) continue;
+          note = await noteResponse.json();
+        } else if (item.type === 'Create') {
+          note = item.object;
+        }
+
+        if (note.type !== 'Note' && note.type !== 'Article') {
+          continue;
+        }
+
+        // Check if reply already exists
+        const { data: existing } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('ap_id', note.id)
+          .maybeSingle();
+
+        if (existing) {
+          savedReplies.push({ id: existing.id, ap_id: note.id, existing: true });
+          continue;
+        }
+
+        // Get or create the author
+        const authorUrl = typeof note.attributedTo === 'string' 
+          ? note.attributedTo 
+          : note.attributedTo?.id;
+        
+        if (!authorUrl) continue;
+
+        // Check if we have this user locally
+        let { data: author } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('federated_id', authorUrl)
+          .maybeSingle();
+
+        if (!author) {
+          // Try to create the user
+          try {
+            const actorResponse = await fetch(authorUrl, {
+              headers: {
+                'Accept': 'application/activity+json, application/ld+json',
+                'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+              },
+              signal: AbortSignal.timeout(5000)
+            });
+            if (actorResponse.ok) {
+              const actor = await actorResponse.json();
+              const { actorToProfile } = await import('./converters/fromActivityPub.js');
+              const profileData = actorToProfile(actor);
+              
+              const { data: newProfile } = await supabase
+                .from('profiles')
+                .insert({
+                  ...profileData,
+                  is_local: false,
+                })
+                .select('id')
+                .single();
+              
+              author = newProfile;
+            }
+          } catch (err) {
+            logger.debug(`Failed to create author for reply:`, err);
+            continue;
+          }
+        }
+
+        if (!author) continue;
+
+        // Create the reply post
+        const content = noteToContent(note);
+        
+        const replyData: any = {
+          ap_id: note.id,
+          ap_type: note.type,
+          author_id: author.id,
+          content,
+          visibility: 'public',
+          is_local: false,
+          created_at: note.published || new Date().toISOString(),
+          in_reply_to: postId,
+          metadata: {
+            in_reply_to_ap_url: postApId,
+          },
+        };
+
+        const { data: newReply, error: insertError } = await supabase
+          .from('posts')
+          .insert(replyData)
+          .select('id')
+          .single();
+
+        if (!insertError && newReply) {
+          savedReplies.push({ id: newReply.id, ap_id: note.id, new: true });
+          logger.debug(`📬 Saved reply: ${note.id}`);
+        }
+      } catch (err) {
+        logger.debug(`Failed to process reply:`, err);
+      }
+    }
+
+    logger.info(`📬 Saved ${savedReplies.filter(r => r.new).length} new replies`);
+    return savedReplies;
+
+  } catch (error) {
+    logger.warn(`Failed to fetch remote replies:`, error);
     return [];
   }
 }
@@ -974,6 +1243,11 @@ async function fetchRecentPostsInBackground(
           }
         }
         
+        // Extract counts from the note (Mastodon/Misskey style)
+        const repliesCount = note.replies?.totalItems || note.repliesCount || 0;
+        const likesCount = note.likes?.totalItems || note.favouritesCount || 0;
+        const sharesCount = note.shares?.totalItems || note.sharesCount || 0;
+        
         // Create the post with full content
         const postData: any = {
           ap_id: note.id,
@@ -985,6 +1259,9 @@ async function fetchRecentPostsInBackground(
           created_at: note.published || new Date().toISOString(),
           content_warning: note.summary || null,
           is_sensitive: note.sensitive === true,
+          replies_count: repliesCount,
+          favorites_count: likesCount,
+          reblogs_count: sharesCount,
         };
         
         // Add reply reference if found

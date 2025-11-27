@@ -328,24 +328,6 @@
           <Icon name="plus" />
         </button>
 
-        <!-- Fetch Remote Reactions Button (only for remote posts) -->
-        <button 
-          v-if="isRemotePost && !isFetchingReactions"
-          class="action-button fetch-reactions-button"
-          @click="fetchRemoteReactions"
-          title="Fetch reactions from remote instance"
-        >
-          <Icon name="refresh" />
-        </button>
-        <button 
-          v-if="isRemotePost && isFetchingReactions"
-          class="action-button fetch-reactions-button loading"
-          disabled
-          title="Loading reactions..."
-        >
-          <Icon name="loader" class="spinning" />
-        </button>
-
         <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
@@ -403,6 +385,35 @@
             <Icon name="trash" />
             <span>Delete</span>
           </button>
+          
+          <!-- Fetch remote data for remote posts -->
+          <div v-if="isRemotePost" class="dropdown-divider"></div>
+          
+          <button 
+            v-if="isRemotePost && !isFetchingReactions"
+            class="dropdown-item"
+            @click="fetchRemoteReactions"
+          >
+            <Icon name="heart" />
+            <span>Fetch reactions</span>
+          </button>
+          
+          <button 
+            v-if="isRemotePost && !isFetchingReplies"
+            class="dropdown-item"
+            @click="fetchRemoteReplies"
+          >
+            <Icon name="message-circle" />
+            <span>Fetch replies</span>
+          </button>
+          
+          <div 
+            v-if="isRemotePost && (isFetchingReactions || isFetchingReplies)"
+            class="dropdown-item loading-item"
+          >
+            <Icon name="loader" class="spinning" />
+            <span>Loading...</span>
+          </div>
         </div>
       </div>
     </div>
@@ -584,8 +595,9 @@ const isRemotePost = computed(() => {
   return !props.post.is_local && props.post.ap_id;
 });
 
-// State for fetching remote reactions
+// State for fetching remote data
 const isFetchingReactions = ref(false);
+const isFetchingReplies = ref(false);
 
 // Reblog-related computed properties
 const isReblog = computed(() => {
@@ -1260,6 +1272,7 @@ const fetchRemoteReactions = async () => {
   if (!postApId) return;
   
   isFetchingReactions.value = true;
+  showMenu.value = false;
   
   try {
     const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
@@ -1279,7 +1292,6 @@ const fetchRemoteReactions = async () => {
       // Emit event to refresh post data
       emit('refresh', props.post.id);
       
-      // Show success feedback (could use a toast)
       if (result.count > 0) {
         debug.log(`✅ Found ${result.count} reactions from remote instance`);
       } else {
@@ -1292,6 +1304,49 @@ const fetchRemoteReactions = async () => {
     debug.error('Error fetching remote reactions:', error);
   } finally {
     isFetchingReactions.value = false;
+  }
+};
+
+// Fetch remote replies for a remote post
+const fetchRemoteReplies = async () => {
+  if (!isRemotePost.value || isFetchingReplies.value) return;
+  
+  const postApId = props.post.ap_id;
+  if (!postApId) return;
+  
+  isFetchingReplies.value = true;
+  showMenu.value = false;
+  
+  try {
+    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+    const response = await fetch(`${federationBackendUrl}/fetch-replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: postApId,
+        post_id: props.post.id,
+      }),
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      debug.log(`📬 Fetched ${result.count} replies for remote post`);
+      
+      // Emit event to refresh post data
+      emit('refresh', props.post.id);
+      
+      if (result.count > 0) {
+        debug.log(`✅ Found ${result.count} replies from remote instance`);
+      } else {
+        debug.log(`📭 No replies found on remote instance`);
+      }
+    } else {
+      debug.error('Failed to fetch remote replies:', await response.text());
+    }
+  } catch (error) {
+    debug.error('Error fetching remote replies:', error);
+  } finally {
+    isFetchingReplies.value = false;
   }
 };
 
@@ -1797,21 +1852,18 @@ const closeLightbox = () => {
   color: #f59e0b;
 }
 
-.fetch-reactions-button {
-  color: #6b7280;
+.dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.5rem 0;
 }
 
-.fetch-reactions-button:hover {
-  color: #a78bfa;
-  background-color: rgba(167, 139, 250, 0.1);
-}
-
-.fetch-reactions-button.loading {
-  color: #a78bfa;
+.loading-item {
+  color: #9ca3af;
   cursor: wait;
 }
 
-.fetch-reactions-button .spinning {
+.loading-item .spinning {
   animation: spin 1s linear infinite;
 }
 

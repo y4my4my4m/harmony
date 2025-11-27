@@ -50,20 +50,10 @@
             @refresh="handleRefresh"
           />
           
-          <!-- Auto-fetch reactions notice for remote posts -->
-          <div v-if="isRemotePost && !hasFetchedReactions" class="remote-reactions-notice">
-            <button 
-              v-if="!isFetchingReactions"
-              @click="fetchRemoteReactions"
-              class="fetch-reactions-btn"
-            >
-              <Icon name="download" />
-              Fetch reactions from {{ post?.author?.domain }}
-            </button>
-            <div v-else class="fetching-notice">
-              <Icon name="loader" class="spinning" />
-              Loading reactions...
-            </div>
+          <!-- Remote post hint -->
+          <div v-if="isRemotePost" class="remote-post-hint">
+            <Icon name="globe" />
+            <span>Remote post from <strong>{{ post?.author?.domain }}</strong> • Use the menu (⋯) to fetch reactions & replies</span>
           </div>
         </article>
 
@@ -197,8 +187,6 @@ const hasMoreReplies = ref(false);
 const showReplyComposer = ref(false);
 const error = ref<string | null>(null);
 const totalReplies = ref(0);
-const isFetchingReactions = ref(false);
-const hasFetchedReactions = ref(false);
 
 // Computed
 const isRemotePost = computed(() => {
@@ -437,44 +425,10 @@ const handleUnfollow = async (userId: string) => {
   }
 };
 
-// Handle post refresh (after fetching reactions)
+// Handle post refresh (after fetching reactions/replies from menu)
 const handleRefresh = async (postId: string) => {
   debug.log('Refreshing post data:', postId);
   await loadPost();
-};
-
-// Fetch reactions from remote instance
-const fetchRemoteReactions = async () => {
-  if (!post.value?.ap_id || isFetchingReactions.value) return;
-  
-  isFetchingReactions.value = true;
-  
-  try {
-    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
-    const response = await fetch(`${federationBackendUrl}/fetch-reactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: post.value.ap_id,
-        post_id: post.value.id,
-      }),
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      debug.log(`📬 Fetched ${result.count} reactions for remote post`);
-      hasFetchedReactions.value = true;
-      
-      // Reload post to get updated reaction counts
-      await loadPost();
-    } else {
-      debug.error('Failed to fetch remote reactions:', await response.text());
-    }
-  } catch (err) {
-    debug.error('Error fetching remote reactions:', err);
-  } finally {
-    isFetchingReactions.value = false;
-  }
 };
 
 const navigateToPost = (postId: string) => {
@@ -625,42 +579,21 @@ onMounted(() => {
   margin-bottom: 1.5rem;
 }
 
-.remote-reactions-notice {
+.remote-post-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.fetch-reactions-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
   padding: 0.75rem 1rem;
-  background: rgba(88, 101, 242, 0.1);
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  color: var(--h-brand, #5865f2);
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: all 0.2s;
-  justify-content: center;
-}
-
-.fetch-reactions-btn:hover {
-  background: rgba(88, 101, 242, 0.2);
-  border-color: var(--h-brand, #5865f2);
-}
-
-.fetching-notice {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
   color: #9ca3af;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
+}
+
+.remote-post-hint strong {
+  color: #d1d5db;
 }
 
 .reply-composer {
