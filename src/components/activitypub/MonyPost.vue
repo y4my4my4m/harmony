@@ -1310,7 +1310,7 @@ const fetchRemoteReactions = async () => {
         debug.log(`📭 No reactions found on remote instance`);
       }
       
-      // Update post metadata immediately with the returned remote_reactions
+      // Update post metadata and counts immediately with the returned data
       if (result.remote_reactions) {
         // Update in store feeds
         activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
@@ -1327,6 +1327,17 @@ const fetchRemoteReactions = async () => {
         (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
         
         debug.log(`✅ Updated post metadata with ${Object.keys(result.remote_reactions).length} reaction types`);
+      }
+      
+      // Update counts directly on the post for immediate reactivity
+      if (result.favorites_count !== undefined) {
+        (props.post as any).favorites_count = result.favorites_count;
+      }
+      if (result.replies_count !== undefined) {
+        (props.post as any).replies_count = result.replies_count;
+      }
+      if (result.reblogs_count !== undefined) {
+        (props.post as any).reblogs_count = result.reblogs_count;
       }
       
       // Also emit refresh for any parent that wants to fully reload
