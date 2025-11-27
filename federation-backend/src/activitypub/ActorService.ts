@@ -401,13 +401,26 @@ async function fetchMisskeyReactions(
     const reactionsData = await response.json();
     logger.info(`📬 Misskey returned ${reactionsData.length} reactions`);
 
+    // Aggregate reactions by emoji type for counting
+    const reactionCounts: Map<string, { count: number; emoji_url?: string }> = new Map();
     const reactions: any[] = [];
+    let storedCount = 0;
+    let profilesFound = 0;
+    let profilesCreated = 0;
+    let storageErrors: string[] = [];
     
     for (const reaction of reactionsData) {
       const user = reaction.user;
+      // Misskey reaction.type is like ":heart:" or a custom emoji shortcode
       const emoji = reaction.type || '❤️';
       
-      reactions.push({
+      // Track counts per emoji
+      const existing = reactionCounts.get(emoji) || { count: 0 };
+      existing.count++;
+      reactionCounts.set(emoji, existing);
+      
+      // Build reaction object with full info
+      const reactionObj: any = {
         emoji,
         content: emoji,
         actor: {
@@ -418,40 +431,92 @@ async function fetchMisskeyReactions(
           is_local: !user?.host,
         },
         actor_url: user?.id ? `https://${user.host || domain}/users/${user.id}` : null,
-      });
+      };
+      
+      reactions.push(reactionObj);
 
       // Store in database if we have a post_id
-      if (postId) {
-        // Try to find or create the user profile
-        let userId: string | null = null;
+      if (postId && user?.username) {
+        const userDomain = user.host || domain;
         
-        if (user?.username) {
-          const userDomain = user.host || domain;
-          const { data: profile } = await supabase
+        // Try to find existing profile (remote users have is_local = false)
+        let { data: profile, error: lookupError } = await supabase
+          .from('profiles')
+          .select('id, username, domain')
+          .eq('username', user.username)
+          .eq('domain', userDomain)
+          .maybeSingle();
+        
+        if (lookupError) {
+          logger.warn(`📬 Error looking up profile for ${user.username}@${userDomain}: ${lookupError.message}`);
+        }
+        
+        if (profile) {
+          profilesFound++;
+          logger.debug(`📬 Found existing profile: ${user.username}@${userDomain} (id: ${profile.id})`);
+        } else {
+          // Create profile if not found
+          const { data: newProfile, error: profileError } = await supabase
             .from('profiles')
+            .insert({
+              username: user.username,
+              display_name: user.name || user.username,
+              avatar_url: user.avatarUrl,
+              domain: userDomain,
+              is_local: false,
+              federated_id: `https://${userDomain}/users/${user.id}`,
+            })
             .select('id')
-            .eq('username', user.username)
-            .eq('domain', userDomain)
-            .maybeSingle();
+            .single();
           
-          userId = profile?.id;
+          if (profileError) {
+            logger.warn(`📬 Failed to create profile for ${user.username}@${userDomain}: ${profileError.message}`);
+          } else if (newProfile) {
+            profile = newProfile;
+            profilesCreated++;
+            logger.info(`📬 Created profile for reactor: ${user.username}@${userDomain} (id: ${newProfile.id})`);
+          }
         }
 
-        if (userId) {
-          await supabase
+        if (profile?.id) {
+          // Store the emoji reaction
+          const { error: insertError } = await supabase
             .from('post_interactions')
             .upsert({
               post_id: postId,
-              user_id: userId,
+              user_id: profile.id,
               interaction_type: 'emoji_reaction',
               emoji: emoji,
             }, {
-              onConflict: 'post_id,user_id,interaction_type,emoji_id',
+              onConflict: 'post_id,user_id,interaction_type',
               ignoreDuplicates: true,
             });
+          
+          if (insertError) {
+            storageErrors.push(`${user.username}@${userDomain}: ${insertError.message}`);
+            logger.warn(`📬 Failed to store reaction from ${user.username}@${userDomain}: ${insertError.message}`);
+          } else {
+            storedCount++;
+          }
         }
       }
     }
+
+    logger.info(`📬 Reaction storage summary:`);
+    logger.info(`   - Total reactions from API: ${reactions.length}`);
+    logger.info(`   - Profiles found: ${profilesFound}`);
+    logger.info(`   - Profiles created: ${profilesCreated}`);
+    logger.info(`   - Reactions stored: ${storedCount}`);
+    if (storageErrors.length > 0) {
+      logger.warn(`   - Storage errors: ${storageErrors.length}`);
+      storageErrors.slice(0, 5).forEach(e => logger.warn(`     - ${e}`));
+    }
+    
+    // Log reaction summary
+    const summary = Array.from(reactionCounts.entries())
+      .map(([emoji, data]) => `${emoji}: ${data.count}`)
+      .join(', ');
+    logger.info(`📬 Reaction breakdown: ${summary}`);
 
     return reactions;
   } catch (error) {
