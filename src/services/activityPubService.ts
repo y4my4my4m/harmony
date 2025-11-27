@@ -1849,15 +1849,17 @@ export class ActivityPubService {
     let query = supabase.from('posts');
 
     if (timelineType === 'home') {
-      // Get following list
+      // Get following list - include both accepted AND pending follows
+      // Pending follows should still show PUBLIC posts (they're public anyway)
       const { data: follows } = await supabase
         .from('follows')
-        .select('following_id')
+        .select('following_id, status')
         .eq('follower_id', userId)
-        .eq('status', 'accepted');
+        .in('status', ['accepted', 'pending']);
 
-      const followingIds = follows?.map(f => f.following_id) || [];
-      followingIds.push(userId); // Include own posts
+      const acceptedFollowingIds = follows?.filter(f => f.status === 'accepted').map(f => f.following_id) || [];
+      const pendingFollowingIds = follows?.filter(f => f.status === 'pending').map(f => f.following_id) || [];
+      const allFollowingIds = [...new Set([...acceptedFollowingIds, ...pendingFollowingIds, userId])];
 
       query = query
         .select(`
@@ -1868,7 +1870,7 @@ export class ActivityPubService {
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
-        .in('author_id', followingIds);
+        .in('author_id', allFollowingIds);
     } else if (timelineType === 'local') {
       query = query
         .select(`
