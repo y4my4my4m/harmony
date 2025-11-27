@@ -161,12 +161,26 @@ function addAttachments(parts: any[], attachments: any): void {
       else if (mediaType.startsWith('video/')) fileType = 'video';
       else if (mediaType.startsWith('audio/')) fileType = 'audio';
       
-      parts.push({
+      const filePart: any = {
         type: 'file',
         url: attachment.url,
         fileType: fileType,
-        fileName: attachment.name
-      });
+        mimeType: mediaType, // Store the full MIME type
+        fileName: attachment.name,
+        altText: attachment.name, // Alt text for accessibility
+      };
+      
+      // Store dimensions if available
+      if (attachment.width) filePart.width = attachment.width;
+      if (attachment.height) filePart.height = attachment.height;
+      
+      // Store blurhash if available (for placeholder images)
+      if (attachment.blurhash) filePart.blurhash = attachment.blurhash;
+      
+      // Store focal point if available (for image cropping)
+      if (attachment.focalPoint) filePart.focalPoint = attachment.focalPoint;
+      
+      parts.push(filePart);
     });
   }
 }
@@ -233,6 +247,30 @@ export function actorToProfile(actor: any): {
 
   if (actor.publicKey?.publicKeyPem) {
     profile.public_key = actor.publicKey.publicKeyPem;
+  }
+
+  // Extract profile fields (PropertyValue attachments)
+  if (actor.attachment && Array.isArray(actor.attachment)) {
+    const profileFields = actor.attachment
+      .filter((att: any) => att.type === 'PropertyValue')
+      .map((att: any) => ({
+        name: att.name || '',
+        value: att.value || '',
+      }));
+    
+    if (profileFields.length > 0) {
+      profile.profile_fields = profileFields;
+    }
+  }
+
+  // Extract discoverable flag
+  if (actor.discoverable !== undefined) {
+    profile.federation_discoverable = actor.discoverable;
+  }
+
+  // Extract manually approves followers flag
+  if (actor.manuallyApprovesFollowers !== undefined) {
+    profile.manually_approves_followers = actor.manuallyApprovesFollowers;
   }
 
   return profile;

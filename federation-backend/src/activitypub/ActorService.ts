@@ -255,6 +255,95 @@ router.get(
 );
 
 /**
+ * Featured/Pinned posts collection endpoint
+ * GET /users/:username/featured - Returns pinned posts
+ */
+router.get(
+  '/users/:username/featured',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { username } = req.params;
+    const supabase = getSupabaseClient();
+
+    // Get user
+    const { data: user, error: userError } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .eq('username', username)
+      .eq('is_local', true)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
+    const featuredUrl = `${baseUrl}/users/${username}/featured`;
+
+    // Get pinned posts
+    const { data: pinnedPosts, error: postsError } = await supabase
+      .from('posts')
+      .select('id, ap_id, content, created_at, visibility, content_warning, is_sensitive')
+      .eq('author_id', user.id)
+      .eq('is_pinned', true)
+      .eq('is_deleted', false)
+      .in('visibility', ['public', 'unlisted'])
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (postsError) {
+      logger.error('Failed to fetch pinned posts:', postsError);
+      return res.status(500).json({ error: 'Failed to fetch pinned posts' });
+    }
+
+    // Convert posts to ActivityPub Note objects
+    const orderedItems = (pinnedPosts || []).map(post => {
+      const postUrl = post.ap_id || `${baseUrl}/posts/${post.id}`;
+      
+      // Extract text content from JSONB
+      let textContent = '';
+      if (Array.isArray(post.content)) {
+        textContent = post.content
+          .filter((p: any) => p.type === 'text')
+          .map((p: any) => p.text || '')
+          .join('');
+      }
+
+      const note: any = {
+        id: postUrl,
+        type: 'Note',
+        attributedTo: `${baseUrl}/users/${username}`,
+        content: textContent,
+        published: post.created_at,
+        to: post.visibility === 'public' 
+          ? ['https://www.w3.org/ns/activitystreams#Public']
+          : [`${baseUrl}/users/${username}/followers`],
+        cc: post.visibility === 'public'
+          ? [`${baseUrl}/users/${username}/followers`]
+          : [],
+      };
+
+      if (post.content_warning) {
+        note.summary = post.content_warning;
+      }
+      if (post.is_sensitive) {
+        note.sensitive = true;
+      }
+
+      return note;
+    });
+
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.json({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: featuredUrl,
+      type: 'OrderedCollection',
+      totalItems: orderedItems.length,
+      orderedItems,
+    });
+  })
+);
+
+/**
  * Followers collection endpoint
  * GET /users/:username/followers
  */

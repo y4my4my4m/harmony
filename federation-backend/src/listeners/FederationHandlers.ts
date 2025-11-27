@@ -225,3 +225,145 @@ export function createUndoLikeActivity(user: any, objectUrl: string): any {
   };
 }
 
+/**
+ * Create an Add activity (pin post to featured collection)
+ */
+export function createAddToFeaturedActivity(user: any, post: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const userUrl = `https://${domain}/users/${user.username}`;
+  const postUrl = post.ap_id || `https://${domain}/posts/${post.id}`;
+  const featuredUrl = `${userUrl}/featured`;
+  
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${userUrl}/add/${Date.now()}`,
+    type: 'Add',
+    actor: userUrl,
+    object: postUrl,
+    target: featuredUrl,
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [`${userUrl}/followers`],
+  };
+}
+
+/**
+ * Create a Remove activity (unpin post from featured collection)
+ */
+export function createRemoveFromFeaturedActivity(user: any, post: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const userUrl = `https://${domain}/users/${user.username}`;
+  const postUrl = post.ap_id || `https://${domain}/posts/${post.id}`;
+  const featuredUrl = `${userUrl}/featured`;
+  
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${userUrl}/remove/${Date.now()}`,
+    type: 'Remove',
+    actor: userUrl,
+    object: postUrl,
+    target: featuredUrl,
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [`${userUrl}/followers`],
+  };
+}
+
+/**
+ * Create a Block activity
+ */
+export function createBlockActivity(blocker: any, blocked: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const blockerUrl = `https://${domain}/users/${blocker.username}`;
+  const blockedUrl = blocked.federated_id || `https://${blocked.domain}/users/${blocked.username}`;
+  
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${blockerUrl}/blocks/${Date.now()}`,
+    type: 'Block',
+    actor: blockerUrl,
+    object: blockedUrl,
+  };
+}
+
+/**
+ * Create an Undo Block activity (unblock)
+ */
+export function createUndoBlockActivity(blocker: any, blocked: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const blockerUrl = `https://${domain}/users/${blocker.username}`;
+  const blockedUrl = blocked.federated_id || `https://${blocked.domain}/users/${blocked.username}`;
+  
+  // Create the original Block activity that we're undoing
+  const blockActivity = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${blockerUrl}/blocks/${blocked.id}`,
+    type: 'Block',
+    actor: blockerUrl,
+    object: blockedUrl,
+  };
+  
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${blockerUrl}/undo/${Date.now()}`,
+    type: 'Undo',
+    actor: blockerUrl,
+    object: blockActivity,
+  };
+}
+
+/**
+ * Create a Flag activity (report user/post to remote instance)
+ */
+export function createFlagActivity(
+  reporter: any, 
+  reportedUser: any, 
+  reportedPost: any | null,
+  reason: string
+): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const reporterUrl = `https://${domain}/users/${reporter.username}`;
+  
+  // Build the list of objects being reported
+  const objects: string[] = [];
+  
+  // Always include the user
+  const userUrl = reportedUser.federated_id || `https://${reportedUser.domain}/users/${reportedUser.username}`;
+  objects.push(userUrl);
+  
+  // Include the post if specified
+  if (reportedPost?.ap_id) {
+    objects.push(reportedPost.ap_id);
+  }
+  
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${reporterUrl}/flags/${Date.now()}`,
+    type: 'Flag',
+    actor: reporterUrl,
+    object: objects,
+    content: reason,
+  };
+}
+
+/**
+ * Create an Update activity for an edited post
+ */
+export async function createPostUpdateActivity(post: any, author: any): Promise<any> {
+  const domain = config.INSTANCE_DOMAIN;
+  const authorUrl = `https://${domain}/users/${author.username}`;
+  const activityId = `${authorUrl}/activities/update-${post.id}-${Date.now()}`;
+  
+  // Import postToNote to create the Note object
+  const note = postToNote(post, author);
+  
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: activityId,
+    type: 'Update',
+    actor: authorUrl,
+    published: new Date().toISOString(),
+    to: note.to || ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: note.cc || [`${authorUrl}/followers`],
+    object: note,
+  };
+}
+

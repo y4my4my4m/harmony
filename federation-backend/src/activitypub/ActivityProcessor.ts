@@ -44,6 +44,18 @@ export class ActivityProcessor {
       case 'Undo':
         await this.processUndo(activity);
         break;
+      case 'Add':
+        await this.processAdd(activity);
+        break;
+      case 'Remove':
+        await this.processRemove(activity);
+        break;
+      case 'Flag':
+        await this.processFlag(activity);
+        break;
+      case 'Block':
+        await this.processBlock(activity);
+        break;
       default:
         logger.info(`Unhandled activity type: ${activity.type}`);
     }
@@ -158,11 +170,18 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Create activity (new post/message)
+   * Process Create activity (new post/message/poll)
    */
   private static async processCreate(activity: any): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
+
+    // Handle Question type (polls) - store as Note with poll metadata
+    if (object.type === 'Question') {
+      logger.info(`📊 Processing poll: ${object.id}`);
+      await this.processCreatePoll(activity, object);
+      return;
+    }
 
     if (object.type === 'Note' || object.type === 'Article') {
       // Ensure author exists
@@ -517,8 +536,42 @@ export class ActivityProcessor {
         .eq('federated_id', object.id);
 
       logger.info(`Updated profile: ${object.id}`);
+    } else if (object.type === 'Note' || object.type === 'Article') {
+      // Handle post edits
+      logger.info(`✏️ Processing post edit: ${object.id}`);
+      
+      // Find the existing post
+      const { data: existingPost } = await supabase
+        .from('posts')
+        .select('id, author_id')
+        .eq('ap_id', object.id)
+        .maybeSingle();
+
+      if (!existingPost) {
+        logger.warn(`Post not found for edit: ${object.id}`);
+        return;
+      }
+
+      // Convert content
+      const content = noteToContent(object);
+      
+      // Update the post
+      const { error: updateError } = await supabase
+        .from('posts')
+        .update({
+          content,
+          content_warning: object.summary || null,
+          is_sensitive: object.sensitive === true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingPost.id);
+
+      if (updateError) {
+        logger.error('Failed to update post:', updateError);
+      } else {
+        logger.info(`✏️ Updated post: ${object.id}`);
+      }
     }
-    // TODO: Handle post edits
   }
 
   /**
@@ -1115,6 +1168,285 @@ export class ActivityProcessor {
       default:
         logger.warn(`Unknown activity type for Undo: ${activityType}`);
     }
+  }
+
+  /**
+   * Process Create activity for polls (Question type)
+   * Stores the poll as a post with poll data in metadata
+   */
+  private static async processCreatePoll(activity: any, object: any): Promise<void> {
+    const supabase = getSupabaseClient();
+
+    // Ensure author exists
+    await this.ensureRemoteUser(normalizeActor(activity.actor));
+
+    const { data: author } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', normalizeActor(activity.actor))
+      .single();
+
+    if (!author) {
+      logger.error('Failed to find author for poll');
+      return;
+    }
+
+    // Extract poll options
+    const options = [];
+    
+    // oneOf = single choice, anyOf = multiple choice
+    const pollOptions = object.oneOf || object.anyOf || [];
+    const isMultipleChoice = !!object.anyOf;
+    
+    for (const option of pollOptions) {
+      if (option.type === 'Note') {
+        options.push({
+          name: option.name || '',
+          votes: option.replies?.totalItems || 0,
+        });
+      }
+    }
+
+    // Calculate end time
+    let endTime = null;
+    if (object.endTime) {
+      endTime = object.endTime;
+    } else if (object.closed) {
+      endTime = object.closed;
+    }
+
+    // Convert content
+    const content = noteToContent(object);
+    const visibility = this.determineVisibility(object);
+
+    // Build poll metadata
+    const pollMetadata = {
+      is_poll: true,
+      poll_options: options,
+      poll_multiple_choice: isMultipleChoice,
+      poll_end_time: endTime,
+      poll_voters_count: object.votersCount || 0,
+      poll_closed: !!object.closed || (endTime && new Date(endTime) < new Date()),
+    };
+
+    // Store as a post with poll metadata
+    const { error } = await supabase.from('posts').upsert({
+      ap_id: object.id,
+      ap_type: 'Question',
+      author_id: author.id,
+      content,
+      visibility,
+      is_local: false,
+      created_at: object.published || new Date().toISOString(),
+      content_warning: object.summary || null,
+      is_sensitive: object.sensitive === true,
+      metadata: pollMetadata,
+    });
+
+    if (error) {
+      logger.error('Failed to create poll post:', error);
+    } else {
+      logger.info(`📊 Created poll: ${object.id} with ${options.length} options`);
+    }
+  }
+
+  /**
+   * Process Add activity (pinning posts to featured collection)
+   */
+  private static async processAdd(activity: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
+    const targetUrl = activity.target; // Should be the featured collection URL
+    const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+
+    // Check if this is adding to featured collection
+    if (!targetUrl?.includes('/featured') || !objectUrl) {
+      logger.info(`Add activity not for featured collection, skipping`);
+      return;
+    }
+
+    logger.info(`📌 Processing Add to featured: ${objectUrl}`);
+
+    // Find the post by ap_id
+    const { data: post, error } = await supabase
+      .from('posts')
+      .select('id, author_id')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
+
+    if (error || !post) {
+      logger.warn(`Post not found for pinning: ${objectUrl}`);
+      return;
+    }
+
+    // Update the post to be pinned
+    await supabase
+      .from('posts')
+      .update({ is_pinned: true })
+      .eq('id', post.id);
+
+    logger.info(`📌 Pinned post: ${objectUrl}`);
+  }
+
+  /**
+   * Process Remove activity (unpinning posts from featured collection)
+   */
+  private static async processRemove(activity: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const targetUrl = activity.target;
+    const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+
+    // Check if this is removing from featured collection
+    if (!targetUrl?.includes('/featured') || !objectUrl) {
+      logger.info(`Remove activity not for featured collection, skipping`);
+      return;
+    }
+
+    logger.info(`📌 Processing Remove from featured: ${objectUrl}`);
+
+    // Find and unpin the post
+    const { error } = await supabase
+      .from('posts')
+      .update({ is_pinned: false })
+      .eq('ap_id', objectUrl);
+
+    if (!error) {
+      logger.info(`📌 Unpinned post: ${objectUrl}`);
+    }
+  }
+
+  /**
+   * Process Flag activity (reports from other instances)
+   */
+  private static async processFlag(activity: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
+    const objects = Array.isArray(activity.object) ? activity.object : [activity.object];
+    const content = activity.content || 'No reason provided';
+
+    logger.info(`🚩 Processing Flag from ${actorUrl}: ${objects.length} objects`);
+
+    // Ensure reporter exists
+    await this.ensureRemoteUser(actorUrl);
+
+    const { data: reporter } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', actorUrl)
+      .single();
+
+    if (!reporter) {
+      logger.warn(`Could not find reporter for Flag activity`);
+      return;
+    }
+
+    // Process each flagged object (can be users or posts)
+    for (const obj of objects) {
+      const objectUrl = typeof obj === 'string' ? obj : obj?.id;
+      if (!objectUrl) continue;
+
+      // Determine if it's a user or post
+      const isUserReport = objectUrl.includes('/users/');
+      
+      if (isUserReport) {
+        // User report
+        const { data: reportedUser } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('federated_id', objectUrl)
+          .maybeSingle();
+
+        if (reportedUser) {
+          await supabase.from('reports').insert({
+            reporter_id: reporter.id,
+            reported_user_id: reportedUser.id,
+            reason: content,
+            report_type: 'user',
+            source: 'federation',
+            source_instance: new URL(actorUrl).hostname,
+            status: 'pending',
+            ap_id: activity.id,
+          });
+          logger.info(`🚩 Created user report for ${objectUrl}`);
+        }
+      } else {
+        // Post report
+        const { data: reportedPost } = await supabase
+          .from('posts')
+          .select('id, author_id')
+          .eq('ap_id', objectUrl)
+          .maybeSingle();
+
+        if (reportedPost) {
+          await supabase.from('reports').insert({
+            reporter_id: reporter.id,
+            reported_user_id: reportedPost.author_id,
+            reported_post_id: reportedPost.id,
+            reason: content,
+            report_type: 'post',
+            source: 'federation',
+            source_instance: new URL(actorUrl).hostname,
+            status: 'pending',
+            ap_id: activity.id,
+          });
+          logger.info(`🚩 Created post report for ${objectUrl}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Process Block activity (federated blocks)
+   */
+  private static async processBlock(activity: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
+    const blockedUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+
+    if (!blockedUrl) {
+      logger.warn(`Block activity missing object`);
+      return;
+    }
+
+    logger.info(`🚫 Processing Block: ${actorUrl} → ${blockedUrl}`);
+
+    // Ensure both users exist
+    await this.ensureRemoteUser(actorUrl);
+
+    const { data: blocker } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', actorUrl)
+      .single();
+
+    const { data: blocked } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', blockedUrl)
+      .maybeSingle();
+
+    if (!blocker || !blocked) {
+      logger.warn(`Could not find users for Block activity`);
+      return;
+    }
+
+    // Create or update block relationship
+    await supabase.from('blocks').upsert({
+      blocker_id: blocker.id,
+      blocked_id: blocked.id,
+      is_federated: true,
+      ap_id: activity.id,
+    }, {
+      onConflict: 'blocker_id,blocked_id',
+    });
+
+    // Also remove any follow relationships
+    await supabase
+      .from('follows')
+      .delete()
+      .or(`and(follower_id.eq.${blocker.id},following_id.eq.${blocked.id}),and(follower_id.eq.${blocked.id},following_id.eq.${blocker.id})`);
+
+    logger.info(`🚫 Blocked: ${actorUrl} → ${blockedUrl}`);
   }
 
   /**
