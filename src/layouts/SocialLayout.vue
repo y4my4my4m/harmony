@@ -312,8 +312,10 @@ const composerType = computed(() => {
   return 'post'
 })
 const trendingTopics = ref<Array<{ tag: string; count: number }>>([])
-const suggestedUsers = ref<FederatedUser[]>([])
 const isLoadingTrending = ref(false)
+
+// Suggested users from store (cached & filtered to exclude followed users)
+const suggestedUsers = computed(() => activityPubStore.filteredSuggestedUsers.slice(0, 3))
 
 // Instance stats (cached in store)
 const localInstanceDomain = computed(() => activityPubStore.instanceDomain)
@@ -346,20 +348,9 @@ const loadTrendingHashtags = async () => {
   }
 }
 
-// Load suggested users
+// Load suggested users (uses cached store with 10-minute TTL)
 const loadSuggestedUsers = async () => {
-  try {
-    debug.log('🔄 Loading suggested users...')
-    // Use TrendingService to get suggested users with proper stats
-    const trendingUserResults = await trendingService.getTrendingUsers({ limit: 3 })
-    debug.log('📊 Trending user results:', trendingUserResults)
-    suggestedUsers.value = trendingUserResults.map(result => result.user)
-    debug.log('✅ Suggested users loaded:', suggestedUsers.value.length)
-  } catch (error) {
-    debug.error('Failed to load suggested users:', error)
-    // Fallback to empty array
-    suggestedUsers.value = []
-  }
+  await activityPubStore.fetchSuggestedUsers()
 }
 
 // Instance stats are now cached in the instance store

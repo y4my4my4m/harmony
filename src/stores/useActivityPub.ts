@@ -58,6 +58,10 @@ interface ActivityPubState {
   hasEverLoadedTimeline: boolean;
   timelineCacheTimestamp: number | null;
   
+  // Suggested follows cache
+  suggestedUsers: any[];
+  suggestedUsersFetchedAt: number | null;
+  
   // UI state
   isComposerOpen: boolean;
   composerState: PostComposerState;
@@ -129,6 +133,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     hasEverLoadedTimeline: false,
     timelineCacheTimestamp: null,
     
+    // Suggested follows cache
+    suggestedUsers: [],
+    suggestedUsersFetchedAt: null,
+    
     // UI state
     isComposerOpen: false,
     composerState: {
@@ -185,6 +193,22 @@ export const useActivityPubStore = defineStore('activitypub', {
       if (!this.instanceStatsFetchedAt) return false;
       const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
       return Date.now() - this.instanceStatsFetchedAt < CACHE_DURATION;
+    },
+
+    /**
+     * Check if suggested users cache is still valid (10 minutes)
+     */
+    isSuggestedUsersCacheValid(): boolean {
+      if (!this.suggestedUsersFetchedAt) return false;
+      const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+      return Date.now() - this.suggestedUsersFetchedAt < CACHE_DURATION;
+    },
+
+    /**
+     * Get suggested users filtered by followed status
+     */
+    filteredSuggestedUsers(): any[] {
+      return this.suggestedUsers.filter(user => !this.followedUsers.has(user.id));
     },
 
     /**
@@ -294,6 +318,33 @@ export const useActivityPubStore = defineStore('activitypub', {
         });
       } catch (error) {
         debug.error('Failed to fetch instance stats:', error);
+      }
+    },
+
+    /**
+     * Fetch suggested users with caching (filters out already-followed users)
+     */
+    async fetchSuggestedUsers(force = false) {
+      // Skip if cache is valid and not forcing
+      if (this.isSuggestedUsersCacheValid && !force) {
+        debug.log('👥 Suggested users: using cached values');
+        return this.filteredSuggestedUsers;
+      }
+
+      try {
+        debug.log('🔄 Fetching suggested users...');
+        
+        const { trendingService } = await import('@/services/TrendingService');
+        const trendingUserResults = await trendingService.getTrendingUsers({ limit: 10 }); // Fetch more to account for filtering
+        
+        this.suggestedUsers = trendingUserResults.map(result => result.user);
+        this.suggestedUsersFetchedAt = Date.now();
+        
+        debug.log(`✅ Cached ${this.suggestedUsers.length} suggested users`);
+        return this.filteredSuggestedUsers;
+      } catch (error) {
+        debug.error('Failed to fetch suggested users:', error);
+        return [];
       }
     },
 

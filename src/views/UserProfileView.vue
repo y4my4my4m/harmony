@@ -648,15 +648,14 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
   }
 };
 
-const loadUserPosts = async () => {
+const loadUserPosts = async (retryCount = 0) => {
   if (!user.value) return;
   
   isLoadingPosts.value = true;
   try {
-    debug.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})`);
+    debug.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
     
     // Use consistent getUserPosts method for all users
-    // This ensures the same data structure and behavior regardless of whether it's the current user or not
     const posts = await activityPubService.getUserPosts(user.value.id, { limit: 20 });
     userPosts.value = posts as TimelinePost[] || [];
     
@@ -669,6 +668,15 @@ const loadUserPosts = async () => {
       hasMorePostsRef.value = posts && posts.length >= 20;
     }
     debug.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
+    
+    // For remote users with no posts initially, poll a few times as background fetch may still be running
+    if (!user.value.is_local && userPosts.value.length === 0 && retryCount < 3) {
+      debug.log(`📬 No posts yet for remote user, will retry in 2s (attempt ${retryCount + 1}/3)`);
+      setTimeout(() => {
+        loadUserPosts(retryCount + 1);
+      }, 2000);
+      return; // Don't set isLoadingPosts to false yet
+    }
     
     // Update post count for current user with actual loaded posts
     if (isCurrentUser.value && user.value) {
@@ -694,7 +702,10 @@ const loadUserPosts = async () => {
     userPosts.value = [];
     hasMorePostsRef.value = false;
   } finally {
-    isLoadingPosts.value = false;
+    // Only stop loading indicator if we're not retrying
+    if (retryCount >= 3 || userPosts.value.length > 0 || user.value?.is_local) {
+      isLoadingPosts.value = false;
+    }
   }
 };
 

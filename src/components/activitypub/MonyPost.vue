@@ -1312,10 +1312,20 @@ const fetchRemoteReactions = async () => {
       
       // Update post metadata immediately with the returned remote_reactions
       if (result.remote_reactions) {
+        // Update in store feeds
         activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
           remote_reactions: result.remote_reactions,
           remote_reactions_fetched_at: new Date().toISOString(),
         });
+        
+        // Also directly update the post's metadata for immediate reactivity
+        // (handles cases where post is in local ref like UserProfileView.userPosts)
+        if (!props.post.metadata) {
+          (props.post as any).metadata = {};
+        }
+        (props.post.metadata as any).remote_reactions = result.remote_reactions;
+        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
+        
         debug.log(`✅ Updated post metadata with ${Object.keys(result.remote_reactions).length} reaction types`);
       }
       
