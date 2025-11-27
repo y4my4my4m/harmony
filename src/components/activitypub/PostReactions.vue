@@ -13,8 +13,7 @@
         class="reaction"
         :class="{ 
           'reacted': reaction.current_user_reacted,
-          'loading': isLoadingReactions,
-          'has-reactors': reaction.reactors && reaction.reactors.length > 0
+          'loading': isLoadingReactions
         }"
         @click="handleReactionClick(reaction)"
         @mouseenter="showTooltip($event, reaction)"
@@ -38,23 +37,7 @@
         <!-- Fallback for missing emoji -->
         <span v-else class="missing-emoji" :title="`Emoji not found: ${reaction.emoji_name}`">?</span>
         
-        <!-- Reactor avatars (for remote reactions) -->
-        <div v-if="reaction.reactors && reaction.reactors.length > 0" class="reactor-avatars">
-          <img 
-            v-for="(reactor, idx) in reaction.reactors.slice(0, 3)" 
-            :key="idx"
-            :src="reactor.avatar_url || '/default_avatar.png'"
-            :alt="reactor.display_name"
-            :title="`${reactor.display_name} (@${reactor.username}@${reactor.domain})`"
-            class="reactor-avatar"
-          />
-          <span v-if="reaction.reaction_count > 3" class="reactor-more">
-            +{{ reaction.reaction_count - 3 }}
-          </span>
-        </div>
-        
-        <!-- Count (show if no reactor avatars or as fallback) -->
-        <span v-else class="reaction-count">{{ reaction.reaction_count }}</span>
+        <span class="reaction-count">{{ reaction.reaction_count }}</span>
       </div>
     </div>
   </div>
@@ -445,44 +428,6 @@ defineExpose({
   border-top: 2px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-}
-
-/* Reactor avatars */
-.reactor-avatars {
-  display: flex;
-  align-items: center;
-  gap: -4px; /* Overlap avatars slightly */
-}
-
-.reactor-avatar {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--background-primary);
-  margin-left: -4px;
-  transition: transform 0.15s ease;
-}
-
-.reactor-avatar:first-child {
-  margin-left: 0;
-}
-
-.reactor-avatar:hover {
-  transform: scale(1.15);
-  z-index: 1;
-}
-
-.reactor-more {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-left: 2px;
-  white-space: nowrap;
-}
-
-.reaction.has-reactors {
-  padding-right: 6px;
 }
 
 @keyframes spin {

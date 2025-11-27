@@ -470,7 +470,8 @@
           size="xs"
           class="tooltip-avatar"
         />
-        <span>{{ user.displayName }}</span>
+        <span class="tooltip-username">{{ user.displayName }}</span>
+        <span v-if="user.isRemote && user.domain" class="tooltip-domain">@{{ user.domain }}</span>
       </div>
     </div>
     
@@ -1069,13 +1070,27 @@ const handleEmojiSelected = async (emoji: any) => {
 const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
-  // Transform user_reactions to the format needed for tooltip
-  const usersDetails = (reaction.user_reactions || []).map((ur: any) => ({
+  // Transform local user_reactions to the format needed for tooltip
+  const localUsers = (reaction.user_reactions || []).map((ur: any) => ({
     id: ur.user_id,
     displayName: ur.display_name || ur.username || 'Unknown User',
     avatarUrl: ur.avatar_url || '',
-    userColor: ur.user_color || '#ffffff'
+    userColor: ur.user_color || '#ffffff',
+    isRemote: false
   }));
+  
+  // Add remote reactors from federated fetch
+  const remoteUsers = (reaction.reactors || []).map((reactor: any) => ({
+    id: `${reactor.username}@${reactor.domain}`,
+    displayName: reactor.display_name || reactor.username || 'Unknown',
+    avatarUrl: reactor.avatar_url || '',
+    userColor: '#888888',
+    isRemote: true,
+    domain: reactor.domain
+  }));
+  
+  // Combine local and remote users
+  const usersDetails = [...localUsers, ...remoteUsers];
   
   // Show tooltip after a delay
   tooltipTimer.value = setTimeout(() => {
@@ -2115,5 +2130,15 @@ const closeLightbox = () => {
 
 .tooltip-avatar {
   flex-shrink: 0;
+}
+
+.tooltip-username {
+  color: var(--text-primary);
+}
+
+.tooltip-domain {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  opacity: 0.7;
 }
 </style>
