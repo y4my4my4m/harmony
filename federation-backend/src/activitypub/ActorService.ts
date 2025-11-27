@@ -1058,23 +1058,68 @@ async function fetchMisskeyReplies(
 
       if (!authorId) continue;
 
-      // Parse the note content as any[] to allow different content types
-      const content: any[] = note.text ? [{ type: 'text', content: note.text }] : [];
+      // Convert Misskey note to ActivityPub-like format for noteToContent
+      const apLikeNote: any = {
+        // Misskey uses 'text' but AP uses 'content' - wrap in paragraph tags
+        content: note.text ? `<p>${note.text.replace(/\n/g, '<br>')}</p>` : '',
+        // Convert Misskey emojis to ActivityPub tag format
+        tag: [],
+        // Convert Misskey files to ActivityPub attachment format
+        attachment: [],
+      };
       
-      // Add any files/attachments
+      // Convert custom emojis
+      if (note.emojis && typeof note.emojis === 'object') {
+        for (const [name, url] of Object.entries(note.emojis)) {
+          apLikeNote.tag.push({
+            type: 'Emoji',
+            name: `:${name}:`,
+            icon: { url: url as string },
+          });
+        }
+      }
+      
+      // Also check reactionEmojis for emoji URLs
+      if (note.reactionEmojis && typeof note.reactionEmojis === 'object') {
+        for (const [name, url] of Object.entries(note.reactionEmojis)) {
+          if (!apLikeNote.tag.some((t: any) => t.name === `:${name}:`)) {
+            apLikeNote.tag.push({
+              type: 'Emoji',
+              name: `:${name}:`,
+              icon: { url: url as string },
+            });
+          }
+        }
+      }
+      
+      // Convert mentions
+      if (note.mentions && Array.isArray(note.mentions)) {
+        for (const mentionId of note.mentions) {
+          apLikeNote.tag.push({
+            type: 'Mention',
+            href: mentionId,
+          });
+        }
+      }
+      
+      // Convert files/attachments
       if (note.files && Array.isArray(note.files)) {
         for (const file of note.files) {
-          content.push({
-            type: 'file',
+          apLikeNote.attachment.push({
+            type: 'Document',
+            mediaType: file.type,
             url: file.url,
-            name: file.name,
-            fileType: file.type,
+            name: file.name || file.comment,
             width: file.properties?.width,
             height: file.properties?.height,
             blurhash: file.blurhash,
           });
         }
       }
+      
+      // Use the proper content converter
+      const { noteToContent } = await import('./converters/fromActivityPub.js');
+      const content = noteToContent(apLikeNote);
 
       // Create the reply
       const { data: newReply, error } = await supabase
