@@ -155,11 +155,24 @@ function addAttachments(parts: any[], attachments: any): void {
   if (attachments && Array.isArray(attachments)) {
     attachments.forEach((attachment: any) => {
       const mediaType = attachment.mediaType || '';
+      const url = attachment.url || '';
       let fileType = 'file';
       
+      // Check MIME type first
       if (mediaType.startsWith('image/')) fileType = 'image';
       else if (mediaType.startsWith('video/')) fileType = 'video';
       else if (mediaType.startsWith('audio/')) fileType = 'audio';
+      // Fallback to URL extension if MIME type not provided
+      else if (url) {
+        const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp'].includes(ext || '')) {
+          fileType = 'image';
+        } else if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv', 'quicktime'].includes(ext || '')) {
+          fileType = 'video';
+        } else if (['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus'].includes(ext || '')) {
+          fileType = 'audio';
+        }
+      }
       
       const filePart: any = {
         type: 'file',
