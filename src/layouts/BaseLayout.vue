@@ -127,7 +127,7 @@ const route = useRoute()
 const router = useRouter()
 
 // Composables
-const { touchState, dragOffset, handleTouchStart, handleTouchMove, handleTouchEnd, config } = useMobileGestures()
+const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
 const { 
   leftSidebarOpen, 
   rightSidebarOpen, 
@@ -147,7 +147,7 @@ const {
   closeMobileSidebars,
   startDrag,
   updateDragOffset,
-  endDrag,
+  endDragWithVelocity,
   cancelDrag
 } = useLayoutState()
 
@@ -616,10 +616,9 @@ const wrappedTouchMove = (event: TouchEvent) => {
       debug.log('📱 Drag started:', direction)
       startDrag(direction)
     },
-    onDragProgress: (progress, direction) => {
-      // Calculate offset from progress
-      const offset = progress * SIDEBAR_WIDTH
-      updateDragOffset(offset, direction)
+    onDragMove: (deltaX, direction) => {
+      // Pass raw deltaX to updateDragOffset - it handles opening/closing logic
+      updateDragOffset(deltaX, direction)
     }
   })
 }
@@ -638,16 +637,10 @@ const wrappedTouchEnd = (event: TouchEvent) => {
         toggleRightSidebar()
       }
     },
-    onDragEnd: (shouldComplete, direction) => {
-      debug.log('📱 Drag ended:', { shouldComplete, direction })
-      
-      if (direction === 'left') {
-        // Opening left sidebar
-        endDrag(shouldComplete, direction)
-      } else {
-        // Opening right sidebar
-        endDrag(shouldComplete, direction)
-      }
+    onDragEnd: (velocity, direction) => {
+      debug.log('📱 Drag ended:', { velocity, direction })
+      // Use velocity-aware end drag for smooth native feel
+      endDragWithVelocity(velocity, direction)
     }
   })
 }

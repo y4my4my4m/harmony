@@ -15,6 +15,10 @@ const dragDirection = ref<'left' | 'right' | null>(null)
 const leftSidebarDragOffset = ref(0)
 const rightSidebarDragOffset = ref(0)
 
+// Track initial sidebar state when drag starts (to know if opening or closing)
+const leftSidebarWasOpen = ref(false)
+const rightSidebarWasOpen = ref(false)
+
 // Sidebar configuration
 const SIDEBAR_WIDTH = 280
 const SERVER_SIDEBAR_WIDTH = 72
@@ -120,66 +124,194 @@ export function useLayoutState() {
   
   /**
    * Start a drag operation for native-feeling sidebar gestures
+   * Tracks initial state to determine if we're opening or closing
    */
   const startDrag = (direction: 'left' | 'right') => {
     isDragging.value = true
     dragDirection.value = direction
     
-    // Initialize offset based on current sidebar state
+    // Remember initial state to determine open/close behavior
     if (direction === 'left') {
+      leftSidebarWasOpen.value = leftSidebarOpen.value
+      // Initialize offset based on current state
       leftSidebarDragOffset.value = leftSidebarOpen.value ? SIDEBAR_WIDTH : 0
       rightSidebarOpen.value = false // Close other sidebar
     } else {
+      rightSidebarWasOpen.value = rightSidebarOpen.value
       rightSidebarDragOffset.value = rightSidebarOpen.value ? SIDEBAR_WIDTH : 0
       leftSidebarOpen.value = false // Close other sidebar
     }
+    
+    debug.log('📱 startDrag:', { 
+      direction, 
+      leftWasOpen: leftSidebarWasOpen.value, 
+      rightWasOpen: rightSidebarWasOpen.value 
+    })
   }
 
   /**
    * Update drag offset during touch move
+   * Now properly handles both opening and closing
    */
-  const updateDragOffset = (offset: number, direction: 'left' | 'right') => {
+  const updateDragOffset = (deltaX: number, direction: 'left' | 'right') => {
     if (!isDragging.value) return
     
-    // Clamp offset between 0 and sidebar width
-    const clampedOffset = Math.max(0, Math.min(SIDEBAR_WIDTH, offset))
-    
     if (direction === 'left') {
-      leftSidebarDragOffset.value = clampedOffset
+      // Left sidebar: opening = drag right (+deltaX), closing = drag left (-deltaX)
+      let newOffset: number
+      if (leftSidebarWasOpen.value) {
+        // Was open, so we're potentially closing
+        // deltaX negative = closing, positive = no change (already open)
+        newOffset = SIDEBAR_WIDTH + deltaX
+      } else {
+        // Was closed, so we're potentially opening
+        // deltaX positive = opening
+        newOffset = deltaX
+      }
+      leftSidebarDragOffset.value = Math.max(0, Math.min(SIDEBAR_WIDTH, newOffset))
     } else {
-      rightSidebarDragOffset.value = clampedOffset
+      // Right sidebar: opening = drag left (-deltaX), closing = drag right (+deltaX)
+      let newOffset: number
+      if (rightSidebarWasOpen.value) {
+        // Was open, so we're potentially closing
+        // deltaX positive = closing
+        newOffset = SIDEBAR_WIDTH - deltaX
+      } else {
+        // Was closed, so we're potentially opening
+        // deltaX negative = opening
+        newOffset = -deltaX
+      }
+      rightSidebarDragOffset.value = Math.max(0, Math.min(SIDEBAR_WIDTH, newOffset))
     }
   }
 
   /**
-   * End drag operation and animate to final position
-   * @param shouldOpen - Whether the sidebar should open (true) or close (false)
-   * @param direction - Which sidebar was being dragged
+   * End drag operation and determine final state based on current offset
+   * Uses threshold to decide whether to complete or cancel the gesture
    */
-  const endDrag = (shouldOpen: boolean, direction: 'left' | 'right') => {
-    isDragging.value = false
-    dragDirection.value = null
+  const endDrag = (direction: 'left' | 'right') => {
+    const COMPLETION_THRESHOLD = 0.4 // 40% threshold
     
     if (direction === 'left') {
-      leftSidebarOpen.value = shouldOpen
-      leftSidebarDragOffset.value = 0
-      if (!shouldOpen) {
+      const progress = leftSidebarDragOffset.value / SIDEBAR_WIDTH
+      // If we dragged past the threshold, toggle the state
+      // If was closed and progress > threshold → open
+      // If was open and progress < threshold → close
+      const shouldBeOpen = progress > COMPLETION_THRESHOLD
+      
+      debug.log('📱 endDrag left:', { 
+        progress, 
+        wasOpen: leftSidebarWasOpen.value, 
+        shouldBeOpen 
+      })
+      
+      leftSidebarOpen.value = shouldBeOpen
+      if (!shouldBeOpen) {
         mobileProfileOpen.value = false
       }
     } else {
-      rightSidebarOpen.value = shouldOpen
-      rightSidebarDragOffset.value = 0
+      const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
+      const shouldBeOpen = progress > COMPLETION_THRESHOLD
+      
+      debug.log('📱 endDrag right:', { 
+        progress, 
+        wasOpen: rightSidebarWasOpen.value, 
+        shouldBeOpen 
+      })
+      
+      rightSidebarOpen.value = shouldBeOpen
     }
+    
+    // Reset drag state
+    isDragging.value = false
+    dragDirection.value = null
+    leftSidebarDragOffset.value = 0
+    rightSidebarDragOffset.value = 0
+    leftSidebarWasOpen.value = false
+    rightSidebarWasOpen.value = false
+  }
+
+  /**
+   * End drag with velocity consideration
+   * @param velocity - The velocity of the swipe (px/ms), positive = right, negative = left
+   * @param direction - Which sidebar was being dragged
+   */
+  const endDragWithVelocity = (velocity: number, direction: 'left' | 'right') => {
+    const COMPLETION_THRESHOLD = 0.4 // 40% position threshold
+    const VELOCITY_THRESHOLD = 0.3 // px/ms velocity threshold
+    
+    if (direction === 'left') {
+      const progress = leftSidebarDragOffset.value / SIDEBAR_WIDTH
+      
+      // Determine final state based on velocity OR position
+      let shouldBeOpen: boolean
+      if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
+        // Fast swipe - use velocity direction
+        // Positive velocity (swipe right) = open, negative = close
+        shouldBeOpen = velocity > 0
+      } else {
+        // Slow drag - use position threshold
+        shouldBeOpen = progress > COMPLETION_THRESHOLD
+      }
+      
+      debug.log('📱 endDragWithVelocity left:', { 
+        velocity, 
+        progress, 
+        wasOpen: leftSidebarWasOpen.value, 
+        shouldBeOpen 
+      })
+      
+      leftSidebarOpen.value = shouldBeOpen
+      if (!shouldBeOpen) {
+        mobileProfileOpen.value = false
+      }
+    } else {
+      const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
+      
+      let shouldBeOpen: boolean
+      if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
+        // Fast swipe - negative velocity (swipe left) = open right sidebar
+        shouldBeOpen = velocity < 0
+      } else {
+        shouldBeOpen = progress > COMPLETION_THRESHOLD
+      }
+      
+      debug.log('📱 endDragWithVelocity right:', { 
+        velocity, 
+        progress, 
+        wasOpen: rightSidebarWasOpen.value, 
+        shouldBeOpen 
+      })
+      
+      rightSidebarOpen.value = shouldBeOpen
+    }
+    
+    // Reset drag state
+    isDragging.value = false
+    dragDirection.value = null
+    leftSidebarDragOffset.value = 0
+    rightSidebarDragOffset.value = 0
+    leftSidebarWasOpen.value = false
+    rightSidebarWasOpen.value = false
   }
 
   /**
    * Cancel drag and restore previous state
    */
   const cancelDrag = () => {
+    // Restore to initial state
+    if (dragDirection.value === 'left') {
+      leftSidebarOpen.value = leftSidebarWasOpen.value
+    } else if (dragDirection.value === 'right') {
+      rightSidebarOpen.value = rightSidebarWasOpen.value
+    }
+    
     isDragging.value = false
     dragDirection.value = null
     leftSidebarDragOffset.value = 0
     rightSidebarDragOffset.value = 0
+    leftSidebarWasOpen.value = false
+    rightSidebarWasOpen.value = false
   }
 
   // Computed styles for real-time drag transforms
@@ -188,7 +320,7 @@ export function useLayoutState() {
     
     if (isDragging.value && dragDirection.value === 'left') {
       // During drag: apply direct transform based on offset
-      // Left sidebar slides from -100% to 0 (closed to open)
+      // Left sidebar slides from -SIDEBAR_WIDTH (closed) to 0 (open)
       const translateX = leftSidebarDragOffset.value - SIDEBAR_WIDTH
       return {
         transform: `translateX(${translateX}px)`,
@@ -204,7 +336,7 @@ export function useLayoutState() {
     
     if (isDragging.value && dragDirection.value === 'right') {
       // During drag: apply direct transform based on offset
-      // Right sidebar slides from 100% to 0 (closed to open)
+      // Right sidebar slides from SIDEBAR_WIDTH (closed) to 0 (open)
       const translateX = SIDEBAR_WIDTH - rightSidebarDragOffset.value
       return {
         transform: `translateX(${translateX}px)`,
@@ -244,6 +376,10 @@ export function useLayoutState() {
     dragDirection: computed(() => dragDirection.value),
     leftSidebarDragOffset: computed(() => leftSidebarDragOffset.value),
     rightSidebarDragOffset: computed(() => rightSidebarDragOffset.value),
+    
+    // Initial state tracking (for components that need it)
+    leftSidebarWasOpen: computed(() => leftSidebarWasOpen.value),
+    rightSidebarWasOpen: computed(() => rightSidebarWasOpen.value),
 
     // Drag styles for components
     leftSidebarDragStyle,
@@ -269,6 +405,7 @@ export function useLayoutState() {
     startDrag,
     updateDragOffset,
     endDrag,
+    endDragWithVelocity,
     cancelDrag,
 
     // Utility functions
