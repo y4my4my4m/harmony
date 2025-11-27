@@ -328,6 +328,24 @@
           <Icon name="plus" />
         </button>
 
+        <!-- Fetch Remote Reactions Button (only for remote posts) -->
+        <button 
+          v-if="isRemotePost && !isFetchingReactions"
+          class="action-button fetch-reactions-button"
+          @click="fetchRemoteReactions"
+          title="Fetch reactions from remote instance"
+        >
+          <Icon name="refresh" />
+        </button>
+        <button 
+          v-if="isRemotePost && isFetchingReactions"
+          class="action-button fetch-reactions-button loading"
+          disabled
+          title="Loading reactions..."
+        >
+          <Icon name="loader" class="spinning" />
+        </button>
+
         <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
@@ -502,6 +520,7 @@ const emit = defineEmits<{
   'hashtag-click': [tag: string];
   'user-click': [user: any]; // For when clicking on the author
   'show-conversation': [postId: string]; // New emit for showing conversation
+  'refresh': [postId: string]; // Refresh post data after fetching remote reactions
 }>();
 
 // Stores and composables
@@ -559,6 +578,14 @@ const instanceDomain = computed(() => {
   const { domain } = props.post.author;
   return domain || 'har.mony.lol';
 });
+
+// Remote post detection (for fetching reactions)
+const isRemotePost = computed(() => {
+  return !props.post.is_local && props.post.ap_id;
+});
+
+// State for fetching remote reactions
+const isFetchingReactions = ref(false);
 
 // Reblog-related computed properties
 const isReblog = computed(() => {
@@ -1225,6 +1252,49 @@ const handleQuoteReblog = () => {
   });
 };
 
+// Fetch remote reactions for a remote post
+const fetchRemoteReactions = async () => {
+  if (!isRemotePost.value || isFetchingReactions.value) return;
+  
+  const postApId = props.post.ap_id;
+  if (!postApId) return;
+  
+  isFetchingReactions.value = true;
+  
+  try {
+    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+    const response = await fetch(`${federationBackendUrl}/fetch-reactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: postApId,
+        post_id: props.post.id,
+      }),
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      debug.log(`📬 Fetched ${result.count} reactions for remote post`);
+      
+      // Emit event to refresh post data
+      emit('refresh', props.post.id);
+      
+      // Show success feedback (could use a toast)
+      if (result.count > 0) {
+        debug.log(`✅ Found ${result.count} reactions from remote instance`);
+      } else {
+        debug.log(`📭 No reactions found on remote instance`);
+      }
+    } else {
+      debug.error('Failed to fetch remote reactions:', await response.text());
+    }
+  } catch (error) {
+    debug.error('Error fetching remote reactions:', error);
+  } finally {
+    isFetchingReactions.value = false;
+  }
+};
+
 // Handle emoji picker for original post (for reblogs, target the original)
 const handleShowEmojiPickerForOriginal = () => {
   // Create a post-like object with the original post ID for the emoji picker
@@ -1725,6 +1795,29 @@ const closeLightbox = () => {
 
 .bookmark-button.active {
   color: #f59e0b;
+}
+
+.fetch-reactions-button {
+  color: #6b7280;
+}
+
+.fetch-reactions-button:hover {
+  color: #a78bfa;
+  background-color: rgba(167, 139, 250, 0.1);
+}
+
+.fetch-reactions-button.loading {
+  color: #a78bfa;
+  cursor: wait;
+}
+
+.fetch-reactions-button .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .action-menu {

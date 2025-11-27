@@ -264,6 +264,224 @@ router.post(
 );
 
 /**
+ * Fetch reactions/likes for a remote post
+ * POST /api/federation/fetch-reactions
+ * Body: { post_ap_id: string, post_id?: string }
+ */
+router.post(
+  '/api/federation/fetch-reactions',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { post_ap_id, post_id } = req.body;
+
+    if (!post_ap_id) {
+      return res.status(400).json({ error: 'post_ap_id is required' });
+    }
+
+    const supabase = getSupabaseClient();
+    
+    logger.info(`📬 Fetching reactions for remote post: ${post_ap_id}`);
+
+    try {
+      const reactions = await fetchRemotePostReactions(post_ap_id, post_id, supabase);
+      
+      return res.json({
+        success: true,
+        reactions,
+        count: reactions.length,
+      });
+    } catch (error: any) {
+      logger.error('Failed to fetch reactions:', error);
+      return res.status(500).json({ error: 'Failed to fetch reactions' });
+    }
+  })
+);
+
+/**
+ * Fetch reactions from a remote post's likes collection
+ */
+async function fetchRemotePostReactions(
+  postApId: string,
+  postId: string | undefined,
+  supabase: any
+): Promise<any[]> {
+  try {
+    // First, fetch the post object to get the likes collection URL
+    const postResponse = await fetch(postApId, {
+      headers: {
+        'Accept': 'application/activity+json, application/ld+json',
+        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!postResponse.ok) {
+      logger.warn(`Failed to fetch post: ${postResponse.status}`);
+      return [];
+    }
+
+    const post = await postResponse.json();
+    
+    // Get likes collection URL
+    const likesUrl = post.likes || post.reactions;
+    if (!likesUrl) {
+      logger.info(`📬 No likes collection found for post`);
+      return [];
+    }
+
+    // Fetch the likes collection
+    const likesCollectionUrl = typeof likesUrl === 'string' ? likesUrl : likesUrl.id;
+    logger.info(`📬 Fetching likes from: ${likesCollectionUrl}`);
+
+    const likesResponse = await fetch(likesCollectionUrl, {
+      headers: {
+        'Accept': 'application/activity+json, application/ld+json',
+        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!likesResponse.ok) {
+      logger.warn(`Failed to fetch likes collection: ${likesResponse.status}`);
+      return [];
+    }
+
+    const likesCollection = await likesResponse.json();
+    
+    // Extract likes/reactions
+    let items: any[] = [];
+    
+    if (likesCollection.orderedItems) {
+      items = likesCollection.orderedItems;
+    } else if (likesCollection.items) {
+      items = likesCollection.items;
+    } else if (likesCollection.first) {
+      // Need to fetch first page
+      const firstPageUrl = typeof likesCollection.first === 'string' 
+        ? likesCollection.first 
+        : likesCollection.first.id;
+      
+      const pageResponse = await fetch(firstPageUrl, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        },
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (pageResponse.ok) {
+        const page = await pageResponse.json();
+        items = page.orderedItems || page.items || [];
+      }
+    }
+
+    logger.info(`📬 Found ${items.length} reactions`);
+
+    // Process reactions and store them if we have a local post_id
+    const reactions: any[] = [];
+    
+    for (const item of items.slice(0, 50)) { // Limit to 50 reactions
+      try {
+        // Handle different reaction formats
+        let actorUrl: string;
+        let emoji: string = '❤️'; // Default to heart
+        let reactionContent: string | null = null;
+
+        if (typeof item === 'string') {
+          // Simple actor URL (just a like)
+          actorUrl = item;
+        } else if (item.type === 'Like' || item.type === 'EmojiReaction') {
+          actorUrl = typeof item.actor === 'string' ? item.actor : item.actor?.id;
+          
+          // Check for custom emoji content (Misskey style)
+          if (item.content) {
+            emoji = item.content;
+            reactionContent = item.content;
+          }
+          if (item._misskey_reaction) {
+            emoji = item._misskey_reaction;
+            reactionContent = item._misskey_reaction;
+          }
+          // Check for tag-based emoji (Mastodon style)
+          if (item.tag && Array.isArray(item.tag)) {
+            const emojiTag = item.tag.find((t: any) => t.type === 'Emoji');
+            if (emojiTag) {
+              emoji = emojiTag.name || emoji;
+              reactionContent = emojiTag.name;
+            }
+          }
+        } else {
+          continue;
+        }
+
+        if (!actorUrl) continue;
+
+        // Try to get actor info
+        let actorInfo: any = { url: actorUrl };
+        
+        // Check if we have this user locally
+        const { data: localProfile } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, domain, is_local')
+          .eq('federated_id', actorUrl)
+          .maybeSingle();
+
+        if (localProfile) {
+          actorInfo = {
+            id: localProfile.id,
+            username: localProfile.username,
+            display_name: localProfile.display_name,
+            avatar_url: localProfile.avatar_url,
+            domain: localProfile.domain,
+            is_local: localProfile.is_local,
+          };
+        } else {
+          // Extract username from URL
+          const urlParts = actorUrl.split('/');
+          const username = urlParts[urlParts.length - 1];
+          const domain = new URL(actorUrl).hostname;
+          actorInfo = {
+            username,
+            domain,
+            is_local: false,
+          };
+        }
+
+        reactions.push({
+          emoji,
+          content: reactionContent,
+          actor: actorInfo,
+          actor_url: actorUrl,
+        });
+
+        // If we have a local post ID, store the reaction
+        if (postId && localProfile?.id) {
+          await supabase
+            .from('post_interactions')
+            .upsert({
+              user_id: localProfile.id,
+              post_id: postId,
+              interaction_type: 'emoji_reaction',
+              emoji_content: reactionContent || emoji,
+              ap_id: item.id || `${actorUrl}#like-${postId}`,
+            }, {
+              onConflict: 'user_id,post_id,interaction_type',
+            });
+        }
+      } catch (err) {
+        logger.debug(`Failed to process reaction:`, err);
+      }
+    }
+
+    logger.info(`📬 Processed ${reactions.length} reactions for post`);
+    return reactions;
+
+  } catch (error) {
+    logger.warn(`Failed to fetch remote reactions:`, error);
+    return [];
+  }
+}
+
+/**
  * Actor endpoint
  * GET /users/:username - Returns ActivityPub Actor object
  */
