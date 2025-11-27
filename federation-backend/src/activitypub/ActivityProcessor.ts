@@ -12,9 +12,30 @@ import {
 
 export class ActivityProcessor {
   /**
+   * Check if an actor is suspended on our instance
+   */
+  private static async isActorSuspended(actorUrl: string): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('profiles')
+      .select('is_suspended')
+      .eq('federated_id', actorUrl)
+      .maybeSingle();
+    
+    return data?.is_suspended === true;
+  }
+
+  /**
    * Process incoming ActivityPub activity
    */
   static async processIncomingActivity(activity: any): Promise<void> {
+    // Check if actor is suspended on our instance
+    const actorUrl = normalizeActor(activity.actor);
+    if (actorUrl && await this.isActorSuspended(actorUrl)) {
+      logger.info(`🚫 Ignoring activity from suspended user: ${actorUrl}`);
+      return;
+    }
+
     switch (activity.type) {
       case 'Follow':
         await this.processFollow(activity);

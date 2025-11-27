@@ -232,7 +232,7 @@ export class ActivityPubService {
       .select(`
         *,
         author:profiles!posts_author_id_fkey(
-          id, username, display_name, avatar_url, color, domain, is_local
+          id, username, display_name, avatar_url, color, domain, is_local, is_suspended
         ),
         my_interactions:post_interactions!left(interaction_type, emoji_id)
       `)
@@ -250,16 +250,18 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Process user interactions into boolean flags
-    const posts = (data || []).map(post => {
-      const interactions = post.my_interactions || [];
-      return {
-        ...post,
-        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
-        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
-      };
-    });
+    // Process user interactions into boolean flags and filter out suspended users
+    const posts = (data || [])
+      .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+      .map(post => {
+        const interactions = post.my_interactions || [];
+        return {
+          ...post,
+          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+        };
+      });
 
     debug.log(`📊 Public timeline loaded: ${posts.length} posts (with user interactions)`);
     
@@ -282,7 +284,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
@@ -300,16 +302,18 @@ export class ActivityPubService {
 
       if (error) throw error;
 
-      // Process user interactions into boolean flags
-      const posts = (data || []).map(post => {
-        const interactions = post.my_interactions || [];
-        return {
-          ...post,
-          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
-          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
-        };
-      });
+      // Process user interactions into boolean flags and filter out suspended users
+      const posts = (data || [])
+        .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+        .map(post => {
+          const interactions = post.my_interactions || [];
+          return {
+            ...post,
+            is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+            is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+            is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+          };
+        });
       
       
       // Log statistics
@@ -712,7 +716,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey (
-            id, username, display_name, domain, avatar_url, is_local
+            id, username, display_name, domain, avatar_url, is_local, is_suspended
           )
         `)
         .textSearch('content', query)
@@ -722,7 +726,9 @@ export class ActivityPubService {
         .limit(limit);
 
       if (error) throw error;
-      return data as TimelinePost[];
+      
+      // Filter out posts from suspended users
+      return (data || []).filter(post => !post.author?.is_suspended) as TimelinePost[];
     } catch (error) {
       debug.error('Failed to search posts:', error);
       return [];
@@ -1865,7 +1871,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
@@ -1876,7 +1882,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
@@ -1888,7 +1894,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
@@ -1910,16 +1916,18 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Process user interactions into boolean flags
-    const posts = (data || []).map(post => {
-      const interactions = post.my_interactions || [];
-      return {
-        ...post,
-        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
-        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
-      };
-    });
+    // Process user interactions into boolean flags and filter out suspended users
+    const posts = (data || [])
+      .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+      .map(post => {
+        const interactions = post.my_interactions || [];
+        return {
+          ...post,
+          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+        };
+      });
 
     return posts;
   }
