@@ -408,6 +408,8 @@ async function fetchMisskeyReactions(
     
     // Also fetch the note to get emoji definitions
     let noteEmojis: Record<string, string> = {};
+    let localEmojis: Record<string, string> = {};
+    
     try {
       const noteResponse = await fetch(`https://${domain}/api/notes/show`, {
         method: 'POST',
@@ -421,14 +423,65 @@ async function fetchMisskeyReactions(
       
       if (noteResponse.ok) {
         const noteData = await noteResponse.json();
-        // Extract emoji URLs from the note's reaction emojis
+        // Extract emoji URLs from the note's reaction emojis (remote emojis)
         if (noteData.reactionEmojis) {
           noteEmojis = noteData.reactionEmojis;
-          logger.info(`📬 Found ${Object.keys(noteEmojis).length} custom emoji definitions`);
+          logger.info(`📬 Found ${Object.keys(noteEmojis).length} remote custom emoji definitions`);
         }
       }
     } catch (e) {
       logger.warn(`📬 Could not fetch note emoji definitions: ${e}`);
+    }
+    
+    // Collect local emoji names to fetch
+    const localEmojiNames: string[] = [];
+    for (const reaction of reactionsData) {
+      const emoji = reaction.type || '';
+      // Local Misskey emojis end with @. like :kawa_yu@.:
+      if (emoji.startsWith(':') && emoji.endsWith('@.:')) {
+        const emojiName = emoji.slice(1, -3); // Remove : and @.:
+        localEmojiNames.push(emojiName);
+      }
+    }
+    
+    // Fetch local emoji URLs if we have any
+    if (localEmojiNames.length > 0) {
+      try {
+        logger.info(`📬 Fetching ${localEmojiNames.length} local emoji definitions from ${domain}`);
+        const emojiResponse = await fetch(`https://${domain}/api/emojis`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+          },
+          body: JSON.stringify({}),
+          signal: AbortSignal.timeout(10000)
+        });
+        
+        if (emojiResponse.ok) {
+          const emojiData = await emojiResponse.json();
+          // emojiData.emojis is an array of { name, url, ... }
+          if (emojiData.emojis && Array.isArray(emojiData.emojis)) {
+            for (const e of emojiData.emojis) {
+              if (localEmojiNames.includes(e.name)) {
+                localEmojis[`:${e.name}@.:`] = e.url;
+                logger.debug(`📬 Found local emoji :${e.name}@.: -> ${e.url}`);
+              }
+            }
+            logger.info(`📬 Found ${Object.keys(localEmojis).length} local emoji URLs`);
+          }
+        }
+      } catch (e) {
+        logger.warn(`📬 Could not fetch local emoji definitions: ${e}`);
+        
+        // Fallback: Try to construct URLs directly (Misskey standard pattern)
+        for (const name of localEmojiNames) {
+          // Common Misskey emoji URL patterns
+          const fallbackUrl = `https://${domain}/emoji/${name}.webp`;
+          localEmojis[`:${name}@.:`] = fallbackUrl;
+          logger.debug(`📬 Using fallback URL for :${name}@.: -> ${fallbackUrl}`);
+        }
+      }
     }
     
     // Just aggregate reactions by emoji - no need to create profiles for every reactor
@@ -441,18 +494,25 @@ async function fetchMisskeyReactions(
       let emojiUrl: string | undefined;
       
       if (isCustomEmoji) {
-        // Try to find emoji URL from note's reactionEmojis
-        // The key in reactionEmojis is the emoji name without colons
-        const emojiName = emoji.slice(1, -1); // Remove : from both ends
-        emojiUrl = noteEmojis[emojiName] || noteEmojis[emoji];
+        // First check if it's a local emoji (ends with @.:)
+        if (emoji.endsWith('@.:')) {
+          emojiUrl = localEmojis[emoji];
+        } else {
+          // Try to find emoji URL from note's reactionEmojis (remote emojis)
+          // The key in reactionEmojis is the emoji name without colons
+          const emojiName = emoji.slice(1, -1); // Remove : from both ends
+          emojiUrl = noteEmojis[emojiName] || noteEmojis[emoji];
+        }
         
         if (emojiUrl) {
           logger.debug(`📬 Found URL for custom emoji ${emoji}: ${emojiUrl}`);
+        } else {
+          logger.debug(`📬 No URL found for custom emoji ${emoji}`);
         }
       }
       
       // Track counts per emoji with URL if available
-      const existing = reactionCounts.get(emoji) || { count: 0, is_custom: isCustomEmoji };
+      const existing = reactionCounts.get(emoji) || { count: 0, is_custom: isCustomEmoji, emoji_url: undefined };
       existing.count++;
       if (emojiUrl && !existing.emoji_url) {
         existing.emoji_url = emojiUrl;
