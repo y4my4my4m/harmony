@@ -317,6 +317,125 @@ router.post(
 );
 
 /**
+ * Extract note ID from a Misskey URL
+ * e.g., "https://misskey.io/notes/abc123" -> "abc123"
+ */
+function extractMisskeyNoteId(url: string): string | null {
+  const match = url.match(/\/notes\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Check if a URL is from a Misskey-like instance
+ */
+function isMisskeyInstance(url: string): boolean {
+  // Common Misskey instance patterns
+  const misskeyPatterns = [
+    /misskey\./i,
+    /\.misskey\./i,
+    /calckey\./i,
+    /firefish\./i,
+    /sharkey\./i,
+    /foundkey\./i,
+    /\/notes\//i,  // Misskey uses /notes/ in URLs
+  ];
+  return misskeyPatterns.some(pattern => pattern.test(url));
+}
+
+/**
+ * Fetch reactions using Misskey API
+ */
+async function fetchMisskeyReactions(
+  domain: string,
+  noteId: string,
+  postId: string | undefined,
+  supabase: any
+): Promise<any[]> {
+  try {
+    logger.info(`📬 Fetching reactions via Misskey API for note: ${noteId} on ${domain}`);
+    
+    const apiUrl = `https://${domain}/api/notes/reactions`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+      },
+      body: JSON.stringify({
+        noteId: noteId,
+        limit: 50,
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      logger.warn(`Misskey reactions API failed: ${response.status}`);
+      return [];
+    }
+
+    const reactionsData = await response.json();
+    logger.info(`📬 Misskey returned ${reactionsData.length} reactions`);
+
+    const reactions: any[] = [];
+    
+    for (const reaction of reactionsData) {
+      const user = reaction.user;
+      const emoji = reaction.type || '❤️';
+      
+      reactions.push({
+        emoji,
+        content: emoji,
+        actor: {
+          username: user?.username || 'unknown',
+          display_name: user?.name || user?.username,
+          avatar_url: user?.avatarUrl,
+          domain: user?.host || domain,
+          is_local: !user?.host,
+        },
+        actor_url: user?.id ? `https://${user.host || domain}/users/${user.id}` : null,
+      });
+
+      // Store in database if we have a post_id
+      if (postId) {
+        // Try to find or create the user profile
+        let userId: string | null = null;
+        
+        if (user?.username) {
+          const userDomain = user.host || domain;
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', user.username)
+            .eq('domain', userDomain)
+            .maybeSingle();
+          
+          userId = profile?.id;
+        }
+
+        if (userId) {
+          await supabase
+            .from('post_interactions')
+            .upsert({
+              post_id: postId,
+              user_id: userId,
+              interaction_type: 'emoji_reaction',
+              emoji: emoji,
+            }, {
+              onConflict: 'post_id,user_id,interaction_type,emoji_id',
+              ignoreDuplicates: true,
+            });
+        }
+      }
+    }
+
+    return reactions;
+  } catch (error) {
+    logger.error(`Failed to fetch Misskey reactions:`, error);
+    return [];
+  }
+}
+
+/**
  * Fetch reactions from a remote post's likes collection
  */
 async function fetchRemotePostReactions(
@@ -325,6 +444,22 @@ async function fetchRemotePostReactions(
   supabase: any
 ): Promise<any[]> {
   try {
+    // Check if this is a Misskey instance and try their API first
+    if (isMisskeyInstance(postApId)) {
+      const noteId = extractMisskeyNoteId(postApId);
+      const domain = new URL(postApId).hostname;
+      
+      if (noteId) {
+        const misskeyReactions = await fetchMisskeyReactions(domain, noteId, postId, supabase);
+        if (misskeyReactions.length > 0) {
+          return misskeyReactions;
+        }
+        // Fall through to standard ActivityPub if Misskey API fails
+        logger.info(`📬 Misskey API returned no reactions, trying standard ActivityPub...`);
+      }
+    }
+
+    // Standard ActivityPub approach
     // First, fetch the post object to get the likes collection URL
     const postResponse = await fetch(postApId, {
       headers: {
@@ -561,6 +696,166 @@ router.post(
 );
 
 /**
+ * Fetch replies using Misskey API
+ */
+async function fetchMisskeyReplies(
+  domain: string,
+  noteId: string,
+  parentPostId: string | undefined,
+  supabase: any,
+  limit: number = 10
+): Promise<any[]> {
+  try {
+    logger.info(`📬 Fetching replies via Misskey API for note: ${noteId} on ${domain}`);
+    
+    const apiUrl = `https://${domain}/api/notes/children`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+      },
+      body: JSON.stringify({
+        noteId: noteId,
+        limit: limit,
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      logger.warn(`Misskey children API failed: ${response.status}`);
+      return [];
+    }
+
+    const childNotes = await response.json();
+    logger.info(`📬 Misskey returned ${childNotes.length} replies/children`);
+
+    const replies: any[] = [];
+    
+    for (const note of childNotes) {
+      const user = note.user;
+      const userDomain = user?.host || domain;
+      const noteApId = `https://${domain}/notes/${note.id}`;
+      
+      // Check if we already have this reply
+      const { data: existing } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('ap_id', noteApId)
+        .maybeSingle();
+
+      if (existing) {
+        // Return existing reply data
+        const { data: fullPost } = await supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles!posts_author_id_fkey(
+              id, username, display_name, avatar_url, domain, is_local
+            )
+          `)
+          .eq('id', existing.id)
+          .single();
+        
+        if (fullPost) {
+          replies.push(fullPost);
+        }
+        continue;
+      }
+
+      // Find or create the author profile
+      let authorId: string | null = null;
+      
+      if (user?.username) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', user.username)
+          .eq('domain', userDomain)
+          .maybeSingle();
+        
+        if (profile) {
+          authorId = profile.id;
+        } else {
+          // Create a minimal profile for the user
+          const { data: newProfile, error } = await supabase
+            .from('profiles')
+            .insert({
+              username: user.username,
+              display_name: user.name || user.username,
+              avatar_url: user.avatarUrl,
+              domain: userDomain,
+              is_local: false,
+              federated_id: `https://${userDomain}/users/${user.id}`,
+            })
+            .select('id')
+            .single();
+          
+          if (!error && newProfile) {
+            authorId = newProfile.id;
+          }
+        }
+      }
+
+      if (!authorId) continue;
+
+      // Parse the note content as any[] to allow different content types
+      const content: any[] = note.text ? [{ type: 'text', content: note.text }] : [];
+      
+      // Add any files/attachments
+      if (note.files && Array.isArray(note.files)) {
+        for (const file of note.files) {
+          content.push({
+            type: 'file',
+            url: file.url,
+            name: file.name,
+            fileType: file.type,
+            width: file.properties?.width,
+            height: file.properties?.height,
+            blurhash: file.blurhash,
+          });
+        }
+      }
+
+      // Create the reply
+      const { data: newReply, error } = await supabase
+        .from('posts')
+        .insert({
+          author_id: authorId,
+          content: content,
+          ap_id: noteApId,
+          is_local: false,
+          visibility: note.visibility === 'public' ? 'public' 
+            : note.visibility === 'home' ? 'unlisted'
+            : note.visibility === 'followers' ? 'followers'
+            : 'direct',
+          in_reply_to: parentPostId,
+          metadata: {
+            in_reply_to_ap_url: `https://${domain}/notes/${noteId}`,
+          },
+          created_at: note.createdAt,
+        })
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id, username, display_name, avatar_url, domain, is_local
+          )
+        `)
+        .single();
+
+      if (!error && newReply) {
+        replies.push(newReply);
+      }
+    }
+
+    return replies;
+  } catch (error) {
+    logger.error(`Failed to fetch Misskey replies:`, error);
+    return [];
+  }
+}
+
+/**
  * Fetch replies from a remote post's replies collection
  */
 async function fetchRemotePostReplies(
@@ -570,6 +865,22 @@ async function fetchRemotePostReplies(
   limit: number = 10
 ): Promise<any[]> {
   try {
+    // Check if this is a Misskey instance and try their API first
+    if (isMisskeyInstance(postApId)) {
+      const noteId = extractMisskeyNoteId(postApId);
+      const domain = new URL(postApId).hostname;
+      
+      if (noteId) {
+        const misskeyReplies = await fetchMisskeyReplies(domain, noteId, postId, supabase, limit);
+        if (misskeyReplies.length > 0) {
+          return misskeyReplies;
+        }
+        // Fall through to standard ActivityPub if Misskey API fails
+        logger.info(`📬 Misskey API returned no replies, trying standard ActivityPub...`);
+      }
+    }
+
+    // Standard ActivityPub approach
     // Fetch the post object to get the replies collection URL
     const postResponse = await fetch(postApId, {
       headers: {

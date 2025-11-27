@@ -37,7 +37,7 @@
             :interactive="true"
           />
           <div class="author-details">
-            <div class="author-name">
+            <div class="author-name" @click="viewProfile(displayAuthor)">
               {{ displayAuthor.display_name || displayAuthor.username }}
             </div>
             <div class="author-handle">
@@ -1460,6 +1460,12 @@ const closeLightbox = () => {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+  user-select: text;
+}
+
+.author-name:hover {
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .author-handle {
