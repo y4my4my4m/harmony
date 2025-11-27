@@ -651,11 +651,28 @@ export class ActivityProcessor {
     if (post) {
       let emojiId = null;
       
-      // For custom emojis with URLs, create/get local emoji entry
+      // For custom emojis with URLs, cache in remote_emojis_cache for the importer
+      // and use the emojis table for the reaction
       if (emojiUrl && emojiName) {
-        logger.info(`🔍 Looking for existing emoji with URL: ${emojiUrl}`);
+        logger.info(`🔍 Processing remote emoji: ${emojiName} from ${emojiUrl}`);
         
-        // Check if emoji already exists
+        const cleanName = emojiName.replace(/:/g, ''); // Remove colons
+        const emojiDomain = new URL(emojiUrl).hostname;
+        
+        // Cache in remote_emojis_cache for the emoji importer feature
+        try {
+          await supabase.rpc('upsert_remote_emoji', {
+            p_shortcode: cleanName,
+            p_origin_domain: emojiDomain,
+            p_full_code: `:${cleanName}@${emojiDomain}:`,
+            p_url: emojiUrl,
+          });
+          logger.info(`📬 Cached remote emoji in importer: ${cleanName}@${emojiDomain}`);
+        } catch (cacheError) {
+          logger.debug(`Could not cache emoji: ${cacheError}`);
+        }
+        
+        // Check if emoji already exists in emojis table (for reaction tracking)
         const { data: existingEmoji, error: existingError } = await supabase
           .from('emojis')
           .select('id')
@@ -670,9 +687,8 @@ export class ActivityProcessor {
           emojiId = existingEmoji.id;
           logger.info(`♻️  Using existing emoji ID: ${emojiId}`);
         } else {
-          // Create new emoji entry for this remote custom emoji
-          const cleanName = emojiName.replace(/:/g, ''); // Remove colons
-          logger.info(`➕ Creating new emoji entry: ${cleanName}`);
+          // Create new emoji entry for this remote custom emoji (with domain set)
+          logger.info(`➕ Creating new emoji entry: ${cleanName}@${emojiDomain}`);
           
           const { data: newEmoji, error: insertError } = await supabase
             .from('emojis')
@@ -681,7 +697,7 @@ export class ActivityProcessor {
               url: emojiUrl,
               server_id: null, // Global/federated emoji
               uploader: user.id,
-              domain: new URL(emojiUrl).hostname, // Extract domain from URL
+              domain: emojiDomain, // Mark as remote emoji
             })
             .select('id')
             .single();
@@ -690,7 +706,7 @@ export class ActivityProcessor {
             logger.error('❌ Failed to create emoji:', insertError);
           } else if (newEmoji) {
             emojiId = newEmoji.id;
-            logger.info(`✨ Created local emoji entry for remote emoji: ${cleanName} (ID: ${emojiId})`);
+            logger.info(`✨ Created emoji entry for remote emoji: ${cleanName}@${emojiDomain} (ID: ${emojiId})`);
           }
         }
       }

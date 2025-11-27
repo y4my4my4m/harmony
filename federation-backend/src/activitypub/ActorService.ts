@@ -528,32 +528,38 @@ async function fetchMisskeyReactions(
           // Extract shortcode and origin domain from the emoji
           let shortcode: string;
           let originDomain: string;
+          let normalizedFullCode: string;
           
           if (emoji.endsWith('@.:')) {
             // Origin instance emoji: :kawa_yu@.: -> shortcode=kawa_yu, domain=misskey.io
             shortcode = emoji.slice(1, -3);
             originDomain = domain;
+            // Normalize the full code to use actual domain instead of @.
+            normalizedFullCode = `:${shortcode}@${domain}:`;
           } else if (emoji.includes('@')) {
             // Third-party emoji: :suteki2@fedibird.com: -> shortcode=suteki2, domain=fedibird.com
             const match = emoji.match(/:([^@]+)@([^:]+):/);
             if (match) {
               shortcode = match[1];
               originDomain = match[2];
+              normalizedFullCode = `:${shortcode}@${originDomain}:`;
             } else {
               shortcode = emoji.slice(1, -1);
               originDomain = domain;
+              normalizedFullCode = `:${shortcode}@${domain}:`;
             }
           } else {
             // Simple emoji: :smile: -> shortcode=smile, domain=origin
             shortcode = emoji.slice(1, -1);
             originDomain = domain;
+            normalizedFullCode = `:${shortcode}@${domain}:`;
           }
           
           // Upsert into remote_emojis_cache
           await supabase.rpc('upsert_remote_emoji', {
             p_shortcode: shortcode,
             p_origin_domain: originDomain,
-            p_full_code: emoji,
+            p_full_code: normalizedFullCode,
             p_url: emojiUrl,
           });
           

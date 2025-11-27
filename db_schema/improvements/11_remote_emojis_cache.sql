@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.remote_emojis_cache (
   -- Emoji identification
   shortcode text NOT NULL,              -- e.g., "kawa_yu" (without colons)
   origin_domain text NOT NULL,          -- e.g., "misskey.io"
-  full_code text NOT NULL,              -- e.g., ":kawa_yu@.:" or ":suteki2@fedibird.com:"
+  full_code text NOT NULL,              -- e.g., ":kawa_yu@misskey.io:" or ":suteki2@fedibird.com:"
   
   -- Emoji data
   url text NOT NULL,                    -- Full URL to the emoji image
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS public.remote_emojis_cache (
   last_seen_at timestamptz DEFAULT now(),
   usage_count int DEFAULT 1,
   
-  -- Import status
-  imported_as uuid REFERENCES public.custom_emojis(id) ON DELETE SET NULL,
+  -- Import status (references the actual emojis table)
+  imported_as uuid REFERENCES public.emojis(id) ON DELETE SET NULL,
   imported_at timestamptz,
   
   -- Metadata
@@ -98,16 +98,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to import a remote emoji to local custom_emojis
+-- Function to import a remote emoji to local emojis table
 CREATE OR REPLACE FUNCTION import_remote_emoji(
   p_remote_emoji_id uuid,
-  p_new_shortcode text DEFAULT NULL,  -- Optional: rename on import
-  p_category text DEFAULT NULL
+  p_new_name text DEFAULT NULL,  -- Optional: rename on import
+  p_server_id uuid DEFAULT NULL  -- Optional: assign to a server
 ) RETURNS uuid AS $$
 DECLARE
   v_remote remote_emojis_cache%ROWTYPE;
   v_new_id uuid;
-  v_shortcode text;
+  v_name text;
 BEGIN
   -- Get the remote emoji
   SELECT * INTO v_remote FROM public.remote_emojis_cache WHERE id = p_remote_emoji_id;
@@ -120,29 +120,25 @@ BEGIN
     RAISE EXCEPTION 'Emoji already imported';
   END IF;
   
-  -- Use provided shortcode or original
-  v_shortcode := COALESCE(p_new_shortcode, v_remote.shortcode);
+  -- Use provided name or original shortcode
+  v_name := COALESCE(p_new_name, v_remote.shortcode);
   
-  -- Check if shortcode already exists locally
-  IF EXISTS (SELECT 1 FROM public.custom_emojis WHERE shortcode = v_shortcode) THEN
-    RAISE EXCEPTION 'Shortcode already exists locally: %', v_shortcode;
+  -- Check if name already exists locally (where domain is null = local emoji)
+  IF EXISTS (SELECT 1 FROM public.emojis WHERE name = v_name AND domain IS NULL) THEN
+    RAISE EXCEPTION 'Emoji name already exists locally: %', v_name;
   END IF;
   
   -- Create the local emoji
-  INSERT INTO public.custom_emojis (
-    shortcode,
+  INSERT INTO public.emojis (
+    name,
     url,
-    static_url,
-    category,
-    is_animated,
-    visible_in_picker
+    server_id,
+    domain  -- NULL means it's now a local emoji
   ) VALUES (
-    v_shortcode,
+    v_name,
     v_remote.url,
-    v_remote.static_url,
-    COALESCE(p_category, v_remote.category, 'Imported'),
-    v_remote.is_animated,
-    true
+    p_server_id,
+    NULL  -- Imported as local emoji
   ) RETURNING id INTO v_new_id;
   
   -- Update the remote emoji to mark as imported
@@ -161,5 +157,5 @@ GRANT EXECUTE ON FUNCTION import_remote_emoji TO authenticated;
 
 COMMENT ON TABLE public.remote_emojis_cache IS 'Cache of custom emojis encountered from remote instances. Used for the emoji importer feature.';
 COMMENT ON FUNCTION upsert_remote_emoji IS 'Insert or update a remote emoji, incrementing usage count on conflict.';
-COMMENT ON FUNCTION import_remote_emoji IS 'Import a remote emoji to local custom_emojis table.';
+COMMENT ON FUNCTION import_remote_emoji IS 'Import a remote emoji to local emojis table.';
 
