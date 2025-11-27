@@ -77,26 +77,51 @@ router.post(
         });
       }
 
-      // Check content type to ensure we got JSON, not XML
-      const contentType = webfingerResponse.headers.get('content-type') || '';
-      if (contentType.includes('xml')) {
-        logger.warn(`❌ WebFinger returned XML instead of JSON for ${username}@${domain}`);
-        return res.status(500).json({
-          error: 'Remote instance returned XML format (not supported)',
-          details: 'The remote instance does not support JSON WebFinger responses'
-        });
-      }
-
       const responseText = await webfingerResponse.text();
-      let webfinger;
-      try {
-        webfinger = JSON.parse(responseText);
-      } catch (parseError) {
-        logger.error(`❌ Failed to parse WebFinger response as JSON: ${responseText.substring(0, 100)}...`);
-        return res.status(500).json({
-          error: 'Invalid WebFinger response from remote instance',
-          details: 'Response was not valid JSON'
-        });
+      const contentType = webfingerResponse.headers.get('content-type') || '';
+      
+      let webfinger: { subject?: string; links?: Array<{ rel: string; type?: string; href?: string }> };
+      
+      // Check if response is XML and parse it
+      if (contentType.includes('xml') || responseText.trim().startsWith('<?xml') || responseText.trim().startsWith('<XRD')) {
+        logger.info(`📋 WebFinger returned XML, parsing...`);
+        
+        // Parse XML WebFinger (XRD format)
+        // Extract links from XML like: <Link rel="self" type="application/activity+json" href="..."/>
+        const subjectMatch = responseText.match(/<Subject>([^<]+)<\/Subject>/);
+        const selfLinkMatch = responseText.match(/<Link[^>]+rel="self"[^>]+type="application\/activity\+json"[^>]+href="([^"]+)"/);
+        const altSelfLinkMatch = responseText.match(/<Link[^>]+href="([^"]+)"[^>]+type="application\/activity\+json"[^>]+rel="self"/);
+        
+        const actorHref = selfLinkMatch?.[1] || altSelfLinkMatch?.[1];
+        
+        if (!actorHref) {
+          logger.warn(`❌ Could not find ActivityPub link in XML WebFinger for ${username}@${domain}`);
+          return res.status(404).json({
+            error: 'User is not on an ActivityPub-compatible instance',
+            details: 'No ActivityPub self link found in XRD response'
+          });
+        }
+        
+        // Convert to JSON-like structure
+        webfinger = {
+          subject: subjectMatch?.[1] || `acct:${username}@${domain}`,
+          links: [
+            { rel: 'self', type: 'application/activity+json', href: actorHref }
+          ]
+        };
+        
+        logger.info(`📋 Parsed XML WebFinger: found actor at ${actorHref}`);
+      } else {
+        // Try to parse as JSON
+        try {
+          webfinger = JSON.parse(responseText);
+        } catch (parseError) {
+          logger.error(`❌ Failed to parse WebFinger response: ${responseText.substring(0, 100)}...`);
+          return res.status(500).json({
+            error: 'Invalid WebFinger response from remote instance',
+            details: 'Response was neither valid JSON nor XML'
+          });
+        }
       }
       logger.info(`📋 WebFinger response: ${JSON.stringify(webfinger.links?.length || 0)} links`);
       
