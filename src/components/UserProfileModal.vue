@@ -342,9 +342,16 @@ const showActionsMenu = ref(false)
 const userNote = ref('')
 const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 
-// Type guards
+// Type guards - check for ActivityPub-related properties
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
-  return user !== null && 'handle' in user
+  if (!user) return false;
+  // Check for common federated user properties
+  return 'handle' in user || 
+         'domain' in user || 
+         'followers_count' in user || 
+         'following_count' in user ||
+         'posts_count' in user ||
+         'federated_id' in user;
 }
 
 // Computed properties
@@ -370,12 +377,20 @@ const displayAbout = computed(() => {
 })
 
 const socialStats = computed(() => {
-  if (!props.user || !isFederatedUser(props.user)) return null
+  if (!props.user) return null;
+  
+  // Check if user has any social stats (works for both federated and local users with AP integration)
+  const user = props.user as any;
+  const hasSocialStats = user.posts_count !== undefined || 
+                         user.following_count !== undefined || 
+                         user.followers_count !== undefined;
+  
+  if (!hasSocialStats) return null;
   
   return {
-    posts: props.user.posts_count || 0,
-    following: props.user.following_count || 0,
-    followers: props.user.followers_count || 0
+    posts: user.posts_count || 0,
+    following: user.following_count || 0,
+    followers: user.followers_count || 0
   }
 })
 

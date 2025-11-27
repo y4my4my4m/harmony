@@ -255,6 +255,13 @@
       </div>
     </div>
   </div>
+  
+  <!-- User Profile Modal -->
+  <UserProfileModal
+    :show="showProfileModal"
+    :user="selectedModalUser"
+    @close="showProfileModal = false; selectedModalUser = null"
+  />
 </template>
 
 <script setup lang="ts">
@@ -280,6 +287,7 @@ import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
+import UserProfileModal from '@/components/UserProfileModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -367,6 +375,10 @@ const isLoadingMoreRemote = ref(false);
 // Social connections
 const followingUsers = ref<FederatedUser[]>([]);
 const followerUsers = ref<FederatedUser[]>([]);
+
+// Modal state
+const showProfileModal = ref(false);
+const selectedModalUser = ref<FederatedUser | null>(null);
 
 // Computed properties
 const hasMorePosts = computed(() => props.hasMorePosts || hasMorePostsRef.value);
@@ -881,12 +893,24 @@ const handleReport = () => {
 };
 
 const showUserProfile = (clickedUser: FederatedUser) => {
+  // Show modal first
+  selectedModalUser.value = clickedUser;
+  showProfileModal.value = true;
+  debug.log(`👤 Showing profile modal for: ${clickedUser.handle}`);
+};
+
+const navigateToProfile = (clickedUser: FederatedUser) => {
+  // Close modal first
+  showProfileModal.value = false;
+  selectedModalUser.value = null;
+  
   // Clean the handle for routing - remove leading @ and ensure proper format
-  let handle = clickedUser.handle.replace(/^@/, ''); // Remove leading @
+  let handle = clickedUser.handle?.replace(/^@/, '') || clickedUser.username; // Remove leading @
   
   // For routing, we need clean handles without domain for local users
-  if (handle.endsWith('@har.mony.lol')) {
-    handle = handle.replace('@har.mony.lol', '');
+  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+  if (handle.endsWith(`@${currentDomain}`)) {
+    handle = handle.replace(`@${currentDomain}`, '');
   }
   
   debug.log(`🔗 Navigating to profile: ${handle} (from ${clickedUser.handle})`);
