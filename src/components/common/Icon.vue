@@ -205,6 +205,32 @@
     <path v-if="name === 'download'" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
     <polyline v-if="name === 'download'" points="7 10 12 15 17 10"></polyline>
     <line v-if="name === 'download'" x1="12" y1="15" x2="12" y2="3"></line>
+
+    <!-- Package Import (package with download arrow) -->
+    <line v-if="name === 'package-import'" x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line>
+    <path v-if="name === 'package-import'" d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+    <polyline v-if="name === 'package-import'" points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+    <line v-if="name === 'package-import'" x1="12" y1="22.08" x2="12" y2="12"></line>
+    
+    <!-- Emoji (smile face) -->
+    <circle v-if="name === 'emoji'" cx="12" cy="12" r="10"></circle>
+    <path v-if="name === 'emoji'" d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+    <line v-if="name === 'emoji'" x1="9" y1="9" x2="9.01" y2="9"></line>
+    <line v-if="name === 'emoji'" x1="15" y1="9" x2="15.01" y2="9"></line>
+
+    <!-- Inbox -->
+    <polyline v-if="name === 'inbox'" points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
+    <path v-if="name === 'inbox'" d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+
+    <!-- Bar Chart 2 -->
+    <line v-if="name === 'bar-chart-2'" x1="18" y1="20" x2="18" y2="10"></line>
+    <line v-if="name === 'bar-chart-2'" x1="12" y1="20" x2="12" y2="4"></line>
+    <line v-if="name === 'bar-chart-2'" x1="6" y1="20" x2="6" y2="14"></line>
+
+    <!-- Info -->
+    <circle v-if="name === 'info'" cx="12" cy="12" r="10"></circle>
+    <line v-if="name === 'info'" x1="12" y1="16" x2="12" y2="12"></line>
+    <line v-if="name === 'info'" x1="12" y1="8" x2="12.01" y2="8"></line>
     
     <!-- Trash 2 -->
     <polyline v-if="name === 'trash-2'" points="3 6 5 6 21 6"></polyline>

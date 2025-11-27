@@ -239,6 +239,8 @@ const loadEmojis = async () => {
   isLoading.value = true;
   
   try {
+    debug.log('🎨 Loading remote emojis from cache...');
+    
     let query = supabase
       .from('remote_emojis_cache')
       .select('*')
@@ -260,25 +262,34 @@ const loadEmojis = async () => {
     
     if (error) {
       debug.error('Failed to load remote emojis:', error);
+      console.error('Supabase error:', error);
       return;
     }
     
+    debug.log(`🎨 Loaded ${data?.length || 0} remote emojis`);
     emojis.value = data || [];
     
     // Load unique domains for filter
-    const { data: domainData } = await supabase
+    const { data: domainData, error: domainError } = await supabase
       .from('remote_emojis_cache')
       .select('origin_domain')
       .order('origin_domain');
     
-    if (domainData) {
+    if (domainError) {
+      debug.error('Failed to load domains:', domainError);
+    } else if (domainData) {
       uniqueDomains.value = [...new Set(domainData.map(d => d.origin_domain))];
+      debug.log(`🎨 Found ${uniqueDomains.value.length} unique domains:`, uniqueDomains.value);
     }
     
     // Load stats
-    const { count: total } = await supabase
+    const { count: total, error: countError } = await supabase
       .from('remote_emojis_cache')
       .select('*', { count: 'exact', head: true });
+    
+    if (countError) {
+      debug.error('Failed to get total count:', countError);
+    }
     
     const { count: imported } = await supabase
       .from('remote_emojis_cache')
@@ -288,8 +299,11 @@ const loadEmojis = async () => {
     totalEmojis.value = total || 0;
     importedCount.value = imported || 0;
     
+    debug.log(`🎨 Stats: ${totalEmojis.value} total, ${importedCount.value} imported`);
+    
   } catch (error) {
     debug.error('Error loading emojis:', error);
+    console.error('Exception:', error);
   } finally {
     isLoading.value = false;
   }

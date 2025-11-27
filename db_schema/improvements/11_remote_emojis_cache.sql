@@ -150,6 +150,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Grant table permissions
+GRANT SELECT ON public.remote_emojis_cache TO authenticated;
+GRANT SELECT ON public.remote_emojis_cache TO anon;
+GRANT ALL ON public.remote_emojis_cache TO service_role;
+
 -- Grant execute on functions
 GRANT EXECUTE ON FUNCTION upsert_remote_emoji TO authenticated;
 GRANT EXECUTE ON FUNCTION upsert_remote_emoji TO service_role;
