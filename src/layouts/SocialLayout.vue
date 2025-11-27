@@ -167,7 +167,6 @@ import ProfileCard from '@/components/common/ProfileCard.vue'
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
-import { useInstanceStore } from '@/stores/useInstance'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { supabase } from '@/supabase'
@@ -222,7 +221,6 @@ const emit = defineEmits<{
 
 // Store
 const activityPubStore = useActivityPubStore()
-const instanceStore = useInstanceStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -318,9 +316,9 @@ const suggestedUsers = ref<FederatedUser[]>([])
 const isLoadingTrending = ref(false)
 
 // Instance stats (cached in store)
-const localInstanceDomain = computed(() => instanceStore.domain)
-const localInstanceUserCount = computed(() => instanceStore.userCount)
-const localInstancePostCount = computed(() => instanceStore.postCount)
+const localInstanceDomain = computed(() => activityPubStore.instanceDomain)
+const localInstanceUserCount = computed(() => activityPubStore.instanceUserCount)
+const localInstancePostCount = computed(() => activityPubStore.instancePostCount)
 
 // Load trending hashtags from TrendingService
 const loadTrendingHashtags = async () => {
@@ -371,7 +369,7 @@ const loadSuggestedUsers = async () => {
 onMounted(() => {
   loadTrendingHashtags()
   loadSuggestedUsers()
-  instanceStore.fetchStats() // Uses cached values if fresh, otherwise fetches
+  activityPubStore.fetchInstanceStats() // Uses cached values if fresh, otherwise fetches
 })
 
 // Track view context in database for notification suppression

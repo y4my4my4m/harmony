@@ -49,6 +49,10 @@ interface ActivityPubState {
   // Instance state
   knownInstances: any[];
   blockedInstances: Set<string>;
+  instanceDomain: string;
+  instanceUserCount: number;
+  instancePostCount: number;
+  instanceStatsFetchedAt: number | null;
   
   // UI state
   isComposerOpen: boolean;
@@ -112,6 +116,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Instance state
     knownInstances: [],
     blockedInstances: new Set(),
+    instanceDomain: import.meta.env.VITE_DOMAIN || window.location.hostname,
+    instanceUserCount: 0,
+    instancePostCount: 0,
+    instanceStatsFetchedAt: null,
     
     // UI state
     isComposerOpen: false,
@@ -160,6 +168,15 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     formattedFollowersCount(): string {
       return this.followersCount > 999 ? `${(this.followersCount / 1000).toFixed(1)}K` : this.followersCount.toString();
+    },
+
+    /**
+     * Check if instance stats cache is still valid (5 minutes)
+     */
+    isInstanceStatsCacheValid(): boolean {
+      if (!this.instanceStatsFetchedAt) return false;
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+      return Date.now() - this.instanceStatsFetchedAt < CACHE_DURATION;
     },
 
     /**
@@ -231,6 +248,44 @@ export const useActivityPubStore = defineStore('activitypub', {
       } catch (error) {
         debug.error('❌ Failed to initialize ActivityPub store:', error);
         throw error;
+      }
+    },
+
+    /**
+     * Fetch instance stats (user count, post count) with caching
+     */
+    async fetchInstanceStats(force = false) {
+      // Skip if cache is valid and not forcing
+      if (this.isInstanceStatsCacheValid && !force) {
+        debug.log('📊 Instance stats: using cached values');
+        return;
+      }
+
+      try {
+        debug.log('🔄 Fetching instance stats from database...');
+        
+        const [usersResult, postsResult] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_local', true),
+          supabase
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_local', true)
+            .eq('is_deleted', false)
+        ]);
+        
+        this.instanceUserCount = usersResult.count || 0;
+        this.instancePostCount = postsResult.count || 0;
+        this.instanceStatsFetchedAt = Date.now();
+        
+        debug.log('✅ Instance stats cached:', {
+          users: this.instanceUserCount,
+          posts: this.instancePostCount
+        });
+      } catch (error) {
+        debug.error('Failed to fetch instance stats:', error);
       }
     },
 
