@@ -166,8 +166,6 @@ router.post(
         following_url: profileData.following_url,
         is_local: false,
         last_synced_at: new Date().toISOString(),
-        // Store the remote URL for "view in original" feature
-        url: actor.url || actor.id,
       };
 
       // Add counts if columns exist (may need migration)
