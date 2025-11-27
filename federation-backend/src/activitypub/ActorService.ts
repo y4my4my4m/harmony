@@ -201,6 +201,7 @@ router.post(
       return res.json({
         success: true,
         user: savedUser,
+        outbox_url: actor.outbox, // Include for pagination
         cached: false,
         refreshed: forceRefresh || false
       });
@@ -218,6 +219,45 @@ router.post(
         error: 'Failed to lookup remote user',
         details: error.message
       });
+    }
+  })
+);
+
+/**
+ * Fetch more posts from a remote user (pagination)
+ * POST /api/federation/fetch-posts
+ * Body: { user_id: uuid, outbox_url: string, max_id?: string, limit?: number }
+ */
+router.post(
+  '/api/federation/fetch-posts',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { user_id, outbox_url, max_id, limit = 10 } = req.body;
+
+    if (!user_id || !outbox_url) {
+      return res.status(400).json({ error: 'user_id and outbox_url are required' });
+    }
+
+    const supabase = getSupabaseClient();
+    
+    logger.info(`📬 Fetching more posts for user ${user_id}${max_id ? ` after ${max_id}` : ''}`);
+
+    try {
+      const result = await fetchRecentPostsInBackground(
+        user_id, 
+        outbox_url, 
+        supabase, 
+        max_id, 
+        Math.min(limit, 20) // Cap at 20
+      );
+
+      return res.json({
+        success: true,
+        has_more: result.hasMore,
+        oldest_id: result.oldestId,
+      });
+    } catch (error: any) {
+      logger.error('Failed to fetch more posts:', error);
+      return res.status(500).json({ error: 'Failed to fetch posts' });
     }
   })
 );
@@ -433,40 +473,49 @@ router.get(
 
 /**
  * Fetch recent posts from a remote user's outbox in the background
- * Only fetches the first page (up to 10 posts) to avoid overwhelming the database
+ * Supports pagination via maxId parameter
  */
 async function fetchRecentPostsInBackground(
   authorId: string, 
   outboxUrl: string, 
-  supabase: any
-): Promise<void> {
-  const MAX_POSTS = 10;
-  
+  supabase: any,
+  maxId?: string,
+  limit: number = 10
+): Promise<{ hasMore: boolean; oldestId?: string }> {
   try {
-    logger.info(`📬 Fetching recent posts from outbox: ${outboxUrl}`);
+    logger.info(`📬 Fetching posts from outbox: ${outboxUrl}${maxId ? ` (before ${maxId})` : ''}`);
+    
+    // Build the URL with pagination if needed
+    let fetchUrl = outboxUrl;
+    if (maxId) {
+      const url = new URL(outboxUrl);
+      url.searchParams.set('max_id', maxId);
+      fetchUrl = url.toString();
+    }
     
     // Fetch the outbox collection
-    const outboxResponse = await fetch(outboxUrl, {
+    const outboxResponse = await fetch(fetchUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
       },
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(15000)
     });
     
     if (!outboxResponse.ok) {
       logger.warn(`Failed to fetch outbox: ${outboxResponse.status}`);
-      return;
+      return { hasMore: false };
     }
     
     const outbox = await outboxResponse.json();
     
-    // Get the first page URL or use orderedItems directly
+    // Get items from the collection
     let items: any[] = [];
+    let nextPageUrl: string | null = null;
     
     if (outbox.orderedItems && Array.isArray(outbox.orderedItems)) {
-      // Items are directly in the collection
-      items = outbox.orderedItems.slice(0, MAX_POSTS);
+      items = outbox.orderedItems.slice(0, limit);
+      nextPageUrl = outbox.next || null;
     } else if (outbox.first) {
       // Need to fetch the first page
       const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
@@ -476,33 +525,41 @@ async function fetchRecentPostsInBackground(
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(15000)
       });
       
       if (pageResponse.ok) {
         const page = await pageResponse.json();
-        items = (page.orderedItems || []).slice(0, MAX_POSTS);
+        items = (page.orderedItems || []).slice(0, limit);
+        nextPageUrl = page.next || null;
       }
     }
     
     if (items.length === 0) {
       logger.info(`📬 No posts found in outbox`);
-      return;
+      return { hasMore: false };
     }
     
     logger.info(`📬 Processing ${items.length} posts from outbox`);
     
     let savedCount = 0;
+    let oldestId: string | undefined;
+    
+    // Import the proper converter
+    const { noteToContent } = await import('./converters/fromActivityPub.js');
     
     for (const item of items) {
       try {
         // Handle both Create activities and direct Note objects
         const note = item.type === 'Create' ? item.object : item;
         
-        // Skip non-Note types (Announce, etc.)
-        if (note.type !== 'Note' && note.type !== 'Article') {
+        // Skip non-Note types (but handle Question for polls)
+        if (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question') {
           continue;
         }
+        
+        // Track oldest ID for pagination
+        oldestId = note.id;
         
         // Check if post already exists
         const { data: existing } = await supabase
@@ -515,16 +572,8 @@ async function fetchRecentPostsInBackground(
           continue; // Already have this post
         }
         
-        // Convert content - strip HTML but preserve line breaks
-        let content = note.content || '';
-        content = content.replace(/<br\s*\/?>/gi, '\n');
-        content = content.replace(/<\/p>\s*<p>/gi, '\n\n');
-        content = content.replace(/<[^>]*>/g, '');
-        content = content.replace(/&nbsp;/g, ' ');
-        content = content.replace(/&amp;/g, '&');
-        content = content.replace(/&lt;/g, '<');
-        content = content.replace(/&gt;/g, '>');
-        content = content.trim();
+        // Use proper content converter that handles mentions, hashtags, emoji, attachments
+        const content = noteToContent(note);
         
         // Determine visibility
         let visibility = 'public';
@@ -540,34 +589,109 @@ async function fetchRecentPostsInBackground(
           visibility = 'direct';
         }
         
-        // Create the post (simplified - just the basics for display)
+        // Extract media attachments separately for the media_attachments column
+        const mediaAttachments = extractMediaAttachments(note.attachment);
+        
+        // Build metadata for polls
+        const metadata: any = {};
+        if (note.type === 'Question') {
+          const pollOptions = note.oneOf || note.anyOf || [];
+          metadata.is_poll = true;
+          metadata.poll_options = pollOptions.map((opt: any) => ({
+            name: opt.name || '',
+            votes: opt.replies?.totalItems || 0,
+          }));
+          metadata.poll_multiple_choice = !!note.anyOf;
+          metadata.poll_end_time = note.endTime || note.closed || null;
+          metadata.poll_closed = !!note.closed;
+        }
+        
+        // Handle custom emoji from tags
+        const customEmojis = extractCustomEmojis(note.tag);
+        if (customEmojis.length > 0) {
+          metadata.custom_emojis = customEmojis;
+        }
+        
+        // Create the post with full content
+        const postData: any = {
+          ap_id: note.id,
+          ap_type: note.type,
+          author_id: authorId,
+          content,
+          visibility,
+          is_local: false,
+          created_at: note.published || new Date().toISOString(),
+          content_warning: note.summary || null,
+          is_sensitive: note.sensitive === true,
+        };
+        
+        if (mediaAttachments.length > 0) {
+          postData.media_attachments = mediaAttachments;
+        }
+        
+        if (Object.keys(metadata).length > 0) {
+          postData.metadata = metadata;
+        }
+        
         const { error: insertError } = await supabase
           .from('posts')
-          .insert({
-            ap_id: note.id,
-            author_id: authorId,
-            content: [{ type: 'text', text: content }], // Simple text content
-            visibility,
-            is_local: false,
-            created_at: note.published || new Date().toISOString(),
-            content_warning: note.summary || null,
-            is_sensitive: note.sensitive === true,
-          });
+          .insert(postData);
         
         if (!insertError) {
           savedCount++;
         }
       } catch (postError) {
-        // Skip individual post errors, continue with others
         logger.debug(`Failed to save post:`, postError);
       }
     }
     
     logger.info(`📬 Saved ${savedCount} new posts from remote user`);
     
+    return { 
+      hasMore: items.length >= limit || !!nextPageUrl,
+      oldestId 
+    };
+    
   } catch (error) {
     logger.warn(`Failed to fetch outbox posts:`, error);
+    return { hasMore: false };
   }
+}
+
+/**
+ * Extract media attachments from ActivityPub attachment array
+ */
+function extractMediaAttachments(attachments: any): any[] {
+  if (!attachments || !Array.isArray(attachments)) {
+    return [];
+  }
+  
+  return attachments.map((att: any) => ({
+    type: att.type || 'Document',
+    mediaType: att.mediaType || 'application/octet-stream',
+    url: att.url,
+    name: att.name || null,
+    width: att.width || null,
+    height: att.height || null,
+    blurhash: att.blurhash || null,
+  })).filter((att: any) => att.url);
+}
+
+/**
+ * Extract custom emoji definitions from ActivityPub tags
+ */
+function extractCustomEmojis(tags: any): any[] {
+  if (!tags || !Array.isArray(tags)) {
+    return [];
+  }
+  
+  return tags
+    .filter((tag: any) => tag.type === 'Emoji')
+    .map((tag: any) => ({
+      name: tag.name?.replace(/:/g, '') || '',
+      url: tag.icon?.url || tag.icon,
+      id: tag.id || `remote-${tag.name?.replace(/:/g, '')}`,
+    }));
 }
 
 export default router;

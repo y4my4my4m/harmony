@@ -1547,6 +1547,14 @@ const closeLightbox = () => {
   line-height: 1.6;
   word-wrap: break-word;
   margin-bottom: 1rem;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.post-text :deep(*) {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .interaction-stats {

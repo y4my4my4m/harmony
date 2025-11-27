@@ -164,7 +164,7 @@ export async function startDatabaseListener(): Promise<void> {
       {
         event: 'INSERT',
         schema: 'public',
-        table: 'blocks',
+        table: 'user_blocks',
       },
       async (payload) => {
         logger.info('🚫 New block detected:', payload.new.id);
@@ -177,7 +177,7 @@ export async function startDatabaseListener(): Promise<void> {
       {
         event: 'DELETE',
         schema: 'public',
-        table: 'blocks',
+        table: 'user_blocks',
       },
       async (payload) => {
         logger.info('✅ Unblock detected:', payload.old?.id);
@@ -820,11 +820,11 @@ async function handleNewBlock(block: any): Promise<void> {
       .eq('id', block.blocker_id)
       .single();
 
-    // Get blocked user
+    // Get blocked user (column is blocked_user_id in user_blocks table)
     const { data: blocked } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', block.blocked_id)
+      .eq('id', block.blocked_user_id)
       .single();
 
     if (!blocker?.is_local || !blocked) {
@@ -866,11 +866,11 @@ async function handleUnblock(block: any): Promise<void> {
       .eq('id', block.blocker_id)
       .single();
 
-    // Get blocked user
+    // Get blocked user (column is blocked_user_id in user_blocks table)
     const { data: blocked } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', block.blocked_id)
+      .eq('id', block.blocked_user_id)
       .single();
 
     if (!blocker?.is_local || !blocked) {

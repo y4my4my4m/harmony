@@ -712,12 +712,22 @@ export class ActivityProcessor {
         return;
       }
       
+      // Normalize the emoji content - ensure consistent representation
+      // Different Unicode representations of heart can cause grouping issues
+      let normalizedEmoji = emoji || '❤️';
+      
+      // Normalize common heart variants to a single representation
+      // This ensures Mastodon favorites all group together
+      if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
+        normalizedEmoji = '❤️'; // Standard red heart with variation selector
+      }
+      
       const { error: interactionError } = await supabase.from('post_interactions').insert({
         post_id: post.id,
         user_id: user.id,
         interaction_type: 'emoji_reaction',
         emoji_id: emojiId, // Use created/found emoji ID
-        custom_emoji_content: emoji || '❤️',
+        custom_emoji_content: normalizedEmoji,
         is_local: false,
       });
 
@@ -1431,13 +1441,14 @@ export class ActivityProcessor {
     }
 
     // Create or update block relationship
-    await supabase.from('blocks').upsert({
+    await supabase.from('user_blocks').upsert({
       blocker_id: blocker.id,
-      blocked_id: blocked.id,
+      blocked_user_id: blocked.id,
+      block_type: 'full',
       is_federated: true,
       ap_id: activity.id,
     }, {
-      onConflict: 'blocker_id,blocked_id',
+      onConflict: 'blocker_id,blocked_user_id',
     });
 
     // Also remove any follow relationships
