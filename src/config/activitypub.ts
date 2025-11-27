@@ -8,6 +8,9 @@ export const ACTIVITYPUB_CONFIG = {
   domain: INSTANCE_DOMAIN,
   baseUrl: `https://${INSTANCE_DOMAIN}`,
   
+  // Federation backend API base URL
+  federationApiUrl: '/api/federation',
+  
   // Federation endpoints
   endpoints: {
     webfinger: '/.well-known/webfinger',

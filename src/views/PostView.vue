@@ -331,17 +331,16 @@ const loadPostWithContext = async () => {
 
 // Auto-fetch reactions and replies from federation in the background
 const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
-  const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
   const postType = targetPost.is_local ? 'local' : 'remote';
+  const federationApiUrl = activityPub.federationApiUrl;
   
   console.log(`[PostView] Fetching remote data for ${postType} post:`, targetPost.ap_id);
   
   // Fetch reactions
   try {
-    const fetchUrl = `${federationBackendUrl}/fetch-reactions`;
-    console.log(`[PostView] POST ${fetchUrl}`);
+    console.log(`[PostView] POST ${federationApiUrl}/fetch-reactions`);
     
-    const reactionsResponse = await fetch(fetchUrl, {
+    const reactionsResponse = await fetch(`${federationApiUrl}/fetch-reactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -376,10 +375,9 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
   // Fetch replies (only for remote posts)
   if (!targetPost.is_local) {
     try {
-      const fetchUrl = `${federationBackendUrl}/fetch-replies`;
-      console.log(`[PostView] POST ${fetchUrl}`);
+      console.log(`[PostView] POST ${federationApiUrl}/fetch-replies`);
       
-      const repliesResponse = await fetch(fetchUrl, {
+      const repliesResponse = await fetch(`${federationApiUrl}/fetch-replies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

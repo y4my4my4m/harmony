@@ -53,6 +53,7 @@ interface ActivityPubState {
   instanceUserCount: number;
   instancePostCount: number;
   instanceStatsFetchedAt: number | null;
+  federationApiUrl: string;
   
   // Timeline cache state
   hasEverLoadedTimeline: boolean;
@@ -128,6 +129,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     instanceUserCount: 0,
     instancePostCount: 0,
     instanceStatsFetchedAt: null,
+    federationApiUrl: '/api/federation', // Default, can be overridden from instance_config
     
     // Timeline cache state
     hasEverLoadedTimeline: false,
@@ -284,7 +286,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Fetch instance stats (user count, post count) with caching
+     * Fetch instance stats (user count, post count) and config with caching
      */
     async fetchInstanceStats(force = false) {
       // Skip if cache is valid and not forcing
@@ -294,9 +296,9 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
 
       try {
-        debug.log('🔄 Fetching instance stats from database...');
+        debug.log('🔄 Fetching instance stats and config from database...');
         
-        const [usersResult, postsResult] = await Promise.all([
+        const [usersResult, postsResult, configResult] = await Promise.all([
           supabase
             .from('profiles')
             .select('*', { count: 'exact', head: true })
@@ -305,16 +307,44 @@ export const useActivityPubStore = defineStore('activitypub', {
             .from('posts')
             .select('*', { count: 'exact', head: true })
             .eq('is_local', true)
-            .eq('is_deleted', false)
+            .eq('is_deleted', false),
+          supabase
+            .from('instance_config')
+            .select('config_key, config_value')
+            .in('config_key', ['domain', 'federation_settings', 'federation_backend_url'])
         ]);
         
         this.instanceUserCount = usersResult.count || 0;
         this.instancePostCount = postsResult.count || 0;
+        
+        // Parse instance config
+        if (configResult.data) {
+          for (const config of configResult.data) {
+            if (config.config_key === 'domain') {
+              const domain = JSON.parse(config.config_value);
+              if (domain) this.instanceDomain = domain;
+            }
+            if (config.config_key === 'federation_backend_url') {
+              const url = JSON.parse(config.config_value);
+              if (url) this.federationApiUrl = url;
+            }
+            if (config.config_key === 'federation_settings') {
+              const settings = JSON.parse(config.config_value);
+              // Allow federation_backend_url to be in federation_settings too
+              if (settings?.federation_backend_url) {
+                this.federationApiUrl = settings.federation_backend_url;
+              }
+            }
+          }
+        }
+        
         this.instanceStatsFetchedAt = Date.now();
         
         debug.log('✅ Instance stats cached:', {
           users: this.instanceUserCount,
-          posts: this.instancePostCount
+          posts: this.instancePostCount,
+          domain: this.instanceDomain,
+          federationApiUrl: this.federationApiUrl
         });
       } catch (error) {
         debug.error('Failed to fetch instance stats:', error);
