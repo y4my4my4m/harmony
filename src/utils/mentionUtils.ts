@@ -188,11 +188,12 @@ export function formatMentionsForActivityPub(
  */
 export async function resolveRemoteMention(username: string, domain: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
   try {
-    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || 'https://fed.har.mony.lol';
+    // Use relative URL - federation backend is proxied through the same domain
+    const lookupUrl = '/api/federation/lookup-user';
     
     debug.log(`🌐 Looking up remote user via backend: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
     
-    const response = await fetch(`${federationBackendUrl}/api/lookup-user`, {
+    const response = await fetch(lookupUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

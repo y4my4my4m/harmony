@@ -10,13 +10,13 @@ const router = Router();
 
 /**
  * Lookup remote user via WebFinger
- * POST /api/lookup-user
+ * POST /api/federation/lookup-user
  * Body: { handle: "username@domain" }
  * 
  * This endpoint proxies WebFinger requests to bypass CORS restrictions
  */
 router.post(
-  '/api/lookup-user',
+  '/api/federation/lookup-user',
   asyncHandler(async (req: Request, res: Response) => {
     const { handle, forceRefresh } = req.body;
 
