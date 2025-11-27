@@ -1121,6 +1121,14 @@ async function fetchMisskeyReplies(
       const { noteToContent } = await import('./converters/fromActivityPub.js');
       const content = noteToContent(apLikeNote);
 
+      // Build custom emojis array for metadata
+      const customEmojis: any[] = [];
+      if (note.emojis && typeof note.emojis === 'object') {
+        for (const [name, url] of Object.entries(note.emojis)) {
+          customEmojis.push({ name, url });
+        }
+      }
+      
       // Create the reply
       const { data: newReply, error } = await supabase
         .from('posts')
@@ -1134,8 +1142,11 @@ async function fetchMisskeyReplies(
             : note.visibility === 'followers' ? 'followers'
             : 'direct',
           in_reply_to: parentPostId,
+          content_warning: note.cw || null, // Misskey uses 'cw' for content warning
+          is_sensitive: note.sensitive === true,
           metadata: {
             in_reply_to_ap_url: `https://${domain}/notes/${noteId}`,
+            custom_emojis: customEmojis,
           },
           created_at: note.createdAt,
         })
@@ -1347,17 +1358,37 @@ async function fetchRemotePostReplies(
         // Create the reply post
         const content = noteToContent(note);
         
+        // Determine visibility from AP addressing
+        let visibility = 'public';
+        const to = note.to || [];
+        const cc = note.cc || [];
+        const allRecipients = [...to, ...cc];
+        
+        if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
+          visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
+        } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
+          visibility = 'followers';
+        } else {
+          visibility = 'direct';
+        }
+        
         const replyData: any = {
           ap_id: note.id,
           ap_type: note.type,
           author_id: author.id,
           content,
-          visibility: 'public',
+          visibility,
           is_local: false,
           created_at: note.published || new Date().toISOString(),
           in_reply_to: postId,
+          content_warning: note.summary || null,
+          is_sensitive: note.sensitive === true,
           metadata: {
             in_reply_to_ap_url: postApId,
+            custom_emojis: note.tag?.filter((t: any) => t.type === 'Emoji').map((e: any) => ({
+              name: e.name?.replace(/:/g, ''),
+              url: e.icon?.url,
+            })) || [],
           },
         };
 
