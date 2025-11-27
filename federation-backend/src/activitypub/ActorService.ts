@@ -406,9 +406,13 @@ async function fetchMisskeyReactions(
     const reactionCounts: Map<string, { count: number; emoji_url?: string; is_custom: boolean }> = new Map();
     const reactions: any[] = [];
     
-    // Also fetch the note to get emoji definitions
-    let noteEmojis: Record<string, string> = {};
-    let localEmojis: Record<string, string> = {};
+    // Fetch custom emoji definitions from the remote instance
+    // Two types of custom emojis in reactions:
+    // 1. Native to origin instance (e.g., :kawa_yu@.: on misskey.io) - need to fetch from origin's emoji API
+    // 2. Third-party emojis (e.g., :suteki2@fedibird.com:) - included in note's reactionEmojis
+    
+    let thirdPartyEmojis: Record<string, string> = {};  // Emojis from other instances (via reactionEmojis)
+    let originInstanceEmojis: Record<string, string> = {};  // Emojis native to the origin instance
     
     try {
       const noteResponse = await fetch(`https://${domain}/api/notes/show`, {
@@ -423,31 +427,31 @@ async function fetchMisskeyReactions(
       
       if (noteResponse.ok) {
         const noteData = await noteResponse.json();
-        // Extract emoji URLs from the note's reaction emojis (remote emojis)
+        // reactionEmojis contains third-party emojis (from other instances, federated through this one)
         if (noteData.reactionEmojis) {
-          noteEmojis = noteData.reactionEmojis;
-          logger.info(`📬 Found ${Object.keys(noteEmojis).length} remote custom emoji definitions`);
+          thirdPartyEmojis = noteData.reactionEmojis;
+          logger.info(`📬 Found ${Object.keys(thirdPartyEmojis).length} third-party emoji definitions`);
         }
       }
     } catch (e) {
       logger.warn(`📬 Could not fetch note emoji definitions: ${e}`);
     }
     
-    // Collect local emoji names to fetch
-    const localEmojiNames: string[] = [];
+    // Collect emojis native to the origin instance (marked with @. in Misskey)
+    const originEmojiNames: string[] = [];
     for (const reaction of reactionsData) {
       const emoji = reaction.type || '';
-      // Local Misskey emojis end with @. like :kawa_yu@.:
+      // Origin instance emojis end with @. like :kawa_yu@.:
       if (emoji.startsWith(':') && emoji.endsWith('@.:')) {
         const emojiName = emoji.slice(1, -3); // Remove : and @.:
-        localEmojiNames.push(emojiName);
+        originEmojiNames.push(emojiName);
       }
     }
     
-    // Fetch local emoji URLs if we have any
-    if (localEmojiNames.length > 0) {
+    // Fetch origin instance emoji URLs if we have any
+    if (originEmojiNames.length > 0) {
       try {
-        logger.info(`📬 Fetching ${localEmojiNames.length} local emoji definitions from ${domain}`);
+        logger.info(`📬 Fetching ${originEmojiNames.length} origin-instance emojis from ${domain}`);
         const emojiResponse = await fetch(`https://${domain}/api/emojis`, {
           method: 'POST',
           headers: {
@@ -463,22 +467,21 @@ async function fetchMisskeyReactions(
           // emojiData.emojis is an array of { name, url, ... }
           if (emojiData.emojis && Array.isArray(emojiData.emojis)) {
             for (const e of emojiData.emojis) {
-              if (localEmojiNames.includes(e.name)) {
-                localEmojis[`:${e.name}@.:`] = e.url;
-                logger.debug(`📬 Found local emoji :${e.name}@.: -> ${e.url}`);
+              if (originEmojiNames.includes(e.name)) {
+                originInstanceEmojis[`:${e.name}@.:`] = e.url;
+                logger.debug(`📬 Found origin emoji :${e.name}@.: -> ${e.url}`);
               }
             }
-            logger.info(`📬 Found ${Object.keys(localEmojis).length} local emoji URLs`);
+            logger.info(`📬 Found ${Object.keys(originInstanceEmojis).length} origin-instance emoji URLs`);
           }
         }
       } catch (e) {
-        logger.warn(`📬 Could not fetch local emoji definitions: ${e}`);
+        logger.warn(`📬 Could not fetch origin-instance emoji definitions: ${e}`);
         
         // Fallback: Try to construct URLs directly (Misskey standard pattern)
-        for (const name of localEmojiNames) {
-          // Common Misskey emoji URL patterns
+        for (const name of originEmojiNames) {
           const fallbackUrl = `https://${domain}/emoji/${name}.webp`;
-          localEmojis[`:${name}@.:`] = fallbackUrl;
+          originInstanceEmojis[`:${name}@.:`] = fallbackUrl;
           logger.debug(`📬 Using fallback URL for :${name}@.: -> ${fallbackUrl}`);
         }
       }
@@ -494,14 +497,14 @@ async function fetchMisskeyReactions(
       let emojiUrl: string | undefined;
       
       if (isCustomEmoji) {
-        // First check if it's a local emoji (ends with @.:)
+        // Check if it's an origin-instance emoji (ends with @.:)
         if (emoji.endsWith('@.:')) {
-          emojiUrl = localEmojis[emoji];
+          emojiUrl = originInstanceEmojis[emoji];
         } else {
-          // Try to find emoji URL from note's reactionEmojis (remote emojis)
+          // Try to find emoji URL from third-party emojis (federated through origin)
           // The key in reactionEmojis is the emoji name without colons
           const emojiName = emoji.slice(1, -1); // Remove : from both ends
-          emojiUrl = noteEmojis[emojiName] || noteEmojis[emoji];
+          emojiUrl = thirdPartyEmojis[emojiName] || thirdPartyEmojis[emoji];
         }
         
         if (emojiUrl) {
