@@ -191,6 +191,13 @@ router.post(
 
       logger.info(`✅ ${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
       
+      // Fetch recent posts in the background (don't block the response)
+      if (actor.outbox) {
+        fetchRecentPostsInBackground(savedUser.id, actor.outbox, supabase).catch(err => {
+          logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
+        });
+      }
+      
       return res.json({
         success: true,
         user: savedUser,
@@ -334,6 +341,145 @@ router.get(
     });
   })
 );
+
+/**
+ * Fetch recent posts from a remote user's outbox in the background
+ * Only fetches the first page (up to 10 posts) to avoid overwhelming the database
+ */
+async function fetchRecentPostsInBackground(
+  authorId: string, 
+  outboxUrl: string, 
+  supabase: any
+): Promise<void> {
+  const MAX_POSTS = 10;
+  
+  try {
+    logger.info(`📬 Fetching recent posts from outbox: ${outboxUrl}`);
+    
+    // Fetch the outbox collection
+    const outboxResponse = await fetch(outboxUrl, {
+      headers: {
+        'Accept': 'application/activity+json, application/ld+json',
+        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    
+    if (!outboxResponse.ok) {
+      logger.warn(`Failed to fetch outbox: ${outboxResponse.status}`);
+      return;
+    }
+    
+    const outbox = await outboxResponse.json();
+    
+    // Get the first page URL or use orderedItems directly
+    let items: any[] = [];
+    
+    if (outbox.orderedItems && Array.isArray(outbox.orderedItems)) {
+      // Items are directly in the collection
+      items = outbox.orderedItems.slice(0, MAX_POSTS);
+    } else if (outbox.first) {
+      // Need to fetch the first page
+      const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
+      
+      const pageResponse = await fetch(firstPageUrl, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        },
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (pageResponse.ok) {
+        const page = await pageResponse.json();
+        items = (page.orderedItems || []).slice(0, MAX_POSTS);
+      }
+    }
+    
+    if (items.length === 0) {
+      logger.info(`📬 No posts found in outbox`);
+      return;
+    }
+    
+    logger.info(`📬 Processing ${items.length} posts from outbox`);
+    
+    let savedCount = 0;
+    
+    for (const item of items) {
+      try {
+        // Handle both Create activities and direct Note objects
+        const note = item.type === 'Create' ? item.object : item;
+        
+        // Skip non-Note types (Announce, etc.)
+        if (note.type !== 'Note' && note.type !== 'Article') {
+          continue;
+        }
+        
+        // Check if post already exists
+        const { data: existing } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('ap_id', note.id)
+          .maybeSingle();
+        
+        if (existing) {
+          continue; // Already have this post
+        }
+        
+        // Convert content - strip HTML but preserve line breaks
+        let content = note.content || '';
+        content = content.replace(/<br\s*\/?>/gi, '\n');
+        content = content.replace(/<\/p>\s*<p>/gi, '\n\n');
+        content = content.replace(/<[^>]*>/g, '');
+        content = content.replace(/&nbsp;/g, ' ');
+        content = content.replace(/&amp;/g, '&');
+        content = content.replace(/&lt;/g, '<');
+        content = content.replace(/&gt;/g, '>');
+        content = content.trim();
+        
+        // Determine visibility
+        let visibility = 'public';
+        const to = note.to || [];
+        const cc = note.cc || [];
+        const allRecipients = [...to, ...cc];
+        
+        if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
+          visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
+        } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
+          visibility = 'followers';
+        } else {
+          visibility = 'direct';
+        }
+        
+        // Create the post (simplified - just the basics for display)
+        const { error: insertError } = await supabase
+          .from('posts')
+          .insert({
+            ap_id: note.id,
+            author_id: authorId,
+            content: [{ type: 'text', text: content }], // Simple text content
+            visibility,
+            is_local: false,
+            created_at: note.published || new Date().toISOString(),
+            content_warning: note.summary || null,
+            is_sensitive: note.sensitive === true,
+          });
+        
+        if (!insertError) {
+          savedCount++;
+        }
+      } catch (postError) {
+        // Skip individual post errors, continue with others
+        logger.debug(`Failed to save post:`, postError);
+      }
+    }
+    
+    logger.info(`📬 Saved ${savedCount} new posts from remote user`);
+    
+  } catch (error) {
+    logger.warn(`Failed to fetch outbox posts:`, error);
+  }
+}
 
 export default router;
 
