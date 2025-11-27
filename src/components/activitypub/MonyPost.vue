@@ -1306,19 +1306,20 @@ const fetchRemoteReactions = async () => {
       
       if (result.count > 0) {
         debug.log(`✅ Found ${result.count} reactions from remote instance`);
-        // Log the reaction breakdown for debugging
-        if (result.reactions) {
-          const summary = result.reactions.reduce((acc: Record<string, number>, r: any) => {
-            acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-            return acc;
-          }, {});
-          debug.log(`📊 Reaction breakdown:`, summary);
-        }
       } else {
         debug.log(`📭 No reactions found on remote instance`);
       }
       
-      // Emit refresh event - parent should refetch post data (reactions are in metadata now)
+      // Update post metadata immediately with the returned remote_reactions
+      if (result.remote_reactions) {
+        activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
+          remote_reactions: result.remote_reactions,
+          remote_reactions_fetched_at: new Date().toISOString(),
+        });
+        debug.log(`✅ Updated post metadata with ${Object.keys(result.remote_reactions).length} reaction types`);
+      }
+      
+      // Also emit refresh for any parent that wants to fully reload
       emit('refresh', props.post.id);
     } else {
       debug.error('Failed to fetch remote reactions:', await response.text());

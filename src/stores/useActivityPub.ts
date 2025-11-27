@@ -1708,6 +1708,29 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * Update post metadata in all feeds (for remote reactions, etc.)
+     */
+    updatePostMetadataInAllFeeds(postId: string, metadataUpdate: Record<string, any>) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          post.metadata = { ...(post.metadata || {}), ...metadataUpdate };
+          debug.log(`🔄 Updated post ${postId} metadata in feed`);
+        }
+      });
+
+      // Update in user feeds too
+      this.userFeeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          post.metadata = { ...(post.metadata || {}), ...metadataUpdate };
+        }
+      });
+    },
+
+    /**
      * Toggle post bookmark - clean and professional
      */
     async toggleBookmark(postId: string) {

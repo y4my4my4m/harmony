@@ -329,10 +329,23 @@ router.post(
     try {
       const reactions = await fetchRemotePostReactions(post_ap_id, post_id, supabase);
       
+      // Fetch the updated post metadata to return to the frontend
+      let remote_reactions = null;
+      if (post_id) {
+        const { data: updatedPost } = await supabase
+          .from('posts')
+          .select('metadata')
+          .eq('id', post_id)
+          .single();
+        
+        remote_reactions = updatedPost?.metadata?.remote_reactions || null;
+      }
+      
       return res.json({
         success: true,
         reactions,
         count: reactions.length,
+        remote_reactions, // Include the aggregated data for immediate UI update
       });
     } catch (error: any) {
       logger.error('Failed to fetch reactions:', error);
