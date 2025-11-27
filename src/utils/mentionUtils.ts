@@ -183,66 +183,41 @@ export function formatMentionsForActivityPub(
 }
 
 /**
- * Attempt to resolve remote mention via WebFinger
+ * Attempt to resolve remote mention via backend WebFinger proxy
+ * Uses the federation backend to bypass CORS restrictions
  */
-export async function resolveRemoteMention(username: string, domain: string): Promise<FederatedUser | null> {
+export async function resolveRemoteMention(username: string, domain: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
   try {
-    // WebFinger lookup
-    const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:${username}@${domain}`;
-    const webfingerResponse = await fetch(webfingerUrl, {
-      headers: { 'Accept': 'application/jrd+json' }
-    });
-
-    if (!webfingerResponse.ok) return null;
-
-    const webfinger = await webfingerResponse.json();
-    const selfLink = webfinger.links?.find((link: any) => 
-      link.rel === 'self' && link.type === 'application/activity+json'
-    );
-
-    if (!selfLink) return null;
-
-    // Fetch actor document
-    const actorResponse = await fetch(selfLink.href, {
-      headers: { 'Accept': 'application/activity+json' }
-    });
-
-    if (!actorResponse.ok) return null;
-
-    const actor = await actorResponse.json();
-
-    // Store remote user in database
-    const remoteUser = {
-      username,
-      display_name: actor.name || actor.preferredUsername,
-      domain,
-      avatar_url: actor.icon?.url,
-      banner_url: actor.image?.url, // Add banner support
-      bio: actor.summary || '',
-      federated_id: actor.id,
-      public_key: actor.publicKey?.publicKeyPem,
-      inbox_url: actor.inbox,
-      outbox_url: actor.outbox,
-      followers_url: actor.followers,
-      following_url: actor.following,
-      featured_url: actor.featured,
-      is_local: false,
-      last_synced_at: new Date().toISOString()
-    };
-
-    const { data: savedUser, error } = await supabase
-      .from('profiles')
-      .upsert(remoteUser, {
-        onConflict: 'username,domain',
-        ignoreDuplicates: false
+    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || 'https://fed.har.mony.lol';
+    
+    debug.log(`🌐 Looking up remote user via backend: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
+    
+    const response = await fetch(`${federationBackendUrl}/api/lookup-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        handle: `${username}@${domain}`,
+        forceRefresh
       })
-      .select()
-      .single();
+    });
 
-    if (error) {
-      debug.error('Failed to save remote user:', error);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      debug.warn(`❌ Remote user lookup failed: ${errorData.error || response.statusText}`);
       return null;
     }
+
+    const result = await response.json();
+    
+    if (!result.success || !result.user) {
+      debug.warn(`❌ Remote user lookup returned no user`);
+      return null;
+    }
+
+    const savedUser = result.user;
+    debug.log(`✅ ${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${username}@${domain}`);
 
     return {
       id: savedUser.id,
@@ -250,7 +225,7 @@ export async function resolveRemoteMention(username: string, domain: string): Pr
       display_name: savedUser.display_name,
       domain: savedUser.domain,
       avatar_url: savedUser.avatar_url,
-      banner_url: savedUser.banner_url, // Include banner in return
+      banner_url: savedUser.banner_url,
       handle: `@${username}@${domain}`,
       is_local: false,
       bio: savedUser.bio || '',

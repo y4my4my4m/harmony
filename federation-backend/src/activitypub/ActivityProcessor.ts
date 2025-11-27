@@ -971,12 +971,12 @@ export class ActivityProcessor {
           const originalPostId = reblogPost.metadata?.reblog_of;
           if (originalPostId) {
             const actorUrl = normalizeActor(activity.actor);
-            const { data: user } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('federated_id', actorUrl)
-              .single();
-            
+        const { data: user } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('federated_id', actorUrl)
+          .single();
+
             if (user) {
               await supabase
                 .from('post_interactions')
@@ -1019,28 +1019,28 @@ export class ActivityProcessor {
     }
 
     // Try by ap_id first
-    let post = null;
-    const { data: postByApId } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('ap_id', objectUrl)
-      .maybeSingle();
-    
-    post = postByApId;
-    
-    // Fallback: try extracting UUID from URL (for local posts)
-    if (!post && objectUrl.includes('/posts/')) {
-      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
-      if (uuidMatch) {
-        logger.info(`🔍 Trying to find local post by UUID: ${uuidMatch[1]}`);
-        const { data: postById } = await supabase
+        let post = null;
+        const { data: postByApId } = await supabase
           .from('posts')
           .select('id')
-          .eq('id', uuidMatch[1])
+          .eq('ap_id', objectUrl)
           .maybeSingle();
-        post = postById;
-      }
-    }
+        
+        post = postByApId;
+        
+    // Fallback: try extracting UUID from URL (for local posts)
+        if (!post && objectUrl.includes('/posts/')) {
+          const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+          if (uuidMatch) {
+        logger.info(`🔍 Trying to find local post by UUID: ${uuidMatch[1]}`);
+            const { data: postById } = await supabase
+              .from('posts')
+              .select('id')
+              .eq('id', uuidMatch[1])
+              .maybeSingle();
+            post = postById;
+          }
+        }
 
     if (!post) {
       logger.warn(`Post not found for Undo reaction: ${objectUrl}`);
@@ -1049,11 +1049,11 @@ export class ActivityProcessor {
 
     // Delete from post_interactions
     const { error, count } = await supabase
-      .from('post_interactions')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('post_id', post.id)
-      .in('interaction_type', ['favorite', 'emoji_reaction']);
+            .from('post_interactions')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('post_id', post.id)
+            .in('interaction_type', ['favorite', 'emoji_reaction']);
 
     if (error) {
       logger.error(`Failed to delete reaction:`, error);
@@ -1086,15 +1086,15 @@ export class ActivityProcessor {
             .single();
 
           const { data: following } = await supabase
-            .from('profiles')
-            .select('id')
+              .from('profiles')
+              .select('id')
             .eq('federated_id', followingUrl)
-            .single();
-
+              .single();
+            
           if (follower && following) {
-            await supabase
+              await supabase
               .from('follows')
-              .delete()
+                .delete()
               .eq('follower_id', follower.id)
               .eq('following_id', following.id);
             logger.info(`✅ Undid follow: ${followerUrl} → ${followingUrl}`);

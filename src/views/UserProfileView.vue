@@ -423,8 +423,10 @@ const handleOpenSearch = () => {
 }
 
 const handleRefresh = () => {
-  debug.log('🔄 Refreshing profile data...');
-  loadUserProfile(currentHandle.value);
+  const handle = currentHandle.value;
+  const isRemote = handle.includes('@') && !handle.endsWith('@har.mony.lol');
+  debug.log(`🔄 Refreshing profile data...${isRemote ? ' (force refresh for remote user)' : ''}`);
+  loadUserProfile(handle, isRemote); // Force refresh for remote users
 };
 
 // Computed
@@ -454,8 +456,8 @@ const formatJoinDate = (dateString: string): string => {
   return format(new Date(dateString), 'MMMM yyyy');
 };
 
-const loadUserProfile = async (handle: string) => {
-  debug.log(`🔄 Loading profile for handle: ${handle}`);
+const loadUserProfile = async (handle: string, forceRefresh: boolean = false) => {
+  debug.log(`🔄 Loading profile for handle: ${handle}${forceRefresh ? ' (force refresh)' : ''}`);
   isLoading.value = true;
   error.value = null;
   user.value = null; // Clear previous user data
@@ -470,8 +472,8 @@ const loadUserProfile = async (handle: string) => {
     
     // Check if it's a federated handle (contains @) or local handle
     if (handle.includes('@')) {
-      debug.log('🌐 Resolving federated user...');
-      user.value = await activityPubService.getUserByHandle(handle);
+      debug.log(`🌐 Resolving federated user...${forceRefresh ? ' (force refresh)' : ''}`);
+      user.value = await activityPubService.getUserByHandle(handle, forceRefresh);
     } else {
       debug.log('👤 Looking up local user...');
       

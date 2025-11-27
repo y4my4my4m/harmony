@@ -1524,30 +1524,52 @@ export class ActivityPubService {
 
   /**
    * Get user profile by handle (@username@domain)
+   * Will attempt to fetch from remote if not found locally
    */
-  async getUserByHandle(handle: string): Promise<FederatedUser | null> {
+  async getUserByHandle(handle: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
     // Parse handle (@username@domain or @username)
     const cleanHandle = handle.startsWith('@') ? handle.slice(1) : handle;
     const [username, domain] = cleanHandle.includes('@') 
       ? cleanHandle.split('@')
       : [cleanHandle, this.currentDomain];
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('username', username)
-      .eq('domain', domain)
-      .single();
+    const isRemote = domain !== this.currentDomain;
 
-    if (error) {
-      if (error.code === 'PGRST116') return null; // Not found
-      throw error;
+    // If force refresh on a remote user, skip local lookup
+    if (!forceRefresh || !isRemote) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .eq('domain', domain)
+        .single();
+
+      if (!error && data) {
+        return {
+          ...data,
+          handle: this.formatUserHandle(data.username, data.domain)
+        } as FederatedUser;
+      }
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
     }
 
-    return {
-      ...data,
-      handle: this.formatUserHandle(data.username, data.domain)
-    } as FederatedUser;
+    // If remote user not found locally (or force refresh), try to fetch from federation
+    if (isRemote) {
+      debug.log(`🌐 ${forceRefresh ? 'Force refreshing' : 'Fetching'} remote user: ${username}@${domain}`);
+      
+      const { resolveRemoteMention } = await import('@/utils/mentionUtils');
+      const remoteUser = await resolveRemoteMention(username, domain, forceRefresh);
+      
+      if (remoteUser) {
+        debug.log(`✅ Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: ${handle}`);
+        return remoteUser;
+      }
+    }
+
+    return null;
   }
 
   /**
