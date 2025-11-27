@@ -77,7 +77,27 @@ router.post(
         });
       }
 
-      const webfinger = await webfingerResponse.json();
+      // Check content type to ensure we got JSON, not XML
+      const contentType = webfingerResponse.headers.get('content-type') || '';
+      if (contentType.includes('xml')) {
+        logger.warn(`❌ WebFinger returned XML instead of JSON for ${username}@${domain}`);
+        return res.status(500).json({
+          error: 'Remote instance returned XML format (not supported)',
+          details: 'The remote instance does not support JSON WebFinger responses'
+        });
+      }
+
+      const responseText = await webfingerResponse.text();
+      let webfinger;
+      try {
+        webfinger = JSON.parse(responseText);
+      } catch (parseError) {
+        logger.error(`❌ Failed to parse WebFinger response as JSON: ${responseText.substring(0, 100)}...`);
+        return res.status(500).json({
+          error: 'Invalid WebFinger response from remote instance',
+          details: 'Response was not valid JSON'
+        });
+      }
       logger.info(`📋 WebFinger response: ${JSON.stringify(webfinger.links?.length || 0)} links`);
       
       // Find the ActivityPub self link
