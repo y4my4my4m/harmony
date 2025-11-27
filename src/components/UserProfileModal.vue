@@ -97,16 +97,16 @@
             <span class="stat-label">Status</span>
           </div>
           
-          <!-- ActivityPub/Federated User Stats -->
-          <div v-if="socialStats" class="stat-item">
+          <!-- ActivityPub/Federated User Stats (clickable to navigate to profile) -->
+          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View all posts">
             <span class="stat-value">{{ formatSocialCount(socialStats.posts) }}</span>
             <span class="stat-label">Posts</span>
           </div>
-          <div v-if="socialStats" class="stat-item">
+          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View following">
             <span class="stat-value">{{ formatSocialCount(socialStats.following) }}</span>
             <span class="stat-label">{{ t('activitypub.following') }}</span>
           </div>
-          <div v-if="socialStats" class="stat-item">
+          <div v-if="socialStats" class="stat-item clickable" @click="navigateToProfile" title="View followers">
             <span class="stat-value">{{ formatSocialCount(socialStats.followers) }}</span>
             <span class="stat-label">{{ t('activitypub.followers') }}</span>
           </div>
@@ -119,7 +119,7 @@
         </div>
 
         <!-- Federation Info (for remote users) -->
-        <div v-if="isFederatedUser(user) && !user?.is_local" class="federation-section">
+        <div v-if="isFederatedUser(user)" class="federation-section">
           <h3 class="section-title">
             <Icon name="link" class="section-icon" />
             Federation Info
@@ -127,18 +127,21 @@
           <div class="federation-info">
             <div class="federation-item">
               <span class="federation-label">Instance:</span>
-              <span class="federation-value">{{ user.domain }}</span>
+              <span class="federation-value">{{ user.domain || currentDomain }}</span>
               <div v-if="instanceInfo" class="instance-badge" :class="instanceInfo.status">
                 {{ instanceInfo.software || 'Unknown' }}
+              </div>
+              <div v-else-if="isLoadingInstanceInfo" class="instance-badge loading">
+                Loading...
               </div>
             </div>
             <div class="federation-item">
               <span class="federation-label">Profile URL:</span>
-              <a :href="user.instance_url || `https://${user.domain}/@${user.username}`" 
+              <a :href="getProfileUrl(user)" 
                  target="_blank" 
                  rel="noopener noreferrer" 
                  class="federation-link">
-                View on {{ user.domain }}
+                View on {{ user.domain || currentDomain }}
               </a>
             </div>
             <div v-if="user.last_status_at" class="federation-item">
@@ -199,7 +202,7 @@
             
             <!-- Federated User Activities -->
             <template v-else>
-              <div class="activity-card">
+              <div class="activity-card clickable" @click="navigateToProfile" title="View all posts">
                 <div class="activity-icon">
                   <Icon name="post" class="activity-icon-svg" />
                 </div>
@@ -209,7 +212,7 @@
                 </div>
               </div>
               
-              <div class="activity-card">
+              <div class="activity-card clickable" @click="navigateToProfile" title="View profile">
                 <div class="activity-icon">
                   <Icon name="interaction" class="activity-icon-svg" />
                 </div>
@@ -341,10 +344,99 @@ const {
 const showActionsMenu = ref(false)
 const userNote = ref('')
 const instanceInfo = ref<{ status: string; software?: string } | null>(null)
+const isLoadingInstanceInfo = ref(false)
 
-// Type guards
+// Get the current instance domain
+const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+
+/**
+ * Fetch instance info for a domain via nodeinfo
+ */
+async function loadInstanceInfo(domain: string) {
+  if (!domain || isLoadingInstanceInfo.value) return
+  
+  isLoadingInstanceInfo.value = true
+  try {
+    // Try to fetch nodeinfo
+    const nodeinfoResponse = await fetch(`https://${domain}/.well-known/nodeinfo`)
+    if (nodeinfoResponse.ok) {
+      const nodeinfo = await nodeinfoResponse.json()
+      const links = nodeinfo.links || []
+      
+      // Find nodeinfo 2.0 or 2.1 link
+      const nodeinfoLink = links.find((link: any) => 
+        link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0' ||
+        link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1'
+      )
+      
+      if (nodeinfoLink) {
+        const infoResponse = await fetch(nodeinfoLink.href)
+        if (infoResponse.ok) {
+          const info = await infoResponse.json()
+          instanceInfo.value = {
+            status: 'active',
+            software: info.software?.name || 'Unknown'
+          }
+          return
+        }
+      }
+    }
+    
+    // Fallback: Try Mastodon API
+    const mastodonResponse = await fetch(`https://${domain}/api/v1/instance`)
+    if (mastodonResponse.ok) {
+      const info = await mastodonResponse.json()
+      instanceInfo.value = {
+        status: 'active',
+        software: info.version?.includes('Mastodon') ? 'Mastodon' : 'Unknown'
+      }
+      return
+    }
+    
+    // No info found
+    instanceInfo.value = { status: 'unknown', software: undefined }
+  } catch (error) {
+    debug.error('Failed to load instance info:', error)
+    instanceInfo.value = { status: 'unknown', software: undefined }
+  } finally {
+    isLoadingInstanceInfo.value = false
+  }
+}
+
+// Type guards - check for ActivityPub-related properties
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
-  return user !== null && 'handle' in user
+  if (!user) return false;
+  // Check for common federated user properties
+  return 'handle' in user || 
+         'domain' in user || 
+         'followers_count' in user || 
+         'following_count' in user ||
+         'posts_count' in user ||
+         'federated_id' in user;
+}
+
+/**
+ * Get the appropriate profile URL for viewing on the user's instance
+ * For remote users: use federated_id (their canonical ActivityPub URL)
+ * For local users: link to our profile page
+ */
+function getProfileUrl(user: FederatedUser | User | null): string {
+  if (!user) return '#'
+  
+  const fed = user as FederatedUser
+  
+  // For local users, link to our frontend profile page
+  if (fed.is_local || fed.domain === currentDomain || !fed.domain) {
+    return `https://${currentDomain}/social/profile/${fed.username || (user as User).username}`
+  }
+  
+  // For remote users, use federated_id if available (canonical URL)
+  if (fed.federated_id) {
+    return fed.federated_id
+  }
+  
+  // Fallback: construct typical Mastodon-style URL
+  return `https://${fed.domain}/@${fed.username}`
 }
 
 // Computed properties
@@ -370,12 +462,20 @@ const displayAbout = computed(() => {
 })
 
 const socialStats = computed(() => {
-  if (!props.user || !isFederatedUser(props.user)) return null
+  if (!props.user) return null;
+  
+  // Check if user has any social stats (works for both federated and local users with AP integration)
+  const user = props.user as any;
+  const hasSocialStats = user.posts_count !== undefined || 
+                         user.following_count !== undefined || 
+                         user.followers_count !== undefined;
+  
+  if (!hasSocialStats) return null;
   
   return {
-    posts: props.user.posts_count || 0,
-    following: props.user.following_count || 0,
-    followers: props.user.followers_count || 0
+    posts: user.posts_count || 0,
+    following: user.following_count || 0,
+    followers: user.followers_count || 0
   }
 })
 
@@ -532,6 +632,31 @@ const mentionUser = () => {
   emit('close')
 }
 
+const navigateToProfile = () => {
+  if (!props.user) return
+  
+  // Close modal and navigate to full profile
+  emit('close')
+  
+  // Build the handle for navigation
+  const user = props.user as any
+  let handle = user.handle || `@${user.username}`
+  
+  // Remove leading @ for routing
+  handle = handle.replace(/^@/, '')
+  
+  // Remove local domain if present
+  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+  if (handle.endsWith(`@${currentDomain}`)) {
+    handle = handle.replace(`@${currentDomain}`, '')
+  }
+  
+  router.push({ 
+    name: 'UserProfile', 
+    params: { handle: encodeURIComponent(handle) }
+  })
+}
+
 const openInviteModal = () => {
   emit('invite')
   showActionsMenu.value = false
@@ -638,10 +763,17 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
   if (!newVal.show || !newVal.userId) {
     // Modal closed or no user - cleanup
     await cleanupProfilePresence()
+    instanceInfo.value = null
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
     await initializeProfilePresence()
+    
+    // Load instance info for federation section
+    if (props.user && isFederatedUser(props.user)) {
+      const domain = (props.user as FederatedUser).domain || currentDomain
+      loadInstanceInfo(domain)
+    }
   }
 }, { immediate: true })
 
@@ -937,6 +1069,22 @@ onMounted(() => {
   text-align: center;
 }
 
+.stat-item.clickable {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.stat-item.clickable:hover {
+  background: rgba(88, 101, 242, 0.15);
+  transform: scale(1.05);
+}
+
+.stat-item.clickable:hover .stat-value {
+  color: #5865f2;
+}
+
 .stat-value {
   font-size: 16px;
   font-weight: 700;
@@ -1062,6 +1210,20 @@ onMounted(() => {
 .activity-card:hover {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+.activity-card.clickable {
+  cursor: pointer;
+}
+
+.activity-card.clickable:hover {
+  background: rgba(88, 101, 242, 0.1);
+  border-color: rgba(88, 101, 242, 0.3);
+  transform: translateY(-1px);
+}
+
+.activity-card.clickable:hover .activity-icon {
+  background: rgba(88, 101, 242, 0.3);
 }
 
 .activity-icon {

@@ -128,7 +128,7 @@ export async function startDatabaseListener(): Promise<void> {
         await handleProfileUpdate(payload.old, payload.new);
       }
     )
-    // Listen for post deletions (soft-delete via UPDATE)
+    // Listen for post updates (deletions, pins, and edits)
     .on(
       'postgres_changes',
       {
@@ -137,11 +137,64 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'posts',
       },
       async (payload) => {
-        // Only handle deletion events (is_deleted changed from false to true)
+        // Handle deletion events (is_deleted changed from false to true)
         if (payload.new.is_deleted && !payload.old?.is_deleted) {
           logger.info('🗑️ Post deletion detected:', payload.new.id);
           await handlePostDeletion(payload.new, payload.old);
         }
+        // Handle pin/unpin events (is_pinned changed)
+        else if (payload.new.is_pinned !== payload.old?.is_pinned) {
+          logger.info(`📌 Post ${payload.new.is_pinned ? 'pinned' : 'unpinned'}:`, payload.new.id);
+          await handlePinChange(payload.new, payload.old);
+        }
+        // Handle post edits (content or content_warning changed)
+        else if (
+          payload.new.updated_at !== payload.old?.updated_at &&
+          (JSON.stringify(payload.new.content) !== JSON.stringify(payload.old?.content) ||
+           payload.new.content_warning !== payload.old?.content_warning)
+        ) {
+          logger.info('✏️ Post edit detected:', payload.new.id);
+          await handlePostEdit(payload.new, payload.old);
+        }
+      }
+    )
+    // Listen for new blocks
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'user_blocks',
+      },
+      async (payload) => {
+        logger.info('🚫 New block detected:', payload.new.id);
+        await handleNewBlock(payload.new);
+      }
+    )
+    // Listen for block removals (unblock)
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'user_blocks',
+      },
+      async (payload) => {
+        logger.info('✅ Unblock detected:', payload.old?.id);
+        await handleUnblock(payload.old);
+      }
+    )
+    // Listen for new reports
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'reports',
+      },
+      async (payload) => {
+        logger.info('🚩 New report detected:', payload.new.id);
+        await handleNewReport(payload.new);
       }
     )
     // Listen for unfollow events
@@ -672,6 +725,311 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
     // Note: Reblog removals are handled via post deletion (Undo Announce)
   } catch (error) {
     logger.error('Failed to handle interaction removal:', error);
+  }
+}
+
+/**
+ * Handle pin/unpin changes - send Add/Remove activity
+ */
+async function handlePinChange(post: any, oldPost: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Get full post data
+    const { data: fullPost } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', post.id)
+      .single();
+
+    if (!fullPost || !fullPost.is_local) {
+      logger.debug('Cannot federate pin change for non-local post');
+      return;
+    }
+
+    // Get author
+    const { data: author } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', fullPost.author_id)
+      .single();
+
+    if (!author || !author.is_local) {
+      return;
+    }
+
+    const { createAddToFeaturedActivity, createRemoveFromFeaturedActivity } = await import('./FederationHandlers.js');
+    
+    const isPinned = post.is_pinned && !oldPost?.is_pinned;
+    const isUnpinned = !post.is_pinned && oldPost?.is_pinned;
+
+    let activity;
+    if (isPinned) {
+      activity = createAddToFeaturedActivity(author, fullPost);
+      logger.info(`📌 Federating pin for post ${post.id}`);
+    } else if (isUnpinned) {
+      activity = createRemoveFromFeaturedActivity(author, fullPost);
+      logger.info(`📌 Federating unpin for post ${post.id}`);
+    } else {
+      return;
+    }
+
+    // Get followers to notify
+    const { data: followers } = await supabase
+      .from('follows')
+      .select('follower:profiles!follows_follower_id_fkey(id, inbox_url, is_local, shared_inbox_url)')
+      .eq('following_id', author.id)
+      .eq('status', 'accepted');
+
+    if (!followers || followers.length === 0) {
+      logger.debug('No followers to notify about pin change');
+      return;
+    }
+
+    // Collect unique inboxes
+    const inboxes = new Set<string>();
+    for (const follow of followers) {
+      const follower = follow.follower as any;
+      if (!follower?.is_local && follower?.inbox_url) {
+        inboxes.add(follower.shared_inbox_url || follower.inbox_url);
+      }
+    }
+
+    // Send to all follower inboxes
+    for (const inbox of inboxes) {
+      await DeliveryQueue.sendToInbox(inbox, activity, author.id);
+    }
+
+    logger.info(`📌 Pin change federated to ${inboxes.size} inboxes`);
+  } catch (error) {
+    logger.error('Failed to handle pin change:', error);
+  }
+}
+
+/**
+ * Handle new block - send Block activity
+ */
+async function handleNewBlock(block: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Get blocker
+    const { data: blocker } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', block.blocker_id)
+      .single();
+
+    // Get blocked user (column is blocked_user_id in user_blocks table)
+    const { data: blocked } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', block.blocked_user_id)
+      .single();
+
+    if (!blocker?.is_local || !blocked) {
+      logger.debug('Block not from local user or blocked user not found');
+      return;
+    }
+
+    // Only federate if blocked user is remote
+    if (blocked.is_local) {
+      logger.debug('Blocked user is local, no federation needed');
+      return;
+    }
+
+    const { createBlockActivity } = await import('./FederationHandlers.js');
+    const activity = createBlockActivity(blocker, blocked);
+
+    if (blocked.inbox_url) {
+      await DeliveryQueue.sendToInbox(blocked.inbox_url, activity, blocker.id);
+      logger.info(`🚫 Block federated to ${blocked.inbox_url}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle new block:', error);
+  }
+}
+
+/**
+ * Handle unblock - send Undo Block activity
+ */
+async function handleUnblock(block: any): Promise<void> {
+  try {
+    if (!block) return;
+
+    const supabase = getSupabaseClient();
+
+    // Get blocker
+    const { data: blocker } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', block.blocker_id)
+      .single();
+
+    // Get blocked user (column is blocked_user_id in user_blocks table)
+    const { data: blocked } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', block.blocked_user_id)
+      .single();
+
+    if (!blocker?.is_local || !blocked) {
+      return;
+    }
+
+    // Only federate if blocked user is remote
+    if (blocked.is_local) {
+      return;
+    }
+
+    const { createUndoBlockActivity } = await import('./FederationHandlers.js');
+    const activity = createUndoBlockActivity(blocker, blocked);
+
+    if (blocked.inbox_url) {
+      await DeliveryQueue.sendToInbox(blocked.inbox_url, activity, blocker.id);
+      logger.info(`✅ Unblock federated to ${blocked.inbox_url}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle unblock:', error);
+  }
+}
+
+/**
+ * Handle post edit - send Update activity
+ */
+async function handlePostEdit(editedPost: any, _oldPost: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Get full post data
+    const { data: post } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', editedPost.id)
+      .single();
+
+    if (!post || !post.is_local) {
+      logger.debug('Cannot federate edit for non-local post');
+      return;
+    }
+
+    // Only federate public/unlisted posts
+    if (!['public', 'unlisted'].includes(post.visibility)) {
+      logger.debug('Skipping edit federation for private post');
+      return;
+    }
+
+    // Get author
+    const { data: author } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', post.author_id)
+      .single();
+
+    if (!author || !author.is_local) {
+      return;
+    }
+
+    const { createPostUpdateActivity } = await import('./FederationHandlers.js');
+    const activity = await createPostUpdateActivity(post, author);
+
+    logger.info(`✏️ Federating post edit: ${post.id}`);
+
+    // Get followers to notify
+    const { data: followers } = await supabase
+      .from('follows')
+      .select('follower:profiles!follows_follower_id_fkey(id, inbox_url, is_local, shared_inbox_url)')
+      .eq('following_id', author.id)
+      .eq('status', 'accepted');
+
+    if (!followers || followers.length === 0) {
+      logger.debug('No followers to notify about post edit');
+      return;
+    }
+
+    // Collect unique inboxes
+    const inboxes = new Set<string>();
+    for (const follow of followers) {
+      const follower = follow.follower as any;
+      if (!follower?.is_local && follower?.inbox_url) {
+        inboxes.add(follower.shared_inbox_url || follower.inbox_url);
+      }
+    }
+
+    // Send to all follower inboxes
+    for (const inbox of inboxes) {
+      await DeliveryQueue.sendToInbox(inbox, activity, author.id);
+    }
+
+    logger.info(`✏️ Post edit federated to ${inboxes.size} inboxes`);
+  } catch (error) {
+    logger.error('Failed to handle post edit:', error);
+  }
+}
+
+/**
+ * Handle new report - send Flag activity to remote instance
+ */
+async function handleNewReport(report: any): Promise<void> {
+  try {
+    // Skip if this report came from federation (source === 'federation')
+    if (report.source === 'federation') {
+      logger.debug('Report is from federation, not re-federating');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Get reporter
+    const { data: reporter } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', report.reporter_id)
+      .single();
+
+    if (!reporter?.is_local) {
+      return;
+    }
+
+    // Get reported user
+    const { data: reportedUser } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', report.reported_user_id)
+      .single();
+
+    if (!reportedUser) {
+      return;
+    }
+
+    // Only federate if reported user is remote
+    if (reportedUser.is_local) {
+      logger.debug('Reported user is local, no federation needed');
+      return;
+    }
+
+    // Get reported post if applicable
+    let reportedPost = null;
+    if (report.reported_post_id) {
+      const { data: post } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', report.reported_post_id)
+        .single();
+      reportedPost = post;
+    }
+
+    const { createFlagActivity } = await import('./FederationHandlers.js');
+    const activity = createFlagActivity(reporter, reportedUser, reportedPost, report.reason);
+
+    // Send to the reported user's instance inbox
+    const instanceDomain = reportedUser.domain;
+    const instanceInbox = `https://${instanceDomain}/inbox`;
+
+    await DeliveryQueue.sendToInbox(instanceInbox, activity, reporter.id);
+    logger.info(`🚩 Report federated to ${instanceInbox}`);
+  } catch (error) {
+    logger.error('Failed to handle new report:', error);
   }
 }
 

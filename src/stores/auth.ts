@@ -335,6 +335,25 @@ export const useAuthStore = defineStore('auth', {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       
+      // Check if user is suspended BEFORE allowing further login
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_suspended, suspension_reason')
+          .eq('auth_user_id', data.user.id)
+          .maybeSingle();
+        
+        if (profile?.is_suspended) {
+          // Sign out the user immediately
+          await supabase.auth.signOut();
+          throw new Error(
+            profile.suspension_reason 
+              ? `Your account has been suspended: ${profile.suspension_reason}`
+              : 'Your account has been suspended. Please contact an administrator.'
+          );
+        }
+      }
+      
       // Check if user has 2FA enabled
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');

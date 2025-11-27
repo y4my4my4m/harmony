@@ -180,7 +180,9 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
  * This should be called before parseContentToMessageParts for optimal performance
  */
 export async function resolveHashtagsData(content: string): Promise<Record<string, { id: string; count: number; last_updated: string; normalized: string }>> {
-  const hashtagRegex = /#([a-zA-Z0-9_-]+)/g;
+  // Unicode-aware hashtag regex: supports Japanese, Chinese, Korean, etc.
+  // \p{L} = any letter, \p{N} = any number, includes CJK characters
+  const hashtagRegex = /#([\p{L}\p{N}_-]+)/gu;
   const hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {};
   
   let match;
@@ -235,7 +237,8 @@ export async function parseContentToMessageParts(
 
   // Parse mentions, hashtags, URLs, and emojis in order of appearance
   // Combined regex to match mentions, hashtags in one pass
-  const combinedRegex = /(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([a-zA-Z0-9_-]+)/g;
+  // Unicode-aware: \p{L} = any letter, \p{N} = any number (includes CJK, etc.)
+  const combinedRegex = /(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
   const parts: MessagePart[] = [];
   
   let lastIndex = 0;
@@ -615,7 +618,8 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
       // Check if this is a hashtag
       if (element.tagName === 'A' && element.classList.contains('hashtag')) {
         const text = element.textContent || '';
-        const tagMatch = text.match(/^#(\w+)$/);
+        // Unicode-aware hashtag regex for CJK and other scripts
+        const tagMatch = text.match(/^#([\p{L}\p{N}_-]+)$/u);
         if (tagMatch) {
           parts.push({
             type: 'hashtag',

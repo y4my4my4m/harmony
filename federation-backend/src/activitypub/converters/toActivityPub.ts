@@ -146,6 +146,28 @@ export function profileToActor(profile: any): any {
     };
   }
 
+  // Add featured collection (pinned posts)
+  actor.featured = `${userUrl}/featured`;
+
+  // Add profile fields as PropertyValue attachments
+  if (profile.profile_fields && Array.isArray(profile.profile_fields)) {
+    actor.attachment = profile.profile_fields.map((field: any) => ({
+      type: 'PropertyValue',
+      name: field.name,
+      value: field.value,
+    }));
+  }
+
+  // Add manually_approves_followers flag
+  if (profile.manually_approves_followers) {
+    actor.manuallyApprovesFollowers = true;
+  }
+
+  // Add discoverable flag
+  if (profile.federation_discoverable !== undefined) {
+    actor.discoverable = profile.federation_discoverable;
+  }
+
   return actor;
 }
 
@@ -352,12 +374,81 @@ function extractAttachments(content: any): any[] {
 
   return content
     .filter((item) => item.type === 'file')
-    .map((item) => ({
-      type: 'Document',
-      mediaType: item.fileType || 'application/octet-stream',
-      url: item.url,
-      name: item.name || null,
-    }));
+    .map((item) => {
+      // Convert simple fileType to proper MIME type
+      const mediaType = getMediaType(item.fileType, item.mimeType, item.url);
+      
+      const attachment: any = {
+        type: 'Document',
+        mediaType,
+        url: item.url,
+        name: item.altText || item.description || item.name || null, // Alt text for accessibility
+      };
+
+      // Add dimensions if available (important for image layout)
+      if (item.width) attachment.width = item.width;
+      if (item.height) attachment.height = item.height;
+      
+      // Add blurhash if available (placeholder image)
+      if (item.blurhash) attachment.blurhash = item.blurhash;
+      
+      // Add focal point if available (for image cropping)
+      if (item.focalPoint) attachment.focalPoint = item.focalPoint;
+      
+      return attachment;
+    });
+}
+
+/**
+ * Helper: Get proper MIME type from fileType or URL
+ */
+function getMediaType(fileType?: string, mimeType?: string, url?: string): string {
+  // If we already have a proper MIME type, use it
+  if (mimeType && mimeType.includes('/')) {
+    return mimeType;
+  }
+  
+  // If fileType is already a MIME type, use it
+  if (fileType && fileType.includes('/')) {
+    return fileType;
+  }
+  
+  // Try to infer from URL extension
+  if (url) {
+    const extension = url.split('.').pop()?.toLowerCase().split('?')[0];
+    const extensionMap: Record<string, string> = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'svg': 'image/svg+xml',
+      'mp4': 'video/mp4',
+      'webm': 'video/webm',
+      'mov': 'video/quicktime',
+      'mp3': 'audio/mpeg',
+      'ogg': 'audio/ogg',
+      'wav': 'audio/wav',
+      'pdf': 'application/pdf',
+    };
+    if (extension && extensionMap[extension]) {
+      return extensionMap[extension];
+    }
+  }
+  
+  // Fallback based on simple fileType
+  if (fileType) {
+    const typeMap: Record<string, string> = {
+      'image': 'image/jpeg', // Default image type
+      'video': 'video/mp4',  // Default video type
+      'audio': 'audio/mpeg', // Default audio type
+    };
+    if (typeMap[fileType]) {
+      return typeMap[fileType];
+    }
+  }
+  
+  return 'application/octet-stream';
 }
 
 /**

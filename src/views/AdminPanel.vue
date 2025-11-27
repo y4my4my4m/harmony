@@ -585,6 +585,17 @@
           </div>
         </div>
       </div>
+
+      <!-- Emoji Importer -->
+      <div class="admin-module emoji-module">
+        <div class="module-header">
+          <Icon name="emoji" :size="20" />
+          <h2>Remote Emoji Importer</h2>
+        </div>
+        <div class="emoji-content">
+          <EmojiImporter />
+        </div>
+      </div>
     </div>
 
     <!-- User Servers Modal -->
@@ -665,6 +676,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult } from '@/services/AdminService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 
@@ -2418,6 +2430,17 @@ const handleAddInstance = () => {
   gap: 12px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* Emoji Importer Module */
+.emoji-module {
+  grid-column: span 2; /* Full width like other major modules */
+}
+
+.emoji-content {
+  padding: 0;
+  max-height: 600px;
+  overflow-y: auto;
 }
 
 /* Configuration Module */

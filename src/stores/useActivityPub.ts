@@ -49,6 +49,19 @@ interface ActivityPubState {
   // Instance state
   knownInstances: any[];
   blockedInstances: Set<string>;
+  instanceDomain: string;
+  instanceUserCount: number;
+  instancePostCount: number;
+  instanceStatsFetchedAt: number | null;
+  federationApiUrl: string;
+  
+  // Timeline cache state
+  hasEverLoadedTimeline: boolean;
+  timelineCacheTimestamp: number | null;
+  
+  // Suggested follows cache
+  suggestedUsers: any[];
+  suggestedUsersFetchedAt: number | null;
   
   // UI state
   isComposerOpen: boolean;
@@ -112,6 +125,19 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Instance state
     knownInstances: [],
     blockedInstances: new Set(),
+    instanceDomain: import.meta.env.VITE_DOMAIN || window.location.hostname,
+    instanceUserCount: 0,
+    instancePostCount: 0,
+    instanceStatsFetchedAt: null,
+    federationApiUrl: '/api/federation', // Default, can be overridden from instance_config
+    
+    // Timeline cache state
+    hasEverLoadedTimeline: false,
+    timelineCacheTimestamp: null,
+    
+    // Suggested follows cache
+    suggestedUsers: [],
+    suggestedUsersFetchedAt: null,
     
     // UI state
     isComposerOpen: false,
@@ -160,6 +186,31 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     formattedFollowersCount(): string {
       return this.followersCount > 999 ? `${(this.followersCount / 1000).toFixed(1)}K` : this.followersCount.toString();
+    },
+
+    /**
+     * Check if instance stats cache is still valid (5 minutes)
+     */
+    isInstanceStatsCacheValid(): boolean {
+      if (!this.instanceStatsFetchedAt) return false;
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+      return Date.now() - this.instanceStatsFetchedAt < CACHE_DURATION;
+    },
+
+    /**
+     * Check if suggested users cache is still valid (10 minutes)
+     */
+    isSuggestedUsersCacheValid(): boolean {
+      if (!this.suggestedUsersFetchedAt) return false;
+      const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+      return Date.now() - this.suggestedUsersFetchedAt < CACHE_DURATION;
+    },
+
+    /**
+     * Get suggested users filtered by followed status
+     */
+    filteredSuggestedUsers(): any[] {
+      return this.suggestedUsers.filter(user => !this.followedUsers.has(user.id));
     },
 
     /**
@@ -231,6 +282,182 @@ export const useActivityPubStore = defineStore('activitypub', {
       } catch (error) {
         debug.error('❌ Failed to initialize ActivityPub store:', error);
         throw error;
+      }
+    },
+
+    /**
+     * Fetch instance stats (user count, post count) and config with caching
+     */
+    async fetchInstanceStats(force = false) {
+      // Skip if cache is valid and not forcing
+      if (this.isInstanceStatsCacheValid && !force) {
+        debug.log('📊 Instance stats: using cached values');
+        return;
+      }
+
+      try {
+        debug.log('🔄 Fetching instance stats and config from database...');
+        
+        const [usersResult, postsResult, configResult] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_local', true),
+          supabase
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_local', true)
+            .eq('is_deleted', false),
+          supabase
+            .from('instance_config')
+            .select('config_key, config_value')
+            .in('config_key', ['domain', 'federation_settings', 'federation_backend_url'])
+        ]);
+        
+        this.instanceUserCount = usersResult.count || 0;
+        this.instancePostCount = postsResult.count || 0;
+        
+        // Parse instance config
+        if (configResult.data) {
+          for (const config of configResult.data) {
+            if (config.config_key === 'domain') {
+              const domain = JSON.parse(config.config_value);
+              if (domain) this.instanceDomain = domain;
+            }
+            if (config.config_key === 'federation_backend_url') {
+              const url = JSON.parse(config.config_value);
+              if (url) this.federationApiUrl = url;
+            }
+            if (config.config_key === 'federation_settings') {
+              const settings = JSON.parse(config.config_value);
+              // Allow federation_backend_url to be in federation_settings too
+              if (settings?.federation_backend_url) {
+                this.federationApiUrl = settings.federation_backend_url;
+              }
+            }
+          }
+        }
+        
+        this.instanceStatsFetchedAt = Date.now();
+        
+        debug.log('✅ Instance stats cached:', {
+          users: this.instanceUserCount,
+          posts: this.instancePostCount,
+          domain: this.instanceDomain,
+          federationApiUrl: this.federationApiUrl
+        });
+      } catch (error) {
+        debug.error('Failed to fetch instance stats:', error);
+      }
+    },
+
+    /**
+     * Fetch suggested users with caching (filters out already-followed users)
+     */
+    async fetchSuggestedUsers(force = false) {
+      // Skip if cache is valid and not forcing
+      if (this.isSuggestedUsersCacheValid && !force) {
+        debug.log('👥 Suggested users: using cached values');
+        return this.filteredSuggestedUsers;
+      }
+
+      try {
+        debug.log('🔄 Fetching suggested users...');
+        
+        const { trendingService } = await import('@/services/TrendingService');
+        const trendingUserResults = await trendingService.getTrendingUsers({ limit: 10 }); // Fetch more to account for filtering
+        
+        this.suggestedUsers = trendingUserResults.map(result => result.user);
+        this.suggestedUsersFetchedAt = Date.now();
+        
+        debug.log(`✅ Cached ${this.suggestedUsers.length} suggested users`);
+        return this.filteredSuggestedUsers;
+      } catch (error) {
+        debug.error('Failed to fetch suggested users:', error);
+        return [];
+      }
+    },
+
+    /**
+     * Load timeline from localStorage cache (instant display)
+     */
+    loadTimelineFromCache() {
+      try {
+        const cached = localStorage.getItem('harmony-timeline-cache');
+        if (!cached) return false;
+        
+        const { posts, timestamp, hasEverLoaded } = JSON.parse(cached);
+        const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 minutes
+        
+        if (Date.now() - timestamp > CACHE_MAX_AGE) {
+          debug.log('📋 Timeline cache expired, will fetch fresh');
+          this.hasEverLoadedTimeline = hasEverLoaded || false;
+          return false;
+        }
+        
+        if (posts && posts.length > 0) {
+          this.homeFeed.posts = posts;
+          this.hasEverLoadedTimeline = true;
+          this.timelineCacheTimestamp = timestamp;
+          debug.log(`📋 Loaded ${posts.length} posts from cache`);
+          return true;
+        }
+        
+        this.hasEverLoadedTimeline = hasEverLoaded || false;
+        return false;
+      } catch (error) {
+        debug.warn('Failed to load timeline from cache:', error);
+        return false;
+      }
+    },
+
+    /**
+     * Save timeline to localStorage cache (for instant loading next time)
+     */
+    saveTimelineToCache() {
+      try {
+        const postsToCache = this.homeFeed.posts.slice(0, 30); // Only cache first 30 posts
+        
+        // Strip heavy data to reduce storage size
+        const lightPosts = postsToCache.map(post => ({
+          ...post,
+          // Remove any embedded blobs or heavy content
+          author: post.author ? {
+            id: post.author.id,
+            username: post.author.username,
+            display_name: post.author.display_name,
+            avatar_url: post.author.avatar_url,
+            domain: post.author.domain,
+            is_local: post.author.is_local,
+          } : null,
+        }));
+        
+        const cacheData = {
+          posts: lightPosts,
+          timestamp: Date.now(),
+          hasEverLoaded: true,
+        };
+        
+        localStorage.setItem('harmony-timeline-cache', JSON.stringify(cacheData));
+        this.hasEverLoadedTimeline = true;
+        this.timelineCacheTimestamp = Date.now();
+        debug.log(`💾 Cached ${lightPosts.length} timeline posts`);
+      } catch (error) {
+        debug.warn('Failed to save timeline to cache:', error);
+      }
+    },
+
+    /**
+     * Clear timeline cache (on logout, etc.)
+     */
+    clearTimelineCache() {
+      try {
+        localStorage.removeItem('harmony-timeline-cache');
+        this.hasEverLoadedTimeline = false;
+        this.timelineCacheTimestamp = null;
+        debug.log('🗑️ Timeline cache cleared');
+      } catch (error) {
+        debug.warn('Failed to clear timeline cache:', error);
       }
     },
 
@@ -954,9 +1181,20 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Load the user's home timeline
+     * Load the user's home timeline (with cache support)
      */
     async loadHomeFeed(maxId?: string) {
+      // On first load (no maxId), try cache first for instant display
+      if (!maxId) {
+        const hasCachedPosts = this.loadTimelineFromCache();
+        if (hasCachedPosts) {
+          debug.log('📋 Showing cached timeline, fetching fresh in background...');
+          // Don't block UI - fetch fresh data in background
+          this.refreshHomeFeedInBackground();
+          return;
+        }
+      }
+      
       this.isLoadingFeed = true;
       try {
         const user = await supabase.auth.getUser();
@@ -987,15 +1225,52 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.homeFeed.posts = posts;
           // Clear unread count when refreshing home feed
           this.unreadCount = 0;
+          // Save to cache for next visit
+          this.saveTimelineToCache();
         }
 
         this.homeFeed.has_more = posts.length === 20;
         this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.hasEverLoadedTimeline = true;
 
       } catch (error) {
         debug.error('Failed to load home feed:', error);
       } finally {
         this.isLoadingFeed = false;
+      }
+    },
+
+    /**
+     * Refresh home feed in background (after showing cached data)
+     */
+    async refreshHomeFeedInBackground() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) return;
+
+        const posts = await activityPubService.getUserTimeline(
+          user.data.user.id,
+          'home',
+          { limit: 20 }
+        );
+        
+        // Batch load reactions
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          await postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
+        }
+        
+        // Update with fresh data
+        this.homeFeed.posts = posts;
+        this.homeFeed.has_more = posts.length === 20;
+        this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.unreadCount = 0;
+        
+        // Update cache with fresh data
+        this.saveTimelineToCache();
+        debug.log('✅ Background refresh complete');
+      } catch (error) {
+        debug.warn('Background refresh failed (cached data still shown):', error);
       }
     },
 
@@ -1703,6 +1978,29 @@ export const useActivityPubStore = defineStore('activitypub', {
           post.reblogs_count = serverCounts.reblogs_count;
           post.replies_count = serverCounts.replies_count;
           post.is_favorited = userFavoriteState;
+        }
+      });
+    },
+
+    /**
+     * Update post metadata in all feeds (for remote reactions, etc.)
+     */
+    updatePostMetadataInAllFeeds(postId: string, metadataUpdate: Record<string, any>) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          post.metadata = { ...(post.metadata || {}), ...metadataUpdate };
+          debug.log(`🔄 Updated post ${postId} metadata in feed`);
+        }
+      });
+
+      // Update in user feeds too
+      this.userFeeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          post.metadata = { ...(post.metadata || {}), ...metadataUpdate };
         }
       });
     },

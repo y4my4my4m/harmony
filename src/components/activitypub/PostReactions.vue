@@ -9,11 +9,11 @@
       <!-- Reaction groups -->
       <div
         v-for="reaction in reactions"
-        :key="reaction.emoji_id || reaction.custom_emoji_content"
+        :key="reaction.emoji_id || reaction.emoji_name || reaction.custom_emoji_content"
         class="reaction"
         :class="{ 
           'reacted': reaction.current_user_reacted,
-          'loading': isLoadingReactions 
+          'loading': isLoadingReactions
         }"
         @click="handleReactionClick(reaction)"
         @mouseenter="showTooltip($event, reaction)"
@@ -52,6 +52,13 @@ import { usePostReactionsStore } from '@/stores/postReactions';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
+interface Reactor {
+  username: string
+  display_name: string
+  avatar_url: string
+  domain: string
+}
+
 interface PostEmojiReaction {
   emoji_id: string | null
   emoji_name: string | null
@@ -66,6 +73,7 @@ interface PostEmojiReaction {
     created_at: string
   }>
   current_user_reacted: boolean
+  reactors?: Reactor[] // Remote reactors from federation
 }
 
 interface Props {
@@ -88,11 +96,67 @@ const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const postReactionsStore = usePostReactionsStore();
 
-// Use store-based reactions with safety checks
+// Use store-based reactions with safety checks, also include remote reactions from metadata
 const reactions = computed(() => {
   if (!props.post?.id) return [];
+  
+  // Get local reactions from store
   const storeReactions = postReactionsStore.getPostReactions(props.post.id);
-  return Array.isArray(storeReactions) ? storeReactions : [];
+  const localReactions = Array.isArray(storeReactions) ? storeReactions : [];
+  
+  // Check for remote reactions in post metadata (from federated fetch)
+  const remoteReactions = props.post?.metadata?.remote_reactions;
+  if (!remoteReactions || typeof remoteReactions !== 'object') {
+    return localReactions;
+  }
+  
+  // Convert remote reactions to the same format and merge with local
+  // Format can be either { emoji: count } (old) or { emoji: { count, url, reactors } } (new)
+  const remoteReactionGroups: PostEmojiReaction[] = Object.entries(remoteReactions).map(([emoji, value]) => {
+    // Handle both formats
+    const count = typeof value === 'number' ? value : (value as any)?.count || 0;
+    const url = typeof value === 'object' ? (value as any)?.url : null;
+    const reactors = typeof value === 'object' ? (value as any)?.reactors : [];
+    
+    // Check if it's a custom emoji (starts and ends with :)
+    const isCustomEmoji = emoji.startsWith(':') && emoji.endsWith(':');
+    
+    return {
+      emoji_id: null,
+      emoji_name: emoji,
+      emoji_url: url || null, // Use the URL from the fetched data
+      // For custom emojis without URL, show the emoji name; for unicode, show the emoji itself
+      custom_emoji_content: isCustomEmoji ? (url ? null : emoji) : emoji,
+      reaction_count: count,
+      user_reactions: [], // Remote reactions don't have individual user data in this format
+      current_user_reacted: false,
+      reactors: reactors || [], // Include reactor info for tooltip/display
+    };
+  });
+  
+  // Merge: local reactions take priority, add remote ones that don't exist locally
+  const mergedReactions = [...localReactions];
+  for (const remote of remoteReactionGroups) {
+    const existingIndex = mergedReactions.findIndex(r => 
+      r.emoji_name === remote.emoji_name
+    );
+    
+    if (existingIndex === -1) {
+      // Add remote reaction if not in local
+      mergedReactions.push(remote);
+    } else {
+      // Use the higher count between local and remote
+      if (remote.reaction_count > mergedReactions[existingIndex].reaction_count) {
+        mergedReactions[existingIndex].reaction_count = remote.reaction_count;
+      }
+      // Also use the URL if we have one and the existing doesn't
+      if (remote.emoji_url && !mergedReactions[existingIndex].emoji_url) {
+        mergedReactions[existingIndex].emoji_url = remote.emoji_url;
+      }
+    }
+  }
+  
+  return mergedReactions;
 });
 const isLoadingReactions = computed(() => {
   if (!props.post?.id) return false;

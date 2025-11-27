@@ -312,13 +312,15 @@ const composerType = computed(() => {
   return 'post'
 })
 const trendingTopics = ref<Array<{ tag: string; count: number }>>([])
-const suggestedUsers = ref<FederatedUser[]>([])
 const isLoadingTrending = ref(false)
 
-// Instance stats (loaded dynamically)
-const localInstanceDomain = ref(props.instanceDomain || window.location.hostname)
-const localInstanceUserCount = ref(props.instanceUserCount)
-const localInstancePostCount = ref(props.instancePostCount)
+// Suggested users from store (cached & filtered to exclude followed users)
+const suggestedUsers = computed(() => activityPubStore.filteredSuggestedUsers.slice(0, 3))
+
+// Instance stats (cached in store)
+const localInstanceDomain = computed(() => activityPubStore.instanceDomain)
+const localInstanceUserCount = computed(() => activityPubStore.instanceUserCount)
+const localInstancePostCount = computed(() => activityPubStore.instancePostCount)
 
 // Load trending hashtags from TrendingService
 const loadTrendingHashtags = async () => {
@@ -346,50 +348,19 @@ const loadTrendingHashtags = async () => {
   }
 }
 
-// Load suggested users
+// Load suggested users (uses cached store with 10-minute TTL)
 const loadSuggestedUsers = async () => {
-  try {
-    debug.log('🔄 Loading suggested users...')
-    // Use TrendingService to get suggested users with proper stats
-    const trendingUserResults = await trendingService.getTrendingUsers({ limit: 3 })
-    debug.log('📊 Trending user results:', trendingUserResults)
-    suggestedUsers.value = trendingUserResults.map(result => result.user)
-    debug.log('✅ Suggested users loaded:', suggestedUsers.value.length)
-  } catch (error) {
-    debug.error('Failed to load suggested users:', error)
-    // Fallback to empty array
-    suggestedUsers.value = []
-  }
+  await activityPubStore.fetchSuggestedUsers()
 }
 
-// Load local instance stats
-const loadInstanceStats = async () => {
-  try {
-    debug.log('🔄 Loading instance stats...')
-    
-    // Get counts from database
-    const [usersResult, postsResult] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
-      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true).eq('is_deleted', false)
-    ])
-    
-    localInstanceUserCount.value = usersResult.count || 0
-    localInstancePostCount.value = postsResult.count || 0
-    
-    debug.log('✅ Instance stats loaded:', {
-      users: localInstanceUserCount.value,
-      posts: localInstancePostCount.value
-    })
-  } catch (error) {
-    debug.error('Failed to load instance stats:', error)
-  }
-}
+// Instance stats are now cached in the instance store
+// No need to load them here - they're fetched on demand with 5-minute cache
 
 // Load sidebar data on mount
 onMounted(() => {
   loadTrendingHashtags()
   loadSuggestedUsers()
-  loadInstanceStats()
+  activityPubStore.fetchInstanceStats() // Uses cached values if fresh, otherwise fetches
 })
 
 // Track view context in database for notification suppression

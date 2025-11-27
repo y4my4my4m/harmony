@@ -37,7 +37,7 @@
             :interactive="true"
           />
           <div class="author-details">
-            <div class="author-name">
+            <div class="author-name" @click="viewProfile(displayAuthor)">
               {{ displayAuthor.display_name || displayAuthor.username }}
             </div>
             <div class="author-handle">
@@ -84,8 +84,26 @@
         class="post-body"
         :class="{ 'is-sensitive': displayIsSensitive }"
       >
+        <!-- Unhydrated Reblog/Quote: Show reference link when content not loaded -->
+        <div v-if="isUnhydratedReblog" class="unhydrated-reblog">
+          <div class="unhydrated-reblog-notice">
+            <Icon name="reblog" />
+            <span>Reblogged from another instance</span>
+          </div>
+          <a 
+            v-if="reblogReferenceUrl"
+            :href="reblogReferenceUrl" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="reblog-reference-link"
+          >
+            <Icon name="external-link" />
+            View original post
+          </a>
+        </div>
+
         <!-- Quote Post: Show user's comment first, then quoted content -->
-        <div v-if="isQuotePost" class="quote-post-layout">
+        <div v-else-if="isQuotePost" class="quote-post-layout">
           <!-- User's comment on the quote -->
           <div class="quote-comment">
             <MonyContent 
@@ -367,6 +385,35 @@
             <Icon name="trash" />
             <span>Delete</span>
           </button>
+          
+          <!-- Fetch remote data for remote posts -->
+          <div v-if="isRemotePost" class="dropdown-divider"></div>
+          
+          <button 
+            v-if="isRemotePost && !isFetchingReactions"
+            class="dropdown-item"
+            @click="fetchRemoteReactions"
+          >
+            <Icon name="heart" />
+            <span>Fetch reactions</span>
+          </button>
+          
+          <button 
+            v-if="isRemotePost && !isFetchingReplies"
+            class="dropdown-item"
+            @click="fetchRemoteReplies"
+          >
+            <Icon name="message-circle" />
+            <span>Fetch replies</span>
+          </button>
+          
+          <div 
+            v-if="isRemotePost && (isFetchingReactions || isFetchingReplies)"
+            class="dropdown-item loading-item"
+          >
+            <Icon name="loader" class="spinning" />
+            <span>Loading...</span>
+          </div>
         </div>
       </div>
     </div>
@@ -423,7 +470,8 @@
           size="xs"
           class="tooltip-avatar"
         />
-        <span>{{ user.displayName }}</span>
+        <span class="tooltip-username">{{ user.displayName }}</span>
+        <span v-if="user.isRemote && user.domain" class="tooltip-domain">@{{ user.domain }}</span>
       </div>
     </div>
     
@@ -484,6 +532,7 @@ const emit = defineEmits<{
   'hashtag-click': [tag: string];
   'user-click': [user: any]; // For when clicking on the author
   'show-conversation': [postId: string]; // New emit for showing conversation
+  'refresh': [postId: string]; // Refresh post data after fetching remote reactions
 }>();
 
 // Stores and composables
@@ -542,12 +591,40 @@ const instanceDomain = computed(() => {
   return domain || 'har.mony.lol';
 });
 
+// Remote post detection (for fetching reactions)
+const isRemotePost = computed(() => {
+  return !props.post.is_local && props.post.ap_id;
+});
+
+// State for fetching remote data
+const isFetchingReactions = ref(false);
+const isFetchingReplies = ref(false);
+
 // Reblog-related computed properties
 const isReblog = computed(() => {
-  return !!(props.post.reblog && props.post.reblog_author);
+  // Check for hydrated reblog data OR metadata reference
+  return !!(
+    (props.post.reblog && props.post.reblog_author) ||
+    props.post.metadata?.is_reblog ||
+    props.post.metadata?.reblog_of ||
+    props.post.ap_type === 'Announce'
+  );
+});
+
+// Check if this is a remote reblog without hydrated data (needs to show placeholder)
+const isUnhydratedReblog = computed(() => {
+  return isReblog.value && !props.post.reblog && (
+    props.post.metadata?.reblog_of || 
+    props.post.metadata?.reblog_of_ap_url
+  );
 });
 
 const isQuotePost = computed(() => {
+  // Check metadata-based quote first (from remote posts)
+  if (props.post.metadata?.is_quote || props.post.metadata?.quote_url) {
+    return true;
+  }
+  
   // A quote post has both reblog data AND unique user-added content
   if (!isReblog.value) return false;
   
@@ -585,6 +662,13 @@ const isQuotePost = computed(() => {
   }
   
   return true;
+});
+
+// Get reblog/quote reference URL for unhydrated posts
+const reblogReferenceUrl = computed(() => {
+  return props.post.metadata?.reblog_of_ap_url || 
+         props.post.metadata?.quote_url || 
+         null;
 });
 
 const displayAuthor = computed(() => {
@@ -986,13 +1070,27 @@ const handleEmojiSelected = async (emoji: any) => {
 const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
-  // Transform user_reactions to the format needed for tooltip
-  const usersDetails = (reaction.user_reactions || []).map((ur: any) => ({
+  // Transform local user_reactions to the format needed for tooltip
+  const localUsers = (reaction.user_reactions || []).map((ur: any) => ({
     id: ur.user_id,
     displayName: ur.display_name || ur.username || 'Unknown User',
     avatarUrl: ur.avatar_url || '',
-    userColor: ur.user_color || '#ffffff'
+    userColor: ur.user_color || '#ffffff',
+    isRemote: false
   }));
+  
+  // Add remote reactors from federated fetch
+  const remoteUsers = (reaction.reactors || []).map((reactor: any) => ({
+    id: `${reactor.username}@${reactor.domain}`,
+    displayName: reactor.display_name || reactor.username || 'Unknown',
+    avatarUrl: reactor.avatar_url || '',
+    userColor: '#888888',
+    isRemote: true,
+    domain: reactor.domain
+  }));
+  
+  // Combine local and remote users
+  const usersDetails = [...localUsers, ...remoteUsers];
   
   // Show tooltip after a delay
   tooltipTimer.value = setTimeout(() => {
@@ -1181,6 +1279,122 @@ const handleQuoteReblog = () => {
   });
 };
 
+// Fetch remote reactions for a remote post
+const fetchRemoteReactions = async () => {
+  if (!isRemotePost.value || isFetchingReactions.value) return;
+  
+  const postApId = props.post.ap_id;
+  if (!postApId) return;
+  
+  isFetchingReactions.value = true;
+  showMenu.value = false;
+  
+  try {
+    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+    const response = await fetch(`${federationBackendUrl}/fetch-reactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: postApId,
+        post_id: props.post.id,
+      }),
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      debug.log(`📬 Fetched ${result.count} reactions for remote post`);
+      
+      if (result.count > 0) {
+        debug.log(`✅ Found ${result.count} reactions from remote instance`);
+      } else {
+        debug.log(`📭 No reactions found on remote instance`);
+      }
+      
+      // Update post metadata and counts immediately with the returned data
+      if (result.remote_reactions) {
+        // Update in store feeds
+        activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
+          remote_reactions: result.remote_reactions,
+          remote_reactions_fetched_at: new Date().toISOString(),
+        });
+        
+        // Also directly update the post's metadata for immediate reactivity
+        // (handles cases where post is in local ref like UserProfileView.userPosts)
+        if (!props.post.metadata) {
+          (props.post as any).metadata = {};
+        }
+        (props.post.metadata as any).remote_reactions = result.remote_reactions;
+        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
+        
+        debug.log(`✅ Updated post metadata with ${Object.keys(result.remote_reactions).length} reaction types`);
+      }
+      
+      // Update counts directly on the post for immediate reactivity
+      if (result.favorites_count !== undefined) {
+        (props.post as any).favorites_count = result.favorites_count;
+      }
+      if (result.replies_count !== undefined) {
+        (props.post as any).replies_count = result.replies_count;
+      }
+      if (result.reblogs_count !== undefined) {
+        (props.post as any).reblogs_count = result.reblogs_count;
+      }
+      
+      // Also emit refresh for any parent that wants to fully reload
+      emit('refresh', props.post.id);
+    } else {
+      debug.error('Failed to fetch remote reactions:', await response.text());
+    }
+  } catch (error) {
+    debug.error('Error fetching remote reactions:', error);
+  } finally {
+    isFetchingReactions.value = false;
+  }
+};
+
+// Fetch remote replies for a remote post
+const fetchRemoteReplies = async () => {
+  if (!isRemotePost.value || isFetchingReplies.value) return;
+  
+  const postApId = props.post.ap_id;
+  if (!postApId) return;
+  
+  isFetchingReplies.value = true;
+  showMenu.value = false;
+  
+  try {
+    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+    const response = await fetch(`${federationBackendUrl}/fetch-replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: postApId,
+        post_id: props.post.id,
+      }),
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      debug.log(`📬 Fetched ${result.count} replies for remote post`);
+      
+      // Emit event to refresh post data
+      emit('refresh', props.post.id);
+      
+      if (result.count > 0) {
+        debug.log(`✅ Found ${result.count} replies from remote instance`);
+      } else {
+        debug.log(`📭 No replies found on remote instance`);
+      }
+    } else {
+      debug.error('Failed to fetch remote replies:', await response.text());
+    }
+  } catch (error) {
+    debug.error('Error fetching remote replies:', error);
+  } finally {
+    isFetchingReplies.value = false;
+  }
+};
+
 // Handle emoji picker for original post (for reblogs, target the original)
 const handleShowEmojiPickerForOriginal = () => {
   // Create a post-like object with the original post ID for the emoji picker
@@ -1291,6 +1505,12 @@ const closeLightbox = () => {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+  user-select: text;
+}
+
+.author-name:hover {
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .author-handle {
@@ -1547,6 +1767,14 @@ const closeLightbox = () => {
   line-height: 1.6;
   word-wrap: break-word;
   margin-bottom: 1rem;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.post-text :deep(*) {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .interaction-stats {
@@ -1675,6 +1903,26 @@ const closeLightbox = () => {
   color: #f59e0b;
 }
 
+.dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.5rem 0;
+}
+
+.loading-item {
+  color: #9ca3af;
+  cursor: wait;
+}
+
+.loading-item .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .action-menu {
   position: relative;
   margin-left: auto;
@@ -1720,6 +1968,44 @@ const closeLightbox = () => {
 
 .dropdown-item.danger:hover {
   background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Unhydrated Reblog (remote reblog without loaded content) */
+.unhydrated-reblog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+}
+
+.unhydrated-reblog-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+.reblog-reference-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--h-brand, #5865f2);
+  text-decoration: none;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(88, 101, 242, 0.1);
+  border-radius: 0.5rem;
+  width: fit-content;
+  transition: all 0.2s;
+}
+
+.reblog-reference-link:hover {
+  background: rgba(88, 101, 242, 0.2);
+  text-decoration: underline;
 }
 
 /* Quote Post Styles */
@@ -1866,5 +2152,15 @@ const closeLightbox = () => {
 
 .tooltip-avatar {
   flex-shrink: 0;
+}
+
+.tooltip-username {
+  color: var(--text-primary);
+}
+
+.tooltip-domain {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  opacity: 0.7;
 }
 </style>

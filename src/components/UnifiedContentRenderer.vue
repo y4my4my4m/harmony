@@ -11,6 +11,7 @@
     <div 
       v-if="renderMode === 'html'"
       class="content-html"
+      :class="{ 'selectable': selectable }"
       v-html="renderer.formattedHTML.value"
       @click="handleContentClick"
     ></div>
@@ -384,6 +385,23 @@ const formatFileSize = (bytes: number): string => {
   color: rgba(255,255,255,0.9);
 }
 
+/* Make HTML content selectable */
+.content-html.selectable,
+.content-html.selectable :deep(*) {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+}
+
+/* Exclude interactive elements from text cursor */
+.content-html.selectable :deep(a),
+.content-html.selectable :deep(.mention),
+.content-html.selectable :deep(.hashtag) {
+  cursor: pointer;
+}
+
 /* HTML mode mentions (for ActivityPub content) */
 .content-html :deep(.mention) {
   background-color: rgba(16, 185, 129, 0.1);
@@ -404,6 +422,7 @@ const formatFileSize = (bytes: number): string => {
 .content-html :deep(.hashtag),
 :deep(.hashtag) {
   background-color: var(--harmony-primary);
+  margin: 0 2px;
   border-radius: 3px;
   padding: 0 3px;
   cursor: pointer;

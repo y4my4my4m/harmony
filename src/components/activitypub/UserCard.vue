@@ -205,7 +205,8 @@ const formatNumber = (num: number): string => {
 };
 
 const handleUserClick = () => {
-  router.push({ name: 'UserProfile', params: { handle: handle.value } });
+  // Emit event for parent to handle (show modal or navigate)
+  emit('user-click', props.user);
 };
 
 const handleFollowToggle = async () => {
@@ -298,6 +299,12 @@ onBeforeUnmount(() => {
   padding: 1rem;
   transition: all 0.2s;
   position: relative;
+  z-index: 1;
+}
+
+/* When menu is open, raise the card above others */
+.user-card:has(.actions-menu) {
+  z-index: 100;
 }
 
 .user-card:hover {
@@ -465,7 +472,21 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 0.5rem;
-  z-index: 100;
+  z-index: 9999;
+  margin-top: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.actions-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 180px;
+  background: var(--h-sidebar, #2b2d31);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.5rem;
+  z-index: 9999;
   margin-top: 0.5rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }

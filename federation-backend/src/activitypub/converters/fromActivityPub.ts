@@ -155,18 +155,45 @@ function addAttachments(parts: any[], attachments: any): void {
   if (attachments && Array.isArray(attachments)) {
     attachments.forEach((attachment: any) => {
       const mediaType = attachment.mediaType || '';
+      const url = attachment.url || '';
       let fileType = 'file';
       
+      // Check MIME type first
       if (mediaType.startsWith('image/')) fileType = 'image';
       else if (mediaType.startsWith('video/')) fileType = 'video';
       else if (mediaType.startsWith('audio/')) fileType = 'audio';
+      // Fallback to URL extension if MIME type not provided
+      else if (url) {
+        const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp'].includes(ext || '')) {
+          fileType = 'image';
+        } else if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv', 'quicktime'].includes(ext || '')) {
+          fileType = 'video';
+        } else if (['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus'].includes(ext || '')) {
+          fileType = 'audio';
+        }
+      }
       
-      parts.push({
+      const filePart: any = {
         type: 'file',
         url: attachment.url,
         fileType: fileType,
-        fileName: attachment.name
-      });
+        mimeType: mediaType, // Store the full MIME type
+        fileName: attachment.name,
+        altText: attachment.name, // Alt text for accessibility
+      };
+      
+      // Store dimensions if available
+      if (attachment.width) filePart.width = attachment.width;
+      if (attachment.height) filePart.height = attachment.height;
+      
+      // Store blurhash if available (for placeholder images)
+      if (attachment.blurhash) filePart.blurhash = attachment.blurhash;
+      
+      // Store focal point if available (for image cropping)
+      if (attachment.focalPoint) filePart.focalPoint = attachment.focalPoint;
+      
+      parts.push(filePart);
     });
   }
 }
@@ -233,6 +260,30 @@ export function actorToProfile(actor: any): {
 
   if (actor.publicKey?.publicKeyPem) {
     profile.public_key = actor.publicKey.publicKeyPem;
+  }
+
+  // Extract profile fields (PropertyValue attachments)
+  if (actor.attachment && Array.isArray(actor.attachment)) {
+    const profileFields = actor.attachment
+      .filter((att: any) => att.type === 'PropertyValue')
+      .map((att: any) => ({
+        name: att.name || '',
+        value: att.value || '',
+      }));
+    
+    if (profileFields.length > 0) {
+      profile.profile_fields = profileFields;
+    }
+  }
+
+  // Extract discoverable flag
+  if (actor.discoverable !== undefined) {
+    profile.federation_discoverable = actor.discoverable;
+  }
+
+  // Extract manually approves followers flag
+  if (actor.manuallyApprovesFollowers !== undefined) {
+    profile.manually_approves_followers = actor.manuallyApprovesFollowers;
   }
 
   return profile;

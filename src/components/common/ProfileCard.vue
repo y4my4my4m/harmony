@@ -710,7 +710,12 @@ const vClickOutside = {
   box-shadow: var(--shadow-lg);
   padding: var(--space-2);
   min-width: 150px;
-  z-index: 10;
+  z-index: 9999;
+}
+
+/* When menu is open, raise the card's stacking context */
+.profile-card:has(.actions-menu) {
+  z-index: 100;
 }
 
 .action-item {

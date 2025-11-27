@@ -232,7 +232,7 @@ export class ActivityPubService {
       .select(`
         *,
         author:profiles!posts_author_id_fkey(
-          id, username, display_name, avatar_url, color, domain, is_local
+          id, username, display_name, avatar_url, color, domain, is_local, is_suspended
         ),
         my_interactions:post_interactions!left(interaction_type, emoji_id)
       `)
@@ -250,16 +250,18 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Process user interactions into boolean flags
-    const posts = (data || []).map(post => {
-      const interactions = post.my_interactions || [];
-      return {
-        ...post,
-        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
-        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
-      };
-    });
+    // Process user interactions into boolean flags and filter out suspended users
+    const posts = (data || [])
+      .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+      .map(post => {
+        const interactions = post.my_interactions || [];
+        return {
+          ...post,
+          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+        };
+      });
 
     debug.log(`📊 Public timeline loaded: ${posts.length} posts (with user interactions)`);
     
@@ -282,7 +284,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
@@ -300,16 +302,18 @@ export class ActivityPubService {
 
       if (error) throw error;
 
-      // Process user interactions into boolean flags
-      const posts = (data || []).map(post => {
-        const interactions = post.my_interactions || [];
-        return {
-          ...post,
-          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
-          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
-        };
-      });
+      // Process user interactions into boolean flags and filter out suspended users
+      const posts = (data || [])
+        .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+        .map(post => {
+          const interactions = post.my_interactions || [];
+          return {
+            ...post,
+            is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+            is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+            is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+          };
+        });
       
       
       // Log statistics
@@ -712,7 +716,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey (
-            id, username, display_name, domain, avatar_url, is_local
+            id, username, display_name, domain, avatar_url, is_local, is_suspended
           )
         `)
         .textSearch('content', query)
@@ -722,7 +726,9 @@ export class ActivityPubService {
         .limit(limit);
 
       if (error) throw error;
-      return data as TimelinePost[];
+      
+      // Filter out posts from suspended users
+      return (data || []).filter(post => !post.author?.is_suspended) as TimelinePost[];
     } catch (error) {
       debug.error('Failed to search posts:', error);
       return [];
@@ -1849,32 +1855,34 @@ export class ActivityPubService {
     let query = supabase.from('posts');
 
     if (timelineType === 'home') {
-      // Get following list
+      // Get following list - include both accepted AND pending follows
+      // Pending follows should still show PUBLIC posts (they're public anyway)
       const { data: follows } = await supabase
         .from('follows')
-        .select('following_id')
+        .select('following_id, status')
         .eq('follower_id', userId)
-        .eq('status', 'accepted');
+        .in('status', ['accepted', 'pending']);
 
-      const followingIds = follows?.map(f => f.following_id) || [];
-      followingIds.push(userId); // Include own posts
+      const acceptedFollowingIds = follows?.filter(f => f.status === 'accepted').map(f => f.following_id) || [];
+      const pendingFollowingIds = follows?.filter(f => f.status === 'pending').map(f => f.following_id) || [];
+      const allFollowingIds = [...new Set([...acceptedFollowingIds, ...pendingFollowingIds, userId])];
 
       query = query
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
-        .in('author_id', followingIds);
+        .in('author_id', allFollowingIds);
     } else if (timelineType === 'local') {
       query = query
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
@@ -1886,7 +1894,7 @@ export class ActivityPubService {
         .select(`
           *,
           author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local
+            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
@@ -1908,16 +1916,18 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Process user interactions into boolean flags
-    const posts = (data || []).map(post => {
-      const interactions = post.my_interactions || [];
-      return {
-        ...post,
-        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
-        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
-      };
-    });
+    // Process user interactions into boolean flags and filter out suspended users
+    const posts = (data || [])
+      .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+      .map(post => {
+        const interactions = post.my_interactions || [];
+        return {
+          ...post,
+          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+        };
+      });
 
     return posts;
   }

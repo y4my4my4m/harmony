@@ -47,7 +47,14 @@
             @reblog="handleReblog"
             @delete="handleDelete"
             @user-click="handleUserClick"
+            @refresh="handleRefresh"
           />
+          
+          <!-- Remote post hint -->
+          <div v-if="isRemotePost" class="remote-post-hint">
+            <Icon name="globe" />
+            <span>Remote post from <strong>{{ post?.author?.domain }}</strong> • Use the menu (⋯) to fetch reactions & replies</span>
+          </div>
         </article>
 
         <!-- Reply composer (if replying) -->
@@ -144,10 +151,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { activityPubService } from '@/services/activityPubService';
 import type { TimelinePost, FederatedUser } from '@/types';
 
 // Components
@@ -181,55 +189,55 @@ const showReplyComposer = ref(false);
 const error = ref<string | null>(null);
 const totalReplies = ref(0);
 
+// Computed
+const isRemotePost = computed(() => {
+  return post.value && !post.value.is_local && post.value.ap_id;
+});
+
 // Methods
 const loadPost = async () => {
   isLoading.value = true;
   error.value = null;
 
   try {
-    // TODO: Implement actual post loading from API
-    // For now, simulate loading
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Fetch the actual post from the database
+    console.log(`[PostDetail] Loading post: ${props.postId}`);
+    const fetchedPost = await activityPubService.getPost(props.postId);
     
-    // Mock post data
-    post.value = {
-      id: props.postId,
-      content: `This is a detailed view of post ${props.postId}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`,
-      created_at: new Date().toISOString(),
-      author: {
-        id: 'user1',
-        username: 'alice',
-        domain: 'har.mony.lol',
-        handle: '@alice',
-        display_name: 'Alice Johnson',
-        avatar_url: '/default_avatar.png',
-        bio: 'Software developer and ActivityPub enthusiast',
-        is_local: true,
-        verified: false,
-        followers_count: 142,
-        following_count: 89,
-        posts_count: 234,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      visibility: 'public',
-      favorites_count: 5,
-      reblogs_count: 2,
-      replies_count: 3,
-      is_favorited: false,
-      is_reblogged: false,
-      media_attachments: [],
-      reblog: null,
-      reblog_author: null,
-      in_reply_to: null,
-      content_warning: null,
-      is_sensitive: false
-    };
-
-    totalReplies.value = post.value.replies_count;
+    if (!fetchedPost) {
+      throw new Error('Post not found');
+    }
+    
+    post.value = fetchedPost;
+    totalReplies.value = fetchedPost.replies_count || 0;
+    
+    // Log full post data for debugging
+    console.log(`[PostDetail] Loaded post:`, {
+      id: fetchedPost.id,
+      is_local: fetchedPost.is_local,
+      ap_id: fetchedPost.ap_id,
+      author: fetchedPost.author?.username,
+    });
+    debug.log(`📝 Loaded post: id=${fetchedPost.id}, is_local=${fetchedPost.is_local}, ap_id=${fetchedPost.ap_id}`);
+    
+    // Load local replies
     await loadReplies();
     await loadRelatedPosts();
+    
+    // Auto-fetch reactions and replies for ANY post with an ap_id
+    // This covers both:
+    // 1. Remote posts (is_local=false) - fetch from their origin instance
+    // 2. Local posts (is_local=true) - fetch reactions/replies from remote instances
+    if (fetchedPost.ap_id) {
+      console.log(`[PostDetail] Post has ap_id (${fetchedPost.ap_id}), auto-fetching remote data...`);
+      debug.log(`🌐 Post has ap_id, auto-fetching remote reactions and replies...`);
+      fetchRemoteDataInBackground(fetchedPost);
+    } else {
+      console.warn(`[PostDetail] Post has NO ap_id, skipping remote fetch. Post keys:`, Object.keys(fetchedPost));
+      debug.log(`⚠️ Post has no ap_id, skipping remote fetch`);
+    }
   } catch (err) {
+    console.error('[PostDetail] Failed to load post:', err);
     debug.error('Failed to load post:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
   } finally {
@@ -237,54 +245,110 @@ const loadPost = async () => {
   }
 };
 
+// Auto-fetch reactions and replies from federation in the background
+// Works for both local posts (fetches remote reactions) and remote posts (fetches from origin)
+const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
+  const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+  const postType = targetPost.is_local ? 'local' : 'remote';
+  
+  console.log(`[PostDetail] fetchRemoteDataInBackground called for ${postType} post:`, {
+    ap_id: targetPost.ap_id,
+    post_id: targetPost.id,
+    federationBackendUrl,
+  });
+  debug.log(`🌐 Starting background fetch for ${postType} post: ${targetPost.ap_id}`);
+  
+  // Fetch reactions
+  try {
+    const fetchUrl = `${federationBackendUrl}/fetch-reactions`;
+    console.log(`[PostDetail] Fetching reactions from: ${fetchUrl}`);
+    debug.log(`📬 Fetching reactions for ${postType} post...`);
+    const reactionsResponse = await fetch(fetchUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: targetPost.ap_id,
+        post_id: targetPost.id,
+      }),
+    });
+    console.log(`[PostDetail] Reactions response status: ${reactionsResponse.status}`);
+    
+    if (reactionsResponse.ok) {
+      const result = await reactionsResponse.json();
+      debug.log(`✅ Fetched reactions: ${result.count} total, favorites_count=${result.favorites_count}`);
+      
+      // Update post with new data
+      if (result.remote_reactions || result.favorites_count > 0) {
+        // Update metadata directly for immediate reactivity
+        if (result.remote_reactions && post.value) {
+          post.value.metadata = {
+            ...(post.value.metadata || {}),
+            remote_reactions: result.remote_reactions,
+            remote_reactions_fetched_at: new Date().toISOString(),
+          };
+        }
+        // Update counts
+        if (post.value) {
+          post.value.favorites_count = result.favorites_count || post.value.favorites_count;
+          post.value.replies_count = result.replies_count || post.value.replies_count;
+          post.value.reblogs_count = result.reblogs_count || post.value.reblogs_count;
+        }
+      }
+    } else {
+      const errorText = await reactionsResponse.text();
+      debug.warn(`⚠️ Failed to fetch reactions: ${reactionsResponse.status} - ${errorText}`);
+    }
+  } catch (err) {
+    debug.warn('Failed to auto-fetch reactions:', err);
+  }
+  
+  // Fetch replies (only for remote posts - local replies are already in DB)
+  if (!targetPost.is_local) {
+    try {
+      debug.log(`📬 Fetching replies for remote post...`);
+      const repliesResponse = await fetch(`${federationBackendUrl}/fetch-replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          post_ap_id: targetPost.ap_id,
+          post_id: targetPost.id,
+          limit: 10,
+        }),
+      });
+      
+      if (repliesResponse.ok) {
+        const result = await repliesResponse.json();
+        debug.log(`✅ Fetched ${result.count || 0} replies`);
+        
+        // Reload replies to include the newly fetched ones
+        if (result.count > 0) {
+          await loadReplies();
+        }
+      } else {
+        const errorText = await repliesResponse.text();
+        debug.warn(`⚠️ Failed to fetch replies: ${repliesResponse.status} - ${errorText}`);
+      }
+    } catch (err) {
+      debug.warn('Failed to auto-fetch replies:', err);
+    }
+  }
+  
+  debug.log(`✅ Background fetch complete for ${postType} post`);
+};
+
 const loadReplies = async () => {
   if (!post.value) return;
 
   isLoadingReplies.value = true;
   try {
-    // TODO: Implement actual replies loading
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Mock replies data
-    replies.value = [
-      {
-        id: 'reply1',
-        content: 'Great post! Thanks for sharing.',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        author: {
-          id: 'user2',
-          username: 'bob',
-          domain: 'mastodon.social',
-          handle: '@bob@mastodon.social',
-          display_name: 'Bob Smith',
-          avatar_url: '/default_avatar.png',
-          bio: 'Federated social media user',
-          is_local: false,
-          verified: false,
-          followers_count: 67,
-          following_count: 123,
-          posts_count: 89,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        visibility: 'public',
-        favorites_count: 1,
-        reblogs_count: 0,
-        replies_count: 0,
-        is_favorited: false,
-        is_reblogged: false,
-        media_attachments: [],
-        reblog: null,
-        reblog_author: null,
-        in_reply_to: post.value.id,
-        content_warning: null,
-        is_sensitive: false
-      }
-    ];
-    
-    hasMoreReplies.value = replies.value.length < totalReplies.value;
+    // Fetch actual replies from the database
+    const fetchedReplies = await activityPubService.getPostReplies(post.value.id, { limit: 20 });
+    replies.value = fetchedReplies || [];
+    hasMoreReplies.value = fetchedReplies.length >= 20;
+    debug.log(`✅ Loaded ${replies.value.length} replies for post ${post.value.id}`);
   } catch (err) {
     debug.error('Failed to load replies:', err);
+    replies.value = [];
   } finally {
     isLoadingReplies.value = false;
   }
@@ -411,6 +475,12 @@ const handleUnfollow = async (userId: string) => {
   } catch (error) {
     debug.error('Failed to unfollow user:', error);
   }
+};
+
+// Handle post refresh (after fetching reactions/replies from menu)
+const handleRefresh = async (postId: string) => {
+  debug.log('Refreshing post data:', postId);
+  await loadPost();
 };
 
 const navigateToPost = (postId: string) => {
@@ -559,6 +629,23 @@ onMounted(() => {
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+}
+
+.remote-post-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 0.8rem;
+}
+
+.remote-post-hint strong {
+  color: #d1d5db;
 }
 
 .reply-composer {

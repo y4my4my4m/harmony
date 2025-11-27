@@ -363,6 +363,7 @@ class TrendingService {
           posts_count
         `)
         .eq('domain', 'har.mony.lol') // Local users for now
+        .eq('is_suspended', false) // Exclude suspended users
         .order('created_at', { ascending: false });
 
       if (currentUserId) {
@@ -556,6 +557,7 @@ class TrendingService {
         `)
         .eq('visibility', 'public')
         .eq('is_deleted', false)
+        .eq('author.is_suspended', false) // Exclude posts from suspended users
         .gte('created_at', timeThreshold)
         .order('created_at', { ascending: false })
         .limit(20);
