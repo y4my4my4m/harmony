@@ -66,6 +66,21 @@
                 </button>
                 
                 <div v-if="showActionsMenu" class="actions-menu">
+                  <!-- View in remote instance (for federated users) -->
+                  <a 
+                    v-if="!user.is_local && remoteProfileUrl" 
+                    :href="remoteProfileUrl" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    class="action-item"
+                    @click="showActionsMenu = false"
+                  >
+                    <Icon name="external-link" />
+                    <span>View on {{ user.domain }}</span>
+                  </a>
+                  
+                  <div v-if="!user.is_local && remoteProfileUrl" class="action-divider"></div>
+                  
                   <button @click="handleMute" class="action-item" :class="{ active: isMuted }">
                     <Icon name="volume-x" />
                     <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
@@ -444,6 +459,24 @@ const isMuted = computed(() => {
 
 const isBlocked = computed(() => {
   return user.value ? activityPubStore.isBlocked(user.value.id) : false;
+});
+
+// Remote profile URL for "View on remote instance" link
+const remoteProfileUrl = computed(() => {
+  if (!user.value || user.value.is_local) return null;
+  
+  // If we have a stored URL from the ActivityPub actor
+  if ((user.value as any).url) {
+    return (user.value as any).url;
+  }
+  
+  // If we have the federated_id (ActivityPub actor URL)
+  if (user.value.federated_id) {
+    return user.value.federated_id;
+  }
+  
+  // Fallback: construct URL (works for most Mastodon-compatible instances)
+  return `https://${user.value.domain}/@${user.value.username}`;
 });
 
 const followButtonText = computed(() => {
@@ -1231,6 +1264,12 @@ document.addEventListener('click', handleClickOutside);
 
 .action-item.danger:hover {
   background: rgba(242, 63, 66, 0.1);
+}
+
+.action-divider {
+  height: 1px;
+  background: var(--border-primary);
+  margin: 0.25rem 0;
 }
 
 .profile-tabs {

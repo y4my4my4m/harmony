@@ -113,10 +113,45 @@ router.post(
       const actor = await actorResponse.json();
       logger.info(`📋 Actor fetched: ${actor.preferredUsername || actor.name}`);
       
-      // Step 3: Convert and store the profile
+      // Step 3: Fetch follower/following/posts counts from collections
+      let followersCount = 0;
+      let followingCount = 0;
+      let postsCount = 0;
+
+      // Fetch counts in parallel (with timeouts, don't fail if these fail)
+      const fetchCollectionCount = async (url: string): Promise<number> => {
+        try {
+          const response = await fetch(url, {
+            headers: { 
+              'Accept': 'application/activity+json, application/ld+json',
+              'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+            },
+            signal: AbortSignal.timeout(5000)
+          });
+          if (!response.ok) return 0;
+          const collection = await response.json();
+          return collection.totalItems || 0;
+        } catch {
+          return 0;
+        }
+      };
+
+      const [followers, following, posts] = await Promise.all([
+        actor.followers ? fetchCollectionCount(actor.followers) : Promise.resolve(0),
+        actor.following ? fetchCollectionCount(actor.following) : Promise.resolve(0),
+        actor.outbox ? fetchCollectionCount(actor.outbox) : Promise.resolve(0),
+      ]);
+
+      followersCount = followers;
+      followingCount = following;
+      postsCount = posts;
+
+      logger.info(`📊 Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
+
+      // Step 4: Convert and store the profile
       const profileData = actorToProfile(actor);
       
-      const profileRecord = {
+      const profileRecord: any = {
         username: profileData.username,
         domain: profileData.domain,
         display_name: profileData.display_name,
@@ -130,8 +165,15 @@ router.post(
         followers_url: profileData.followers_url,
         following_url: profileData.following_url,
         is_local: false,
-        last_synced_at: new Date().toISOString()
+        last_synced_at: new Date().toISOString(),
+        // Store the remote URL for "view in original" feature
+        url: actor.url || actor.id,
       };
+
+      // Add counts if columns exist (may need migration)
+      if (followersCount > 0) profileRecord.followers_count = followersCount;
+      if (followingCount > 0) profileRecord.following_count = followingCount;
+      if (postsCount > 0) profileRecord.posts_count = postsCount;
 
       const { data: savedUser, error: saveError } = await supabase
         .from('profiles')

@@ -209,7 +209,18 @@ export function actorToProfile(actor: any): {
   }
 
   if (actor.summary) {
-    profile.bio = actor.summary.replace(/<[^>]*>/g, ''); // Strip HTML
+    // Convert <br> tags to newlines before stripping other HTML
+    let bio = actor.summary;
+    bio = bio.replace(/<br\s*\/?>/gi, '\n');  // <br>, <br/>, <br />
+    bio = bio.replace(/<\/p>\s*<p>/gi, '\n\n'); // Paragraph breaks
+    bio = bio.replace(/<[^>]*>/g, ''); // Strip remaining HTML tags
+    bio = bio.replace(/&nbsp;/g, ' ');
+    bio = bio.replace(/&amp;/g, '&');
+    bio = bio.replace(/&lt;/g, '<');
+    bio = bio.replace(/&gt;/g, '>');
+    bio = bio.replace(/&quot;/g, '"');
+    bio = bio.replace(/&#039;/g, "'");
+    profile.bio = bio.trim();
   }
 
   if (actor.icon?.url) {
