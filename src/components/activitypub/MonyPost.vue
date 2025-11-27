@@ -492,7 +492,6 @@ import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useThemeStore } from '@/stores/useTheme';
-import { usePostReactionsStore } from '@/stores/postReactions';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -540,7 +539,6 @@ const { getCurrentUser } = useUserData();
 const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
 const themeStore = useThemeStore();
-const postReactionsStore = usePostReactionsStore();
 
 // Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
@@ -1292,16 +1290,20 @@ const fetchRemoteReactions = async () => {
       debug.log(`📬 Fetched ${result.count} reactions for remote post`);
       
       if (result.count > 0) {
-        debug.log(`✅ Found ${result.count} reactions from remote instance, refreshing local store...`);
-        
-        // Force refetch reactions from the database to show the newly stored ones
-        await postReactionsStore.fetchPostReactions(props.post.id, true);
-        debug.log(`✅ Reactions store refreshed for post ${props.post.id}`);
+        debug.log(`✅ Found ${result.count} reactions from remote instance`);
+        // Log the reaction breakdown for debugging
+        if (result.reactions) {
+          const summary = result.reactions.reduce((acc: Record<string, number>, r: any) => {
+            acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+            return acc;
+          }, {});
+          debug.log(`📊 Reaction breakdown:`, summary);
+        }
       } else {
         debug.log(`📭 No reactions found on remote instance`);
       }
       
-      // Also emit refresh event for parent components
+      // Emit refresh event - parent should refetch post data (reactions are in metadata now)
       emit('refresh', props.post.id);
     } else {
       debug.error('Failed to fetch remote reactions:', await response.text());
