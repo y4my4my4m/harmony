@@ -765,7 +765,7 @@ const loadMorePosts = async () => {
           const result = await response.json();
           hasMorePostsRef.value = result.has_more;
           oldestRemotePostId.value = result.oldest_id;
-          debug.log(`📬 Federation response: has_more=${result.has_more}`);
+          debug.log(`📬 Federation response: has_more=${result.has_more}, next_page=${result.next_page}`);
           
           // Refresh local posts from database
           const posts = await activityPubService.getUserPosts(user.value.id, { limit: 100 });

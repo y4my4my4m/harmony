@@ -239,7 +239,7 @@ router.post(
 
     const supabase = getSupabaseClient();
     
-    logger.info(`📬 Fetching more posts for user ${user_id}${max_id ? ` after ${max_id}` : ''}`);
+    logger.info(`📬 Fetch posts request for user ${user_id} (load_more=${!!max_id})`);
 
     try {
       const result = await fetchRecentPostsInBackground(
@@ -250,10 +250,13 @@ router.post(
         Math.min(limit, 20) // Cap at 20
       );
 
+      logger.info(`📬 Result: saved new posts, has_more=${result.hasMore}`);
+
       return res.json({
         success: true,
         has_more: result.hasMore,
         oldest_id: result.oldestId,
+        next_page: result.nextPageUrl ? 'available' : 'none',
       });
     } catch (error: any) {
       logger.error('Failed to fetch more posts:', error);
@@ -471,29 +474,43 @@ router.get(
   })
 );
 
+// Cache for next page URLs per user
+const userNextPageCache = new Map<string, string | null>();
+
 /**
  * Fetch recent posts from a remote user's outbox in the background
- * Supports pagination via maxId parameter
+ * Uses proper ActivityPub pagination via 'next' links
  */
 async function fetchRecentPostsInBackground(
   authorId: string, 
   outboxUrl: string, 
   supabase: any,
-  maxId?: string,
+  maxId?: string, // Used to signal "get next page" - we use cached next URL
   limit: number = 10
-): Promise<{ hasMore: boolean; oldestId?: string }> {
+): Promise<{ hasMore: boolean; oldestId?: string; nextPageUrl?: string }> {
   try {
-    logger.info(`📬 Fetching posts from outbox: ${outboxUrl}${maxId ? ` (before ${maxId})` : ''}`);
+    // Determine which URL to fetch
+    let fetchUrl: string;
     
-    // Build the URL with pagination if needed
-    let fetchUrl = outboxUrl;
     if (maxId) {
-      const url = new URL(outboxUrl);
-      url.searchParams.set('max_id', maxId);
-      fetchUrl = url.toString();
+      // User wants more posts - use cached next page URL
+      const cachedNextUrl = userNextPageCache.get(authorId);
+      if (!cachedNextUrl) {
+        logger.info(`📬 No cached next page for user ${authorId}, fetching first page`);
+        fetchUrl = outboxUrl;
+      } else {
+        fetchUrl = cachedNextUrl;
+        logger.info(`📬 Using cached next page: ${fetchUrl}`);
+      }
+    } else {
+      // Initial fetch - start from the beginning
+      fetchUrl = outboxUrl;
+      userNextPageCache.delete(authorId); // Clear any old cache
     }
     
-    // Fetch the outbox collection
+    logger.info(`📬 Fetching posts from: ${fetchUrl}`);
+    
+    // Fetch the outbox collection or page
     const outboxResponse = await fetch(fetchUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
@@ -504,6 +521,7 @@ async function fetchRecentPostsInBackground(
     
     if (!outboxResponse.ok) {
       logger.warn(`Failed to fetch outbox: ${outboxResponse.status}`);
+      userNextPageCache.delete(authorId);
       return { hasMore: false };
     }
     
@@ -514,11 +532,13 @@ async function fetchRecentPostsInBackground(
     let nextPageUrl: string | null = null;
     
     if (outbox.orderedItems && Array.isArray(outbox.orderedItems)) {
+      // This is already a page with items
       items = outbox.orderedItems.slice(0, limit);
-      nextPageUrl = outbox.next || null;
+      nextPageUrl = typeof outbox.next === 'string' ? outbox.next : outbox.next?.id || null;
     } else if (outbox.first) {
-      // Need to fetch the first page
+      // This is a collection - need to fetch the first page
       const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
+      logger.info(`📬 Fetching first page: ${firstPageUrl}`);
       
       const pageResponse = await fetch(firstPageUrl, {
         headers: {
@@ -531,8 +551,17 @@ async function fetchRecentPostsInBackground(
       if (pageResponse.ok) {
         const page = await pageResponse.json();
         items = (page.orderedItems || []).slice(0, limit);
-        nextPageUrl = page.next || null;
+        nextPageUrl = typeof page.next === 'string' ? page.next : page.next?.id || null;
       }
+    }
+    
+    // Cache the next page URL for this user
+    if (nextPageUrl) {
+      userNextPageCache.set(authorId, nextPageUrl);
+      logger.info(`📬 Cached next page URL: ${nextPageUrl}`);
+    } else {
+      userNextPageCache.delete(authorId);
+      logger.info(`📬 No more pages available`);
     }
     
     if (items.length === 0) {
@@ -647,13 +676,18 @@ async function fetchRecentPostsInBackground(
     
     logger.info(`📬 Saved ${savedCount} new posts from remote user`);
     
+    // Has more if we saved any posts OR there's a next page
+    const hasMore = savedCount > 0 || !!nextPageUrl;
+    
     return { 
-      hasMore: items.length >= limit || !!nextPageUrl,
-      oldestId 
+      hasMore,
+      oldestId,
+      nextPageUrl: nextPageUrl || undefined
     };
     
   } catch (error) {
     logger.warn(`Failed to fetch outbox posts:`, error);
+    userNextPageCache.delete(authorId);
     return { hasMore: false };
   }
 }
