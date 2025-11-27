@@ -10,23 +10,29 @@
   <!-- Main Layout -->
   <div v-else class="base-layout" :class="{ 
     'sidebar-open': leftSidebarOpen, 
-    'profile-open': rightSidebarOpen 
+    'profile-open': rightSidebarOpen,
+    'is-dragging': isDragging
   }">
     <!-- Mobile Overlay Backdrop -->
     <div 
-      v-if="isMobile && (leftSidebarOpen || rightSidebarOpen)" 
+      v-if="isMobile && (leftSidebarOpen || rightSidebarOpen || isDragging)" 
       class="mobile-overlay"
+      :style="overlayStyle"
       @click="closeMobileSidebars"
     ></div>
     
     <!-- Edge Swipe Indicators -->
     <div v-if="isMobile && isAppReady" class="edge-indicators">
-      <div class="edge-indicator left" :class="{ active: touchState.isEdgeSwipe && touchState.startX <= 25 }"></div>
-      <div class="edge-indicator right" :class="{ active: touchState.isEdgeSwipe && touchState.startX >= windowWidth - 25 }"></div>
+      <div class="edge-indicator left" :class="{ active: touchState.isEdgeSwipe && touchState.startX <= 30 }"></div>
+      <div class="edge-indicator right" :class="{ active: touchState.isEdgeSwipe && touchState.startX >= windowWidth - 30 }"></div>
     </div>
     
     <!-- Server List Sidebar (Always Visible) -->
-    <div class="server-sidebar-container">
+    <div 
+      class="server-sidebar-container"
+      :class="{ 'is-dragging': isDragging && dragDirection === 'left' }"
+      :style="serverSidebarDragStyle"
+    >
       <!-- TODO: fix for mobile -->
 
       <!-- Mobile Profile Component -->
@@ -61,6 +67,10 @@
         :right-sidebar-open="rightSidebarOpen"
         :is-mobile="isMobile"
         :voice-panel-open="voicePanelOpen"
+        :is-dragging="isDragging"
+        :drag-direction="dragDirection"
+        :left-sidebar-drag-offset="leftSidebarDragOffset"
+        :right-sidebar-drag-offset="rightSidebarDragOffset"
         @toggle-left-sidebar="toggleLeftSidebar"
         @toggle-right-sidebar="toggleRightSidebar"
         @toggle-voice-panel="toggleVoicePanel"
@@ -117,18 +127,28 @@ const route = useRoute()
 const router = useRouter()
 
 // Composables
-const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
+const { touchState, dragOffset, handleTouchStart, handleTouchMove, handleTouchEnd, config } = useMobileGestures()
 const { 
   leftSidebarOpen, 
   rightSidebarOpen, 
   isMobile, 
   voicePanelOpen,
   mobileProfileOpen,
+  isDragging,
+  dragDirection,
+  leftSidebarDragOffset,
+  rightSidebarDragOffset,
+  serverSidebarDragStyle,
+  SIDEBAR_WIDTH,
   toggleLeftSidebar,
   toggleRightSidebar,
   toggleVoicePanel,
   toggleMobileProfile,
-  closeMobileSidebars
+  closeMobileSidebars,
+  startDrag,
+  updateDragOffset,
+  endDrag,
+  cancelDrag
 } = useLayoutState()
 
 // Global call state (reactive references from the global listener)
@@ -151,6 +171,21 @@ const hasServersLoaded = ref(false)
 const isAppReady = computed(() => isAppInitialized.value && hasServersLoaded.value)
 const servers = computed(() => serverChannelStore.servers)
 const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerWidth : 768)
+
+// Dynamic overlay opacity during drag
+const overlayStyle = computed(() => {
+  if (!isDragging.value) return {}
+  
+  const offset = dragDirection.value === 'left' 
+    ? leftSidebarDragOffset.value 
+    : rightSidebarDragOffset.value
+  const progress = offset / SIDEBAR_WIDTH
+  
+  return {
+    opacity: progress * 0.6,
+    transition: 'none'
+  }
+})
 
 // Global call handlers
 const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
@@ -565,25 +600,54 @@ watch(() => route.name, async (newRouteName, oldRouteName) => {
   }
 })
 
-// Touch event wrappers that provide the required parameters
+// ===== NATIVE MOBILE GESTURE HANDLERS =====
+
 const wrappedTouchStart = (event: TouchEvent) => {
   handleTouchStart(event, isMobile.value)
 }
 
 const wrappedTouchMove = (event: TouchEvent) => {
   const hasOpenSidebars = leftSidebarOpen.value || rightSidebarOpen.value
-  handleTouchMove(event, isMobile.value, hasOpenSidebars)
+  
+  handleTouchMove(event, isMobile.value, hasOpenSidebars, {
+    onSwipeRight: () => {},
+    onSwipeLeft: () => {},
+    onDragStart: (direction) => {
+      debug.log('📱 Drag started:', direction)
+      startDrag(direction)
+    },
+    onDragProgress: (progress, direction) => {
+      // Calculate offset from progress
+      const offset = progress * SIDEBAR_WIDTH
+      updateDragOffset(offset, direction)
+    }
+  })
 }
 
 const wrappedTouchEnd = (event: TouchEvent) => {
   handleTouchEnd(event, isMobile.value, {
     onSwipeRight: () => {
-      debug.log('🔄 Edge swipe right detected, opening left sidebar')
-      toggleLeftSidebar()
+      if (!isDragging.value) {
+        debug.log('🔄 Quick swipe right, opening left sidebar')
+        toggleLeftSidebar()
+      }
     },
     onSwipeLeft: () => {
-      debug.log('🔄 Edge swipe left detected, opening right sidebar')
-      toggleRightSidebar()
+      if (!isDragging.value) {
+        debug.log('🔄 Quick swipe left, opening right sidebar')
+        toggleRightSidebar()
+      }
+    },
+    onDragEnd: (shouldComplete, direction) => {
+      debug.log('📱 Drag ended:', { shouldComplete, direction })
+      
+      if (direction === 'left') {
+        // Opening left sidebar
+        endDrag(shouldComplete, direction)
+      } else {
+        // Opening right sidebar
+        endDrag(shouldComplete, direction)
+      }
     }
   })
 }
@@ -643,9 +707,13 @@ onBeforeUnmount(() => {
   background: rgba(0, 0, 0, 0.6);
   z-index: 199;
   backdrop-filter: blur(4px);
+  transition: opacity 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-
+/* Disable transition during drag */
+.base-layout.is-dragging .mobile-overlay {
+  transition: none;
+}
 
 .edge-indicators {
   position: fixed;
@@ -662,8 +730,8 @@ onBeforeUnmount(() => {
   width: 4px;
   height: 100vh;
   background: var(--harmony-primary);
-  opacity: 0.25;
-  transition: opacity 0.3s ease;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
 .edge-indicator.left {
@@ -677,7 +745,7 @@ onBeforeUnmount(() => {
 }
 
 .edge-indicator.active {
-  opacity: 0.8;
+  opacity: 0.6;
 }
 
 .server-sidebar-container {
@@ -686,6 +754,7 @@ onBeforeUnmount(() => {
   background: var(--background-tertiary);
   z-index: 100;
   padding-top: 26px;
+  will-change: transform;
 }
 
 .content-area {
@@ -716,7 +785,13 @@ onBeforeUnmount(() => {
     height: 100vh;
     z-index: 200;
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    /* Native-feeling spring animation on release */
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* Disable transition during active drag */
+  .server-sidebar-container.is-dragging {
+    transition: none !important;
   }
 
   .mobile-profile-overlay {

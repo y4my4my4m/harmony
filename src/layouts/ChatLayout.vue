@@ -6,7 +6,7 @@
   />
   
   <!-- Chat Layout -->
-  <div v-else class="chat-layout">
+  <div v-else class="chat-layout" :class="{ 'is-dragging': isDragging }">
     <!-- Context Bar -->
     <div class="context-bar-container">
       <UnifiedContextBar
@@ -29,7 +29,14 @@
     <!-- Chat Layout Content (Flex Row) -->
     <div class="chat-layout-content">
       <!-- Channel Sidebar -->
-      <div class="channel-sidebar-container" :class="{ 'mobile-open': leftSidebarOpen }">
+      <div 
+        class="channel-sidebar-container" 
+        :class="{ 
+          'mobile-open': leftSidebarOpen,
+          'is-dragging': isDragging && dragDirection === 'left'
+        }"
+        :style="leftSidebarStyle"
+      >
         <AdaptiveChannelSidebar
           mode="chat"
           :current-server="currentServer"
@@ -93,7 +100,15 @@
           </div>
 
           <!-- Right Sidebar (User List) -->
-          <div v-if="!isDM" class="right-sidebar-container" :class="{ 'sidebar-open': rightSidebarOpen }">
+          <div 
+            v-if="!isDM" 
+            class="right-sidebar-container" 
+            :class="{ 
+              'sidebar-open': rightSidebarOpen,
+              'is-dragging': isDragging && dragDirection === 'right'
+            }"
+            :style="rightSidebarStyle"
+          >
             <UserSidebar :visible="rightSidebarOpen" />
           </div>
         </div>
@@ -137,6 +152,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
+import { useLayoutState } from '@/composables/useLayoutState'
 
 // Props
 interface Props {
@@ -150,12 +166,21 @@ interface Props {
   conversationId?: string
   viewType?: string
   currentView?: string
+  // Drag state props from BaseLayout
+  isDragging?: boolean
+  dragDirection?: 'left' | 'right' | null
+  leftSidebarDragOffset?: number
+  rightSidebarDragOffset?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isDM: false,
   viewType: 'chat',
-  currentView: 'chat'
+  currentView: 'chat',
+  isDragging: false,
+  dragDirection: null,
+  leftSidebarDragOffset: 0,
+  rightSidebarDragOffset: 0
 })
 
 // Emits
@@ -172,6 +197,9 @@ const chatStore = useChatStore()
 const dmStore = useDMStore()
 const router = useRouter()
 const route = useRoute()
+
+// Layout state
+const { SIDEBAR_WIDTH } = useLayoutState()
 
 // User data
 const { getCurrentUser } = useUserData()
@@ -198,6 +226,50 @@ const conversationId = computed(() => props.conversationId)
 
 const shouldShowNoServersSplash = computed(() => {
   return !props.isDM && servers.value.length === 0
+})
+
+// Computed drag styles for native-feeling gestures
+const leftSidebarStyle = computed(() => {
+  if (!props.isMobile) return {}
+  
+  if (props.isDragging && props.dragDirection === 'left') {
+    // Left sidebar slides in from left (accounting for server sidebar at 72px)
+    // When closed: translateX(-150%) (hidden off screen)
+    // When open: translateX(72px) (visible next to server sidebar)
+    // During drag: interpolate based on offset
+    const progress = props.leftSidebarDragOffset / SIDEBAR_WIDTH
+    const closedPosition = -240 // Hidden position (width of sidebar)
+    const openPosition = 72 // Open position (server sidebar width)
+    const currentPosition = closedPosition + (openPosition - closedPosition) * progress
+    
+    return {
+      transform: `translateX(${currentPosition}px)`,
+      width: '240px',
+      transition: 'none'
+    }
+  }
+  
+  return {}
+})
+
+const rightSidebarStyle = computed(() => {
+  if (!props.isMobile) return {}
+  
+  if (props.isDragging && props.dragDirection === 'right') {
+    // Right sidebar slides in from right
+    const progress = props.rightSidebarDragOffset / SIDEBAR_WIDTH
+    const closedPosition = 100 // Hidden off screen (percentage)
+    const openPosition = 0 // Fully visible
+    const currentPosition = closedPosition - (closedPosition * progress)
+    
+    return {
+      transform: `translateX(${currentPosition}%)`,
+      width: '280px',
+      transition: 'none'
+    }
+  }
+  
+  return {}
 })
 
 // State
@@ -379,6 +451,7 @@ onMounted(() => {
   background: var(--background-tertiary);
   position: relative;
   z-index: 40;
+  will-change: transform;
 }
 
 .main-and-right-container {
@@ -459,9 +532,11 @@ onMounted(() => {
 
 .right-sidebar-container {
   flex-shrink: 0;
-  transition: transform 0.3s ease, width 0.3s ease;
+  /* Native-feeling spring animation */
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   transform: translateX(100%);
   width: 0px;
+  will-change: transform;
 }
 
 
@@ -484,22 +559,34 @@ onMounted(() => {
     top: 0;
     height: 100%;
     z-index: 200;
-    transition: transform 0.3s ease, width 0.1s ease;
+    /* Native-feeling spring animation on release */
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);
   }
+
+  /* Disable transitions during active drag */
+  .channel-sidebar-container.is-dragging,
+  .right-sidebar-container.is-dragging {
+    transition: none !important;
+  }
+
   .channel-sidebar-container.mobile-open {
     transform: translateX(72px);
     width: 240px;
     left: 0;
   }
   .channel-sidebar-container {
-    transform: translateX(-150%);
-    width: 0;
+    transform: translateX(-240px);
+    width: 240px;
     left: 0;
   }
   .right-sidebar-container {
-    transform: translateX(150%);
-    width: 0px;
+    transform: translateX(100%);
+    width: 280px;
     right: 0;
+  }
+  .right-sidebar-container.sidebar-open {
+    transform: translateX(0);
+    width: 280px;
   }
   
   .main-content-area {

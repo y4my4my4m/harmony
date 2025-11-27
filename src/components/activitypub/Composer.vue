@@ -1322,6 +1322,17 @@ const vClickOutside = {
   .visibility-button span {
     display: none;
   }
+  .composer-user {
+    position: absolute;
+  }
+
+  .text-input-container {
+    padding-left: 48px;
+  }
+  .text-input-container .rich-text-editor {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
 }
 </style>
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="social-layout">
+  <div class="social-layout" :class="{ 'is-dragging': isDragging }">
     <!-- Context Bar -->
     <div class="context-bar-container">
       <UnifiedContextBar
@@ -24,7 +24,14 @@
     <!-- Social Layout Content (Flex Row) -->
     <div class="social-layout-content">
       <!-- Social Sidebar -->
-      <div class="social-sidebar-container" :class="{ 'mobile-open': leftSidebarOpen }">
+      <div 
+        class="social-sidebar-container" 
+        :class="{ 
+          'mobile-open': leftSidebarOpen,
+          'is-dragging': isDragging && dragDirection === 'left'
+        }"
+        :style="leftSidebarStyle"
+      >
         <AdaptiveChannelSidebar
           mode="activitypub"
           :channels="[]"
@@ -73,7 +80,14 @@
         </div>
 
         <!-- Right Sidebar (Trending & Suggestions) -->
-        <div class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
+        <div 
+          class="right-sidebar-container" 
+          :class="{ 
+            'mobile-open': rightSidebarOpen,
+            'is-dragging': isDragging && dragDirection === 'right'
+          }"
+          :style="rightSidebarStyle"
+        >
           <div class="activitypub-right-sidebar">
           <!-- Trending Section -->
           <div class="sidebar-section">
@@ -169,6 +183,7 @@ import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
+import { useLayoutState } from '@/composables/useLayoutState'
 import { supabase } from '@/supabase'
 import type { FederatedUser, TimelinePost } from '@/types'
 
@@ -193,6 +208,11 @@ interface Props {
   instanceDomain?: string
   instanceUserCount?: number
   instancePostCount?: number
+  // Drag state props from BaseLayout
+  isDragging?: boolean
+  dragDirection?: 'left' | 'right' | null
+  leftSidebarDragOffset?: number
+  rightSidebarDragOffset?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -208,7 +228,11 @@ const props = withDefaults(defineProps<Props>(), {
   followersCount: 0,
   instanceDomain: 'har.mony.lol',
   instanceUserCount: 0,
-  instancePostCount: 0
+  instancePostCount: 0,
+  isDragging: false,
+  dragDirection: null,
+  leftSidebarDragOffset: 0,
+  rightSidebarDragOffset: 0
 })
 
 // Emits
@@ -223,6 +247,50 @@ const emit = defineEmits<{
 const activityPubStore = useActivityPubStore()
 const router = useRouter()
 const route = useRoute()
+
+// Layout state
+const { SIDEBAR_WIDTH } = useLayoutState()
+
+// Computed drag styles for native-feeling gestures
+const leftSidebarStyle = computed(() => {
+  if (!props.isMobile) return {}
+  
+  if (props.isDragging && props.dragDirection === 'left') {
+    // Left sidebar slides in from left (accounting for server sidebar at 72px)
+    const progress = props.leftSidebarDragOffset / SIDEBAR_WIDTH
+    const closedPosition = -280 // Hidden position
+    const openPosition = 72 // Open position (server sidebar width)
+    const currentPosition = closedPosition + (openPosition - closedPosition) * progress
+    
+    return {
+      transform: `translateX(${currentPosition}px)`,
+      width: '280px',
+      transition: 'none'
+    }
+  }
+  
+  return {}
+})
+
+const rightSidebarStyle = computed(() => {
+  if (!props.isMobile) return {}
+  
+  if (props.isDragging && props.dragDirection === 'right') {
+    // Right sidebar slides in from right
+    const progress = props.rightSidebarDragOffset / SIDEBAR_WIDTH
+    const closedPosition = 100 // Hidden off screen (percentage)
+    const openPosition = 0 // Fully visible
+    const currentPosition = closedPosition - (closedPosition * progress)
+    
+    return {
+      transform: `translateX(${currentPosition}%)`,
+      width: '280px',
+      transition: 'none'
+    }
+  }
+  
+  return {}
+})
 
 // Route-aware props extraction - Professional approach
 // Extract view information from current route with comprehensive mapping
@@ -627,6 +695,7 @@ const formatNumber = (num: number): string => {
   border-right: 1px solid var(--border-color);
   position: relative;
   z-index: 40;
+  will-change: transform;
 }
 
 .main-and-right-container {
@@ -648,6 +717,7 @@ const formatNumber = (num: number): string => {
   background: var(--background-tertiary);
   border-left: 1px solid var(--border-color);
   z-index: 40;
+  will-change: transform;
 }
 
 .activitypub-right-sidebar {
@@ -737,21 +807,6 @@ const formatNumber = (num: number): string => {
   color: var(--text-secondary);
   margin: 0;
 }
-/* 
-.right-sidebar-container {
-  flex-shrink: 0;
-  background: var(--background-tertiary);
-  transition: transform 0.3s ease, width 0.3s ease;
-  transform: translateX(100%);
-  width: 0px;
-} */
-
-.right-sidebar-container.sidebar-open {
-  transform: translateX(0);
-  height: 100vh;
-  width: 240px;
-}
-
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
@@ -765,21 +820,29 @@ const formatNumber = (num: number): string => {
     top: 0;
     height: 100%;
     z-index: 200;
-    transition: transform 0.3s ease, width 0.1s ease;
+    /* Native-feeling spring animation on release */
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);
   }
+
+  /* Disable transitions during active drag */
+  .social-sidebar-container.is-dragging,
+  .right-sidebar-container.is-dragging {
+    transition: none !important;
+  }
+
   .social-sidebar-container.mobile-open {
     transform: translateX(72px);
     width: 280px;
     left: 0;
   }
   .social-sidebar-container {
-    transform: translateX(-150%);
-    width: 0;
+    transform: translateX(-280px);
+    width: 280px;
     left: 0;
   }
   .right-sidebar-container {
-    transform: translateX(150%);
-    width: 0px;
+    transform: translateX(100%);
+    width: 280px;
     right: 0;
   }
   .right-sidebar-container.mobile-open {
