@@ -210,14 +210,21 @@ const loadPost = async () => {
     post.value = fetchedPost;
     totalReplies.value = fetchedPost.replies_count || 0;
     
+    debug.log(`📝 Loaded post: id=${fetchedPost.id}, is_local=${fetchedPost.is_local}, ap_id=${fetchedPost.ap_id}`);
+    
     // Load local replies
     await loadReplies();
     await loadRelatedPosts();
     
-    // If this is a remote post, auto-fetch reactions and replies in the background
-    if (!fetchedPost.is_local && fetchedPost.ap_id) {
-      debug.log(`🌐 Remote post detected, auto-fetching reactions and replies...`);
+    // Auto-fetch reactions and replies for ANY post with an ap_id
+    // This covers both:
+    // 1. Remote posts (is_local=false) - fetch from their origin instance
+    // 2. Local posts (is_local=true) - fetch reactions/replies from remote instances
+    if (fetchedPost.ap_id) {
+      debug.log(`🌐 Post has ap_id, auto-fetching remote reactions and replies...`);
       fetchRemoteDataInBackground(fetchedPost);
+    } else {
+      debug.log(`⚠️ Post has no ap_id, skipping remote fetch`);
     }
   } catch (err) {
     debug.error('Failed to load post:', err);
@@ -227,63 +234,87 @@ const loadPost = async () => {
   }
 };
 
-// Auto-fetch remote reactions and replies in the background
-const fetchRemoteDataInBackground = async (remotePost: TimelinePost) => {
+// Auto-fetch reactions and replies from federation in the background
+// Works for both local posts (fetches remote reactions) and remote posts (fetches from origin)
+const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
   const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+  const postType = targetPost.is_local ? 'local' : 'remote';
   
+  debug.log(`🌐 Starting background fetch for ${postType} post: ${targetPost.ap_id}`);
+  
+  // Fetch reactions
   try {
-    // Fetch reactions
-    debug.log(`📬 Auto-fetching reactions for remote post: ${remotePost.ap_id}`);
+    debug.log(`📬 Fetching reactions for ${postType} post...`);
     const reactionsResponse = await fetch(`${federationBackendUrl}/fetch-reactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        post_ap_id: remotePost.ap_id,
-        post_id: remotePost.id,
+        post_ap_id: targetPost.ap_id,
+        post_id: targetPost.id,
       }),
     });
     
     if (reactionsResponse.ok) {
       const result = await reactionsResponse.json();
-      debug.log(`✅ Auto-fetched ${result.count} reactions`);
+      debug.log(`✅ Fetched reactions: ${result.count} total, favorites_count=${result.favorites_count}`);
       
-      // Refetch post to get updated metadata
-      if (result.count > 0) {
-        const updatedPost = await activityPubService.getPost(remotePost.id);
-        if (updatedPost) {
-          post.value = updatedPost;
+      // Update post with new data
+      if (result.remote_reactions || result.favorites_count > 0) {
+        // Update metadata directly for immediate reactivity
+        if (result.remote_reactions && post.value) {
+          post.value.metadata = {
+            ...(post.value.metadata || {}),
+            remote_reactions: result.remote_reactions,
+            remote_reactions_fetched_at: new Date().toISOString(),
+          };
+        }
+        // Update counts
+        if (post.value) {
+          post.value.favorites_count = result.favorites_count || post.value.favorites_count;
+          post.value.replies_count = result.replies_count || post.value.replies_count;
+          post.value.reblogs_count = result.reblogs_count || post.value.reblogs_count;
         }
       }
+    } else {
+      const errorText = await reactionsResponse.text();
+      debug.warn(`⚠️ Failed to fetch reactions: ${reactionsResponse.status} - ${errorText}`);
     }
   } catch (err) {
-    debug.warn('Failed to auto-fetch remote reactions:', err);
+    debug.warn('Failed to auto-fetch reactions:', err);
   }
   
-  try {
-    // Fetch replies
-    debug.log(`📬 Auto-fetching replies for remote post: ${remotePost.ap_id}`);
-    const repliesResponse = await fetch(`${federationBackendUrl}/fetch-replies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: remotePost.ap_id,
-        post_id: remotePost.id,
-        limit: 10,
-      }),
-    });
-    
-    if (repliesResponse.ok) {
-      const result = await repliesResponse.json();
-      debug.log(`✅ Auto-fetched ${result.count} replies`);
+  // Fetch replies (only for remote posts - local replies are already in DB)
+  if (!targetPost.is_local) {
+    try {
+      debug.log(`📬 Fetching replies for remote post...`);
+      const repliesResponse = await fetch(`${federationBackendUrl}/fetch-replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          post_ap_id: targetPost.ap_id,
+          post_id: targetPost.id,
+          limit: 10,
+        }),
+      });
       
-      // Reload replies to include the newly fetched ones
-      if (result.count > 0) {
-        await loadReplies();
+      if (repliesResponse.ok) {
+        const result = await repliesResponse.json();
+        debug.log(`✅ Fetched ${result.count || 0} replies`);
+        
+        // Reload replies to include the newly fetched ones
+        if (result.count > 0) {
+          await loadReplies();
+        }
+      } else {
+        const errorText = await repliesResponse.text();
+        debug.warn(`⚠️ Failed to fetch replies: ${repliesResponse.status} - ${errorText}`);
       }
+    } catch (err) {
+      debug.warn('Failed to auto-fetch replies:', err);
     }
-  } catch (err) {
-    debug.warn('Failed to auto-fetch remote replies:', err);
   }
+  
+  debug.log(`✅ Background fetch complete for ${postType} post`);
 };
 
 const loadReplies = async () => {
