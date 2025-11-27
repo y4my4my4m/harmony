@@ -360,6 +360,9 @@ const isFollowLoading = ref(false);
 const userPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
 const hasMorePostsRef = ref(false);
+const remoteOutboxUrl = ref<string | null>(null); // For remote user pagination
+const oldestRemotePostId = ref<string | null>(null); // Track oldest post for pagination
+const isLoadingMoreRemote = ref(false);
 
 // Social connections
 const followingUsers = ref<FederatedUser[]>([]);
@@ -415,12 +418,30 @@ const bannerStyle = computed(() => {
   }
 })
 
-// Scroll handling
+// Scroll handling with infinite scroll for posts
+let scrollDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 const handleScroll = () => {
   if (!scrollContainerRef.value) return;
   
-  const scrollTop = scrollContainerRef.value.scrollTop;
+  const container = scrollContainerRef.value;
+  const scrollTop = container.scrollTop;
   isScrolled.value = scrollTop > 50; // Trigger shrink after 50px scroll
+  
+  // Infinite scroll: load more when near bottom (within 300px)
+  if (activeTab.value === 'posts' && !isLoadingPosts.value && !isLoadingMoreRemote.value) {
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    
+    if (distanceFromBottom < 300 && hasMorePostsRef.value) {
+      // Debounce to avoid multiple rapid calls
+      if (scrollDebounceTimer) clearTimeout(scrollDebounceTimer);
+      scrollDebounceTimer = setTimeout(() => {
+        loadMorePosts();
+      }, 150);
+    }
+  }
 };
 
 // Header event handlers
@@ -507,6 +528,12 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
     if (handle.includes('@')) {
       debug.log(`🌐 Resolving federated user...${forceRefresh ? ' (force refresh)' : ''}`);
       user.value = await activityPubService.getUserByHandle(handle, forceRefresh);
+      
+      // Save outbox URL for remote pagination (if remote user)
+      if (user.value && !user.value.is_local && (user.value as any).outbox_url) {
+        remoteOutboxUrl.value = (user.value as any).outbox_url;
+        debug.log(`📬 Saved outbox URL for remote pagination: ${remoteOutboxUrl.value}`);
+      }
     } else {
       debug.log('👤 Looking up local user...');
       
@@ -621,7 +648,14 @@ const loadUserPosts = async () => {
     const posts = await activityPubService.getUserPosts(user.value.id, { limit: 20 });
     userPosts.value = posts as TimelinePost[] || [];
     
-    hasMorePostsRef.value = posts && posts.length >= 20; // Enable pagination if we got a full page
+    // For remote users, always enable "load more" since we can fetch from their outbox
+    // For local users, enable if we got a full page
+    if (!user.value.is_local && remoteOutboxUrl.value) {
+      hasMorePostsRef.value = true; // Remote users can always have more posts to fetch
+      debug.log(`📬 Remote user - enabling infinite scroll (outbox: ${remoteOutboxUrl.value})`);
+    } else {
+      hasMorePostsRef.value = posts && posts.length >= 20;
+    }
     debug.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
     
     // Update post count for current user with actual loaded posts
@@ -699,34 +733,80 @@ const loadFollowers = async () => {
 };
 
 const loadMorePosts = async () => {
-  if (!user.value || isLoadingPosts.value || !hasMorePostsRef.value) return;
+  if (!user.value || isLoadingPosts.value || isLoadingMoreRemote.value || !hasMorePostsRef.value) return;
   
   isLoadingPosts.value = true;
   try {
     debug.log(`📖 Loading more posts for user: ${user.value.username}`);
     
-    // Get the oldest post's created_at as max_id for pagination
-    const oldestPost = userPosts.value[userPosts.value.length - 1];
-    const maxId = oldestPost?.created_at;
-    
-    if (!maxId) {
-      debug.log('❌ No max_id found for pagination');
-      hasMorePostsRef.value = false;
-      return;
-    }
-    
-    const posts = await activityPubService.getUserPosts(user.value.id, { 
-      limit: 20, 
-      max_id: maxId 
-    });
-    
-    if (posts && posts.length > 0) {
-      userPosts.value.push(...(posts as TimelinePost[]));
-      hasMorePostsRef.value = posts.length >= 20; // Continue pagination if we got a full page
-      debug.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
+    // For remote users, fetch from federation backend first
+    if (!user.value.is_local && remoteOutboxUrl.value) {
+      isLoadingMoreRemote.value = true;
+      debug.log(`🌐 Fetching more posts from remote outbox...`);
+      
+      try {
+        // Get oldest post ID for pagination
+        const oldestPost = userPosts.value[userPosts.value.length - 1];
+        const maxId = oldestPost?.ap_id || oldestRemotePostId.value;
+        
+        const federationUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+        const response = await fetch(`${federationUrl}/fetch-posts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.value.id,
+            outbox_url: remoteOutboxUrl.value,
+            max_id: maxId,
+            limit: 10
+          })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          hasMorePostsRef.value = result.has_more;
+          oldestRemotePostId.value = result.oldest_id;
+          debug.log(`📬 Federation response: has_more=${result.has_more}`);
+          
+          // Refresh local posts from database
+          const posts = await activityPubService.getUserPosts(user.value.id, { limit: 100 });
+          if (posts && posts.length > 0) {
+            userPosts.value = posts as TimelinePost[];
+            debug.log(`📊 Refreshed ${posts.length} total posts after remote fetch`);
+          }
+        } else {
+          debug.warn('Failed to fetch remote posts:', response.status);
+          hasMorePostsRef.value = false;
+        }
+      } catch (fetchError) {
+        debug.error('Remote fetch error:', fetchError);
+        hasMorePostsRef.value = false;
+      } finally {
+        isLoadingMoreRemote.value = false;
+      }
     } else {
-      hasMorePostsRef.value = false;
-      debug.log('📭 No more posts available');
+      // Local user: load from database directly
+      const oldestPost = userPosts.value[userPosts.value.length - 1];
+      const maxId = oldestPost?.created_at;
+      
+      if (!maxId) {
+        debug.log('❌ No max_id found for pagination');
+        hasMorePostsRef.value = false;
+        return;
+      }
+      
+      const posts = await activityPubService.getUserPosts(user.value.id, { 
+        limit: 20, 
+        max_id: maxId 
+      });
+      
+      if (posts && posts.length > 0) {
+        userPosts.value.push(...(posts as TimelinePost[]));
+        hasMorePostsRef.value = posts.length >= 20;
+        debug.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
+      } else {
+        hasMorePostsRef.value = false;
+        debug.log('📭 No more posts available');
+      }
     }
   } catch (error) {
     debug.error('❌ Failed to load more posts:', error);
