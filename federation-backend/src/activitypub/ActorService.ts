@@ -522,6 +522,48 @@ async function fetchMisskeyReactions(
       }
       reactionCounts.set(emoji, existing);
       
+      // Cache the emoji in remote_emojis_cache for the emoji importer feature
+      if (isCustomEmoji && emojiUrl) {
+        try {
+          // Extract shortcode and origin domain from the emoji
+          let shortcode: string;
+          let originDomain: string;
+          
+          if (emoji.endsWith('@.:')) {
+            // Origin instance emoji: :kawa_yu@.: -> shortcode=kawa_yu, domain=misskey.io
+            shortcode = emoji.slice(1, -3);
+            originDomain = domain;
+          } else if (emoji.includes('@')) {
+            // Third-party emoji: :suteki2@fedibird.com: -> shortcode=suteki2, domain=fedibird.com
+            const match = emoji.match(/:([^@]+)@([^:]+):/);
+            if (match) {
+              shortcode = match[1];
+              originDomain = match[2];
+            } else {
+              shortcode = emoji.slice(1, -1);
+              originDomain = domain;
+            }
+          } else {
+            // Simple emoji: :smile: -> shortcode=smile, domain=origin
+            shortcode = emoji.slice(1, -1);
+            originDomain = domain;
+          }
+          
+          // Upsert into remote_emojis_cache
+          await supabase.rpc('upsert_remote_emoji', {
+            p_shortcode: shortcode,
+            p_origin_domain: originDomain,
+            p_full_code: emoji,
+            p_url: emojiUrl,
+          });
+          
+          logger.debug(`📬 Cached remote emoji: ${shortcode}@${originDomain}`);
+        } catch (cacheError) {
+          // Don't fail the whole operation if caching fails
+          logger.debug(`📬 Could not cache emoji ${emoji}: ${cacheError}`);
+        }
+      }
+      
       // Build reaction object with actor info (for display purposes only, no DB storage)
       reactions.push({
         emoji,
