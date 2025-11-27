@@ -605,8 +605,70 @@ async function fetchRecentPostsInBackground(
     
     for (const item of items) {
       try {
-        // Handle both Create activities and direct Note objects
-        const note = item.type === 'Create' ? item.object : item;
+        // Handle different activity types
+        const activityType = item.type;
+        
+        // Handle Announce (reblog/boost)
+        if (activityType === 'Announce') {
+          oldestId = item.id;
+          
+          // Check if we already have this reblog
+          const { data: existingReblog } = await supabase
+            .from('posts')
+            .select('id')
+            .eq('ap_id', item.id)
+            .maybeSingle();
+          
+          if (existingReblog) {
+            continue;
+          }
+          
+          // Get the original post URL
+          const originalUrl = typeof item.object === 'string' ? item.object : item.object?.id;
+          if (!originalUrl) continue;
+          
+          // Try to find or fetch the original post
+          let originalPostId: string | null = null;
+          const { data: originalPost } = await supabase
+            .from('posts')
+            .select('id')
+            .eq('ap_id', originalUrl)
+            .maybeSingle();
+          
+          if (originalPost) {
+            originalPostId = originalPost.id;
+          }
+          // Note: We could fetch the original post here, but that's expensive
+          // For now, just store the reference in metadata
+          
+          const reblogData: any = {
+            ap_id: item.id,
+            ap_type: 'Announce',
+            author_id: authorId,
+            content: [], // Reblogs typically don't have their own content
+            visibility: 'public',
+            is_local: false,
+            created_at: item.published || new Date().toISOString(),
+            metadata: {
+              reblog_of: originalPostId,
+              reblog_of_ap_url: originalUrl,
+              is_reblog: true,
+            },
+          };
+          
+          const { error: reblogError } = await supabase
+            .from('posts')
+            .insert(reblogData);
+          
+          if (!reblogError) {
+            savedCount++;
+            logger.debug(`📬 Saved reblog of ${originalUrl}`);
+          }
+          continue;
+        }
+        
+        // Handle Create activities and direct Note objects
+        const note = activityType === 'Create' ? item.object : item;
         
         // Skip non-Note types (but handle Question for polls)
         if (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question') {
@@ -647,8 +709,10 @@ async function fetchRecentPostsInBackground(
         // Extract media attachments separately for the media_attachments column
         const mediaAttachments = extractMediaAttachments(note.attachment);
         
-        // Build metadata for polls
+        // Build metadata for polls, quotes, replies
         const metadata: any = {};
+        
+        // Handle polls (Question type)
         if (note.type === 'Question') {
           const pollOptions = note.oneOf || note.anyOf || [];
           metadata.is_poll = true;
@@ -661,10 +725,35 @@ async function fetchRecentPostsInBackground(
           metadata.poll_closed = !!note.closed;
         }
         
+        // Handle quote posts (Mastodon uses quoteUrl, Misskey uses _misskey_quote)
+        const quoteUrl = note.quoteUrl || note.quoteUri || note._misskey_quote;
+        if (quoteUrl) {
+          metadata.is_quote = true;
+          metadata.quote_url = quoteUrl;
+          logger.debug(`📬 Found quote post referencing: ${quoteUrl}`);
+        }
+        
         // Handle custom emoji from tags
         const customEmojis = extractCustomEmojis(note.tag);
         if (customEmojis.length > 0) {
           metadata.custom_emojis = customEmojis;
+        }
+        
+        // Handle reply context
+        let inReplyToId: string | null = null;
+        if (note.inReplyTo) {
+          metadata.in_reply_to_ap_url = note.inReplyTo;
+          
+          // Try to find the parent post locally
+          const { data: parentPost } = await supabase
+            .from('posts')
+            .select('id')
+            .eq('ap_id', note.inReplyTo)
+            .maybeSingle();
+          
+          if (parentPost) {
+            inReplyToId = parentPost.id;
+          }
         }
         
         // Create the post with full content
@@ -679,6 +768,11 @@ async function fetchRecentPostsInBackground(
           content_warning: note.summary || null,
           is_sensitive: note.sensitive === true,
         };
+        
+        // Add reply reference if found
+        if (inReplyToId) {
+          postData.in_reply_to = inReplyToId;
+        }
         
         if (mediaAttachments.length > 0) {
           postData.media_attachments = mediaAttachments;

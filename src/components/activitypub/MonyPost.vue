@@ -84,8 +84,26 @@
         class="post-body"
         :class="{ 'is-sensitive': displayIsSensitive }"
       >
+        <!-- Unhydrated Reblog/Quote: Show reference link when content not loaded -->
+        <div v-if="isUnhydratedReblog" class="unhydrated-reblog">
+          <div class="unhydrated-reblog-notice">
+            <Icon name="reblog" />
+            <span>Reblogged from another instance</span>
+          </div>
+          <a 
+            v-if="reblogReferenceUrl"
+            :href="reblogReferenceUrl" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="reblog-reference-link"
+          >
+            <Icon name="external-link" />
+            View original post
+          </a>
+        </div>
+
         <!-- Quote Post: Show user's comment first, then quoted content -->
-        <div v-if="isQuotePost" class="quote-post-layout">
+        <div v-else-if="isQuotePost" class="quote-post-layout">
           <!-- User's comment on the quote -->
           <div class="quote-comment">
             <MonyContent 
@@ -544,10 +562,29 @@ const instanceDomain = computed(() => {
 
 // Reblog-related computed properties
 const isReblog = computed(() => {
-  return !!(props.post.reblog && props.post.reblog_author);
+  // Check for hydrated reblog data OR metadata reference
+  return !!(
+    (props.post.reblog && props.post.reblog_author) ||
+    props.post.metadata?.is_reblog ||
+    props.post.metadata?.reblog_of ||
+    props.post.ap_type === 'Announce'
+  );
+});
+
+// Check if this is a remote reblog without hydrated data (needs to show placeholder)
+const isUnhydratedReblog = computed(() => {
+  return isReblog.value && !props.post.reblog && (
+    props.post.metadata?.reblog_of || 
+    props.post.metadata?.reblog_of_ap_url
+  );
 });
 
 const isQuotePost = computed(() => {
+  // Check metadata-based quote first (from remote posts)
+  if (props.post.metadata?.is_quote || props.post.metadata?.quote_url) {
+    return true;
+  }
+  
   // A quote post has both reblog data AND unique user-added content
   if (!isReblog.value) return false;
   
@@ -585,6 +622,13 @@ const isQuotePost = computed(() => {
   }
   
   return true;
+});
+
+// Get reblog/quote reference URL for unhydrated posts
+const reblogReferenceUrl = computed(() => {
+  return props.post.metadata?.reblog_of_ap_url || 
+         props.post.metadata?.quote_url || 
+         null;
 });
 
 const displayAuthor = computed(() => {
@@ -1728,6 +1772,44 @@ const closeLightbox = () => {
 
 .dropdown-item.danger:hover {
   background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Unhydrated Reblog (remote reblog without loaded content) */
+.unhydrated-reblog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+}
+
+.unhydrated-reblog-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+.reblog-reference-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--h-brand, #5865f2);
+  text-decoration: none;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(88, 101, 242, 0.1);
+  border-radius: 0.5rem;
+  width: fit-content;
+  transition: all 0.2s;
+}
+
+.reblog-reference-link:hover {
+  background: rgba(88, 101, 242, 0.2);
+  text-decoration: underline;
 }
 
 /* Quote Post Styles */
