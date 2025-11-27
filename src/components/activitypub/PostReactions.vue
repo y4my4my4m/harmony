@@ -13,7 +13,8 @@
         class="reaction"
         :class="{ 
           'reacted': reaction.current_user_reacted,
-          'loading': isLoadingReactions 
+          'loading': isLoadingReactions,
+          'has-reactors': reaction.reactors && reaction.reactors.length > 0
         }"
         @click="handleReactionClick(reaction)"
         @mouseenter="showTooltip($event, reaction)"
@@ -37,7 +38,23 @@
         <!-- Fallback for missing emoji -->
         <span v-else class="missing-emoji" :title="`Emoji not found: ${reaction.emoji_name}`">?</span>
         
-        <span class="reaction-count">{{ reaction.reaction_count }}</span>
+        <!-- Reactor avatars (for remote reactions) -->
+        <div v-if="reaction.reactors && reaction.reactors.length > 0" class="reactor-avatars">
+          <img 
+            v-for="(reactor, idx) in reaction.reactors.slice(0, 3)" 
+            :key="idx"
+            :src="reactor.avatar_url || '/default_avatar.png'"
+            :alt="reactor.display_name"
+            :title="`${reactor.display_name} (@${reactor.username}@${reactor.domain})`"
+            class="reactor-avatar"
+          />
+          <span v-if="reaction.reaction_count > 3" class="reactor-more">
+            +{{ reaction.reaction_count - 3 }}
+          </span>
+        </div>
+        
+        <!-- Count (show if no reactor avatars or as fallback) -->
+        <span v-else class="reaction-count">{{ reaction.reaction_count }}</span>
       </div>
     </div>
   </div>
@@ -51,6 +68,13 @@ import { useThemeStore } from '@/stores/useTheme';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
+
+interface Reactor {
+  username: string
+  display_name: string
+  avatar_url: string
+  domain: string
+}
 
 interface PostEmojiReaction {
   emoji_id: string | null
@@ -66,6 +90,7 @@ interface PostEmojiReaction {
     created_at: string
   }>
   current_user_reacted: boolean
+  reactors?: Reactor[] // Remote reactors from federation
 }
 
 interface Props {
@@ -103,11 +128,12 @@ const reactions = computed(() => {
   }
   
   // Convert remote reactions to the same format and merge with local
-  // Format can be either { emoji: count } (old) or { emoji: { count, url } } (new)
+  // Format can be either { emoji: count } (old) or { emoji: { count, url, reactors } } (new)
   const remoteReactionGroups: PostEmojiReaction[] = Object.entries(remoteReactions).map(([emoji, value]) => {
     // Handle both formats
     const count = typeof value === 'number' ? value : (value as any)?.count || 0;
     const url = typeof value === 'object' ? (value as any)?.url : null;
+    const reactors = typeof value === 'object' ? (value as any)?.reactors : [];
     
     // Check if it's a custom emoji (starts and ends with :)
     const isCustomEmoji = emoji.startsWith(':') && emoji.endsWith(':');
@@ -119,8 +145,9 @@ const reactions = computed(() => {
       // For custom emojis without URL, show the emoji name; for unicode, show the emoji itself
       custom_emoji_content: isCustomEmoji ? (url ? null : emoji) : emoji,
       reaction_count: count,
-      user_reactions: [], // Remote reactions don't have individual user data
+      user_reactions: [], // Remote reactions don't have individual user data in this format
       current_user_reacted: false,
+      reactors: reactors || [], // Include reactor info for tooltip/display
     };
   });
   
@@ -418,6 +445,44 @@ defineExpose({
   border-top: 2px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+/* Reactor avatars */
+.reactor-avatars {
+  display: flex;
+  align-items: center;
+  gap: -4px; /* Overlap avatars slightly */
+}
+
+.reactor-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--background-primary);
+  margin-left: -4px;
+  transition: transform 0.15s ease;
+}
+
+.reactor-avatar:first-child {
+  margin-left: 0;
+}
+
+.reactor-avatar:hover {
+  transform: scale(1.15);
+  z-index: 1;
+}
+
+.reactor-more {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
+.reaction.has-reactors {
+  padding-right: 6px;
 }
 
 @keyframes spin {

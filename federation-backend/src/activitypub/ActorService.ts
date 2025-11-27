@@ -534,25 +534,25 @@ async function fetchMisskeyReactions(
             // Origin instance emoji: :kawa_yu@.: -> shortcode=kawa_yu, domain=misskey.io
             shortcode = emoji.slice(1, -3);
             originDomain = domain;
-            // Normalize the full code to use actual domain instead of @.
-            normalizedFullCode = `:${shortcode}@${domain}:`;
+            // Store full code WITHOUT colons (just shortcode@domain)
+            normalizedFullCode = `${shortcode}@${domain}`;
           } else if (emoji.includes('@')) {
             // Third-party emoji: :suteki2@fedibird.com: -> shortcode=suteki2, domain=fedibird.com
             const match = emoji.match(/:([^@]+)@([^:]+):/);
             if (match) {
               shortcode = match[1];
               originDomain = match[2];
-              normalizedFullCode = `:${shortcode}@${originDomain}:`;
+              normalizedFullCode = `${shortcode}@${originDomain}`;
             } else {
               shortcode = emoji.slice(1, -1);
               originDomain = domain;
-              normalizedFullCode = `:${shortcode}@${domain}:`;
+              normalizedFullCode = `${shortcode}@${domain}`;
             }
           } else {
             // Simple emoji: :smile: -> shortcode=smile, domain=origin
             shortcode = emoji.slice(1, -1);
             originDomain = domain;
-            normalizedFullCode = `:${shortcode}@${domain}:`;
+            normalizedFullCode = `${shortcode}@${domain}`;
           }
           
           // Upsert into remote_emojis_cache
@@ -595,12 +595,43 @@ async function fetchMisskeyReactions(
         .eq('id', postId)
         .single();
       
-      // Build reaction summary with emoji URLs for custom emojis
-      const reactionSummary: Record<string, { count: number; url?: string }> = {};
+      // Group reactions by emoji with first 10 reactors
+      const reactorsByEmoji: Map<string, Array<{
+        username: string;
+        display_name: string;
+        avatar_url: string;
+        domain: string;
+      }>> = new Map();
+      
+      for (const reaction of reactions) {
+        const emoji = reaction.emoji;
+        if (!reactorsByEmoji.has(emoji)) {
+          reactorsByEmoji.set(emoji, []);
+        }
+        const reactors = reactorsByEmoji.get(emoji)!;
+        // Only keep first 10 reactors per emoji
+        if (reactors.length < 10 && reaction.actor) {
+          reactors.push({
+            username: reaction.actor.username,
+            display_name: reaction.actor.display_name || reaction.actor.username,
+            avatar_url: reaction.actor.avatar_url,
+            domain: reaction.actor.domain,
+          });
+        }
+      }
+      
+      // Build reaction summary with emoji URLs and reactor info
+      const reactionSummary: Record<string, { 
+        count: number; 
+        url?: string;
+        reactors: Array<{ username: string; display_name: string; avatar_url: string; domain: string }>;
+      }> = {};
+      
       for (const [emoji, data] of reactionCounts) {
         reactionSummary[emoji] = { 
           count: data.count,
-          url: data.emoji_url, // Include URL for custom emojis
+          url: data.emoji_url,
+          reactors: reactorsByEmoji.get(emoji) || [],
         };
       }
       
@@ -622,7 +653,8 @@ async function fetchMisskeyReactions(
       if (updateError) {
         logger.warn(`📬 Failed to update post metadata: ${updateError.message}`);
       } else {
-        logger.info(`📬 Updated post with ${reactionCounts.size} reaction types (${Object.values(reactionSummary).filter(r => r.url).length} with custom emoji URLs)`);
+        const totalReactors = Array.from(reactorsByEmoji.values()).reduce((sum, r) => sum + r.length, 0);
+        logger.info(`📬 Updated post with ${reactionCounts.size} reaction types, ${totalReactors} reactor profiles`);
       }
     }
     
