@@ -314,12 +314,102 @@ const loadPostWithContext = async () => {
       scrollToTimestamp(props.timestamp);
     }
     
+    // Auto-fetch remote reactions and replies for posts with an ap_id
+    if (result.mainPost?.ap_id) {
+      console.log(`[PostView] Post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
+      fetchRemoteDataInBackground(result.mainPost);
+    }
+    
   } catch (err) {
     debug.error('❌ Failed to load post with context:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load post';
     toast.error('Failed to load post');
   } finally {
     isLoading.value = false;
+  }
+};
+
+// Auto-fetch reactions and replies from federation in the background
+const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
+  const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
+  const postType = targetPost.is_local ? 'local' : 'remote';
+  
+  console.log(`[PostView] Fetching remote data for ${postType} post:`, targetPost.ap_id);
+  
+  // Fetch reactions
+  try {
+    const fetchUrl = `${federationBackendUrl}/fetch-reactions`;
+    console.log(`[PostView] POST ${fetchUrl}`);
+    
+    const reactionsResponse = await fetch(fetchUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: targetPost.ap_id,
+        post_id: targetPost.id,
+      }),
+    });
+    
+    console.log(`[PostView] Reactions response: ${reactionsResponse.status}`);
+    
+    if (reactionsResponse.ok) {
+      const result = await reactionsResponse.json();
+      console.log(`[PostView] Fetched reactions:`, result);
+      
+      // Update post metadata directly for immediate reactivity
+      if (result.remote_reactions && postWithContext.value?.mainPost) {
+        postWithContext.value.mainPost.metadata = {
+          ...(postWithContext.value.mainPost.metadata || {}),
+          remote_reactions: result.remote_reactions,
+          remote_reactions_fetched_at: new Date().toISOString(),
+        };
+        // Update counts
+        if (result.favorites_count !== undefined) {
+          postWithContext.value.mainPost.favorites_count = result.favorites_count;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[PostView] Failed to fetch reactions:', err);
+  }
+  
+  // Fetch replies (only for remote posts)
+  if (!targetPost.is_local) {
+    try {
+      const fetchUrl = `${federationBackendUrl}/fetch-replies`;
+      console.log(`[PostView] POST ${fetchUrl}`);
+      
+      const repliesResponse = await fetch(fetchUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          post_ap_id: targetPost.ap_id,
+          post_id: targetPost.id,
+          limit: 10,
+        }),
+      });
+      
+      console.log(`[PostView] Replies response: ${repliesResponse.status}`);
+      
+      if (repliesResponse.ok) {
+        const result = await repliesResponse.json();
+        console.log(`[PostView] Fetched ${result.count || 0} replies`);
+        
+        // Reload to include newly fetched replies
+        if (result.count > 0) {
+          // Re-fetch the context to get updated replies
+          const updatedResult = await activityPub.getPostWithContext(targetPost.id, {
+            context: props.contextType,
+            highlightReply: props.highlightReply,
+            maxDepth: maxThreadDepth.value,
+            includeInteractions: true
+          });
+          postWithContext.value = updatedResult;
+        }
+      }
+    } catch (err) {
+      console.warn('[PostView] Failed to fetch replies:', err);
+    }
   }
 };
 
