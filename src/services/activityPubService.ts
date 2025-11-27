@@ -1537,22 +1537,23 @@ export class ActivityPubService {
 
     // If force refresh on a remote user, skip local lookup
     if (!forceRefresh || !isRemote) {
+      // Use maybeSingle() to avoid 406 error when user doesn't exist
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('username', username)
         .eq('domain', domain)
-        .single();
+        .maybeSingle();
 
-      if (!error && data) {
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
         return {
           ...data,
           handle: this.formatUserHandle(data.username, data.domain)
         } as FederatedUser;
-      }
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
       }
     }
 
@@ -1583,17 +1584,22 @@ export class ActivityPubService {
       // Parse handle - can be "username" or "username@domain"
       const parts = cleanHandle.split('@');
       const username = parts[0];
-      const domain = parts[1] || 'har.mony.lol';
+      const domain = parts[1] || this.currentDomain;
       
-      // First, try to find the user locally
+      // First, try to find the user locally (use maybeSingle to avoid 406 error)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('username', username)
         .eq('domain', domain)
-        .single();
+        .maybeSingle();
       
-      if (!error && data) {
+      if (error) {
+        debug.error('Error looking up user:', error);
+        return null;
+      }
+      
+      if (data) {
         // User found locally
         return {
           id: data.id,
@@ -1602,9 +1608,7 @@ export class ActivityPubService {
           domain: data.domain,
           avatar_url: data.avatar_url,
           banner_url: data.banner_url, // Include banner
-          handle: domain === 'har.mony.lol' 
-            ? `@${username}`
-            : `@${username}@${domain}`,
+          handle: this.formatUserHandle(data.username, data.domain),
           is_local: data.is_local,
           bio: data.bio,
           verified: false,
@@ -1625,7 +1629,7 @@ export class ActivityPubService {
       }
       
       // If not found locally and it's a remote user, try to fetch
-      if (error?.code === 'PGRST116' && domain !== 'har.mony.lol') {
+      if (!data && domain !== this.currentDomain) {
         debug.log(`User ${handle} not found locally, attempting to fetch from remote...`);
         
         // Try to resolve using the existing mentionUtils function

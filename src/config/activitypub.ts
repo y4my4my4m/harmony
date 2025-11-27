@@ -1,9 +1,12 @@
 import type { FederatedUser } from '@/types';
 
+// Get domain from environment variable or fallback
+const INSTANCE_DOMAIN = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+
 // ActivityPub configuration for federation
 export const ACTIVITYPUB_CONFIG = {
-  domain: 'har.mony.lol',
-  baseUrl: 'https://har.mony.lol',
+  domain: INSTANCE_DOMAIN,
+  baseUrl: `https://${INSTANCE_DOMAIN}`,
   
   // Federation endpoints
   endpoints: {
@@ -217,7 +220,7 @@ export function generateNodeInfoJson(stats?: {
       nodeDescription: 'A federated social network built for meaningful connections',
       maintainer: {
         name: 'Harmony Team',
-        email: 'admin@har.mony.lol'
+        email: `admin@${INSTANCE_DOMAIN}`
       }
     }
   };
