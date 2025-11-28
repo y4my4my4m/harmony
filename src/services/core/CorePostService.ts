@@ -17,6 +17,7 @@
 import { supabase } from '@/supabase'
 import type { Post, TimelinePost, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
+import { authContextService } from '@/services/AuthContextService'
 
 export interface CreatePostData {
   content: MessagePart[]
@@ -60,10 +61,15 @@ export class CorePostService {
    */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      debug.log('🚀 Core: createPost starting...')
+      
+      // OPTIMIZED: Use AuthContextService for auth check (cached)
+      const authUser = await authContextService.getCurrentAuthUser()
+      if (!authUser) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      debug.log('✅ Core: Auth user verified')
 
       const profileId = await this.getCurrentUserProfileId()
+      debug.log('✅ Core: Profile ID retrieved:', profileId)
 
       // Enterprise-grade content validation
       if (!Array.isArray(data.content)) {
@@ -81,6 +87,8 @@ export class CorePostService {
         }
       }
 
+      debug.log('✅ Core: Content validation passed')
+
       const postData = {
         author_id: profileId,
         content: data.content, // Direct JSONB insertion - Supabase handles serialization
@@ -95,6 +103,7 @@ export class CorePostService {
         metadata: { created_via: 'harmony_client', content_format: 'message_parts_v1' }
       }
 
+      debug.log('🔄 Core: Inserting post into database...')
       const { data: post, error } = await supabase
         .from('posts')
         .insert(postData)
@@ -104,9 +113,12 @@ export class CorePostService {
         `)
         .single()
 
-      if (error) throw this.createError('INSERT_FAILED', error.message, error)
+      if (error) {
+        debug.error('❌ Core: Insert failed:', error)
+        throw this.createError('INSERT_FAILED', error.message, error)
+      }
 
-      debug.log('✅ Core: Post created successfully (local only)')
+      debug.log('✅ Core: Post created successfully (local only), id:', post?.id)
       return this.formatTimelinePost(post)
     } catch (error) {
       debug.error('❌ Core: Failed to create post:', error)
@@ -670,18 +682,17 @@ export class CorePostService {
 
   private async getCurrentUserProfileId(): Promise<string> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-
-      return profile.id
+      debug.log('🔍 Core: Getting current user profile ID...')
+      
+      // OPTIMIZED: Use cached profile ID from AuthContextService
+      const profileId = await authContextService.getCurrentProfileId()
+      
+      if (!profileId) {
+        throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
+      }
+      
+      debug.log('✅ Core: Got profile ID:', profileId)
+      return profileId
     } catch (error) {
       debug.error('❌ Core: Failed to get current user profile ID:', error)
       throw error
