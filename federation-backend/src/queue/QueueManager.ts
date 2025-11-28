@@ -105,6 +105,9 @@ class QueueManagerService {
       await this.boss.start();
       logger.info('✅ pg-boss started successfully');
 
+      // Create all queues (this creates the partitions needed for direct SQL inserts)
+      await this.createQueues();
+
       // Register job handlers
       await this.registerHandlers();
       
@@ -137,6 +140,38 @@ class QueueManagerService {
     
     logger.info('📦 Using DATABASE_URL from environment');
     return process.env.DATABASE_URL;
+  }
+
+  /**
+   * Create all queue partitions so SQL triggers can insert directly
+   */
+  private async createQueues(): Promise<void> {
+    if (!this.boss) throw new Error('pg-boss not initialized');
+
+    const queueNames: JobType[] = [
+      'federate-post',
+      'federate-reaction',
+      'federate-follow',
+      'federate-dm',
+      'federate-message-reaction',
+      'federate-block',
+      'federate-report',
+      'federate-profile',
+    ];
+
+    for (const queueName of queueNames) {
+      try {
+        await this.boss.createQueue(queueName);
+        logger.debug(`✅ Created queue: ${queueName}`);
+      } catch (error: any) {
+        // Ignore "already exists" errors
+        if (!error.message?.includes('already exists')) {
+          logger.warn(`⚠️ Failed to create queue ${queueName}:`, error.message);
+        }
+      }
+    }
+
+    logger.info('✅ All queue partitions created');
   }
 
   /**
