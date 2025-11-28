@@ -647,7 +647,8 @@ export class ActivityProcessor {
     let post = null;
     let message = null;
     
-    // Check if this is a message (DM) reaction
+    // Check if this is a message (DM) reaction - try multiple methods
+    // Method 1: Local message URL with UUID
     if (objectUrl.includes('/messages/')) {
       const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
       if (uuidMatch) {
@@ -660,11 +661,28 @@ export class ActivityProcessor {
         message = messageById;
         
         if (message) {
-          logger.info(`📨 Found message for reaction: ${messageId}`);
+          logger.info(`📨 Found message for reaction by local ID: ${messageId}`);
         }
       }
-    } else {
-      // Try to find as a post
+    }
+    
+    // Method 2: Try finding message by ap_id in metadata (for remote DMs)
+    // This handles when a remote user reacts to their own message they sent us
+    if (!message) {
+      const { data: messageByApId } = await supabase
+        .from('messages')
+        .select('id, conversation_id')
+        .eq('metadata->>ap_id', objectUrl)
+        .maybeSingle();
+      
+      if (messageByApId) {
+        message = messageByApId;
+        logger.info(`📨 Found message for reaction by ap_id: ${objectUrl}`);
+      }
+    }
+    
+    // If still not a message, try to find as a post
+    if (!message) {
       // Method 1: Try by ap_id
       const { data: postByApId } = await supabase
         .from('posts')
