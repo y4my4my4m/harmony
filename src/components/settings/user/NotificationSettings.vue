@@ -309,42 +309,42 @@
 
       <!-- Push Preferences (only shown when subscribed) -->
       <div v-if="preferences.push_notifications && pushNotifications.isSubscribed.value" class="push-preferences">
-        <div class="setting-item">
-          <div class="setting-info">
+      <div class="setting-item">
+        <div class="setting-info">
             <h4 class="setting-label">Only When Offline</h4>
             <p class="setting-description">Only send push notifications when you're not actively using the app</p>
-          </div>
-          <div class="setting-control">
-            <ToggleSwitch 
-              v-model="preferences.push_offline_only"
-              @change="updatePreferences"
-            />
-          </div>
         </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+              v-model="preferences.push_offline_only"
+            @change="updatePreferences"
+          />
+        </div>
+      </div>
 
         <div class="setting-item">
-          <div class="setting-info">
+        <div class="setting-info">
             <h4 class="setting-label">Mentions</h4>
             <p class="setting-description">Receive push notifications when you're mentioned</p>
-          </div>
-          <div class="setting-control">
+        </div>
+        <div class="setting-control">
             <ToggleSwitch 
               v-model="preferences.push_mentions"
-              @change="updatePreferences"
+            @change="updatePreferences"
             />
-          </div>
         </div>
+      </div>
 
-        <div class="setting-item">
-          <div class="setting-info">
+      <div class="setting-item">
+        <div class="setting-info">
             <h4 class="setting-label">Direct Messages</h4>
             <p class="setting-description">Receive push notifications for new DMs</p>
-          </div>
-          <div class="setting-control">
-            <ToggleSwitch 
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
               v-model="preferences.push_dms"
-              @change="updatePreferences"
-            />
+            @change="updatePreferences"
+          />
           </div>
         </div>
       </div>

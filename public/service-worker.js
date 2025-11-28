@@ -75,11 +75,16 @@ self.addEventListener('push', async (event) => {
     console.log('📨 Service Worker: Notification data:', data)
 
     // Discord-like notification logic
+    // icon = colored icon for notification body (can be user avatar or app icon)
+    // badge = small monochrome icon for status bar (must be white/transparent, 96x96)
     const notificationOptions = {
       body: data.message || data.body,
-      icon: data.data?.avatar_url || '/img/app_icon_square.png',
-      badge: '/img/app_icon_square.png',
-      tag: `harmony-${data.type}-${data.data?.user_id || 'unknown'}`,
+      // Use avatar if available, otherwise colored app icon for notification body
+      icon: data.data?.avatar_url || data.icon || '/favicon/android-icon-192x192.png',
+      // Badge should be monochrome white for Android status bar
+      // Falls back to square icon if badge doesn't exist
+      badge: '/img/app_icon_badge.png',
+      tag: data.tag || `harmony-${data.type}-${data.data?.user_id || 'unknown'}`,
       data: data.data || {},
       requireInteraction: data.type === 'mention' || data.type === 'dm',
       silent: false,
