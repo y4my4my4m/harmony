@@ -370,7 +370,9 @@ async function loadInstanceInfo(domain: string) {
       )
       
       if (nodeinfoLink) {
-        const infoResponse = await fetch(nodeinfoLink.href)
+        // Ensure HTTPS to avoid mixed content issues
+        const secureNodeinfoUrl = nodeinfoLink.href.replace(/^http:/, 'https:')
+        const infoResponse = await fetch(secureNodeinfoUrl)
         if (infoResponse.ok) {
           const info = await infoResponse.json()
           instanceInfo.value = {
