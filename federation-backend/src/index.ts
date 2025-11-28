@@ -20,10 +20,16 @@ import inboxRouter from './activitypub/InboxHandler.js';
 import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
 
-// Import database listener
+// Import database listener (legacy - will be replaced by QueueManager)
 import { startDatabaseListener } from './listeners/DatabaseListener.js';
 import { startPushNotificationListener } from './listeners/PushNotificationHandler.js';
 import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
+
+// Import pg-boss queue manager (new professional approach)
+import { queueManager } from './queue/QueueManager.js';
+
+// Feature flag: Set to true to use pg-boss instead of Supabase Realtime
+const USE_PGBOSS_QUEUE = process.env.USE_PGBOSS_QUEUE === 'true';
 
 const app: Application = express();
 
@@ -81,12 +87,26 @@ app.listen(PORT, () => {
   logger.info(`🌐 Instance: ${config.INSTANCE_NAME} (${config.INSTANCE_DOMAIN})`);
   logger.info(`⚠️  Federation ONLY - App uses Supabase directly`);
   
-  // Start database listener for federation events
-  startDatabaseListener().catch((error) => {
-    logger.error('Failed to start database listener:', error);
-  });
+  // Start federation event processing
+  if (USE_PGBOSS_QUEUE) {
+    // NEW: pg-boss queue-based federation (professional approach)
+    logger.info('🚀 Starting pg-boss QueueManager for federation...');
+    queueManager.start().catch((error) => {
+      logger.error('❌ Failed to start QueueManager:', error);
+      logger.info('⚠️  Falling back to DatabaseListener...');
+      startDatabaseListener().catch((err) => {
+        logger.error('Failed to start database listener:', err);
+      });
+    });
+  } else {
+    // LEGACY: Supabase Realtime-based federation
+    logger.info('📡 Using legacy DatabaseListener (set USE_PGBOSS_QUEUE=true to switch)');
+    startDatabaseListener().catch((error) => {
+      logger.error('Failed to start database listener:', error);
+    });
+  }
   
-  // Start push notification listener
+  // Start push notification listener (always needed)
   startPushNotificationListener().catch((error) => {
     logger.error('Failed to start push notification listener:', error);
   });
@@ -105,15 +125,22 @@ app.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
+const shutdown = async (signal: string) => {
+  logger.info(`${signal} received, shutting down gracefully...`);
+  
+  if (USE_PGBOSS_QUEUE) {
+    try {
+      await queueManager.stop();
+    } catch (error) {
+      logger.error('Error stopping QueueManager:', error);
+    }
+  }
+  
   process.exit(0);
-});
+};
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully...');
-  process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export default app;
 
