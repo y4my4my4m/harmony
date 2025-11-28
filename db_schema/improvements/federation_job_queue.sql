@@ -261,36 +261,64 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    v_author_is_local BOOLEAN;
 BEGIN
-    -- Only process local, public/unlisted posts
-    IF NEW.is_local = true AND NEW.visibility IN ('public', 'unlisted') THEN
-        -- Update federation status to queued
+    -- Skip if not local or not public/unlisted
+    IF NEW.is_local = false OR NEW.visibility NOT IN ('public', 'unlisted') THEN
+        NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+    
+    -- For INSERT: always queue
+    IF TG_OP = 'INSERT' THEN
         NEW.federation_status := 'queued';
-        
-        -- Queue the federation job
         PERFORM public.queue_federation_job(
             'federate-post',
             jsonb_build_object(
-                'type', CASE 
-                    WHEN TG_OP = 'INSERT' THEN 'create'
-                    WHEN TG_OP = 'UPDATE' AND NEW.is_deleted = true THEN 'delete'
-                    WHEN TG_OP = 'UPDATE' AND NEW.is_pinned != OLD.is_pinned THEN 'pin_change'
-                    WHEN TG_OP = 'UPDATE' THEN 'update'
-                END,
+                'type', 'create',
                 'post_id', NEW.id,
                 'author_id', NEW.author_id,
                 'visibility', NEW.visibility,
                 'created_at', NEW.created_at
             ),
-            CASE WHEN NEW.is_deleted THEN 10 ELSE 5 END, -- Higher priority for deletes
-            5, -- retry limit
-            3600 -- expire in 1 hour
+            5, 5, 3600
         );
-    ELSE
-        -- Mark as skipped if not federatable
-        NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+    
+    -- For UPDATE: only queue for MEANINGFUL changes, not federation_status changes
+    IF TG_OP = 'UPDATE' THEN
+        -- Skip if this is just a federation_status update (prevents infinite loop!)
+        IF OLD.federation_status IS DISTINCT FROM NEW.federation_status 
+           AND OLD.content = NEW.content 
+           AND OLD.is_deleted = NEW.is_deleted 
+           AND OLD.is_pinned = NEW.is_pinned THEN
+            RETURN NEW;  -- Don't re-queue
+        END IF;
+        
+        -- Only queue for actual content/state changes
+        IF NEW.is_deleted = true AND OLD.is_deleted = false THEN
+            NEW.federation_status := 'queued';
+            PERFORM public.queue_federation_job(
+                'federate-post',
+                jsonb_build_object('type', 'delete', 'post_id', NEW.id, 'author_id', NEW.author_id),
+                10, 5, 3600
+            );
+        ELSIF NEW.is_pinned IS DISTINCT FROM OLD.is_pinned THEN
+            NEW.federation_status := 'queued';
+            PERFORM public.queue_federation_job(
+                'federate-post',
+                jsonb_build_object('type', 'pin_change', 'post_id', NEW.id, 'author_id', NEW.author_id, 'is_pinned', NEW.is_pinned),
+                5, 5, 3600
+            );
+        ELSIF NEW.content IS DISTINCT FROM OLD.content THEN
+            NEW.federation_status := 'queued';
+            PERFORM public.queue_federation_job(
+                'federate-post',
+                jsonb_build_object('type', 'update', 'post_id', NEW.id, 'author_id', NEW.author_id, 'visibility', NEW.visibility),
+                5, 5, 3600
+            );
+        END IF;
+        -- If none of the above, don't change federation_status or queue
     END IF;
     
     RETURN NEW;
