@@ -329,16 +329,28 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Parse instance config
         if (configResult.data) {
           for (const config of configResult.data) {
+            // Helper to safely parse config values (may be string JSON or already parsed object)
+            const parseValue = (val: any) => {
+              if (typeof val === 'string') {
+                try {
+                  return JSON.parse(val);
+                } catch {
+                  return val; // Return as-is if not valid JSON
+                }
+              }
+              return val; // Already an object
+            };
+            
             if (config.config_key === 'domain') {
-              const domain = JSON.parse(config.config_value);
+              const domain = parseValue(config.config_value);
               if (domain) this.instanceDomain = domain;
             }
             if (config.config_key === 'federation_backend_url') {
-              const url = JSON.parse(config.config_value);
+              const url = parseValue(config.config_value);
               if (url) this.federationApiUrl = url;
             }
             if (config.config_key === 'federation_settings') {
-              const settings = JSON.parse(config.config_value);
+              const settings = parseValue(config.config_value);
               // Allow federation_backend_url to be in federation_settings too
               if (settings?.federation_backend_url) {
                 this.federationApiUrl = settings.federation_backend_url;
