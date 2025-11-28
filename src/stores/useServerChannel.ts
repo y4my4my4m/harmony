@@ -6,6 +6,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { statePersistence } from '@/services/StatePersistence';
 import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import router from '@/router';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
@@ -1431,13 +1432,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
         );
       });
 
-      // If this was the current channel, switch to another channel
+      // If this was the current channel, navigate to another channel
+      // IMPORTANT: Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === channelId) {
         const defaultChannel = this.getDefaultChannel();
-        if (defaultChannel) {
+        if (defaultChannel && this.currentServerId) {
           this.setCurrentChannel(defaultChannel);
+          // Navigate via router to trigger ChatView's route-based loading
+          router.push(`/chat/${this.currentServerId}/${defaultChannel}`).catch(debug.error);
+          debug.log('🔄 Navigated to default channel after deletion:', defaultChannel);
         } else {
           this.currentChannelId = null;
+          // Navigate to server root if no channels available
+          if (this.currentServerId) {
+            router.push(`/chat/${this.currentServerId}`).catch(debug.error);
+          }
         }
       }
     },
@@ -1891,13 +1900,19 @@ export const useServerChannelStore = defineStore('serverChannel', {
         );
       }
       
-      // If this was the current channel, switch to another
+      // If this was the current channel, navigate to another
+      // IMPORTANT: Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === deletedChannel.id) {
         const defaultChannel = this.getDefaultChannel();
-        if (defaultChannel) {
+        if (defaultChannel && this.currentServerId) {
           this.setCurrentChannel(defaultChannel);
+          router.push(`/chat/${this.currentServerId}/${defaultChannel}`).catch(debug.error);
+          debug.log('🔄 Navigated to default channel after real-time deletion:', defaultChannel);
         } else {
           this.currentChannelId = null;
+          if (this.currentServerId) {
+            router.push(`/chat/${this.currentServerId}`).catch(debug.error);
+          }
         }
       }
     },
