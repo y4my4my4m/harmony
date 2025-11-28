@@ -470,7 +470,7 @@
           size="xs"
           class="tooltip-avatar"
         />
-        <span class="tooltip-username">{{ user.displayName }}</span>
+        <span class="tooltip-username" v-html="renderDisplayNameWithEmojis(user.displayName, user.displayNameEmojis)"></span>
         <span v-if="user.isRemote && user.domain" class="tooltip-domain">@{{ user.domain }}</span>
       </div>
     </div>
@@ -564,7 +564,15 @@ const currentLightboxImage = ref<string>('');
 // Tooltip state for reaction tooltips
 const tooltip = ref({
   visible: false,
-  content: [] as { id: string; displayName: string; avatarUrl: string; userColor?: string; }[],
+  content: [] as { 
+    id: string; 
+    displayName: string; 
+    displayNameEmojis?: Array<{name: string, url: string}>;
+    avatarUrl: string; 
+    userColor?: string;
+    isRemote?: boolean;
+    domain?: string;
+  }[],
   x: 0,
   y: 0,
   emoji: null as any,
@@ -1067,6 +1075,40 @@ const handleEmojiSelected = async (emoji: any) => {
   }
 };
 
+/**
+ * Render a display name with custom emojis as HTML
+ * Replaces :emoji: patterns with <img> tags
+ */
+const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: string, url: string}>): string => {
+  if (!displayName) return '';
+  if (!emojis || emojis.length === 0) return escapeHtml(displayName);
+  
+  // Create emoji map for quick lookup
+  const emojiMap = new Map(emojis.map(e => [e.name, e.url]));
+  
+  // Replace :emoji: patterns with img tags
+  // Also handle zero-width space wrapped emojis (Misskey uses \u200b)
+  let result = displayName;
+  const emojiRegex = /\u200b?:([a-zA-Z0-9_]+):\u200b?/g;
+  
+  result = result.replace(emojiRegex, (match, name) => {
+    const url = emojiMap.get(name);
+    if (url) {
+      return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" class="inline-emoji" style="height: 1em; vertical-align: middle;" />`;
+    }
+    return escapeHtml(match);
+  });
+  
+  return result;
+};
+
+// Simple HTML escape helper
+const escapeHtml = (text: string): string => {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
+
 const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
@@ -1083,6 +1125,7 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   const remoteUsers = (reaction.reactors || []).map((reactor: any) => ({
     id: `${reactor.username}@${reactor.domain}`,
     displayName: reactor.display_name || reactor.username || 'Unknown',
+    displayNameEmojis: reactor.display_name_emojis,
     avatarUrl: reactor.avatar_url || '',
     userColor: '#888888',
     isRemote: true,

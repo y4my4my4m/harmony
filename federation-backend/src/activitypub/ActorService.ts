@@ -620,6 +620,15 @@ async function fetchMisskeyReactions(
         }
       }
       
+      // Extract display name emojis from user if available (Misskey includes this)
+      let displayNameEmojis: Array<{name: string, url: string}> = [];
+      if (user?.emojis && typeof user.emojis === 'object') {
+        displayNameEmojis = Object.entries(user.emojis).map(([name, url]) => ({
+          name,
+          url: url as string,
+        }));
+      }
+      
       // Build reaction object with actor info (for display purposes only, no DB storage)
       reactions.push({
         emoji,
@@ -628,6 +637,7 @@ async function fetchMisskeyReactions(
         actor: {
           username: user?.username || 'unknown',
           display_name: user?.name || user?.username,
+          display_name_emojis: displayNameEmojis.length > 0 ? displayNameEmojis : undefined,
           avatar_url: user?.avatarUrl,
           domain: user?.host || domain,
           is_local: false,
@@ -649,6 +659,7 @@ async function fetchMisskeyReactions(
       const reactorsByEmoji: Map<string, Array<{
         username: string;
         display_name: string;
+        display_name_emojis?: Array<{name: string, url: string}>;
         avatar_url: string;
         domain: string;
       }>> = new Map();
@@ -664,6 +675,7 @@ async function fetchMisskeyReactions(
           reactors.push({
             username: reaction.actor.username,
             display_name: reaction.actor.display_name || reaction.actor.username,
+            display_name_emojis: reaction.actor.display_name_emojis,
             avatar_url: reaction.actor.avatar_url,
             domain: reaction.actor.domain,
           });
@@ -674,7 +686,13 @@ async function fetchMisskeyReactions(
       const reactionSummary: Record<string, { 
         count: number; 
         url?: string;
-        reactors: Array<{ username: string; display_name: string; avatar_url: string; domain: string }>;
+        reactors: Array<{ 
+          username: string; 
+          display_name: string; 
+          display_name_emojis?: Array<{name: string, url: string}>;
+          avatar_url: string; 
+          domain: string;
+        }>;
       }> = {};
       
       for (const [emoji, data] of reactionCounts) {

@@ -55,6 +55,7 @@ import type { TimelinePost } from '@/types';
 interface Reactor {
   username: string
   display_name: string
+  display_name_emojis?: Array<{name: string, url: string}>
   avatar_url: string
   domain: string
 }
