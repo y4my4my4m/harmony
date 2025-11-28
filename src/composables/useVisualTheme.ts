@@ -322,7 +322,7 @@ async function saveToSupabase(settings: VisualThemeSettings) {
         appearance_settings: settings,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
     
     if (error) throw error
     
@@ -356,7 +356,7 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
     const { data, error } = await supabase
       .from('profiles')
       .select('appearance_settings')
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
       .single()
     
     if (error) throw error

@@ -756,9 +756,9 @@ const queueUnreadUpdate = (messageId: string) => {
     hasUnreadUpdatePending = true;
   }
   
-  unreadUpdateTimeout = setTimeout(() => {
+  unreadUpdateTimeout = setTimeout(async () => {
     if (pendingUnreadUpdate) {
-      flushUnreadUpdate();
+      await flushUnreadUpdate();
     }
   }, 500); // 500ms debounce
 };
@@ -835,14 +835,21 @@ watch(() => props.messages.length, () => {
 
 // Cleanup on unmount
 onUnmounted(() => {
-  // Flush any pending unread update before unmounting
-  if (pendingUnreadUpdate && hasUnreadUpdatePending) {
-    flushUnreadUpdate();
-  }
-  
+  // Clear the debounce timeout first to prevent it from firing after unmount
   if (unreadUpdateTimeout) {
     clearTimeout(unreadUpdateTimeout);
     unreadUpdateTimeout = null;
+  }
+  
+  // Flush any pending unread update before unmounting
+  // Note: We can't truly await in onUnmounted, but we capture the data and let it complete
+  // The flushUnreadUpdate function captures pendingUnreadUpdate at the start, so it will
+  // complete even after we clear the local state
+  if (pendingUnreadUpdate && hasUnreadUpdatePending) {
+    // Fire and forget with error handling - the function already captures the data it needs
+    flushUnreadUpdate().catch((err) => {
+      console.warn('Failed to flush unread update on unmount:', err);
+    });
   }
   
   if (intersectionObserver) {
@@ -850,8 +857,8 @@ onUnmounted(() => {
     intersectionObserver = null;
   }
   observedMessages.clear();
-  pendingUnreadUpdate = null;
-  hasUnreadUpdatePending = false;
+  // Note: Don't reset pendingUnreadUpdate here - flushUnreadUpdate already handles it
+  // and resetting here could interfere with the async operation
 });
 
 
