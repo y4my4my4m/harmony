@@ -442,12 +442,25 @@
       <div v-if="hapticSettings.isEnabled.value" class="haptic-categories">
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Messages & Reactions</h4>
-            <p class="setting-description">When sending messages or adding reactions</p>
+            <h4 class="setting-label">Sending Messages</h4>
+            <p class="setting-description">When sending a message</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch 
               v-model="hapticSettings.hapticTriggers.value.messages"
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Reactions</h4>
+            <p class="setting-description">When adding or removing reactions</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch 
+              v-model="hapticSettings.hapticTriggers.value.reactions"
               size="small"
             />
           </div>

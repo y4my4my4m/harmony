@@ -120,6 +120,29 @@ class PushNotificationServiceClass {
         return { success: false, error: 'Invalid subscription data' };
       }
 
+      // Clean up old subscriptions from the same browser/device
+      // This handles the case where site data was cleared but old subscription exists
+      // We identify "same device" by matching user_agent
+      if (userAgent) {
+        const { data: existingSubs } = await supabaseAdmin
+          .from('push_subscriptions')
+          .select('id, endpoint')
+          .eq('user_id', userId)
+          .eq('user_agent', userAgent)
+          .neq('endpoint', endpoint);
+        
+        if (existingSubs && existingSubs.length > 0) {
+          logger.info(`🧹 Cleaning up ${existingSubs.length} old subscription(s) from same device for user ${userId}`);
+          
+          // Delete old subscriptions from same device
+          const oldIds = existingSubs.map(s => s.id);
+          await supabaseAdmin
+            .from('push_subscriptions')
+            .delete()
+            .in('id', oldIds);
+        }
+      }
+
       const { error } = await supabaseAdmin
         .from('push_subscriptions')
         .upsert({

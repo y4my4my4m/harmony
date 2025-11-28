@@ -15,7 +15,8 @@ const isInitialized = ref(false)
 
 // Specific haptic triggers that can be individually controlled
 const hapticTriggers = ref({
-  messages: true,      // Send message, reactions
+  messages: false,     // Send message (off by default - can be annoying)
+  reactions: true,     // Add/remove reactions
   navigation: true,    // Tab changes, drawer open/close
   voice: true,         // Join/leave voice, mute/unmute
   interactions: true,  // Long press, pull to refresh
@@ -99,7 +100,7 @@ export function useHapticSettings() {
     
     // Quick trigger methods with category check
     triggerMessage: (pattern: HapticPattern = 'success') => triggerHaptic('messages', pattern),
-    triggerReaction: () => triggerHaptic('messages', 'selection'),
+    triggerReaction: () => triggerHaptic('reactions', 'selection'),
     triggerNavigation: (pattern: HapticPattern = 'light') => triggerHaptic('navigation', pattern),
     triggerVoice: (pattern: HapticPattern = 'medium') => triggerHaptic('voice', pattern),
     triggerInteraction: (pattern: HapticPattern = 'medium') => triggerHaptic('interactions', pattern),
