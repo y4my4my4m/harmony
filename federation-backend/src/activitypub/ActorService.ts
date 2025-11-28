@@ -10,13 +10,13 @@ const router = Router();
 
 /**
  * Lookup remote user via WebFinger
- * POST /api/federation/lookup-user
+ * POST /lookup-user (proxied via /api/federation/lookup-user)
  * Body: { handle: "username@domain" }
  * 
  * This endpoint proxies WebFinger requests to bypass CORS restrictions
  */
 router.post(
-  '/api/federation/lookup-user',
+  '/lookup-user',
   asyncHandler(async (req: Request, res: Response) => {
     const { handle, forceRefresh } = req.body;
 
@@ -358,11 +358,11 @@ router.post(
 
 /**
  * Fetch more posts from a remote user (pagination)
- * POST /api/federation/fetch-posts
+ * POST /fetch-posts (proxied via /api/federation/fetch-posts)
  * Body: { user_id: uuid, outbox_url: string, max_id?: string, limit?: number }
  */
 router.post(
-  '/api/federation/fetch-posts',
+  '/fetch-posts',
   asyncHandler(async (req: Request, res: Response) => {
     const { user_id, outbox_url, max_id, limit = 10 } = req.body;
 
@@ -398,11 +398,11 @@ router.post(
 
 /**
  * Fetch reactions/likes for a remote post
- * POST /api/federation/fetch-reactions
+ * POST /fetch-reactions (proxied via /api/federation/fetch-reactions)
  * Body: { post_ap_id: string, post_id?: string }
  */
 router.post(
-  '/api/federation/fetch-reactions',
+  '/fetch-reactions',
   asyncHandler(async (req: Request, res: Response) => {
     // Debug: log raw request body
     logger.debug(`📬 fetch-reactions raw body: ${JSON.stringify(req.body)}`);
@@ -1053,11 +1053,11 @@ async function fetchRemotePostReactions(
 
 /**
  * Fetch replies for a remote post
- * POST /api/federation/fetch-replies
+ * POST /fetch-replies (proxied via /api/federation/fetch-replies)
  * Body: { post_ap_id: string, post_id?: string, limit?: number }
  */
 router.post(
-  '/api/federation/fetch-replies',
+  '/fetch-replies',
   asyncHandler(async (req: Request, res: Response) => {
     const { post_ap_id, post_id, limit = 10 } = req.body;
 
