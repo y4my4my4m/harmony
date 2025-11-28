@@ -77,8 +77,8 @@ class RealtimeConnectionManagerService {
         
         // If tab was hidden for more than 30 seconds, force reconnect all
         if (timeSinceVisible > 30 * 1000) {
-          debug.log(`🔄 RealtimeManager: Tab visible after ${Math.round(timeSinceVisible / 1000)}s, reconnecting all subscriptions`)
-          this.forceReconnectAll()
+          debug.log(`🔄 RealtimeManager: Tab visible after ${Math.round(timeSinceVisible / 1000)}s, reconnecting ALL channels`)
+          this.forceGlobalReconnect()
         }
         
         this.lastVisibleTime = now
@@ -91,10 +91,10 @@ class RealtimeConnectionManagerService {
     // Handle auth token refresh - reconnect when token changes
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'TOKEN_REFRESHED') {
-        debug.log('🔑 RealtimeManager: Auth token refreshed, reconnecting all subscriptions')
+        debug.log('🔑 RealtimeManager: Auth token refreshed, reconnecting ALL channels')
         // Small delay to ensure new token is ready
         setTimeout(() => {
-          this.forceReconnectAll()
+          this.forceGlobalReconnect()
         }, 100)
       } else if (event === 'SIGNED_OUT') {
         debug.log('🚪 RealtimeManager: User signed out, unsubscribing all')
@@ -478,12 +478,56 @@ class RealtimeConnectionManagerService {
   }
   
   /**
-   * Force reconnect all subscriptions
+   * Force reconnect all subscriptions (managed by this service)
    */
   forceReconnectAll(): void {
-    debug.log(`🔄 RealtimeManager: Force reconnecting all subscriptions`)
+    debug.log(`🔄 RealtimeManager: Force reconnecting all managed subscriptions`)
     for (const channelName of this.subscriptions.keys()) {
       this.forceReconnect(channelName)
+    }
+  }
+  
+  /**
+   * Force reconnect ALL Supabase realtime channels globally
+   * This includes both managed channels and raw supabase.channel() calls
+   * Used when visibility changes or auth token refreshes
+   */
+  async forceGlobalReconnect(): Promise<void> {
+    debug.log('🔄 RealtimeManager: Force reconnecting ALL Supabase realtime channels globally')
+    
+    try {
+      // Get the realtime client from Supabase
+      const realtimeClient = (supabase as any).realtime
+      
+      if (realtimeClient) {
+        // Disconnect and reconnect the entire realtime client
+        // This will force all channels (managed and raw) to reconnect with fresh auth
+        debug.log('🔌 RealtimeManager: Disconnecting realtime client...')
+        
+        // Set reconnect flag so channels auto-reconnect
+        if (realtimeClient.disconnect) {
+          await realtimeClient.disconnect()
+        }
+        
+        // Small delay to ensure clean disconnect
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Reconnect
+        debug.log('🔌 RealtimeManager: Reconnecting realtime client...')
+        if (realtimeClient.connect) {
+          await realtimeClient.connect()
+        }
+        
+        debug.log('✅ RealtimeManager: Global reconnect complete')
+      } else {
+        // Fallback: just reconnect managed subscriptions
+        debug.warn('⚠️ RealtimeManager: Could not access realtime client, falling back to managed reconnect')
+        this.forceReconnectAll()
+      }
+    } catch (error) {
+      debug.error('❌ RealtimeManager: Global reconnect failed:', error)
+      // Fallback to managed reconnect
+      this.forceReconnectAll()
     }
   }
   

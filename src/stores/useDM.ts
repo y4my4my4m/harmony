@@ -10,7 +10,9 @@ import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessin
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
-import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
+// NOTE: realtimeConnectionManager is initialized globally in BaseLayout.vue
+// The stores currently use raw supabase.channel() calls directly
+// TODO: Migrate to use realtimeConnectionManager.subscribe() for better reconnection handling
 
 // Types for DM functionality
 export interface DMUser {
