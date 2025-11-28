@@ -112,9 +112,7 @@ class QueueManagerService {
       await this.registerHandlers();
       
       // Start periodic sweep for missed events
-      // TEMPORARILY DISABLED - investigating duplicate job creation
-      // this.startPeriodicSweep();
-      logger.info('⚠️ Sweep DISABLED for debugging');
+      this.startPeriodicSweep();
       
       this.isRunning = true;
       logger.info('✅ QueueManager is ready and processing jobs');
@@ -260,16 +258,18 @@ class QueueManagerService {
    * This catches any items that were inserted but didn't trigger jobs
    */
   private startPeriodicSweep(): void {
-    // Run sweep every 60 seconds
+    // Run sweep every 5 minutes (300 seconds)
+    const SWEEP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+    
     this.sweepIntervalId = setInterval(async () => {
       try {
         await this.sweepPendingItems();
       } catch (error) {
         logger.error('❌ Periodic sweep failed:', error);
       }
-    }, 60000);
+    }, SWEEP_INTERVAL_MS);
 
-    logger.info('🔄 Periodic sweep started (60s interval)');
+    logger.info('🔄 Periodic sweep started (5 minute interval)');
   }
 
   /**

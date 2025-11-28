@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import config from './index.js';
+import { logger } from '../utils/logger.js';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -8,6 +9,22 @@ let supabaseInstance: SupabaseClient | null = null;
  */
 export const getSupabaseClient = (): SupabaseClient => {
   if (!supabaseInstance) {
+    const realtimeConfig: any = {
+      params: {
+        eventsPerSecond: 10,
+        apikey: config.SUPABASE_SERVICE_ROLE_KEY,
+      },
+    };
+    
+    // Check for custom Realtime URL (for Docker environments)
+    const realtimeUrl = process.env.SUPABASE_REALTIME_URL;
+    if (realtimeUrl) {
+      logger.info(`📡 Using custom Realtime URL: ${realtimeUrl}`);
+      realtimeConfig.url = realtimeUrl;
+    }
+    
+    logger.debug(`📡 Supabase URL: ${config.SUPABASE_URL}`);
+    
     supabaseInstance = createClient(
       config.SUPABASE_URL,
       config.SUPABASE_SERVICE_ROLE_KEY,
@@ -16,11 +33,7 @@ export const getSupabaseClient = (): SupabaseClient => {
           autoRefreshToken: false,
           persistSession: false,
         },
-        realtime: {
-          params: {
-            eventsPerSecond: 10,
-          },
-        },
+        realtime: realtimeConfig,
       }
     );
   }
