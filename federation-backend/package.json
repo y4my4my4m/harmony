@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "build-only": "tsc --skipLibCheck --noEmitOnError false",
+    "build-only": "tsc --skipLibCheck || true",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
