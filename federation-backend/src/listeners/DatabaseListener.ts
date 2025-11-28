@@ -1085,40 +1085,55 @@ async function handleNewDM(message: any): Promise<void> {
       return;
     }
     
-    // Get remote recipients from conversation
-    const { data: remoteRecipients } = await supabase
+    // Get all participants in the conversation (excluding sender)
+    const { data: participants, error: participantsError } = await supabase
       .from('conversation_participants')
-      .select(`
-        user_id,
-        profiles!inner (
-          id,
-          username,
-          domain,
-          federated_id,
-          is_local,
-          inbox_url
-        )
-      `)
+      .select('user_id')
       .eq('conversation_id', message.conversation_id)
       .neq('user_id', message.user_id)
       .is('left_at', null);
     
-    if (!remoteRecipients || remoteRecipients.length === 0) {
-      logger.debug('No remote recipients for DM');
+    if (participantsError) {
+      logger.error('Error fetching conversation participants:', participantsError);
       return;
     }
     
-    // Filter to only remote users
-    const remoteUsers = remoteRecipients.filter(
-      (r: any) => !r.profiles.is_local && r.profiles.domain
+    if (!participants || participants.length === 0) {
+      logger.debug('No other participants in conversation');
+      return;
+    }
+    
+    logger.debug(`Found ${participants.length} participant(s) in conversation`);
+    
+    // Get profiles for all participants
+    const participantIds = participants.map(p => p.user_id);
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, username, domain, federated_id, is_local, inbox_url')
+      .in('id', participantIds);
+    
+    if (profilesError) {
+      logger.error('Error fetching participant profiles:', profilesError);
+      return;
+    }
+    
+    logger.debug(`Fetched ${profiles?.length || 0} profile(s):`, 
+      profiles?.map(p => ({ username: p.username, domain: p.domain, is_local: p.is_local }))
+    );
+    
+    // Filter to only remote users (federated users have is_local = false and a domain)
+    const remoteUsers = (profiles || []).filter(
+      (p: any) => p.is_local === false && p.domain
     );
     
     if (remoteUsers.length === 0) {
-      logger.debug('All DM recipients are local');
+      logger.debug('All DM recipients are local (no remote users to federate to)');
       return;
     }
     
-    logger.info(`📮 Federating DM to ${remoteUsers.length} remote recipient(s)`);
+    logger.info(`📮 Federating DM to ${remoteUsers.length} remote recipient(s):`, 
+      remoteUsers.map((p: any) => `${p.username}@${p.domain}`)
+    );
     
     // Build sender URL
     const senderUrl = `https://${domain}/users/${sender.username}`;
@@ -1132,8 +1147,7 @@ async function handleNewDM(message: any): Promise<void> {
     const tags = extractTags(message.content);
     
     // Send to each remote recipient
-    for (const recipient of remoteUsers) {
-      const profile = recipient.profiles as any;
+    for (const profile of remoteUsers) {
       const recipientUrl = profile.federated_id || `https://${profile.domain}/users/${profile.username}`;
       const activityId = `${senderUrl}#dm-${message.id}-${profile.id}`;
       
