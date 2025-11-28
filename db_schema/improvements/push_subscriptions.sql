@@ -207,6 +207,10 @@ CREATE POLICY "Service role can manage all sessions"
 
 COMMENT ON TABLE public.user_sessions IS 'Tracks active user sessions for smart push notifications. If user has an active session, push notifications are suppressed (Discord-like behavior).';
 
+-- Grant permissions for user_sessions
+GRANT ALL ON public.user_sessions TO authenticated;
+GRANT ALL ON public.user_sessions TO service_role;
+
 -- ============================================================================
 -- PUSH SUBSCRIPTIONS TABLE
 -- ============================================================================
@@ -332,6 +336,10 @@ END;
 $$;
 
 COMMENT ON FUNCTION cleanup_stale_push_subscriptions IS 'Removes push subscriptions that have repeatedly failed. Should be run periodically via cron.';
+
+-- Grant permissions for push_subscriptions
+GRANT ALL ON public.push_subscriptions TO authenticated;
+GRANT ALL ON public.push_subscriptions TO service_role;
 
 -- Function to get user's push subscriptions with preferences check
 CREATE OR REPLACE FUNCTION get_user_push_subscriptions(p_user_id uuid)
