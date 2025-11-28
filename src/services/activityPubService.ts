@@ -1551,15 +1551,31 @@ export class ActivityPubService {
    * Search for federated users
    */
   async searchUsers(query: string, limit: number = 10): Promise<FederatedUser[]> {
-    const { data, error } = await supabase
-      .rpc('search_federated_users', {
-        p_query: query,
-        p_limit: limit
+    debug.log('[DEBUG] activityPubService.searchUsers: Starting RPC call', { query, limit });
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('search_federated_users', {
+          p_query: query,
+          p_limit: limit
+        });
+
+      debug.log('[DEBUG] activityPubService.searchUsers: RPC returned', { 
+        hasData: !!data, 
+        dataLength: data?.length, 
+        hasError: !!error 
       });
 
-    if (error) throw error;
+      if (error) {
+        debug.error('[DEBUG] activityPubService.searchUsers: RPC error', error);
+        throw error;
+      }
 
-    return data as FederatedUser[];
+      return data as FederatedUser[];
+    } catch (err) {
+      debug.error('[DEBUG] activityPubService.searchUsers: Exception', err);
+      throw err;
+    }
   }
 
   /**
