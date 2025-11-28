@@ -41,7 +41,7 @@ class BlockedInstancesCacheService {
     const supabase = getSupabaseClient();
     
     const { data, error } = await supabase
-      .from('known_servers')
+      .from('federated_instances')
       .select('domain')
       .eq('is_blocked', true);
     
