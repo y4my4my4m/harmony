@@ -13,6 +13,7 @@ import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { createPostActivity, createLikeActivity, createReblogActivity } from './FederationHandlers.js';
 import { logger } from '../utils/logger.js';
+import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 
 /**
  * Start listening to database notifications
@@ -1140,11 +1141,12 @@ async function handleNewDM(message: any): Promise<void> {
     const messageUrl = `https://${domain}/messages/${message.id}`;
     
     // Convert content to HTML
-    const htmlContent = convertDMContentToHTML(message.content);
+    // Use shared content utilities for consistent HTML conversion
+    const htmlContent = convertContentToHTML(message.content);
     
-    // Extract attachments and tags
+    // Extract attachments and tags using shared utilities
     const attachments = extractAttachments(message.content);
-    const tags = extractTags(message.content);
+    const tags = extractActivityPubTags(message.content);
     
     // Send to each remote recipient
     for (const profile of remoteUsers) {
@@ -1202,104 +1204,12 @@ async function handleNewDM(message: any): Promise<void> {
       // Deliver the activity
       await DeliveryQueue.enqueue(activity, inboxUrl, sender.id);
       
-      logger.info(`✅ Queued DM for federation to ${profile.username}@${profile.domain}`);
+      logger.info(`✅ DM federated to ${profile.username}@${profile.domain}`);
     }
   } catch (error) {
     logger.error('Error handling DM federation:', error);
   }
 }
 
-/**
- * Convert DM content (JSONB) to HTML for ActivityPub
- */
-function convertDMContentToHTML(content: any): string {
-  if (typeof content === 'string') {
-    return escapeHtml(content);
-  }
-  
-  if (Array.isArray(content)) {
-    return content.map(part => {
-      switch (part.type) {
-        case 'text':
-          return escapeHtml(part.text || '');
-        case 'mention':
-          const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
-          return `<a href="https://${mentionDomain}/users/${part.username}" class="mention">@${part.username}</a>`;
-        case 'url':
-          return `<a href="${part.url}">${part.url}</a>`;
-        case 'emoji':
-          return part.emoji || '';
-        case 'code':
-          return `<code>${escapeHtml(part.text || '')}</code>`;
-        default:
-          return '';
-      }
-    }).join('');
-  }
-  
-  // If it's an object with text property (simple format)
-  if (content?.text) {
-    return escapeHtml(content.text);
-  }
-  
-  return '';
-}
-
-/**
- * Extract attachments from content
- */
-function extractAttachments(content: any): any[] {
-  if (!Array.isArray(content)) return [];
-  
-  return content
-    .filter((part: any) => part.type === 'attachment' || part.type === 'image')
-    .map((part: any) => ({
-      type: 'Document',
-      mediaType: part.mediaType || 'application/octet-stream',
-      url: part.url,
-      name: part.name || part.filename
-    }));
-}
-
-/**
- * Extract mention/hashtag tags from content
- */
-function extractTags(content: any): any[] {
-  if (!Array.isArray(content)) return [];
-  
-  const tags: any[] = [];
-  
-  for (const part of content) {
-    if (part.type === 'mention' && part.username) {
-      const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
-      tags.push({
-        type: 'Mention',
-        href: `https://${mentionDomain}/users/${part.username}`,
-        name: part.domain ? `@${part.username}@${part.domain}` : `@${part.username}`
-      });
-    } else if (part.type === 'hashtag' && part.tag) {
-      tags.push({
-        type: 'Hashtag',
-        href: `https://${config.INSTANCE_DOMAIN}/tags/${part.tag}`,
-        name: `#${part.tag}`
-      });
-    }
-  }
-  
-  return tags;
-}
-
-/**
- * Escape HTML entities
- */
-function escapeHtml(text: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, m => map[m]);
-}
-
+// Content conversion functions are now in utils/contentUtils.ts
+// Used by: DMs, Channel Messages, Posts - ensuring consistent federation output
