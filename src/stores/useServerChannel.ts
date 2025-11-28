@@ -181,7 +181,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
-    async fetchServersForUser(userId: string) {
+    /**
+     * OPTIMIZED: Skip fetching if servers already loaded (unless forced)
+     */
+    async fetchServersForUser(userId: string, force = false) {
+      // Skip if servers are already loaded and not forcing refresh
+      if (this.servers.length > 0 && !force) {
+        debug.log(`📋 User servers already loaded (${this.servers.length}), skipping fetch`);
+        return;
+      }
+
       try {
         debug.log('🔄 Fetching servers for user via service-like helper:', userId)
         

@@ -807,6 +807,18 @@ const originalPostInteractions = ref<{
 const loadOriginalPostInteractions = async () => {
   if (!isReblog.value || !props.post.reblog?.id) return;
   
+  // OPTIMIZATION: Check if interactions were pre-loaded by the store
+  // This prevents N+1 queries when the parent already batch-fetched interactions
+  const reblog = props.post.reblog;
+  if (reblog.is_favorited !== undefined || reblog.is_reblogged !== undefined || reblog.is_bookmarked !== undefined) {
+    originalPostInteractions.value = {
+      is_favorited: reblog.is_favorited ?? false,
+      is_reblogged: reblog.is_reblogged ?? false,
+      is_bookmarked: reblog.is_bookmarked ?? false
+    };
+    return;
+  }
+  
   try {
     const { userDataService } = await import('@/services/userDataService');
     const currentUser = userDataService.getCurrentUser();

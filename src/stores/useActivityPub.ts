@@ -88,6 +88,10 @@ interface ActivityPubState {
   bookmarks: TimelinePost[];
   hasMoreBookmarks: boolean;
   bookmarksCursor: string | null;
+  
+  // Cache flags for preventing duplicate queries
+  followsLoaded: boolean;
+  followCountsLoaded: boolean;
 }
 
 export const useActivityPubStore = defineStore('activitypub', {
@@ -171,7 +175,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Bookmarks state
     bookmarks: [],
     hasMoreBookmarks: true,
-    bookmarksCursor: null
+    bookmarksCursor: null,
+    
+    // Cache flags for preventing duplicate queries
+    followsLoaded: false,
+    followCountsLoaded: false
   }),
 
   getters: {
@@ -464,8 +472,15 @@ export const useActivityPubStore = defineStore('activitypub', {
 
     /**
      * Load follow counts for the current user
+     * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
      */
-    async loadFollowCounts() {
+    async loadFollowCounts(force = false) {
+      // Skip if already loaded unless forced
+      if (this.followCountsLoaded && !force) {
+        debug.log('📊 Follow counts already loaded, skipping');
+        return;
+      }
+
       try {
         // Get current user PROFILE ID (not auth.uid!)
         const { userDataService } = await import('@/services/userDataService');
@@ -488,6 +503,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         this.followingCount = followingCount || 0;
         this.followersCount = followersCount || 0;
+        this.followCountsLoaded = true;
 
         debug.log(`📊 Follow counts loaded: ${this.followingCount} following, ${this.followersCount} followers`);
       } catch (error) {
@@ -1183,6 +1199,71 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * PERFORMANCE: Batch fetch interactions for reblog original posts
+     * This prevents N+1 queries when MonyPost renders reblogs
+     */
+    async batchFetchReblogInteractions(posts: TimelinePost[]) {
+      try {
+        // Get current user's profile ID
+        const profileId = await authContextService.getCurrentProfileId();
+        if (!profileId) return posts;
+
+        // Find all posts that are reblogs and have original post data
+        const reblogOriginalIds = posts
+          .filter(p => p.reblog?.id)
+          .map(p => p.reblog!.id);
+
+        if (reblogOriginalIds.length === 0) return posts;
+
+        // Remove duplicates
+        const uniqueIds = [...new Set(reblogOriginalIds)];
+        debug.log(`🔄 Batch loading interactions for ${uniqueIds.length} reblog original posts`);
+
+        // Batch fetch interactions for all original posts
+        const { data: interactions, error } = await supabase
+          .from('post_interactions')
+          .select('post_id, interaction_type')
+          .eq('user_id', profileId)
+          .in('post_id', uniqueIds)
+          .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+
+        if (error) {
+          debug.error('Failed to batch fetch reblog interactions:', error);
+          return posts;
+        }
+
+        // Create a map of post_id -> interaction types
+        const interactionMap = new Map<string, Set<string>>();
+        (interactions || []).forEach(i => {
+          if (!interactionMap.has(i.post_id)) {
+            interactionMap.set(i.post_id, new Set());
+          }
+          interactionMap.get(i.post_id)!.add(i.interaction_type);
+        });
+
+        // Attach interactions to reblog.is_favorited, etc.
+        return posts.map(post => {
+          if (post.reblog?.id) {
+            const postInteractions = interactionMap.get(post.reblog.id) || new Set();
+            return {
+              ...post,
+              reblog: {
+                ...post.reblog,
+                is_favorited: postInteractions.has('favorite'),
+                is_reblogged: postInteractions.has('reblog'),
+                is_bookmarked: postInteractions.has('bookmark')
+              }
+            };
+          }
+          return post;
+        });
+      } catch (error) {
+        debug.error('Failed to batch fetch reblog interactions:', error);
+        return posts;
+      }
+    },
+
+    /**
      * Load the user's home timeline (with cache support)
      */
     async loadHomeFeed(maxId?: string) {
@@ -1221,10 +1302,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
+        // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         if (maxId) {
-          this.homeFeed.posts.push(...posts);
+          this.homeFeed.posts.push(...processedPosts);
         } else {
-          this.homeFeed.posts = posts;
+          this.homeFeed.posts = processedPosts;
           // Clear unread count when refreshing home feed
           this.unreadCount = 0;
           // Save to cache for next visit
@@ -1263,8 +1347,11 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
         }
         
+        // Batch load reblog interactions
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         // Update with fresh data
-        this.homeFeed.posts = posts;
+        this.homeFeed.posts = processedPosts;
         this.homeFeed.has_more = posts.length === 20;
         this.homeFeed.cursor = posts[posts.length - 1]?.id;
         this.unreadCount = 0;
@@ -1298,10 +1385,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
+        // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         if (maxId) {
-          this.publicFeed.posts.push(...posts);
+          this.publicFeed.posts.push(...processedPosts);
         } else {
-          this.publicFeed.posts = posts;
+          this.publicFeed.posts = processedPosts;
         }
 
         // DEBUG: Log the problematic post's data when loaded
@@ -1362,10 +1452,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
+        // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         if (maxId) {
-          this.localFeed.posts.push(...posts);
+          this.localFeed.posts.push(...processedPosts);
         } else {
-          this.localFeed.posts = posts;
+          this.localFeed.posts = processedPosts;
         }
 
         this.localFeed.has_more = posts.length === 20;
@@ -2358,8 +2451,15 @@ export const useActivityPubStore = defineStore('activitypub', {
 
          /**
       * Load users that the current user follows
+      * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
       */
-     async loadFollowedUsers() {
+     async loadFollowedUsers(force = false) {
+       // Skip if already loaded unless forced
+       if (this.followsLoaded && !force) {
+         debug.log('📋 Followed users already loaded, skipping');
+         return;
+       }
+
        try {
          debug.log('🔄 Loading followed users via InteractionService');
          
@@ -2380,6 +2480,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          // Result returns { following, hasMore, total } not { users }
          const followingList = result?.following || [];
          this.followedUsers = new Set(followingList.map((user: any) => user.id));
+         this.followsLoaded = true;
          
          debug.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
        } catch (error) {
@@ -2389,6 +2490,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          try {
            debug.log('🔄 Trying fallback method...');
            await this._loadFollowedUsersFallback();
+           this.followsLoaded = true;
            debug.log(`✅ Fallback loaded ${this.followedUsers.size} followed users`);
            debug.log('✅ Fallback followedUsers Set contents:', Array.from(this.followedUsers));
          } catch (fallbackError) {
