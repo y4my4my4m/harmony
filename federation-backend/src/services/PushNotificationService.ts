@@ -1,0 +1,495 @@
+/**
+ * Push Notification Service
+ * Handles Web Push notifications for PWA (iOS 16.4+, Android, Desktop)
+ * 
+ * Uses VAPID (Voluntary Application Server Identification) for authentication
+ */
+
+import webPush, { PushSubscription, SendResult } from 'web-push';
+import { supabaseAdmin } from '../config/supabase.js';
+import { logger } from '../utils/logger.js';
+import config from '../config/index.js';
+
+// Types for push notification payloads
+export interface PushPayload {
+  title: string;
+  message?: string;
+  body?: string;
+  type: string;
+  data?: Record<string, any>;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  requireInteraction?: boolean;
+}
+
+export interface PushSubscriptionData {
+  subscription_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  push_enabled: boolean;
+  push_offline_only: boolean;
+}
+
+// Notification type to preference field mapping
+const NOTIFICATION_TYPE_PREFERENCES: Record<string, { enabled: string; desktop?: string }> = {
+  mention: { enabled: 'push_mentions' },
+  dm: { enabled: 'push_dms' },
+  reply: { enabled: 'desktop_replies' },
+  reaction: { enabled: 'desktop_reactions' },
+  voice_channel_activity: { enabled: 'sound_voice_activity' },
+  server_invite: { enabled: 'push_notifications' },
+  friend_request: { enabled: 'push_notifications' },
+  server_update: { enabled: 'push_notifications' },
+  activitypub_follow: { enabled: 'activitypub_follows' },
+  activitypub_favorite: { enabled: 'activitypub_favorites' },
+  activitypub_reblog: { enabled: 'activitypub_reblogs' },
+  activitypub_mention: { enabled: 'activitypub_mentions' },
+  activitypub_reply: { enabled: 'activitypub_replies' },
+  activitypub_follow_request: { enabled: 'activitypub_follow_requests' },
+};
+
+class PushNotificationServiceClass {
+  private isInitialized = false;
+
+  /**
+   * Initialize VAPID keys for web push
+   */
+  initialize(): boolean {
+    if (this.isInitialized) {
+      return true;
+    }
+
+    const publicKey = config.VAPID_PUBLIC_KEY;
+    const privateKey = config.VAPID_PRIVATE_KEY;
+    const subject = config.VAPID_SUBJECT;
+
+    if (!publicKey || !privateKey || !subject) {
+      logger.warn('⚠️ Push notifications disabled: VAPID keys not configured');
+      logger.info('💡 Generate keys with: npx web-push generate-vapid-keys');
+      return false;
+    }
+
+    try {
+      webPush.setVapidDetails(
+        `mailto:${subject}`,
+        publicKey,
+        privateKey
+      );
+      
+      this.isInitialized = true;
+      logger.info('✅ Push notification service initialized');
+      return true;
+    } catch (error) {
+      logger.error('❌ Failed to initialize push notification service:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if push notifications are available
+   */
+  isAvailable(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * Get the VAPID public key for frontend subscription
+   */
+  getPublicKey(): string | null {
+    return config.VAPID_PUBLIC_KEY || null;
+  }
+
+  /**
+   * Save a push subscription for a user
+   */
+  async saveSubscription(
+    userId: string,
+    subscription: PushSubscription,
+    userAgent?: string,
+    deviceName?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { endpoint, keys } = subscription;
+      
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        return { success: false, error: 'Invalid subscription data' };
+      }
+
+      const { error } = await supabaseAdmin
+        .from('push_subscriptions')
+        .upsert({
+          user_id: userId,
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          user_agent: userAgent,
+          device_name: deviceName,
+          failure_count: 0,
+          last_failure_at: null,
+          last_failure_reason: null,
+        }, {
+          onConflict: 'user_id,endpoint'
+        });
+
+      if (error) {
+        logger.error('Failed to save push subscription:', error);
+        return { success: false, error: error.message };
+      }
+
+      logger.info(`✅ Push subscription saved for user ${userId}`);
+      return { success: true };
+    } catch (error) {
+      logger.error('Error saving push subscription:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Remove a push subscription
+   */
+  async removeSubscription(
+    userId: string,
+    endpoint: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabaseAdmin
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('endpoint', endpoint);
+
+      if (error) {
+        logger.error('Failed to remove push subscription:', error);
+        return { success: false, error: error.message };
+      }
+
+      logger.info(`✅ Push subscription removed for user ${userId}`);
+      return { success: true };
+    } catch (error) {
+      logger.error('Error removing push subscription:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Remove subscription by endpoint (for 410 Gone responses)
+   */
+  async removeSubscriptionByEndpoint(endpoint: string): Promise<void> {
+    try {
+      await supabaseAdmin.rpc('delete_push_subscription_by_endpoint', {
+        p_endpoint: endpoint
+      });
+      logger.info('🗑️ Removed stale push subscription');
+    } catch (error) {
+      logger.error('Error removing subscription by endpoint:', error);
+    }
+  }
+
+  /**
+   * Get all subscriptions for a user
+   */
+  async getUserSubscriptions(userId: string): Promise<PushSubscriptionData[]> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .rpc('get_user_push_subscriptions', { p_user_id: userId });
+
+      if (error) {
+        logger.error('Failed to get user subscriptions:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      logger.error('Error getting user subscriptions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Send push notification to a specific subscription
+   */
+  async sendToSubscription(
+    subscriptionData: PushSubscriptionData,
+    payload: PushPayload
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!this.isInitialized) {
+      return { success: false, error: 'Push service not initialized' };
+    }
+
+    const subscription: PushSubscription = {
+      endpoint: subscriptionData.endpoint,
+      keys: {
+        p256dh: subscriptionData.p256dh,
+        auth: subscriptionData.auth
+      }
+    };
+
+    try {
+      const result: SendResult = await webPush.sendNotification(
+        subscription,
+        JSON.stringify(payload),
+        {
+          TTL: 86400, // 24 hours
+          urgency: payload.type === 'mention' || payload.type === 'dm' ? 'high' : 'normal',
+        }
+      );
+
+      // Record success
+      await supabaseAdmin.rpc('record_push_success', {
+        p_subscription_id: subscriptionData.subscription_id
+      });
+
+      logger.debug(`Push sent successfully to ${subscriptionData.endpoint.substring(0, 50)}...`);
+      return { success: true };
+    } catch (error: any) {
+      // Handle specific error codes
+      if (error.statusCode === 410 || error.statusCode === 404) {
+        // Subscription is no longer valid - remove it
+        logger.info('📱 Push subscription expired, removing...');
+        await this.removeSubscriptionByEndpoint(subscriptionData.endpoint);
+        return { success: false, error: 'Subscription expired' };
+      }
+
+      // Record failure for other errors
+      await supabaseAdmin.rpc('record_push_failure', {
+        p_subscription_id: subscriptionData.subscription_id,
+        p_reason: error.message || 'Unknown error'
+      });
+
+      logger.error('Push notification failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Send push notification to all of a user's devices
+   */
+  async sendToUser(
+    userId: string,
+    payload: PushPayload,
+    options?: {
+      respectOfflineOnly?: boolean;
+      isUserOnline?: boolean;
+    }
+  ): Promise<{ sent: number; failed: number }> {
+    if (!this.isInitialized) {
+      logger.warn('Push service not initialized, skipping notification');
+      return { sent: 0, failed: 0 };
+    }
+
+    const subscriptions = await this.getUserSubscriptions(userId);
+    
+    if (subscriptions.length === 0) {
+      logger.debug(`No push subscriptions found for user ${userId}`);
+      return { sent: 0, failed: 0 };
+    }
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const sub of subscriptions) {
+      // Check if push is enabled
+      if (!sub.push_enabled) {
+        continue;
+      }
+
+      // Check offline-only preference
+      if (options?.respectOfflineOnly && sub.push_offline_only && options?.isUserOnline) {
+        logger.debug('Skipping push - user is online and offline-only is enabled');
+        continue;
+      }
+
+      const result = await this.sendToSubscription(sub, payload);
+      if (result.success) {
+        sent++;
+      } else {
+        failed++;
+      }
+    }
+
+    logger.info(`📬 Push notifications: ${sent} sent, ${failed} failed for user ${userId}`);
+    return { sent, failed };
+  }
+
+  /**
+   * Send push notification for a database notification
+   * This is called when a new notification is created in the notifications table
+   */
+  async sendForNotification(notification: {
+    id: string;
+    user_id: string;
+    type: string;
+    data: Record<string, any>;
+    title?: string;
+  }): Promise<void> {
+    if (!this.isInitialized) {
+      return;
+    }
+
+    try {
+      // Check user's notification preferences
+      const { data: prefs } = await supabaseAdmin
+        .from('notification_preferences')
+        .select('push_notifications, push_offline_only, push_mentions, push_dms')
+        .eq('user_id', notification.user_id)
+        .single();
+
+      // Check if push is enabled for this notification type
+      if (prefs && !prefs.push_notifications) {
+        logger.debug('Push notifications disabled for user');
+        return;
+      }
+
+      // Check type-specific preference
+      const typePref = NOTIFICATION_TYPE_PREFERENCES[notification.type];
+      if (typePref && prefs && !prefs[typePref.enabled as keyof typeof prefs]) {
+        logger.debug(`Push disabled for notification type: ${notification.type}`);
+        return;
+      }
+
+      // Build payload from notification data
+      const payload = this.buildPayloadFromNotification(notification);
+
+      // Check if user is online (for offline-only preference)
+      // For now, we'll send anyway - a more sophisticated implementation would check presence
+      const isUserOnline = false; // TODO: Integrate with presence system
+
+      await this.sendToUser(notification.user_id, payload, {
+        respectOfflineOnly: true,
+        isUserOnline
+      });
+    } catch (error) {
+      logger.error('Error sending push for notification:', error);
+    }
+  }
+
+  /**
+   * Build push payload from notification data
+   */
+  private buildPayloadFromNotification(notification: {
+    id: string;
+    user_id: string;
+    type: string;
+    data: Record<string, any>;
+    title?: string;
+  }): PushPayload {
+    const data = notification.data || {};
+    const sender = data.sender || {};
+    
+    let title = notification.title || 'Harmony';
+    let message = '';
+    let icon = data.sender?.avatar_url || '/img/app_icon_square.png';
+
+    switch (notification.type) {
+      case 'mention':
+        title = `${sender.username || 'Someone'} mentioned you`;
+        message = data.message?.content_preview || 'You were mentioned in a message';
+        break;
+      
+      case 'dm':
+        title = `${sender.username || 'Someone'} sent you a message`;
+        message = data.message?.content_preview || 'New direct message';
+        break;
+      
+      case 'reply':
+        title = `${sender.username || 'Someone'} replied to you`;
+        message = data.message?.content_preview || 'New reply';
+        break;
+      
+      case 'reaction':
+        title = `${sender.username || 'Someone'} reacted to your message`;
+        message = data.reaction?.emoji_name || '❤️';
+        break;
+      
+      case 'friend_request':
+        title = 'New friend request';
+        message = `${sender.username || 'Someone'} wants to be your friend`;
+        break;
+      
+      case 'server_invite':
+        title = 'Server invitation';
+        message = `You've been invited to ${data.server?.name || 'a server'}`;
+        break;
+      
+      case 'activitypub_follow':
+        title = 'New follower';
+        message = `${sender.username || sender.display_name || 'Someone'} started following you`;
+        break;
+      
+      case 'activitypub_favorite':
+        title = 'Someone liked your post';
+        message = `${sender.username || sender.display_name || 'Someone'} favorited your post`;
+        break;
+      
+      case 'activitypub_reblog':
+        title = 'Your post was boosted';
+        message = `${sender.username || sender.display_name || 'Someone'} boosted your post`;
+        break;
+      
+      case 'activitypub_mention':
+        title = `${sender.username || sender.display_name || 'Someone'} mentioned you`;
+        message = data.post?.content_preview || 'You were mentioned in a post';
+        break;
+      
+      case 'activitypub_reply':
+        title = `${sender.username || sender.display_name || 'Someone'} replied to you`;
+        message = data.post?.content_preview || 'New reply to your post';
+        break;
+      
+      case 'activitypub_follow_request':
+        title = 'New follow request';
+        message = `${sender.username || sender.display_name || 'Someone'} wants to follow you`;
+        break;
+      
+      default:
+        title = 'New notification';
+        message = 'You have a new notification';
+    }
+
+    return {
+      title,
+      message,
+      body: message,
+      type: notification.type,
+      icon,
+      badge: '/img/app_icon_square.png',
+      tag: `harmony-${notification.type}-${notification.id}`,
+      requireInteraction: ['mention', 'dm', 'activitypub_mention'].includes(notification.type),
+      data: {
+        notification_id: notification.id,
+        user_id: notification.user_id,
+        ...data
+      }
+    };
+  }
+
+  /**
+   * Cleanup stale subscriptions
+   */
+  async cleanupStaleSubscriptions(): Promise<number> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .rpc('cleanup_stale_push_subscriptions');
+
+      if (error) {
+        logger.error('Failed to cleanup stale subscriptions:', error);
+        return 0;
+      }
+
+      if (data > 0) {
+        logger.info(`🧹 Cleaned up ${data} stale push subscriptions`);
+      }
+      
+      return data || 0;
+    } catch (error) {
+      logger.error('Error cleaning up subscriptions:', error);
+      return 0;
+    }
+  }
+}
+
+// Export singleton instance
+export const PushNotificationService = new PushNotificationServiceClass();
+

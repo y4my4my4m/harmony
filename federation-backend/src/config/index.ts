@@ -36,6 +36,12 @@ const envSchema = z.object({
   
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  
+  // Web Push (VAPID) - Required for push notifications
+  // Generate keys with: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().email().optional(), // mailto: email for VAPID
 });
 
 // Validate and export configuration

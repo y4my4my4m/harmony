@@ -10,6 +10,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 // Import routes
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
+import pushRouter from './routes/push.js';
 
 // Import ActivityPub routes (FEDERATION ONLY!)
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -21,6 +22,7 @@ import groupRouter from './activitypub/GroupService.js';
 
 // Import database listener
 import { startDatabaseListener } from './listeners/DatabaseListener.js';
+import { startPushNotificationListener } from './listeners/PushNotificationHandler.js';
 import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
 
 const app: Application = express();
@@ -62,6 +64,9 @@ app.use('/', groupRouter); // Servers as Groups
 
 app.use('/link-preview', linkPreviewRouter);
 
+// Push notification routes (with rate limiting)
+app.use('/push', apiLimiter, pushRouter);
+
 // 404 handler
 app.use(notFound);
 
@@ -79,6 +84,11 @@ app.listen(PORT, () => {
   // Start database listener for federation events
   startDatabaseListener().catch((error) => {
     logger.error('Failed to start database listener:', error);
+  });
+  
+  // Start push notification listener
+  startPushNotificationListener().catch((error) => {
+    logger.error('Failed to start push notification listener:', error);
   });
   
   // Process delivery queue for retries every 30 seconds
