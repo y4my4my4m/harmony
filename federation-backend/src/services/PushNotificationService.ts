@@ -463,6 +463,62 @@ class PushNotificationServiceClass {
         return;
       }
 
+      // 🔍 Enrich notification data with sender profile if missing
+      // Database stores from_user_id but not full sender profile
+      if (data.from_user_id && !data.sender) {
+        const { data: senderProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, domain, is_local')
+          .eq('id', data.from_user_id)
+          .single();
+
+        if (senderProfile) {
+          notification.data = {
+            ...notification.data,
+            sender: senderProfile
+          };
+          logger.debug(`📬 Enriched notification with sender: ${senderProfile.username}`);
+        }
+      }
+
+      // Also check user_id field in data (for reactions)
+      if (data.user_id && !data.sender && data.user_id !== notification.user_id) {
+        const { data: reactorProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, domain, is_local')
+          .eq('id', data.user_id)
+          .single();
+
+        if (reactorProfile) {
+          notification.data = {
+            ...notification.data,
+            sender: reactorProfile
+          };
+          logger.debug(`📬 Enriched notification with reactor: ${reactorProfile.username}`);
+        }
+      }
+
+      // Enrich emoji data for reactions if only emoji_id is provided
+      if (data.emoji_id && !data.reaction?.emoji_name) {
+        const { data: emoji } = await supabaseAdmin
+          .from('emojis')
+          .select('id, name, url')
+          .eq('id', data.emoji_id)
+          .single();
+
+        if (emoji) {
+          notification.data = {
+            ...notification.data,
+            reaction: {
+              ...notification.data.reaction,
+              emoji_name: emoji.name,
+              emoji_url: emoji.url
+            }
+          };
+          logger.debug(`📬 Enriched notification with emoji: ${emoji.name}`);
+        }
+      }
+
       // Build payload from notification data
       const payload = this.buildPayloadFromNotification(notification);
 

@@ -1309,16 +1309,27 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
     let emojiData = null;
 
     if (reaction.emoji_id) {
-      const { data: emoji } = await supabase
+      logger.debug(`Looking up emoji_id: ${reaction.emoji_id}`);
+      
+      const { data: emoji, error: emojiError } = await supabase
         .from('emojis')
-        .select('name, url')
+        .select('id, name, url, display_name')
         .eq('id', reaction.emoji_id)
         .single();
 
+      if (emojiError) {
+        logger.warn(`Failed to fetch emoji ${reaction.emoji_id}:`, emojiError.message);
+      }
+
       if (emoji) {
-        emojiData = emoji;
-        // Use the emoji name, not the ID!
-        emojiContent = emoji.url ? `:${emoji.name}:` : emoji.name;
+        logger.debug(`Found emoji: name=${emoji.name}, display_name=${emoji.display_name}, url=${emoji.url}`);
+        emojiData = { name: emoji.name, url: emoji.url };
+        
+        // Prefer display_name, then name, use shortcode format for custom emojis
+        const emojiName = emoji.display_name || emoji.name;
+        emojiContent = emoji.url ? `:${emojiName}:` : emojiName;
+      } else {
+        logger.warn(`Emoji not found for id ${reaction.emoji_id}, using default ❤️`);
       }
     }
 
@@ -1330,7 +1341,7 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
 
     // Send to all remote participants
     for (const participant of remoteParticipants) {
-      logger.info(`🌐 Federating message reaction: ${emojiContent} to ${participant.username}@${participant.domain}`);
+      logger.info(`🌐 Federating message reaction: ${emojiContent} (emoji_id: ${reaction.emoji_id}) to ${participant.username}@${participant.domain}`);
 
       const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
       await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
