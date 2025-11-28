@@ -1304,13 +1304,14 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
       return;
     }
 
-    // Get emoji data
+    // Get emoji data - try multiple sources
     let emojiContent = '❤️'; // Default
     let emojiData = null;
 
     if (reaction.emoji_id) {
       logger.debug(`Looking up emoji_id: ${reaction.emoji_id}`);
       
+      // First try the emojis table
       const { data: emoji, error: emojiError } = await supabase
         .from('emojis')
         .select('id, name, url, display_name')
@@ -1318,7 +1319,7 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
         .single();
 
       if (emojiError) {
-        logger.warn(`Failed to fetch emoji ${reaction.emoji_id}:`, emojiError.message);
+        logger.warn(`Failed to fetch emoji ${reaction.emoji_id}: ${emojiError.message}`);
       }
 
       if (emoji) {
@@ -1329,7 +1330,37 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
         const emojiName = emoji.display_name || emoji.name;
         emojiContent = emoji.url ? `:${emojiName}:` : emojiName;
       } else {
-        logger.warn(`Emoji not found for id ${reaction.emoji_id}, using default ❤️`);
+        // Check if emoji info is in reaction metadata
+        if (reaction.metadata?.emoji_name) {
+          logger.debug(`Using emoji from metadata: ${reaction.metadata.emoji_name}`);
+          emojiContent = reaction.metadata.emoji_url 
+            ? `:${reaction.metadata.emoji_name}:` 
+            : reaction.metadata.emoji_name;
+          if (reaction.metadata.emoji_url) {
+            emojiData = { name: reaction.metadata.emoji_name, url: reaction.metadata.emoji_url };
+          }
+        } else {
+          // Last resort: query the reaction with joined emoji data
+          const { data: reactionWithEmoji } = await supabase
+            .from('reactions')
+            .select(`
+              emoji_id,
+              emojis (
+                id, name, url, display_name
+              )
+            `)
+            .eq('id', reaction.id)
+            .single();
+          
+          if (reactionWithEmoji?.emojis) {
+            const e = reactionWithEmoji.emojis as any;
+            logger.debug(`Found emoji via join: name=${e.name}`);
+            emojiData = { name: e.name, url: e.url };
+            emojiContent = e.url ? `:${e.name}:` : e.name;
+          } else {
+            logger.warn(`Emoji not found for id ${reaction.emoji_id}, using default ❤️`);
+          }
+        }
       }
     }
 

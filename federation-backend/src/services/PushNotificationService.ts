@@ -465,12 +465,20 @@ class PushNotificationServiceClass {
 
       // 🔍 Enrich notification data with sender profile if missing
       // Database stores from_user_id but not full sender profile
+      logger.debug(`📬 Enriching notification type=${notification.type}, data keys: ${Object.keys(data).join(', ')}`);
+      logger.debug(`📬 from_user_id=${data.from_user_id}, user_id=${data.user_id}, sender=${JSON.stringify(data.sender)}`);
+      
       if (data.from_user_id && !data.sender) {
-        const { data: senderProfile } = await supabaseAdmin
+        logger.debug(`📬 Looking up sender by from_user_id: ${data.from_user_id}`);
+        const { data: senderProfile, error: senderError } = await supabaseAdmin
           .from('profiles')
           .select('id, username, display_name, avatar_url, domain, is_local')
           .eq('id', data.from_user_id)
           .single();
+
+        if (senderError) {
+          logger.warn(`📬 Failed to fetch sender profile: ${senderError.message}`);
+        }
 
         if (senderProfile) {
           notification.data = {
@@ -482,12 +490,18 @@ class PushNotificationServiceClass {
       }
 
       // Also check user_id field in data (for reactions)
-      if (data.user_id && !data.sender && data.user_id !== notification.user_id) {
-        const { data: reactorProfile } = await supabaseAdmin
+      // notification.user_id = recipient, data.user_id = reactor
+      if (data.user_id && !notification.data.sender && data.user_id !== notification.user_id) {
+        logger.debug(`📬 Looking up reactor by user_id: ${data.user_id} (recipient: ${notification.user_id})`);
+        const { data: reactorProfile, error: reactorError } = await supabaseAdmin
           .from('profiles')
           .select('id, username, display_name, avatar_url, domain, is_local')
           .eq('id', data.user_id)
           .single();
+
+        if (reactorError) {
+          logger.warn(`📬 Failed to fetch reactor profile: ${reactorError.message}`);
+        }
 
         if (reactorProfile) {
           notification.data = {
@@ -496,15 +510,22 @@ class PushNotificationServiceClass {
           };
           logger.debug(`📬 Enriched notification with reactor: ${reactorProfile.username}`);
         }
+      } else if (data.user_id && data.user_id === notification.user_id) {
+        logger.debug(`📬 Skipping reactor lookup - user_id equals notification.user_id (self-reaction?)`);
       }
 
       // Enrich emoji data for reactions if only emoji_id is provided
-      if (data.emoji_id && !data.reaction?.emoji_name) {
-        const { data: emoji } = await supabaseAdmin
+      if (data.emoji_id && !notification.data.reaction?.emoji_name) {
+        logger.debug(`📬 Looking up emoji by emoji_id: ${data.emoji_id}`);
+        const { data: emoji, error: emojiError } = await supabaseAdmin
           .from('emojis')
           .select('id, name, url')
           .eq('id', data.emoji_id)
           .single();
+
+        if (emojiError) {
+          logger.warn(`📬 Failed to fetch emoji: ${emojiError.message}`);
+        }
 
         if (emoji) {
           notification.data = {
@@ -518,6 +539,9 @@ class PushNotificationServiceClass {
           logger.debug(`📬 Enriched notification with emoji: ${emoji.name}`);
         }
       }
+      
+      logger.debug(`📬 Final notification.data.sender: ${JSON.stringify(notification.data.sender)}`);
+      logger.debug(`📬 Final notification.data.reaction: ${JSON.stringify(notification.data.reaction)}`);
 
       // Build payload from notification data
       const payload = this.buildPayloadFromNotification(notification);

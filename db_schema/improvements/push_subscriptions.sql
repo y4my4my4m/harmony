@@ -486,3 +486,6 @@ GRANT SELECT ON public.federated_instances TO service_role;
 -- Grant access to user_mutes for notification filtering (get_user_notifications RPC)
 GRANT SELECT ON public.user_mutes TO authenticated;
 GRANT SELECT ON public.user_mutes TO service_role;
+
+-- Grant service_role access to emojis table (for reaction federation)
+GRANT SELECT ON public.emojis TO service_role;
