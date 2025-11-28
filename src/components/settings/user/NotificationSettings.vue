@@ -1197,13 +1197,11 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 .haptic-categories {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--harmony--bg-modifier-accent, rgba(255, 255, 255, 0.06));
 }
 
 .haptic-test {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--harmony--bg-modifier-accent, rgba(255, 255, 255, 0.06));
 }
 
 .test-haptic-btn {

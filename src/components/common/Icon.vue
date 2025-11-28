@@ -30,8 +30,9 @@
     
     <!-- Camera Off -->
     <line v-if="name === 'camera-off'" x1="1" y1="1" x2="23" y2="23"></line>
-    <path v-if="name === 'camera-off'" d="m21 21-3.6-3.6c-.2.1-.4.2-.6.2H3a2 2 0 0 1-2-2V8c0-.4.1-.8.3-1.2L5 10.7V19h10.7l-2.4-2.4"></path>
-    
+    <path v-if="name === 'camera-off'" d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+    <circle v-if="name === 'camera-off'" cx="12" cy="13" r="4"></circle>
+
     <!-- Screen Share -->
     <rect v-if="name === 'screen-share'" x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
     <line v-if="name === 'screen-share'" x1="8" y1="21" x2="16" y2="21"></line>
