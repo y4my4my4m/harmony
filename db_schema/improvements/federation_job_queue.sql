@@ -200,9 +200,9 @@ BEGIN
         name,
         data,
         priority,
-        retrylimit,
-        expirein,
-        createdon,
+        retry_limit,
+        expire_in,
+        created_on,
         state
     ) VALUES (
         gen_random_uuid(),
