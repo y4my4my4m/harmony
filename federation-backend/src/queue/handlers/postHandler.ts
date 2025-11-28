@@ -7,7 +7,7 @@
 
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
-import { createPostActivity, createDeleteActivity, createUpdateActivity } from '../../listeners/FederationHandlers.js';
+import { createPostActivity, createDeleteActivity, createPostUpdateActivity } from '../../listeners/FederationHandlers.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
@@ -68,7 +68,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
 
       case 'update':
         // Create Update activity for edited post
-        activity = await createUpdateActivity(post, author);
+        activity = await createPostUpdateActivity(post, author);
         
         // Broadcast update to followers
         await DeliveryQueue.broadcastToFollowers(author.id, activity);
