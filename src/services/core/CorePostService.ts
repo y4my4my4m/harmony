@@ -58,14 +58,10 @@ export class CorePostService {
 
   /**
    * Create a post (pure local database operation)
-   * Ensures fresh connection before critical operations
    */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
       debug.log('🚀 Core: createPost starting...')
-      
-      // Ensure session is fresh before critical operation (handles stale connections after idle)
-      await this.ensureFreshConnection()
       
       // OPTIMIZED: Use AuthContextService for auth check (cached)
       const authUser = await authContextService.getCurrentAuthUser()
@@ -136,28 +132,33 @@ export class CorePostService {
   }
 
   /**
-   * Ensure fresh Supabase connection before critical operations
-   * This handles stale connections after extended idle periods (5+ minutes)
+   * Attempt to refresh connection for retry scenarios
+   * Only called on actual failures, not preemptively
+   * Uses a tight timeout to avoid blocking on network issues
    */
   private async ensureFreshConnection(): Promise<void> {
+    debug.log('🔄 Core: Refreshing connection for retry...')
+    
+    // Clear auth context cache
+    authContextService.clearCache()
+    
+    // Attempt a quick session refresh with tight timeout (2 seconds)
+    // This helps if the token is stale, but won't block if network is slow
     try {
-      debug.log('🔄 Core: Ensuring fresh connection...')
+      const refreshPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise<null>((resolve) => 
+        setTimeout(() => resolve(null), 2000)
+      )
       
-      // Refresh the session - this forces Supabase to re-establish connection if stale
-      const { data, error } = await supabase.auth.refreshSession()
+      const result = await Promise.race([refreshPromise, timeoutPromise])
       
-      if (error) {
-        debug.warn('⚠️ Session refresh warning:', error.message)
-        // Don't throw - let the actual query handle auth errors
-        // The session might still be valid even if refresh fails
-      } else if (data.session) {
-        debug.log('✅ Core: Session refreshed successfully')
-        // Clear auth context cache so it picks up fresh session
-        authContextService.clearCache()
+      if (result && 'data' in result && result.data.session) {
+        debug.log('✅ Core: Session verified for retry')
+      } else {
+        debug.log('⚠️ Core: Session check timed out or empty, continuing anyway')
       }
     } catch (error) {
-      debug.warn('⚠️ Connection refresh failed, continuing anyway:', error)
-      // Don't throw - connection might still work
+      debug.warn('⚠️ Core: Session refresh failed, continuing with existing session')
     }
   }
 
