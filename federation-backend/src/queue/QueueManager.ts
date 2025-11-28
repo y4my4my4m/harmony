@@ -112,7 +112,9 @@ class QueueManagerService {
       await this.registerHandlers();
       
       // Start periodic sweep for missed events
-      this.startPeriodicSweep();
+      // TEMPORARILY DISABLED - investigating duplicate job creation
+      // this.startPeriodicSweep();
+      logger.info('⚠️ Sweep DISABLED for debugging');
       
       this.isRunning = true;
       logger.info('✅ QueueManager is ready and processing jobs');
