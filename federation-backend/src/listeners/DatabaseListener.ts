@@ -1239,7 +1239,7 @@ async function handleNewDM(message: any): Promise<void> {
 
 /**
  * Handle new message reaction (DM reaction federation)
- * When a local user reacts to a DM, federate the Like activity to the message author
+ * When a local user reacts to a DM, federate the Like activity to all remote participants
  */
 async function handleNewMessageReaction(reaction: any): Promise<void> {
   try {
@@ -1271,21 +1271,36 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
       .eq('id', reaction.message_id)
       .single();
 
-    if (!message) {
-      logger.debug('Message not found for reaction');
+    if (!message || !message.conversation_id) {
+      logger.debug('Message not found or not a DM');
       return;
     }
 
-    // Get the message author
-    const { data: messageAuthor } = await supabase
-      .from('profiles')
-      .select('id, username, domain, is_local, inbox_url, federated_id')
-      .eq('id', message.user_id)
-      .single();
+    // Get all participants in the conversation (not just message author)
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select(`
+        user_id,
+        profiles!inner (
+          id,
+          username,
+          domain,
+          is_local,
+          inbox_url,
+          federated_id
+        )
+      `)
+      .eq('conversation_id', message.conversation_id)
+      .neq('user_id', reaction.user_id) // Exclude the user who reacted
+      .is('left_at', null);
 
-    // Only federate if the message author is remote
-    if (!messageAuthor || messageAuthor.is_local) {
-      logger.debug('Message author is local, no federation needed');
+    // Filter to only remote participants
+    const remoteParticipants = participants?.filter(
+      (p: any) => !p.profiles.is_local && p.profiles.domain
+    ).map((p: any) => p.profiles);
+
+    if (!remoteParticipants || remoteParticipants.length === 0) {
+      logger.debug('No remote participants in conversation, no federation needed');
       return;
     }
 
@@ -1302,11 +1317,10 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
 
       if (emoji) {
         emojiData = emoji;
+        // Use the emoji name, not the ID!
         emojiContent = emoji.url ? `:${emoji.name}:` : emoji.name;
       }
     }
-
-    logger.info(`🌐 Federating message reaction: ${emojiContent} to ${messageAuthor.username}@${messageAuthor.domain}`);
 
     // Build the message URL
     const messageUrl = `https://${domain}/messages/${message.id}`;
@@ -1314,13 +1328,11 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
     // Create Like activity
     const activity = await createLikeActivity(user, messageUrl, emojiContent, emojiData);
 
-    // Send to message author's inbox
-    if (messageAuthor.inbox_url) {
-      await DeliveryQueue.sendToInbox(messageAuthor.inbox_url, activity, user.id);
-      logger.info(`✅ Message reaction queued for delivery to ${messageAuthor.inbox_url}`);
-    } else {
-      // Try to construct inbox URL
-      const inboxUrl = `https://${messageAuthor.domain}/inbox`;
+    // Send to all remote participants
+    for (const participant of remoteParticipants) {
+      logger.info(`🌐 Federating message reaction: ${emojiContent} to ${participant.username}@${participant.domain}`);
+
+      const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
       await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
       logger.info(`✅ Message reaction queued for delivery to ${inboxUrl}`);
     }
@@ -1331,7 +1343,7 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
 
 /**
  * Handle message reaction removal (Undo Like for DMs)
- * When a local user removes a reaction from a DM, federate Undo Like to the message author
+ * When a local user removes a reaction from a DM, federate Undo Like to all remote participants
  */
 async function handleMessageReactionRemoval(deletedReaction: any): Promise<void> {
   try {
@@ -1358,29 +1370,41 @@ async function handleMessageReactionRemoval(deletedReaction: any): Promise<void>
     // Get the message
     const { data: message } = await supabase
       .from('messages')
-      .select('id, user_id')
+      .select('id, user_id, conversation_id')
       .eq('id', deletedReaction.message_id)
       .single();
 
-    if (!message) {
-      logger.debug('Message not found for reaction removal');
+    if (!message || !message.conversation_id) {
+      logger.debug('Message not found or not a DM');
       return;
     }
 
-    // Get the message author
-    const { data: messageAuthor } = await supabase
-      .from('profiles')
-      .select('id, username, domain, is_local, inbox_url')
-      .eq('id', message.user_id)
-      .single();
+    // Get all participants in the conversation
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select(`
+        user_id,
+        profiles!inner (
+          id,
+          username,
+          domain,
+          is_local,
+          inbox_url
+        )
+      `)
+      .eq('conversation_id', message.conversation_id)
+      .neq('user_id', deletedReaction.user_id)
+      .is('left_at', null);
 
-    // Only federate if the message author is remote
-    if (!messageAuthor || messageAuthor.is_local) {
-      logger.debug('Message author is local, no federation needed for reaction removal');
+    // Filter to only remote participants
+    const remoteParticipants = participants?.filter(
+      (p: any) => !p.profiles.is_local && p.profiles.domain
+    ).map((p: any) => p.profiles);
+
+    if (!remoteParticipants || remoteParticipants.length === 0) {
+      logger.debug('No remote participants in conversation, no federation needed');
       return;
     }
-
-    logger.info(`🌐 Federating message reaction removal to ${messageAuthor.username}@${messageAuthor.domain}`);
 
     // Build the message URL
     const messageUrl = `https://${domain}/messages/${message.id}`;
@@ -1389,12 +1413,11 @@ async function handleMessageReactionRemoval(deletedReaction: any): Promise<void>
     const { createUndoLikeActivity } = await import('./FederationHandlers.js');
     const activity = createUndoLikeActivity(user, messageUrl);
 
-    // Send to message author's inbox
-    if (messageAuthor.inbox_url) {
-      await DeliveryQueue.sendToInbox(messageAuthor.inbox_url, activity, user.id);
-      logger.info(`✅ Message Undo Like queued for delivery to ${messageAuthor.inbox_url}`);
-    } else {
-      const inboxUrl = `https://${messageAuthor.domain}/inbox`;
+    // Send to all remote participants
+    for (const participant of remoteParticipants) {
+      logger.info(`🌐 Federating message reaction removal to ${participant.username}@${participant.domain}`);
+
+      const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
       await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
       logger.info(`✅ Message Undo Like queued for delivery to ${inboxUrl}`);
     }
