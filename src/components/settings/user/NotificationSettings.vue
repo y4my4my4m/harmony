@@ -520,7 +520,7 @@
 
         <div class="haptic-test">
           <button @click="testHaptic" class="test-haptic-btn">
-            <Icon name="smartphone" />
+            <Icon name="zap" />
             <span>Test Haptic Feedback</span>
           </button>
         </div>
