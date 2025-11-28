@@ -244,6 +244,32 @@ export async function startDatabaseListener(): Promise<void> {
         }
       }
     )
+    // Listen for new message reactions (DMs)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'reactions',
+      },
+      async (payload) => {
+        logger.info('💬❤️ New message reaction detected:', payload.new.id);
+        await handleNewMessageReaction(payload.new);
+      }
+    )
+    // Listen for message reaction removals (DMs)
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'reactions',
+      },
+      async (payload) => {
+        logger.info('💬💔 Message reaction removed:', payload.old?.id);
+        await handleMessageReactionRemoval(payload.old);
+      }
+    )
     .subscribe((status, err) => {
       logger.info(`📡 Realtime subscription status: ${status}`);
       
@@ -1208,6 +1234,172 @@ async function handleNewDM(message: any): Promise<void> {
     }
   } catch (error) {
     logger.error('Error handling DM federation:', error);
+  }
+}
+
+/**
+ * Handle new message reaction (DM reaction federation)
+ * When a local user reacts to a DM, federate the Like activity to the message author
+ */
+async function handleNewMessageReaction(reaction: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const domain = config.INSTANCE_DOMAIN;
+
+    // Skip if this is a federated reaction (has federated metadata)
+    if (reaction.metadata?.federated) {
+      logger.debug('Skipping federated reaction');
+      return;
+    }
+
+    // Get the user who reacted
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', reaction.user_id)
+      .single();
+
+    if (!user || !user.is_local) {
+      logger.debug('Reaction from remote user, skipping outbound federation');
+      return;
+    }
+
+    // Get the message that was reacted to
+    const { data: message } = await supabase
+      .from('messages')
+      .select('id, user_id, conversation_id')
+      .eq('id', reaction.message_id)
+      .single();
+
+    if (!message) {
+      logger.debug('Message not found for reaction');
+      return;
+    }
+
+    // Get the message author
+    const { data: messageAuthor } = await supabase
+      .from('profiles')
+      .select('id, username, domain, is_local, inbox_url, federated_id')
+      .eq('id', message.user_id)
+      .single();
+
+    // Only federate if the message author is remote
+    if (!messageAuthor || messageAuthor.is_local) {
+      logger.debug('Message author is local, no federation needed');
+      return;
+    }
+
+    // Get emoji data
+    let emojiContent = '❤️'; // Default
+    let emojiData = null;
+
+    if (reaction.emoji_id) {
+      const { data: emoji } = await supabase
+        .from('emojis')
+        .select('name, url')
+        .eq('id', reaction.emoji_id)
+        .single();
+
+      if (emoji) {
+        emojiData = emoji;
+        emojiContent = emoji.url ? `:${emoji.name}:` : emoji.name;
+      }
+    }
+
+    logger.info(`🌐 Federating message reaction: ${emojiContent} to ${messageAuthor.username}@${messageAuthor.domain}`);
+
+    // Build the message URL
+    const messageUrl = `https://${domain}/messages/${message.id}`;
+
+    // Create Like activity
+    const activity = await createLikeActivity(user, messageUrl, emojiContent, emojiData);
+
+    // Send to message author's inbox
+    if (messageAuthor.inbox_url) {
+      await DeliveryQueue.sendToInbox(messageAuthor.inbox_url, activity, user.id);
+      logger.info(`✅ Message reaction queued for delivery to ${messageAuthor.inbox_url}`);
+    } else {
+      // Try to construct inbox URL
+      const inboxUrl = `https://${messageAuthor.domain}/inbox`;
+      await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
+      logger.info(`✅ Message reaction queued for delivery to ${inboxUrl}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle message reaction:', error);
+  }
+}
+
+/**
+ * Handle message reaction removal (Undo Like for DMs)
+ * When a local user removes a reaction from a DM, federate Undo Like to the message author
+ */
+async function handleMessageReactionRemoval(deletedReaction: any): Promise<void> {
+  try {
+    if (!deletedReaction) {
+      logger.debug('No deleted reaction data');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const domain = config.INSTANCE_DOMAIN;
+
+    // Get the user who removed the reaction
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', deletedReaction.user_id)
+      .single();
+
+    if (!user || !user.is_local) {
+      logger.debug('Reaction removal from remote user, skipping outbound federation');
+      return;
+    }
+
+    // Get the message
+    const { data: message } = await supabase
+      .from('messages')
+      .select('id, user_id')
+      .eq('id', deletedReaction.message_id)
+      .single();
+
+    if (!message) {
+      logger.debug('Message not found for reaction removal');
+      return;
+    }
+
+    // Get the message author
+    const { data: messageAuthor } = await supabase
+      .from('profiles')
+      .select('id, username, domain, is_local, inbox_url')
+      .eq('id', message.user_id)
+      .single();
+
+    // Only federate if the message author is remote
+    if (!messageAuthor || messageAuthor.is_local) {
+      logger.debug('Message author is local, no federation needed for reaction removal');
+      return;
+    }
+
+    logger.info(`🌐 Federating message reaction removal to ${messageAuthor.username}@${messageAuthor.domain}`);
+
+    // Build the message URL
+    const messageUrl = `https://${domain}/messages/${message.id}`;
+
+    // Create Undo Like activity
+    const { createUndoLikeActivity } = await import('./FederationHandlers.js');
+    const activity = createUndoLikeActivity(user, messageUrl);
+
+    // Send to message author's inbox
+    if (messageAuthor.inbox_url) {
+      await DeliveryQueue.sendToInbox(messageAuthor.inbox_url, activity, user.id);
+      logger.info(`✅ Message Undo Like queued for delivery to ${messageAuthor.inbox_url}`);
+    } else {
+      const inboxUrl = `https://${messageAuthor.domain}/inbox`;
+      await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
+      logger.info(`✅ Message Undo Like queued for delivery to ${inboxUrl}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle message reaction removal:', error);
   }
 }
 
