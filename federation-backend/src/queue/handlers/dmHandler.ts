@@ -1,0 +1,64 @@
+/**
+ * DM Federation Job Handler
+ * 
+ * Processes federate-dm jobs (direct messages to remote users)
+ */
+
+import { getSupabaseClient } from '../../config/supabase.js';
+import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
+import { handleNewDM } from '../../listeners/FederationHandlers.js';
+import { logger } from '../../utils/logger.js';
+import type { FederationJobData } from '../QueueManager.js';
+
+export async function handleDMJob(data: FederationJobData): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { type, message_id, conversation_id, user_id } = data;
+
+  logger.info(`💬 Processing DM job: ${type} for message ${message_id}`);
+
+  try {
+    // Get message
+    const { data: message } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('id', message_id)
+      .single();
+
+    if (!message) {
+      logger.error(`Message not found: ${message_id}`);
+      await updateFederationStatus(message_id, 'messages', 'failed');
+      return;
+    }
+
+    // Check if already federated
+    if (message.metadata?.federated) {
+      logger.debug(`Message ${message_id} already federated, skipping`);
+      await updateFederationStatus(message_id, 'messages', 'skipped');
+      return;
+    }
+
+    await updateFederationStatus(message_id, 'messages', 'processing');
+
+    // Use the existing handleNewDM function from FederationHandlers
+    // It already handles finding remote participants and creating the DM activity
+    await handleNewDM(message);
+
+    await updateFederationStatus(message_id, 'messages', 'completed');
+    logger.info(`✅ DM ${message_id} federated successfully`);
+
+  } catch (error) {
+    logger.error(`Failed to federate DM ${message_id}:`, error);
+    await updateFederationStatus(message_id, 'messages', 'failed');
+    throw error;
+  }
+}
+
+async function updateFederationStatus(
+  id: string,
+  table: string,
+  status: string
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  await supabase.from(table).update({ federation_status: status }).eq('id', id);
+}
+

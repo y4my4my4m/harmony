@@ -103,6 +103,14 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_sound_replies: true
 }
 
+// Retry configuration for realtime reconnection
+const NOTIFICATION_RETRY_CONFIG = {
+  maxRetries: 10,
+  baseDelay: 1000,
+  maxDelay: 30000,
+  jitterFactor: 0.2
+}
+
 export const useNotificationStore = defineStore('notification', {
   state: (): NotificationState => ({
     notifications: [],
@@ -118,7 +126,10 @@ export const useNotificationStore = defineStore('notification', {
     hasPermission: false,
     currentFilter: 'all',
     cachedProfileId: null,
-    cachedAuthUserId: null
+    cachedAuthUserId: null,
+    // Reconnection state
+    notificationRetryCount: 0,
+    notificationRetryTimeout: null as ReturnType<typeof setTimeout> | null
   }),
 
   getters: {
@@ -587,20 +598,59 @@ export const useNotificationStore = defineStore('notification', {
           
           if (status === 'SUBSCRIBED') {
             debug.log('✅ Notification subscription connected')
+            // Reset retry count on successful connection
+            this.notificationRetryCount = 0
           } else if (status === 'CHANNEL_ERROR') {
-            debug.error('❌ Subscription error, retrying in 5s...')
-            setTimeout(() => {
-              this.setupContextAwareRealtimeSubscription(userId)
-            }, 5000)
+            debug.error('❌ Subscription error')
+            this.scheduleNotificationReconnect(userId)
           } else if (status === 'TIMED_OUT') {
-            debug.error('⏰ Subscription timed out, retrying...')
-            setTimeout(() => {
-              this.setupContextAwareRealtimeSubscription(userId)
-            }, 2000)
+            debug.error('⏰ Subscription timed out')
+            this.scheduleNotificationReconnect(userId)
           } else if (status === 'CLOSED') {
             debug.warn('🔒 Subscription closed')
+            this.scheduleNotificationReconnect(userId)
           }
         })
+    },
+    
+    /**
+     * Schedule notification subscription reconnection with exponential backoff
+     */
+    scheduleNotificationReconnect(userId: string) {
+      // Check if max retries exceeded
+      if (this.notificationRetryCount >= NOTIFICATION_RETRY_CONFIG.maxRetries) {
+        debug.error(`❌ Notification subscription: Max retries (${NOTIFICATION_RETRY_CONFIG.maxRetries}) exceeded`)
+        return
+      }
+      
+      // Calculate delay with exponential backoff
+      const delay = Math.min(
+        NOTIFICATION_RETRY_CONFIG.baseDelay * Math.pow(2, this.notificationRetryCount),
+        NOTIFICATION_RETRY_CONFIG.maxDelay
+      )
+      const jitter = delay * NOTIFICATION_RETRY_CONFIG.jitterFactor * Math.random()
+      const finalDelay = Math.floor(delay + jitter)
+      
+      debug.log(`🔄 Notification subscription: Scheduling reconnect in ${finalDelay}ms (attempt ${this.notificationRetryCount + 1}/${NOTIFICATION_RETRY_CONFIG.maxRetries})`)
+      
+      // Clear any existing retry timeout
+      if (this.notificationRetryTimeout) {
+        clearTimeout(this.notificationRetryTimeout)
+      }
+      
+      // Schedule reconnect
+      this.notificationRetryTimeout = setTimeout(() => {
+        this.notificationRetryCount++
+        this.notificationRetryTimeout = null
+        
+        debug.log(`🔄 Notification subscription: Attempting reconnect...`)
+        // Clean up old subscription first
+        if (this.realtimeSubscription) {
+          supabase.removeChannel(this.realtimeSubscription)
+          this.realtimeSubscription = null
+        }
+        this.setupContextAwareRealtimeSubscription(userId)
+      }, finalDelay)
     },
 
 

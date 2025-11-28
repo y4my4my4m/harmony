@@ -453,56 +453,113 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
-    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status in parallel
+    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status
+    // OPTIMIZED: For single DM views, only load current conversation participant(s)
     const baselineUserIds = new Set<string>()
     
-    // Parallelize server users and DM contacts fetching
-    await Promise.all([
-      // Fetch server users
-      (async () => {
-        const { getUserIdsForServer } = await import('@/services/usersService')
-        const allServers = serverChannelStore.servers
+    // For DM routes with a specific conversation, only load that conversation's participants initially
+    const isSingleDMView = strategy.routeType === 'dm' && strategy.currentConversationId
+    
+    if (isSingleDMView) {
+      // OPTIMIZED: Only load current conversation participant for single DM view
+      try {
+        const { data: participants } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', strategy.currentConversationId)
+          .neq('user_id', userId)
+          .is('left_at', null)
         
-        await Promise.all(allServers.map(async (server) => {
+        if (participants) {
+          participants.forEach(p => baselineUserIds.add(p.user_id))
+        }
+        
+        // DEFER: Load other DM contacts in background (non-blocking)
+        setTimeout(async () => {
           try {
-            const serverUserIds = await getUserIdsForServer(server.id)
-            serverUserIds.forEach(id => baselineUserIds.add(id))
-          } catch (error) {
-            debug.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
-          }
-        }))
-      })(),
-      
-      // Fetch DM contacts
-      (async () => {
-        try {
-          // Get DM contacts using conversation_participants table
-          const { data: participations } = await supabase
-            .from('conversation_participants')
-            .select('conversation_id')
-            .eq('user_id', userId)
-            .is('left_at', null)
-            .limit(100)
-          
-          if (participations && participations.length > 0) {
-            const conversationIds = participations.map(p => p.conversation_id)
-            
-            const { data: otherParticipants } = await supabase
+            const { data: allParticipations } = await supabase
               .from('conversation_participants')
-              .select('user_id')
-              .in('conversation_id', conversationIds)
-              .neq('user_id', userId)
+              .select('conversation_id')
+              .eq('user_id', userId)
               .is('left_at', null)
+              .limit(100)
             
-            if (otherParticipants) {
-              otherParticipants.forEach(p => baselineUserIds.add(p.user_id))
+            if (allParticipations && allParticipations.length > 0) {
+              const conversationIds = allParticipations
+                .map(p => p.conversation_id)
+                .filter(id => id !== strategy.currentConversationId)
+              
+              if (conversationIds.length > 0) {
+                const { data: otherParticipants } = await supabase
+                  .from('conversation_participants')
+                  .select('user_id')
+                  .in('conversation_id', conversationIds)
+                  .neq('user_id', userId)
+                  .is('left_at', null)
+                
+                if (otherParticipants) {
+                  const otherUserIds = otherParticipants.map(p => p.user_id)
+                  await userData.ensureProfilesAvailable(otherUserIds)
+                }
+              }
+            }
+          } catch (error) {
+            debug.warn('⚠️ Background DM contacts loading failed:', error)
+          }
+        }, 500) // Load other DM contacts after 500ms
+      } catch (error) {
+        debug.warn('⚠️ Failed to load current conversation participants:', error)
+      }
+    } else {
+      // Not a single DM view - load all users normally
+      await Promise.all([
+        // Fetch server users
+        (async () => {
+          const { getUserIdsForServer } = await import('@/services/usersService')
+          const allServers = serverChannelStore.servers
+          
+          await Promise.all(allServers.map(async (server) => {
+            try {
+              const serverUserIds = await getUserIdsForServer(server.id)
+              serverUserIds.forEach(id => baselineUserIds.add(id))
+            } catch (error) {
+              debug.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
+            }
+          }))
+        })(),
+        
+        // Fetch DM contacts (only for non-DM routes or DM list view)
+        (async () => {
+          if (strategy.routeType !== 'dm') {
+            try {
+              const { data: participations } = await supabase
+                .from('conversation_participants')
+                .select('conversation_id')
+                .eq('user_id', userId)
+                .is('left_at', null)
+                .limit(100)
+              
+              if (participations && participations.length > 0) {
+                const conversationIds = participations.map(p => p.conversation_id)
+                
+                const { data: otherParticipants } = await supabase
+                  .from('conversation_participants')
+                  .select('user_id')
+                  .in('conversation_id', conversationIds)
+                  .neq('user_id', userId)
+                  .is('left_at', null)
+                
+                if (otherParticipants) {
+                  otherParticipants.forEach(p => baselineUserIds.add(p.user_id))
+                }
+              }
+            } catch (error) {
+              debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
             }
           }
-        } catch (error) {
-          debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
-        }
-      })()
-    ])
+        })()
+      ])
+    }
     
     // Load baseline user data for global presence (minimal profile info)
     if (baselineUserIds.size > 0) {

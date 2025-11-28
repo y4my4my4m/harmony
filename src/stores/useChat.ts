@@ -8,6 +8,14 @@ import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
 import { debug } from '@/utils/debug';
 
+// Retry configuration for realtime reconnection
+const RETRY_CONFIG = {
+  maxRetries: 10,
+  baseDelay: 1000,
+  maxDelay: 30000,
+  jitterFactor: 0.2
+};
+
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -29,6 +37,10 @@ export const useChatStore = defineStore('chat', {
     // Jump-to-message functionality
     jumpedToMessages: new Map<string, Message>(),
     messageGaps: new Set<string>(), // Track where gaps should be shown
+    
+    // Reconnection state for realtime subscriptions
+    channelRetryCount: new Map<string, number>(),
+    channelRetryTimeouts: new Map<string, ReturnType<typeof setTimeout>>(),
   }),
   actions: {
     clearMessages() {
@@ -862,12 +874,60 @@ export const useChatStore = defineStore('chat', {
           debug.log('📡 Real-time subscription status:', status, 'for channel:', channelName);
           if (status === 'SUBSCRIBED') {
             debug.log('✅ Successfully subscribed to real-time updates for channel:', channelId);
+            // Reset retry count on successful connection
+            this.channelRetryCount.set(channelId, 0);
           } else if (status === 'CHANNEL_ERROR') {
             debug.error('❌ Real-time subscription error for channel:', channelId);
+            this.scheduleChannelReconnect(channelId);
           } else if (status === 'TIMED_OUT') {
             debug.error('⏰ Real-time subscription timed out for channel:', channelId);
+            this.scheduleChannelReconnect(channelId);
+          } else if (status === 'CLOSED') {
+            debug.log('🔒 Real-time subscription closed for channel:', channelId);
+            // Only reconnect if this is still the current channel
+            if (this.currentChannelId === channelId) {
+              this.scheduleChannelReconnect(channelId);
+            }
           }
         });            
+    },
+    
+    // Schedule reconnection with exponential backoff
+    scheduleChannelReconnect(channelId: string) {
+      const retryCount = this.channelRetryCount.get(channelId) || 0;
+      
+      // Check if max retries exceeded
+      if (retryCount >= RETRY_CONFIG.maxRetries) {
+        debug.error(`❌ Channel ${channelId}: Max retries (${RETRY_CONFIG.maxRetries}) exceeded`);
+        return;
+      }
+      
+      // Calculate delay with exponential backoff
+      const delay = Math.min(RETRY_CONFIG.baseDelay * Math.pow(2, retryCount), RETRY_CONFIG.maxDelay);
+      const jitter = delay * RETRY_CONFIG.jitterFactor * Math.random();
+      const finalDelay = Math.floor(delay + jitter);
+      
+      debug.log(`🔄 Channel ${channelId}: Scheduling reconnect in ${finalDelay}ms (attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries})`);
+      
+      // Clear any existing retry timeout
+      const existingTimeout = this.channelRetryTimeouts.get(channelId);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+      
+      // Schedule reconnect
+      const timeoutId = setTimeout(() => {
+        this.channelRetryCount.set(channelId, retryCount + 1);
+        this.channelRetryTimeouts.delete(channelId);
+        
+        // Only reconnect if this is still the current channel
+        if (this.currentChannelId === channelId) {
+          debug.log(`🔄 Channel ${channelId}: Attempting reconnect...`);
+          this.subscribeToMessages(channelId);
+        }
+      }, finalDelay);
+      
+      this.channelRetryTimeouts.set(channelId, timeoutId);
     },
 
     // Jump to a specific message (for reply navigation)
