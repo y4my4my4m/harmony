@@ -547,6 +547,36 @@ BEGIN
 END;
 $$;
 
+-- Profile update federation trigger (for local users)
+CREATE OR REPLACE FUNCTION public.trigger_queue_profile_federation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- Only federate local user profile updates
+    IF NEW.is_local = true THEN
+        PERFORM public.queue_federation_job(
+            'federate-profile',
+            jsonb_build_object(
+                'type', 'update',
+                'profile_id', NEW.id,
+                'username', NEW.username,
+                'display_name', NEW.display_name,
+                'bio', NEW.bio,
+                'avatar_url', NEW.avatar_url,
+                'header_url', NEW.header_url
+            ),
+            3, -- Lower priority than posts
+            5,
+            3600
+        );
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
 -- ============================================
 -- STEP 6: Create Triggers (Disabled by Default)
 -- Enable these after pg-boss is set up
@@ -555,11 +585,16 @@ $$;
 -- Drop existing triggers if they exist (for clean re-creation)
 DROP TRIGGER IF EXISTS trigger_federate_post ON public.posts;
 DROP TRIGGER IF EXISTS trigger_federate_post_interaction ON public.post_interactions;
+DROP TRIGGER IF EXISTS trigger_federate_post_interaction_delete ON public.post_interactions;
 DROP TRIGGER IF EXISTS trigger_federate_follow ON public.follows;
+DROP TRIGGER IF EXISTS trigger_federate_follow_delete ON public.follows;
 DROP TRIGGER IF EXISTS trigger_federate_dm ON public.messages;
 DROP TRIGGER IF EXISTS trigger_federate_message_reaction ON public.reactions;
+DROP TRIGGER IF EXISTS trigger_federate_message_reaction_delete ON public.reactions;
 DROP TRIGGER IF EXISTS trigger_federate_block ON public.user_blocks;
+DROP TRIGGER IF EXISTS trigger_federate_block_delete ON public.user_blocks;
 DROP TRIGGER IF EXISTS trigger_federate_report ON public.reports;
+DROP TRIGGER IF EXISTS trigger_federate_profile ON public.profiles;
 
 -- Create triggers (DISABLED - enable after pg-boss setup)
 -- To enable: ALTER TABLE public.posts ENABLE TRIGGER trigger_federate_post;
@@ -634,6 +669,13 @@ CREATE TRIGGER trigger_federate_report
     EXECUTE FUNCTION public.trigger_queue_report_federation();
 ALTER TABLE public.reports DISABLE TRIGGER trigger_federate_report;
 
+CREATE TRIGGER trigger_federate_profile
+    AFTER UPDATE ON public.profiles
+    FOR EACH ROW
+    WHEN (NEW.is_local = true)
+    EXECUTE FUNCTION public.trigger_queue_profile_federation();
+ALTER TABLE public.profiles DISABLE TRIGGER trigger_federate_profile;
+
 -- ============================================
 -- STEP 7: Helper Functions for Migration
 -- ============================================
@@ -656,6 +698,7 @@ BEGIN
     ALTER TABLE public.user_blocks ENABLE TRIGGER trigger_federate_block;
     ALTER TABLE public.user_blocks ENABLE TRIGGER trigger_federate_block_delete;
     ALTER TABLE public.reports ENABLE TRIGGER trigger_federate_report;
+    ALTER TABLE public.profiles ENABLE TRIGGER trigger_federate_profile;
     
     RAISE NOTICE '✅ All federation triggers enabled';
 END;
@@ -679,6 +722,7 @@ BEGIN
     ALTER TABLE public.user_blocks DISABLE TRIGGER trigger_federate_block;
     ALTER TABLE public.user_blocks DISABLE TRIGGER trigger_federate_block_delete;
     ALTER TABLE public.reports DISABLE TRIGGER trigger_federate_report;
+    ALTER TABLE public.profiles DISABLE TRIGGER trigger_federate_profile;
     
     RAISE NOTICE '⚠️ All federation triggers disabled';
 END;

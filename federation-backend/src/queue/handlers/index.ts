@@ -11,4 +11,5 @@ export { handleDMJob } from './dmHandler.js';
 export { handleMessageReactionJob } from './messageReactionHandler.js';
 export { handleBlockJob } from './blockHandler.js';
 export { handleReportJob } from './reportHandler.js';
+export { handleProfileJob } from './profileHandler.js';
 

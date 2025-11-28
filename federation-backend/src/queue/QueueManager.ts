@@ -23,6 +23,7 @@ import { handleDMJob } from './handlers/dmHandler.js';
 import { handleMessageReactionJob } from './handlers/messageReactionHandler.js';
 import { handleBlockJob } from './handlers/blockHandler.js';
 import { handleReportJob } from './handlers/reportHandler.js';
+import { handleProfileJob } from './handlers/profileHandler.js';
 
 // Job types
 export type JobType = 
@@ -33,6 +34,7 @@ export type JobType =
   | 'federate-message-reaction'
   | 'federate-block'
   | 'federate-report'
+  | 'federate-profile'
   | 'sweep-pending';
 
 // Job data interface
@@ -231,6 +233,18 @@ class QueueManagerService {
       }
     });
 
+    // Register profile federation handler
+    await this.boss.work('federate-profile', handlerOptions, async (job) => {
+      logger.info(`👤 Processing federate-profile job: ${job.id}`);
+      try {
+        await handleProfileJob(job.data as FederationJobData);
+        logger.info(`✅ federate-profile job completed: ${job.id}`);
+      } catch (error) {
+        logger.error(`❌ federate-profile job failed: ${job.id}`, error);
+        throw error;
+      }
+    });
+
     logger.info('✅ All job handlers registered');
   }
 
@@ -369,7 +383,8 @@ class QueueManagerService {
       'federate-dm',
       'federate-message-reaction',
       'federate-block',
-      'federate-report'
+      'federate-report',
+      'federate-profile'
     ];
 
     const stats: any = {
