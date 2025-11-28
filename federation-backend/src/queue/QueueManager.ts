@@ -180,107 +180,80 @@ class QueueManagerService {
   private async registerHandlers(): Promise<void> {
     if (!this.boss) throw new Error('pg-boss not initialized');
 
-    const handlerOptions = {
-      teamSize: 5,           // Process up to 5 jobs concurrently
-      teamConcurrency: 2,    // Max concurrent jobs per type
-      teamRefill: true,      // Refill team as jobs complete
+    // pg-boss 10.x work options
+    const workOptions = {
+      batchSize: 5,                    // Fetch up to 5 jobs at once
+      pollingIntervalSeconds: 2,       // Poll every 2 seconds
     };
 
-    // Register post federation handler
-    await this.boss.work('federate-post', handlerOptions, async (job) => {
-      logger.info(`📬 Processing federate-post job: ${job.id}`);
+    // Helper to create job handler with proper typing
+    const createHandler = (
+      jobType: string,
+      emoji: string,
+      handler: (data: FederationJobData) => Promise<void>
+    ) => async (job: { id: string; data: FederationJobData }) => {
+      logger.info(`${emoji} Processing ${jobType} job: ${job.id}`);
       try {
-        await handlePostJob(job.data as FederationJobData);
-        logger.info(`✅ federate-post job completed: ${job.id}`);
+        if (!job.data) {
+          logger.warn(`⚠️ ${jobType} job ${job.id} has no data, skipping`);
+          return;
+        }
+        await handler(job.data);
+        logger.info(`✅ ${jobType} job completed: ${job.id}`);
       } catch (error) {
-        logger.error(`❌ federate-post job failed: ${job.id}`, error);
+        logger.error(`❌ ${jobType} job failed: ${job.id}`, error);
         throw error; // pg-boss will handle retry
       }
-    });
+    };
 
-    // Register reaction federation handler
-    await this.boss.work('federate-reaction', handlerOptions, async (job) => {
-      logger.info(`❤️ Processing federate-reaction job: ${job.id}`);
-      try {
-        await handleReactionJob(job.data as FederationJobData);
-        logger.info(`✅ federate-reaction job completed: ${job.id}`);
-      } catch (error) {
-        logger.error(`❌ federate-reaction job failed: ${job.id}`, error);
-        throw error;
-      }
-    });
+    // Register all handlers
+    await this.boss.work(
+      'federate-post',
+      workOptions,
+      createHandler('federate-post', '📬', handlePostJob)
+    );
 
-    // Register follow federation handler
-    await this.boss.work('federate-follow', handlerOptions, async (job) => {
-      logger.info(`👥 Processing federate-follow job: ${job.id}`);
-      try {
-        await handleFollowJob(job.data as FederationJobData);
-        logger.info(`✅ federate-follow job completed: ${job.id}`);
-      } catch (error) {
-        logger.error(`❌ federate-follow job failed: ${job.id}`, error);
-        throw error;
-      }
-    });
+    await this.boss.work(
+      'federate-reaction',
+      workOptions,
+      createHandler('federate-reaction', '❤️', handleReactionJob)
+    );
 
-    // Register DM federation handler
-    await this.boss.work('federate-dm', handlerOptions, async (job) => {
-      logger.info(`💬 Processing federate-dm job: ${job.id}`);
-      try {
-        await handleDMJob(job.data as FederationJobData);
-        logger.info(`✅ federate-dm job completed: ${job.id}`);
-      } catch (error) {
-        logger.error(`❌ federate-dm job failed: ${job.id}`, error);
-        throw error;
-      }
-    });
+    await this.boss.work(
+      'federate-follow',
+      workOptions,
+      createHandler('federate-follow', '👥', handleFollowJob)
+    );
 
-    // Register message reaction federation handler
-    await this.boss.work('federate-message-reaction', handlerOptions, async (job) => {
-      logger.info(`💬❤️ Processing federate-message-reaction job: ${job.id}`);
-      try {
-        await handleMessageReactionJob(job.data as FederationJobData);
-        logger.info(`✅ federate-message-reaction job completed: ${job.id}`);
-      } catch (error) {
-        logger.error(`❌ federate-message-reaction job failed: ${job.id}`, error);
-        throw error;
-      }
-    });
+    await this.boss.work(
+      'federate-dm',
+      workOptions,
+      createHandler('federate-dm', '💬', handleDMJob)
+    );
 
-    // Register block federation handler
-    await this.boss.work('federate-block', handlerOptions, async (job) => {
-      logger.info(`🚫 Processing federate-block job: ${job.id}`);
-      try {
-        await handleBlockJob(job.data as FederationJobData);
-        logger.info(`✅ federate-block job completed: ${job.id}`);
-      } catch (error) {
-        logger.error(`❌ federate-block job failed: ${job.id}`, error);
-        throw error;
-      }
-    });
+    await this.boss.work(
+      'federate-message-reaction',
+      workOptions,
+      createHandler('federate-message-reaction', '💬❤️', handleMessageReactionJob)
+    );
 
-    // Register report federation handler
-    await this.boss.work('federate-report', handlerOptions, async (job) => {
-      logger.info(`🚩 Processing federate-report job: ${job.id}`);
-      try {
-        await handleReportJob(job.data as FederationJobData);
-        logger.info(`✅ federate-report job completed: ${job.id}`);
-      } catch (error) {
-        logger.error(`❌ federate-report job failed: ${job.id}`, error);
-        throw error;
-      }
-    });
+    await this.boss.work(
+      'federate-block',
+      workOptions,
+      createHandler('federate-block', '🚫', handleBlockJob)
+    );
 
-    // Register profile federation handler
-    await this.boss.work('federate-profile', handlerOptions, async (job) => {
-      logger.info(`👤 Processing federate-profile job: ${job.id}`);
-      try {
-        await handleProfileJob(job.data as FederationJobData);
-        logger.info(`✅ federate-profile job completed: ${job.id}`);
-      } catch (error) {
-        logger.error(`❌ federate-profile job failed: ${job.id}`, error);
-        throw error;
-      }
-    });
+    await this.boss.work(
+      'federate-report',
+      workOptions,
+      createHandler('federate-report', '🚩', handleReportJob)
+    );
+
+    await this.boss.work(
+      'federate-profile',
+      workOptions,
+      createHandler('federate-profile', '👤', handleProfileJob)
+    );
 
     logger.info('✅ All job handlers registered');
   }
