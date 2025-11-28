@@ -533,6 +533,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Add method to fetch conversation details using participant system
+  // OPTIMIZED: Reduced from 3 queries to 2 queries
   const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
       // First check if we already have this conversation
       const existingConv = conversations.value.find(c => c.id === conversationId)
@@ -550,7 +551,7 @@ export const useDMStore = defineStore('dm', () => {
     // Create and track the promise
     const fetchPromise = (async () => {
     try {
-      // Simple approach: Get the specific conversation where user is a participant
+      // Query 1: Get conversation data and verify user is a participant
       const { data: participation, error: participationError } = await supabase
         .from('conversation_participants')
         .select(`
@@ -562,16 +563,22 @@ export const useDMStore = defineStore('dm', () => {
             created_at,
             type,
             name,
-            is_active
+            is_active,
+            metadata
           )
         `)
         .eq('user_id', currentUserId)
         .eq('conversation_id', conversationId)
         .is('left_at', null)
-        .single()
+        .maybeSingle() // Use maybeSingle to avoid 406 error when no rows
 
-      if (participationError || !participation) {
-        debug.error('❌ Conversation not found or user not participant:', participationError)
+      if (participationError) {
+        debug.error('❌ Error fetching conversation:', participationError)
+        return null
+      }
+      
+      if (!participation) {
+        debug.error('❌ Conversation not found or user not participant')
         return null
       }
 
@@ -579,24 +586,20 @@ export const useDMStore = defineStore('dm', () => {
         ? participation.conversations[0] 
         : participation.conversations
 
-      // Get other participants (excluding current user)
-      const { data: otherParticipants, error: othersError } = await supabase
+      // Query 2: Get ALL participants (including count from array length)
+      const { data: allParticipants, error: participantsError } = await supabase
         .from('conversation_participants')
         .select('user_id, role, joined_at')
         .eq('conversation_id', conversationId)
-        .neq('user_id', currentUserId)
         .is('left_at', null)
 
-      if (othersError) {
-        debug.error('Error fetching other participants:', othersError)
+      if (participantsError) {
+        debug.error('Error fetching participants:', participantsError)
       }
 
-      // Get participant count
-      const { count: participantCount, error: countError } = await supabase
-        .from('conversation_participants')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conversationId)
-        .is('left_at', null)
+      // Filter to get other participants and calculate count
+      const otherParticipants = (allParticipants || []).filter(p => p.user_id !== currentUserId)
+      const participantCount = allParticipants?.length ?? 2
 
       const convData = {
         conversation_id: conversation.id,
@@ -604,8 +607,9 @@ export const useDMStore = defineStore('dm', () => {
         conversation_type: conversation.type || 'direct',
         created_at: conversation.created_at,
         is_active: conversation.is_active,
-        participant_count: participantCount ?? 2,
-        other_participants: otherParticipants || [],
+        participant_count: participantCount,
+        icon_url: conversation.metadata?.icon_url,
+        other_participants: otherParticipants,
         user_role: participation.role,
         user_joined_at: participation.joined_at
       }
@@ -657,6 +661,9 @@ export const useDMStore = defineStore('dm', () => {
   // OPTIMIZED: When loading directly from URL, only fetch the specific conversation
   // Other conversations load in the background for sidebar
   const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
+    // Set initializing state so UI shows loading
+    isInitializing.value = true
+    
     try {
       // If we have a specific conversation ID, prioritize loading just that one
       if (conversationId) {
@@ -696,6 +703,8 @@ export const useDMStore = defineStore('dm', () => {
     } catch (error) {
       debug.error('Failed to initialize DM environment for direct access:', error)
       return null
+    } finally {
+      isInitializing.value = false
     }
   }
 
@@ -750,9 +759,10 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Helper: Service-like method to fetch raw conversation data using participant system
+  // OPTIMIZED: Batch queries instead of N+1 pattern
   const _fetchRawConversations = async (userId: string) => {
     try {
-      // Simple approach: Query conversations where user is a participant
+      // Step 1: Get user's conversations with metadata in a single query
       const { data: participations, error: participationError } = await supabase
         .from('conversation_participants')
         .select(`
@@ -782,47 +792,64 @@ export const useDMStore = defineStore('dm', () => {
         return []
       }
 
-      // Transform to the expected format
-      const conversationsData = await Promise.all(
-        participations.map(async (participation) => {
-          const conversation = Array.isArray(participation.conversations) 
-            ? participation.conversations[0] 
-            : participation.conversations
+      // Extract all conversation IDs for batch queries
+      const conversationIds = participations.map(p => {
+        const conv = Array.isArray(p.conversations) ? p.conversations[0] : p.conversations
+        return conv.id
+      })
 
-          // Get other participants (excluding current user)
-          const { data: otherParticipants, error: othersError } = await supabase
-            .from('conversation_participants')
-            .select('user_id, role, joined_at')
-            .eq('conversation_id', conversation.id)
-            .neq('user_id', userId)
-            .is('left_at', null)
+      // Step 2: BATCH fetch ALL other participants for ALL conversations in ONE query
+      const { data: allParticipants, error: participantsError } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id, user_id, role, joined_at')
+        .in('conversation_id', conversationIds)
+        .neq('user_id', userId)
+        .is('left_at', null)
 
-          if (othersError) {
-            debug.error('Error fetching other participants:', othersError)
+      if (participantsError) {
+        debug.error('Error batch fetching participants:', participantsError)
+      }
+
+      // Group participants by conversation_id for O(1) lookup
+      const participantsByConversation = new Map<string, Array<{ user_id: string, role: string, joined_at: string }>>()
+      if (allParticipants) {
+        for (const participant of allParticipants) {
+          const convId = participant.conversation_id
+          if (!participantsByConversation.has(convId)) {
+            participantsByConversation.set(convId, [])
           }
+          participantsByConversation.get(convId)!.push({
+            user_id: participant.user_id,
+            role: participant.role,
+            joined_at: participant.joined_at
+          })
+        }
+      }
 
-          // Get participant count
-          const { count: participantCount, error: countError } = await supabase
-            .from('conversation_participants')
-            .select('*', { count: 'exact', head: true })
-            .eq('conversation_id', conversation.id)
-            .is('left_at', null)
+      // Step 3: Transform to the expected format (NO additional queries needed!)
+      const conversationsData = participations.map((participation) => {
+        const conversation = Array.isArray(participation.conversations) 
+          ? participation.conversations[0] 
+          : participation.conversations
 
-          return {
-            conversation_id: conversation.id,
-            conversation_name: conversation.name,
-            conversation_type: conversation.type || 'direct',
-            created_by: conversation.created_by,
-            created_at: conversation.created_at,
-            is_active: conversation.is_active,
-            participant_count: participantCount ?? 2,
-            icon_url: conversation.metadata?.icon_url, // Icon stored in metadata
-            other_participants: otherParticipants || [],
-            user_role: participation.role,
-            user_joined_at: participation.joined_at
-          }
-        })
-      )
+        const otherParticipants = participantsByConversation.get(conversation.id) || []
+        // Participant count = other participants + current user
+        const participantCount = otherParticipants.length + 1
+
+        return {
+          conversation_id: conversation.id,
+          conversation_name: conversation.name,
+          conversation_type: conversation.type || 'direct',
+          created_by: conversation.created_by,
+          created_at: conversation.created_at,
+          is_active: conversation.is_active,
+          participant_count: participantCount,
+          icon_url: conversation.metadata?.icon_url, // Icon stored in metadata
+          other_participants: otherParticipants,
+          user_role: participation.role,
+          user_joined_at: participation.joined_at
+        }
+      })
 
       return conversationsData
     } catch (error) {
@@ -998,14 +1025,20 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Helper: Service-like method to fetch last message
+  // FIXED: Use maybeSingle() instead of single() to avoid 406 error when no messages exist
   const _fetchLastMessage = async (conversationId: string) => {
-    const { data: lastMessageData } = await supabase
+    const { data: lastMessageData, error } = await supabase
       .from('messages')
       .select('id, user_id, content, created_at, metadata')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
+
+    if (error) {
+      debug.warn('⚠️ Error fetching last message for conversation:', conversationId, error)
+      return null
+    }
 
     return lastMessageData
   }
@@ -1324,10 +1357,47 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('✅ DM message saved to database:', message.id)
       debug.log('📦 DM message data from server:', message)
       
-      // Real-time will replace the temp message with the real one
-      debug.log('⏳ Waiting for real-time to replace temp DM message...')
-      
-      // Real-time INSERT will handle replacing temp → real
+      // 🔧 FIX: Don't rely on realtime to replace temp message - do it immediately!
+      // This fixes the silent timeout issue where realtime connection drops
+      // and temp messages never get replaced with real ones
+      const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
+      if (tempIndex !== -1) {
+        const realMessage: Message = {
+          id: message.id,
+          user_id: message.user_id,
+          content: message.content,
+          created_at: new Date(message.created_at),
+          channel_id: '',
+          conversation_id: message.conversation_id,
+          reply_to: message.reply_to,
+          reactions: message.reactions || [],
+          is_system: message.is_system,
+          metadata: message.metadata || undefined,
+          encrypted: message.encrypted || false,
+          decrypted: message.decrypted || false,
+          encryption_metadata: message.encryption_metadata
+        }
+        
+        try {
+          ensureMessageEmbeds(realMessage)
+        } catch (embedError) {
+          debug.warn('Failed to prepare embeds for sent DM message:', embedError)
+        }
+        
+        // Replace temp message with real message
+        currentDMMessages.value.splice(tempIndex, 1, realMessage)
+        debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id })
+        
+        // Also update in cache if present
+        const cached = messageCache.value.get(conversationId)
+        if (cached) {
+          const cacheIndex = cached.messages.findIndex(m => m.id === tempId)
+          if (cacheIndex !== -1) {
+            cached.messages.splice(cacheIndex, 1, realMessage)
+            cached.lastModified = new Date()
+          }
+        }
+      }
       
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
@@ -2397,6 +2467,7 @@ export const useDMStore = defineStore('dm', () => {
     loadingMessages,
     isSearching,
     allMessagesLoaded,
+    isInitializing,
     
     // Computed
     getCurrentConversation,

@@ -116,6 +116,7 @@ import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useDMStore } from '@/stores/useDM'
+import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 
 // Stores and Router
 const serverChannelStore = useServerChannelStore()
@@ -718,6 +719,9 @@ const wrappedTouchEnd = (event: TouchEvent) => {
 
 // Mobile touch handlers
 onMounted(() => {
+  // Initialize RealtimeConnectionManager for reliable websocket connections
+  realtimeConnectionManager.initialize()
+  
   if (typeof window !== 'undefined') {
     window.addEventListener('touchstart', wrappedTouchStart, { passive: true })
     window.addEventListener('touchmove', wrappedTouchMove, { passive: false }) // Changed to false to allow preventDefault
@@ -736,6 +740,9 @@ onBeforeUnmount(() => {
   
   // Cleanup global call listener
   globalDMCallListener.cleanup()
+  
+  // Cleanup realtime connection manager
+  realtimeConnectionManager.cleanup()
 })
 </script>
 

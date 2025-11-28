@@ -88,7 +88,8 @@
 
     <!-- Conversations List -->
     <div class="conversations-section">
-      <div v-if="dmStore.loadingConversations" class="loading-state">
+      <!-- Show loading when either initializing or actively loading conversations -->
+      <div v-if="dmStore.loadingConversations || dmStore.isInitializing" class="loading-state">
         <div class="loading-spinner"></div>
         <span>{{ $t('dm.loadingConversations') }}</span>
       </div>

@@ -54,11 +54,88 @@ class RealtimeConnectionManagerService {
   private globalStatus: ConnectionStatus = 'disconnected'
   private statusListeners: Set<(status: ConnectionStatus) => void> = new Set()
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null
+  private visibilityHandler: (() => void) | null = null
+  private authListener: { data: { subscription: { unsubscribe: () => void } } } | null = null
+  private lastVisibleTime: Date = new Date()
+  private initialized: boolean = false
+  
+  /**
+   * Initialize the connection manager with visibility and auth listeners
+   * Should be called once when the app starts
+   */
+  initialize(): void {
+    if (this.initialized) return
+    this.initialized = true
+    
+    debug.log('🚀 RealtimeManager: Initializing with visibility and auth listeners')
+    
+    // Handle page visibility changes - reconnect when tab becomes visible
+    this.visibilityHandler = () => {
+      if (!document.hidden) {
+        const now = new Date()
+        const timeSinceVisible = now.getTime() - this.lastVisibleTime.getTime()
+        
+        // If tab was hidden for more than 30 seconds, force reconnect all
+        if (timeSinceVisible > 30 * 1000) {
+          debug.log(`🔄 RealtimeManager: Tab visible after ${Math.round(timeSinceVisible / 1000)}s, reconnecting all subscriptions`)
+          this.forceReconnectAll()
+        }
+        
+        this.lastVisibleTime = now
+      } else {
+        this.lastVisibleTime = new Date()
+      }
+    }
+    document.addEventListener('visibilitychange', this.visibilityHandler)
+    
+    // Handle auth token refresh - reconnect when token changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'TOKEN_REFRESHED') {
+        debug.log('🔑 RealtimeManager: Auth token refreshed, reconnecting all subscriptions')
+        // Small delay to ensure new token is ready
+        setTimeout(() => {
+          this.forceReconnectAll()
+        }, 100)
+      } else if (event === 'SIGNED_OUT') {
+        debug.log('🚪 RealtimeManager: User signed out, unsubscribing all')
+        this.unsubscribeAll()
+      }
+    })
+    this.authListener = { data: { subscription: authListener.subscription } }
+  }
+  
+  /**
+   * Cleanup the connection manager
+   */
+  cleanup(): void {
+    debug.log('🧹 RealtimeManager: Cleaning up')
+    
+    // Remove visibility handler
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler)
+      this.visibilityHandler = null
+    }
+    
+    // Remove auth listener
+    if (this.authListener) {
+      this.authListener.data.subscription.unsubscribe()
+      this.authListener = null
+    }
+    
+    // Unsubscribe all
+    this.unsubscribeAll()
+    
+    this.initialized = false
+  }
   
   /**
    * Subscribe to a Postgres table with automatic reconnection
    */
   subscribe(config: SubscriptionConfig): () => void {
+    // Auto-initialize if not done yet
+    if (!this.initialized) {
+      this.initialize()
+    }
     const { channelName } = config
     
     // Check for existing subscription
@@ -109,14 +186,14 @@ class RealtimeConnectionManagerService {
     const channel = supabase
       .channel(channelName)
       .on(
-        'postgres_changes',
+        'postgres_changes' as const,
         {
           event: config.event || '*',
           schema: config.schema || 'public',
           table: config.table,
           filter: config.filter
-        },
-        async (payload) => {
+        } as any,
+        async (payload: RealtimePostgresChangesPayload<any>) => {
           try {
             await config.onPayload(payload)
           } catch (error) {
@@ -416,12 +493,12 @@ class RealtimeConnectionManagerService {
   private startHealthCheck(): void {
     if (this.healthCheckInterval) return
     
-    // Check connection health every 30 seconds
+    // Check connection health every 15 seconds (more aggressive)
     this.healthCheckInterval = setInterval(() => {
       this.performHealthCheck()
-    }, 30000)
+    }, 15000)
     
-    debug.log(`💓 RealtimeManager: Health check started`)
+    debug.log(`💓 RealtimeManager: Health check started (15s interval)`)
   }
   
   /**
@@ -442,21 +519,29 @@ class RealtimeConnectionManagerService {
     const now = new Date()
     
     for (const [channelName, sub] of this.subscriptions) {
-      // Check for stale connections (connected but no activity for 5 minutes)
+      // Check for stale connections (connected but no activity for 2 minutes)
       if (sub.status === 'connected' && sub.lastConnectedAt) {
         const timeSinceConnect = now.getTime() - sub.lastConnectedAt.getTime()
         
-        // If connected for more than 5 minutes, verify the connection is alive
-        if (timeSinceConnect > 5 * 60 * 1000) {
-          debug.log(`💓 RealtimeManager: Health checking ${channelName}`)
-          
+        // If connected for more than 2 minutes, verify the connection is alive
+        if (timeSinceConnect > 2 * 60 * 1000) {
           // Check channel state
           if (sub.channel) {
             const state = (sub.channel as any).state
-            if (state !== 'joined') {
-              debug.warn(`⚠️ RealtimeManager: ${channelName} appears stale (state: ${state}), reconnecting`)
+            const socket = (sub.channel as any).socket
+            
+            // Check multiple indicators of connection health
+            const isSocketConnected = socket?.isConnected?.() ?? false
+            const isJoined = state === 'joined'
+            
+            if (!isJoined || !isSocketConnected) {
+              debug.warn(`⚠️ RealtimeManager: ${channelName} appears stale (state: ${state}, socket: ${isSocketConnected}), reconnecting`)
               this.forceReconnect(channelName)
             }
+          } else {
+            // No channel object - definitely need to reconnect
+            debug.warn(`⚠️ RealtimeManager: ${channelName} has no channel, reconnecting`)
+            this.forceReconnect(channelName)
           }
         }
       }
@@ -465,11 +550,24 @@ class RealtimeConnectionManagerService {
       if (sub.status === 'error' && sub.lastErrorAt) {
         const timeSinceError = now.getTime() - sub.lastErrorAt.getTime()
         
-        // If in error state for more than 2 minutes with max retries, try again
-        if (timeSinceError > 2 * 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
+        // If in error state for more than 1 minute with max retries, try again
+        if (timeSinceError > 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
           debug.log(`🔄 RealtimeManager: Resetting ${channelName} after extended error state`)
           sub.retryCount = 0
           this.scheduleReconnect(channelName)
+        }
+      }
+      
+      // Check for subscriptions stuck in connecting state
+      if (sub.status === 'connecting' || sub.status === 'reconnecting') {
+        // If stuck in connecting state for more than 30 seconds, force reconnect
+        const stuckTimeout = 30 * 1000
+        if (sub.lastConnectedAt) {
+          const timeSinceLastConnect = now.getTime() - sub.lastConnectedAt.getTime()
+          if (timeSinceLastConnect > stuckTimeout) {
+            debug.warn(`⚠️ RealtimeManager: ${channelName} stuck in ${sub.status} state, forcing reconnect`)
+            this.forceReconnect(channelName)
+          }
         }
       }
     }

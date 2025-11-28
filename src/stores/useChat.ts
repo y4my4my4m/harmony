@@ -589,11 +589,46 @@ export const useChatStore = defineStore('chat', {
         debug.log('✅ Message saved to database:', message.id);
         debug.log('📦 Message data from server:', message);
         
-        // Real-time will replace the temp message with the real one
-        debug.log('⏳ Waiting for real-time to replace temp message...');
-        
-        // Real-time INSERT will handle replacing temp → real
-        // This ensures we don't interfere with the database event flow
+        // 🔧 FIX: Don't rely on realtime to replace temp message - do it immediately!
+        // This fixes the silent timeout issue where realtime connection drops
+        // and temp messages never get replaced with real ones
+        const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
+        if (tempIndex !== -1) {
+          const realMessage = {
+            id: message.id,
+            user_id: message.user_id,
+            content: message.content,
+            created_at: new Date(message.created_at),
+            channel_id: message.channel_id,
+            reply_to: message.reply_to,
+            reactions: message.reactions || [],
+            is_system: message.is_system,
+            metadata: message.metadata || undefined,
+            encrypted: message.encrypted || false,
+            decrypted: message.decrypted || false,
+            encryption_metadata: message.encryption_metadata
+          };
+          
+          try {
+            ensureMessageEmbeds(realMessage);
+          } catch (embedError) {
+            debug.warn('Failed to prepare embeds for sent message:', embedError);
+          }
+          
+          // Replace temp message with real message
+          this.messages.splice(tempIndex, 1, realMessage as any);
+          debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });
+          
+          // Also update in cache if present
+          const cached = this.messageCache.get(channelId);
+          if (cached) {
+            const cacheIndex = cached.messages.findIndex((m: any) => m.id === tempId);
+            if (cacheIndex !== -1) {
+              cached.messages.splice(cacheIndex, 1, realMessage as any);
+              cached.lastModified = new Date();
+            }
+          }
+        }
         
         return message;
       } catch (error: any) {
