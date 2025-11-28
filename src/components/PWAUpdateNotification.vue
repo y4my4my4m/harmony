@@ -33,8 +33,25 @@ const showUpdate = ref(false)
 const updating = ref(false)
 let updateWaiting: ServiceWorker | null = null
 
+/**
+ * Check if running as installed PWA
+ */
+const isPWA = (): boolean => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  const isIOSStandalone = (navigator as any).standalone === true
+  const isFullscreen = window.matchMedia('(display-mode: fullscreen)').matches
+  return isStandalone || isIOSStandalone || isFullscreen
+}
+
 const handleServiceWorkerUpdate = (event: any) => {
   debug.log('🔔 Service Worker update event received:', event.detail)
+  
+  // Only show update notification for PWA users
+  // Regular browser users will get updates on next page load anyway
+  if (!isPWA()) {
+    debug.log('📱 Not a PWA, skipping update notification (will auto-update on reload)')
+    return
+  }
   
   // Extract from the custom event structure
   if (event.detail?.newWorker) {
@@ -116,13 +133,14 @@ onMounted(() => {
   // Listen for service worker update events
   window.addEventListener('sw-update-available', handleServiceWorkerUpdate)
   
-  // Check for existing waiting service worker
-  if ('serviceWorker' in navigator) {
+  // Check for existing waiting service worker (only for PWA)
+  if ('serviceWorker' in navigator && isPWA()) {
     navigator.serviceWorker.getRegistration().then(registration => {
       if (registration?.waiting) {
         updateWaiting = registration.waiting
         const dismissed = sessionStorage.getItem('harmony-update-dismissed')
         if (!dismissed) {
+          debug.log('📱 PWA has waiting service worker, showing update notification')
           showUpdate.value = true
         }
       }
