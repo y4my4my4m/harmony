@@ -558,6 +558,52 @@ class PushNotificationServiceClass {
   }
 
   /**
+   * Extract content preview from various message formats
+   * Handles JSON strings, MessagePart[] arrays, and plain strings
+   */
+  private extractContentPreview(data: Record<string, any>, maxLength = 100): string {
+    // Try structured content_preview first
+    let preview = data.message?.content_preview || data.content_preview || data.preview;
+    
+    // If no preview, try to extract from content
+    if (!preview) {
+      let content = data.message?.content || data.content;
+      
+      // Parse JSON string if needed
+      if (typeof content === 'string' && content.startsWith('[')) {
+        try {
+          content = JSON.parse(content);
+        } catch (e) {
+          // Use string as-is if parsing fails
+          preview = content;
+        }
+      }
+      
+      // Convert MessagePart[] to plain text
+      if (Array.isArray(content)) {
+        preview = content
+          .map((part: any) => {
+            if (part.type === 'text') return part.text;
+            if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`;
+            if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`;
+            if (part.type === 'url') return part.url;
+            if (part.type === 'hashtag') return `#${part.name}`;
+            return '';
+          })
+          .join('')
+          .trim();
+      }
+    }
+    
+    // Truncate if needed
+    if (preview && preview.length > maxLength) {
+      preview = preview.substring(0, maxLength) + '...';
+    }
+    
+    return preview || '';
+  }
+
+  /**
    * Build push payload from notification data
    */
   private buildPayloadFromNotification(notification: {
@@ -569,6 +615,8 @@ class PushNotificationServiceClass {
   }): PushPayload {
     const data = notification.data || {};
     const sender = data.sender || {};
+    const senderName = sender.display_name || sender.username || 'Someone';
+    const senderDomain = sender.domain && !sender.is_local ? `@${sender.domain}` : '';
     
     let title = notification.title || 'Harmony';
     let message = '';
@@ -576,28 +624,28 @@ class PushNotificationServiceClass {
 
     switch (notification.type) {
       case 'mention':
-        title = `${sender.username || 'Someone'} mentioned you`;
-        message = data.message?.content_preview || 'You were mentioned in a message';
+        title = `${senderName}${senderDomain} mentioned you`;
+        message = this.extractContentPreview(data) || 'You were mentioned in a message';
         break;
       
       case 'dm':
-        title = `${sender.username || 'Someone'} sent you a message`;
-        message = data.message?.content_preview || 'New direct message';
+        title = `${senderName}${senderDomain} sent you a message`;
+        message = this.extractContentPreview(data) || 'New direct message';
         break;
       
       case 'reply':
-        title = `${sender.username || 'Someone'} replied to you`;
-        message = data.message?.content_preview || 'New reply';
+        title = `${senderName}${senderDomain} replied to you`;
+        message = this.extractContentPreview(data) || 'New reply';
         break;
       
       case 'reaction':
-        title = `${sender.username || 'Someone'} reacted to your message`;
+        title = `${senderName}${senderDomain} reacted to your message`;
         message = data.reaction?.emoji_name || '❤️';
         break;
       
       case 'friend_request':
         title = 'New friend request';
-        message = `${sender.username || 'Someone'} wants to be your friend`;
+        message = `${senderName}${senderDomain} wants to be your friend`;
         break;
       
       case 'server_invite':
@@ -607,37 +655,43 @@ class PushNotificationServiceClass {
       
       case 'activitypub_follow':
         title = 'New follower';
-        message = `${sender.username || sender.display_name || 'Someone'} started following you`;
+        message = `${senderName}${senderDomain} started following you`;
         break;
       
       case 'activitypub_favorite':
-        title = 'Someone liked your post';
-        message = `${sender.username || sender.display_name || 'Someone'} favorited your post`;
+        title = `${senderName}${senderDomain} liked your post`;
+        message = this.extractContentPreview({ content_preview: data.post_content || data.post?.content_preview }) || 'Your post was liked';
         break;
       
       case 'activitypub_reblog':
-        title = 'Your post was boosted';
-        message = `${sender.username || sender.display_name || 'Someone'} boosted your post`;
+        title = `${senderName}${senderDomain} boosted your post`;
+        message = this.extractContentPreview({ content_preview: data.post_content || data.post?.content_preview }) || 'Your post was boosted';
         break;
       
       case 'activitypub_mention':
-        title = `${sender.username || sender.display_name || 'Someone'} mentioned you`;
-        message = data.post?.content_preview || 'You were mentioned in a post';
+        title = `${senderName}${senderDomain} mentioned you`;
+        message = this.extractContentPreview({ content_preview: data.post?.content_preview || data.post_content }) || 'You were mentioned in a post';
         break;
       
       case 'activitypub_reply':
-        title = `${sender.username || sender.display_name || 'Someone'} replied to you`;
-        message = data.post?.content_preview || 'New reply to your post';
+        title = `${senderName}${senderDomain} replied to you`;
+        message = this.extractContentPreview({ content_preview: data.post?.content_preview || data.post_content }) || 'New reply to your post';
         break;
       
       case 'activitypub_follow_request':
         title = 'New follow request';
-        message = `${sender.username || sender.display_name || 'Someone'} wants to follow you`;
+        message = `${senderName}${senderDomain} wants to follow you`;
+        break;
+      
+      case 'activitypub_reaction':
+        title = `${senderName}${senderDomain} reacted to your post`;
+        message = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍';
         break;
       
       default:
-        title = 'New notification';
-        message = 'You have a new notification';
+        // For unknown types, try to extract meaningful content
+        title = notification.title || 'New notification';
+        message = this.extractContentPreview(data) || 'You have a new notification';
     }
 
     return {

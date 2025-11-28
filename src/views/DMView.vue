@@ -433,19 +433,11 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   })
 }
 
-// Initialize DM environment on mount as fallback (BaseLayout should handle it, but ensure it's loaded)
-onMounted(async () => {
-  const userId = authStore.session?.user?.id
-  if (userId) {
-    // Only initialize if conversations aren't already loaded
-    if (dmStore.conversations.length === 0 && !dmStore.loadingConversations) {
-      debug.log('🔄 DMView: Fallback DM initialization (BaseLayout may not have loaded DMs)')
-      await dmStore.initializeDMEnvironment(userId, false, true) // metadata only as fallback
-    } else {
-      debug.log('✅ DMView: DMs already loaded by BaseLayout')
-    }
-  }
-})
+// NOTE: DM initialization is now handled by:
+// 1. BaseLayout (primary) - calls initializeDMEnvironmentForDirectAccess
+// 2. loadMessages watcher (route-based) - handles direct URL access
+// The request deduplication in useDM.ts prevents duplicate API calls.
+// Fallback initialization removed to avoid redundant requests.
 </script>
 
 <style scoped>

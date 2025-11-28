@@ -116,6 +116,7 @@ import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useDMStore } from '@/stores/useDM'
+import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 
 // Stores and Router
 const serverChannelStore = useServerChannelStore()
@@ -453,10 +454,65 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
-    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status in parallel
+    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status
+    // OPTIMIZED: For single DM views, only load current conversation participant(s)
     const baselineUserIds = new Set<string>()
     
-    // Parallelize server users and DM contacts fetching
+    // For DM routes with a specific conversation, only load that conversation's participants initially
+    const isSingleDMView = strategy.routeType === 'dm' && strategy.currentConversationId
+    
+    if (isSingleDMView) {
+      // OPTIMIZED: Only load current conversation participant for single DM view
+      try {
+        const { data: participants } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', strategy.currentConversationId)
+          .neq('user_id', userId)
+          .is('left_at', null)
+        
+        if (participants) {
+          participants.forEach(p => baselineUserIds.add(p.user_id))
+        }
+        
+        // DEFER: Load other DM contacts in background (non-blocking)
+        setTimeout(async () => {
+          try {
+            const { data: allParticipations } = await supabase
+              .from('conversation_participants')
+              .select('conversation_id')
+              .eq('user_id', userId)
+              .is('left_at', null)
+              .limit(100)
+            
+            if (allParticipations && allParticipations.length > 0) {
+              const conversationIds = allParticipations
+                .map(p => p.conversation_id)
+                .filter(id => id !== strategy.currentConversationId)
+              
+              if (conversationIds.length > 0) {
+                const { data: otherParticipants } = await supabase
+                  .from('conversation_participants')
+                  .select('user_id')
+                  .in('conversation_id', conversationIds)
+                  .neq('user_id', userId)
+                  .is('left_at', null)
+                
+                if (otherParticipants) {
+                  const otherUserIds = otherParticipants.map(p => p.user_id)
+                  await userData.ensureProfilesAvailable(otherUserIds)
+                }
+              }
+            }
+          } catch (error) {
+            debug.warn('⚠️ Background DM contacts loading failed:', error)
+          }
+        }, 500) // Load other DM contacts after 500ms
+      } catch (error) {
+        debug.warn('⚠️ Failed to load current conversation participants:', error)
+      }
+    } else {
+      // Not a single DM view - load all users normally
     await Promise.all([
       // Fetch server users
       (async () => {
@@ -473,10 +529,10 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         }))
       })(),
       
-      // Fetch DM contacts
+        // Fetch DM contacts (only for non-DM routes or DM list view)
       (async () => {
+          if (strategy.routeType !== 'dm') {
         try {
-          // Get DM contacts using conversation_participants table
           const { data: participations } = await supabase
             .from('conversation_participants')
             .select('conversation_id')
@@ -500,9 +556,11 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
           }
         } catch (error) {
           debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
+            }
         }
       })()
     ])
+    }
     
     // Load baseline user data for global presence (minimal profile info)
     if (baselineUserIds.size > 0) {
@@ -661,6 +719,9 @@ const wrappedTouchEnd = (event: TouchEvent) => {
 
 // Mobile touch handlers
 onMounted(() => {
+  // Initialize RealtimeConnectionManager for reliable websocket connections
+  realtimeConnectionManager.initialize()
+  
   if (typeof window !== 'undefined') {
     window.addEventListener('touchstart', wrappedTouchStart, { passive: true })
     window.addEventListener('touchmove', wrappedTouchMove, { passive: false }) // Changed to false to allow preventDefault
@@ -679,6 +740,9 @@ onBeforeUnmount(() => {
   
   // Cleanup global call listener
   globalDMCallListener.cleanup()
+  
+  // Cleanup realtime connection manager
+  realtimeConnectionManager.cleanup()
 })
 </script>
 

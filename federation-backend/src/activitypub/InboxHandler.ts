@@ -67,6 +67,22 @@ async function handleInbox(
 
   logger.info(`📥 Received ${activity.type} activity from ${activity.actor}`);
 
+  // Check if the sending instance is blocked (O(1) in-memory lookup)
+  try {
+    const actorUrl = new URL(activity.actor);
+    const actorDomain = actorUrl.hostname;
+    
+    const { BlockedInstancesCache } = await import('../services/BlockedInstancesCache.js');
+    if (BlockedInstancesCache.isBlocked(actorDomain)) {
+      logger.info(`🚫 Rejecting activity from blocked instance: ${actorDomain}`);
+      res.status(403).json({ error: 'Instance is blocked' });
+      return;
+    }
+  } catch (error) {
+    // If we can't parse the actor URL, continue processing
+    logger.debug(`Could not check instance block status: ${error}`);
+  }
+
   // Verify HTTP signature (optional but recommended)
   const signature = req.headers.signature as string;
   if (signature) {

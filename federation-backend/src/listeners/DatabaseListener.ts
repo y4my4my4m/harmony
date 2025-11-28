@@ -1089,7 +1089,7 @@ async function handleNewReport(report: any): Promise<void> {
  * Handle new DM messages - federate to remote recipients
  * This replaces the database trigger handle_outgoing_messages for DMs
  */
-async function handleNewDM(message: any): Promise<void> {
+export async function handleNewDM(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     const domain = config.INSTANCE_DOMAIN;
@@ -1241,7 +1241,7 @@ async function handleNewDM(message: any): Promise<void> {
  * Handle new message reaction (DM reaction federation)
  * When a local user reacts to a DM, federate the Like activity to all remote participants
  */
-async function handleNewMessageReaction(reaction: any): Promise<void> {
+export async function handleNewMessageReaction(reaction: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     const domain = config.INSTANCE_DOMAIN;
@@ -1386,7 +1386,7 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
  * Handle message reaction removal (Undo Like for DMs)
  * When a local user removes a reaction from a DM, federate Undo Like to all remote participants
  */
-async function handleMessageReactionRemoval(deletedReaction: any): Promise<void> {
+export async function handleMessageReactionRemoval(deletedReaction: any): Promise<void> {
   try {
     if (!deletedReaction) {
       logger.debug('No deleted reaction data');

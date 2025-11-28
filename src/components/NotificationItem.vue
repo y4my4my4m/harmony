@@ -322,17 +322,34 @@ const messagePreview = computed(() => {
     preview = data.preview || data.content_preview
   }
   
-  // Handle MessagePart[] content
-  if (!preview && Array.isArray(data.message?.content)) {
-    preview = data.message.content
-      .map((part: any) => {
-        if (part.type === 'text') return part.text
-        if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
-        if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
-        return ''
-      })
-      .join('')
-      .trim()
+  // Handle MessagePart[] content (either array or JSON string)
+  if (!preview) {
+    let content = data.message?.content || data.content
+    
+    // Parse JSON string if needed
+    if (typeof content === 'string' && content.startsWith('[')) {
+      try {
+        content = JSON.parse(content)
+      } catch (e) {
+        // Use string as-is if parsing fails
+        preview = content
+      }
+    }
+    
+    // Convert MessagePart[] array to text
+    if (Array.isArray(content)) {
+      preview = content
+        .map((part: any) => {
+          if (part.type === 'text') return part.text
+          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+          if (part.type === 'url') return part.url
+          if (part.type === 'hashtag') return `#${part.name}`
+          return ''
+        })
+        .join('')
+        .trim()
+    }
   }
   
   // Truncate if too long

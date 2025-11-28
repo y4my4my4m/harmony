@@ -10,6 +10,9 @@ import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessin
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
+// NOTE: realtimeConnectionManager is initialized globally in BaseLayout.vue
+// The stores currently use raw supabase.channel() calls directly
+// TODO: Migrate to use realtimeConnectionManager.subscribe() for better reconnection handling
 
 // Types for DM functionality
 export interface DMUser {
@@ -80,6 +83,22 @@ export const useDMStore = defineStore('dm', () => {
   // Cache for individual reply messages
   const replyMessageCache = ref<Map<string, Message>>(new Map())
   const fetchingReplyMessages = ref<Set<string>>(new Set())
+  
+  // =====================================================
+  // REQUEST DEDUPLICATION - Prevent duplicate API calls
+  // =====================================================
+  
+  // Track pending conversation list fetches
+  const pendingConversationListFetch = ref<Promise<void> | null>(null)
+  
+  // Track pending conversation detail fetches by conversation ID
+  const pendingConversationDetailsFetch = ref<Map<string, Promise<DMConversation | null>>>(new Map())
+  
+  // Track pending message fetches by conversation ID
+  const pendingMessagesFetch = ref<Map<string, Promise<void>>>(new Map())
+  
+  // Track pending profile fetches by user ID
+  const pendingProfileFetches = ref<Map<string, Promise<any>>>(new Map())
   
   // Computed
   const getCurrentConversation = computed(() => {
@@ -331,6 +350,15 @@ export const useDMStore = defineStore('dm', () => {
   // ⚡ OPTIMIZED: Fetch only conversation metadata (no message content, configurable user profile loading)
   // For faster initial load when user isn't actively viewing DMs
   const fetchUserConversationsMetadata = async (userId: string, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
+    // REQUEST DEDUPLICATION: If already fetching, wait for that request
+    if (pendingConversationListFetch.value) {
+      debug.log('🔄 Conversation metadata fetch already in progress, waiting...')
+      await pendingConversationListFetch.value
+      return
+    }
+    
+    // Create and track the promise
+    const fetchPromise = (async () => {
     try {
       loadingConversations.value = true
 
@@ -496,18 +524,36 @@ export const useDMStore = defineStore('dm', () => {
     } finally {
       loadingConversations.value = false
     }
+    })()
+    
+    pendingConversationListFetch.value = fetchPromise
+    try {
+      await fetchPromise
+    } finally {
+      pendingConversationListFetch.value = null
+    }
   }
 
   // Add method to fetch conversation details using participant system
+  // OPTIMIZED: Reduced from 3 queries to 2 queries
   const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
-    try {
       // First check if we already have this conversation
       const existingConv = conversations.value.find(c => c.id === conversationId)
       if (existingConv) {
         return existingConv
       }
 
-      // Simple approach: Get the specific conversation where user is a participant
+    // REQUEST DEDUPLICATION: If already fetching this conversation, wait for that request
+    const pendingFetch = pendingConversationDetailsFetch.value.get(conversationId)
+    if (pendingFetch) {
+      debug.log('🔄 Conversation details fetch already in progress for:', conversationId)
+      return pendingFetch
+    }
+    
+    // Create and track the promise
+    const fetchPromise = (async () => {
+    try {
+      // Query 1: Get conversation data and verify user is a participant
       const { data: participation, error: participationError } = await supabase
         .from('conversation_participants')
         .select(`
@@ -519,16 +565,22 @@ export const useDMStore = defineStore('dm', () => {
             created_at,
             type,
             name,
-            is_active
+            is_active,
+            metadata
           )
         `)
         .eq('user_id', currentUserId)
         .eq('conversation_id', conversationId)
         .is('left_at', null)
-        .single()
+        .maybeSingle() // Use maybeSingle to avoid 406 error when no rows
 
-      if (participationError || !participation) {
-        debug.error('❌ Conversation not found or user not participant:', participationError)
+      if (participationError) {
+        debug.error('❌ Error fetching conversation:', participationError)
+        return null
+      }
+      
+      if (!participation) {
+        debug.error('❌ Conversation not found or user not participant')
         return null
       }
 
@@ -536,24 +588,20 @@ export const useDMStore = defineStore('dm', () => {
         ? participation.conversations[0] 
         : participation.conversations
 
-      // Get other participants (excluding current user)
-      const { data: otherParticipants, error: othersError } = await supabase
+      // Query 2: Get ALL participants (including count from array length)
+      const { data: allParticipants, error: participantsError } = await supabase
         .from('conversation_participants')
         .select('user_id, role, joined_at')
         .eq('conversation_id', conversationId)
-        .neq('user_id', currentUserId)
         .is('left_at', null)
 
-      if (othersError) {
-        debug.error('Error fetching other participants:', othersError)
+      if (participantsError) {
+        debug.error('Error fetching participants:', participantsError)
       }
 
-      // Get participant count
-      const { count: participantCount, error: countError } = await supabase
-        .from('conversation_participants')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conversationId)
-        .is('left_at', null)
+      // Filter to get other participants and calculate count
+      const otherParticipants = (allParticipants || []).filter(p => p.user_id !== currentUserId)
+      const participantCount = allParticipants?.length ?? 2
 
       const convData = {
         conversation_id: conversation.id,
@@ -561,8 +609,9 @@ export const useDMStore = defineStore('dm', () => {
         conversation_type: conversation.type || 'direct',
         created_at: conversation.created_at,
         is_active: conversation.is_active,
-        participant_count: participantCount ?? 2,
-        other_participants: otherParticipants || [],
+        participant_count: participantCount,
+        icon_url: conversation.metadata?.icon_url,
+        other_participants: otherParticipants,
         user_role: participation.role,
         user_joined_at: participation.joined_at
       }
@@ -584,6 +633,14 @@ export const useDMStore = defineStore('dm', () => {
       debug.error('Failed to fetch conversation details:', error)
       return null
     }
+    })()
+    
+    pendingConversationDetailsFetch.value.set(conversationId, fetchPromise)
+    try {
+      return await fetchPromise
+    } finally {
+      pendingConversationDetailsFetch.value.delete(conversationId)
+    }
   }
 
   // Helper: Service-like method to fetch specific conversation using participant system
@@ -603,18 +660,21 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Enhanced initialization for direct DM access
+  // OPTIMIZED: When loading directly from URL, only fetch the specific conversation
+  // Other conversations load in the background for sidebar
   const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
+    // Set initializing state so UI shows loading
+    isInitializing.value = true
+    
     try {
-      // Initialize basic DM environment (only fetch conversations if not already loaded)
-      await initializeDMEnvironment(userId, false)
-      
-      // If we have a specific conversation ID, ensure it's loaded
+      // If we have a specific conversation ID, prioritize loading just that one
       if (conversationId) {
         // Check if conversation already exists in our list
         let conversation = conversations.value.find(c => c.id === conversationId)
         
-        // Only fetch conversation details if not found in existing conversations
+        // If not found, fetch ONLY this conversation details (not all conversations)
         if (!conversation) {
+          debug.log('🎯 Direct DM access: Fetching only target conversation:', conversationId)
           const fetchedConversation = await fetchConversationDetails(conversationId, userId)
           if (fetchedConversation) {
             conversation = fetchedConversation
@@ -624,17 +684,42 @@ export const useDMStore = defineStore('dm', () => {
         if (conversation) {
           setCurrentConversation(conversationId)
         }
+        
+        // Set up realtime subscriptions (always needed)
+        await setupRealtimeSubscriptions(userId)
+        
+        // DEFER: Load other conversations in background for sidebar (non-blocking)
+        if (conversations.value.length <= 1) {
+          setTimeout(async () => {
+            debug.log('🔄 Background: Loading other conversations for sidebar')
+            await fetchUserConversationsMetadata(userId, 'lazy')
+          }, 100)
+        }
+        
         return conversation
       }
       
+      // No specific conversation - initialize full DM environment
+      await initializeDMEnvironment(userId, false)
       return null
     } catch (error) {
       debug.error('Failed to initialize DM environment for direct access:', error)
       return null
+    } finally {
+      isInitializing.value = false
     }
   }
 
   const fetchUserConversations = async (userId: string) => {
+    // REQUEST DEDUPLICATION: If already fetching, wait for that request
+    if (pendingConversationListFetch.value) {
+      debug.log('🔄 Conversation list fetch already in progress, waiting...')
+      await pendingConversationListFetch.value
+      return
+    }
+    
+    // Create and track the promise
+    const fetchPromise = (async () => {
     try {
       loadingConversations.value = true
       
@@ -665,12 +750,21 @@ export const useDMStore = defineStore('dm', () => {
     } finally {
       loadingConversations.value = false
     }
+    })()
+    
+    pendingConversationListFetch.value = fetchPromise
+    try {
+      await fetchPromise
+    } finally {
+      pendingConversationListFetch.value = null
+    }
   }
 
   // Helper: Service-like method to fetch raw conversation data using participant system
+  // OPTIMIZED: Batch queries instead of N+1 pattern
   const _fetchRawConversations = async (userId: string) => {
     try {
-      // Simple approach: Query conversations where user is a participant
+      // Step 1: Get user's conversations with metadata in a single query
       const { data: participations, error: participationError } = await supabase
         .from('conversation_participants')
         .select(`
@@ -700,47 +794,64 @@ export const useDMStore = defineStore('dm', () => {
         return []
       }
 
-      // Transform to the expected format
-      const conversationsData = await Promise.all(
-        participations.map(async (participation) => {
-          const conversation = Array.isArray(participation.conversations) 
-            ? participation.conversations[0] 
-            : participation.conversations
+      // Extract all conversation IDs for batch queries
+      const conversationIds = participations.map(p => {
+        const conv = Array.isArray(p.conversations) ? p.conversations[0] : p.conversations
+        return conv.id
+      })
 
-          // Get other participants (excluding current user)
-          const { data: otherParticipants, error: othersError } = await supabase
-            .from('conversation_participants')
-            .select('user_id, role, joined_at')
-            .eq('conversation_id', conversation.id)
-            .neq('user_id', userId)
-            .is('left_at', null)
+      // Step 2: BATCH fetch ALL other participants for ALL conversations in ONE query
+      const { data: allParticipants, error: participantsError } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id, user_id, role, joined_at')
+        .in('conversation_id', conversationIds)
+        .neq('user_id', userId)
+        .is('left_at', null)
 
-          if (othersError) {
-            debug.error('Error fetching other participants:', othersError)
+      if (participantsError) {
+        debug.error('Error batch fetching participants:', participantsError)
+      }
+
+      // Group participants by conversation_id for O(1) lookup
+      const participantsByConversation = new Map<string, Array<{ user_id: string, role: string, joined_at: string }>>()
+      if (allParticipants) {
+        for (const participant of allParticipants) {
+          const convId = participant.conversation_id
+          if (!participantsByConversation.has(convId)) {
+            participantsByConversation.set(convId, [])
           }
+          participantsByConversation.get(convId)!.push({
+            user_id: participant.user_id,
+            role: participant.role,
+            joined_at: participant.joined_at
+          })
+        }
+      }
 
-          // Get participant count
-          const { count: participantCount, error: countError } = await supabase
-            .from('conversation_participants')
-            .select('*', { count: 'exact', head: true })
-            .eq('conversation_id', conversation.id)
-            .is('left_at', null)
+      // Step 3: Transform to the expected format (NO additional queries needed!)
+      const conversationsData = participations.map((participation) => {
+        const conversation = Array.isArray(participation.conversations) 
+          ? participation.conversations[0] 
+          : participation.conversations
 
-          return {
-            conversation_id: conversation.id,
-            conversation_name: conversation.name,
-            conversation_type: conversation.type || 'direct',
-            created_by: conversation.created_by,
-            created_at: conversation.created_at,
-            is_active: conversation.is_active,
-            participant_count: participantCount ?? 2,
-            icon_url: conversation.metadata?.icon_url, // Icon stored in metadata
-            other_participants: otherParticipants || [],
-            user_role: participation.role,
-            user_joined_at: participation.joined_at
-          }
-        })
-      )
+        const otherParticipants = participantsByConversation.get(conversation.id) || []
+        // Participant count = other participants + current user
+        const participantCount = otherParticipants.length + 1
+
+        return {
+          conversation_id: conversation.id,
+          conversation_name: conversation.name,
+          conversation_type: conversation.type || 'direct',
+          created_by: conversation.created_by,
+          created_at: conversation.created_at,
+          is_active: conversation.is_active,
+          participant_count: participantCount,
+          icon_url: conversation.metadata?.icon_url, // Icon stored in metadata
+          other_participants: otherParticipants,
+          user_role: participation.role,
+          user_joined_at: participation.joined_at
+        }
+      })
 
       return conversationsData
     } catch (error) {
@@ -860,8 +971,17 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Helper: Service-like method to fetch user profile
+  // Helper: Service-like method to fetch user profile with deduplication
   const _fetchUserProfile = async (userId: string) => {
+    // REQUEST DEDUPLICATION: Check if already fetching this profile
+    const pendingFetch = pendingProfileFetches.value.get(userId)
+    if (pendingFetch) {
+      debug.log('🔄 Profile fetch already in progress for:', userId)
+      return pendingFetch
+    }
+    
+    // Create and track the promise
+    const fetchPromise = (async () => {
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
@@ -874,6 +994,14 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     return profileData
+    })()
+    
+    pendingProfileFetches.value.set(userId, fetchPromise)
+    try {
+      return await fetchPromise
+    } finally {
+      pendingProfileFetches.value.delete(userId)
+    }
   }
 
   // Helper: Normalize user object to ensure consistent ID field
@@ -899,20 +1027,35 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Helper: Service-like method to fetch last message
+  // FIXED: Use maybeSingle() instead of single() to avoid 406 error when no messages exist
   const _fetchLastMessage = async (conversationId: string) => {
-    const { data: lastMessageData } = await supabase
+    const { data: lastMessageData, error } = await supabase
       .from('messages')
       .select('id, user_id, content, created_at, metadata')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
+
+    if (error) {
+      debug.warn('⚠️ Error fetching last message for conversation:', conversationId, error)
+      return null
+    }
 
     return lastMessageData
   }
 
   const fetchConversationMessages = async (conversationId: string, beforeMessageId?: string, signal?: AbortSignal) => {
     if (loadingMessages.value && beforeMessageId !== undefined) return
+
+    // REQUEST DEDUPLICATION: For initial loads, check if already fetching this conversation
+    const fetchKey = beforeMessageId ? `${conversationId}:${beforeMessageId}` : conversationId
+    const pendingFetch = pendingMessagesFetch.value.get(fetchKey)
+    if (pendingFetch) {
+      debug.log('🔄 Message fetch already in progress for:', fetchKey)
+      await pendingFetch
+      return
+    }
 
     // For initial load, check cache first - make this synchronous for instant loading
     if (beforeMessageId === undefined) {
@@ -927,6 +1070,8 @@ export const useDMStore = defineStore('dm', () => {
     // Only set loading state for non-cached messages
     loadingMessages.value = true
     
+    // Create and track the promise
+    const fetchPromise = (async () => {
     try {
       debug.log('🔄 Loading DM messages via MessageService:', { conversationId, beforeMessageId })
       
@@ -1063,6 +1208,14 @@ export const useDMStore = defineStore('dm', () => {
       throw error
     } finally {
       loadingMessages.value = false
+    }
+    })()
+    
+    pendingMessagesFetch.value.set(fetchKey, fetchPromise)
+    try {
+      await fetchPromise
+    } finally {
+      pendingMessagesFetch.value.delete(fetchKey)
     }
   }
 
@@ -1206,10 +1359,47 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('✅ DM message saved to database:', message.id)
       debug.log('📦 DM message data from server:', message)
       
-      // Real-time will replace the temp message with the real one
-      debug.log('⏳ Waiting for real-time to replace temp DM message...')
-      
-      // Real-time INSERT will handle replacing temp → real
+      // 🔧 FIX: Don't rely on realtime to replace temp message - do it immediately!
+      // This fixes the silent timeout issue where realtime connection drops
+      // and temp messages never get replaced with real ones
+      const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
+      if (tempIndex !== -1) {
+        const realMessage: Message = {
+          id: message.id,
+          user_id: message.user_id,
+          content: message.content,
+          created_at: new Date(message.created_at),
+          channel_id: '',
+          conversation_id: message.conversation_id,
+          reply_to: message.reply_to,
+          reactions: message.reactions || [],
+          is_system: message.is_system,
+          metadata: message.metadata || undefined,
+          encrypted: message.encrypted || false,
+          decrypted: message.decrypted || false,
+          encryption_metadata: message.encryption_metadata
+        }
+        
+        try {
+          ensureMessageEmbeds(realMessage)
+        } catch (embedError) {
+          debug.warn('Failed to prepare embeds for sent DM message:', embedError)
+        }
+        
+        // Replace temp message with real message
+        currentDMMessages.value.splice(tempIndex, 1, realMessage)
+        debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id })
+        
+        // Also update in cache if present
+        const cached = messageCache.value.get(conversationId)
+        if (cached) {
+          const cacheIndex = cached.messages.findIndex(m => m.id === tempId)
+          if (cacheIndex !== -1) {
+            cached.messages.splice(cacheIndex, 1, realMessage)
+            cached.lastModified = new Date()
+          }
+        }
+      }
       
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
@@ -1281,6 +1471,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Enhanced subscription management following useChat pattern
+  // Now uses RealtimeConnectionManager for automatic reconnection
   const cleanupRealtimeSubscriptions = () => {
     debug.log('🧹 Cleaning up DM realtime subscriptions')
     
@@ -1290,10 +1481,15 @@ export const useDMStore = defineStore('dm', () => {
       currentSubscription.value = null
     }
     
-    // Remove all DM-specific subscriptions
+    // Remove all DM-specific subscriptions (both legacy and RealtimeConnectionManager)
     dmSubscriptions.value.forEach((subscription, channelName) => {
       debug.log(`🗑️ Removing DM subscription: ${channelName}`)
+      // Check if it's a function (RealtimeConnectionManager unsubscribe) or a channel
+      if (typeof subscription === 'function') {
+        subscription() // Call unsubscribe function from RealtimeConnectionManager
+      } else {
       supabase.removeChannel(subscription)
+      }
     })
     dmSubscriptions.value.clear()
   }
@@ -1304,7 +1500,12 @@ export const useDMStore = defineStore('dm', () => {
     
     if (subscription) {
       debug.log(`🗑️ Cleaning up conversation subscription: ${channelName}`)
+      // Check if it's a function (RealtimeConnectionManager unsubscribe) or a channel
+      if (typeof subscription === 'function') {
+        subscription() // Call unsubscribe function from RealtimeConnectionManager
+      } else {
       supabase.removeChannel(subscription)
+      }
       dmSubscriptions.value.delete(channelName)
     }
   }
@@ -1544,12 +1745,20 @@ export const useDMStore = defineStore('dm', () => {
         if (status === 'SUBSCRIBED') {
           debug.log(`✅ Successfully subscribed to DM conversation: ${conversationId}`)
           debug.log(`📍 Listening for messages on table: messages, filter: conversation_id=eq.${conversationId}`)
+          // Reset retry count on successful connection
+          conversationRetryCount.value.set(conversationId, 0)
         } else if (status === 'CHANNEL_ERROR') {
           debug.error(`❌ Error subscribing to DM conversation: ${conversationId}`)
+          scheduleConversationReconnect(conversationId)
         } else if (status === 'CLOSED') {
           debug.log(`🔒 DM conversation subscription closed: ${conversationId}`)
+          // Only reconnect if we still have this conversation in our subscriptions
+          if (dmSubscriptions.value.has(channelName) && currentConversationId.value === conversationId) {
+            scheduleConversationReconnect(conversationId)
+          }
         } else if (status === 'TIMED_OUT') {
           debug.warn(`⏰ DM conversation subscription timed out: ${conversationId}`)
+          scheduleConversationReconnect(conversationId)
         }
       })
 
@@ -1558,6 +1767,51 @@ export const useDMStore = defineStore('dm', () => {
     dmSubscriptions.value.set(channelName, conversationChannel)
     
     debug.log(`📝 Stored DM subscription for ${channelName}, total subscriptions: ${dmSubscriptions.value.size}`)
+  }
+  
+  // Retry tracking for conversation subscriptions
+  const conversationRetryCount = ref<Map<string, number>>(new Map())
+  const conversationRetryTimeouts = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const MAX_RETRY_COUNT = 10
+  const BASE_RETRY_DELAY = 1000 // 1 second
+  const MAX_RETRY_DELAY = 30000 // 30 seconds
+  
+  // Schedule reconnection with exponential backoff
+  const scheduleConversationReconnect = (conversationId: string) => {
+    const retryCount = conversationRetryCount.value.get(conversationId) || 0
+    
+    // Check if max retries exceeded
+    if (retryCount >= MAX_RETRY_COUNT) {
+      debug.error(`❌ DM conversation ${conversationId}: Max retries (${MAX_RETRY_COUNT}) exceeded`)
+      return
+    }
+    
+    // Calculate delay with exponential backoff
+    const delay = Math.min(BASE_RETRY_DELAY * Math.pow(2, retryCount), MAX_RETRY_DELAY)
+    const jitter = delay * 0.2 * Math.random()
+    const finalDelay = Math.floor(delay + jitter)
+    
+    debug.log(`🔄 DM conversation ${conversationId}: Scheduling reconnect in ${finalDelay}ms (attempt ${retryCount + 1}/${MAX_RETRY_COUNT})`)
+    
+    // Clear any existing retry timeout
+    const existingTimeout = conversationRetryTimeouts.value.get(conversationId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+    
+    // Schedule reconnect
+    const timeoutId = setTimeout(() => {
+      conversationRetryCount.value.set(conversationId, retryCount + 1)
+      conversationRetryTimeouts.value.delete(conversationId)
+      
+      // Only reconnect if this is still the current conversation
+      if (currentConversationId.value === conversationId) {
+        debug.log(`🔄 DM conversation ${conversationId}: Attempting reconnect...`)
+        setupConversationSubscription(conversationId)
+      }
+    }, finalDelay)
+    
+    conversationRetryTimeouts.value.set(conversationId, timeoutId)
   }
 
   // Helper function to update conversation from a new message
@@ -2215,6 +2469,7 @@ export const useDMStore = defineStore('dm', () => {
     loadingMessages,
     isSearching,
     allMessagesLoaded,
+    isInitializing,
     
     // Computed
     getCurrentConversation,

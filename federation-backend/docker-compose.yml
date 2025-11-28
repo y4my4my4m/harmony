@@ -14,7 +14,7 @@ services:
     volumes:
       - ./logs:/app/logs
     networks:
-      - harmony-network
+      - supabase_default
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -30,5 +30,5 @@ services:
       retries: 3
 
 networks:
-  harmony-network:
-    driver: bridge
+  supabase_default:
+    external: true
