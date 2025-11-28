@@ -1540,8 +1540,32 @@ export class ActivityPubService {
       }
 
       if (data) {
+        // Parse bio and display name emojis from federation_metadata
+        let bio: string | any[] = data.bio || '';
+        let display_name: string | any[] = data.display_name || data.username;
+        
+        if (data.federation_metadata) {
+          try {
+            const { parseBioWithEmojis } = await import('@/utils/mentionUtils');
+            const metadata = typeof data.federation_metadata === 'string' 
+              ? JSON.parse(data.federation_metadata)
+              : data.federation_metadata;
+            
+            if (metadata.bio_emojis && metadata.bio_emojis.length > 0 && typeof bio === 'string') {
+              bio = parseBioWithEmojis(bio, metadata.bio_emojis);
+            }
+            if (metadata.display_name_emojis && metadata.display_name_emojis.length > 0 && typeof display_name === 'string') {
+              display_name = parseBioWithEmojis(display_name, metadata.display_name_emojis);
+            }
+          } catch (e) {
+            debug.warn('Failed to parse federation_metadata for cached user:', e);
+          }
+        }
+        
         return {
           ...data,
+          bio,
+          display_name,
           handle: this.formatUserHandle(data.username, data.domain)
         } as FederatedUser;
       }

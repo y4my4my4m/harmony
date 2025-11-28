@@ -154,6 +154,10 @@ const reactions = computed(() => {
       if (remote.emoji_url && !mergedReactions[existingIndex].emoji_url) {
         mergedReactions[existingIndex].emoji_url = remote.emoji_url;
       }
+      // Copy over reactors from remote if we don't have them locally
+      if (remote.reactors && remote.reactors.length > 0 && (!mergedReactions[existingIndex].reactors || mergedReactions[existingIndex].reactors.length === 0)) {
+        mergedReactions[existingIndex].reactors = remote.reactors;
+      }
     }
   }
   

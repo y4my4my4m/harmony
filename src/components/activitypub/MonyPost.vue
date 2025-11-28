@@ -1145,6 +1145,14 @@ const escapeHtml = (text: string): string => {
 const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
+  // Debug: log reaction data
+  console.log('🎯 Reaction tooltip data:', {
+    emoji_name: reaction.emoji_name,
+    reactors: reaction.reactors,
+    user_reactions: reaction.user_reactions,
+    full_reaction: reaction
+  });
+  
   // Transform local user_reactions to the format needed for tooltip
   const localUsers = (reaction.user_reactions || []).map((ur: any) => ({
     id: ur.user_id,
@@ -1155,15 +1163,18 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   }));
   
   // Add remote reactors from federated fetch
-  const remoteUsers = (reaction.reactors || []).map((reactor: any) => ({
-    id: `${reactor.username}@${reactor.domain}`,
-    displayName: reactor.display_name || reactor.username || 'Unknown',
-    displayNameEmojis: reactor.display_name_emojis,
-    avatarUrl: reactor.avatar_url || '',
-    userColor: '#888888',
-    isRemote: true,
-    domain: reactor.domain
-  }));
+  const remoteUsers = (reaction.reactors || []).map((reactor: any) => {
+    console.log('🎯 Remote reactor:', reactor);
+    return {
+      id: `${reactor.username}@${reactor.domain}`,
+      displayName: reactor.display_name || reactor.username || 'Unknown',
+      displayNameEmojis: reactor.display_name_emojis,
+      avatarUrl: reactor.avatar_url || '',
+      userColor: '#888888',
+      isRemote: true,
+      domain: reactor.domain
+    };
+  });
   
   // Combine local and remote users
   const usersDetails = [...localUsers, ...remoteUsers];

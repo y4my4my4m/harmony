@@ -49,26 +49,45 @@ router.post(
       if (existingUser) {
         logger.info(`✅ Found existing user in database: ${username}@${domain}`);
         
-        // Check if we should trigger a background post fetch
-        // Fetch if: user has outbox_url AND (no posts yet OR last sync was over 5 minutes ago)
-        const shouldFetchPosts = existingUser.outbox_url && (
-          !existingUser.last_federation_sync || 
-          (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
-        );
-        
-        if (shouldFetchPosts) {
-          logger.info(`📬 Triggering background post fetch for cached user ${username}@${domain}`);
-          fetchRecentPostsInBackground(existingUser.id, existingUser.outbox_url, supabase).catch(err => {
-            logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
-          });
+        // Check if federation_metadata is missing or empty - if so, we need to refresh
+        let needsMetadataRefresh = false;
+        try {
+          const metadata = existingUser.federation_metadata 
+            ? (typeof existingUser.federation_metadata === 'string' 
+                ? JSON.parse(existingUser.federation_metadata) 
+                : existingUser.federation_metadata)
+            : {};
+          needsMetadataRefresh = !metadata.bio_emojis || metadata.bio_emojis.length === 0;
+        } catch {
+          needsMetadataRefresh = true;
         }
         
-        return res.json({
-          success: true,
-          user: existingUser,
-          outbox_url: existingUser.outbox_url, // Always include for pagination
-          cached: true
-        });
+        // If metadata is missing, skip cache and do a full refresh
+        if (needsMetadataRefresh && existingUser.bio && existingUser.bio.includes(':')) {
+          logger.info(`🔄 User ${username}@${domain} has bio with emoji patterns but no emoji metadata - forcing refresh`);
+          // Don't return cached - fall through to full fetch
+        } else {
+          // Check if we should trigger a background post fetch
+          // Fetch if: user has outbox_url AND (no posts yet OR last sync was over 5 minutes ago)
+          const shouldFetchPosts = existingUser.outbox_url && (
+            !existingUser.last_federation_sync || 
+            (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
+          );
+          
+          if (shouldFetchPosts) {
+            logger.info(`📬 Triggering background post fetch for cached user ${username}@${domain}`);
+            fetchRecentPostsInBackground(existingUser.id, existingUser.outbox_url, supabase).catch(err => {
+              logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
+            });
+          }
+          
+          return res.json({
+            success: true,
+            user: existingUser,
+            outbox_url: existingUser.outbox_url, // Always include for pagination
+            cached: true
+          });
+        }
       }
     }
 
@@ -210,7 +229,23 @@ router.post(
       logger.info(`📊 Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
 
       // Step 4: Convert and store the profile
+      // Debug: log actor emoji data
+      logger.debug(`📋 Actor has tag array: ${Array.isArray(actor.tag)}, length: ${actor.tag?.length || 0}`);
+      logger.debug(`📋 Actor has emojis object: ${!!actor.emojis}, keys: ${actor.emojis ? Object.keys(actor.emojis).length : 0}`);
+      if (actor.tag) {
+        const emojiTags = actor.tag.filter((t: any) => t.type === 'Emoji');
+        logger.debug(`📋 Emoji tags in actor: ${emojiTags.length}`);
+        if (emojiTags.length > 0) {
+          logger.debug(`📋 Sample emoji tag: ${JSON.stringify(emojiTags[0])}`);
+        }
+      }
+      if (actor.emojis && Object.keys(actor.emojis).length > 0) {
+        const firstKey = Object.keys(actor.emojis)[0];
+        logger.debug(`📋 Sample emoji from object: ${firstKey} = ${actor.emojis[firstKey]}`);
+      }
+      
       const profileData = actorToProfile(actor);
+      logger.debug(`📋 Profile bio_emojis count: ${profileData.bio_emojis?.length || 0}`);
       
       const profileRecord: any = {
         username: profileData.username,
@@ -662,6 +697,14 @@ async function fetchMisskeyReactions(
         }
       }
       
+      // Debug: log user host value
+      if (user?.host !== null && user?.host !== undefined) {
+        logger.debug(`📬 Reactor ${user?.username} has host: "${user.host}"`);
+      }
+      
+      // Determine the reactor's domain - user.host is null for local users in Misskey
+      const reactorDomain = (user?.host && user.host !== '.') ? user.host : domain;
+      
       // Build reaction object with actor info (for display purposes only, no DB storage)
       reactions.push({
         emoji,
@@ -672,10 +715,10 @@ async function fetchMisskeyReactions(
           display_name: user?.name || user?.username,
           display_name_emojis: displayNameEmojis.length > 0 ? displayNameEmojis : undefined,
           avatar_url: user?.avatarUrl,
-          domain: user?.host || domain,
+          domain: reactorDomain,
           is_local: false,
         },
-        actor_url: user?.id ? `https://${user.host || domain}/users/${user.id}` : null,
+        actor_url: user?.id ? `https://${reactorDomain}/users/${user.id}` : null,
       });
     }
 
@@ -729,7 +772,16 @@ async function fetchMisskeyReactions(
       }> = {};
       
       for (const [emoji, data] of reactionCounts) {
-        reactionSummary[emoji] = { 
+        // Normalize emoji key for frontend display
+        // Misskey format: :emoji_name@.: or :emoji_name@domain:
+        // We want: :emoji_name: (clean format)
+        let normalizedEmoji = emoji;
+        if (emoji.startsWith(':') && emoji.endsWith(':')) {
+          // Remove @. and @domain suffixes from within the colons
+          normalizedEmoji = emoji.replace(/@[^:]*:$/, ':');
+        }
+        
+        reactionSummary[normalizedEmoji] = { 
           count: data.count,
           url: data.emoji_url,
           reactors: reactorsByEmoji.get(emoji) || [],
