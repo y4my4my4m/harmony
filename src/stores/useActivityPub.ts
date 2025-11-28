@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
+import { authContextService } from '@/services/AuthContextService';
 import { services } from '@/services';
 import router from '@/router';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -921,8 +922,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      const currentUser = await supabase.auth.getUser();
-      const isCurrentUser = currentUser.data.user?.id === userId;
+      // OPTIMIZED: Use cached auth context
+      const context = await authContextService.getCurrentContext();
+      const isCurrentUser = context.isAuthenticated && context.authUser?.id === userId;
 
       // For realtime updates, we need to get accurate server state instead of guessing
       // This prevents conflicts between manual actions and realtime updates
@@ -1197,12 +1199,12 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       this.isLoadingFeed = true;
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // OPTIMIZED: Use cached auth context
+        const authUser = await authContextService.getCurrentAuthUser();
 
         // Use activityPubService for timeline loading
         const posts = await activityPubService.getUserTimeline(
-          user.data.user.id,
+          authUser.id,
           'home',
           { 
             limit: 20,
@@ -1245,11 +1247,12 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async refreshHomeFeedInBackground() {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) return;
+        // OPTIMIZED: Use cached auth context
+        const context = await authContextService.getCurrentContext();
+        if (!context.isAuthenticated) return;
 
         const posts = await activityPubService.getUserTimeline(
-          user.data.user.id,
+          context.authUser.id,
           'home',
           { limit: 20 }
         );
@@ -1819,16 +1822,16 @@ export const useActivityPubStore = defineStore('activitypub', {
       debug.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
       
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // OPTIMIZED: Use cached auth context
+        const authUser = await authContextService.getCurrentAuthUser();
 
-        debug.log(`🔍 DEBUG: User authenticated: ${user.data.user.id}`);
+        debug.log(`🔍 DEBUG: User authenticated: ${authUser.id}`);
 
         // Check current state first
         const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', authUser.id)
           .eq('post_id', postId)
           .eq('interaction_type', 'favorite')
           .maybeSingle();

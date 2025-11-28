@@ -12,6 +12,7 @@ import { ref, computed, watch } from 'vue'
 import { generateThemePalette, applyThemePalette, type ThemePalette } from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 
 export interface VisualThemeSettings {
@@ -335,14 +336,23 @@ async function saveToSupabase(settings: VisualThemeSettings) {
 
 /**
  * Load settings from Supabase
+ * OPTIMIZED: First checks profile store to avoid redundant queries
  */
 async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> {
   const authStore = useAuthStore()
+  const profileStore = useProfileStore()
   const userId = authStore.session?.user?.id
   
   if (!userId) return null
   
   try {
+    // OPTIMIZATION: Check if profile is already loaded in the store
+    if (profileStore.profile?.appearance_settings) {
+      debug.log('✅ Using cached appearance_settings from profile store')
+      return profileStore.profile.appearance_settings as Partial<VisualThemeSettings>
+    }
+    
+    // Fallback to direct query only if profile store doesn't have the data
     const { data, error } = await supabase
       .from('profiles')
       .select('appearance_settings')

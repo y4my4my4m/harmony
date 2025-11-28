@@ -686,8 +686,12 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 }, { deep: true });
 
 // IntersectionObserver to clear unread counts when messages are scrolled into view
+// OPTIMIZED: Debounced to prevent 45+ API calls per page load
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
+let pendingUnreadUpdate: { messageId: string; timestamp: string } | null = null;
+let unreadUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
+let hasUnreadUpdatePending = false;
 
 const setupUnreadObserver = () => {
   if (!props.channelId && !props.conversationId) return;
@@ -706,7 +710,8 @@ const setupUnreadObserver = () => {
           return;
         }
         observedMessages.add(messageId);
-        clearUnreadCount(messageId);
+        // Queue the message for unread update instead of calling API immediately
+        queueUnreadUpdate(messageId);
       });
     },
     {
@@ -730,6 +735,45 @@ const setupUnreadObserver = () => {
   });
 };
 
+// Queue unread updates and debounce - only track the most recent message
+const queueUnreadUpdate = (messageId: string) => {
+  const message = props.messages.find(m => m.id === messageId);
+  if (!message) return;
+  
+  const messageTimestamp = message.created_at;
+  
+  // Only update if this message is newer than the pending one
+  if (!pendingUnreadUpdate || messageTimestamp > pendingUnreadUpdate.timestamp) {
+    pendingUnreadUpdate = { messageId, timestamp: messageTimestamp };
+  }
+  
+  // Debounce the actual API call
+  if (unreadUpdateTimeout) {
+    clearTimeout(unreadUpdateTimeout);
+  }
+  
+  if (!hasUnreadUpdatePending) {
+    hasUnreadUpdatePending = true;
+  }
+  
+  unreadUpdateTimeout = setTimeout(() => {
+    if (pendingUnreadUpdate) {
+      flushUnreadUpdate();
+    }
+  }, 500); // 500ms debounce
+};
+
+// Flush the pending unread update to the server
+const flushUnreadUpdate = async () => {
+  if (!pendingUnreadUpdate || !hasUnreadUpdatePending) return;
+  
+  const { messageId } = pendingUnreadUpdate;
+  hasUnreadUpdatePending = false;
+  pendingUnreadUpdate = null;
+  
+  await clearUnreadCount(messageId);
+};
+
 const clearUnreadCount = async (messageId: string) => {
   if (!props.channelId && !props.conversationId) return;
   
@@ -746,7 +790,7 @@ const clearUnreadCount = async (messageId: string) => {
     
     if (!channelId && !conversationId) return;
     
-    // Update unread_counts table to clear unread counts
+    // Update unread_counts table to clear unread counts - SINGLE call per channel
     const { error } = await supabase
       .from('unread_counts')
       .update({
@@ -765,14 +809,15 @@ const clearUnreadCount = async (messageId: string) => {
       debug.log('✅ Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
     }
     
-    // Mark related notifications as read
+    // Batch mark related notifications as read
     const notificationStore = useNotificationStore();
     const relatedNotifications = notificationStore.notifications.filter(n => 
       (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
     );
     
-    for (const notification of relatedNotifications) {
-      await notificationStore.markAsRead(notification.id);
+    // Mark all related notifications in parallel instead of sequentially
+    if (relatedNotifications.length > 0) {
+      await Promise.all(relatedNotifications.map(n => notificationStore.markAsRead(n.id)));
     }
   } catch (error) {
     debug.error('Error clearing unread count:', error);
@@ -790,11 +835,23 @@ watch(() => props.messages.length, () => {
 
 // Cleanup on unmount
 onUnmounted(() => {
+  // Flush any pending unread update before unmounting
+  if (pendingUnreadUpdate && hasUnreadUpdatePending) {
+    flushUnreadUpdate();
+  }
+  
+  if (unreadUpdateTimeout) {
+    clearTimeout(unreadUpdateTimeout);
+    unreadUpdateTimeout = null;
+  }
+  
   if (intersectionObserver) {
     intersectionObserver.disconnect();
     intersectionObserver = null;
   }
   observedMessages.clear();
+  pendingUnreadUpdate = null;
+  hasUnreadUpdatePending = false;
 });
 
 

@@ -23,10 +23,26 @@ import { debug } from '@/utils/debug'
  * Core ActivityPub service for database operations
  * Handles posts, follows, and interactions - federation is automatic via triggers
  */
+// Cache entry interface for profile caching
+interface ProfileCacheEntry {
+  profile: FederatedUser;
+  timestamp: number;
+}
+
+// In-flight request tracking to prevent duplicate concurrent requests
+interface InFlightRequest {
+  promise: Promise<FederatedUser | null>;
+}
+
 export class ActivityPubService {
   private static instance: ActivityPubService;
   private currentDomain: string;
   private instanceUrl: string;
+  
+  // OPTIMIZATION: Profile cache with TTL to prevent repeated lookups
+  private profileCache: Map<string, ProfileCacheEntry> = new Map();
+  private inFlightRequests: Map<string, InFlightRequest> = new Map();
+  private readonly PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
     this.currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
@@ -38,6 +54,43 @@ export class ActivityPubService {
       ActivityPubService.instance = new ActivityPubService();
     }
     return ActivityPubService.instance;
+  }
+  
+  /**
+   * Get cached profile or null if not cached/expired
+   */
+  private getCachedProfile(cacheKey: string): FederatedUser | null {
+    const entry = this.profileCache.get(cacheKey);
+    if (!entry) return null;
+    
+    const now = Date.now();
+    if (now - entry.timestamp > this.PROFILE_CACHE_TTL) {
+      this.profileCache.delete(cacheKey);
+      return null;
+    }
+    
+    return entry.profile;
+  }
+  
+  /**
+   * Cache a profile
+   */
+  private cacheProfile(cacheKey: string, profile: FederatedUser): void {
+    this.profileCache.set(cacheKey, {
+      profile,
+      timestamp: Date.now()
+    });
+  }
+  
+  /**
+   * Clear profile cache (useful for force refresh)
+   */
+  clearProfileCache(cacheKey?: string): void {
+    if (cacheKey) {
+      this.profileCache.delete(cacheKey);
+    } else {
+      this.profileCache.clear();
+    }
   }
 
   // =============================================
@@ -56,10 +109,7 @@ export class ActivityPubService {
     is_sensitive?: boolean;
     language?: string;
   }): Promise<Post> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-
-    // Get the user's profile ID (cached from userDataService)
+    // OPTIMIZED: Use cached profile ID lookup (throws if not authenticated)
     const profileId = await this.getCurrentUserProfileId();
 
     // Validate and normalize content format
@@ -186,8 +236,8 @@ export class ActivityPubService {
     timelineType: 'home' | 'public' | 'local' = 'home',
     options: TimelineOptions = {}
   ): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    // OPTIMIZED: Use cached auth user ID
+    const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
     
@@ -201,7 +251,7 @@ export class ActivityPubService {
           )
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('timeline_type', timelineType)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -220,8 +270,8 @@ export class ActivityPubService {
    * Get public timeline - clean and professional
    */
   async getPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    // OPTIMIZED: Use cached auth user ID
+    const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
     const max_id = options.max_id || null;
@@ -236,7 +286,7 @@ export class ActivityPubService {
         ),
         my_interactions:post_interactions!left(interaction_type, emoji_id)
       `)
-      .eq('my_interactions.user_id', user.id)
+      .eq('my_interactions.user_id', userId)
       .in('visibility', ['public', 'unlisted'])
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
@@ -272,8 +322,8 @@ export class ActivityPubService {
    * Get public timeline with enhanced federation support and user interaction states
    */
   async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    // OPTIMIZED: Use cached auth user ID
+    const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
     
@@ -288,7 +338,7 @@ export class ActivityPubService {
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
-        .eq('my_interactions.user_id', user.id)
+        .eq('my_interactions.user_id', userId)
         .in('visibility', ['public', 'unlisted'])
         .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
@@ -1515,6 +1565,7 @@ export class ActivityPubService {
   /**
    * Get user profile by handle (@username@domain)
    * Will attempt to fetch from remote if not found locally
+   * OPTIMIZED: Uses in-memory cache with TTL and request deduplication
    */
   async getUserByHandle(handle: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
     // Parse handle (@username@domain or @username)
@@ -1523,8 +1574,53 @@ export class ActivityPubService {
       ? cleanHandle.split('@')
       : [cleanHandle, this.currentDomain];
 
+    const cacheKey = `${username}@${domain}`;
     const isRemote = domain !== this.currentDomain;
 
+    // OPTIMIZATION: Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cachedProfile = this.getCachedProfile(cacheKey);
+      if (cachedProfile) {
+        debug.log(`✅ Using cached profile for: ${cacheKey}`);
+        return cachedProfile;
+      }
+    } else {
+      // Clear cache entry on force refresh
+      this.clearProfileCache(cacheKey);
+    }
+    
+    // OPTIMIZATION: Deduplicate concurrent requests for same profile
+    const inFlight = this.inFlightRequests.get(cacheKey);
+    if (inFlight && !forceRefresh) {
+      debug.log(`⏳ Waiting for in-flight request: ${cacheKey}`);
+      return inFlight.promise;
+    }
+    
+    // Create the actual fetch promise
+    const fetchPromise = this._fetchUserByHandle(username, domain, isRemote, forceRefresh, cacheKey);
+    
+    // Track this request
+    this.inFlightRequests.set(cacheKey, { promise: fetchPromise });
+    
+    try {
+      const result = await fetchPromise;
+      return result;
+    } finally {
+      // Clean up in-flight tracking
+      this.inFlightRequests.delete(cacheKey);
+    }
+  }
+  
+  /**
+   * Internal method to actually fetch user by handle
+   */
+  private async _fetchUserByHandle(
+    username: string, 
+    domain: string, 
+    isRemote: boolean, 
+    forceRefresh: boolean,
+    cacheKey: string
+  ): Promise<FederatedUser | null> {
     // If force refresh on a remote user, skip local lookup
     if (!forceRefresh || !isRemote) {
       // Use maybeSingle() to avoid 406 error when user doesn't exist
@@ -1562,12 +1658,16 @@ export class ActivityPubService {
           }
         }
         
-        return {
+        const profile = {
           ...data,
           bio,
           display_name,
           handle: this.formatUserHandle(data.username, data.domain)
         } as FederatedUser;
+        
+        // Cache the profile
+        this.cacheProfile(cacheKey, profile);
+        return profile;
       }
     }
 
@@ -1579,7 +1679,9 @@ export class ActivityPubService {
       const remoteUser = await resolveRemoteMention(username, domain, forceRefresh);
       
       if (remoteUser) {
-        debug.log(`✅ Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: ${handle}`);
+        debug.log(`✅ Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: @${username}@${domain}`);
+        // Cache the remote profile
+        this.cacheProfile(cacheKey, remoteUser);
         return remoteUser;
       }
     }
@@ -1987,10 +2089,10 @@ export class ActivityPubService {
 
   /**
    * Get the user's profile ID from their auth user ID
-   * Uses cached data from userDataService for efficiency
+   * OPTIMIZED: Uses AuthContextService for centralized caching
    */
   private async getCurrentUserProfileId(): Promise<string> {
-    // First try to get from userDataService cache
+    // First try to get from userDataService cache (fastest)
     const { userDataService } = await import('@/services/userDataService');
     const currentUser = userDataService.getCurrentUser();
     
@@ -1998,21 +2100,27 @@ export class ActivityPubService {
       return currentUser.id;
     }
     
-    // Fallback to database query only if cache miss
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Use AuthContextService which caches auth + profile ID
+    const { authContextService } = await import('@/services/AuthContextService');
+    return await authContextService.getCurrentProfileId();
+  }
 
-    if (error || !profile) {
-      throw new Error('User profile not found');
-    }
+  /**
+   * Get the current auth user - uses cached AuthContextService
+   * OPTIMIZED: Avoids repeated supabase.auth.getUser() calls
+   */
+  private async getCurrentAuthUser() {
+    const { authContextService } = await import('@/services/AuthContextService');
+    return await authContextService.getCurrentAuthUser();
+  }
 
-    return profile.id;
+  /**
+   * Get the current auth user's ID (auth_user_id, not profile_id)
+   * OPTIMIZED: Uses cached AuthContextService
+   */
+  private async getCurrentAuthUserId(): Promise<string> {
+    const user = await this.getCurrentAuthUser();
+    return user.id;
   }
 
   /**
