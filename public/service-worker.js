@@ -91,7 +91,10 @@ self.addEventListener('push', async (event) => {
       timestamp: Date.now(),
       actions: getNotificationActions(data.type),
       image: data.data?.image_url,
-      vibrate: getVibrationPattern(data.type)
+      vibrate: getVibrationPattern(data.type),
+      // Non-standard: Accent color for Android (may not work on all browsers)
+      // This is the equivalent of Android's setColor() but for web
+      color: '#5865f2'
     }
 
     // Store notification for later retrieval
