@@ -436,15 +436,36 @@ const handleReply = (post: TimelinePost) => {
   showReplyComposer.value = true;
 };
 
-const handleReplyCreated = async () => {
+const handleReplyCreated = async (newReply?: TimelinePost) => {
   showReplyComposer.value = false;
   replyToPost.value = null;
   replyingToPostId.value = null;
   
-  // Reload to show the new reply
-  await loadPostWithContext();
+  // Optimistically add the new reply immediately (so user sees it right away)
+  if (newReply && postWithContext.value) {
+    // Add to descendants array
+    postWithContext.value = {
+      ...postWithContext.value,
+      descendants: [...postWithContext.value.descendants, newReply]
+    };
+    
+    // Update reply count on main post
+    if (postWithContext.value.mainPost) {
+      postWithContext.value.mainPost.replies_count = 
+        (postWithContext.value.mainPost.replies_count || 0) + 1;
+    }
+    
+    debug.log('✅ Reply added optimistically:', newReply.id);
+  }
   
   toast.success('Reply posted!');
+  
+  // Reload in background to ensure consistency (catches any missed data)
+  setTimeout(() => {
+    loadPostWithContext().catch(err => {
+      debug.warn('Background refresh failed:', err);
+    });
+  }, 1000);
 };
 
 const handleDelete = async (postId: string) => {
