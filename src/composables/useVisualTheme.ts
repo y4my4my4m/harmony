@@ -12,6 +12,7 @@ import { ref, computed, watch } from 'vue'
 import { generateThemePalette, applyThemePalette, type ThemePalette } from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 
 export interface VisualThemeSettings {
@@ -321,7 +322,7 @@ async function saveToSupabase(settings: VisualThemeSettings) {
         appearance_settings: settings,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
     
     if (error) throw error
     
@@ -335,18 +336,27 @@ async function saveToSupabase(settings: VisualThemeSettings) {
 
 /**
  * Load settings from Supabase
+ * OPTIMIZED: First checks profile store to avoid redundant queries
  */
 async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> {
   const authStore = useAuthStore()
+  const profileStore = useProfileStore()
   const userId = authStore.session?.user?.id
   
   if (!userId) return null
   
   try {
+    // OPTIMIZATION: Check if profile is already loaded in the store
+    if (profileStore.profile?.appearance_settings) {
+      debug.log('✅ Using cached appearance_settings from profile store')
+      return profileStore.profile.appearance_settings as Partial<VisualThemeSettings>
+    }
+    
+    // Fallback to direct query only if profile store doesn't have the data
     const { data, error } = await supabase
       .from('profiles')
       .select('appearance_settings')
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
       .single()
     
     if (error) throw error
@@ -385,17 +395,30 @@ export function useVisualTheme() {
     
     // Try to load from localStorage first (instant)
     const localSettings = loadFromLocalStorage()
+    let appliedFromLocal = false
     if (localSettings) {
       Object.assign(settings.value, localSettings)
       applySettings(settings.value)
+      appliedFromLocal = true
     }
     
-    // Then load from Supabase and override if available
+    // Then load from Supabase and override if different
     const supabaseSettings = await loadFromSupabase()
     if (supabaseSettings) {
+      // Only re-apply if settings are actually different from localStorage
+      const needsUpdate = !appliedFromLocal || 
+        supabaseSettings.theme !== localSettings?.theme ||
+        supabaseSettings.customAccentColor !== localSettings?.customAccentColor
+      
       Object.assign(settings.value, supabaseSettings)
-      applySettings(settings.value)
+      
+      if (needsUpdate) {
+        applySettings(settings.value)
+      }
       saveToLocalStorage(settings.value)
+    } else if (!appliedFromLocal) {
+      // No localStorage or Supabase settings - apply defaults
+      applySettings(settings.value)
     }
     
     // Watch for changes and persist

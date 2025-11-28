@@ -6,6 +6,7 @@ import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
+import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
 import type { 
   Notification, 
@@ -1031,7 +1032,7 @@ export const useNotificationStore = defineStore('notification', {
             case 'activitypub_post':
               // Navigate to specific ActivityPub post using unified view
               router.push({
-                name: 'PostView',
+                name: 'PostDetail',
                 params: { postId: navData.postId }
               })
               break
@@ -1117,6 +1118,7 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     // Helper function to get profile ID from auth user ID with caching
+    // OPTIMIZED: Uses AuthContextService for centralized caching
     async getProfileId(authUserId: string): Promise<string> {
       // Return cached value if available and auth user hasn't changed
       if (this.cachedProfileId && this.cachedAuthUserId === authUserId) {
@@ -1124,17 +1126,14 @@ export const useNotificationStore = defineStore('notification', {
       }
 
       try {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('auth_user_id', authUserId)
-          .single()
-
-        if (profile && !error) {
+        // Use AuthContextService which caches the auth -> profile ID mapping
+        const context = await authContextService.getCurrentContext()
+        
+        if (context.isAuthenticated) {
           // Cache the result
-          this.cachedProfileId = profile.id
+          this.cachedProfileId = context.profileId
           this.cachedAuthUserId = authUserId
-          return profile.id
+          return context.profileId
         } else {
           // Fallback to auth user ID for backward compatibility
           this.cachedProfileId = authUserId
@@ -1142,7 +1141,7 @@ export const useNotificationStore = defineStore('notification', {
           return authUserId
         }
       } catch (error) {
-        debug.warn('Could not find profile for auth user, using auth user ID:', error)
+        debug.warn('Could not get profile from AuthContextService, using auth user ID:', error)
         // Cache the fallback
         this.cachedProfileId = authUserId
         this.cachedAuthUserId = authUserId

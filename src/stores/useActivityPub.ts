@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
+import { authContextService } from '@/services/AuthContextService';
 import { services } from '@/services';
 import router from '@/router';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -87,6 +88,10 @@ interface ActivityPubState {
   bookmarks: TimelinePost[];
   hasMoreBookmarks: boolean;
   bookmarksCursor: string | null;
+  
+  // Cache flags for preventing duplicate queries
+  followsLoaded: boolean;
+  followCountsLoaded: boolean;
 }
 
 export const useActivityPubStore = defineStore('activitypub', {
@@ -170,7 +175,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Bookmarks state
     bookmarks: [],
     hasMoreBookmarks: true,
-    bookmarksCursor: null
+    bookmarksCursor: null,
+    
+    // Cache flags for preventing duplicate queries
+    followsLoaded: false,
+    followCountsLoaded: false
   }),
 
   getters: {
@@ -320,16 +329,28 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Parse instance config
         if (configResult.data) {
           for (const config of configResult.data) {
+            // Helper to safely parse config values (may be string JSON or already parsed object)
+            const parseValue = (val: any) => {
+              if (typeof val === 'string') {
+                try {
+                  return JSON.parse(val);
+                } catch {
+                  return val; // Return as-is if not valid JSON
+                }
+              }
+              return val; // Already an object
+            };
+            
             if (config.config_key === 'domain') {
-              const domain = JSON.parse(config.config_value);
+              const domain = parseValue(config.config_value);
               if (domain) this.instanceDomain = domain;
             }
             if (config.config_key === 'federation_backend_url') {
-              const url = JSON.parse(config.config_value);
+              const url = parseValue(config.config_value);
               if (url) this.federationApiUrl = url;
             }
             if (config.config_key === 'federation_settings') {
-              const settings = JSON.parse(config.config_value);
+              const settings = parseValue(config.config_value);
               // Allow federation_backend_url to be in federation_settings too
               if (settings?.federation_backend_url) {
                 this.federationApiUrl = settings.federation_backend_url;
@@ -463,8 +484,15 @@ export const useActivityPubStore = defineStore('activitypub', {
 
     /**
      * Load follow counts for the current user
+     * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
      */
-    async loadFollowCounts() {
+    async loadFollowCounts(force = false) {
+      // Skip if already loaded unless forced
+      if (this.followCountsLoaded && !force) {
+        debug.log('📊 Follow counts already loaded, skipping');
+        return;
+      }
+
       try {
         // Get current user PROFILE ID (not auth.uid!)
         const { userDataService } = await import('@/services/userDataService');
@@ -487,6 +515,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         this.followingCount = followingCount || 0;
         this.followersCount = followersCount || 0;
+        this.followCountsLoaded = true;
 
         debug.log(`📊 Follow counts loaded: ${this.followingCount} following, ${this.followersCount} followers`);
       } catch (error) {
@@ -921,8 +950,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      const currentUser = await supabase.auth.getUser();
-      const isCurrentUser = currentUser.data.user?.id === userId;
+      // OPTIMIZED: Use cached auth context
+      const context = await authContextService.getCurrentContext();
+      const isCurrentUser = context.isAuthenticated && context.authUser?.id === userId;
 
       // For realtime updates, we need to get accurate server state instead of guessing
       // This prevents conflicts between manual actions and realtime updates
@@ -1082,7 +1112,15 @@ export const useActivityPubStore = defineStore('activitypub', {
       feeds.forEach(feed => {
         const index = feed.posts.findIndex(p => p.id === post.id);
         if (index !== -1) {
-          feed.posts[index] = post;
+          // CRITICAL: Merge updates with existing post to preserve author and other joined data
+          // Realtime events don't include joined relations like author
+          const existingPost = feed.posts[index];
+          feed.posts[index] = {
+            ...existingPost,  // Keep existing data (especially author!)
+            ...post,          // Apply updates
+            author: post.author || existingPost.author,  // Explicitly preserve author
+            reblog_author: post.reblog_author || existingPost.reblog_author,  // Preserve reblog author
+          };
         }
       });
       
@@ -1090,7 +1128,14 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.userFeeds.forEach(feed => {
         const index = feed.posts.findIndex(p => p.id === post.id);
         if (index !== -1) {
-          feed.posts[index] = post;
+          // Same merge logic for user feeds
+          const existingPost = feed.posts[index];
+          feed.posts[index] = {
+            ...existingPost,
+            ...post,
+            author: post.author || existingPost.author,
+            reblog_author: post.reblog_author || existingPost.reblog_author,
+          };
         }
       });
     },
@@ -1181,6 +1226,71 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * PERFORMANCE: Batch fetch interactions for reblog original posts
+     * This prevents N+1 queries when MonyPost renders reblogs
+     */
+    async batchFetchReblogInteractions(posts: TimelinePost[]) {
+      try {
+        // Get current user's profile ID
+        const profileId = await authContextService.getCurrentProfileId();
+        if (!profileId) return posts;
+
+        // Find all posts that are reblogs and have original post data
+        const reblogOriginalIds = posts
+          .filter(p => p.reblog?.id)
+          .map(p => p.reblog!.id);
+
+        if (reblogOriginalIds.length === 0) return posts;
+
+        // Remove duplicates
+        const uniqueIds = [...new Set(reblogOriginalIds)];
+        debug.log(`🔄 Batch loading interactions for ${uniqueIds.length} reblog original posts`);
+
+        // Batch fetch interactions for all original posts
+        const { data: interactions, error } = await supabase
+          .from('post_interactions')
+          .select('post_id, interaction_type')
+          .eq('user_id', profileId)
+          .in('post_id', uniqueIds)
+          .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+
+        if (error) {
+          debug.error('Failed to batch fetch reblog interactions:', error);
+          return posts;
+        }
+
+        // Create a map of post_id -> interaction types
+        const interactionMap = new Map<string, Set<string>>();
+        (interactions || []).forEach(i => {
+          if (!interactionMap.has(i.post_id)) {
+            interactionMap.set(i.post_id, new Set());
+          }
+          interactionMap.get(i.post_id)!.add(i.interaction_type);
+        });
+
+        // Attach interactions to reblog.is_favorited, etc.
+        return posts.map(post => {
+          if (post.reblog?.id) {
+            const postInteractions = interactionMap.get(post.reblog.id) || new Set();
+            return {
+              ...post,
+              reblog: {
+                ...post.reblog,
+                is_favorited: postInteractions.has('favorite'),
+                is_reblogged: postInteractions.has('reblog'),
+                is_bookmarked: postInteractions.has('bookmark')
+              }
+            };
+          }
+          return post;
+        });
+      } catch (error) {
+        debug.error('Failed to batch fetch reblog interactions:', error);
+        return posts;
+      }
+    },
+
+    /**
      * Load the user's home timeline (with cache support)
      */
     async loadHomeFeed(maxId?: string) {
@@ -1197,12 +1307,12 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       this.isLoadingFeed = true;
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // OPTIMIZED: Use cached auth context
+        const authUser = await authContextService.getCurrentAuthUser();
 
         // Use activityPubService for timeline loading
         const posts = await activityPubService.getUserTimeline(
-          user.data.user.id,
+          authUser.id,
           'home',
           { 
             limit: 20,
@@ -1219,10 +1329,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
+        // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         if (maxId) {
-          this.homeFeed.posts.push(...posts);
+          this.homeFeed.posts.push(...processedPosts);
         } else {
-          this.homeFeed.posts = posts;
+          this.homeFeed.posts = processedPosts;
           // Clear unread count when refreshing home feed
           this.unreadCount = 0;
           // Save to cache for next visit
@@ -1245,11 +1358,12 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async refreshHomeFeedInBackground() {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) return;
+        // OPTIMIZED: Use cached auth context
+        const context = await authContextService.getCurrentContext();
+        if (!context.isAuthenticated) return;
 
         const posts = await activityPubService.getUserTimeline(
-          user.data.user.id,
+          context.authUser.id,
           'home',
           { limit: 20 }
         );
@@ -1260,8 +1374,11 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
         }
         
+        // Batch load reblog interactions
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         // Update with fresh data
-        this.homeFeed.posts = posts;
+        this.homeFeed.posts = processedPosts;
         this.homeFeed.has_more = posts.length === 20;
         this.homeFeed.cursor = posts[posts.length - 1]?.id;
         this.unreadCount = 0;
@@ -1295,10 +1412,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
+        // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         if (maxId) {
-          this.publicFeed.posts.push(...posts);
+          this.publicFeed.posts.push(...processedPosts);
         } else {
-          this.publicFeed.posts = posts;
+          this.publicFeed.posts = processedPosts;
         }
 
         // DEBUG: Log the problematic post's data when loaded
@@ -1359,10 +1479,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
+        // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        
         if (maxId) {
-          this.localFeed.posts.push(...posts);
+          this.localFeed.posts.push(...processedPosts);
         } else {
-          this.localFeed.posts = posts;
+          this.localFeed.posts = processedPosts;
         }
 
         this.localFeed.has_more = posts.length === 20;
@@ -1819,16 +1942,16 @@ export const useActivityPubStore = defineStore('activitypub', {
       debug.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
       
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // OPTIMIZED: Use cached auth context
+        const authUser = await authContextService.getCurrentAuthUser();
 
-        debug.log(`🔍 DEBUG: User authenticated: ${user.data.user.id}`);
+        debug.log(`🔍 DEBUG: User authenticated: ${authUser.id}`);
 
         // Check current state first
         const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', authUser.id)
           .eq('post_id', postId)
           .eq('interaction_type', 'favorite')
           .maybeSingle();
@@ -2355,8 +2478,15 @@ export const useActivityPubStore = defineStore('activitypub', {
 
          /**
       * Load users that the current user follows
+      * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
       */
-     async loadFollowedUsers() {
+     async loadFollowedUsers(force = false) {
+       // Skip if already loaded unless forced
+       if (this.followsLoaded && !force) {
+         debug.log('📋 Followed users already loaded, skipping');
+         return;
+       }
+
        try {
          debug.log('🔄 Loading followed users via InteractionService');
          
@@ -2377,6 +2507,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          // Result returns { following, hasMore, total } not { users }
          const followingList = result?.following || [];
          this.followedUsers = new Set(followingList.map((user: any) => user.id));
+         this.followsLoaded = true;
          
          debug.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
        } catch (error) {
@@ -2386,6 +2517,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          try {
            debug.log('🔄 Trying fallback method...');
            await this._loadFollowedUsersFallback();
+           this.followsLoaded = true;
            debug.log(`✅ Fallback loaded ${this.followedUsers.size} followed users`);
            debug.log('✅ Fallback followedUsers Set contents:', Array.from(this.followedUsers));
          } catch (fallbackError) {
@@ -2660,9 +2792,9 @@ export const useActivityPubStore = defineStore('activitypub', {
        
        try {
          // Navigate to post detail view
-         debug.log(`🧭 Attempting to navigate to PostView route`);
+         debug.log(`🧭 Attempting to navigate to PostDetail route`);
          router.push({
-           name: 'PostView',
+           name: 'PostDetail',
            params: { postId }
          });
          debug.log(`✅ Navigation initiated successfully`);

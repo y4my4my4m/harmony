@@ -9,10 +9,8 @@
       </button>
       
       <div class="header-info">
-        <h1 class="header-title">
-          {{ contextType === 'thread' ? 'Conversation' : 'Post' }}
-        </h1>
-        <p v-if="threadInfo && contextType !== 'minimal'" class="header-meta">
+        <h1 class="header-title">Post</h1>
+        <p v-if="threadInfo" class="header-meta">
           {{ threadInfo.totalPosts }} post{{ threadInfo.totalPosts !== 1 ? 's' : '' }}
           <span v-if="threadInfo.participantCount > 1">
             · {{ threadInfo.participantCount }} participant{{ threadInfo.participantCount !== 1 ? 's' : '' }}
@@ -21,26 +19,6 @@
       </div>
       
       <div class="header-actions">
-        <!-- Context switch buttons -->
-        <div class="context-switcher" v-if="contextType !== 'minimal'">
-          <button 
-            @click="switchContext('minimal')"
-            :class="{ active: props.contextType === 'minimal' }"
-            class="context-btn"
-            title="Show just this post"
-          >
-            <Icon name="eye" />
-          </button>
-          <button 
-            @click="switchContext('thread')"
-            :class="{ active: props.contextType === 'thread' }"
-            class="context-btn"
-            title="Show full conversation"
-          >
-            <Icon name="message-square" />
-          </button>
-        </div>
-        
         <button @click="sharePost" class="action-btn" title="Share">
           <Icon name="share" />
         </button>
@@ -55,69 +33,42 @@
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>Loading{{ contextType === 'thread' ? ' conversation' : '' }}...</p>
+        <p>Loading...</p>
       </div>
 
       <!-- Error state -->
       <div v-else-if="error" class="error-state">
         <Icon name="alert-circle" :size="48" />
-        <h3>{{ contextType === 'thread' ? 'Conversation' : 'Post' }} not found</h3>
+        <h3>Post not found</h3>
         <p>{{ error }}</p>
         <button @click="goBack" class="back-home-btn">
           Go back to timeline
         </button>
       </div>
 
-      <!-- Post with context -->
+      <!-- Post with context - simple unified list -->
       <div v-else-if="postWithContext" class="post-container">
-        <!-- Ancestors (posts this is replying to) -->
-        <div v-if="showAncestors && ancestors.length > 0" class="ancestors-section">
-          <div class="section-header">
-            <Icon name="arrow-up" />
-            <span>Earlier in thread</span>
-          </div>
-          
-          <div class="ancestors-list">
-            <article
-              v-for="ancestor in ancestors"
-              :key="ancestor.id"
-              :class="{ 
-                'thread-post': true,
-                'ancestor-post': true,
-                'highlighted-post': ancestor.id === highlightedPostId 
-              }"
-              :ref="el => ancestor.id === highlightedPostId && setPostRef(ancestor.id, el)"
-            >
-              <MonyPost
-                :post="ancestor"
-                :is-in-thread="true"
-                :hide-reply-context="true"
-                @reply="handleReply"
-                @delete="handleDelete"
-                @user-click="handleUserClick"
-              />
-            </article>
-          </div>
-        </div>
-
-        <!-- Main post (always shown) -->
-        <article 
-          v-if="mainPost"
-          class="main-post"
+        <!-- All posts in thread order: ancestors -> main -> descendants -->
+        <article
+          v-for="post in allPostsInOrder"
+          :key="post.id"
+          class="thread-post"
           :class="{ 
-            'highlighted-post': mainPost.id === highlightedPostId,
-            'is-root-post': contextType === 'thread',
-            'has-ancestors': showAncestors && ancestors.length > 0,
-            'has-descendants': showDescendants && descendants.length > 0
+            'highlighted-post': post.id === highlightedPostId,
+            'is-main-post': post.id === mainPost?.id
           }"
-          :ref="el => mainPost && mainPost.id === highlightedPostId && setPostRef(mainPost.id, el as HTMLElement)"
+          :ref="el => post.id === highlightedPostId && setPostRef(post.id, el)"
         >
           <MonyPost
-            :post="mainPost"
+            :post="post"
+            :is-in-thread="true"
+            :hide-reply-context="true"
             @reply="handleReply"
+            @favorite="handleFavorite"
+            @reblog="handleReblog"
+            @bookmark="handleBookmark"
             @delete="handleDelete"
             @user-click="handleUserClick"
-            @show-conversation="() => switchContext('thread')"
           />
         </article>
 
@@ -131,84 +82,6 @@
             @close="showReplyComposer = false"
           />
         </div>
-
-        <!-- Descendants (replies to this post) -->
-        <div v-if="showDescendants && descendants.length > 0" class="descendants-section" :class="{ 'inline-replies': shouldShowInlineReplies }">
-          <!-- Thread connector from main post -->
-          <div class="thread-connector descendants-connector"></div>
-          
-          <!-- Only show header if more than 5 replies (Twitter-style) -->
-          <div v-if="!shouldShowInlineReplies" class="section-header">
-            <Icon name="arrow-down" />
-            <span>Replies ({{ descendants.length }})</span>
-          </div>
-
-          <!-- For minimal/ancestors context: simple linear replies -->
-          <div v-if="contextType !== 'thread'" class="simple-replies">
-            <article
-              v-for="reply in descendants.slice(0, 3)"
-              :key="reply.id"
-              :class="{ 
-                'reply-post': true,
-                'highlighted-post': reply.id === highlightedPostId 
-              }"
-              :ref="el => reply.id === highlightedPostId && setPostRef(reply.id, el)"
-            >
-              <MonyPost
-                :post="reply"
-                :is-in-thread="true"
-                :hide-reply-context="true"
-                @reply="handleReply"
-                @favorite="handleFavorite"
-                @reblog="handleReblog"
-                @bookmark="handleBookmark"
-                @delete="handleDelete"
-                @user-click="handleUserClick"
-                @show-conversation="() => switchContext('thread')"
-              />
-            </article>
-            
-            <!-- Show more button -->
-            <button 
-              v-if="descendants.length > 3"
-              @click="switchContext('thread')"
-              class="show-more-btn"
-            >
-              Show {{ descendants.length - 3 }} more replies
-            </button>
-          </div>
-
-          <!-- For full thread context: simple list of replies -->
-          <div v-else class="thread-replies">
-            <article
-              v-for="reply in descendants"
-              :key="reply.id"
-              :class="{ 
-                'reply-post': true,
-                'highlighted-post': reply.id === highlightedPostId 
-              }"
-            >
-              <MonyPost
-                :post="reply"
-                :is-in-thread="true"
-                :hide-reply-context="true"
-                @reply="handleReply"
-                @delete="handleDelete"
-                @user-click="handleUserClick"
-                @show-conversation="() => switchContext('thread')"
-              />
-            </article>
-          </div>
-        </div>
-
-        <!-- Empty state for no replies in thread context -->
-        <div v-else-if="contextType === 'thread' && !isLoading && mainPost" class="empty-replies">
-          <Icon name="message-circle" :size="32" />
-          <p>No replies yet. Be the first to reply!</p>
-          <button @click="() => mainPost && handleReply(mainPost)" class="reply-cta-btn">
-            Reply to this conversation
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -219,6 +92,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { usePostReactionsStore } from '@/stores/postReactions';
 import { activityPubService } from '@/services/activityPubService';
 import { useToast } from 'vue-toastification';
 import Icon from '@/components/common/Icon.vue';
@@ -240,7 +114,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  contextType: 'minimal',
+  contextType: 'thread', // Always show full thread context for consistency
   highlightReply: undefined,
   timestamp: null
 });
@@ -249,6 +123,7 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter();
 const route = useRoute();
 const activityPub = useActivityPubStore();
+const postReactionsStore = usePostReactionsStore();
 const toast = useToast();
 
 // Reactive state
@@ -269,18 +144,20 @@ const descendants = computed(() => postWithContext.value?.descendants || []);
 const threadInfo = computed(() => postWithContext.value?.threadInfo);
 const highlightedPostId = computed(() => props.highlightReply || postWithContext.value?.highlightedPost);
 
-// Context display logic
-const showAncestors = computed(() => 
-  ['thread', 'ancestors'].includes(props.contextType) && ancestors.value.length > 0
-);
-
-const showDescendants = computed(() => 
-  ['thread', 'descendants', 'minimal'].includes(props.contextType) && descendants.value.length > 0
-);
-
-// Twitter-style: show inline (without header) if 5 or fewer replies
-const INLINE_REPLY_THRESHOLD = 5;
-const shouldShowInlineReplies = computed(() => descendants.value.length <= INLINE_REPLY_THRESHOLD);
+// All posts in chronological order: ancestors -> main -> descendants
+const allPostsInOrder = computed(() => {
+  const posts = [];
+  if (ancestors.value.length > 0) {
+    posts.push(...ancestors.value);
+  }
+  if (mainPost.value) {
+    posts.push(mainPost.value);
+  }
+  if (descendants.value.length > 0) {
+    posts.push(...descendants.value);
+  }
+  return posts;
+});
 
 // Methods
 const loadPostWithContext = async () => {
@@ -304,6 +181,18 @@ const loadPostWithContext = async () => {
 
     postWithContext.value = result;
     
+    // Load reactions for all posts in the thread
+    const allPostIds = [
+      ...result.ancestors.map(p => p.id),
+      result.mainPost.id,
+      ...result.descendants.map(p => p.id)
+    ].filter(Boolean);
+    
+    if (allPostIds.length > 0) {
+      debug.log(`[PostView] Loading reactions for ${allPostIds.length} posts`);
+      postReactionsStore.fetchMultiplePostReactions(allPostIds);
+    }
+    
     // Scroll to highlighted post after content loads
     if (props.highlightReply) {
       await nextTick();
@@ -316,7 +205,7 @@ const loadPostWithContext = async () => {
     
     // Auto-fetch remote reactions and replies for posts with an ap_id
     if (result.mainPost?.ap_id) {
-      console.log(`[PostView] Post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
+      debug.log(`[PostView] Post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
       fetchRemoteDataInBackground(result.mainPost);
     }
     
@@ -334,11 +223,11 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
   const postType = targetPost.is_local ? 'local' : 'remote';
   const federationApiUrl = activityPub.federationApiUrl;
   
-  console.log(`[PostView] Fetching remote data for ${postType} post:`, targetPost.ap_id);
+  debug.log(`[PostView] Fetching remote data for ${postType} post:`, targetPost.ap_id);
   
   // Fetch reactions
   try {
-    console.log(`[PostView] POST ${federationApiUrl}/fetch-reactions`);
+    debug.log(`[PostView] POST ${federationApiUrl}/fetch-reactions`);
     
     const reactionsResponse = await fetch(`${federationApiUrl}/fetch-reactions`, {
       method: 'POST',
@@ -349,11 +238,11 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
       }),
     });
     
-    console.log(`[PostView] Reactions response: ${reactionsResponse.status}`);
+    debug.log(`[PostView] Reactions response: ${reactionsResponse.status}`);
     
     if (reactionsResponse.ok) {
       const result = await reactionsResponse.json();
-      console.log(`[PostView] Fetched reactions:`, result);
+      debug.log(`[PostView] Fetched reactions:`, result);
       
       // Update post metadata directly for immediate reactivity
       if (result.remote_reactions && postWithContext.value?.mainPost) {
@@ -369,13 +258,13 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
       }
     }
   } catch (err) {
-    console.warn('[PostView] Failed to fetch reactions:', err);
+    debug.warn('[PostView] Failed to fetch reactions:', err);
   }
   
   // Fetch replies (only for remote posts)
   if (!targetPost.is_local) {
     try {
-      console.log(`[PostView] POST ${federationApiUrl}/fetch-replies`);
+      debug.log(`[PostView] POST ${federationApiUrl}/fetch-replies`);
       
       const repliesResponse = await fetch(`${federationApiUrl}/fetch-replies`, {
         method: 'POST',
@@ -387,11 +276,11 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
         }),
       });
       
-      console.log(`[PostView] Replies response: ${repliesResponse.status}`);
+      debug.log(`[PostView] Replies response: ${repliesResponse.status}`);
       
       if (repliesResponse.ok) {
         const result = await repliesResponse.json();
-        console.log(`[PostView] Fetched ${result.count || 0} replies`);
+        debug.log(`[PostView] Fetched ${result.count || 0} replies`);
         
         // Reload to include newly fetched replies
         if (result.count > 0) {
@@ -406,28 +295,9 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
         }
       }
     } catch (err) {
-      console.warn('[PostView] Failed to fetch replies:', err);
+      debug.warn('[PostView] Failed to fetch replies:', err);
     }
   }
-};
-
-const switchContext = async (newContext: PostContextType) => {
-  // Update URL without full navigation
-  const query = { ...route.query };
-  if (newContext === 'minimal') {
-    delete query.context;
-  } else {
-    query.context = newContext;
-  }
-  
-  await router.replace({ 
-    name: route.name!, 
-    params: route.params,
-    query 
-  });
-  
-  // Reload with new context
-  await loadPostWithContext();
 };
 
 const handleReply = (post: TimelinePost) => {
@@ -436,15 +306,36 @@ const handleReply = (post: TimelinePost) => {
   showReplyComposer.value = true;
 };
 
-const handleReplyCreated = async () => {
+const handleReplyCreated = async (newReply?: TimelinePost) => {
   showReplyComposer.value = false;
   replyToPost.value = null;
   replyingToPostId.value = null;
   
-  // Reload to show the new reply
-  await loadPostWithContext();
+  // Optimistically add the new reply immediately (so user sees it right away)
+  if (newReply && postWithContext.value) {
+    // Add to descendants array
+    postWithContext.value = {
+      ...postWithContext.value,
+      descendants: [...postWithContext.value.descendants, newReply]
+    };
+    
+    // Update reply count on main post
+    if (postWithContext.value.mainPost) {
+      postWithContext.value.mainPost.replies_count = 
+        (postWithContext.value.mainPost.replies_count || 0) + 1;
+    }
+    
+    debug.log('✅ Reply added optimistically:', newReply.id);
+  }
   
   toast.success('Reply posted!');
+  
+  // Reload in background to ensure consistency (catches any missed data)
+  setTimeout(() => {
+    loadPostWithContext().catch(err => {
+      debug.warn('Background refresh failed:', err);
+    });
+  }, 1000);
 };
 
 const handleDelete = async (postId: string) => {
@@ -714,19 +605,18 @@ onMounted(loadPostWithContext);
 .post-container {
   display: flex;
   flex-direction: column;
-  align-content: center;
-}
-
-.thread-replies {
-  display: flex;
-  flex-direction: column;
   gap: 1rem;
-  margin-top: 18px;
+  padding: 1rem;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.highlighted-post .mony-post {
-  box-shadow: 0 0 16px 5px rgba(88, 101, 242, 0.25);
-  border: 1px solid var(--harmony-primary, #5865f2);
+.thread-post {
+  position: relative;
+}
+
+.highlighted-post :deep(.mony-post) {
+  box-shadow: 0 0 0 2px var(--harmony-primary, #5865f2);
   border-radius: 12px;
 }
 
@@ -794,147 +684,19 @@ onMounted(loadPostWithContext);
   background: var(--color-bg-hover);
 }
 
-.post-container {
-  width: 600px;
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 1rem;
-}
 
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 1.5rem 0.5rem;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.ancestors-section,
-.descendants-section {
-  position: relative;
-}
-
-/* Inline mode: seamless flow without header (Twitter-style for ≤5 replies) */
-.descendants-section.inline-replies .section-header {
-  display: none;
-}
-
-.ancestors-thread,
-.simple-replies,
-.threaded-replies {
-  position: relative;
-}
-
-.ancestor-post,
-.reply-post,
-.main-post {
-  position: relative;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.main-post {
-  background: var(--color-bg-primary);
-}
-
-.main-post.has-ancestors::before,
-.main-post.has-descendants::after {
-  content: '';
-  position: absolute;
-  left: 3.5rem;
-  width: 2px;
-  background: var(--color-border);
-}
-
-.main-post.has-ancestors::before {
-  top: -1rem;
-  height: 1rem;
-}
-
-.main-post.has-descendants::after {
-  bottom: -1rem;
-  height: 1rem;
-}
-
-.highlighted-post {
-  background: var(--color-highlight-bg);
-  border-left: 4px solid var(--color-primary);
-}
 
 .scroll-highlighted {
   background: var(--color-primary-bg);
   transition: background-color 0.3s ease;
 }
 
-.thread-connector {
-  position: absolute;
-  left: 3.5rem;
-  width: 2px;
-  background: var(--color-border);
-  z-index: 1;
-}
-
-.thread-connector.main-connector {
-  top: 100%;
-  height: 1rem;
-}
-
-.thread-connector.descendants-connector {
-  top: 0;
-  height: 1rem;
-}
 
 .reply-composer {
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
 }
 
-.show-more-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 1rem;
-  border: none;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  color: var(--color-primary);
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.show-more-btn:hover {
-  background: var(--color-bg-hover);
-}
-
-.empty-replies {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-.empty-replies p {
-  margin: 1rem 0 1.5rem 0;
-}
-
-.reply-cta-btn {
-  padding: 0.75rem 1.5rem;
-  border: 1px solid var(--color-primary);
-  border-radius: 0.5rem;
-  background: var(--color-primary);
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.reply-cta-btn:hover {
-  background: var(--color-primary-hover);
-}
 
 /* Mobile responsive */
 @media (max-width: 768px) {
@@ -947,18 +709,8 @@ onMounted(loadPostWithContext);
     font-size: 1.125rem;
   }
   
-  .context-switcher {
-    display: none; /* Hide on mobile to save space */
-  }
-  
-  .section-header {
-    padding: 1rem 1rem 0.5rem;
-  }
-  
-  .main-post.has-ancestors::before,
-  .main-post.has-descendants::after,
-  .thread-connector {
-    left: 2.5rem;
+  .post-container {
+    padding: 0.5rem;
   }
 }
 </style>

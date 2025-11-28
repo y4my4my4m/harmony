@@ -17,6 +17,7 @@
 import { supabase } from '@/supabase'
 import type { Post, TimelinePost, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
+import { authContextService } from '@/services/AuthContextService'
 
 export interface CreatePostData {
   content: MessagePart[]
@@ -60,10 +61,15 @@ export class CorePostService {
    */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      debug.log('🚀 Core: createPost starting...')
+      
+      // OPTIMIZED: Use AuthContextService for auth check (cached)
+      const authUser = await authContextService.getCurrentAuthUser()
+      if (!authUser) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      debug.log('✅ Core: Auth user verified')
 
       const profileId = await this.getCurrentUserProfileId()
+      debug.log('✅ Core: Profile ID retrieved:', profileId)
 
       // Enterprise-grade content validation
       if (!Array.isArray(data.content)) {
@@ -81,6 +87,8 @@ export class CorePostService {
         }
       }
 
+      debug.log('✅ Core: Content validation passed')
+
       const postData = {
         author_id: profileId,
         content: data.content, // Direct JSONB insertion - Supabase handles serialization
@@ -95,33 +103,113 @@ export class CorePostService {
         metadata: { created_via: 'harmony_client', content_format: 'message_parts_v1' }
       }
 
-      const { data: post, error } = await supabase
-        .from('posts')
-        .insert(postData)
-        .select(`
-          *,
-          author:profiles!posts_author_id_fkey(*)
-        `)
-        .single()
+      debug.log('🔄 Core: Inserting post into database...')
+      
+      // Execute with retry on connection failure
+      const { data: post, error } = await this.executeWithRetry(
+        () => supabase
+          .from('posts')
+          .insert(postData)
+          .select(`
+            *,
+            author:profiles!posts_author_id_fkey(*)
+          `)
+          .single(),
+        'Post creation'
+      )
 
-      if (error) throw this.createError('INSERT_FAILED', error.message, error)
+      if (error) {
+        debug.error('❌ Core: Insert failed:', error)
+        throw this.createError('INSERT_FAILED', error.message, error)
+      }
 
-      debug.log('✅ Core: Post created successfully (local only)')
+      debug.log('✅ Core: Post created successfully (local only), id:', post?.id)
       return this.formatTimelinePost(post)
-    } catch (error) {
+    } catch (error: any) {
       debug.error('❌ Core: Failed to create post:', error)
       throw error
     }
   }
 
   /**
+   * Attempt to refresh connection for retry scenarios
+   * Only called on actual failures, not preemptively
+   * Uses a tight timeout to avoid blocking on network issues
+   */
+  private async ensureFreshConnection(): Promise<void> {
+    debug.log('🔄 Core: Refreshing connection for retry...')
+    
+    // Clear auth context cache
+    authContextService.clearCache()
+    
+    // Attempt a quick session refresh with tight timeout (2 seconds)
+    // This helps if the token is stale, but won't block if network is slow
+    try {
+      const refreshPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise<null>((resolve) => 
+        setTimeout(() => resolve(null), 2000)
+      )
+      
+      const result = await Promise.race([refreshPromise, timeoutPromise])
+      
+      if (result && 'data' in result && result.data.session) {
+        debug.log('✅ Core: Session verified for retry')
+      } else {
+        debug.log('⚠️ Core: Session check timed out or empty, continuing anyway')
+      }
+    } catch (error) {
+      debug.warn('⚠️ Core: Session refresh failed, continuing with existing session')
+    }
+  }
+
+  /**
+   * Execute a database operation with timeout and automatic retry on failure
+   */
+  private async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    operationName: string,
+    maxRetries: number = 2,
+    timeoutMs: number = 10000
+  ): Promise<T> {
+    let lastError: any
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        debug.log(`🔄 Core: ${operationName} attempt ${attempt}/${maxRetries}...`)
+        
+        // Race between operation and timeout
+        const result = await Promise.race([
+          operation(),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
+          )
+        ])
+        
+        return result
+      } catch (error: any) {
+        lastError = error
+        debug.warn(`⚠️ Core: ${operationName} attempt ${attempt} failed:`, error.message || error)
+        
+        if (attempt < maxRetries) {
+          // Refresh connection before retry
+          debug.log('🔄 Core: Refreshing connection before retry...')
+          await this.ensureFreshConnection()
+          // Small delay before retry
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+      }
+    }
+    
+    debug.error(`❌ Core: ${operationName} failed after ${maxRetries} attempts`)
+    throw lastError
+  }
+
+  /**
    * Update a post (pure local update)
+   * Uses AuthContextService for efficient auth lookup
    */
   async updatePost(postId: string, updates: UpdatePostData): Promise<TimelinePost> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       // Verify ownership
@@ -161,12 +249,10 @@ export class CorePostService {
 
   /**
    * Delete a post (soft delete, pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async deletePost(postId: string): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       // Verify ownership
@@ -203,12 +289,10 @@ export class CorePostService {
 
   /**
    * Toggle like on a post (pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async toggleLike(postId: string): Promise<{ liked: boolean; newCount: number }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling like: post=${postId}, user=${profileId}`)
@@ -270,12 +354,10 @@ export class CorePostService {
 
   /**
    * Toggle share/reblog on a post (pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async toggleShare(postId: string): Promise<{ shared: boolean; newCount: number }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling share: post=${postId}, user=${profileId}`)
@@ -337,12 +419,10 @@ export class CorePostService {
 
   /**
    * Toggle bookmark on a post (pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling bookmark: post=${postId}, user=${profileId}`)
@@ -399,14 +479,15 @@ export class CorePostService {
   /**
    * Toggle emoji reaction on a post (pure local)
    */
+  /**
+   * Toggle reaction on a post
+   * Uses AuthContextService for efficient auth lookup
+   */
   async toggleReaction(
     postId: string, 
     emojiId: string
   ): Promise<{ added: boolean; hadRaceCondition?: boolean }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling post reaction: post=${postId}, emoji=${emojiId}, user=${profileId}`)
@@ -670,18 +751,17 @@ export class CorePostService {
 
   private async getCurrentUserProfileId(): Promise<string> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-
-      return profile.id
+      debug.log('🔍 Core: Getting current user profile ID...')
+      
+      // OPTIMIZED: Use cached profile ID from AuthContextService
+      const profileId = await authContextService.getCurrentProfileId()
+      
+      if (!profileId) {
+        throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
+      }
+      
+      debug.log('✅ Core: Got profile ID:', profileId)
+      return profileId
     } catch (error) {
       debug.error('❌ Core: Failed to get current user profile ID:', error)
       throw error

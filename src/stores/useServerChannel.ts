@@ -6,6 +6,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { statePersistence } from '@/services/StatePersistence';
 import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import router from '@/router';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
@@ -23,6 +24,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
     serverStructureSubscription: null as RealtimeChannel | null,
     userServersSubscription: null as RealtimeChannel | null,
     currentUserId: null as string | null,
+    // Request deduplication - prevents concurrent duplicate fetches
+    _pendingFetches: {} as Record<string, Promise<void>>,
+    // Tracks which server's categories/channels are currently loaded in memory
+    // Since categories/channels are shared state, only ONE server's data exists at a time
+    _loadedCategoriesServerId: null as string | null,
   }),
 
   getters: {
@@ -181,29 +187,53 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
-    async fetchServersForUser(userId: string) {
-      try {
-        debug.log('🔄 Fetching servers for user via service-like helper:', userId)
-        
-        // Use service-like helper for user server fetching
-        const servers = await this._fetchServersForUserHelper(userId)
-        
-        if (servers) {
-          this.servers = servers
-          debug.log(`✅ Servers fetched successfully via service-like helper: ${servers.length} servers`)
-        }
-      } catch (error) {
-        debug.error('❌ Failed to fetch servers for user via service-like helper:', error)
-        
-        // Fallback to direct fetching if helper fails
-        try {
-          debug.log('🔄 Falling back to direct user server fetching')
-          await this._fetchServersForUserFallback(userId)
-        } catch (fallbackError) {
-          debug.error('❌ Fallback user server fetching also failed:', fallbackError)
-          throw fallbackError
-        }
+    /**
+     * OPTIMIZED: Skip fetching if servers already loaded (unless forced)
+     */
+    async fetchServersForUser(userId: string, force = false) {
+      const fetchKey = `servers-${userId}`;
+      
+      // Skip if servers are already loaded and not forcing refresh
+      if (this.servers.length > 0 && !force) {
+        debug.log(`📋 User servers already loaded (${this.servers.length}), skipping fetch`);
+        return;
       }
+      
+      // Deduplicate concurrent requests
+      if (this._pendingFetches[fetchKey]) {
+        debug.log('🔄 Deduplicating user servers fetch');
+        return this._pendingFetches[fetchKey];
+      }
+
+      const fetchPromise = (async () => {
+        try {
+          debug.log('🔄 Fetching servers for user via service-like helper:', userId)
+          
+          // Use service-like helper for user server fetching
+          const servers = await this._fetchServersForUserHelper(userId)
+          
+          if (servers) {
+            this.servers = servers
+            debug.log(`✅ Servers fetched successfully via service-like helper: ${servers.length} servers`)
+          }
+        } catch (error) {
+          debug.error('❌ Failed to fetch servers for user via service-like helper:', error)
+          
+          // Fallback to direct fetching if helper fails
+          try {
+            debug.log('🔄 Falling back to direct user server fetching')
+            await this._fetchServersForUserFallback(userId)
+          } catch (fallbackError) {
+            debug.error('❌ Fallback user server fetching also failed:', fallbackError)
+            throw fallbackError
+          }
+        } finally {
+          delete this._pendingFetches[fetchKey];
+        }
+      })();
+      
+      this._pendingFetches[fetchKey] = fetchPromise;
+      return fetchPromise;
     },
 
     /**
@@ -308,38 +338,66 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.servers = data || [];
     },
 
-    async fetchCategoriesAndChannels(serverId: string, signal?: AbortSignal) {
-      try {
-        debug.log('🔄 Fetching categories and channels via service-like helper:', serverId);
-        
-        // Use service-like helper with full abort support
-        await this._fetchCategoriesAndChannelsHelper(serverId, signal);
-        
-        debug.log(`✅ Fetched ${this.categories?.length || 0} categories and ${this.channels?.length || 0} channels via service-like helper`);
-      } catch (error) {
-        if (signal?.aborted) {
-          debug.log('🛑 Categories and channels fetch aborted');
-          return;
-        }
-        
-        debug.error('❌ Failed to fetch categories and channels via service-like helper:', error);
-        
-        // Fallback to direct query if helper fails
+    async fetchCategoriesAndChannels(serverId: string, signal?: AbortSignal, forceRefresh = false) {
+      const fetchKey = `categories-channels-${serverId}`;
+      
+      // Skip if we already have THIS server's data loaded and not forcing refresh
+      // NOTE: We check _loadedCategoriesServerId to know which server's data is in memory
+      // The shared state (categories, channels) only holds ONE server's data at a time
+      if (!forceRefresh && this._loadedCategoriesServerId === serverId && this.categories.length > 0) {
+        debug.log('📦 Categories and channels already loaded for server:', serverId);
+        return;
+      }
+      
+      // Deduplicate concurrent requests - return existing promise if in flight
+      if (this._pendingFetches[fetchKey]) {
+        debug.log('🔄 Deduplicating categories/channels fetch for:', serverId);
+        return this._pendingFetches[fetchKey];
+      }
+      
+      const fetchPromise = (async () => {
         try {
-          debug.log('🔄 Falling back to direct categories and channels fetch');
-          await this._fetchCategoriesAndChannelsFallback(serverId, signal);
-        } catch (fallbackError) {
+          debug.log('🔄 Fetching categories and channels via service-like helper:', serverId);
+          
+          // Use service-like helper with full abort support
+          await this._fetchCategoriesAndChannelsHelper(serverId, signal);
+          
+          // Track which server's data is currently in memory
+          this._loadedCategoriesServerId = serverId;
+          
+          debug.log(`✅ Fetched ${this.categories?.length || 0} categories and ${this.channels?.length || 0} channels via service-like helper`);
+        } catch (error) {
           if (signal?.aborted) {
-            debug.log('🛑 Categories and channels fallback fetch aborted');
+            debug.log('🛑 Categories and channels fetch aborted');
             return;
           }
-          debug.error('❌ Fallback categories and channels fetch also failed:', fallbackError);
-          // Ensure state is clean on total failure
-          this.categories = [];
-          this.channels = [];
-          this.categoryChannels = {};
+          
+          debug.error('❌ Failed to fetch categories and channels via service-like helper:', error);
+          
+          // Fallback to direct query if helper fails
+          try {
+            debug.log('🔄 Falling back to direct categories and channels fetch');
+            await this._fetchCategoriesAndChannelsFallback(serverId, signal);
+            this._loadedCategoriesServerId = serverId;
+          } catch (fallbackError) {
+            if (signal?.aborted) {
+              debug.log('🛑 Categories and channels fallback fetch aborted');
+              return;
+            }
+            debug.error('❌ Fallback categories and channels fetch also failed:', fallbackError);
+            // Ensure state is clean on total failure
+            this.categories = [];
+            this.channels = [];
+            this.categoryChannels = {};
+            this._loadedCategoriesServerId = null;
+          }
+        } finally {
+          delete this._pendingFetches[fetchKey];
         }
-      }
+      })();
+      
+      this._pendingFetches[fetchKey] = fetchPromise;
+      return fetchPromise;
     },
 
     /**
@@ -1374,13 +1432,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
         );
       });
 
-      // If this was the current channel, switch to another channel
+      // If this was the current channel, navigate to another channel
+      // IMPORTANT: Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === channelId) {
         const defaultChannel = this.getDefaultChannel();
-        if (defaultChannel) {
+        if (defaultChannel && this.currentServerId) {
           this.setCurrentChannel(defaultChannel);
+          // Navigate via router to trigger ChatView's route-based loading
+          router.push(`/chat/${this.currentServerId}/${defaultChannel}`).catch(debug.error);
+          debug.log('🔄 Navigated to default channel after deletion:', defaultChannel);
         } else {
           this.currentChannelId = null;
+          // Navigate to server root if no channels available
+          if (this.currentServerId) {
+            router.push(`/chat/${this.currentServerId}`).catch(debug.error);
+          }
         }
       }
     },
@@ -1834,13 +1900,19 @@ export const useServerChannelStore = defineStore('serverChannel', {
         );
       }
       
-      // If this was the current channel, switch to another
+      // If this was the current channel, navigate to another
+      // IMPORTANT: Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === deletedChannel.id) {
         const defaultChannel = this.getDefaultChannel();
-        if (defaultChannel) {
+        if (defaultChannel && this.currentServerId) {
           this.setCurrentChannel(defaultChannel);
+          router.push(`/chat/${this.currentServerId}/${defaultChannel}`).catch(debug.error);
+          debug.log('🔄 Navigated to default channel after real-time deletion:', defaultChannel);
         } else {
           this.currentChannelId = null;
+          if (this.currentServerId) {
+            router.push(`/chat/${this.currentServerId}`).catch(debug.error);
+          }
         }
       }
     },

@@ -363,7 +363,11 @@ async function handleNewReaction(interaction: any): Promise<void> {
       .single();
 
     if (!post || !post.ap_id) {
-      logger.debug('Reaction on non-federated post, skipping');
+      // Note: For local posts, ap_id is set by a trigger AFTER the INSERT.
+      // This realtime listener fires before the trigger runs, so ap_id is null.
+      // The reaction federation is handled by the frontend's FederationActivityService
+      // which inserts into ap_activities, triggering separate federation.
+      logger.debug('Reaction on post without ap_id (likely handled via ap_activities table), skipping realtime handler');
       return;
     }
 
@@ -692,7 +696,8 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
 
     // Only federate if the post has an ap_id (is federated)
     if (!post.ap_id) {
-      logger.debug('Interaction on non-federated post, skipping');
+      // Same as handleNewReaction - ap_id might not be set yet for local posts
+      logger.debug('Interaction removal on post without ap_id, skipping realtime handler');
       return;
     }
 

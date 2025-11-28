@@ -641,9 +641,12 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         following: user.value.following_count,
         followers: user.value.followers_count
       });
-      await loadUserPosts();
-      await loadFollowing();
-      await loadFollowers();
+      // OPTIMIZED: Load posts, following, and followers in parallel
+      await Promise.all([
+        loadUserPosts(),
+        loadFollowing(),
+        loadFollowers()
+      ]);
     } else {
       debug.log('❌ User not found');
       error.value = 'User not found';
@@ -1003,40 +1006,38 @@ const currentHandle = computed(() => {
   return props.profileHandle || (route.params.handle as string);
 });
 
-// Watch for handle changes (from both props and route)
-watch(currentHandle, (newHandle, oldHandle) => {
+// OPTIMIZATION: Track current loading handle to prevent duplicate loads
+let currentLoadingHandle: string | null = null;
+
+// Single consolidated watcher for handle changes
+// FIXED: Removed redundant watchers that caused 3x profile loads
+watch(currentHandle, async (newHandle, oldHandle) => {
+  // Skip if handle hasn't actually changed or is already loading
+  if (!newHandle || typeof newHandle !== 'string') return;
+  if (newHandle === currentLoadingHandle) {
+    debug.log(`⏭️ Skipping duplicate load for handle: ${newHandle}`);
+    return;
+  }
+  
   debug.log(`👤 Profile handle changed from ${oldHandle} to ${newHandle}`);
-  debug.log(`📍 Current route:`, route.path);
-  debug.log(`🏷️ Props handle:`, props.profileHandle);
-  debug.log(`🔗 Route handle:`, route.params.handle);
+  currentLoadingHandle = newHandle;
   
-  if (newHandle && typeof newHandle === 'string') {
-    loadUserProfile(newHandle);
+  try {
+    await loadUserProfile(newHandle);
+  } finally {
+    // Clear loading handle after load completes
+    if (currentLoadingHandle === newHandle) {
+      currentLoadingHandle = null;
+    }
   }
 }, { immediate: true });
 
-// Watch route changes specifically (for direct URL access)
-watch(() => route.params.handle, (newHandle) => {
-  debug.log(`🔗 Route handle changed to: ${newHandle}`);
-  debug.log(`📍 Full route path:`, route.path);
-  debug.log(`🎯 Route name:`, route.name);
-  
-  if (newHandle && typeof newHandle === 'string' && !props.profileHandle) {
-    loadUserProfile(newHandle);
-  }
-}, { immediate: true });
-
-// Ensure profile loads on mount
+// Initialize store on mount (profile loading handled by watcher above)
 onMounted(async () => {
-  const handle = currentHandle.value;
-  debug.log(`🔄 UserProfileView mounted with handle: ${handle}`);
+  debug.log(`🔄 UserProfileView mounted with handle: ${currentHandle.value}`);
   
   // Initialize ActivityPub store to load followed users
   await activityPubStore.initialize();
-  
-  if (handle && typeof handle === 'string') {
-    loadUserProfile(handle);
-  }
 });
 
 // Close actions menu when clicking outside

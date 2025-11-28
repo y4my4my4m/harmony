@@ -649,7 +649,8 @@ const closeUserProfile = () => {
 }
 
 const handleUserCardClick = (user: FederatedUser) => {
-  handleShowUserProfile(user)
+  // Only open modal, don't navigate - user can navigate from modal if they want
+  selectedUser.value = user
 }
 
 // Navigate to hashtag view

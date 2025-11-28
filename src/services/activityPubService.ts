@@ -23,10 +23,26 @@ import { debug } from '@/utils/debug'
  * Core ActivityPub service for database operations
  * Handles posts, follows, and interactions - federation is automatic via triggers
  */
+// Cache entry interface for profile caching
+interface ProfileCacheEntry {
+  profile: FederatedUser;
+  timestamp: number;
+}
+
+// In-flight request tracking to prevent duplicate concurrent requests
+interface InFlightRequest {
+  promise: Promise<FederatedUser | null>;
+}
+
 export class ActivityPubService {
   private static instance: ActivityPubService;
   private currentDomain: string;
   private instanceUrl: string;
+  
+  // OPTIMIZATION: Profile cache with TTL to prevent repeated lookups
+  private profileCache: Map<string, ProfileCacheEntry> = new Map();
+  private inFlightRequests: Map<string, InFlightRequest> = new Map();
+  private readonly PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
     this.currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
@@ -39,145 +55,50 @@ export class ActivityPubService {
     }
     return ActivityPubService.instance;
   }
+  
+  /**
+   * Get cached profile or null if not cached/expired
+   */
+  private getCachedProfile(cacheKey: string): FederatedUser | null {
+    const entry = this.profileCache.get(cacheKey);
+    if (!entry) return null;
+    
+    const now = Date.now();
+    if (now - entry.timestamp > this.PROFILE_CACHE_TTL) {
+      this.profileCache.delete(cacheKey);
+      return null;
+    }
+    
+    return entry.profile;
+  }
+  
+  /**
+   * Cache a profile
+   */
+  private cacheProfile(cacheKey: string, profile: FederatedUser): void {
+    this.profileCache.set(cacheKey, {
+      profile,
+      timestamp: Date.now()
+    });
+  }
+  
+  /**
+   * Clear profile cache (useful for force refresh)
+   */
+  clearProfileCache(cacheKey?: string): void {
+    if (cacheKey) {
+      this.profileCache.delete(cacheKey);
+    } else {
+      this.profileCache.clear();
+    }
+  }
 
   // =============================================
   // POST MANAGEMENT
   // =============================================
 
-  /**
-   * Create a new post (Mony)
-   */
-  async createPost(postData: {
-    content: any[];
-    visibility: Post['visibility'];
-    content_warning?: string;
-    in_reply_to?: string;
-    media_attachments?: any[];
-    is_sensitive?: boolean;
-    language?: string;
-  }): Promise<Post> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-
-    // Get the user's profile ID (cached from userDataService)
-    const profileId = await this.getCurrentUserProfileId();
-
-    // Validate and normalize content format
-    let normalizedContent = postData.content;
-    if (!Array.isArray(normalizedContent)) {
-      debug.warn('⚠️ Content is not an array, normalizing:', typeof normalizedContent);
-      normalizedContent = [{ type: 'text', text: String(normalizedContent || '') }];
-    }
-
-    // Build reply_context if this is a reply
-    let replyContext = null;
-    let conversationId = null;
-    if (postData.in_reply_to) {
-      const { data: parentPost, error: parentError } = await supabase
-        .from('posts')
-        .select(`
-          *,
-          author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, domain
-          )
-        `)
-        .eq('id', postData.in_reply_to)
-        .single();
-
-      if (!parentError && parentPost) {
-        // Build content preview from parent post content
-        let contentPreview = '';
-        if (Array.isArray(parentPost.content)) {
-          contentPreview = parentPost.content
-            .filter((part: any) => part.type === 'text')
-            .map((part: any) => part.text || '')
-            .join(' ')
-            .slice(0, 200);
-        } else if (typeof parentPost.content === 'string') {
-          contentPreview = parentPost.content.slice(0, 200);
-        }
-
-        replyContext = {
-          id: parentPost.id,
-          content_preview: contentPreview,
-          content: parentPost.content,
-          author: {
-            id: parentPost.author.id,
-            username: parentPost.author.username,
-            display_name: parentPost.author.display_name || parentPost.author.username,
-            avatar_url: parentPost.author.avatar_url || '/default_avatar.png',
-            domain: parentPost.author.domain || 'har.mony.lol'
-          },
-          created_at: parentPost.created_at,
-          visibility: parentPost.visibility
-        };
-
-        // Use parent's conversation_id or create from parent post id
-        conversationId = parentPost.conversation_id || parentPost.id;
-      }
-    }
-
-    const post = {
-      author_id: profileId,
-      content: normalizedContent,
-      visibility: postData.visibility,
-      content_warning: postData.content_warning,
-      in_reply_to: postData.in_reply_to,
-      reply_context: replyContext,
-      conversation_id: conversationId,
-      media_attachments: postData.media_attachments || [],
-      is_sensitive: postData.is_sensitive || false,
-      language: postData.language || 'en',
-      ap_type: 'Note',
-      is_local: true,
-      is_federated: true,
-      metadata: {}
-    };
-
-    // Insert the post first
-    const { data: insertedPost, error: insertError } = await supabase
-      .from('posts')
-      .insert(post)
-      .select('*')
-      .single();
-
-    if (insertError) throw insertError;
-
-    // Generate ActivityPub ID for local posts
-    if (insertedPost.is_local) {
-      const ap_id = `https://${this.currentDomain}/posts/${insertedPost.id}`;
-      const url = ap_id;
-
-      const { error: updateError } = await supabase
-        .from('posts')
-        .update({ ap_id, url })
-        .eq('id', insertedPost.id);
-
-      if (updateError) throw updateError;
-
-      insertedPost.ap_id = ap_id;
-      insertedPost.url = url;
-    }
-
-    // Now fetch the complete post with author information
-    const { data: completePost, error: fetchError } = await supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
-      .eq('id', insertedPost.id)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    // Federation is now handled automatically by the post trigger
-    // No need for client-side federation calls
-
-    return completePost as Post;
-  }
+  // NOTE: createPost is now handled by CorePostService/PostService
+  // This dead code was removed - use services.posts.createPost() instead
 
   /**
    * Get timeline posts
@@ -186,8 +107,8 @@ export class ActivityPubService {
     timelineType: 'home' | 'public' | 'local' = 'home',
     options: TimelineOptions = {}
   ): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    // OPTIMIZED: Use cached auth user ID
+    const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
     
@@ -201,7 +122,7 @@ export class ActivityPubService {
           )
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('timeline_type', timelineType)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -220,8 +141,8 @@ export class ActivityPubService {
    * Get public timeline - clean and professional
    */
   async getPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    // OPTIMIZED: Use cached auth user ID
+    const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
     const max_id = options.max_id || null;
@@ -236,7 +157,7 @@ export class ActivityPubService {
         ),
         my_interactions:post_interactions!left(interaction_type, emoji_id)
       `)
-      .eq('my_interactions.user_id', user.id)
+      .eq('my_interactions.user_id', userId)
       .in('visibility', ['public', 'unlisted'])
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
@@ -272,8 +193,8 @@ export class ActivityPubService {
    * Get public timeline with enhanced federation support and user interaction states
    */
   async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    // OPTIMIZED: Use cached auth user ID
+    const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
     
@@ -288,7 +209,7 @@ export class ActivityPubService {
           ),
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
-        .eq('my_interactions.user_id', user.id)
+        .eq('my_interactions.user_id', userId)
         .in('visibility', ['public', 'unlisted'])
         .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
@@ -1501,20 +1422,37 @@ export class ActivityPubService {
    * Search for federated users
    */
   async searchUsers(query: string, limit: number = 10): Promise<FederatedUser[]> {
-    const { data, error } = await supabase
-      .rpc('search_federated_users', {
-        p_query: query,
-        p_limit: limit
+    debug.log('[DEBUG] activityPubService.searchUsers: Starting RPC call', { query, limit });
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('search_federated_users', {
+          p_query: query,
+          p_limit: limit
+        });
+
+      debug.log('[DEBUG] activityPubService.searchUsers: RPC returned', { 
+        hasData: !!data, 
+        dataLength: data?.length, 
+        hasError: !!error 
       });
 
-    if (error) throw error;
+      if (error) {
+        debug.error('[DEBUG] activityPubService.searchUsers: RPC error', error);
+        throw error;
+      }
 
-    return data as FederatedUser[];
+      return data as FederatedUser[];
+    } catch (err) {
+      debug.error('[DEBUG] activityPubService.searchUsers: Exception', err);
+      throw err;
+    }
   }
 
   /**
    * Get user profile by handle (@username@domain)
    * Will attempt to fetch from remote if not found locally
+   * OPTIMIZED: Uses in-memory cache with TTL and request deduplication
    */
   async getUserByHandle(handle: string, forceRefresh: boolean = false): Promise<FederatedUser | null> {
     // Parse handle (@username@domain or @username)
@@ -1523,8 +1461,53 @@ export class ActivityPubService {
       ? cleanHandle.split('@')
       : [cleanHandle, this.currentDomain];
 
+    const cacheKey = `${username}@${domain}`;
     const isRemote = domain !== this.currentDomain;
 
+    // OPTIMIZATION: Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cachedProfile = this.getCachedProfile(cacheKey);
+      if (cachedProfile) {
+        debug.log(`✅ Using cached profile for: ${cacheKey}`);
+        return cachedProfile;
+      }
+    } else {
+      // Clear cache entry on force refresh
+      this.clearProfileCache(cacheKey);
+    }
+    
+    // OPTIMIZATION: Deduplicate concurrent requests for same profile
+    const inFlight = this.inFlightRequests.get(cacheKey);
+    if (inFlight && !forceRefresh) {
+      debug.log(`⏳ Waiting for in-flight request: ${cacheKey}`);
+      return inFlight.promise;
+    }
+    
+    // Create the actual fetch promise
+    const fetchPromise = this._fetchUserByHandle(username, domain, isRemote, forceRefresh, cacheKey);
+    
+    // Track this request
+    this.inFlightRequests.set(cacheKey, { promise: fetchPromise });
+    
+    try {
+      const result = await fetchPromise;
+      return result;
+    } finally {
+      // Clean up in-flight tracking
+      this.inFlightRequests.delete(cacheKey);
+    }
+  }
+  
+  /**
+   * Internal method to actually fetch user by handle
+   */
+  private async _fetchUserByHandle(
+    username: string, 
+    domain: string, 
+    isRemote: boolean, 
+    forceRefresh: boolean,
+    cacheKey: string
+  ): Promise<FederatedUser | null> {
     // If force refresh on a remote user, skip local lookup
     if (!forceRefresh || !isRemote) {
       // Use maybeSingle() to avoid 406 error when user doesn't exist
@@ -1562,12 +1545,16 @@ export class ActivityPubService {
           }
         }
         
-        return {
+        const profile = {
           ...data,
           bio,
           display_name,
           handle: this.formatUserHandle(data.username, data.domain)
         } as FederatedUser;
+        
+        // Cache the profile
+        this.cacheProfile(cacheKey, profile);
+        return profile;
       }
     }
 
@@ -1579,7 +1566,9 @@ export class ActivityPubService {
       const remoteUser = await resolveRemoteMention(username, domain, forceRefresh);
       
       if (remoteUser) {
-        debug.log(`✅ Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: ${handle}`);
+        debug.log(`✅ Successfully ${forceRefresh ? 'refreshed' : 'fetched'} remote user: @${username}@${domain}`);
+        // Cache the remote profile
+        this.cacheProfile(cacheKey, remoteUser);
         return remoteUser;
       }
     }
@@ -1987,10 +1976,10 @@ export class ActivityPubService {
 
   /**
    * Get the user's profile ID from their auth user ID
-   * Uses cached data from userDataService for efficiency
+   * OPTIMIZED: Uses AuthContextService for centralized caching
    */
   private async getCurrentUserProfileId(): Promise<string> {
-    // First try to get from userDataService cache
+    // First try to get from userDataService cache (fastest)
     const { userDataService } = await import('@/services/userDataService');
     const currentUser = userDataService.getCurrentUser();
     
@@ -1998,21 +1987,27 @@ export class ActivityPubService {
       return currentUser.id;
     }
     
-    // Fallback to database query only if cache miss
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-    
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Use AuthContextService which caches auth + profile ID
+    const { authContextService } = await import('@/services/AuthContextService');
+    return await authContextService.getCurrentProfileId();
+  }
 
-    if (error || !profile) {
-      throw new Error('User profile not found');
-    }
+  /**
+   * Get the current auth user - uses cached AuthContextService
+   * OPTIMIZED: Avoids repeated supabase.auth.getUser() calls
+   */
+  private async getCurrentAuthUser() {
+    const { authContextService } = await import('@/services/AuthContextService');
+    return await authContextService.getCurrentAuthUser();
+  }
 
-    return profile.id;
+  /**
+   * Get the current auth user's ID (auth_user_id, not profile_id)
+   * OPTIMIZED: Uses cached AuthContextService
+   */
+  private async getCurrentAuthUserId(): Promise<string> {
+    const user = await this.getCurrentAuthUser();
+    return user.id;
   }
 
   /**

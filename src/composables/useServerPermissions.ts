@@ -1,8 +1,8 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
-import { supabase } from '@/supabase'
+import { authContextService } from '@/services/AuthContextService'
 import type { Server } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -39,6 +39,7 @@ export function useServerPermissions() {
   const fetchedProfileId = ref<string | null>(null)
   const isFetchingProfileId = ref(false)
 
+  // OPTIMIZED: Use AuthContextService for cached profile ID lookup
   watch(currentUserId, async (authId) => {
     if (!authId) {
       fetchedProfileId.value = null
@@ -48,15 +49,16 @@ export function useServerPermissions() {
     if (isFetchingProfileId.value) return
     isFetchingProfileId.value = true
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', authId)
-        .maybeSingle()
-      if (error) {
-        debug.warn('Failed to load profile id for auth user', error)
+      // Use AuthContextService which caches the auth -> profile ID mapping
+      const context = await authContextService.getCurrentContext()
+      if (context.isAuthenticated) {
+        fetchedProfileId.value = context.profileId
+      } else {
+        fetchedProfileId.value = null
       }
-      fetchedProfileId.value = data?.id || null
+    } catch (error) {
+      debug.warn('Failed to get profile id from AuthContextService', error)
+      fetchedProfileId.value = null
     } finally {
       isFetchingProfileId.value = false
     }

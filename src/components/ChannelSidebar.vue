@@ -764,14 +764,8 @@ watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
   }
 }, { immediate: true });
 
-onMounted(() => {
-  debug.log('🎬 ChannelSidebar mounted, current server:', props.currentServer?.id);
-  // If we have a server on mount, ensure voice channel state is loaded
-  if (props.currentServer?.id) {
-    debug.log('🔄 Fetching voice channel state on mount for server:', props.currentServer.id);
-    serverUsersStore.setupVoiceChannelBroadcast(props.currentServer.id);
-  }
-});
+// NOTE: Voice channel broadcast setup is handled by the watch above with { immediate: true }
+// No need for duplicate setup in onMounted - it was causing double initialization
 
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });

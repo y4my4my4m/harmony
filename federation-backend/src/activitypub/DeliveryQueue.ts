@@ -5,11 +5,12 @@ import { logger } from '../utils/logger.js';
 interface QueueItem {
   id: string;
   activity_data: any;
-  target_inbox: string;
-  sender_id: string;
+  target_inbox_url: string;  // Database uses target_inbox_url (not target_inbox)
+  sender_id: string | null;  // May be NULL for legacy items
+  actor_username: string | null;  // Fallback for resolving sender
   attempts: number;
   max_attempts: number;
-  next_retry_at: string;
+  next_attempt_at: string;  // Database column name (not next_retry_at)
 }
 
 export class DeliveryQueue {
@@ -49,14 +50,14 @@ export class DeliveryQueue {
 
     const { error } = await supabase.from('federation_delivery_queue').insert({
       activity_data: activityData,
-      target_inbox: targetInbox,
+      target_inbox_url: targetInbox,  // Database uses target_inbox_url
       target_domain: targetDomain,
       sender_id: senderId,
       priority,
       status: 'pending',
       attempts: 1, // Already tried once
       max_attempts: 5,
-      next_retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // Retry in 5 minutes
+      next_attempt_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // Retry in 5 minutes
       last_attempt_at: new Date().toISOString(),
     });
 
@@ -80,11 +81,12 @@ export class DeliveryQueue {
     const now = new Date().toISOString();
 
     // Fetch pending items ready for delivery
+    // NOTE: Database uses next_attempt_at, not next_retry_at
     const { data: items, error } = await supabase
       .from('federation_delivery_queue')
       .select('*')
       .eq('status', 'pending')
-      .lte('next_retry_at', now)
+      .lte('next_attempt_at', now)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: true })
       .limit(50);
@@ -162,19 +164,45 @@ export class DeliveryQueue {
     const supabase = getSupabaseClient();
 
     try {
+      // Resolve sender_id if missing (legacy items don't have it)
+      let senderId = item.sender_id;
+      if (!senderId && item.actor_username) {
+        logger.info(`🔍 Resolving sender_id from actor_username: ${item.actor_username}`);
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', item.actor_username)
+          .eq('is_local', true)
+          .single();
+        
+        if (profile) {
+          senderId = profile.id;
+          // Update the queue item with resolved sender_id for future retries
+          await supabase
+            .from('federation_delivery_queue')
+            .update({ sender_id: senderId })
+            .eq('id', item.id);
+          logger.info(`✅ Resolved sender_id: ${senderId}`);
+        }
+      }
+
+      if (!senderId) {
+        throw new Error(`Cannot resolve sender for delivery - no sender_id or actor_username`);
+      }
+
       // Sign the request
       const { headers, digest } = await SignatureService.signRequest(
-        item.target_inbox,
+        item.target_inbox_url,
         'POST',
         item.activity_data,
-        item.sender_id
+        senderId
       );
 
       // Add content-type
       headers['Content-Type'] = 'application/activity+json';
 
       // Send request
-      const response = await fetch(item.target_inbox, {
+      const response = await fetch(item.target_inbox_url, {
         method: 'POST',
         headers,
         body: JSON.stringify(item.activity_data),
@@ -190,19 +218,19 @@ export class DeliveryQueue {
           })
           .eq('id', item.id);
 
-        logger.info(`✅ Delivered to ${item.target_inbox} (${response.status})`);
+        logger.info(`✅ Delivered to ${item.target_inbox_url} (${response.status})`);
         return true;
       } else {
         // Failed but might retry
         await this.handleDeliveryFailure(item, `HTTP ${response.status}`);
-        logger.warn(`❌ Failed to deliver to ${item.target_inbox}: ${response.status}`);
+        logger.warn(`❌ Failed to deliver to ${item.target_inbox_url}: ${response.status}`);
         return false;
       }
     } catch (error) {
       // Network error or other exception
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.handleDeliveryFailure(item, errorMessage);
-      logger.error(`❌ Delivery error to ${item.target_inbox}:`, error);
+      logger.error(`❌ Delivery error to ${item.target_inbox_url}:`, error);
       return false;
     }
   }
@@ -229,7 +257,7 @@ export class DeliveryQueue {
         })
         .eq('id', item.id);
 
-      logger.warn(`Max attempts reached for delivery to ${item.target_inbox}`);
+      logger.warn(`Max attempts reached for delivery to ${item.target_inbox_url}`);
     } else {
       // Schedule retry with exponential backoff
       const backoffMinutes = Math.pow(2, newAttempts) * 5; // 5, 10, 20, 40, 80 minutes
@@ -241,12 +269,12 @@ export class DeliveryQueue {
         .update({
           attempts: newAttempts,
           last_attempt_at: new Date().toISOString(),
-          next_retry_at: nextRetry.toISOString(),
+          next_attempt_at: nextRetry.toISOString(),
           last_error: errorMessage,
         })
         .eq('id', item.id);
 
-      logger.info(`Scheduled retry for ${item.target_inbox} in ${backoffMinutes} minutes`);
+      logger.info(`Scheduled retry for ${item.target_inbox_url} in ${backoffMinutes} minutes`);
     }
   }
 

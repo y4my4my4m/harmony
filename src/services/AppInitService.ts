@@ -2,12 +2,13 @@
  * App Initialization Service
  * 
  * Handles initialization of all app-wide settings and features on startup
+ * OPTIMIZED: Uses profile store to avoid redundant database queries
  */
 
 import { useVisualTheme } from '@/composables/useVisualTheme'
 import { setLocale } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
-import { supabase } from '@/supabase'
+import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 
 /**
@@ -24,7 +25,7 @@ export async function initializeAppSettings() {
     // Load user-specific settings if logged in
     const authStore = useAuthStore()
     if (authStore.session?.user?.id) {
-      await loadUserSettings(authStore.session.user.id)
+      await loadUserSettings()
     }
     
     debug.log('✅ App settings initialized successfully')
@@ -34,32 +35,32 @@ export async function initializeAppSettings() {
 }
 
 /**
- * Load user-specific settings from Supabase
+ * Load user-specific settings from profile store
+ * OPTIMIZED: Uses cached profile data instead of separate queries
  */
-async function loadUserSettings(userId: string) {
+async function loadUserSettings() {
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('appearance_settings, locale')
-      .eq('id', userId)
-      .single()
+    const profileStore = useProfileStore()
+    const profile = profileStore.profile
     
-    if (error) throw error
+    if (!profile) {
+      debug.log('📋 No profile loaded yet, settings will load when profile is available')
+      return null
+    }
     
     // Apply locale if available
-    if (data?.locale) {
-      setLocale(data.locale)
+    if (profile.locale) {
+      setLocale(profile.locale)
     }
     
-    // Appearance settings are already loaded by useVisualTheme.initialize()
-    // but we can verify they were loaded
-    if (data?.appearance_settings) {
-      debug.log('📋 User appearance settings loaded from database')
+    // Appearance settings are handled by useVisualTheme.initialize()
+    if (profile.appearance_settings) {
+      debug.log('📋 User settings available from profile store')
     }
     
-    return data
+    return profile
   } catch (error) {
-    debug.error('Failed to load user settings:', error)
+    debug.error('Failed to load user settings from profile store:', error)
     return null
   }
 }

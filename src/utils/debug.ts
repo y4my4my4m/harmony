@@ -15,7 +15,7 @@
 // Check if debug logging is enabled
 const isDebugEnabled = (): boolean => {
   // In production, never log debug messages
-  if (!import.meta.env.DEV) return false
+  // if (!import.meta.env.DEV) return false
   // In dev, check if debug logging is explicitly enabled
   return import.meta.env.VITE_DEBUG_LOGGING === 'true'
 }

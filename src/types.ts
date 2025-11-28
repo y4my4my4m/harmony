@@ -765,19 +765,25 @@ export interface ActivityPubActivity {
 export interface DeliveryQueueItem {
   id: string;
   created_at: string;
-  activity_id: string;
+  updated_at: string;
+  activity_id?: string;
   activity_data: any;
   target_domain: string;
-  target_inbox: string;
-  status: 'pending' | 'delivering' | 'delivered' | 'failed';
+  target_inbox_url: string;  // Actual column name (not target_inbox)
+  status: 'pending' | 'processing' | 'delivered' | 'failed' | 'cancelled';
   attempts: number;
   max_attempts: number;
-  next_attempt_at?: string;
+  next_attempt_at: string;  // Actual column name (not next_retry_at)
   last_attempt_at?: string;
   delivered_at?: string;
-  last_error?: string;
-  http_status?: number;
-  metadata: Record<string, any>;
+  error_message?: string;
+  http_status_code?: number;
+  response_body?: string;
+  delivery_duration_ms?: number;
+  priority: number;
+  actor_username?: string;
+  actor_domain?: string;
+  sender_id?: string;  // Required for signing outgoing requests
 }
 
 // Reply context for conversation threading

@@ -274,17 +274,54 @@ export function useAutoSuggest(
     }
   });
 
-  // ActivityPub user search function
+  // Track current search to abort stale requests
+  let currentSearchAbortController: AbortController | null = null;
+  let currentSearchQuery = '';
+
+  // ActivityPub user search function with timeout
   const searchActivityPubUsers = async (query: string) => {
+    console.log('[DEBUG] searchActivityPubUsers called:', { query, mode: finalConfig.mode });
+    
     if (finalConfig.mode !== 'activitypub' || query.length < 2) {
+      console.log('[DEBUG] searchActivityPubUsers: Skipping (mode or query too short)', { mode: finalConfig.mode, queryLength: query.length });
       activityPubUsers.value = [];
       return;
     }
 
+    // Cancel any in-flight search
+    if (currentSearchAbortController) {
+      console.log('[DEBUG] searchActivityPubUsers: Aborting previous search');
+      currentSearchAbortController.abort();
+    }
+    
+    currentSearchAbortController = new AbortController();
+    currentSearchQuery = query;
+
     try {
-      const users = await activityPubService.searchUsers(query, finalConfig.maxSuggestions);
-      activityPubUsers.value = users;
-    } catch (error) {
+      console.log('[DEBUG] searchActivityPubUsers: Calling activityPubService.searchUsers...');
+      
+      // Race the search against a timeout
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Search timeout after 5s')), 5000);
+      });
+      
+      const searchPromise = activityPubService.searchUsers(query, finalConfig.maxSuggestions);
+      
+      const users = await Promise.race([searchPromise, timeoutPromise]);
+      
+      // Only update if this is still the current query
+      if (query === currentSearchQuery) {
+        console.log('[DEBUG] searchActivityPubUsers: Got results:', users?.length || 0, 'users');
+        activityPubUsers.value = users;
+      } else {
+        console.log('[DEBUG] searchActivityPubUsers: Ignoring stale results for:', query);
+      }
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.log('[DEBUG] searchActivityPubUsers: Search aborted');
+        return;
+      }
+      console.error('[DEBUG] searchActivityPubUsers: ERROR:', error);
       debug.error('Failed to search ActivityPub users:', error);
       activityPubUsers.value = [];
     }
@@ -384,14 +421,19 @@ export function useAutoSuggest(
   const handleInput = (value: string, cursorPosition: number) => {
     const textBeforeCursor = value.substring(0, cursorPosition);
     
+    console.log('[DEBUG] handleInput called:', { value: value.substring(0, 50), cursorPosition, textBeforeCursor: textBeforeCursor.substring(textBeforeCursor.length - 20) });
+    
     // Check for trigger patterns
     let foundTrigger = false;
     
     for (const trigger of triggers) {
       const match = textBeforeCursor.match(trigger.pattern);
+      console.log('[DEBUG] Checking trigger:', trigger.type, 'pattern:', trigger.pattern, 'match:', match);
       if (match && match.index !== undefined) {
         foundTrigger = true;
         const query = match[1] || '';
+        
+        console.log('[DEBUG] Trigger found!', { type: trigger.type, query, matchIndex: match.index });
         
         // Calculate the actual trigger position (where @ or : starts)
         let triggerPosition = match.index;
@@ -414,9 +456,12 @@ export function useAutoSuggest(
           selectedIndex: 0,
           position: calculateCursorPosition()
         };
+        
+        console.log('[DEBUG] State set to active:', state.value);
 
         // Trigger ActivityPub user search if needed
         if (trigger.type === 'mention' && finalConfig.mode === 'activitypub') {
+          console.log('[DEBUG] Searching ActivityPub users for:', query);
           searchActivityPubUsers(query);
         }
         
@@ -425,6 +470,7 @@ export function useAutoSuggest(
     }
     
     if (!foundTrigger && state.value.isActive) {
+      console.log('[DEBUG] No trigger found, closing suggestions');
       closeSuggestions();
     }
   };

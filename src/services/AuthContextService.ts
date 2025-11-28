@@ -152,11 +152,38 @@ export class AuthContextService {
 
   /**
    * Initialize auth state listener to automatically clear cache
+   * Only clears on actual auth changes, not initial session loads
    */
   initializeAuthListener(): void {
-    supabase.auth.onAuthStateChange((event) => {
+    supabase.auth.onAuthStateChange((event, session) => {
       debug.log(`🔄 Auth state changed: ${event}`)
-      this.clearCache()
+      
+      // Always clear cache on sign out or user updates
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        this.clearCache()
+        return
+      }
+      
+      // On SIGNED_IN, verify the cached user matches the new session
+      // This prevents security issues where a different user signs in
+      if (event === 'SIGNED_IN') {
+        const newUserId = session?.user?.id
+        const cachedUserId = this.cachedContext?.authUser?.id
+        
+        if (cachedUserId && cachedUserId !== newUserId) {
+          // Different user signed in - MUST clear cache for security
+          debug.log('🔐 Different user signed in, clearing stale cache')
+          this.clearCache()
+        } else if (!this.cachedContext) {
+          debug.log('🔄 Fresh sign-in detected, cache will be populated on first request')
+        }
+        // Same user - keep cache (e.g., page refresh with existing session)
+        return
+      }
+      
+      // INITIAL_SESSION: Skip cache clear - let existing cache persist
+      // PASSWORD_RECOVERY: User is still logged in, keep cache
+      // MFA_CHALLENGE_VERIFIED: Still same user, keep cache
     })
   }
 

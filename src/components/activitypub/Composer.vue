@@ -753,10 +753,16 @@ onMounted(() => {
     content.value = mention;
   }
 
-  // Focus editor after mount
+  // Focus editor after mount and move cursor to end
   nextTick(() => {
     if (props.mode === 'modal' || props.type === 'reply') {
       richEditorRef.value?.focus();
+      // Move cursor to end of content (after the @mention and space)
+      if (content.value.length > 0) {
+        nextTick(() => {
+          richEditorRef.value?.setCursorPosition(content.value.length);
+        });
+      }
     }
   });
 });
@@ -785,6 +791,10 @@ watch(() => props.replyToPost, (replyPost) => {
     
     nextTick(() => {
       richEditorRef.value?.focus();
+      // Move cursor to end of content (after the @mention and space)
+      nextTick(() => {
+        richEditorRef.value?.setCursorPosition(content.value.length);
+      });
     });
   }
 });
