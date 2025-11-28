@@ -9,10 +9,8 @@
       </button>
       
       <div class="header-info">
-        <h1 class="header-title">
-          {{ contextType === 'thread' ? 'Conversation' : 'Post' }}
-        </h1>
-        <p v-if="threadInfo && contextType !== 'minimal'" class="header-meta">
+        <h1 class="header-title">Post</h1>
+        <p v-if="threadInfo" class="header-meta">
           {{ threadInfo.totalPosts }} post{{ threadInfo.totalPosts !== 1 ? 's' : '' }}
           <span v-if="threadInfo.participantCount > 1">
             · {{ threadInfo.participantCount }} participant{{ threadInfo.participantCount !== 1 ? 's' : '' }}
@@ -21,26 +19,6 @@
       </div>
       
       <div class="header-actions">
-        <!-- Context switch buttons -->
-        <div class="context-switcher" v-if="contextType !== 'minimal'">
-          <button 
-            @click="switchContext('minimal')"
-            :class="{ active: props.contextType === 'minimal' }"
-            class="context-btn"
-            title="Show just this post"
-          >
-            <Icon name="eye" />
-          </button>
-          <button 
-            @click="switchContext('thread')"
-            :class="{ active: props.contextType === 'thread' }"
-            class="context-btn"
-            title="Show full conversation"
-          >
-            <Icon name="message-square" />
-          </button>
-        </div>
-        
         <button @click="sharePost" class="action-btn" title="Share">
           <Icon name="share" />
         </button>
@@ -55,13 +33,13 @@
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>Loading{{ contextType === 'thread' ? ' conversation' : '' }}...</p>
+        <p>Loading...</p>
       </div>
 
       <!-- Error state -->
       <div v-else-if="error" class="error-state">
         <Icon name="alert-circle" :size="48" />
-        <h3>{{ contextType === 'thread' ? 'Conversation' : 'Post' }} not found</h3>
+        <h3>Post not found</h3>
         <p>{{ error }}</p>
         <button @click="goBack" class="back-home-btn">
           Go back to timeline
@@ -93,6 +71,9 @@
                 :is-in-thread="true"
                 :hide-reply-context="true"
                 @reply="handleReply"
+                @favorite="handleFavorite"
+                @reblog="handleReblog"
+                @bookmark="handleBookmark"
                 @delete="handleDelete"
                 @user-click="handleUserClick"
               />
@@ -106,7 +87,7 @@
           class="main-post"
           :class="{ 
             'highlighted-post': mainPost.id === highlightedPostId,
-            'is-root-post': contextType === 'thread',
+            'is-root-post': true,
             'has-ancestors': showAncestors && ancestors.length > 0,
             'has-descendants': showDescendants && descendants.length > 0
           }"
@@ -115,9 +96,11 @@
           <MonyPost
             :post="mainPost"
             @reply="handleReply"
+            @favorite="handleFavorite"
+            @reblog="handleReblog"
+            @bookmark="handleBookmark"
             @delete="handleDelete"
             @user-click="handleUserClick"
-            @show-conversation="() => switchContext('thread')"
           />
         </article>
 
@@ -143,10 +126,10 @@
             <span>Replies ({{ descendants.length }})</span>
           </div>
 
-          <!-- For minimal/ancestors context: simple linear replies -->
-          <div v-if="contextType !== 'thread'" class="simple-replies">
+          <!-- All replies (unified rendering) -->
+          <div class="thread-replies">
             <article
-              v-for="reply in descendants.slice(0, 3)"
+              v-for="reply in descendants"
               :key="reply.id"
               :class="{ 
                 'reply-post': true,
@@ -164,45 +147,13 @@
                 @bookmark="handleBookmark"
                 @delete="handleDelete"
                 @user-click="handleUserClick"
-                @show-conversation="() => switchContext('thread')"
-              />
-            </article>
-            
-            <!-- Show more button -->
-            <button 
-              v-if="descendants.length > 3"
-              @click="switchContext('thread')"
-              class="show-more-btn"
-            >
-              Show {{ descendants.length - 3 }} more replies
-            </button>
-          </div>
-
-          <!-- For full thread context: simple list of replies -->
-          <div v-else class="thread-replies">
-            <article
-              v-for="reply in descendants"
-              :key="reply.id"
-              :class="{ 
-                'reply-post': true,
-                'highlighted-post': reply.id === highlightedPostId 
-              }"
-            >
-              <MonyPost
-                :post="reply"
-                :is-in-thread="true"
-                :hide-reply-context="true"
-                @reply="handleReply"
-                @delete="handleDelete"
-                @user-click="handleUserClick"
-                @show-conversation="() => switchContext('thread')"
               />
             </article>
           </div>
         </div>
 
-        <!-- Empty state for no replies in thread context -->
-        <div v-else-if="contextType === 'thread' && !isLoading && mainPost" class="empty-replies">
+        <!-- Empty state for no replies -->
+        <div v-else-if="!isLoading && mainPost && descendants.length === 0" class="empty-replies">
           <Icon name="message-circle" :size="32" />
           <p>No replies yet. Be the first to reply!</p>
           <button @click="() => mainPost && handleReply(mainPost)" class="reply-cta-btn">
@@ -240,7 +191,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  contextType: 'minimal',
+  contextType: 'thread', // Always show full thread context for consistency
   highlightReply: undefined,
   timestamp: null
 });
@@ -409,25 +360,6 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
       debug.warn('[PostView] Failed to fetch replies:', err);
     }
   }
-};
-
-const switchContext = async (newContext: PostContextType) => {
-  // Update URL without full navigation
-  const query = { ...route.query };
-  if (newContext === 'minimal') {
-    delete query.context;
-  } else {
-    query.context = newContext;
-  }
-  
-  await router.replace({ 
-    name: route.name!, 
-    params: route.params,
-    query 
-  });
-  
-  // Reload with new context
-  await loadPostWithContext();
 };
 
 const handleReply = (post: TimelinePost) => {

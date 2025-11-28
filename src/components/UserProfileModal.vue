@@ -358,7 +358,7 @@ async function loadInstanceInfo(domain: string) {
   isLoadingInstanceInfo.value = true
   try {
     // Try to fetch nodeinfo
-    const nodeinfoResponse = await fetch(`https://${domain}/.well-known/nodeinfo`)
+    const nodeinfoResponse = await fetch(`://${domain}/.well-known/nodeinfo`)
     if (nodeinfoResponse.ok) {
       const nodeinfo = await nodeinfoResponse.json()
       const links = nodeinfo.links || []
@@ -398,7 +398,7 @@ async function loadInstanceInfo(domain: string) {
     // No info found
     instanceInfo.value = { status: 'unknown', software: undefined }
   } catch (error) {
-    debug.error('Failed to load instance info:', error)
+    debug.error('Failed to load instance info:', JSON.stringify(error))
     instanceInfo.value = { status: 'unknown', software: undefined }
   } finally {
     isLoadingInstanceInfo.value = false
