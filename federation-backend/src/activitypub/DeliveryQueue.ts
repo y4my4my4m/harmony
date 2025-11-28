@@ -9,7 +9,7 @@ interface QueueItem {
   sender_id: string;
   attempts: number;
   max_attempts: number;
-  next_retry_at: string;
+  next_attempt_at: string;  // Database column name (not next_retry_at)
 }
 
 export class DeliveryQueue {
@@ -56,7 +56,7 @@ export class DeliveryQueue {
       status: 'pending',
       attempts: 1, // Already tried once
       max_attempts: 5,
-      next_retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // Retry in 5 minutes
+      next_attempt_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // Retry in 5 minutes
       last_attempt_at: new Date().toISOString(),
     });
 
@@ -80,11 +80,12 @@ export class DeliveryQueue {
     const now = new Date().toISOString();
 
     // Fetch pending items ready for delivery
+    // NOTE: Database uses next_attempt_at, not next_retry_at
     const { data: items, error } = await supabase
       .from('federation_delivery_queue')
       .select('*')
       .eq('status', 'pending')
-      .lte('next_retry_at', now)
+      .lte('next_attempt_at', now)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: true })
       .limit(50);
@@ -241,7 +242,7 @@ export class DeliveryQueue {
         .update({
           attempts: newAttempts,
           last_attempt_at: new Date().toISOString(),
-          next_retry_at: nextRetry.toISOString(),
+          next_attempt_at: nextRetry.toISOString(),
           last_error: errorMessage,
         })
         .eq('id', item.id);

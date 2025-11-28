@@ -513,7 +513,6 @@ const handleContentUpdate = (newContent: string) => {
 };
 
 const handleCursorPositionChanged = (position: number) => {
-  console.log('[DEBUG] Composer.handleCursorPositionChanged:', { position, content: content.value?.substring(0, 50), hasRichEditor: !!richEditorRef.value });
   if (richEditorRef.value) {
     autoSuggest.handleInput(content.value, position);
   }

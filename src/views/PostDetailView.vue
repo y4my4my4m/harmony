@@ -201,7 +201,7 @@ const loadPost = async () => {
 
   try {
     // Fetch the actual post from the database
-    console.log(`[PostDetail] Loading post: ${props.postId}`);
+    debug.log(`[PostDetail] Loading post: ${props.postId}`);
     const fetchedPost = await activityPubService.getPost(props.postId);
     
     if (!fetchedPost) {
@@ -212,7 +212,7 @@ const loadPost = async () => {
     totalReplies.value = fetchedPost.replies_count || 0;
     
     // Log full post data for debugging
-    console.log(`[PostDetail] Loaded post:`, {
+    debug.log(`[PostDetail] Loaded post:`, {
       id: fetchedPost.id,
       is_local: fetchedPost.is_local,
       ap_id: fetchedPost.ap_id,
@@ -229,7 +229,7 @@ const loadPost = async () => {
     // 1. Remote posts (is_local=false) - fetch from their origin instance
     // 2. Local posts (is_local=true) - fetch reactions/replies from remote instances
     if (fetchedPost.ap_id) {
-      console.log(`[PostDetail] Post has ap_id (${fetchedPost.ap_id}), auto-fetching remote data...`);
+      debug.log(`[PostDetail] Post has ap_id (${fetchedPost.ap_id}), auto-fetching remote data...`);
       debug.log(`🌐 Post has ap_id, auto-fetching remote reactions and replies...`);
       fetchRemoteDataInBackground(fetchedPost);
     } else {
@@ -251,7 +251,7 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
   const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
   const postType = targetPost.is_local ? 'local' : 'remote';
   
-  console.log(`[PostDetail] fetchRemoteDataInBackground called for ${postType} post:`, {
+  debug.log(`[PostDetail] fetchRemoteDataInBackground called for ${postType} post:`, {
     ap_id: targetPost.ap_id,
     post_id: targetPost.id,
     federationBackendUrl,
@@ -261,7 +261,7 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
   // Fetch reactions
   try {
     const fetchUrl = `${federationBackendUrl}/fetch-reactions`;
-    console.log(`[PostDetail] Fetching reactions from: ${fetchUrl}`);
+    debug.log(`[PostDetail] Fetching reactions from: ${fetchUrl}`);
     debug.log(`📬 Fetching reactions for ${postType} post...`);
     const reactionsResponse = await fetch(fetchUrl, {
       method: 'POST',
@@ -271,7 +271,7 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
         post_id: targetPost.id,
       }),
     });
-    console.log(`[PostDetail] Reactions response status: ${reactionsResponse.status}`);
+    debug.log(`[PostDetail] Reactions response status: ${reactionsResponse.status}`);
     
     if (reactionsResponse.ok) {
       const result = await reactionsResponse.json();

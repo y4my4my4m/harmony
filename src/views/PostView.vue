@@ -316,7 +316,7 @@ const loadPostWithContext = async () => {
     
     // Auto-fetch remote reactions and replies for posts with an ap_id
     if (result.mainPost?.ap_id) {
-      console.log(`[PostView] Post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
+      debug.log(`[PostView] Post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
       fetchRemoteDataInBackground(result.mainPost);
     }
     
@@ -334,11 +334,11 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
   const postType = targetPost.is_local ? 'local' : 'remote';
   const federationApiUrl = activityPub.federationApiUrl;
   
-  console.log(`[PostView] Fetching remote data for ${postType} post:`, targetPost.ap_id);
+  debug.log(`[PostView] Fetching remote data for ${postType} post:`, targetPost.ap_id);
   
   // Fetch reactions
   try {
-    console.log(`[PostView] POST ${federationApiUrl}/fetch-reactions`);
+    debug.log(`[PostView] POST ${federationApiUrl}/fetch-reactions`);
     
     const reactionsResponse = await fetch(`${federationApiUrl}/fetch-reactions`, {
       method: 'POST',
@@ -349,11 +349,11 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
       }),
     });
     
-    console.log(`[PostView] Reactions response: ${reactionsResponse.status}`);
+    debug.log(`[PostView] Reactions response: ${reactionsResponse.status}`);
     
     if (reactionsResponse.ok) {
       const result = await reactionsResponse.json();
-      console.log(`[PostView] Fetched reactions:`, result);
+      debug.log(`[PostView] Fetched reactions:`, result);
       
       // Update post metadata directly for immediate reactivity
       if (result.remote_reactions && postWithContext.value?.mainPost) {
@@ -369,13 +369,13 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
       }
     }
   } catch (err) {
-    console.warn('[PostView] Failed to fetch reactions:', err);
+    debug.warn('[PostView] Failed to fetch reactions:', err);
   }
   
   // Fetch replies (only for remote posts)
   if (!targetPost.is_local) {
     try {
-      console.log(`[PostView] POST ${federationApiUrl}/fetch-replies`);
+      debug.log(`[PostView] POST ${federationApiUrl}/fetch-replies`);
       
       const repliesResponse = await fetch(`${federationApiUrl}/fetch-replies`, {
         method: 'POST',
@@ -387,11 +387,11 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
         }),
       });
       
-      console.log(`[PostView] Replies response: ${repliesResponse.status}`);
+      debug.log(`[PostView] Replies response: ${repliesResponse.status}`);
       
       if (repliesResponse.ok) {
         const result = await repliesResponse.json();
-        console.log(`[PostView] Fetched ${result.count || 0} replies`);
+        debug.log(`[PostView] Fetched ${result.count || 0} replies`);
         
         // Reload to include newly fetched replies
         if (result.count > 0) {
@@ -406,7 +406,7 @@ const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
         }
       }
     } catch (err) {
-      console.warn('[PostView] Failed to fetch replies:', err);
+      debug.warn('[PostView] Failed to fetch replies:', err);
     }
   }
 };
