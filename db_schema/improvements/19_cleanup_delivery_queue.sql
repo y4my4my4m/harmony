@@ -33,13 +33,18 @@ BEGIN
         RETURN NEW;
     END IF;
     
-    -- Get author info
-    SELECT id, username, domain INTO v_author
-    FROM profiles
-    WHERE id = NEW.author_id;
+    -- Get author profile (use SELECT * for RECORD type)
+    SELECT * INTO v_author FROM profiles WHERE id = NEW.author_id;
     
-    IF v_author IS NULL THEN
-        RAISE LOG 'Author not found for post: %', NEW.id;
+    -- FIX: Use NOT FOUND instead of checking if RECORD is NULL
+    IF NOT FOUND OR NOT v_author.is_local THEN
+        RAISE LOG 'Author not found or not local for post: %', NEW.id;
+        RETURN NEW;
+    END IF;
+    
+    -- FIX: Check if user has federation enabled (from migration 18)
+    IF NOT COALESCE(is_federation_enabled_for_user(v_author.id), true) THEN
+        RAISE LOG 'Federation disabled for user: %', v_author.id;
         RETURN NEW;
     END IF;
     
@@ -219,6 +224,12 @@ BEGIN
             
             IF NOT FOUND THEN
                 RAISE LOG 'Sender profile not found for reaction federation: %', v_interaction_record.user_id;
+                RETURN COALESCE(NEW, OLD);
+            END IF;
+            
+            -- FIX: Check if user has federation enabled (respect user preferences)
+            IF NOT COALESCE(is_federation_enabled_for_user(v_sender_profile.id), true) THEN
+                RAISE LOG 'Federation disabled for user: %', v_sender_profile.id;
                 RETURN COALESCE(NEW, OLD);
             END IF;
             
