@@ -54,6 +54,10 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     lastGlobalUpdate: null as Date | null,
     pendingInvalidations: new Set<string>(),
     
+    // Request deduplication - prevents concurrent duplicate fetches
+    _pendingEmojiLoads: null as Promise<void> | null,
+    _loadingServerIds: new Set<string>() as Set<string>,
+    
     // Performance metrics
     cacheHits: 0,
     cacheMisses: 0,
@@ -214,35 +218,48 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     // Load emojis for multiple servers efficiently
     async loadEmojisForServers(serverIds: string[]) {
-      // Determine which servers need updates
+      // Determine which servers need updates (exclude already-loading servers)
       const serversToUpdate = serverIds.filter(serverId => {
+        // Skip if already loading
+        if (this._loadingServerIds.has(serverId)) {
+          debug.log(`⏳ Server ${serverId} emoji load already in progress, skipping`);
+          return false;
+        }
         const cache = this.serverCaches.get(serverId);
         return !cache || cache.isStale || this.isCacheExpired(cache);
       });
 
       if (serversToUpdate.length === 0) {
-        debug.log('📋 All emoji caches are up to date');
+        debug.log('📋 All emoji caches are up to date or loading');
         return;
       }
 
-      debug.log(`📥 Loading emojis for ${serversToUpdate.length} servers`);
+      // Mark servers as loading to prevent concurrent fetches
+      serversToUpdate.forEach(id => this._loadingServerIds.add(id));
 
-      // Fetch server details and emojis in parallel
-      const [serverDetails, emojiData] = await Promise.all([
-        this.fetchServerDetails(serversToUpdate),
-        this.fetchEmojisForServers(serversToUpdate),
-      ]);
+      try {
+        debug.log(`📥 Loading emojis for ${serversToUpdate.length} servers`);
 
-      // Process and cache the data
-      for (const serverId of serversToUpdate) {
-        const server = serverDetails.get(serverId);
-        const emojis = emojiData.get(serverId) || [];
-        
-        this.updateServerCache(serverId, emojis, server);
+        // Fetch server details and emojis in parallel
+        const [serverDetails, emojiData] = await Promise.all([
+          this.fetchServerDetails(serversToUpdate),
+          this.fetchEmojisForServers(serversToUpdate),
+        ]);
+
+        // Process and cache the data
+        for (const serverId of serversToUpdate) {
+          const server = serverDetails.get(serverId);
+          const emojis = emojiData.get(serverId) || [];
+          
+          this.updateServerCache(serverId, emojis, server);
+        }
+
+        // Rebuild resolved emojis
+        this.rebuildResolvedEmojis();
+      } finally {
+        // Clear loading state
+        serversToUpdate.forEach(id => this._loadingServerIds.delete(id));
       }
-
-      // Rebuild resolved emojis
-      this.rebuildResolvedEmojis();
     },
 
     // Fetch server details for caching

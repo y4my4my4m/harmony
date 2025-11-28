@@ -205,12 +205,10 @@ export class CorePostService {
 
   /**
    * Update a post (pure local update)
+   * Uses AuthContextService for efficient auth lookup
    */
   async updatePost(postId: string, updates: UpdatePostData): Promise<TimelinePost> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       // Verify ownership
@@ -250,12 +248,10 @@ export class CorePostService {
 
   /**
    * Delete a post (soft delete, pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async deletePost(postId: string): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       // Verify ownership
@@ -292,12 +288,10 @@ export class CorePostService {
 
   /**
    * Toggle like on a post (pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async toggleLike(postId: string): Promise<{ liked: boolean; newCount: number }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling like: post=${postId}, user=${profileId}`)
@@ -359,12 +353,10 @@ export class CorePostService {
 
   /**
    * Toggle share/reblog on a post (pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async toggleShare(postId: string): Promise<{ shared: boolean; newCount: number }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling share: post=${postId}, user=${profileId}`)
@@ -426,12 +418,10 @@ export class CorePostService {
 
   /**
    * Toggle bookmark on a post (pure local)
+   * Uses AuthContextService for efficient auth lookup
    */
   async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling bookmark: post=${postId}, user=${profileId}`)
@@ -488,14 +478,15 @@ export class CorePostService {
   /**
    * Toggle emoji reaction on a post (pure local)
    */
+  /**
+   * Toggle reaction on a post
+   * Uses AuthContextService for efficient auth lookup
+   */
   async toggleReaction(
     postId: string, 
     emojiId: string
   ): Promise<{ added: boolean; hadRaceCondition?: boolean }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling post reaction: post=${postId}, emoji=${emojiId}, user=${profileId}`)

@@ -395,17 +395,30 @@ export function useVisualTheme() {
     
     // Try to load from localStorage first (instant)
     const localSettings = loadFromLocalStorage()
+    let appliedFromLocal = false
     if (localSettings) {
       Object.assign(settings.value, localSettings)
       applySettings(settings.value)
+      appliedFromLocal = true
     }
     
-    // Then load from Supabase and override if available
+    // Then load from Supabase and override if different
     const supabaseSettings = await loadFromSupabase()
     if (supabaseSettings) {
+      // Only re-apply if settings are actually different from localStorage
+      const needsUpdate = !appliedFromLocal || 
+        supabaseSettings.theme !== localSettings?.theme ||
+        supabaseSettings.customAccentColor !== localSettings?.customAccentColor
+      
       Object.assign(settings.value, supabaseSettings)
-      applySettings(settings.value)
+      
+      if (needsUpdate) {
+        applySettings(settings.value)
+      }
       saveToLocalStorage(settings.value)
+    } else if (!appliedFromLocal) {
+      // No localStorage or Supabase settings - apply defaults
+      applySettings(settings.value)
     }
     
     // Watch for changes and persist

@@ -11,6 +11,7 @@
 
 import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'
+import { authContextService } from './AuthContextService'
 import type { Profile } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -41,16 +42,19 @@ export class ProfileService {
 
   /**
    * Get current user's profile
+   * Uses AuthContextService for efficient auth lookup
    */
   async getCurrentProfile(): Promise<Profile> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      const context = await authContextService.getCurrentContext()
+      if (!context.isAuthenticated) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
 
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('auth_user_id', user.id)
+        .eq('id', context.profileId)
         .single()
 
       if (error || !profile) {
@@ -66,17 +70,20 @@ export class ProfileService {
 
   /**
    * Update current user's profile (database triggers handle federation)
+   * Uses AuthContextService for efficient auth lookup
    */
   async updateCurrentProfile(updates: ProfileData): Promise<Profile> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      const context = await authContextService.getCurrentContext()
+      if (!context.isAuthenticated) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
 
       // Update profile - database triggers will handle federation automatically
       const { data: profile, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('auth_user_id', user.id)
+        .eq('id', context.profileId)
         .select('*')
         .single()
 

@@ -294,6 +294,23 @@ export const useChatStore = defineStore('chat', {
         if (!messages || messages.length === 0) {
           debug.log('📭 No older messages found');
           this.allMessagesLoaded = true;
+          
+          // IMPORTANT: Still set currentChannelId for empty channels!
+          // This ensures real-time messages will be received correctly
+          if (oldestMessageId === '' && this.currentChannelId !== channelId) {
+            this.currentChannelId = channelId;
+            this.messages = []; // Clear any stale messages
+            
+            // Create an empty cache entry so real-time messages can be added
+            this.messageCache.set(channelId, {
+              messages: [],
+              lastFetchedAt: new Date(),
+              oldestMessageId: null,
+              allMessagesLoaded: true,
+              lastModified: new Date(),
+            });
+            debug.log(`✅ Initialized empty cache for new channel: ${channelId}`);
+          }
           return;
         }
         

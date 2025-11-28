@@ -26,6 +26,7 @@
  */
 
 import { supabase } from '@/supabase'
+import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
 
 export interface FollowResult {
@@ -97,16 +98,13 @@ export class CoreInteractionService {
    */
   async toggleFollow(targetUserId: string): Promise<FollowResult> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      // Authentication verification via centralized service
+      const profileId = await this.getCurrentUserProfileId()
 
       // Input validation
       if (!targetUserId || typeof targetUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Target user ID is required')
       }
-
-      const profileId = await this.getCurrentUserProfileId()
 
       // Self-follow prevention
       if (profileId === targetUserId) {
@@ -209,16 +207,13 @@ export class CoreInteractionService {
    */
   async acceptFollowRequest(followerUserId: string): Promise<void> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      // Authentication verification via centralized service
+      const profileId = await this.getCurrentUserProfileId()
 
       // Input validation
       if (!followerUserId || typeof followerUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Follower user ID is required')
       }
-
-      const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Accepting follow request from: ${followerUserId}`)
 
@@ -251,16 +246,13 @@ export class CoreInteractionService {
    */
   async rejectFollowRequest(followerUserId: string): Promise<void> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      // Authentication verification via centralized service
+      const profileId = await this.getCurrentUserProfileId()
 
       // Input validation
       if (!followerUserId || typeof followerUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Follower user ID is required')
       }
-
-      const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Rejecting follow request from: ${followerUserId}`)
 
@@ -295,16 +287,13 @@ export class CoreInteractionService {
    */
   async toggleBlock(targetUserId: string): Promise<BlockResult> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      // Authentication verification via centralized service
+      const profileId = await this.getCurrentUserProfileId()
 
       // Input validation
       if (!targetUserId || typeof targetUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Target user ID is required')
       }
-
-      const profileId = await this.getCurrentUserProfileId()
 
       // Self-block prevention
       if (profileId === targetUserId) {
@@ -379,16 +368,13 @@ export class CoreInteractionService {
    */
   async toggleMute(targetUserId: string): Promise<MuteResult> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      // Authentication verification via centralized service
+      const profileId = await this.getCurrentUserProfileId()
 
       // Input validation
       if (!targetUserId || typeof targetUserId !== 'string') {
         throw this.createError('INVALID_INPUT', 'Target user ID is required')
       }
-
-      const profileId = await this.getCurrentUserProfileId()
 
       // Self-mute prevention
       if (profileId === targetUserId) {
@@ -458,9 +444,13 @@ export class CoreInteractionService {
    */
   async getUserRelationships(targetUserIds: string[]): Promise<Record<string, UserRelationship>> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return {}
+      // Authentication verification via centralized service
+      let profileId: string
+      try {
+        profileId = await this.getCurrentUserProfileId()
+      } catch {
+        return {} // Not authenticated - return empty
+      }
 
       // Input validation and security limits
       if (!Array.isArray(targetUserIds) || targetUserIds.length === 0) {
@@ -477,7 +467,6 @@ export class CoreInteractionService {
         throw this.createError('INVALID_INPUT', 'No valid user IDs provided')
       }
 
-      const profileId = await this.getCurrentUserProfileId()
       const relationships: Record<string, UserRelationship> = {}
 
       debug.log(`🔄 Core: Getting relationships for ${sanitizedUserIds.length} users`)
@@ -571,13 +560,11 @@ export class CoreInteractionService {
     nextCursor?: string
   }> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      // Authentication verification via centralized service
+      const profileId = await this.getCurrentUserProfileId()
 
       // Input validation and security limits
       const secureLimit = Math.min(Math.max(1, limit), this.MAX_PAGINATION_LIMIT)
-      const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Getting follow requests (limit: ${secureLimit})`)
 
@@ -776,23 +763,16 @@ export class CoreInteractionService {
   // SECURITY HELPER METHODS
   // =====================================================
 
+  /**
+   * Get current user's profile ID
+   * Uses centralized AuthContextService to avoid duplicate auth lookups
+   */
   private async getCurrentUserProfileId(): Promise<string> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-
-      return profile.id
+      return await authContextService.getCurrentProfileId()
     } catch (error) {
       debug.error('❌ Core: Failed to get current user profile ID:', error)
-      throw error
+      throw this.createError('AUTH_REQUIRED', 'User not authenticated')
     }
   }
 

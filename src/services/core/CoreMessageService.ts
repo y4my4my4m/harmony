@@ -17,6 +17,7 @@
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
+import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
 
 // Lazy load Megolm encryption service (room-based encryption with recovery keys)
@@ -439,14 +440,15 @@ export class CoreMessageService {
   /**
    * Toggle emoji reaction on a message (pure local database operation)
    */
+  /**
+   * Toggle reaction on a message
+   * Uses AuthContextService for efficient auth lookup
+   */
   async toggleReaction(
     messageId: string, 
     emojiId: string
   ): Promise<{ added: boolean; hadRaceCondition?: boolean }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
       const profileId = await this.getCurrentUserProfileId()
 
       debug.log(`🔄 Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, user=${profileId}`)
@@ -819,25 +821,14 @@ export class CoreMessageService {
 
   /**
    * Get current user's profile ID
-   * Used for reactions and other user-specific operations
+   * Uses centralized AuthContextService to avoid duplicate auth lookups
    */
   private async getCurrentUserProfileId(): Promise<string> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-
-      return profile.id
+      return await authContextService.getCurrentProfileId()
     } catch (error) {
       debug.error('❌ Core: Failed to get current user profile ID:', error)
-      throw error
+      throw this.createError('AUTH_REQUIRED', 'User not authenticated')
     }
   }
 
