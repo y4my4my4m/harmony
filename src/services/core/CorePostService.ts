@@ -58,10 +58,14 @@ export class CorePostService {
 
   /**
    * Create a post (pure local database operation)
+   * Ensures fresh connection before critical operations
    */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
       debug.log('🚀 Core: createPost starting...')
+      
+      // Ensure session is fresh before critical operation (handles stale connections after idle)
+      await this.ensureFreshConnection()
       
       // OPTIMIZED: Use AuthContextService for auth check (cached)
       const authUser = await authContextService.getCurrentAuthUser()
@@ -104,14 +108,19 @@ export class CorePostService {
       }
 
       debug.log('🔄 Core: Inserting post into database...')
-      const { data: post, error } = await supabase
-        .from('posts')
-        .insert(postData)
-        .select(`
-          *,
-          author:profiles!posts_author_id_fkey(*)
-        `)
-        .single()
+      
+      // Execute with retry on connection failure
+      const { data: post, error } = await this.executeWithRetry(
+        () => supabase
+          .from('posts')
+          .insert(postData)
+          .select(`
+            *,
+            author:profiles!posts_author_id_fkey(*)
+          `)
+          .single(),
+        'Post creation'
+      )
 
       if (error) {
         debug.error('❌ Core: Insert failed:', error)
@@ -120,10 +129,78 @@ export class CorePostService {
 
       debug.log('✅ Core: Post created successfully (local only), id:', post?.id)
       return this.formatTimelinePost(post)
-    } catch (error) {
+    } catch (error: any) {
       debug.error('❌ Core: Failed to create post:', error)
       throw error
     }
+  }
+
+  /**
+   * Ensure fresh Supabase connection before critical operations
+   * This handles stale connections after extended idle periods (5+ minutes)
+   */
+  private async ensureFreshConnection(): Promise<void> {
+    try {
+      debug.log('🔄 Core: Ensuring fresh connection...')
+      
+      // Refresh the session - this forces Supabase to re-establish connection if stale
+      const { data, error } = await supabase.auth.refreshSession()
+      
+      if (error) {
+        debug.warn('⚠️ Session refresh warning:', error.message)
+        // Don't throw - let the actual query handle auth errors
+        // The session might still be valid even if refresh fails
+      } else if (data.session) {
+        debug.log('✅ Core: Session refreshed successfully')
+        // Clear auth context cache so it picks up fresh session
+        authContextService.clearCache()
+      }
+    } catch (error) {
+      debug.warn('⚠️ Connection refresh failed, continuing anyway:', error)
+      // Don't throw - connection might still work
+    }
+  }
+
+  /**
+   * Execute a database operation with timeout and automatic retry on failure
+   */
+  private async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    operationName: string,
+    maxRetries: number = 2,
+    timeoutMs: number = 10000
+  ): Promise<T> {
+    let lastError: any
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        debug.log(`🔄 Core: ${operationName} attempt ${attempt}/${maxRetries}...`)
+        
+        // Race between operation and timeout
+        const result = await Promise.race([
+          operation(),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
+          )
+        ])
+        
+        return result
+      } catch (error: any) {
+        lastError = error
+        debug.warn(`⚠️ Core: ${operationName} attempt ${attempt} failed:`, error.message || error)
+        
+        if (attempt < maxRetries) {
+          // Refresh connection before retry
+          debug.log('🔄 Core: Refreshing connection before retry...')
+          await this.ensureFreshConnection()
+          // Small delay before retry
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+      }
+    }
+    
+    debug.error(`❌ Core: ${operationName} failed after ${maxRetries} attempts`)
+    throw lastError
   }
 
   /**
