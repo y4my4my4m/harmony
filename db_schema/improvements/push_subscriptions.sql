@@ -272,6 +272,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS push_subscriptions_update_timestamp ON public.push_subscriptions;
 CREATE TRIGGER push_subscriptions_update_timestamp
     BEFORE UPDATE ON public.push_subscriptions
     FOR EACH ROW
@@ -286,6 +287,13 @@ COMMENT ON COLUMN public.push_subscriptions.failure_count IS 'Number of consecut
 
 -- RLS Policies
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies first (idempotent)
+DROP POLICY IF EXISTS "Users can view own push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Users can insert own push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Users can update own push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Users can delete own push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Service role can manage all push subscriptions" ON public.push_subscriptions;
 
 -- Users can view their own subscriptions
 CREATE POLICY "Users can view own push subscriptions"
