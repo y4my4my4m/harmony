@@ -1181,7 +1181,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 .dnd-status {
   padding: 4px 8px;
   border-radius: 4px;
-  font-size: 12px;
+font-size: 12px;
   font-weight: 500;
   background: rgba(240, 71, 71, 0.1);
   color: #f04747;
