@@ -106,10 +106,21 @@ app.listen(PORT, () => {
     });
   }
   
-  // Start push notification listener (always needed)
-  startPushNotificationListener().catch((error) => {
-    logger.error('Failed to start push notification listener:', error);
-  });
+  // Initialize push notification service (pg-boss handles the actual listening now)
+  if (USE_PGBOSS_QUEUE) {
+    // pg-boss handles push notifications via 'send-push-notification' queue
+    const { PushNotificationService } = await import('./services/PushNotificationService.js');
+    if (PushNotificationService.initialize()) {
+      logger.info('✅ Push notification service initialized (using pg-boss queue)');
+    } else {
+      logger.warn('⚠️ Push notifications not available (VAPID not configured)');
+    }
+  } else {
+    // Legacy: Use Realtime listener
+    startPushNotificationListener().catch((error) => {
+      logger.error('Failed to start push notification listener:', error);
+    });
+  }
   
   // Process delivery queue for retries every 30 seconds
   // Note: New deliveries are attempted immediately, this is only for retrying failed deliveries

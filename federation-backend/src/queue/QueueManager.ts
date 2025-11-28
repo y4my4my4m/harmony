@@ -24,6 +24,7 @@ import { handleMessageReactionJob } from './handlers/messageReactionHandler.js';
 import { handleBlockJob } from './handlers/blockHandler.js';
 import { handleReportJob } from './handlers/reportHandler.js';
 import { handleProfileJob } from './handlers/profileHandler.js';
+import { handlePushNotificationJob } from './handlers/pushNotificationHandler.js';
 
 // Job types
 export type JobType = 
@@ -35,6 +36,7 @@ export type JobType =
   | 'federate-block'
   | 'federate-report'
   | 'federate-profile'
+  | 'send-push-notification'
   | 'sweep-pending';
 
 // Job data interface
@@ -157,6 +159,7 @@ class QueueManagerService {
       'federate-block',
       'federate-report',
       'federate-profile',
+      'send-push-notification',
     ];
 
     for (const queueName of queueNames) {
@@ -249,8 +252,9 @@ class QueueManagerService {
     await registerWithConcurrency('federate-block', createHandler('federate-block', '🚫', handleBlockJob));
     await registerWithConcurrency('federate-report', createHandler('federate-report', '🚩', handleReportJob));
     await registerWithConcurrency('federate-profile', createHandler('federate-profile', '👤', handleProfileJob));
+    await registerWithConcurrency('send-push-notification', createHandler('send-push-notification', '📱', handlePushNotificationJob as any));
 
-    logger.info(`✅ All job handlers registered (${WORKERS_PER_QUEUE} workers per queue, ${WORKERS_PER_QUEUE * 8} total workers)`);
+    logger.info(`✅ All job handlers registered (${WORKERS_PER_QUEUE} workers per queue, ${WORKERS_PER_QUEUE * 9} total workers)`);
   }
 
   /**
