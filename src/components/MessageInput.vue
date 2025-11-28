@@ -64,6 +64,7 @@
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import { useHapticSettings } from '@/composables/useHapticSettings';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
@@ -108,6 +109,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const authStore = useAuthStore();
+const { triggerMessage } = useHapticSettings();
 const showUploadMenu = ref(false);
 const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
@@ -216,6 +218,8 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         const content = props.modelValue || '';
         // Pass reply message ID as third parameter
         emit('sendMessage', content, attachedFiles.value, props.replyMessageId || undefined);
+        // Haptic feedback on message send
+        triggerMessage();
         emit('update:modelValue', '');
         
         // Clear the rich text editor

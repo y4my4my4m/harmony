@@ -417,6 +417,116 @@
       </div>
     </div>
 
+    <!-- Haptic Feedback Section -->
+    <div class="settings-section" v-if="hapticSettings.isSupported">
+      <div class="section-header">
+        <h3 class="section-title">Haptic Feedback</h3>
+        <div class="haptic-status" :class="{ active: hapticSettings.isEnabled.value }">
+          {{ hapticSettings.isEnabled.value ? 'Enabled' : 'Disabled' }}
+        </div>
+      </div>
+      <p class="section-description">Vibration feedback for interactions (mobile devices)</p>
+      
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Enable Haptic Feedback</h4>
+          <p class="setting-description">Feel vibrations when interacting with the app</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="hapticSettings.isEnabled.value"
+          />
+        </div>
+      </div>
+
+      <div v-if="hapticSettings.isEnabled.value" class="haptic-categories">
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Messages & Reactions</h4>
+            <p class="setting-description">When sending messages or adding reactions</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch 
+              v-model="hapticSettings.hapticTriggers.value.messages"
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Navigation</h4>
+            <p class="setting-description">When switching tabs or opening menus</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch 
+              v-model="hapticSettings.hapticTriggers.value.navigation"
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Voice & Calls</h4>
+            <p class="setting-description">When joining/leaving voice channels</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch 
+              v-model="hapticSettings.hapticTriggers.value.voice"
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Interactions</h4>
+            <p class="setting-description">Long press, pull to refresh, etc.</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch 
+              v-model="hapticSettings.hapticTriggers.value.interactions"
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Toggle Switches</h4>
+            <p class="setting-description">When toggling settings on/off</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch 
+              v-model="hapticSettings.hapticTriggers.value.toggles"
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <h4 class="setting-label">Destructive Actions</h4>
+            <p class="setting-description">When deleting messages or leaving servers</p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch 
+              v-model="hapticSettings.hapticTriggers.value.destructive"
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="haptic-test">
+          <button @click="testHaptic" class="test-haptic-btn">
+            <Icon name="smartphone" />
+            <span>Test Haptic Feedback</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Test All Section -->
     <div class="settings-section">
       <h3 class="section-title">Test Notifications</h3>
@@ -456,12 +566,20 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
 import { useUserData } from '@/composables/useUserData'
 import { usePushNotifications } from '@/composables/usePushNotifications'
+import { useHapticSettings } from '@/composables/useHapticSettings'
 
 // Stores
 const notificationStore = useNotificationStore()
 const toast = useToast()
 const userData = useUserData()
 const pushNotifications = usePushNotifications()
+const hapticSettings = useHapticSettings()
+
+// Test haptic feedback
+const testHaptic = () => {
+  hapticSettings.hapticManager.trigger({ pattern: 'success' })
+  toast.success('Haptic feedback triggered!')
+}
 
 // State
 const preferences = reactive<NotificationPreferences>({
@@ -1043,6 +1161,57 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 .dnd-status.active {
   background: rgba(250, 166, 26, 0.1);
   color: #faa61a;
+}
+
+/* Haptic Feedback Section */
+.haptic-status {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(240, 71, 71, 0.1);
+  color: #f04747;
+}
+
+.haptic-status.active {
+  background: rgba(87, 242, 135, 0.1);
+  color: #57f287;
+}
+
+.haptic-categories {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--harmony--bg-modifier-accent, rgba(255, 255, 255, 0.06));
+}
+
+.haptic-test {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--harmony--bg-modifier-accent, rgba(255, 255, 255, 0.06));
+}
+
+.test-haptic-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--harmony--primary, #5865f2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.test-haptic-btn:hover {
+  background: var(--harmony--primary-dark, #4752c4);
+  transform: translateY(-1px);
+}
+
+.test-haptic-btn:active {
+  transform: translateY(0);
 }
 
 .setting-item {

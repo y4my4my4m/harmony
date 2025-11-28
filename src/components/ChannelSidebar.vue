@@ -293,6 +293,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
+import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useThemeStore } from '@/stores/useTheme';
@@ -394,6 +395,7 @@ const serverUsersStore = useServerUsersStore();
 const voiceChannelStore = useUnifiedVoiceChannelStore();
 const themeStore = useThemeStore();
 const { canDragAndDrop, canCreateChannels, canMoveChannelsBetweenCategories, getDragCursor } = useChannelPermissions();
+const { triggerVoice } = useHapticSettings();
 
 // Computed Properties
 const isMobile = computed(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -654,12 +656,16 @@ const getVoiceSessionStartTime = (channelId: string) => {
 const joinVoiceChannel = async (channelId: string) => {
   if (await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id)) {
     themeStore.testAudio('voice_connect');
+    // Haptic feedback for voice connect
+    triggerVoice('success');
   }
 };
 
 const leaveVoiceChannel = async (channelId: string) => {
   if (await voiceChannelStore.leaveVoiceChannel()) {
     themeStore.testAudio('voice_disconnect');
+    // Haptic feedback for voice disconnect
+    triggerVoice('warning');
   }
 };
 

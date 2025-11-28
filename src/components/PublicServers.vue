@@ -64,6 +64,7 @@ import { usePublicServersStore } from '@/stores/usePublicServers'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useDebouncedSearch } from '@/composables/useDebounce'
 import { useKeyboardEvents } from '@/composables/useCommonUI'
+import { useHapticSettings } from '@/composables/useHapticSettings'
 
 // Components
 import PublicServersHeader from '@/components/PublicServers/PublicServersHeader.vue'
@@ -92,6 +93,7 @@ const publicServersStore = usePublicServersStore()
 const serverChannelStore = useServerChannelStore()
 const serverStore = useServerStore()
 const authStore = useAuthStore()
+const { triggerDestructive, triggerMessage } = useHapticSettings()
 
 // Composables
 const router = useRouter()
@@ -147,6 +149,8 @@ const handleJoinServer = async (serverId: string) => {
   try {
     const success = await serverStore.joinServer(serverId, userId)
     if (success) {
+      // Haptic feedback for successful join
+      triggerMessage('success')
       // Refresh the user's server list
       await serverChannelStore.fetchServersForUser(userId)
       toast.success('Successfully joined the server!')
@@ -173,6 +177,8 @@ const handleLeaveServer = async (serverId: string) => {
   try {
     const success = await serverStore.leaveServer(serverId, userId)
     if (success) {
+      // Haptic feedback for leaving server
+      triggerDestructive()
       // Refresh the user's server list
       await serverChannelStore.fetchServersForUser(userId)
       toast.success('Successfully left the server')
