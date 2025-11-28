@@ -46,55 +46,23 @@
         </button>
       </div>
 
-      <!-- Post with context -->
+      <!-- Post with context - simple unified list -->
       <div v-else-if="postWithContext" class="post-container">
-        <!-- Ancestors (posts this is replying to) -->
-        <div v-if="showAncestors && ancestors.length > 0" class="ancestors-section">
-          <div class="section-header">
-            <Icon name="arrow-up" />
-            <span>Earlier in thread</span>
-          </div>
-          
-          <div class="ancestors-list">
-            <article
-              v-for="ancestor in ancestors"
-              :key="ancestor.id"
-              :class="{ 
-                'thread-post': true,
-                'ancestor-post': true,
-                'highlighted-post': ancestor.id === highlightedPostId 
-              }"
-              :ref="el => ancestor.id === highlightedPostId && setPostRef(ancestor.id, el)"
-            >
-              <MonyPost
-                :post="ancestor"
-                :is-in-thread="true"
-                :hide-reply-context="true"
-                @reply="handleReply"
-                @favorite="handleFavorite"
-                @reblog="handleReblog"
-                @bookmark="handleBookmark"
-                @delete="handleDelete"
-                @user-click="handleUserClick"
-              />
-            </article>
-          </div>
-        </div>
-
-        <!-- Main post (always shown) -->
-        <article 
-          v-if="mainPost"
-          class="main-post"
+        <!-- All posts in thread order: ancestors -> main -> descendants -->
+        <article
+          v-for="post in allPostsInOrder"
+          :key="post.id"
+          class="thread-post"
           :class="{ 
-            'highlighted-post': mainPost.id === highlightedPostId,
-            'is-root-post': true,
-            'has-ancestors': showAncestors && ancestors.length > 0,
-            'has-descendants': showDescendants && descendants.length > 0
+            'highlighted-post': post.id === highlightedPostId,
+            'is-main-post': post.id === mainPost?.id
           }"
-          :ref="el => mainPost && mainPost.id === highlightedPostId && setPostRef(mainPost.id, el as HTMLElement)"
+          :ref="el => post.id === highlightedPostId && setPostRef(post.id, el)"
         >
           <MonyPost
-            :post="mainPost"
+            :post="post"
+            :is-in-thread="true"
+            :hide-reply-context="true"
             @reply="handleReply"
             @favorite="handleFavorite"
             @reblog="handleReblog"
@@ -114,52 +82,6 @@
             @close="showReplyComposer = false"
           />
         </div>
-
-        <!-- Descendants (replies to this post) -->
-        <div v-if="showDescendants && descendants.length > 0" class="descendants-section" :class="{ 'inline-replies': shouldShowInlineReplies }">
-          <!-- Thread connector from main post -->
-          <div class="thread-connector descendants-connector"></div>
-          
-          <!-- Only show header if more than 5 replies (Twitter-style) -->
-          <div v-if="!shouldShowInlineReplies" class="section-header">
-            <Icon name="arrow-down" />
-            <span>Replies ({{ descendants.length }})</span>
-          </div>
-
-          <!-- All replies (unified rendering) -->
-          <div class="thread-replies">
-            <article
-              v-for="reply in descendants"
-              :key="reply.id"
-              :class="{ 
-                'reply-post': true,
-                'highlighted-post': reply.id === highlightedPostId 
-              }"
-              :ref="el => reply.id === highlightedPostId && setPostRef(reply.id, el)"
-            >
-              <MonyPost
-                :post="reply"
-                :is-in-thread="true"
-                :hide-reply-context="true"
-                @reply="handleReply"
-                @favorite="handleFavorite"
-                @reblog="handleReblog"
-                @bookmark="handleBookmark"
-                @delete="handleDelete"
-                @user-click="handleUserClick"
-              />
-            </article>
-          </div>
-        </div>
-
-        <!-- Empty state for no replies -->
-        <div v-else-if="!isLoading && mainPost && descendants.length === 0" class="empty-replies">
-          <Icon name="message-circle" :size="32" />
-          <p>No replies yet. Be the first to reply!</p>
-          <button @click="() => mainPost && handleReply(mainPost)" class="reply-cta-btn">
-            Reply to this conversation
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -170,6 +92,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { usePostReactionsStore } from '@/stores/postReactions';
 import { activityPubService } from '@/services/activityPubService';
 import { useToast } from 'vue-toastification';
 import Icon from '@/components/common/Icon.vue';
@@ -200,6 +123,7 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter();
 const route = useRoute();
 const activityPub = useActivityPubStore();
+const postReactionsStore = usePostReactionsStore();
 const toast = useToast();
 
 // Reactive state
@@ -220,18 +144,20 @@ const descendants = computed(() => postWithContext.value?.descendants || []);
 const threadInfo = computed(() => postWithContext.value?.threadInfo);
 const highlightedPostId = computed(() => props.highlightReply || postWithContext.value?.highlightedPost);
 
-// Context display logic
-const showAncestors = computed(() => 
-  ['thread', 'ancestors'].includes(props.contextType) && ancestors.value.length > 0
-);
-
-const showDescendants = computed(() => 
-  ['thread', 'descendants', 'minimal'].includes(props.contextType) && descendants.value.length > 0
-);
-
-// Twitter-style: show inline (without header) if 5 or fewer replies
-const INLINE_REPLY_THRESHOLD = 5;
-const shouldShowInlineReplies = computed(() => descendants.value.length <= INLINE_REPLY_THRESHOLD);
+// All posts in chronological order: ancestors -> main -> descendants
+const allPostsInOrder = computed(() => {
+  const posts = [];
+  if (ancestors.value.length > 0) {
+    posts.push(...ancestors.value);
+  }
+  if (mainPost.value) {
+    posts.push(mainPost.value);
+  }
+  if (descendants.value.length > 0) {
+    posts.push(...descendants.value);
+  }
+  return posts;
+});
 
 // Methods
 const loadPostWithContext = async () => {
@@ -254,6 +180,18 @@ const loadPostWithContext = async () => {
     });
 
     postWithContext.value = result;
+    
+    // Load reactions for all posts in the thread
+    const allPostIds = [
+      ...result.ancestors.map(p => p.id),
+      result.mainPost.id,
+      ...result.descendants.map(p => p.id)
+    ].filter(Boolean);
+    
+    if (allPostIds.length > 0) {
+      debug.log(`[PostView] Loading reactions for ${allPostIds.length} posts`);
+      postReactionsStore.fetchMultiplePostReactions(allPostIds);
+    }
     
     // Scroll to highlighted post after content loads
     if (props.highlightReply) {
@@ -667,19 +605,18 @@ onMounted(loadPostWithContext);
 .post-container {
   display: flex;
   flex-direction: column;
-  align-content: center;
-}
-
-.thread-replies {
-  display: flex;
-  flex-direction: column;
   gap: 1rem;
-  margin-top: 18px;
+  padding: 1rem;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.highlighted-post .mony-post {
-  box-shadow: 0 0 16px 5px rgba(88, 101, 242, 0.25);
-  border: 1px solid var(--harmony-primary, #5865f2);
+.thread-post {
+  position: relative;
+}
+
+.highlighted-post :deep(.mony-post) {
+  box-shadow: 0 0 0 2px var(--harmony-primary, #5865f2);
   border-radius: 12px;
 }
 
@@ -747,147 +684,19 @@ onMounted(loadPostWithContext);
   background: var(--color-bg-hover);
 }
 
-.post-container {
-  width: 600px;
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 1rem;
-}
 
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 1.5rem 0.5rem;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.ancestors-section,
-.descendants-section {
-  position: relative;
-}
-
-/* Inline mode: seamless flow without header (Twitter-style for ≤5 replies) */
-.descendants-section.inline-replies .section-header {
-  display: none;
-}
-
-.ancestors-thread,
-.simple-replies,
-.threaded-replies {
-  position: relative;
-}
-
-.ancestor-post,
-.reply-post,
-.main-post {
-  position: relative;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.main-post {
-  background: var(--color-bg-primary);
-}
-
-.main-post.has-ancestors::before,
-.main-post.has-descendants::after {
-  content: '';
-  position: absolute;
-  left: 3.5rem;
-  width: 2px;
-  background: var(--color-border);
-}
-
-.main-post.has-ancestors::before {
-  top: -1rem;
-  height: 1rem;
-}
-
-.main-post.has-descendants::after {
-  bottom: -1rem;
-  height: 1rem;
-}
-
-.highlighted-post {
-  background: var(--color-highlight-bg);
-  border-left: 4px solid var(--color-primary);
-}
 
 .scroll-highlighted {
   background: var(--color-primary-bg);
   transition: background-color 0.3s ease;
 }
 
-.thread-connector {
-  position: absolute;
-  left: 3.5rem;
-  width: 2px;
-  background: var(--color-border);
-  z-index: 1;
-}
-
-.thread-connector.main-connector {
-  top: 100%;
-  height: 1rem;
-}
-
-.thread-connector.descendants-connector {
-  top: 0;
-  height: 1rem;
-}
 
 .reply-composer {
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
 }
 
-.show-more-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 1rem;
-  border: none;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  color: var(--color-primary);
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.show-more-btn:hover {
-  background: var(--color-bg-hover);
-}
-
-.empty-replies {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-.empty-replies p {
-  margin: 1rem 0 1.5rem 0;
-}
-
-.reply-cta-btn {
-  padding: 0.75rem 1.5rem;
-  border: 1px solid var(--color-primary);
-  border-radius: 0.5rem;
-  background: var(--color-primary);
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.reply-cta-btn:hover {
-  background: var(--color-primary-hover);
-}
 
 /* Mobile responsive */
 @media (max-width: 768px) {
@@ -900,18 +709,8 @@ onMounted(loadPostWithContext);
     font-size: 1.125rem;
   }
   
-  .context-switcher {
-    display: none; /* Hide on mobile to save space */
-  }
-  
-  .section-header {
-    padding: 1rem 1rem 0.5rem;
-  }
-  
-  .main-post.has-ancestors::before,
-  .main-post.has-descendants::after,
-  .thread-connector {
-    left: 2.5rem;
+  .post-container {
+    padding: 0.5rem;
   }
 }
 </style>

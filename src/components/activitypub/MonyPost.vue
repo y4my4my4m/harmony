@@ -339,7 +339,7 @@
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
-        <div class="action-menu">
+        <div class="action-menu" v-click-outside="closeMenu">
           <button 
             class="action-button menu-button" 
             @click="handleMenuToggle"
@@ -347,10 +347,9 @@
           >
             <Icon name="more-horizontal" />
           </button>
-        </div>
         
-        <!-- Post action dropdown menu -->
-        <div v-if="showMenu" class="action-dropdown">
+          <!-- Post action dropdown menu -->
+          <div v-if="showMenu" class="action-dropdown">
           <button 
             class="dropdown-item"
             @click="copyLink"
@@ -418,6 +417,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- Inline Reply Composer -->
