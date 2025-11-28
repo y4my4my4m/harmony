@@ -173,6 +173,13 @@ $$;
 -- RLS Policies for user_sessions
 ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies first (idempotent)
+DROP POLICY IF EXISTS "Users can view own sessions" ON public.user_sessions;
+DROP POLICY IF EXISTS "Users can insert own sessions" ON public.user_sessions;
+DROP POLICY IF EXISTS "Users can update own sessions" ON public.user_sessions;
+DROP POLICY IF EXISTS "Users can delete own sessions" ON public.user_sessions;
+DROP POLICY IF EXISTS "Service role can manage all sessions" ON public.user_sessions;
+
 -- Users can view their own sessions
 CREATE POLICY "Users can view own sessions"
     ON public.user_sessions
@@ -413,4 +420,44 @@ SECURITY DEFINER
 AS $$
     DELETE FROM public.push_subscriptions WHERE endpoint = p_endpoint;
 $$;
+
+-- ============================================================================
+-- GRANT EXECUTE PERMISSIONS FOR ALL FUNCTIONS
+-- Required for frontend (authenticated) and backend (service_role) to call these
+-- ============================================================================
+
+-- User session functions
+GRANT EXECUTE ON FUNCTION public.cleanup_stale_user_sessions() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cleanup_stale_user_sessions() TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.has_active_session(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.has_active_session(uuid) TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.is_user_viewing_push_context(uuid, uuid, uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_user_viewing_push_context(uuid, uuid, uuid, uuid) TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.upsert_user_session(uuid, text, text, text, boolean, text, text, text, uuid, uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_user_session(uuid, text, text, text, boolean, text, text, text, uuid, uuid, uuid) TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.end_user_session(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.end_user_session(text) TO service_role;
+
+-- Push subscription functions
+GRANT EXECUTE ON FUNCTION public.update_push_subscription_timestamp() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_push_subscription_timestamp() TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.cleanup_stale_push_subscriptions() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cleanup_stale_push_subscriptions() TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.get_user_push_subscriptions(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_push_subscriptions(uuid) TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.record_push_success(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.record_push_success(uuid) TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.record_push_failure(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.record_push_failure(uuid, text) TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.delete_push_subscription_by_endpoint(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_push_subscription_by_endpoint(text) TO service_role;
 

@@ -10,6 +10,23 @@
 --   - Profile updates
 -- ============================================================================
 
+-- First, ensure we have a unique constraint for ON CONFLICT to work
+-- This prevents duplicate deliveries to the same domain for the same activity
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'federation_delivery_queue_activity_domain_unique'
+    ) THEN
+        ALTER TABLE public.federation_delivery_queue
+        ADD CONSTRAINT federation_delivery_queue_activity_domain_unique 
+        UNIQUE (activity_id, target_domain);
+    END IF;
+EXCEPTION
+    WHEN duplicate_object THEN
+        NULL; -- Constraint already exists
+END $$;
+
 CREATE OR REPLACE FUNCTION public.queue_activity_for_federation(
     p_activity_id UUID,
     p_target_domains TEXT[],
@@ -40,22 +57,23 @@ BEGIN
     FOREACH v_domain IN ARRAY p_target_domains
     LOOP
         -- Try to find inbox URL for this domain
-        -- First check if we have a known instance inbox
-        SELECT inbox_url INTO v_inbox_url
-        FROM known_instances
+        -- First check federated_instances for shared inbox
+        SELECT shared_inbox_url INTO v_inbox_url
+        FROM public.federated_instances
         WHERE domain = v_domain
+        AND shared_inbox_url IS NOT NULL
         LIMIT 1;
         
-        -- If not found in known_instances, try to find a user from this domain
+        -- If not found, try to find a user from this domain with an inbox
         IF v_inbox_url IS NULL THEN
             SELECT inbox_url INTO v_inbox_url
-            FROM profiles
+            FROM public.profiles
             WHERE domain = v_domain
             AND inbox_url IS NOT NULL
             LIMIT 1;
         END IF;
         
-        -- If still no inbox, construct default inbox URL
+        -- If still no inbox, construct default shared inbox URL
         IF v_inbox_url IS NULL THEN
             v_inbox_url := 'https://' || v_domain || '/inbox';
         END IF;
