@@ -55,16 +55,12 @@ export function convertContentToHTML(content: any): string {
           return `<a href="${url}">${url}</a>`;
           
         case 'emoji':
-          // Handle custom emoji objects (Harmony's format)
+          // Custom emoji - use :name: shortcode syntax
+          // The actual emoji data goes in the 'tag' array (see extractActivityPubTags)
+          // Mastodon/Misskey resolve shortcodes by looking up the tag array
           if (part.emoji && typeof part.emoji === 'object') {
-            const emoji = part.emoji;
-            // Render as img tag for ActivityPub compatibility
-            if (emoji.url) {
-              const emojiName = escapeHtml(emoji.name || emoji.display_name || 'emoji');
-              return `<img src="${emoji.url}" alt=":${emojiName}:" title=":${emojiName}:" class="custom-emoji" style="height: 1.5em; vertical-align: middle;" />`;
-            }
-            // Fallback to shortcode
-            return `:${escapeHtml(emoji.name || emoji.display_name || 'emoji')}:`;
+            const emojiName = part.emoji.name || part.emoji.display_name || 'emoji';
+            return `:${emojiName}:`;
           }
           // Handle simple string emoji (unicode)
           if (typeof part.emoji === 'string') {
@@ -142,11 +138,12 @@ export function extractActivityPubTags(content: any): any[] {
       // Add custom emoji as ActivityPub Emoji tag
       // This allows Mastodon/Misskey to render the custom emoji
       const emoji = part.emoji;
-      if (emoji.url && emoji.name) {
+      if (emoji.url && (emoji.name || emoji.display_name)) {
+        const emojiName = emoji.name || emoji.display_name;
         tags.push({
           type: 'Emoji',
-          id: emoji.url,
-          name: `:${emoji.name}:`,
+          id: emoji.id || emoji.url, // Use emoji ID if available, else URL
+          name: `:${emojiName}:`,
           icon: {
             type: 'Image',
             mediaType: 'image/png',
