@@ -469,3 +469,17 @@ GRANT EXECUTE ON FUNCTION public.record_push_failure(uuid, text) TO service_role
 GRANT EXECUTE ON FUNCTION public.delete_push_subscription_by_endpoint(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_push_subscription_by_endpoint(text) TO service_role;
 
+-- ============================================================================
+-- GRANTS FOR FEDERATION BACKEND (DM Federation)
+-- The backend needs to read conversation_participants and profiles for DM federation
+-- ============================================================================
+
+-- Grant service_role access to conversation_participants (for DM federation)
+GRANT SELECT ON public.conversation_participants TO service_role;
+
+-- Grant service_role access to conversations (for DM federation)  
+GRANT SELECT ON public.conversations TO service_role;
+
+-- Grant service_role access to federated_instances (for inbox URL lookup)
+GRANT SELECT ON public.federated_instances TO service_role;
+
