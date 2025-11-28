@@ -9,6 +9,7 @@
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
+import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { createPostActivity, createLikeActivity, createReblogActivity } from './FederationHandlers.js';
 import { logger } from '../utils/logger.js';
@@ -221,6 +222,25 @@ export async function startDatabaseListener(): Promise<void> {
       async (payload) => {
         logger.info('↩️ Interaction removal detected:', payload.old?.id);
         await handleInteractionRemoval(payload.old);
+      }
+    )
+    // Listen for DM messages - federate to remote recipients
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      },
+      async (payload) => {
+        // Only process messages in conversations (DMs), not channel messages
+        if (payload.new.conversation_id && !payload.new.metadata?.federated) {
+          logger.info('💬 DM message detected:', {
+            id: payload.new.id,
+            conversation_id: payload.new.conversation_id
+          });
+          await handleNewDM(payload.new);
+        }
       }
     )
     .subscribe((status, err) => {
@@ -1036,5 +1056,236 @@ async function handleNewReport(report: any): Promise<void> {
   } catch (error) {
     logger.error('Failed to handle new report:', error);
   }
+}
+
+/**
+ * Handle new DM messages - federate to remote recipients
+ * This replaces the database trigger handle_outgoing_messages for DMs
+ */
+async function handleNewDM(message: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const domain = config.INSTANCE_DOMAIN;
+    
+    // Get the sender profile
+    const { data: sender } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
+      .eq('id', message.user_id)
+      .single();
+    
+    if (!sender) {
+      logger.warn(`Could not find sender for DM: ${message.user_id}`);
+      return;
+    }
+    
+    // Only federate messages from local users
+    if (!sender.is_local) {
+      logger.debug('Skipping federation for message from remote user');
+      return;
+    }
+    
+    // Get remote recipients from conversation
+    const { data: remoteRecipients } = await supabase
+      .from('conversation_participants')
+      .select(`
+        user_id,
+        profiles!inner (
+          id,
+          username,
+          domain,
+          federated_id,
+          is_local,
+          inbox_url
+        )
+      `)
+      .eq('conversation_id', message.conversation_id)
+      .neq('user_id', message.user_id)
+      .is('left_at', null);
+    
+    if (!remoteRecipients || remoteRecipients.length === 0) {
+      logger.debug('No remote recipients for DM');
+      return;
+    }
+    
+    // Filter to only remote users
+    const remoteUsers = remoteRecipients.filter(
+      (r: any) => !r.profiles.is_local && r.profiles.domain
+    );
+    
+    if (remoteUsers.length === 0) {
+      logger.debug('All DM recipients are local');
+      return;
+    }
+    
+    logger.info(`📮 Federating DM to ${remoteUsers.length} remote recipient(s)`);
+    
+    // Build sender URL
+    const senderUrl = `https://${domain}/users/${sender.username}`;
+    const messageUrl = `https://${domain}/messages/${message.id}`;
+    
+    // Convert content to HTML
+    const htmlContent = convertDMContentToHTML(message.content);
+    
+    // Extract attachments and tags
+    const attachments = extractAttachments(message.content);
+    const tags = extractTags(message.content);
+    
+    // Send to each remote recipient
+    for (const recipient of remoteUsers) {
+      const profile = recipient.profiles as any;
+      const recipientUrl = profile.federated_id || `https://${profile.domain}/users/${profile.username}`;
+      const activityId = `${senderUrl}#dm-${message.id}-${profile.id}`;
+      
+      // Add recipient as mention tag
+      const mentionTag = {
+        type: 'Mention',
+        href: recipientUrl,
+        name: `@${profile.username}@${profile.domain}`
+      };
+      
+      // Create Note object (DM format)
+      const note = {
+        id: messageUrl,
+        type: 'Note',
+        attributedTo: senderUrl,
+        published: message.created_at,
+        content: htmlContent,
+        contentMap: { en: htmlContent },
+        attachment: attachments,
+        tag: [...tags, mentionTag],
+        to: [recipientUrl],    // Direct addressing
+        cc: [],                // Empty CC for DMs
+        directMessage: true    // Explicit DM flag
+      };
+      
+      // Create ActivityPub Create activity
+      const activity = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: activityId,
+        type: 'Create',
+        actor: senderUrl,
+        published: message.created_at,
+        object: note,
+        to: [recipientUrl],
+        cc: []
+      };
+      
+      // Resolve inbox URL
+      let inboxUrl = profile.inbox_url;
+      
+      if (!inboxUrl) {
+        // Try to get shared inbox from instances table
+        const { data: instance } = await supabase
+          .from('instances')
+          .select('shared_inbox_url')
+          .eq('domain', profile.domain)
+          .single();
+        
+        inboxUrl = instance?.shared_inbox_url || `https://${profile.domain}/inbox`;
+      }
+      
+      // Deliver the activity
+      await DeliveryQueue.enqueue(activity, inboxUrl, sender.id);
+      
+      logger.info(`✅ Queued DM for federation to ${profile.username}@${profile.domain}`);
+    }
+  } catch (error) {
+    logger.error('Error handling DM federation:', error);
+  }
+}
+
+/**
+ * Convert DM content (JSONB) to HTML for ActivityPub
+ */
+function convertDMContentToHTML(content: any): string {
+  if (typeof content === 'string') {
+    return escapeHtml(content);
+  }
+  
+  if (Array.isArray(content)) {
+    return content.map(part => {
+      switch (part.type) {
+        case 'text':
+          return escapeHtml(part.text || '');
+        case 'mention':
+          const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
+          return `<a href="https://${mentionDomain}/users/${part.username}" class="mention">@${part.username}</a>`;
+        case 'url':
+          return `<a href="${part.url}">${part.url}</a>`;
+        case 'emoji':
+          return part.emoji || '';
+        case 'code':
+          return `<code>${escapeHtml(part.text || '')}</code>`;
+        default:
+          return '';
+      }
+    }).join('');
+  }
+  
+  // If it's an object with text property (simple format)
+  if (content?.text) {
+    return escapeHtml(content.text);
+  }
+  
+  return '';
+}
+
+/**
+ * Extract attachments from content
+ */
+function extractAttachments(content: any): any[] {
+  if (!Array.isArray(content)) return [];
+  
+  return content
+    .filter((part: any) => part.type === 'attachment' || part.type === 'image')
+    .map((part: any) => ({
+      type: 'Document',
+      mediaType: part.mediaType || 'application/octet-stream',
+      url: part.url,
+      name: part.name || part.filename
+    }));
+}
+
+/**
+ * Extract mention/hashtag tags from content
+ */
+function extractTags(content: any): any[] {
+  if (!Array.isArray(content)) return [];
+  
+  const tags: any[] = [];
+  
+  for (const part of content) {
+    if (part.type === 'mention' && part.username) {
+      const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
+      tags.push({
+        type: 'Mention',
+        href: `https://${mentionDomain}/users/${part.username}`,
+        name: part.domain ? `@${part.username}@${part.domain}` : `@${part.username}`
+      });
+    } else if (part.type === 'hashtag' && part.tag) {
+      tags.push({
+        type: 'Hashtag',
+        href: `https://${config.INSTANCE_DOMAIN}/tags/${part.tag}`,
+        name: `#${part.tag}`
+      });
+    }
+  }
+  
+  return tags;
+}
+
+/**
+ * Escape HTML entities
+ */
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
 }
 
