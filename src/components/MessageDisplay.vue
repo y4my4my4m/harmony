@@ -1353,7 +1353,7 @@ const closeInviteModal = () => {
   /* no-op: ensure specificity for selector ordering */
 }
 .message-item:has(> .message-group.has-header) {
-  margin-top: 12px;
+  margin-top: 0.5rem;
 }
 
 .message-item:hover {
@@ -1362,7 +1362,7 @@ const closeInviteModal = () => {
 
 /* Reply reference styling */
 .reply-reference {
-  margin-left: 56px; /* Match the gutter width */
+  margin-left: 54px; /* Match the gutter width */
   margin-bottom: 0;
   cursor: pointer;
   position: relative;
