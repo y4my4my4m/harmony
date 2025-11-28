@@ -253,6 +253,13 @@ function getDefaultTitle(type) {
 function getNavigationUrl(data) {
   const baseUrl = self.location.origin
 
+  // If URL was pre-computed by the notification store, use it
+  if (data.url) {
+    // Handle both absolute and relative URLs
+    return data.url.startsWith('/') ? `${baseUrl}${data.url}` : data.url
+  }
+
+  // Fallback for push notifications from backend (which use different field names)
   if (data.conversation_id) {
     return `${baseUrl}/dm/${data.conversation_id}`
   }

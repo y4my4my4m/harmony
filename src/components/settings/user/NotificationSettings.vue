@@ -820,14 +820,30 @@ const testNotification = async (type: NotificationType) => {
     // Play sound
     await notificationStore.playNotificationSound(type)
     
-    // Show desktop notification
+    // Show desktop/native notification
     if (hasNotificationPermission.value) {
-      debug.error(testData.avatar);
-      new Notification(testData.title, {
-        body: testData.message,
-        icon: testData.avatar.value || '/img/app_icon_square.png',
-        badge: testData.avatar.value || '/img/app_icon_square.png'
-      })
+      const iconUrl = testData.avatar.value || '/img/app_icon_square.png'
+      
+      // On mobile PWA, we need to use service worker for notifications
+      // Direct `new Notification()` doesn't work on mobile
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const registration = await navigator.serviceWorker.ready
+        await registration.showNotification(testData.title, {
+          body: testData.message,
+          icon: iconUrl,
+          badge: '/img/app_icon_badge.png',
+          tag: `harmony-test-${type}`,
+          requireInteraction: false,
+          silent: true // Sound is already played above
+        })
+      } else {
+        // Fallback for desktop browsers without service worker
+        new Notification(testData.title, {
+          body: testData.message,
+          icon: iconUrl,
+          badge: iconUrl
+        })
+      }
     }
     
     // toast.success(`Test notification sent for ${type}`)
