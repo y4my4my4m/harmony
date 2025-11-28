@@ -499,16 +499,17 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     .message-input {
       flex-shrink: 0;
       margin: 0;
-      padding: 12px 16px;
+      /* padding: 12px 16px; */
+      padding: 0.5rem;
       background: var(--h-chat, #313338);
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .message-container {
-      border-radius: 20px;
-      padding: 8px 12px;
-      min-height: 44px;
+      border-radius: 16px;
+      padding: 0.25rem;
+      min-height: 52px;
       align-items: center;
     }
 
@@ -526,6 +527,8 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     .textarea-wrapper {
       min-height: 28px;
+      margin-left: 0;
+      margin-right: 0;
     }
 
     /* Enhanced touch targets for mobile */
