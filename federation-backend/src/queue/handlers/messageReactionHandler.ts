@@ -5,7 +5,7 @@
  */
 
 import { getSupabaseClient } from '../../config/supabase.js';
-import { handleMessageReaction, handleMessageReactionRemoval } from '../../listeners/FederationHandlers.js';
+import { handleNewMessageReaction, handleMessageReactionRemoval } from '../../listeners/DatabaseListener.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
@@ -46,7 +46,7 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
 
     if (type === 'create') {
       // Use existing handler
-      await handleMessageReaction(reaction);
+      await handleNewMessageReaction(reaction);
     } else if (type === 'delete') {
       // Create old data structure for the handler
       await handleMessageReactionRemoval({

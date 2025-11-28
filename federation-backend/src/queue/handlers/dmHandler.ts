@@ -6,7 +6,7 @@
 
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
-import { handleNewDM } from '../../listeners/FederationHandlers.js';
+import { handleNewDM } from '../../listeners/DatabaseListener.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
