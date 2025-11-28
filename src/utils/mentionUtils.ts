@@ -23,6 +23,69 @@ export interface ResolvedMention {
 }
 
 /**
+ * Parse bio text with custom emojis and convert to MessagePart[]
+ * Replaces :emoji: patterns with proper emoji parts
+ */
+export function parseBioWithEmojis(bio: string, emojis: Array<{name: string, url: string}>): any[] {
+  if (!bio || emojis.length === 0) {
+    return [{ type: 'text', text: bio || '' }];
+  }
+
+  // Create a map for quick emoji lookup
+  const emojiMap = new Map(emojis.map(e => [e.name, e.url]));
+  
+  const parts: any[] = [];
+  
+  // Regex to find :emoji: patterns (including unicode variants like ​:emoji:​)
+  // The \u200b is a zero-width space that Misskey uses
+  const emojiRegex = /\u200b?:([a-zA-Z0-9_]+):\u200b?/g;
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = emojiRegex.exec(bio)) !== null) {
+    const emojiName = match[1];
+    const emojiUrl = emojiMap.get(emojiName);
+    
+    // Add text before this emoji
+    if (match.index > lastIndex) {
+      const textBefore = bio.substring(lastIndex, match.index);
+      if (textBefore) {
+        parts.push({ type: 'text', text: textBefore });
+      }
+    }
+    
+    if (emojiUrl) {
+      // Add emoji part with URL
+      parts.push({
+        type: 'emoji',
+        emoji: {
+          id: `remote-${emojiName}`,
+          name: emojiName,
+          url: emojiUrl,
+          server_id: 'remote'
+        }
+      });
+    } else {
+      // No URL found, keep as text
+      parts.push({ type: 'text', text: match[0] });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < bio.length) {
+    const remainingText = bio.substring(lastIndex);
+    if (remainingText) {
+      parts.push({ type: 'text', text: remainingText });
+    }
+  }
+  
+  return parts.length > 0 ? parts : [{ type: 'text', text: bio }];
+}
+
+/**
  * Extract all mentions from text content
  * Supports both @username (local) and @username@domain (remote) formats
  */
@@ -220,6 +283,27 @@ export async function resolveRemoteMention(username: string, domain: string, for
     const savedUser = result.user;
     debug.log(`✅ ${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${username}@${domain}`);
 
+    // Parse federation_metadata for bio emojis
+    let bioEmojis: Array<{name: string, url: string}> = [];
+    if (savedUser.federation_metadata) {
+      try {
+        const metadata = typeof savedUser.federation_metadata === 'string' 
+          ? JSON.parse(savedUser.federation_metadata)
+          : savedUser.federation_metadata;
+        if (metadata.bio_emojis) {
+          bioEmojis = metadata.bio_emojis;
+        }
+      } catch (e) {
+        debug.warn('Failed to parse federation_metadata:', e);
+      }
+    }
+
+    // Convert bio to MessagePart[] if it has custom emojis
+    let bio: string | any[] = savedUser.bio || '';
+    if (bioEmojis.length > 0 && typeof bio === 'string') {
+      bio = parseBioWithEmojis(bio, bioEmojis);
+    }
+
     return {
       id: savedUser.id,
       username: savedUser.username,
@@ -229,11 +313,11 @@ export async function resolveRemoteMention(username: string, domain: string, for
       banner_url: savedUser.banner_url,
       handle: `@${username}@${domain}`,
       is_local: false,
-      bio: savedUser.bio || '',
+      bio,
       verified: false,
-      followers_count: 0,
-      following_count: 0,
-      posts_count: 0,
+      followers_count: savedUser.followers_count || 0,
+      following_count: savedUser.following_count || 0,
+      posts_count: savedUser.posts_count || 0,
       created_at: savedUser.created_at,
       updated_at: savedUser.updated_at,
       federated_id: savedUser.federated_id,

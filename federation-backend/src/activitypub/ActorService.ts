@@ -48,9 +48,25 @@ router.post(
 
       if (existingUser) {
         logger.info(`✅ Found existing user in database: ${username}@${domain}`);
+        
+        // Check if we should trigger a background post fetch
+        // Fetch if: user has outbox_url AND (no posts yet OR last sync was over 5 minutes ago)
+        const shouldFetchPosts = existingUser.outbox_url && (
+          !existingUser.last_federation_sync || 
+          (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
+        );
+        
+        if (shouldFetchPosts) {
+          logger.info(`📬 Triggering background post fetch for cached user ${username}@${domain}`);
+          fetchRecentPostsInBackground(existingUser.id, existingUser.outbox_url, supabase).catch(err => {
+            logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
+          });
+        }
+        
         return res.json({
           success: true,
           user: existingUser,
+          outbox_url: existingUser.outbox_url, // Always include for pagination
           cached: true
         });
       }
@@ -212,6 +228,13 @@ router.post(
         is_local: false,
         last_synced_at: new Date().toISOString(),
       };
+      
+      // Store bio emojis in federation_metadata for rendering
+      if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
+        profileRecord.federation_metadata = JSON.stringify({
+          bio_emojis: profileData.bio_emojis,
+        });
+      }
 
       // Add counts if columns exist (may need migration)
       if (followersCount > 0) profileRecord.followers_count = followersCount;
@@ -316,9 +339,13 @@ router.post(
 router.post(
   '/api/federation/fetch-reactions',
   asyncHandler(async (req: Request, res: Response) => {
+    // Debug: log raw request body
+    logger.debug(`📬 fetch-reactions raw body: ${JSON.stringify(req.body)}`);
+    
     const { post_ap_id, post_id } = req.body;
 
     if (!post_ap_id) {
+      logger.warn(`📬 fetch-reactions missing post_ap_id, body was: ${JSON.stringify(req.body)}`);
       return res.status(400).json({ error: 'post_ap_id is required' });
     }
 
@@ -1956,6 +1983,12 @@ async function fetchRecentPostsInBackground(
     }
     
     logger.info(`📬 Saved ${savedCount} new posts from remote user`);
+    
+    // Update last_federation_sync timestamp for the user
+    await supabase
+      .from('profiles')
+      .update({ last_federation_sync: new Date().toISOString() })
+      .eq('id', authorId);
     
     // Track consecutive zero-save fetches to avoid infinite pagination
     if (savedCount === 0) {

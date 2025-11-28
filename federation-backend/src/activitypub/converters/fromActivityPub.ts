@@ -20,8 +20,29 @@ export function noteToContent(note: any): any[] {
   cleanText = cleanText.replace(/&#039;/g, "'");
   cleanText = cleanText.replace(/\s+/g, ' ').trim();
   
+  // Build combined tags array (includes both standard AP tags and Misskey-style emojis)
+  let allTags = note.tag && Array.isArray(note.tag) ? [...note.tag] : [];
+  
+  // Handle Misskey-style emojis object: { emojiName: url, ... }
+  // This is common in outbox items where emoji definitions aren't in the tag array
+  if (note.emojis && typeof note.emojis === 'object' && !Array.isArray(note.emojis)) {
+    for (const [name, url] of Object.entries(note.emojis)) {
+      // Only add if not already in tags
+      const alreadyInTags = allTags.some(t => 
+        t.type === 'Emoji' && t.name?.replace(/:/g, '') === name
+      );
+      if (!alreadyInTags && url) {
+        allTags.push({
+          type: 'Emoji',
+          name: `:${name}:`,
+          icon: { url }
+        });
+      }
+    }
+  }
+  
   // If no tags, just return the text
-  if (!note.tag || !Array.isArray(note.tag) || note.tag.length === 0) {
+  if (allTags.length === 0) {
     if (cleanText) {
       parts.push({ type: 'text', text: cleanText });
     }
@@ -34,7 +55,7 @@ export function noteToContent(note: any): any[] {
   // Step 2: Find positions of all tags in the clean text
   const tagPositions: Array<{position: number, length: number, tag: any, text: string}> = [];
   
-  for (const tag of note.tag) {
+  for (const tag of allTags) {
     let searchText = '';
     let position = -1;
     
@@ -284,6 +305,34 @@ export function actorToProfile(actor: any): {
   // Extract manually approves followers flag
   if (actor.manuallyApprovesFollowers !== undefined) {
     profile.manually_approves_followers = actor.manuallyApprovesFollowers;
+  }
+
+  // Extract custom emojis from actor tags (for bio rendering)
+  // ActivityPub actors can have emojis in their tag array, similar to Notes
+  if (actor.tag && Array.isArray(actor.tag)) {
+    const customEmojis = actor.tag
+      .filter((tag: any) => tag.type === 'Emoji')
+      .map((tag: any) => ({
+        name: tag.name?.replace(/:/g, '') || '',
+        url: tag.icon?.url || tag.icon,
+      }))
+      .filter((e: any) => e.name && e.url);
+    
+    if (customEmojis.length > 0) {
+      profile.bio_emojis = customEmojis;
+    }
+  }
+  
+  // Also handle Misskey-style emojis object on the actor
+  if (actor.emojis && typeof actor.emojis === 'object' && !Array.isArray(actor.emojis)) {
+    const emojiList = Object.entries(actor.emojis).map(([name, url]) => ({
+      name,
+      url: url as string,
+    }));
+    
+    if (emojiList.length > 0) {
+      profile.bio_emojis = [...(profile.bio_emojis || []), ...emojiList];
+    }
   }
 
   return profile;
