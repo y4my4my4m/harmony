@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 interface QueueItem {
   id: string;
   activity_data: any;
-  target_inbox: string;
+  target_inbox_url: string;  // Database uses target_inbox_url (not target_inbox)
   sender_id: string;
   attempts: number;
   max_attempts: number;
@@ -49,7 +49,7 @@ export class DeliveryQueue {
 
     const { error } = await supabase.from('federation_delivery_queue').insert({
       activity_data: activityData,
-      target_inbox: targetInbox,
+      target_inbox_url: targetInbox,  // Database uses target_inbox_url
       target_domain: targetDomain,
       sender_id: senderId,
       priority,
@@ -165,7 +165,7 @@ export class DeliveryQueue {
     try {
       // Sign the request
       const { headers, digest } = await SignatureService.signRequest(
-        item.target_inbox,
+        item.target_inbox_url,
         'POST',
         item.activity_data,
         item.sender_id
@@ -175,7 +175,7 @@ export class DeliveryQueue {
       headers['Content-Type'] = 'application/activity+json';
 
       // Send request
-      const response = await fetch(item.target_inbox, {
+      const response = await fetch(item.target_inbox_url, {
         method: 'POST',
         headers,
         body: JSON.stringify(item.activity_data),
@@ -191,19 +191,19 @@ export class DeliveryQueue {
           })
           .eq('id', item.id);
 
-        logger.info(`✅ Delivered to ${item.target_inbox} (${response.status})`);
+        logger.info(`✅ Delivered to ${item.target_inbox_url} (${response.status})`);
         return true;
       } else {
         // Failed but might retry
         await this.handleDeliveryFailure(item, `HTTP ${response.status}`);
-        logger.warn(`❌ Failed to deliver to ${item.target_inbox}: ${response.status}`);
+        logger.warn(`❌ Failed to deliver to ${item.target_inbox_url}: ${response.status}`);
         return false;
       }
     } catch (error) {
       // Network error or other exception
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.handleDeliveryFailure(item, errorMessage);
-      logger.error(`❌ Delivery error to ${item.target_inbox}:`, error);
+      logger.error(`❌ Delivery error to ${item.target_inbox_url}:`, error);
       return false;
     }
   }
@@ -230,7 +230,7 @@ export class DeliveryQueue {
         })
         .eq('id', item.id);
 
-      logger.warn(`Max attempts reached for delivery to ${item.target_inbox}`);
+      logger.warn(`Max attempts reached for delivery to ${item.target_inbox_url}`);
     } else {
       // Schedule retry with exponential backoff
       const backoffMinutes = Math.pow(2, newAttempts) * 5; // 5, 10, 20, 40, 80 minutes
@@ -247,7 +247,7 @@ export class DeliveryQueue {
         })
         .eq('id', item.id);
 
-      logger.info(`Scheduled retry for ${item.target_inbox} in ${backoffMinutes} minutes`);
+      logger.info(`Scheduled retry for ${item.target_inbox_url} in ${backoffMinutes} minutes`);
     }
   }
 
