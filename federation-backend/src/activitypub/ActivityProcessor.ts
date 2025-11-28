@@ -1240,7 +1240,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Undo for Like/EmojiReaction
+   * Process Undo for Like/EmojiReaction (supports both posts and messages/DMs)
    */
   private static async processUndoReaction(object: any, actorUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
@@ -1259,29 +1259,54 @@ export class ActivityProcessor {
       return;
     }
 
+    // Check if this is a message (DM) reaction
+    if (objectUrl.includes('/messages/')) {
+      const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        const messageId = uuidMatch[1];
+        logger.info(`🔄 Undoing message reaction on ${messageId}`);
+        
+        // Delete from reactions table (for messages)
+        const { error, count } = await supabase
+          .from('reactions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('message_id', messageId);
+
+        if (error) {
+          logger.error(`Failed to delete message reaction:`, error);
+        } else {
+          logger.info(`✅ Undid message reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
+        }
+      }
+      return;
+    }
+
+    // Handle post reactions
+    let post = null;
+    
     // Try by ap_id first
-        let post = null;
-        const { data: postByApId } = await supabase
+    const { data: postByApId } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
+    
+    post = postByApId;
+    
+    // Fallback: try extracting UUID from URL (for local posts)
+    if (!post && objectUrl.includes('/posts/')) {
+      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        logger.info(`🔍 Trying to find local post by UUID: ${uuidMatch[1]}`);
+        const { data: postById } = await supabase
           .from('posts')
           .select('id')
-          .eq('ap_id', objectUrl)
+          .eq('id', uuidMatch[1])
           .maybeSingle();
-        
-        post = postByApId;
-        
-    // Fallback: try extracting UUID from URL (for local posts)
-        if (!post && objectUrl.includes('/posts/')) {
-          const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
-          if (uuidMatch) {
-        logger.info(`🔍 Trying to find local post by UUID: ${uuidMatch[1]}`);
-            const { data: postById } = await supabase
-              .from('posts')
-              .select('id')
-              .eq('id', uuidMatch[1])
-              .maybeSingle();
-            post = postById;
-          }
-        }
+        post = postById;
+      }
+    }
 
     if (!post) {
       logger.warn(`Post not found for Undo reaction: ${objectUrl}`);
@@ -1290,11 +1315,11 @@ export class ActivityProcessor {
 
     // Delete from post_interactions
     const { error, count } = await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('post_id', post.id)
-            .in('interaction_type', ['favorite', 'emoji_reaction']);
+      .from('post_interactions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('post_id', post.id)
+      .in('interaction_type', ['favorite', 'emoji_reaction']);
 
     if (error) {
       logger.error(`Failed to delete reaction:`, error);
