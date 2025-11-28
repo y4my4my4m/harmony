@@ -1488,6 +1488,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       is_sensitive?: boolean;
       sensitive?: boolean;
     }) {
+      console.log('[DEBUG] store.createPost: Starting...');
       this.isPosting = true;
       try {
         // Use postData if provided, otherwise use composer state
@@ -1499,16 +1500,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         const mediaAttachments = postData?.media_attachments || postData?.mediaAttachments || [];
         const sensitive = postData?.is_sensitive ?? postData?.sensitive ?? this.composerState.sensitive;
 
+        console.log('[DEBUG] store.createPost: Uploading media...', mediaAttachments.length, 'files');
         // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
+        console.log('[DEBUG] store.createPost: Media uploaded:', mediaUrls.length);
 
         // Handle content format - content should already be MessagePart[] from component
         let finalContent: MessagePart[];
         if (Array.isArray(content)) {
           // Content is already parsed MessagePart[] from component
+          console.log('[DEBUG] store.createPost: Content is already MessagePart[]');
           finalContent = content;
         } else if (typeof content === 'string') {
           // Fallback: parse string content (legacy support)
+          console.log('[DEBUG] store.createPost: Parsing string content...');
           finalContent = await this.formatPostContent(content);
         } else {
           throw new Error('Invalid content format - must be MessagePart[] or string');
@@ -1529,6 +1534,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           finalContent = [...finalContent, ...mediaParts];
         }
         
+        console.log('[DEBUG] store.createPost: Final content prepared, calling services.posts.createPost...');
         const post = await services.posts.createPost({
           content: finalContent,
           visibility: visibility,
@@ -1538,6 +1544,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           is_sensitive: sensitive || false,
           language: 'en'
         });
+        console.log('[DEBUG] store.createPost: Post created successfully!', post?.id);
 
         // Close composer
         this.closeComposer();
