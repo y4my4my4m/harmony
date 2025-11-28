@@ -725,8 +725,7 @@ BEGIN
                 'notification_id', NEW.id,
                 'user_id', NEW.user_id,
                 'type', NEW.type,
-                'data', COALESCE(NEW.data, '{}'::jsonb),
-                'title', NEW.title
+                'data', COALESCE(NEW.data, '{}'::jsonb)
             ),
             5,  -- priority
             3,  -- retry limit

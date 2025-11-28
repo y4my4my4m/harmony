@@ -13,14 +13,13 @@ export interface PushNotificationJobData {
   user_id: string;
   type: string;
   data: Record<string, any>;
-  title?: string;
 }
 
 /**
  * Handle push notification job
  */
 export async function handlePushNotificationJob(data: PushNotificationJobData): Promise<void> {
-  const { notification_id, user_id, type, data: notificationData, title } = data;
+  const { notification_id, user_id, type, data: notificationData } = data;
   
   logger.debug(`📱 Processing push notification: ${type} for user ${user_id}`);
   
@@ -31,7 +30,6 @@ export async function handlePushNotificationJob(data: PushNotificationJobData): 
       user_id,
       type,
       data: notificationData,
-      title,
       is_read: false,
     });
     
