@@ -5,14 +5,14 @@
  * Supports iOS 16.4+, Android, and desktop browsers
  */
 
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
 // Get federation backend URL from environment
 const FEDERATION_BACKEND_URL = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation'
 
-// Push notification state
+// Push notification state (shared across all composable instances)
 const isSupported = ref(false)
 const isSubscribed = ref(false)
 const isLoading = ref(false)
@@ -20,6 +20,10 @@ const permission = ref<NotificationPermission>('default')
 const vapidPublicKey = ref<string | null>(null)
 const subscriptions = ref<PushSubscriptionInfo[]>([])
 const error = ref<string | null>(null)
+
+// Initialization state (prevents duplicate API calls)
+let isInitializing = false
+let isInitialized = false
 
 export interface PushSubscriptionInfo {
   id: string
@@ -318,17 +322,12 @@ async function fetchSubscriptions(): Promise<void> {
 }
 
 /**
- * Check current subscription status
+ * Check current subscription status (local browser only, no API call)
  */
 async function checkSubscriptionStatus(): Promise<void> {
   try {
     const subscription = await getCurrentSubscription()
     isSubscribed.value = !!subscription
-    
-    // Also check if we have any server-side subscriptions
-    if (subscriptions.value.length === 0) {
-      await fetchSubscriptions()
-    }
   } catch (err) {
     debug.error('Failed to check subscription status:', err)
   }
@@ -375,49 +374,65 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
 
 /**
  * Initialize push notification system
+ * Safe to call multiple times - will only initialize once
  */
 async function initialize(): Promise<void> {
-  // Check browser support
-  isSupported.value = checkSupport()
-  
-  if (!isSupported.value) {
-    debug.log('Push notifications not supported in this browser')
+  // Prevent duplicate initialization
+  if (isInitialized || isInitializing) {
+    debug.log('🔔 Push notifications already initialized, skipping')
     return
   }
-
-  // Check permission status
-  permission.value = Notification.permission
-
-  // Fetch VAPID key
-  vapidPublicKey.value = await fetchVapidKey()
   
-  if (!vapidPublicKey.value) {
-    debug.log('Push notifications not configured on server')
-    return
+  isInitializing = true
+  
+  try {
+    // Check browser support
+    isSupported.value = checkSupport()
+    
+    if (!isSupported.value) {
+      debug.log('Push notifications not supported in this browser')
+      return
+    }
+
+    // Check permission status
+    permission.value = Notification.permission
+
+    // Fetch VAPID key (only if not already fetched)
+    if (!vapidPublicKey.value) {
+      vapidPublicKey.value = await fetchVapidKey()
+    }
+    
+    if (!vapidPublicKey.value) {
+      debug.log('Push notifications not configured on server')
+      return
+    }
+
+    // Check current subscription status
+    await checkSubscriptionStatus()
+    
+    // Fetch all subscriptions (only if not already fetched)
+    if (subscriptions.value.length === 0) {
+      await fetchSubscriptions()
+    }
+
+    isInitialized = true
+    debug.log('🔔 Push notification system initialized', {
+      supported: isSupported.value,
+      permission: permission.value,
+      subscribed: isSubscribed.value,
+      subscriptionCount: subscriptions.value.length
+    })
+  } finally {
+    isInitializing = false
   }
-
-  // Check current subscription status
-  await checkSubscriptionStatus()
-  
-  // Fetch all subscriptions
-  await fetchSubscriptions()
-
-  debug.log('🔔 Push notification system initialized', {
-    supported: isSupported.value,
-    permission: permission.value,
-    subscribed: isSubscribed.value,
-    subscriptionCount: subscriptions.value.length
-  })
 }
 
 /**
  * Composable for push notification management
  */
 export function usePushNotifications() {
-  // Initialize on first use
-  onMounted(() => {
-    initialize()
-  })
+  // Note: Initialize is NOT auto-called anymore to prevent duplicate API calls
+  // Components should call initialize() explicitly when needed
 
   // Computed helpers
   const canSubscribe = computed(() => {
