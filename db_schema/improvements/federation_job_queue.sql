@@ -706,6 +706,49 @@ CREATE TRIGGER trigger_federate_profile
 ALTER TABLE public.profiles DISABLE TRIGGER trigger_federate_profile;
 
 -- ============================================
+-- STEP 6b: Push Notification Trigger
+-- Queue push notifications via pg-boss instead of Realtime
+-- ============================================
+
+-- Push notification trigger function
+CREATE OR REPLACE FUNCTION public.trigger_queue_push_notification()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- Queue push notification job for new unread notifications
+    IF TG_OP = 'INSERT' AND NEW.is_read = false THEN
+        PERFORM public.queue_federation_job(
+            'send-push-notification',
+            jsonb_build_object(
+                'notification_id', NEW.id,
+                'user_id', NEW.user_id,
+                'type', NEW.type,
+                'data', COALESCE(NEW.data, '{}'::jsonb),
+                'title', NEW.title
+            ),
+            5,  -- priority
+            3,  -- retry limit
+            300 -- expire in 5 minutes
+        );
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.trigger_queue_push_notification IS 
+'Queue push notification jobs when new notifications are created';
+
+-- Drop and recreate trigger
+DROP TRIGGER IF EXISTS trigger_send_push_notification ON public.notifications;
+CREATE TRIGGER trigger_send_push_notification
+    AFTER INSERT ON public.notifications
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_queue_push_notification();
+
+-- ============================================
 -- STEP 7: Helper Functions for Migration
 -- ============================================
 
@@ -728,6 +771,7 @@ BEGIN
     ALTER TABLE public.user_blocks ENABLE TRIGGER trigger_federate_block_delete;
     ALTER TABLE public.reports ENABLE TRIGGER trigger_federate_report;
     ALTER TABLE public.profiles ENABLE TRIGGER trigger_federate_profile;
+    ALTER TABLE public.notifications ENABLE TRIGGER trigger_send_push_notification;
     
     RAISE NOTICE '✅ All federation triggers enabled';
 END;
@@ -752,6 +796,7 @@ BEGIN
     ALTER TABLE public.user_blocks DISABLE TRIGGER trigger_federate_block_delete;
     ALTER TABLE public.reports DISABLE TRIGGER trigger_federate_report;
     ALTER TABLE public.profiles DISABLE TRIGGER trigger_federate_profile;
+    ALTER TABLE public.notifications DISABLE TRIGGER trigger_send_push_notification;
     
     RAISE NOTICE '⚠️ All federation triggers disabled';
 END;

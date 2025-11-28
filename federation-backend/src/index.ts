@@ -106,15 +106,18 @@ app.listen(PORT, () => {
     });
   }
   
-  // Initialize push notification service (pg-boss handles the actual listening now)
+  // Initialize push notification service
   if (USE_PGBOSS_QUEUE) {
     // pg-boss handles push notifications via 'send-push-notification' queue
-    const { PushNotificationService } = await import('./services/PushNotificationService.js');
-    if (PushNotificationService.initialize()) {
-      logger.info('✅ Push notification service initialized (using pg-boss queue)');
-    } else {
-      logger.warn('⚠️ Push notifications not available (VAPID not configured)');
-    }
+    import('./services/PushNotificationService.js').then(({ PushNotificationService }) => {
+      if (PushNotificationService.initialize()) {
+        logger.info('✅ Push notification service initialized (using pg-boss queue)');
+      } else {
+        logger.warn('⚠️ Push notifications not available (VAPID not configured)');
+      }
+    }).catch((error) => {
+      logger.error('Failed to initialize push notification service:', error);
+    });
   } else {
     // Legacy: Use Realtime listener
     startPushNotificationListener().catch((error) => {
