@@ -594,7 +594,7 @@ BEGIN
                 'display_name', NEW.display_name,
                 'bio', NEW.bio,
                 'avatar_url', NEW.avatar_url,
-                'header_url', NEW.header_url
+                'banner_url', NEW.banner_url
             ),
             3, -- Lower priority than posts
             5,

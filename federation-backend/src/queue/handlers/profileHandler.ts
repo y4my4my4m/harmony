@@ -13,7 +13,7 @@ import type { FederationJobData } from '../QueueManager.js';
 
 export async function handleProfileJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { profile_id, username, display_name, bio, avatar_url, header_url } = data;
+  const { profile_id, username, display_name, bio, avatar_url, banner_url } = data;
 
   logger.info(`👤 Processing profile update job for: ${username}`);
 
@@ -55,10 +55,10 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
           mediaType: 'image/png',
           url: profile.avatar_url
         } : undefined,
-        image: profile.header_url ? {
+        image: profile.banner_url ? {
           type: 'Image',
           mediaType: 'image/png',
-          url: profile.header_url
+          url: profile.banner_url
         } : undefined,
         inbox: `${actorUrl}/inbox`,
         outbox: `${actorUrl}/outbox`,
