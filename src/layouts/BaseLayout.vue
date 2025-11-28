@@ -293,8 +293,9 @@ const initializeApp = async () => {
     // Load route-specific data
     await initializeRouteSpecificData(userId, loadingStrategy, userData)
     
-    // Ensure global presence is active regardless of current view
-    await userData.refreshGlobalPresence()
+    // Note: Global presence is automatically set up during userData.initialize()
+    // No need to call refreshGlobalPresence() here - it would cause redundant tracking
+    // The route change watcher handles refreshing on actual navigation
     
     // Attempt to reconnect to previous voice channel if user was in one
     setTimeout(async () => {

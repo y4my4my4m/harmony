@@ -1343,8 +1343,17 @@ const closeInviteModal = () => {
 /* Individual message item */
 .message-item {
   position: relative;
-  padding: 0.125rem 48px 0.125rem 16px; /* 2px vertical padding like Discord */
+  padding: 0.125rem 16px; /* 2px vertical padding */
   transition: background-color 0.1s ease-out;
+}
+
+/* Add margin to message-item only if its child .message-group has a header */
+.message-item > .message-group.has-header ~ .message-group,
+.message-item > .message-group.has-header {
+  /* no-op: ensure specificity for selector ordering */
+}
+.message-item:has(> .message-group.has-header) {
+  margin-top: 0.5rem;
 }
 
 .message-item:hover {
@@ -1353,8 +1362,8 @@ const closeInviteModal = () => {
 
 /* Reply reference styling */
 .reply-reference {
-  margin-left: 56px; /* Match the gutter width */
-  margin-bottom: 4px;
+  margin-left: 54px; /* Match the gutter width */
+  margin-bottom: 0;
   cursor: pointer;
   position: relative;
 }
@@ -1417,24 +1426,17 @@ const closeInviteModal = () => {
   position: relative;
 }
 
-/* Messages with headers get extra top margin for visual separation */
-.message-group.has-header {
-  margin-top: 1.0625rem;
-}
-
-.message-group.compact {
-  margin-top: 0;
-}
 
 /* Message header with avatar + username + timestamp */
 .message-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
 }
 
 .message-avatar {
   flex-shrink: 0;
+  display: flex;
 }
 
 .message-main {
@@ -1540,7 +1542,7 @@ const closeInviteModal = () => {
 .message-actions {
   position: absolute;
   top: -16px;
-  right: 16px;
+  right: 0;
   display: flex;
   background-color: #36393f;
   border: 1px solid #40444b;
@@ -1820,23 +1822,30 @@ const closeInviteModal = () => {
 /* Responsive design */
 @media (max-width: 768px) {
   .message-item {
-    padding: 0 12px;
+    padding: 0 8px 0 12px;
   }
   
   .reply-reference {
-    margin-left: 44px;
+    margin-left: 50px;
+  }
+  .reply-spine {
+    left: -30px;
   }
   
+  .reply-spine::after {
+    width: 28px;
+  }
+
   .message-header {
     gap: 12px;
   }
   
   .message-gutter {
-    width: 44px;
+    width: 52px;
   }
   
   .reactions-gutter {
-    width: 44px;
+    width: 42px;
   }
   
   .date-separator {

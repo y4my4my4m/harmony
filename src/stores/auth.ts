@@ -11,6 +11,7 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     session: null as Session | null,
     isPasswordResetMode: false, // Flag to track if we're in password reset flow
+    _mfaValidatedForSession: null as string | null, // Track which session we already validated MFA for
   }),
   getters: {
     isLoggedIn: (state) => {
@@ -133,6 +134,9 @@ export const useAuthStore = defineStore('auth', {
         
         if (isValid) {
           this.session = session;
+          // ✅ PERFORMANCE: Remember we validated this session to avoid redundant validation
+          // on INITIAL_SESSION event that fires immediately after
+          this._mfaValidatedForSession = session.access_token;
         } else {
           debug.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
           // Sign out the incomplete session to prevent other tabs from using it
@@ -210,13 +214,23 @@ export const useAuthStore = defineStore('auth', {
         // 3. Tab A receives storage change event, gets AAL1 session
         // 4. Without this check, Tab A would accept the incomplete session
         if (session) {
-          const isValid = await this.validateSessionForMFA(session);
+          // ✅ PERFORMANCE: Skip validation if we already validated this exact session
+          // during initializeAuth() - INITIAL_SESSION fires immediately after getSession()
+          const alreadyValidated = this._mfaValidatedForSession === session.access_token;
           
-          if (!isValid) {
-            debug.warn(`🚨 ${event} event with invalid AAL1 session (MFA enabled) - rejecting`);
-            // Don't set the session - this is an incomplete MFA login from another tab
-            // or an attempted bypass
-            return;
+          if (alreadyValidated) {
+            debug.log(`⚡ Skipping MFA validation for ${event} - already validated during init`);
+            // Clear the cache after use (one-time skip)
+            this._mfaValidatedForSession = null;
+          } else {
+            const isValid = await this.validateSessionForMFA(session);
+            
+            if (!isValid) {
+              debug.warn(`🚨 ${event} event with invalid AAL1 session (MFA enabled) - rejecting`);
+              // Don't set the session - this is an incomplete MFA login from another tab
+              // or an attempted bypass
+              return;
+            }
           }
         }
         
