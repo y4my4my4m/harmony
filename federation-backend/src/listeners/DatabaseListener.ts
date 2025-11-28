@@ -1313,22 +1313,21 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
       
       // First try the emojis table
       const { data: emoji, error: emojiError } = await supabase
-        .from('emojis')
-        .select('id, name, url, display_name')
-        .eq('id', reaction.emoji_id)
-        .single();
+          .from('emojis')
+          .select('id, name, url')
+          .eq('id', reaction.emoji_id)
+          .single();
 
       if (emojiError) {
         logger.warn(`Failed to fetch emoji ${reaction.emoji_id}: ${emojiError.message}`);
       }
 
       if (emoji) {
-        logger.debug(`Found emoji: name=${emoji.name}, display_name=${emoji.display_name}, url=${emoji.url}`);
+        logger.debug(`Found emoji: name=${emoji.name}, url=${emoji.url}`);
         emojiData = { name: emoji.name, url: emoji.url };
         
-        // Prefer display_name, then name, use shortcode format for custom emojis
-        const emojiName = emoji.display_name || emoji.name;
-        emojiContent = emoji.url ? `:${emojiName}:` : emojiName;
+        // Use shortcode format for custom emojis with URLs
+        emojiContent = emoji.url ? `:${emoji.name}:` : emoji.name;
       } else {
         // Check if emoji info is in reaction metadata
         if (reaction.metadata?.emoji_name) {
@@ -1346,7 +1345,7 @@ async function handleNewMessageReaction(reaction: any): Promise<void> {
             .select(`
               emoji_id,
               emojis (
-                id, name, url, display_name
+                id, name, url
               )
             `)
             .eq('id', reaction.id)
