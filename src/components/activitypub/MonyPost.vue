@@ -583,7 +583,8 @@ const tooltipTimer = ref<NodeJS.Timeout | null>(null);
 
 
 const handleTimeClick = () => {
-  router.push({ name: 'PostView', params: { postId: props.post.id } });
+  // Navigate to PostDetail (the actual route) instead of PostView (which redirects)
+  router.push({ name: 'PostDetail', params: { postId: props.post.id } });
 };
 
 // Computed

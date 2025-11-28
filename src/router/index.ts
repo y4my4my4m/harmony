@@ -101,20 +101,28 @@ const router = createRouter({
         }
       ]
     },
-    // ActivityPub Post Routes (redirect to social layout)
+    // ActivityPub Post Routes (direct access for external sharing)
+    // This route is for direct post URLs (ActivityPub standard)
+    // Uses SocialLayout to maintain consistent UI with /social/post/:postId
     {
       path: '/posts/:postId',
-      name: 'PostView',
-      redirect: route => {
-        const postId = route.params.postId as string;
-        const query = route.query;
-        return {
-          name: 'PostDetail',
-          params: { postId },
-          query
-        };
-      },
-      meta: { requiresAuth: true }
+      component: () => import('@/layouts/SocialLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'DirectPost',
+          component: () => import('@/views/PostView.vue'),
+          props: route => ({
+            postId: route.params.postId as string,
+            contextType: 'thread',
+            highlightReply: route.query.highlight as string,
+            timestamp: route.query.t ? parseInt(route.query.t as string) : null,
+            currentView: CurrentView.POST,
+            viewType: ViewType.POST
+          })
+        }
+      ]
     },
     // Social Layout Routes (Updated to use unified PostView)
     {

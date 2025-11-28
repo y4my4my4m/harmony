@@ -1032,7 +1032,7 @@ export const useNotificationStore = defineStore('notification', {
             case 'activitypub_post':
               // Navigate to specific ActivityPub post using unified view
               router.push({
-                name: 'PostView',
+                name: 'PostDetail',
                 params: { postId: navData.postId }
               })
               break

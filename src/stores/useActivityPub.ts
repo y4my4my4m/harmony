@@ -2792,9 +2792,9 @@ export const useActivityPubStore = defineStore('activitypub', {
        
        try {
          // Navigate to post detail view
-         debug.log(`🧭 Attempting to navigate to PostView route`);
+         debug.log(`🧭 Attempting to navigate to PostDetail route`);
          router.push({
-           name: 'PostView',
+           name: 'PostDetail',
            params: { postId }
          });
          debug.log(`✅ Navigation initiated successfully`);

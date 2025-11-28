@@ -91,6 +91,8 @@ DROP FUNCTION IF EXISTS public.update_reply_counts() CASCADE;
 -- =====================================================
 
 -- Recalculate all reply counts to fix any existing discrepancies
+-- Using IS DISTINCT FROM to properly handle NULL values
+-- (NULL != 0 evaluates to NULL, but NULL IS DISTINCT FROM 0 evaluates to TRUE)
 UPDATE public.posts p
 SET replies_count = (
   SELECT COUNT(*) 
@@ -98,7 +100,7 @@ SET replies_count = (
   WHERE r.in_reply_to = p.id 
   AND (r.is_deleted = false OR r.is_deleted IS NULL)
 )
-WHERE p.replies_count != (
+WHERE p.replies_count IS DISTINCT FROM (
   SELECT COUNT(*) 
   FROM public.posts r 
   WHERE r.in_reply_to = p.id 
