@@ -280,17 +280,17 @@ export function useAutoSuggest(
 
   // ActivityPub user search function with timeout
   const searchActivityPubUsers = async (query: string) => {
-    console.log('[DEBUG] searchActivityPubUsers called:', { query, mode: finalConfig.mode });
+    debug.log('[DEBUG] searchActivityPubUsers called:', { query, mode: finalConfig.mode });
     
     if (finalConfig.mode !== 'activitypub' || query.length < 2) {
-      console.log('[DEBUG] searchActivityPubUsers: Skipping (mode or query too short)', { mode: finalConfig.mode, queryLength: query.length });
+      debug.log('[DEBUG] searchActivityPubUsers: Skipping (mode or query too short)', { mode: finalConfig.mode, queryLength: query.length });
       activityPubUsers.value = [];
       return;
     }
 
     // Cancel any in-flight search
     if (currentSearchAbortController) {
-      console.log('[DEBUG] searchActivityPubUsers: Aborting previous search');
+      debug.log('[DEBUG] searchActivityPubUsers: Aborting previous search');
       currentSearchAbortController.abort();
     }
     
@@ -298,7 +298,7 @@ export function useAutoSuggest(
     currentSearchQuery = query;
 
     try {
-      console.log('[DEBUG] searchActivityPubUsers: Calling activityPubService.searchUsers...');
+      debug.log('[DEBUG] searchActivityPubUsers: Calling activityPubService.searchUsers...');
       
       // Race the search against a timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -311,17 +311,17 @@ export function useAutoSuggest(
       
       // Only update if this is still the current query
       if (query === currentSearchQuery) {
-        console.log('[DEBUG] searchActivityPubUsers: Got results:', users?.length || 0, 'users');
+        debug.log('[DEBUG] searchActivityPubUsers: Got results:', users?.length || 0, 'users');
         activityPubUsers.value = users;
       } else {
-        console.log('[DEBUG] searchActivityPubUsers: Ignoring stale results for:', query);
+        debug.log('[DEBUG] searchActivityPubUsers: Ignoring stale results for:', query);
       }
     } catch (error: any) {
       if (error?.name === 'AbortError') {
-        console.log('[DEBUG] searchActivityPubUsers: Search aborted');
+        debug.log('[DEBUG] searchActivityPubUsers: Search aborted');
         return;
       }
-      console.error('[DEBUG] searchActivityPubUsers: ERROR:', error);
+      debug.error('[DEBUG] searchActivityPubUsers: ERROR:', error);
       debug.error('Failed to search ActivityPub users:', error);
       activityPubUsers.value = [];
     }
@@ -387,7 +387,7 @@ export function useAutoSuggest(
         }
       } catch (error) {
         // Fallback to default positioning if cursor detection fails
-        console.debug('Cursor position detection failed, using default positioning');
+        debug.debug('Cursor position detection failed, using default positioning');
       }
     }
 
@@ -421,19 +421,19 @@ export function useAutoSuggest(
   const handleInput = (value: string, cursorPosition: number) => {
     const textBeforeCursor = value.substring(0, cursorPosition);
     
-    console.log('[DEBUG] handleInput called:', { value: value.substring(0, 50), cursorPosition, textBeforeCursor: textBeforeCursor.substring(textBeforeCursor.length - 20) });
+    debug.log('[DEBUG] handleInput called:', { value: value.substring(0, 50), cursorPosition, textBeforeCursor: textBeforeCursor.substring(textBeforeCursor.length - 20) });
     
     // Check for trigger patterns
     let foundTrigger = false;
     
     for (const trigger of triggers) {
       const match = textBeforeCursor.match(trigger.pattern);
-      console.log('[DEBUG] Checking trigger:', trigger.type, 'pattern:', trigger.pattern, 'match:', match);
+      debug.log('[DEBUG] Checking trigger:', trigger.type, 'pattern:', trigger.pattern, 'match:', match);
       if (match && match.index !== undefined) {
         foundTrigger = true;
         const query = match[1] || '';
         
-        console.log('[DEBUG] Trigger found!', { type: trigger.type, query, matchIndex: match.index });
+        debug.log('[DEBUG] Trigger found!', { type: trigger.type, query, matchIndex: match.index });
         
         // Calculate the actual trigger position (where @ or : starts)
         let triggerPosition = match.index;
@@ -457,11 +457,11 @@ export function useAutoSuggest(
           position: calculateCursorPosition()
         };
         
-        console.log('[DEBUG] State set to active:', state.value);
+        debug.log('[DEBUG] State set to active:', state.value);
 
         // Trigger ActivityPub user search if needed
         if (trigger.type === 'mention' && finalConfig.mode === 'activitypub') {
-          console.log('[DEBUG] Searching ActivityPub users for:', query);
+          debug.log('[DEBUG] Searching ActivityPub users for:', query);
           searchActivityPubUsers(query);
         }
         
@@ -470,7 +470,7 @@ export function useAutoSuggest(
     }
     
     if (!foundTrigger && state.value.isActive) {
-      console.log('[DEBUG] No trigger found, closing suggestions');
+      debug.log('[DEBUG] No trigger found, closing suggestions');
       closeSuggestions();
     }
   };

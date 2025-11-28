@@ -301,6 +301,7 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { supabase } from '@/supabase'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
+import { useHapticSettings } from '@/composables/useHapticSettings';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -343,6 +344,7 @@ const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
 const { isCurrentUserServerOwner } = useServerPermissions();
+const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const { 
   getUserDisplayName, 
   getUserColor, 
@@ -1121,6 +1123,8 @@ const cancelEdit = () => {
 };
 
 const deleteMessage = (messageId: string) => {
+  // Haptic feedback for destructive action
+  triggerDestructive();
   chatStore.deleteMessage(messageId);
 };
 
@@ -1288,6 +1292,9 @@ const closeLightbox = () => {
 const openContextMenu = (message: Message, event: MouseEvent) => {
   event.preventDefault();
   event.stopPropagation();
+  
+  // Haptic feedback for context menu
+  triggerInteraction();
   
   contextMenuMessage.value = message;
   contextMenuPosition.value = {

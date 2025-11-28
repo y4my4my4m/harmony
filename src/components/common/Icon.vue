@@ -30,8 +30,20 @@
     
     <!-- Camera Off -->
     <line v-if="name === 'camera-off'" x1="1" y1="1" x2="23" y2="23"></line>
-    <path v-if="name === 'camera-off'" d="m21 21-3.6-3.6c-.2.1-.4.2-.6.2H3a2 2 0 0 1-2-2V8c0-.4.1-.8.3-1.2L5 10.7V19h10.7l-2.4-2.4"></path>
-    
+    <path v-if="name === 'camera-off'" d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+    <circle v-if="name === 'camera-off'" cx="12" cy="13" r="4"></circle>
+
+    <!-- Send -->
+    <line v-if="name === 'send'" x1="22" y1="2" x2="11" y2="13"></line>
+    <polygon v-if="name === 'send'" points="22,2 15,22 11,13 2,9"></polygon>
+
+    <!-- Bell-off -->
+    <path v-if="name === 'bell-off'" d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+    <path v-if="name === 'bell-off'" d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
+    <path v-if="name === 'bell-off'" d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
+    <path v-if="name === 'bell-off'" d="M18 8a6 6 0 0 0-9.33-5"></path>
+    <line v-if="name === 'bell-off'" x1="1" y1="1" x2="23" y2="23"></line>
+
     <!-- Screen Share -->
     <rect v-if="name === 'screen-share'" x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
     <line v-if="name === 'screen-share'" x1="8" y1="21" x2="16" y2="21"></line>
@@ -66,6 +78,28 @@
     <path v-if="name === 'phone-off'" d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path>
     <line v-if="name === 'phone-off'" x1="23" y1="1" x2="1" y2="23"></line>
     
+    <!-- Smartphone -->
+    <rect v-if="name === 'smartphone'" x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+    <line v-if="name === 'smartphone'" x1="12" y1="18" x2="12.01" y2="18"></line>
+
+    <!-- Tablet -->
+    <rect v-if="name === 'tablet'" x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+    <line v-if="name === 'tablet'" x1="12" y1="18" x2="12.01" y2="18"></line>
+
+    <!-- Monitor (Desktop) -->
+    <rect v-if="name === 'monitor'" x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+    <line v-if="name === 'monitor'" x1="8" y1="21" x2="16" y2="21"></line>
+    <line v-if="name === 'monitor'" x1="12" y1="17" x2="12" y2="21"></line>
+
+    <!-- Laptop -->
+    <rect v-if="name === 'laptop'" x="3" y="4" width="18" height="12" rx="2" ry="2"></rect>
+    <line v-if="name === 'laptop'" x1="2" y1="20" x2="22" y2="20"></line>
+
+    <!-- Devices (multiple devices) -->
+    <rect v-if="name === 'devices'" x="10" y="2" width="12" height="9" rx="1"></rect>
+    <rect v-if="name === 'devices'" x="2" y="7" width="10" height="15" rx="1"></rect>
+    <line v-if="name === 'devices'" x1="7" y1="19" x2="7.01" y2="19"></line>
+
     <!-- WiFi Low -->
     <path v-if="name === 'wifi-low'" d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z"></path>
     <path v-if="name === 'wifi-low'" d="M5 13l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.24 9.24 8.76 9.24 5 13z"></path>

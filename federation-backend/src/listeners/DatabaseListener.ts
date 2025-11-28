@@ -9,9 +9,11 @@
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
+import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { createPostActivity, createLikeActivity, createReblogActivity } from './FederationHandlers.js';
 import { logger } from '../utils/logger.js';
+import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 
 /**
  * Start listening to database notifications
@@ -221,6 +223,51 @@ export async function startDatabaseListener(): Promise<void> {
       async (payload) => {
         logger.info('↩️ Interaction removal detected:', payload.old?.id);
         await handleInteractionRemoval(payload.old);
+      }
+    )
+    // Listen for DM messages - federate to remote recipients
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      },
+      async (payload) => {
+        // Only process messages in conversations (DMs), not channel messages
+        if (payload.new.conversation_id && !payload.new.metadata?.federated) {
+          logger.info('💬 DM message detected:', {
+            id: payload.new.id,
+            conversation_id: payload.new.conversation_id
+          });
+          await handleNewDM(payload.new);
+        }
+      }
+    )
+    // Listen for new message reactions (DMs)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'reactions',
+      },
+      async (payload) => {
+        logger.info('💬❤️ New message reaction detected:', payload.new.id);
+        await handleNewMessageReaction(payload.new);
+      }
+    )
+    // Listen for message reaction removals (DMs)
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'reactions',
+      },
+      async (payload) => {
+        logger.info('💬💔 Message reaction removed:', payload.old?.id);
+        await handleMessageReactionRemoval(payload.old);
       }
     )
     .subscribe((status, err) => {
@@ -1038,3 +1085,387 @@ async function handleNewReport(report: any): Promise<void> {
   }
 }
 
+/**
+ * Handle new DM messages - federate to remote recipients
+ * This replaces the database trigger handle_outgoing_messages for DMs
+ */
+async function handleNewDM(message: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const domain = config.INSTANCE_DOMAIN;
+    
+    // Get the sender profile
+    const { data: sender } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
+      .eq('id', message.user_id)
+      .single();
+    
+    if (!sender) {
+      logger.warn(`Could not find sender for DM: ${message.user_id}`);
+      return;
+    }
+    
+    // Only federate messages from local users
+    if (!sender.is_local) {
+      logger.debug('Skipping federation for message from remote user');
+      return;
+    }
+    
+    // Get all participants in the conversation (excluding sender)
+    const { data: participants, error: participantsError } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', message.conversation_id)
+      .neq('user_id', message.user_id)
+      .is('left_at', null);
+    
+    if (participantsError) {
+      logger.error('Error fetching conversation participants:', participantsError);
+      return;
+    }
+    
+    if (!participants || participants.length === 0) {
+      logger.debug('No other participants in conversation');
+      return;
+    }
+    
+    logger.debug(`Found ${participants.length} participant(s) in conversation`);
+    
+    // Get profiles for all participants
+    const participantIds = participants.map(p => p.user_id);
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, username, domain, federated_id, is_local, inbox_url')
+      .in('id', participantIds);
+    
+    if (profilesError) {
+      logger.error('Error fetching participant profiles:', profilesError);
+      return;
+    }
+    
+    logger.debug(`Fetched ${profiles?.length || 0} profile(s):`, 
+      profiles?.map(p => ({ username: p.username, domain: p.domain, is_local: p.is_local }))
+    );
+    
+    // Filter to only remote users (federated users have is_local = false and a domain)
+    const remoteUsers = (profiles || []).filter(
+      (p: any) => p.is_local === false && p.domain
+    );
+    
+    if (remoteUsers.length === 0) {
+      logger.debug('All DM recipients are local (no remote users to federate to)');
+      return;
+    }
+    
+    logger.info(`📮 Federating DM to ${remoteUsers.length} remote recipient(s):`, 
+      remoteUsers.map((p: any) => `${p.username}@${p.domain}`)
+    );
+    
+    // Build sender URL
+    const senderUrl = `https://${domain}/users/${sender.username}`;
+    const messageUrl = `https://${domain}/messages/${message.id}`;
+    
+    // Convert content to HTML
+    // Use shared content utilities for consistent HTML conversion
+    const htmlContent = convertContentToHTML(message.content);
+    
+    // Extract attachments and tags using shared utilities
+    const attachments = extractAttachments(message.content);
+    const tags = extractActivityPubTags(message.content);
+    
+    // Send to each remote recipient
+    for (const profile of remoteUsers) {
+      const recipientUrl = profile.federated_id || `https://${profile.domain}/users/${profile.username}`;
+      const activityId = `${senderUrl}#dm-${message.id}-${profile.id}`;
+      
+      // Add recipient as mention tag
+      const mentionTag = {
+        type: 'Mention',
+        href: recipientUrl,
+        name: `@${profile.username}@${profile.domain}`
+      };
+      
+      // Create Note object (DM format)
+      const note = {
+        id: messageUrl,
+        type: 'Note',
+        attributedTo: senderUrl,
+        published: message.created_at,
+        content: htmlContent,
+        contentMap: { en: htmlContent },
+        attachment: attachments,
+        tag: [...tags, mentionTag],
+        to: [recipientUrl],    // Direct addressing
+        cc: [],                // Empty CC for DMs
+        directMessage: true    // Explicit DM flag
+      };
+      
+      // Create ActivityPub Create activity
+      const activity = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: activityId,
+        type: 'Create',
+        actor: senderUrl,
+        published: message.created_at,
+        object: note,
+        to: [recipientUrl],
+        cc: []
+      };
+      
+      // Resolve inbox URL
+      let inboxUrl = profile.inbox_url;
+      
+      if (!inboxUrl) {
+        // Try to get shared inbox from instances table
+        const { data: instance } = await supabase
+          .from('instances')
+          .select('shared_inbox_url')
+          .eq('domain', profile.domain)
+          .single();
+        
+        inboxUrl = instance?.shared_inbox_url || `https://${profile.domain}/inbox`;
+      }
+      
+      // Deliver the activity
+      await DeliveryQueue.enqueue(activity, inboxUrl, sender.id);
+      
+      logger.info(`✅ DM federated to ${profile.username}@${profile.domain}`);
+    }
+  } catch (error) {
+    logger.error('Error handling DM federation:', error);
+  }
+}
+
+/**
+ * Handle new message reaction (DM reaction federation)
+ * When a local user reacts to a DM, federate the Like activity to all remote participants
+ */
+async function handleNewMessageReaction(reaction: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const domain = config.INSTANCE_DOMAIN;
+
+    // Skip if this is a federated reaction (has federated metadata)
+    if (reaction.metadata?.federated) {
+      logger.debug('Skipping federated reaction');
+      return;
+    }
+
+    // Get the user who reacted
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', reaction.user_id)
+      .single();
+
+    if (!user || !user.is_local) {
+      logger.debug('Reaction from remote user, skipping outbound federation');
+      return;
+    }
+
+    // Get the message that was reacted to
+    const { data: message } = await supabase
+      .from('messages')
+      .select('id, user_id, conversation_id')
+      .eq('id', reaction.message_id)
+      .single();
+
+    if (!message || !message.conversation_id) {
+      logger.debug('Message not found or not a DM');
+      return;
+    }
+
+    // Get all participants in the conversation (not just message author)
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select(`
+        user_id,
+        profiles!inner (
+          id,
+          username,
+          domain,
+          is_local,
+          inbox_url,
+          federated_id
+        )
+      `)
+      .eq('conversation_id', message.conversation_id)
+      .neq('user_id', reaction.user_id) // Exclude the user who reacted
+      .is('left_at', null);
+
+    // Filter to only remote participants
+    const remoteParticipants = participants?.filter(
+      (p: any) => !p.profiles.is_local && p.profiles.domain
+    ).map((p: any) => p.profiles);
+
+    if (!remoteParticipants || remoteParticipants.length === 0) {
+      logger.debug('No remote participants in conversation, no federation needed');
+      return;
+    }
+
+    // Get emoji data - try multiple sources
+    let emojiContent = '❤️'; // Default
+    let emojiData = null;
+
+    if (reaction.emoji_id) {
+      logger.debug(`Looking up emoji_id: ${reaction.emoji_id}`);
+      
+      // First try the emojis table
+      const { data: emoji, error: emojiError } = await supabase
+          .from('emojis')
+          .select('id, name, url')
+          .eq('id', reaction.emoji_id)
+          .single();
+
+      if (emojiError) {
+        logger.warn(`Failed to fetch emoji ${reaction.emoji_id}: ${emojiError.message}`);
+      }
+
+      if (emoji) {
+        logger.debug(`Found emoji: name=${emoji.name}, url=${emoji.url}`);
+        emojiData = { name: emoji.name, url: emoji.url };
+        
+        // Use shortcode format for custom emojis with URLs
+        emojiContent = emoji.url ? `:${emoji.name}:` : emoji.name;
+      } else {
+        // Check if emoji info is in reaction metadata
+        if (reaction.metadata?.emoji_name) {
+          logger.debug(`Using emoji from metadata: ${reaction.metadata.emoji_name}`);
+          emojiContent = reaction.metadata.emoji_url 
+            ? `:${reaction.metadata.emoji_name}:` 
+            : reaction.metadata.emoji_name;
+          if (reaction.metadata.emoji_url) {
+            emojiData = { name: reaction.metadata.emoji_name, url: reaction.metadata.emoji_url };
+          }
+        } else {
+          // Last resort: query the reaction with joined emoji data
+          const { data: reactionWithEmoji } = await supabase
+            .from('reactions')
+            .select(`
+              emoji_id,
+              emojis (
+                id, name, url
+              )
+            `)
+            .eq('id', reaction.id)
+            .single();
+          
+          if (reactionWithEmoji?.emojis) {
+            const e = reactionWithEmoji.emojis as any;
+            logger.debug(`Found emoji via join: name=${e.name}`);
+            emojiData = { name: e.name, url: e.url };
+            emojiContent = e.url ? `:${e.name}:` : e.name;
+          } else {
+            logger.warn(`Emoji not found for id ${reaction.emoji_id}, using default ❤️`);
+          }
+        }
+      }
+    }
+
+    // Build the message URL
+    const messageUrl = `https://${domain}/messages/${message.id}`;
+
+    // Create Like activity
+    const activity = await createLikeActivity(user, messageUrl, emojiContent, emojiData);
+
+    // Send to all remote participants
+    for (const participant of remoteParticipants) {
+      logger.info(`🌐 Federating message reaction: ${emojiContent} (emoji_id: ${reaction.emoji_id}) to ${participant.username}@${participant.domain}`);
+
+      const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
+      await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
+      logger.info(`✅ Message reaction queued for delivery to ${inboxUrl}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle message reaction:', error);
+  }
+}
+
+/**
+ * Handle message reaction removal (Undo Like for DMs)
+ * When a local user removes a reaction from a DM, federate Undo Like to all remote participants
+ */
+async function handleMessageReactionRemoval(deletedReaction: any): Promise<void> {
+  try {
+    if (!deletedReaction) {
+      logger.debug('No deleted reaction data');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const domain = config.INSTANCE_DOMAIN;
+
+    // Get the user who removed the reaction
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', deletedReaction.user_id)
+      .single();
+
+    if (!user || !user.is_local) {
+      logger.debug('Reaction removal from remote user, skipping outbound federation');
+      return;
+    }
+
+    // Get the message
+    const { data: message } = await supabase
+      .from('messages')
+      .select('id, user_id, conversation_id')
+      .eq('id', deletedReaction.message_id)
+      .single();
+
+    if (!message || !message.conversation_id) {
+      logger.debug('Message not found or not a DM');
+      return;
+    }
+
+    // Get all participants in the conversation
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select(`
+        user_id,
+        profiles!inner (
+          id,
+          username,
+          domain,
+          is_local,
+          inbox_url
+        )
+      `)
+      .eq('conversation_id', message.conversation_id)
+      .neq('user_id', deletedReaction.user_id)
+      .is('left_at', null);
+
+    // Filter to only remote participants
+    const remoteParticipants = participants?.filter(
+      (p: any) => !p.profiles.is_local && p.profiles.domain
+    ).map((p: any) => p.profiles);
+
+    if (!remoteParticipants || remoteParticipants.length === 0) {
+      logger.debug('No remote participants in conversation, no federation needed');
+      return;
+    }
+
+    // Build the message URL
+    const messageUrl = `https://${domain}/messages/${message.id}`;
+
+    // Create Undo Like activity
+    const { createUndoLikeActivity } = await import('./FederationHandlers.js');
+    const activity = createUndoLikeActivity(user, messageUrl);
+
+    // Send to all remote participants
+    for (const participant of remoteParticipants) {
+      logger.info(`🌐 Federating message reaction removal to ${participant.username}@${participant.domain}`);
+
+      const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
+      await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
+      logger.info(`✅ Message Undo Like queued for delivery to ${inboxUrl}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle message reaction removal:', error);
+  }
+}
+
+// Content conversion functions are now in utils/contentUtils.ts
+// Used by: DMs, Channel Messages, Posts - ensuring consistent federation output

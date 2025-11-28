@@ -39,6 +39,7 @@ import { computed, onMounted, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
+import { useHapticSettings } from '@/composables/useHapticSettings';
 import type { Message, Emoji } from '@/types';
 
 interface Props {
@@ -60,6 +61,7 @@ const emit = defineEmits<Emits>();
 
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
+const { triggerReaction } = useHapticSettings();
 
 // ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
 const reactions = computed(() => {
@@ -90,6 +92,9 @@ const hasUserReacted = (emojiId: string) => {
 // Handle reaction toggle (Discord-style instant feedback)
 const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   if (!currentUserId.value) return;
+  
+  // Haptic feedback on reaction
+  triggerReaction();
   
   emit('toggle-reaction', props.message.id, emoji);
   

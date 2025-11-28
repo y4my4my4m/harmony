@@ -7,6 +7,8 @@
 </template>
 
 <script setup lang="ts">
+import { useHapticSettings } from '@/composables/useHapticSettings'
+
 // Props
 interface Props {
   modelValue: boolean
@@ -23,6 +25,9 @@ const emit = defineEmits<{
   'change': [value: boolean]
 }>()
 
+// Haptics
+const { triggerToggle } = useHapticSettings()
+
 // Methods
 const toggle = () => {
   if (props.disabled) return
@@ -30,6 +35,8 @@ const toggle = () => {
   const newValue = !props.modelValue
   emit('update:modelValue', newValue)
   emit('change', newValue)
+  // Haptic feedback
+  triggerToggle()
 }
 </script>
 

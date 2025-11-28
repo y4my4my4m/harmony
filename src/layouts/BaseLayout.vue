@@ -526,6 +526,10 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
     const { useUserData } = await import('@/composables/useUserData')
     const userData = useUserData()
     await userData.initializeBackgroundFeatures()
+    
+    // Initialize session heartbeat for smart push notifications (Discord-like behavior)
+    const { initializeSessionHeartbeat } = await import('@/composables/useViewContext')
+    await initializeSessionHeartbeat(userId)
   } catch (error) {
     debug.error('❌ Background loading failed:', error)
   }
@@ -565,6 +569,15 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       debug.log('✅ State persistence cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup state persistence:', error)
+    }
+    
+    // Cleanup session heartbeat (stops push notification tracking)
+    try {
+      const { cleanupViewContext } = await import('@/composables/useViewContext')
+      await cleanupViewContext()
+      debug.log('✅ Session heartbeat cleanup completed')
+    } catch (error) {
+      debug.error('Failed to cleanup session heartbeat:', error)
     }
     
     // Cleanup global call listener

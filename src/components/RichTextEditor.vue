@@ -700,12 +700,12 @@ const createElementFromToken = (token: MarkdownToken): Node => {
 };
 
 // Handle input events
-const handleInput = (event: Event) => {
+const handleInput = (event?: Event) => {
   if (isRendering.value) return; // Prevent recursion
   
   const text = getPlainText();
   emit('update:modelValue', text);
-  emit('input', event);
+  if (event) emit('input', event);
   
   // Emit cursor position for auto-suggest
   const cursorPos = getCursorPosition();
@@ -720,6 +720,44 @@ const handleInput = (event: Event) => {
 
 // Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
+  // On mobile, handle Enter key to insert proper line break
+  // contenteditable on mobile often inserts <div> elements causing double spacing
+  const isMobile = window.matchMedia('(max-width: 768px)').matches || 
+    ('ontouchstart' in window) || 
+    (navigator.maxTouchPoints > 0);
+  
+  if (event.key === 'Enter' && isMobile && !event.shiftKey) {
+    // Check if parent will handle this (e.g., auto-suggest active)
+    // Emit first so parent can prevent default if needed
+    emit('keydown', event);
+    
+    // If parent didn't prevent default, insert a line break manually
+    if (!event.defaultPrevented) {
+      event.preventDefault();
+      
+      // Insert a proper <br> tag for single line spacing
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        
+        // Insert <br> element
+        const br = document.createElement('br');
+        range.insertNode(br);
+        
+        // Move cursor after the <br>
+        range.setStartAfter(br);
+        range.setEndAfter(br);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Trigger input event to update model
+        handleInput();
+      }
+    }
+    return;
+  }
+  
   emit('keydown', event);
 };
 

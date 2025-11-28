@@ -683,32 +683,72 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
+        // Check if push notifications are enabled - if so, don't show desktop notification
+        // The backend will send the push notification instead
+        // This prevents duplicate notifications on mobile PWA
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          try {
+            const registration = await navigator.serviceWorker.ready
+            const pushSubscription = await registration.pushManager.getSubscription()
+            
+            if (pushSubscription) {
+              // User has push notifications - let backend handle it
+              debug.log('📱 Skipping desktop notification - push notifications active')
+              return
+            }
+          } catch (e) {
+            // If we can't check, proceed with desktop notification
+            debug.log('Could not check push subscription status:', e)
+          }
+        }
+
         // Use formatter if not provided
         if (!formatted) {
           formatted = NotificationFormatter.formatNotification(notification)
         }
 
-        const desktopNotification = new Notification(formatted.title, {
+        const notificationOptions = {
           body: formatted.message,
           icon: NotificationFormatter.getAvatarUrl(notification),
-          badge: '/img/app_icon_square.png',
+          badge: '/img/app_icon_badge.png',
           tag: `harmony-${notification.type}-${notification.id}`,
-          silent: false
-        })
-
-        // Handle click to navigate and close
-        desktopNotification.onclick = () => {
-          window.focus()
-          this.handleNotificationClick(notification)
-          desktopNotification.close()
+          silent: false,
+          // Data for service worker click handling
+          data: {
+            notificationId: notification.id,
+            type: notification.type,
+            url: this.getNotificationUrl(notification)
+          }
         }
 
-        // Auto-close non-critical notifications
-        if (notification.type !== 'mention' && notification.type !== 'dm') {
-          setTimeout(() => desktopNotification.close(), 8000)
-        }
+        // On mobile PWA, use service worker for notifications
+        // Direct `new Notification()` doesn't work on mobile
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          const registration = await navigator.serviceWorker.ready
+          await registration.showNotification(formatted.title, {
+            ...notificationOptions,
+            // Service worker notifications need requireInteraction for important ones
+            requireInteraction: notification.type === 'mention' || notification.type === 'dm'
+          })
+          debug.log(`✅ Service Worker notification shown for ${notification.type}`)
+        } else {
+          // Desktop browsers without active service worker - use direct Notification
+          const desktopNotification = new Notification(formatted.title, notificationOptions)
 
-        debug.log(`✅ Desktop notification shown for ${notification.type}`)
+          // Handle click to navigate and close
+          desktopNotification.onclick = () => {
+            window.focus()
+            this.handleNotificationClick(notification)
+            desktopNotification.close()
+          }
+
+          // Auto-close non-critical notifications
+          if (notification.type !== 'mention' && notification.type !== 'dm') {
+            setTimeout(() => desktopNotification.close(), 8000)
+          }
+
+          debug.log(`✅ Desktop notification shown for ${notification.type}`)
+        }
       } catch (error) {
         debug.error('❌ Error showing desktop notification:', error)
       }
@@ -999,6 +1039,50 @@ export const useNotificationStore = defineStore('notification', {
     /**
      * Updated notification click handler to use formatter navigation data
      */
+    /**
+     * Get URL for a notification (used for service worker click handling)
+     */
+    getNotificationUrl(notification: Notification): string {
+      try {
+        const navData = NotificationFormatter.getNavigationData(notification)
+        
+        if (navData) {
+          switch (navData.type) {
+            case 'conversation':
+              return `/dm/${navData.conversationId}`
+              
+            case 'channel': {
+              let path = `/chat/${navData.serverId}/${navData.channelId}`
+              if (navData.messageId) {
+                path += `?messageId=${navData.messageId}`
+              }
+              return path
+            }
+              
+            case 'server':
+              return `/servers/${navData.serverId}`
+
+            case 'activitypub_post':
+              return `/post/${navData.postId}`
+              
+            case 'activitypub':
+            case 'mention':
+            case 'like':
+            case 'reblog':
+            case 'follow':
+              return '/social/home'
+            
+            default:
+              return '/'
+          }
+        }
+        return '/'
+      } catch (error) {
+        debug.error('❌ Error getting notification URL:', error)
+        return '/'
+      }
+    },
+
     handleNotificationClick(notification: Notification) {
       try {
         // Mark as read and clicked

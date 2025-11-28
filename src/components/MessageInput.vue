@@ -45,6 +45,17 @@
         <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button">
           <EmojiUI />
         </button>
+        <!-- Send button - only visible on mobile when there's content -->
+        <button 
+          v-if="isMobile && hasContent" 
+          @click.stop="send" 
+          class="icon-button send-button"
+          :disabled="!hasContent"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
       </div>
     </div>
     
@@ -61,9 +72,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import { useHapticSettings } from '@/composables/useHapticSettings';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
@@ -108,6 +120,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const authStore = useAuthStore();
+const { triggerMessage } = useHapticSettings();
 const showUploadMenu = ref(false);
 const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
@@ -115,6 +128,29 @@ const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
+
+// Mobile detection - check for touch device or narrow screen
+const isMobile = ref(false);
+const checkMobile = () => {
+  isMobile.value = window.matchMedia('(max-width: 768px)').matches || 
+    ('ontouchstart' in window) || 
+    (navigator.maxTouchPoints > 0);
+};
+
+// Check if there's content to send
+const hasContent = computed(() => {
+  return (props.modelValue?.trim().length ?? 0) > 0 || attachedFiles.value.length > 0;
+});
+
+// Initialize and listen for resize
+onMounted(() => {
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile);
+});
 
 // Auto-suggest setup
 const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
@@ -187,7 +223,9 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       }
       
       // Handle Enter key for sending messages (only if auto-suggest is not active)
-      if (event.key === 'Enter' && !event.shiftKey) {
+      // On mobile, Enter creates a new line - user must tap the send button
+      // On desktop, Enter sends (Shift+Enter for new line)
+      if (event.key === 'Enter' && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
         send();
       }
@@ -216,6 +254,8 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         const content = props.modelValue || '';
         // Pass reply message ID as third parameter
         emit('sendMessage', content, attachedFiles.value, props.replyMessageId || undefined);
+        // Haptic feedback on message send
+        triggerMessage();
         emit('update:modelValue', '');
         
         // Clear the rich text editor
@@ -561,5 +601,33 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
   .icon-button:hover {
     background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Send button - mobile only */
+  .send-button {
+    background-color: var(--harmony--primary, #5865f2) !important;
+    border-radius: 50% !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    color: white;
+    transition: transform 0.15s ease, background-color 0.2s ease;
+  }
+
+  .send-button:hover {
+    background-color: var(--harmony--primary-dark, #4752c4) !important;
+  }
+
+  .send-button:active {
+    transform: scale(0.95);
+  }
+
+  .send-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .send-button svg {
+    margin-left: 2px; /* Slight offset to center the arrow visually */
   }
 </style>

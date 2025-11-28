@@ -4,6 +4,7 @@
  */
 
 import { debug } from '@/utils/debug'
+import { hapticManager } from '@/utils/hapticFeedback'
 
 export interface PWAInstallPrompt {
   prompt(): Promise<void>
@@ -378,6 +379,7 @@ export class PWAManager {
     const pullThreshold = 80
     const maxPull = 120
     let isPulling = false
+    let hasHapticTriggered = false  // Track if we've triggered haptic for crossing threshold
     let refreshIndicator: HTMLElement | null = null
     let validScrollContainer: Element | null = null
 
@@ -477,7 +479,16 @@ export class PWAManager {
 
       const text = indicator.querySelector('.refresh-text') as HTMLElement
       if (text) {
-        text.textContent = progress >= pullThreshold ? 'Release to refresh' : 'Pull to refresh'
+        const crossedThreshold = progress >= pullThreshold
+        text.textContent = crossedThreshold ? 'Release to refresh' : 'Pull to refresh'
+        
+        // Haptic feedback when first crossing threshold
+        if (crossedThreshold && !hasHapticTriggered) {
+          hapticManager.trigger({ pattern: 'selection' })
+          hasHapticTriggered = true
+        } else if (!crossedThreshold) {
+          hasHapticTriggered = false
+        }
       }
     }
 
@@ -513,6 +524,7 @@ export class PWAManager {
       if (isAtTop) {
         startY = e.touches[0].clientY
         isPulling = true
+        hasHapticTriggered = false  // Reset haptic trigger state for new pull
       }
     }, { passive: true })
 
@@ -542,6 +554,8 @@ export class PWAManager {
       if (!isPulling) return
 
       if (pullDistance >= pullThreshold) {
+        // Haptic feedback when releasing pull-to-refresh
+        hapticManager.trigger({ pattern: 'light' })
         this.triggerRefresh()
       }
 

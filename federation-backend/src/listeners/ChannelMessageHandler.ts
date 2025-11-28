@@ -9,6 +9,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 
 interface ChannelMessagePayload {
   message_id: string;
@@ -150,47 +151,5 @@ export async function handleChannelMessageFederation(
   }
 }
 
-/**
- * Convert JSONB content to HTML for ActivityPub
- */
-function convertContentToHTML(content: any): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        switch (part.type) {
-          case 'text':
-            return escapeHtml(part.text);
-          case 'mention':
-            return `<a href="https://${part.domain}/users/${part.username}" class="mention">@${part.username}</a>`;
-          case 'url':
-            return `<a href="${part.url}">${part.url}</a>`;
-          case 'emoji':
-            return part.emoji || '';
-          default:
-            return '';
-        }
-      })
-      .join('');
-  }
-
-  return '';
-}
-
-/**
- * Escape HTML entities
- */
-function escapeHtml(text: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
-  };
-  return text.replace(/[&<>"']/g, (m) => map[m]);
-}
-
+// Content conversion functions are now in utils/contentUtils.ts
+// Shared by: DMs, Channel Messages, Posts - ensuring consistent federation output

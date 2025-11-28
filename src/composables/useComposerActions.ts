@@ -136,7 +136,7 @@ export function useComposerActions(options: ComposerActionsOptions) {
     replyToId?: string
   ) => {
     try {
-      console.log('[DEBUG] submitPost: Starting...');
+      debug.log('[DEBUG] submitPost: Starting...');
       
       // Parse content to MessageParts using unified system
       const { 
@@ -146,32 +146,32 @@ export function useComposerActions(options: ComposerActionsOptions) {
         resolveHashtagsData 
       } = await import('@/utils/unifiedContentProcessing');
       
-      console.log('[DEBUG] submitPost: Content processing imported');
+      debug.log('[DEBUG] submitPost: Content processing imported');
       
       const rawContent = options.content.value.trim();
-      console.log('[DEBUG] submitPost: Raw content:', rawContent.substring(0, 50));
+      debug.log('[DEBUG] submitPost: Raw content:', rawContent.substring(0, 50));
       
       // Resolve all content data in parallel
-      console.log('[DEBUG] submitPost: Resolving content data...');
+      debug.log('[DEBUG] submitPost: Resolving content data...');
       const [usernameToUserDataMap, emojiDataMap, hashtagDataMap] = await Promise.all([
         resolveMentionsUserData(rawContent),
         resolveEmojisData(rawContent),
         resolveHashtagsData(rawContent)
       ]);
-      console.log('[DEBUG] submitPost: Content data resolved');
+      debug.log('[DEBUG] submitPost: Content data resolved');
       
       // Parse to MessageParts
-      console.log('[DEBUG] submitPost: Parsing to MessageParts...');
+      debug.log('[DEBUG] submitPost: Parsing to MessageParts...');
       const parsedContent = await parseContentToMessageParts(
         rawContent, 
         usernameToUserDataMap, 
         emojiDataMap, 
         hashtagDataMap
       );
-      console.log('[DEBUG] submitPost: Parsed content:', parsedContent.length, 'parts');
+      debug.log('[DEBUG] submitPost: Parsed content:', parsedContent.length, 'parts');
 
       // Create post via store
-      console.log('[DEBUG] submitPost: Calling store.createPost...');
+      debug.log('[DEBUG] submitPost: Calling store.createPost...');
       const post = await activityPubStore.createPost({
         content: parsedContent,
         visibility,
@@ -181,11 +181,11 @@ export function useComposerActions(options: ComposerActionsOptions) {
         is_sensitive: isSensitive
       });
 
-      console.log('[DEBUG] submitPost: Post created!');
+      debug.log('[DEBUG] submitPost: Post created!');
       debug.log('✅ Post created successfully:', post.id);
       return post;
     } catch (error) {
-      console.error('[DEBUG] submitPost: ERROR:', error);
+      debug.error('[DEBUG] submitPost: ERROR:', error);
       debug.error('❌ Failed to create post:', error);
       throw error;
     }
