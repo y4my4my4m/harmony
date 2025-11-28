@@ -459,10 +459,10 @@
         <img 
           v-if="tooltip.emoji?.url"
           :src="tooltip.emoji.url"
-          :alt="tooltip.emoji.name || 'emoji'"
+          :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
           class="tooltip-emoji"
         />
-        <span class="emoji-name">:{{ tooltip.emoji?.name }}:</span>
+        <span class="emoji-name">:{{ formatEmojiName(tooltip.emoji?.name) }}:</span>
       </div>
       <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
         <Avatar 
@@ -471,7 +471,7 @@
           class="tooltip-avatar"
         />
         <span class="tooltip-username" v-html="renderDisplayNameWithEmojis(user.displayName, user.displayNameEmojis)"></span>
-        <span v-if="user.isRemote && user.domain" class="tooltip-domain">@{{ user.domain }}</span>
+        <span v-if="user.isRemote && formatDomain(user.domain)" class="tooltip-domain">@{{ formatDomain(user.domain) }}</span>
       </div>
     </div>
     
@@ -1076,6 +1076,26 @@ const handleEmojiSelected = async (emoji: any) => {
 };
 
 /**
+ * Format emoji name for display - removes extra colons and @. notation
+ */
+const formatEmojiName = (name: string | undefined): string => {
+  if (!name) return '';
+  // Remove colons from start/end if present
+  let formatted = name.replace(/^:+|:+$/g, '');
+  // Remove @. or @domain suffix for cleaner display
+  formatted = formatted.replace(/@\.?$/, '').replace(/@[^@]+$/, '');
+  return formatted;
+};
+
+/**
+ * Format domain for display - handles Misskey's "." notation
+ */
+const formatDomain = (domain: string | undefined): string => {
+  if (!domain || domain === '.' || domain === '') return '';
+  return domain;
+};
+
+/**
  * Render a display name with custom emojis as HTML
  * Replaces :emoji: patterns with <img> tags
  */
@@ -1083,18 +1103,31 @@ const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: 
   if (!displayName) return '';
   if (!emojis || emojis.length === 0) return escapeHtml(displayName);
   
-  // Create emoji map for quick lookup
-  const emojiMap = new Map(emojis.map(e => [e.name, e.url]));
+  // Create emoji map for quick lookup - handle various name formats
+  const emojiMap = new Map<string, string>();
+  for (const e of emojis) {
+    if (!e.name || !e.url) continue;
+    // Store with original name
+    emojiMap.set(e.name, e.url);
+    // Also store without colons if present
+    const cleanName = e.name.replace(/^:|:$/g, '');
+    emojiMap.set(cleanName, e.url);
+    // Also store without @domain suffix
+    const nameWithoutDomain = cleanName.replace(/@[^@]*$/, '');
+    emojiMap.set(nameWithoutDomain, e.url);
+  }
   
   // Replace :emoji: patterns with img tags
-  // Also handle zero-width space wrapped emojis (Misskey uses \u200b)
+  // Handle: :emoji:, :emoji@domain:, :emoji@.:, and zero-width space wrapped
   let result = displayName;
-  const emojiRegex = /\u200b?:([a-zA-Z0-9_]+):\u200b?/g;
+  const emojiRegex = /\u200b?:([a-zA-Z0-9_]+(?:@[a-zA-Z0-9._-]*)?):?\u200b?/g;
   
   result = result.replace(emojiRegex, (match, name) => {
-    const url = emojiMap.get(name);
+    // Try different name formats to find a match
+    const cleanName = name.replace(/@[^@]*$/, ''); // Remove @domain
+    const url = emojiMap.get(name) || emojiMap.get(cleanName);
     if (url) {
-      return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" class="inline-emoji" style="height: 1em; vertical-align: middle;" />`;
+      return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(cleanName)}:" class="inline-emoji" style="height: 1em; vertical-align: middle;" />`;
     }
     return escapeHtml(match);
   });

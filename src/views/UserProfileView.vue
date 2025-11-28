@@ -123,7 +123,15 @@
               <div class="profile-top-row">
                 <div class="name-handle-section">
                   <div class="display-name-row">
-                    <h1 class="display-name">{{ user.display_name || user.username }}</h1>
+                    <h1 class="display-name">
+                      <!-- If display_name is an array (has emojis), render with MonyContent -->
+                      <MonyContent 
+                        v-if="Array.isArray(user.display_name)" 
+                        :content="user.display_name" 
+                      />
+                      <!-- Otherwise render as plain text -->
+                      <template v-else>{{ user.display_name || user.username }}</template>
+                    </h1>
                     <Icon v-if="(user as any).verified" name="verified" class="verified-icon" />
                     <span v-if="!user.is_local" class="domain-tag">{{ user.domain }}</span>
                   </div>

@@ -229,11 +229,17 @@ router.post(
         last_synced_at: new Date().toISOString(),
       };
       
-      // Store bio emojis in federation_metadata for rendering
+      // Store bio and display name emojis in federation_metadata for rendering
+      const federationMetadata: any = {};
       if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
-        profileRecord.federation_metadata = JSON.stringify({
-          bio_emojis: profileData.bio_emojis,
-        });
+        federationMetadata.bio_emojis = profileData.bio_emojis;
+      }
+      // Display name can also have emojis - use same emoji set
+      if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
+        federationMetadata.display_name_emojis = profileData.bio_emojis;
+      }
+      if (Object.keys(federationMetadata).length > 0) {
+        profileRecord.federation_metadata = JSON.stringify(federationMetadata);
       }
 
       // Add counts if columns exist (may need migration)
@@ -241,7 +247,8 @@ router.post(
       if (followingCount > 0) profileRecord.following_count = followingCount;
       if (postsCount > 0) profileRecord.posts_count = postsCount;
 
-      const { data: savedUser, error: saveError } = await supabase
+      let savedUser;
+      const { data: upsertedUser, error: saveError } = await supabase
         .from('profiles')
         .upsert(profileRecord, {
           onConflict: 'username,domain',
@@ -250,11 +257,34 @@ router.post(
         .single();
 
       if (saveError) {
-        logger.error(`❌ Failed to save remote user: ${saveError.message}`);
-        return res.status(500).json({ 
-          error: 'Failed to store user profile',
-          details: saveError.message
-        });
+        // Handle race condition: if another request created this user, fetch it
+        if (saveError.message.includes('duplicate key') || saveError.code === '23505') {
+          logger.info(`🔄 Race condition detected, fetching existing user: ${username}@${domain}`);
+          const { data: existingUser } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('username', username)
+            .eq('domain', domain)
+            .single();
+          
+          if (existingUser) {
+            savedUser = existingUser;
+          } else {
+            logger.error(`❌ Failed to save remote user and couldn't find existing: ${saveError.message}`);
+            return res.status(500).json({ 
+              error: 'Failed to store user profile',
+              details: saveError.message
+            });
+          }
+        } else {
+          logger.error(`❌ Failed to save remote user: ${saveError.message}`);
+          return res.status(500).json({ 
+            error: 'Failed to store user profile',
+            details: saveError.message
+          });
+        }
+      } else {
+        savedUser = upsertedUser;
       }
 
       logger.info(`✅ ${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
@@ -627,6 +657,9 @@ async function fetchMisskeyReactions(
           name,
           url: url as string,
         }));
+        if (displayNameEmojis.length > 0) {
+          logger.debug(`📬 Found ${displayNameEmojis.length} display name emojis for ${user?.username}`);
+        }
       }
       
       // Build reaction object with actor info (for display purposes only, no DB storage)

@@ -283,8 +283,9 @@ export async function resolveRemoteMention(username: string, domain: string, for
     const savedUser = result.user;
     debug.log(`✅ ${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${username}@${domain}`);
 
-    // Parse federation_metadata for bio emojis
+    // Parse federation_metadata for bio and display name emojis
     let bioEmojis: Array<{name: string, url: string}> = [];
+    let displayNameEmojis: Array<{name: string, url: string}> = [];
     if (savedUser.federation_metadata) {
       try {
         const metadata = typeof savedUser.federation_metadata === 'string' 
@@ -292,6 +293,9 @@ export async function resolveRemoteMention(username: string, domain: string, for
           : savedUser.federation_metadata;
         if (metadata.bio_emojis) {
           bioEmojis = metadata.bio_emojis;
+        }
+        if (metadata.display_name_emojis) {
+          displayNameEmojis = metadata.display_name_emojis;
         }
       } catch (e) {
         debug.warn('Failed to parse federation_metadata:', e);
@@ -304,10 +308,16 @@ export async function resolveRemoteMention(username: string, domain: string, for
       bio = parseBioWithEmojis(bio, bioEmojis);
     }
 
+    // Convert display_name to MessagePart[] if it has custom emojis
+    let display_name: string | any[] = savedUser.display_name || savedUser.username;
+    if (displayNameEmojis.length > 0 && typeof display_name === 'string') {
+      display_name = parseBioWithEmojis(display_name, displayNameEmojis);
+    }
+
     return {
       id: savedUser.id,
       username: savedUser.username,
-      display_name: savedUser.display_name,
+      display_name, // Can be string or MessagePart[] with emojis
       domain: savedUser.domain,
       avatar_url: savedUser.avatar_url,
       banner_url: savedUser.banner_url,
