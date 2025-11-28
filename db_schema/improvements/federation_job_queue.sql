@@ -478,7 +478,8 @@ BEGIN
                 'reaction_id', NEW.id,
                 'message_id', NEW.message_id,
                 'user_id', NEW.user_id,
-                'emoji', NEW.emoji
+                'emoji_id', NEW.emoji_id,
+                'metadata', NEW.metadata
             ),
             5,
             3,
@@ -492,7 +493,7 @@ BEGIN
                 'reaction_id', OLD.id,
                 'message_id', OLD.message_id,
                 'user_id', OLD.user_id,
-                'emoji', OLD.emoji
+                'emoji_id', OLD.emoji_id
             ),
             5,
             3,
