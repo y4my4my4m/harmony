@@ -643,32 +643,173 @@ export class ActivityProcessor {
       return;
     }
 
-    // Find target post - try multiple methods
+    // Find target - could be a post OR a message (DM)
     let post = null;
+    let message = null;
     
-    // Method 1: Try by ap_id
-    const { data: postByApId } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('ap_id', objectUrl)
-      .maybeSingle();
-    
-    post = postByApId;
-    
-    // Method 2: If not found, try extracting UUID from URL
-    if (!post && objectUrl.includes('/posts/')) {
-      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+    // Check if this is a message (DM) reaction
+    if (objectUrl.includes('/messages/')) {
+      const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
       if (uuidMatch) {
-        const postId = uuidMatch[1];
-        const { data: postById } = await supabase
-          .from('posts')
-          .select('id')
-          .eq('id', postId)
+        const messageId = uuidMatch[1];
+        const { data: messageById } = await supabase
+          .from('messages')
+          .select('id, conversation_id')
+          .eq('id', messageId)
           .maybeSingle();
-        post = postById;
+        message = messageById;
+        
+        if (message) {
+          logger.info(`📨 Found message for reaction: ${messageId}`);
+        }
+      }
+    } else {
+      // Try to find as a post
+      // Method 1: Try by ap_id
+      const { data: postByApId } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('ap_id', objectUrl)
+        .maybeSingle();
+      
+      post = postByApId;
+      
+      // Method 2: If not found, try extracting UUID from URL
+      if (!post && objectUrl.includes('/posts/')) {
+        const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+        if (uuidMatch) {
+          const postId = uuidMatch[1];
+          const { data: postById } = await supabase
+            .from('posts')
+            .select('id')
+            .eq('id', postId)
+            .maybeSingle();
+          post = postById;
+        }
       }
     }
 
+    // Handle message (DM) reaction
+    if (message) {
+      let emojiId = null;
+      
+      // For custom emojis with URLs, get or create emoji entry
+      if (emojiUrl && emojiName) {
+        logger.info(`🔍 Processing remote emoji for message reaction: ${emojiName} from ${emojiUrl}`);
+        
+        const cleanName = emojiName.replace(/:/g, '');
+        const emojiDomain = new URL(emojiUrl).hostname;
+        
+        // Cache in remote_emojis_cache
+        try {
+          await supabase.rpc('upsert_remote_emoji', {
+            p_shortcode: cleanName,
+            p_origin_domain: emojiDomain,
+            p_full_code: `:${cleanName}@${emojiDomain}:`,
+            p_url: emojiUrl,
+          });
+        } catch (cacheError) {
+          logger.debug(`Could not cache emoji: ${cacheError}`);
+        }
+        
+        // Check if emoji exists
+        const { data: existingEmoji } = await supabase
+          .from('emojis')
+          .select('id')
+          .eq('url', emojiUrl)
+          .maybeSingle();
+        
+        if (existingEmoji) {
+          emojiId = existingEmoji.id;
+        } else {
+          // Create new emoji entry
+          const { data: newEmoji } = await supabase
+            .from('emojis')
+            .insert({
+              name: cleanName,
+              url: emojiUrl,
+              server_id: null,
+              uploader: user.id,
+              domain: emojiDomain,
+            })
+            .select('id')
+            .single();
+          
+          if (newEmoji) {
+            emojiId = newEmoji.id;
+          }
+        }
+      } else {
+        // Standard emoji - find or create by name
+        let normalizedEmoji = emoji || '❤️';
+        if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
+          normalizedEmoji = '❤️';
+        }
+        
+        const { data: existingEmoji } = await supabase
+          .from('emojis')
+          .select('id')
+          .eq('name', normalizedEmoji)
+          .is('server_id', null)
+          .maybeSingle();
+        
+        if (existingEmoji) {
+          emojiId = existingEmoji.id;
+        } else {
+          // Create unicode emoji entry
+          const { data: newEmoji } = await supabase
+            .from('emojis')
+            .insert({
+              name: normalizedEmoji,
+              url: null, // Unicode emojis don't have URLs
+              server_id: null,
+              uploader: user.id,
+            })
+            .select('id')
+            .single();
+          
+          if (newEmoji) {
+            emojiId = newEmoji.id;
+          }
+        }
+      }
+      
+      if (!emojiId) {
+        logger.error('❌ Could not find or create emoji for message reaction');
+        return;
+      }
+      
+      // Check if reaction already exists
+      const { data: existing } = await supabase
+        .from('reactions')
+        .select('id')
+        .eq('message_id', message.id)
+        .eq('user_id', user.id)
+        .eq('emoji_id', emojiId)
+        .maybeSingle();
+      
+      if (existing) {
+        logger.info(`🔄 Reaction already exists for user ${user.id} on message ${message.id}`);
+        return;
+      }
+      
+      // Insert into reactions table (for messages/DMs)
+      const { error: reactionError } = await supabase.from('reactions').insert({
+        message_id: message.id,
+        user_id: user.id,
+        emoji_id: emojiId,
+        metadata: { federated: true, from_domain: new URL(actorUrl).hostname }
+      });
+      
+      if (reactionError) {
+        logger.error('❌ Failed to insert message reaction:', reactionError);
+      } else {
+        logger.info(`✅ Added reaction to message ${message.id}: ${emoji || '❤️'}`);
+      }
+      return;
+    }
+
+    // Handle post reaction (existing logic)
     if (post) {
       let emojiId = null;
       
@@ -774,7 +915,7 @@ export class ActivityProcessor {
         logger.info(`✅ Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
       }
     } else {
-      logger.warn(`Post not found for like: ${objectUrl}`);
+      logger.warn(`Post or message not found for like: ${objectUrl}`);
     }
   }
 
