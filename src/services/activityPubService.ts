@@ -329,7 +329,9 @@ export class ActivityPubService {
   }
 
   /**
-   * Get federated timeline (remote posts only) with user interaction states
+   * Get federated timeline - ALL public posts from remote instances the server knows about
+   * This includes posts from searched users, not just followed users
+   * Uses RPC for proper server-side filtering of deleted posts and suspended users
    */
   async getFederatedTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -338,21 +340,17 @@ export class ActivityPubService {
     const limit = options.limit || 20;
     
     try {
-      // Get all public posts first, then filter for federated only
-      const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
+      // Use RPC for proper server-side filtering (is_deleted, suspended users, etc.)
+      const { data, error } = await supabase.rpc('get_federated_timeline', {
         p_user_id: user.id,
-        p_timeline_type: 'public', 
-        p_limit: limit * 2, // Get more to ensure we have enough federated posts
+        p_limit: limit,
         p_max_id: options.max_id || null
       });
 
       if (error) throw error;
 
-      // Filter for federated posts only and limit
-      const federatedPosts = (data || []).filter((post: any) => !post.is_local).slice(0, limit);
-
-      debug.log(`🌐 Federated timeline loaded: ${federatedPosts.length} posts from remote instances`);
-      return federatedPosts as TimelinePost[];
+      debug.log(`🌐 Federated timeline loaded: ${(data || []).length} posts from remote instances`);
+      return (data || []) as TimelinePost[];
     } catch (error) {
       debug.error('Failed to load federated timeline:', error);
       return [];
@@ -360,7 +358,8 @@ export class ActivityPubService {
   }
 
   /**
-   * Get local timeline - Always use RPC with interaction states (bypassing problematic cache)
+   * Get local timeline - ALL public posts from local users on this instance
+   * Uses RPC for proper server-side filtering
    */
   async getLocalTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -368,63 +367,48 @@ export class ActivityPubService {
 
     const limit = options.limit || 20;
 
-    // Direct query for local timeline with user interactions
-    debug.log('🔄 Loading local timeline with direct query');
+    debug.log('🔄 Loading local timeline via RPC');
     
-    let query = supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey(
-          id, username, display_name, avatar_url, color, domain, is_local
-        ),
-        my_interactions:post_interactions!left(interaction_type, emoji_id)
-      `)
-      .eq('my_interactions.user_id', user.id)
-      .eq('is_local', true)
-      .in('visibility', ['public', 'unlisted'])
-      .or('is_deleted.is.null,is_deleted.eq.false')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (options.max_id) {
-      query = query.lt('id', options.max_id);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    // Process user interactions into boolean flags
-    const posts = (data || []).map(post => {
-      const interactions = post.my_interactions || [];
-      return {
-        ...post,
-        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
-        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
-      };
-    });
-    
-    // DEBUG: Verify all posts are truly local
-    const localCount = posts.filter((p: any) => p.is_local).length || 0;
-    const federatedCount = posts.filter((p: any) => !p.is_local).length || 0;
-    debug.log(`📊 Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
-    
-    if (federatedCount > 0) {
-      debug.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
-      const federatedPosts = data?.filter((p: any) => !p.is_local) || [];
-      federatedPosts.forEach((post: any) => {
-        debug.warn(`🌐 Federated post in local timeline:`, {
-          id: post.id,
-          author: post.author?.username,
-          domain: post.author?.domain,
-          is_local: post.is_local
-        });
+    try {
+      // Use existing RPC that properly handles local timeline
+      const { data, error } = await supabase.rpc('get_enhanced_timeline_posts', {
+        p_user_id: user.id,
+        p_timeline_type: 'local',
+        p_limit: limit,
+        p_max_id: options.max_id || null
       });
-    }
+
+      if (error) throw error;
+
+      // Filter out suspended users (TODO: add to RPC)
+      const posts = (data || []).filter((post: any) => {
+        const author = post.author;
+        return !author?.is_suspended;
+      });
     
-    return posts;
+      // DEBUG: Verify all posts are truly local
+      const localCount = posts.filter((p: any) => p.is_local).length || 0;
+      const federatedCount = posts.filter((p: any) => !p.is_local).length || 0;
+      debug.log(`📊 Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
+      
+      if (federatedCount > 0) {
+        debug.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
+        const federatedPosts = data?.filter((p: any) => !p.is_local) || [];
+        federatedPosts.forEach((post: any) => {
+          debug.warn(`🌐 Federated post in local timeline:`, {
+            id: post.id,
+            author: post.author?.username,
+            domain: post.author?.domain,
+            is_local: post.is_local
+          });
+        });
+      }
+      
+      return posts as TimelinePost[];
+    } catch (error) {
+      debug.error('Failed to load local timeline:', error);
+      return [];
+    }
   }
 
   // =============================================
