@@ -121,20 +121,22 @@ class QueueManagerService {
   }
 
   /**
-   * Build PostgreSQL connection string from config
+   * Get PostgreSQL connection string from environment
    */
   private buildConnectionString(): string {
-    // Use DATABASE_URL if provided, otherwise build from components
-    if (process.env.DATABASE_URL) {
-      return process.env.DATABASE_URL;
+    if (!process.env.DATABASE_URL) {
+      throw new Error(
+        'DATABASE_URL environment variable is required for pg-boss.\n' +
+        'Add to your .env file:\n' +
+        '  DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE\n\n' +
+        'Examples:\n' +
+        '  Self-hosted: DATABASE_URL=postgresql://supabase_admin:password@localhost:54322/postgres\n' +
+        '  Supabase Cloud: DATABASE_URL=postgresql://postgres.[ref]:[password]@[region].pooler.supabase.com:6543/postgres'
+      );
     }
-
-    // Build from Supabase config
-    const host = config.SUPABASE_URL.replace('https://', '').replace('.supabase.co', '.supabase.co');
-    const dbHost = host.replace('.supabase.co', '.pooler.supabase.com');
     
-    // Default Supabase PostgreSQL port is 6543 for pooler, 5432 for direct
-    return `postgresql://postgres.${config.SUPABASE_URL.split('.')[0].split('//')[1]}:${config.SUPABASE_SERVICE_KEY}@${dbHost}:6543/postgres`;
+    logger.info('📦 Using DATABASE_URL from environment');
+    return process.env.DATABASE_URL;
   }
 
   /**
