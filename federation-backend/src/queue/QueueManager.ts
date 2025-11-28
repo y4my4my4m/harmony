@@ -180,80 +180,42 @@ class QueueManagerService {
   private async registerHandlers(): Promise<void> {
     if (!this.boss) throw new Error('pg-boss not initialized');
 
-    // pg-boss 10.x work options
-    const workOptions = {
-      batchSize: 5,                    // Fetch up to 5 jobs at once
-      pollingIntervalSeconds: 2,       // Poll every 2 seconds
-    };
-
-    // Helper to create job handler with proper typing
+    // Helper to create job handler with logging
     const createHandler = (
       jobType: string,
       emoji: string,
       handler: (data: FederationJobData) => Promise<void>
-    ) => async (job: { id: string; data: FederationJobData }) => {
-      logger.info(`${emoji} Processing ${jobType} job: ${job.id}`);
+    ) => async (job: any) => {
+      // pg-boss 10.x passes job object with id, name, data
+      const jobId = job?.id || 'unknown';
+      const jobData = job?.data;
+      
+      logger.info(`${emoji} Processing ${jobType} job: ${jobId}`);
+      logger.debug(`Job object keys: ${Object.keys(job || {}).join(', ')}`);
+      logger.debug(`Job data: ${JSON.stringify(jobData)?.substring(0, 200)}`);
+      
       try {
-        if (!job.data) {
-          logger.warn(`⚠️ ${jobType} job ${job.id} has no data, skipping`);
+        if (!jobData) {
+          logger.warn(`⚠️ ${jobType} job ${jobId} has no data, skipping`);
           return;
         }
-        await handler(job.data);
-        logger.info(`✅ ${jobType} job completed: ${job.id}`);
+        await handler(jobData);
+        logger.info(`✅ ${jobType} job completed: ${jobId}`);
       } catch (error) {
-        logger.error(`❌ ${jobType} job failed: ${job.id}`, error);
+        logger.error(`❌ ${jobType} job failed: ${jobId}`, error);
         throw error; // pg-boss will handle retry
       }
     };
 
-    // Register all handlers
-    await this.boss.work(
-      'federate-post',
-      workOptions,
-      createHandler('federate-post', '📬', handlePostJob)
-    );
-
-    await this.boss.work(
-      'federate-reaction',
-      workOptions,
-      createHandler('federate-reaction', '❤️', handleReactionJob)
-    );
-
-    await this.boss.work(
-      'federate-follow',
-      workOptions,
-      createHandler('federate-follow', '👥', handleFollowJob)
-    );
-
-    await this.boss.work(
-      'federate-dm',
-      workOptions,
-      createHandler('federate-dm', '💬', handleDMJob)
-    );
-
-    await this.boss.work(
-      'federate-message-reaction',
-      workOptions,
-      createHandler('federate-message-reaction', '💬❤️', handleMessageReactionJob)
-    );
-
-    await this.boss.work(
-      'federate-block',
-      workOptions,
-      createHandler('federate-block', '🚫', handleBlockJob)
-    );
-
-    await this.boss.work(
-      'federate-report',
-      workOptions,
-      createHandler('federate-report', '🚩', handleReportJob)
-    );
-
-    await this.boss.work(
-      'federate-profile',
-      workOptions,
-      createHandler('federate-profile', '👤', handleProfileJob)
-    );
+    // Register all handlers (no options - use defaults)
+    await this.boss.work('federate-post', createHandler('federate-post', '📬', handlePostJob));
+    await this.boss.work('federate-reaction', createHandler('federate-reaction', '❤️', handleReactionJob));
+    await this.boss.work('federate-follow', createHandler('federate-follow', '👥', handleFollowJob));
+    await this.boss.work('federate-dm', createHandler('federate-dm', '💬', handleDMJob));
+    await this.boss.work('federate-message-reaction', createHandler('federate-message-reaction', '💬❤️', handleMessageReactionJob));
+    await this.boss.work('federate-block', createHandler('federate-block', '🚫', handleBlockJob));
+    await this.boss.work('federate-report', createHandler('federate-report', '🚩', handleReportJob));
+    await this.boss.work('federate-profile', createHandler('federate-profile', '👤', handleProfileJob));
 
     logger.info('✅ All job handlers registered');
   }
