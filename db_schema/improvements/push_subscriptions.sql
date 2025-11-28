@@ -2,6 +2,215 @@
 -- Stores user push subscription data (endpoint, keys) for native push notifications
 -- Compatible with PWA on iOS 16.4+ and Android
 
+-- ============================================================================
+-- USER SESSIONS TABLE - Track active sessions for smart push notifications
+-- Discord-like behavior: only send push when user is not active on any device
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.user_sessions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    
+    -- Session identification
+    session_token text NOT NULL UNIQUE,  -- Unique token for this session
+    
+    -- Device identification (better categorization)
+    platform text DEFAULT 'web',         -- 'ios', 'android', 'windows', 'macos', 'linux', 'chromeos', 'web'
+    form_factor text DEFAULT 'desktop',  -- 'mobile', 'tablet', 'desktop'
+    is_pwa boolean DEFAULT false,        -- true if running as installed PWA
+    browser text,                        -- 'chrome', 'firefox', 'safari', 'edge', etc.
+    user_agent text,
+    
+    -- Activity tracking
+    last_heartbeat timestamptz DEFAULT now() NOT NULL,
+    last_activity timestamptz DEFAULT now() NOT NULL,  -- Mouse/keyboard activity
+    
+    -- Session status
+    is_active boolean DEFAULT true,
+    status text DEFAULT 'online',  -- 'online', 'away', 'busy', 'offline'
+    
+    -- Metadata
+    created_at timestamptz DEFAULT now() NOT NULL,
+    ip_address text,
+    
+    -- Context (what the user is looking at)
+    current_server_id uuid REFERENCES public.servers(id) ON DELETE SET NULL,
+    current_channel_id uuid REFERENCES public.channels(id) ON DELETE SET NULL,
+    current_conversation_id uuid REFERENCES public.conversations(id) ON DELETE SET NULL
+);
+
+-- Indexes for efficient queries
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id 
+    ON public.user_sessions(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active 
+    ON public.user_sessions(user_id, is_active, last_heartbeat) 
+    WHERE is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_heartbeat 
+    ON public.user_sessions(last_heartbeat);
+
+-- Cleanup function for stale sessions
+CREATE OR REPLACE FUNCTION cleanup_stale_user_sessions()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    deleted_count integer;
+BEGIN
+    -- Mark sessions as inactive if no heartbeat in 2 minutes
+    UPDATE public.user_sessions
+    SET is_active = false
+    WHERE is_active = true
+    AND last_heartbeat < now() - interval '2 minutes';
+    
+    -- Delete sessions that have been inactive for over 24 hours
+    DELETE FROM public.user_sessions
+    WHERE last_heartbeat < now() - interval '24 hours';
+    
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    RETURN deleted_count;
+END;
+$$;
+
+-- Function to check if user has any active sessions
+CREATE OR REPLACE FUNCTION has_active_session(p_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_sessions
+        WHERE user_id = p_user_id
+        AND is_active = true
+        AND last_heartbeat > now() - interval '90 seconds'
+    );
+$$;
+
+-- Function to check if user is viewing a specific context
+-- Returns true if user is actively viewing the channel/conversation
+CREATE OR REPLACE FUNCTION is_user_viewing_push_context(
+    p_user_id uuid,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_sessions
+        WHERE user_id = p_user_id
+        AND is_active = true
+        AND last_heartbeat > now() - interval '90 seconds'
+        AND (
+            (p_conversation_id IS NOT NULL AND current_conversation_id = p_conversation_id)
+            OR (p_channel_id IS NOT NULL AND current_channel_id = p_channel_id)
+            OR (p_server_id IS NOT NULL AND current_server_id = p_server_id AND p_channel_id IS NULL)
+        )
+    );
+$$;
+
+-- Function to update or create a session heartbeat
+CREATE OR REPLACE FUNCTION upsert_user_session(
+    p_user_id uuid,
+    p_session_token text,
+    p_platform text DEFAULT 'web',
+    p_form_factor text DEFAULT 'desktop',
+    p_is_pwa boolean DEFAULT false,
+    p_browser text DEFAULT NULL,
+    p_user_agent text DEFAULT NULL,
+    p_status text DEFAULT 'online',
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_session_id uuid;
+BEGIN
+    INSERT INTO public.user_sessions (
+        user_id, session_token, platform, form_factor, is_pwa, browser, user_agent, status,
+        current_server_id, current_channel_id, current_conversation_id,
+        last_heartbeat, last_activity, is_active
+    )
+    VALUES (
+        p_user_id, p_session_token, p_platform, p_form_factor, p_is_pwa, p_browser, p_user_agent, p_status,
+        p_server_id, p_channel_id, p_conversation_id,
+        now(), now(), true
+    )
+    ON CONFLICT (session_token) DO UPDATE SET
+        last_heartbeat = now(),
+        status = EXCLUDED.status,
+        current_server_id = EXCLUDED.current_server_id,
+        current_channel_id = EXCLUDED.current_channel_id,
+        current_conversation_id = EXCLUDED.current_conversation_id,
+        is_active = true
+    RETURNING id INTO v_session_id;
+    
+    RETURN v_session_id;
+END;
+$$;
+
+-- Function to end a session (logout/close tab)
+CREATE OR REPLACE FUNCTION end_user_session(p_session_token text)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+    UPDATE public.user_sessions
+    SET is_active = false, last_heartbeat = now()
+    WHERE session_token = p_session_token;
+$$;
+
+-- RLS Policies for user_sessions
+ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
+
+-- Users can view their own sessions
+CREATE POLICY "Users can view own sessions"
+    ON public.user_sessions
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+-- Users can insert their own sessions
+CREATE POLICY "Users can insert own sessions"
+    ON public.user_sessions
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+-- Users can update their own sessions
+CREATE POLICY "Users can update own sessions"
+    ON public.user_sessions
+    FOR UPDATE
+    USING (auth.uid() = user_id);
+
+-- Users can delete their own sessions
+CREATE POLICY "Users can delete own sessions"
+    ON public.user_sessions
+    FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Service role can manage all sessions
+CREATE POLICY "Service role can manage all sessions"
+    ON public.user_sessions
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+COMMENT ON TABLE public.user_sessions IS 'Tracks active user sessions for smart push notifications. If user has an active session, push notifications are suppressed (Discord-like behavior).';
+
+-- ============================================================================
+-- PUSH SUBSCRIPTIONS TABLE
+-- ============================================================================
+
 -- Create push_subscriptions table
 CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -148,7 +357,7 @@ BEGIN
         COALESCE(np.push_notifications, true) as push_enabled,
         COALESCE(np.push_offline_only, true) as push_offline_only
     FROM public.push_subscriptions ps
-    LEFT JOIN public.notification_preferences np ON np.user_id = p_user_id
+    LEFT JOIN public.notification_preferences np ON np.user_id = ps.user_id
     WHERE ps.user_id = p_user_id
     AND ps.failure_count < 5;  -- Skip subscriptions that have failed too many times
 END;

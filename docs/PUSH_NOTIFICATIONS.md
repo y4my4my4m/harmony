@@ -97,6 +97,12 @@ npm run dev
 │  (Harmony App)  │     │  (push.ts routes)   │     │  (FCM/APNs/etc)  │
 └─────────────────┘     └─────────────────────┘     └──────────────────┘
         │                         │
+        │ Heartbeats              │ Check active sessions
+        ▼                         ▼
+┌─────────────────┐     ┌─────────────────────┐
+│ Session Tracker │────▶│    user_sessions    │
+│ (30s heartbeat) │     │    (Supabase DB)    │
+└─────────────────┘     └─────────────────────┘
         │                         │
         ▼                         ▼
 ┌─────────────────┐     ┌─────────────────────┐
@@ -105,13 +111,29 @@ npm run dev
 └─────────────────┘     └─────────────────────┘
 ```
 
+### Smart Push (Discord-like Behavior)
+
+Harmony uses intelligent push notification delivery just like Discord:
+
+1. **If you're active on the website/app** → No push notifications sent
+2. **If you're looking at the specific channel/conversation** → No push for that context
+3. **If you're offline/away** → Push notifications delivered to mobile/other devices
+
+This is achieved through:
+- **Session Heartbeats**: Every 30 seconds, active sessions send a heartbeat
+- **View Context Tracking**: Your current channel/conversation is tracked
+- **Smart Filtering**: Before sending push, backend checks if user has active sessions
+
 ### Flow
 
 1. **User enables push notifications** in Settings > Notifications
 2. **Browser requests permission** and creates a subscription
 3. **Subscription is sent to backend** and stored in `push_subscriptions` table
-4. **When a notification is created**, the backend's `PushNotificationHandler` listens for new entries
-5. **Backend sends push** via Web Push API to user's subscribed devices
+4. **Session heartbeat starts** tracking activity and current view context
+5. **When a notification is created**, the backend's `PushNotificationHandler`:
+   - Checks if user has any active sessions (heartbeat within 90 seconds)
+   - Checks if user is viewing the notification's context (channel/DM)
+   - Only sends push if user is NOT actively using the app
 6. **Service Worker receives push** and displays native notification
 
 ### Notification Types Supported
@@ -197,6 +219,27 @@ Send a test push notification.
 - Requires: `Authorization: Bearer <token>`
 
 ## Database Schema
+
+### user_sessions (Smart Push Tracking)
+
+Tracks active sessions for Discord-like push behavior:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| user_id | UUID | References profiles(id) |
+| session_token | TEXT | Unique session identifier |
+| platform | TEXT | 'ios', 'android', 'windows', 'macos', 'linux', 'chromeos', 'web' |
+| form_factor | TEXT | 'mobile', 'tablet', 'desktop' |
+| is_pwa | BOOLEAN | Whether running as installed PWA |
+| browser | TEXT | Browser name |
+| last_heartbeat | TIMESTAMPTZ | Last heartbeat timestamp |
+| is_active | BOOLEAN | Whether session is active |
+| current_server_id | UUID | Currently viewing server |
+| current_channel_id | UUID | Currently viewing channel |
+| current_conversation_id | UUID | Currently viewing DM |
+
+### push_subscriptions (Device Subscriptions)
 
 The `push_subscriptions` table stores:
 

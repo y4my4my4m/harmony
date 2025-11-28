@@ -6,7 +6,7 @@
  * Architecture:
  * - Frontend tracks view context in presence
  * - Database triggers read presence to suppress notifications for active contexts
- * - No redundant DB sync needed - presence IS the source of truth
+ * - Session heartbeat syncs to DB for push notification smart delivery
  */
 
 import { watch } from 'vue'
@@ -14,6 +14,7 @@ import { useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { viewContextTracker } from '@/services/ViewContextTracker'
+import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 
 let viewContextChannel: ReturnType<typeof supabase.channel> | null = null
 let currentUserId: string | null = null
@@ -77,10 +78,25 @@ export async function updateViewContext(
       conversation_id: conversationId
     })
 
+    // Update session heartbeat context for smart push notifications
+    sessionHeartbeat.updateContext({
+      serverId,
+      channelId,
+      conversationId
+    })
+
     debug.log('✅ View context updated:', { viewType, serverId, channelId, conversationId })
   } catch (error) {
     debug.error('Error updating view context:', error)
   }
+}
+
+/**
+ * Initialize session heartbeat for smart push notifications
+ * Call this when user logs in
+ */
+export async function initializeSessionHeartbeat(userId: string): Promise<void> {
+  await sessionHeartbeat.initialize(userId)
 }
 
 /**
@@ -93,6 +109,9 @@ export async function cleanupViewContext(): Promise<void> {
     currentUserId = null
     viewContextTracker.reset()
   }
+  
+  // Stop session heartbeat
+  await sessionHeartbeat.stop()
 }
 
 /**

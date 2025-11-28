@@ -6,8 +6,11 @@
 
 import { Router, Request, Response } from 'express';
 import { PushNotificationService } from '../services/PushNotificationService.js';
-import { supabaseAdmin } from '../config/supabase.js';
+import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+
+// Get admin client instance
+const supabaseAdmin = getSupabaseClient();
 
 const router = Router();
 
@@ -15,14 +18,15 @@ const router = Router();
  * GET /push/vapid-key
  * Get the VAPID public key for client-side subscription
  */
-router.get('/vapid-key', (_req: Request, res: Response) => {
+router.get('/vapid-key', (_req: Request, res: Response): void => {
   const publicKey = PushNotificationService.getPublicKey();
   
   if (!publicKey) {
-    return res.status(503).json({
+    res.status(503).json({
       error: 'Push notifications not configured',
       message: 'VAPID keys are not set up on this server'
     });
+    return;
   }
 
   res.json({ publicKey });
@@ -32,7 +36,7 @@ router.get('/vapid-key', (_req: Request, res: Response) => {
  * GET /push/status
  * Check if push notifications are available
  */
-router.get('/status', (_req: Request, res: Response) => {
+router.get('/status', (_req: Request, res: Response): void => {
   res.json({
     available: PushNotificationService.isAvailable(),
     configured: !!PushNotificationService.getPublicKey()
@@ -42,49 +46,35 @@ router.get('/status', (_req: Request, res: Response) => {
 /**
  * POST /push/subscribe
  * Subscribe a device to push notifications
- * 
- * Body: {
- *   subscription: PushSubscription (from browser)
- *   deviceName?: string
- * }
- * 
- * Headers: Authorization: Bearer <token>
  */
-router.post('/subscribe', async (req: Request, res: Response) => {
+router.post('/subscribe', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Extract user from authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     const token = authHeader.substring(7);
-    
-    // Verify the token and get user
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
+      res.status(401).json({ error: 'Invalid token' });
+      return;
     }
 
-    // Get user's profile ID
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id')
       .eq('auth_user_id', user.id)
       .single();
 
-    if (profileError || !profile) {
-      // Fallback to using auth user id if no profile found
-      logger.warn('Profile not found for auth user, using auth.uid()');
-    }
-
     const userId = profile?.id || user.id;
-
     const { subscription, deviceName } = req.body;
 
     if (!subscription || !subscription.endpoint || !subscription.keys) {
-      return res.status(400).json({ error: 'Invalid subscription data' });
+      res.status(400).json({ error: 'Invalid subscription data' });
+      return;
     }
 
     const result = await PushNotificationService.saveSubscription(
@@ -95,7 +85,8 @@ router.post('/subscribe', async (req: Request, res: Response) => {
     );
 
     if (!result.success) {
-      return res.status(500).json({ error: result.error });
+      res.status(500).json({ error: result.error });
+      return;
     }
 
     res.json({ success: true, message: 'Subscription saved' });
@@ -108,31 +99,23 @@ router.post('/subscribe', async (req: Request, res: Response) => {
 /**
  * POST /push/unsubscribe
  * Remove a push subscription
- * 
- * Body: {
- *   endpoint: string
- * }
- * 
- * Headers: Authorization: Bearer <token>
  */
-router.post('/unsubscribe', async (req: Request, res: Response) => {
+router.post('/unsubscribe', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Extract user from authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     const token = authHeader.substring(7);
-    
-    // Verify the token and get user
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
+      res.status(401).json({ error: 'Invalid token' });
+      return;
     }
 
-    // Get user's profile ID
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id')
@@ -140,17 +123,18 @@ router.post('/unsubscribe', async (req: Request, res: Response) => {
       .single();
 
     const userId = profile?.id || user.id;
-
     const { endpoint } = req.body;
 
     if (!endpoint) {
-      return res.status(400).json({ error: 'Endpoint is required' });
+      res.status(400).json({ error: 'Endpoint is required' });
+      return;
     }
 
     const result = await PushNotificationService.removeSubscription(userId, endpoint);
 
     if (!result.success) {
-      return res.status(500).json({ error: result.error });
+      res.status(500).json({ error: result.error });
+      return;
     }
 
     res.json({ success: true, message: 'Subscription removed' });
@@ -163,27 +147,23 @@ router.post('/unsubscribe', async (req: Request, res: Response) => {
 /**
  * GET /push/subscriptions
  * Get all push subscriptions for the authenticated user
- * 
- * Headers: Authorization: Bearer <token>
  */
-router.get('/subscriptions', async (req: Request, res: Response) => {
+router.get('/subscriptions', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Extract user from authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     const token = authHeader.substring(7);
-    
-    // Verify the token and get user
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
+      res.status(401).json({ error: 'Invalid token' });
+      return;
     }
 
-    // Get user's profile ID
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id')
@@ -192,7 +172,6 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
 
     const userId = profile?.id || user.id;
 
-    // Get subscriptions (without sensitive key data)
     const { data: subscriptions, error } = await supabaseAdmin
       .from('push_subscriptions')
       .select('id, endpoint, device_name, user_agent, created_at, last_successful_push, failure_count')
@@ -201,7 +180,8 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
 
     if (error) {
       logger.error('Error fetching subscriptions:', error);
-      return res.status(500).json({ error: 'Failed to fetch subscriptions' });
+      res.status(500).json({ error: 'Failed to fetch subscriptions' });
+      return;
     }
 
     res.json({ subscriptions: subscriptions || [] });
@@ -214,27 +194,23 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
 /**
  * DELETE /push/subscriptions/:id
  * Delete a specific subscription by ID
- * 
- * Headers: Authorization: Bearer <token>
  */
-router.delete('/subscriptions/:id', async (req: Request, res: Response) => {
+router.delete('/subscriptions/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Extract user from authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     const token = authHeader.substring(7);
-    
-    // Verify the token and get user
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
+      res.status(401).json({ error: 'Invalid token' });
+      return;
     }
 
-    // Get user's profile ID
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id')
@@ -244,7 +220,6 @@ router.delete('/subscriptions/:id', async (req: Request, res: Response) => {
     const userId = profile?.id || user.id;
     const subscriptionId = req.params.id;
 
-    // Delete the subscription (RLS ensures user can only delete their own)
     const { error } = await supabaseAdmin
       .from('push_subscriptions')
       .delete()
@@ -253,7 +228,8 @@ router.delete('/subscriptions/:id', async (req: Request, res: Response) => {
 
     if (error) {
       logger.error('Error deleting subscription:', error);
-      return res.status(500).json({ error: 'Failed to delete subscription' });
+      res.status(500).json({ error: 'Failed to delete subscription' });
+      return;
     }
 
     res.json({ success: true, message: 'Subscription deleted' });
@@ -266,27 +242,23 @@ router.delete('/subscriptions/:id', async (req: Request, res: Response) => {
 /**
  * POST /push/test
  * Send a test push notification to the authenticated user
- * 
- * Headers: Authorization: Bearer <token>
  */
-router.post('/test', async (req: Request, res: Response) => {
+router.post('/test', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Extract user from authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     const token = authHeader.substring(7);
-    
-    // Verify the token and get user
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
+      res.status(401).json({ error: 'Invalid token' });
+      return;
     }
 
-    // Get user's profile ID
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id, username')
@@ -324,4 +296,3 @@ router.post('/test', async (req: Request, res: Response) => {
 });
 
 export default router;
-

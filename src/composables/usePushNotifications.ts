@@ -206,11 +206,18 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
 
     // Unsubscribe from browser
     await subscription.unsubscribe()
+    
+    // Browser unsubscribed successfully - update state immediately
+    // This ensures UI is consistent even if server request fails
+    isSubscribed.value = false
 
     // Get auth token
     const token = await getAuthToken()
     if (!token) {
-      return { success: false, error: 'Not authenticated' }
+      // Browser already unsubscribed, but couldn't notify server
+      // State is already updated, just log the issue
+      debug.warn('Browser unsubscribed but could not notify server (not authenticated)')
+      return { success: true } // Return success since browser is unsubscribed
     }
 
     // Remove from server
@@ -231,7 +238,6 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
       // Continue anyway since browser unsubscribe succeeded
     }
 
-    isSubscribed.value = false
     debug.log('✅ Push notification unsubscribed')
     
     // Refresh subscriptions list

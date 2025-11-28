@@ -5,10 +5,13 @@
  * Uses VAPID (Voluntary Application Server Identification) for authentication
  */
 
-import webPush, { PushSubscription, SendResult } from 'web-push';
-import { supabaseAdmin } from '../config/supabase.js';
+import webPush, { PushSubscription } from 'web-push';
+import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+
+// Get admin client instance
+const supabaseAdmin = getSupabaseClient();
 
 // Types for push notification payloads
 export interface PushPayload {
@@ -227,7 +230,7 @@ class PushNotificationServiceClass {
     };
 
     try {
-      const result: SendResult = await webPush.sendNotification(
+      await webPush.sendNotification(
         subscription,
         JSON.stringify(payload),
         {
@@ -314,8 +317,65 @@ class PushNotificationServiceClass {
   }
 
   /**
+   * Check if user has any active sessions (Discord-like smart push)
+   * Returns true if user is actively using the app on any device
+   */
+  async hasActiveSession(userId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .rpc('has_active_session', { p_user_id: userId });
+
+      if (error) {
+        logger.error('Error checking active sessions:', error);
+        return false; // Default to sending push if we can't check
+      }
+
+      return data === true;
+    } catch (error) {
+      logger.error('Error in hasActiveSession:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if user is viewing the specific context of the notification
+   * (e.g., they're looking at the channel where the message was sent)
+   */
+  async isUserViewingContext(
+    userId: string,
+    serverId?: string,
+    channelId?: string,
+    conversationId?: string
+  ): Promise<boolean> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .rpc('is_user_viewing_push_context', {
+          p_user_id: userId,
+          p_server_id: serverId || null,
+          p_channel_id: channelId || null,
+          p_conversation_id: conversationId || null
+        });
+
+      if (error) {
+        logger.error('Error checking view context:', error);
+        return false;
+      }
+
+      return data === true;
+    } catch (error) {
+      logger.error('Error in isUserViewingContext:', error);
+      return false;
+    }
+  }
+
+  /**
    * Send push notification for a database notification
    * This is called when a new notification is created in the notifications table
+   * 
+   * Smart behavior (Discord-like):
+   * - If user has active session AND push_offline_only is true → don't send
+   * - If user is viewing the exact context of notification → don't send
+   * - Otherwise → send push
    */
   async sendForNotification(notification: {
     id: string;
@@ -349,17 +409,46 @@ class PushNotificationServiceClass {
         return;
       }
 
+      // Extract context from notification data
+      const data = notification.data || {};
+      const serverId = data.server_id || data.location?.server_id;
+      const channelId = data.channel_id || data.location?.channel_id;
+      const conversationId = data.conversation_id || data.conversation?.id;
+
+      // 🎯 SMART PUSH: Check if user is viewing this exact context
+      // Don't send push if they're already looking at the channel/conversation
+      if (serverId || channelId || conversationId) {
+        const isViewingContext = await this.isUserViewingContext(
+          notification.user_id,
+          serverId,
+          channelId,
+          conversationId
+        );
+
+        if (isViewingContext) {
+          logger.debug(`📱 Skipping push - user is viewing the notification context`);
+          return;
+        }
+      }
+
+      // 🎯 SMART PUSH: Check if user has active session (Discord-like behavior)
+      const hasActiveSession = await this.hasActiveSession(notification.user_id);
+      
+      // If push_offline_only is enabled and user has active session, skip
+      if (prefs?.push_offline_only && hasActiveSession) {
+        logger.debug(`📱 Skipping push - user has active session and offline-only is enabled`);
+        return;
+      }
+
       // Build payload from notification data
       const payload = this.buildPayloadFromNotification(notification);
 
-      // Check if user is online (for offline-only preference)
-      // For now, we'll send anyway - a more sophisticated implementation would check presence
-      const isUserOnline = false; // TODO: Integrate with presence system
-
       await this.sendToUser(notification.user_id, payload, {
-        respectOfflineOnly: true,
-        isUserOnline
+        respectOfflineOnly: false, // Already checked above
+        isUserOnline: hasActiveSession
       });
+
+      logger.info(`📬 Push sent for ${notification.type} to user ${notification.user_id}`);
     } catch (error) {
       logger.error('Error sending push for notification:', error);
     }
