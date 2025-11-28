@@ -512,53 +512,53 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     } else {
       // Not a single DM view - load all users normally
-      await Promise.all([
-        // Fetch server users
-        (async () => {
-          const { getUserIdsForServer } = await import('@/services/usersService')
-          const allServers = serverChannelStore.servers
-          
-          await Promise.all(allServers.map(async (server) => {
-            try {
-              const serverUserIds = await getUserIdsForServer(server.id)
-              serverUserIds.forEach(id => baselineUserIds.add(id))
-            } catch (error) {
-              debug.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
-            }
-          }))
-        })(),
+    await Promise.all([
+      // Fetch server users
+      (async () => {
+        const { getUserIdsForServer } = await import('@/services/usersService')
+        const allServers = serverChannelStore.servers
         
+        await Promise.all(allServers.map(async (server) => {
+          try {
+            const serverUserIds = await getUserIdsForServer(server.id)
+            serverUserIds.forEach(id => baselineUserIds.add(id))
+          } catch (error) {
+            debug.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
+          }
+        }))
+      })(),
+      
         // Fetch DM contacts (only for non-DM routes or DM list view)
-        (async () => {
+      (async () => {
           if (strategy.routeType !== 'dm') {
-            try {
-              const { data: participations } = await supabase
-                .from('conversation_participants')
-                .select('conversation_id')
-                .eq('user_id', userId)
-                .is('left_at', null)
-                .limit(100)
-              
-              if (participations && participations.length > 0) {
-                const conversationIds = participations.map(p => p.conversation_id)
-                
-                const { data: otherParticipants } = await supabase
-                  .from('conversation_participants')
-                  .select('user_id')
-                  .in('conversation_id', conversationIds)
-                  .neq('user_id', userId)
-                  .is('left_at', null)
-                
-                if (otherParticipants) {
-                  otherParticipants.forEach(p => baselineUserIds.add(p.user_id))
-                }
-              }
-            } catch (error) {
-              debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
+        try {
+          const { data: participations } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id')
+            .eq('user_id', userId)
+            .is('left_at', null)
+            .limit(100)
+          
+          if (participations && participations.length > 0) {
+            const conversationIds = participations.map(p => p.conversation_id)
+            
+            const { data: otherParticipants } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .in('conversation_id', conversationIds)
+              .neq('user_id', userId)
+              .is('left_at', null)
+            
+            if (otherParticipants) {
+              otherParticipants.forEach(p => baselineUserIds.add(p.user_id))
             }
           }
-        })()
-      ])
+        } catch (error) {
+          debug.warn('⚠️ Failed to load DM contacts for global presence:', error)
+            }
+        }
+      })()
+    ])
     }
     
     // Load baseline user data for global presence (minimal profile info)

@@ -28,6 +28,9 @@ import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
 // Import pg-boss queue manager (new professional approach)
 import { queueManager } from './queue/QueueManager.js';
 
+// Import blocked instances cache
+import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
+
 // Feature flag: Set to true to use pg-boss instead of Supabase Realtime
 const USE_PGBOSS_QUEUE = process.env.USE_PGBOSS_QUEUE === 'true';
 
@@ -87,6 +90,11 @@ app.listen(PORT, () => {
   logger.info(`🌐 Instance: ${config.INSTANCE_NAME} (${config.INSTANCE_DOMAIN})`);
   logger.info(`⚠️  Federation ONLY - App uses Supabase directly`);
   
+  // Initialize blocked instances cache (O(1) lookups for inbox filtering)
+  BlockedInstancesCache.initialize().catch((error) => {
+    logger.error('Failed to initialize blocked instances cache:', error);
+  });
+  
   // Start federation event processing
   if (USE_PGBOSS_QUEUE) {
     // NEW: pg-boss queue-based federation (professional approach)
@@ -101,9 +109,9 @@ app.listen(PORT, () => {
   } else {
     // LEGACY: Supabase Realtime-based federation
     logger.info('📡 Using legacy DatabaseListener (set USE_PGBOSS_QUEUE=true to switch)');
-    startDatabaseListener().catch((error) => {
-      logger.error('Failed to start database listener:', error);
-    });
+  startDatabaseListener().catch((error) => {
+    logger.error('Failed to start database listener:', error);
+  });
   }
   
   // Initialize push notification service
@@ -120,9 +128,9 @@ app.listen(PORT, () => {
     });
   } else {
     // Legacy: Use Realtime listener
-    startPushNotificationListener().catch((error) => {
-      logger.error('Failed to start push notification listener:', error);
-    });
+  startPushNotificationListener().catch((error) => {
+    logger.error('Failed to start push notification listener:', error);
+  });
   }
   
   // Process delivery queue for retries every 30 seconds

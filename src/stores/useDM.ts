@@ -534,12 +534,12 @@ export const useDMStore = defineStore('dm', () => {
 
   // Add method to fetch conversation details using participant system
   const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
-    // First check if we already have this conversation
-    const existingConv = conversations.value.find(c => c.id === conversationId)
-    if (existingConv) {
-      return existingConv
-    }
-    
+      // First check if we already have this conversation
+      const existingConv = conversations.value.find(c => c.id === conversationId)
+      if (existingConv) {
+        return existingConv
+      }
+
     // REQUEST DEDUPLICATION: If already fetching this conversation, wait for that request
     const pendingFetch = pendingConversationDetailsFetch.value.get(conversationId)
     if (pendingFetch) {
@@ -953,18 +953,18 @@ export const useDMStore = defineStore('dm', () => {
     
     // Create and track the promise
     const fetchPromise = (async () => {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
-        .eq('id', userId)
-        .single()
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
+      .eq('id', userId)
+      .single()
 
-      if (profileError) {
-        debug.error('Error fetching profile:', profileError)
-        return null
-      }
+    if (profileError) {
+      debug.error('Error fetching profile:', profileError)
+      return null
+    }
 
-      return profileData
+    return profileData
     })()
     
     pendingProfileFetches.value.set(userId, fetchPromise)
@@ -1416,7 +1416,7 @@ export const useDMStore = defineStore('dm', () => {
       if (typeof subscription === 'function') {
         subscription() // Call unsubscribe function from RealtimeConnectionManager
       } else {
-        supabase.removeChannel(subscription)
+      supabase.removeChannel(subscription)
       }
     })
     dmSubscriptions.value.clear()
@@ -1432,7 +1432,7 @@ export const useDMStore = defineStore('dm', () => {
       if (typeof subscription === 'function') {
         subscription() // Call unsubscribe function from RealtimeConnectionManager
       } else {
-        supabase.removeChannel(subscription)
+      supabase.removeChannel(subscription)
       }
       dmSubscriptions.value.delete(channelName)
     }
