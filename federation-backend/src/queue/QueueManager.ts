@@ -226,17 +226,31 @@ class QueueManagerService {
       }
     };
 
-    // Register all handlers (no options - use defaults)
-    await this.boss.work('federate-post', createHandler('federate-post', '📬', handlePostJob));
-    await this.boss.work('federate-reaction', createHandler('federate-reaction', '❤️', handleReactionJob));
-    await this.boss.work('federate-follow', createHandler('federate-follow', '👥', handleFollowJob));
-    await this.boss.work('federate-dm', createHandler('federate-dm', '💬', handleDMJob));
-    await this.boss.work('federate-message-reaction', createHandler('federate-message-reaction', '💬❤️', handleMessageReactionJob));
-    await this.boss.work('federate-block', createHandler('federate-block', '🚫', handleBlockJob));
-    await this.boss.work('federate-report', createHandler('federate-report', '🚩', handleReportJob));
-    await this.boss.work('federate-profile', createHandler('federate-profile', '👤', handleProfileJob));
+    // Concurrency settings - process multiple jobs in parallel
+    // Each queue gets its own workers for true parallelism
+    const WORKERS_PER_QUEUE = 5;  // 5 concurrent workers per job type
+    const POLLING_INTERVAL = 1;    // Check for jobs every 1 second
 
-    logger.info('✅ All job handlers registered');
+    // Register multiple workers per queue for parallel processing
+    const registerWithConcurrency = async (
+      queueName: string,
+      handler: any
+    ) => {
+      for (let i = 0; i < WORKERS_PER_QUEUE; i++) {
+        await this.boss!.work(queueName, { pollingIntervalSeconds: POLLING_INTERVAL }, handler);
+      }
+    };
+
+    await registerWithConcurrency('federate-post', createHandler('federate-post', '📬', handlePostJob));
+    await registerWithConcurrency('federate-reaction', createHandler('federate-reaction', '❤️', handleReactionJob));
+    await registerWithConcurrency('federate-follow', createHandler('federate-follow', '👥', handleFollowJob));
+    await registerWithConcurrency('federate-dm', createHandler('federate-dm', '💬', handleDMJob));
+    await registerWithConcurrency('federate-message-reaction', createHandler('federate-message-reaction', '💬❤️', handleMessageReactionJob));
+    await registerWithConcurrency('federate-block', createHandler('federate-block', '🚫', handleBlockJob));
+    await registerWithConcurrency('federate-report', createHandler('federate-report', '🚩', handleReportJob));
+    await registerWithConcurrency('federate-profile', createHandler('federate-profile', '👤', handleProfileJob));
+
+    logger.info(`✅ All job handlers registered (${WORKERS_PER_QUEUE} workers per queue, ${WORKERS_PER_QUEUE * 8} total workers)`);
   }
 
   /**
