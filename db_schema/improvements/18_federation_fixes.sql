@@ -422,6 +422,83 @@ GRANT EXECUTE ON FUNCTION public.is_author_suspended(uuid) TO anon;
 
 
 -- =====================================================
+-- FIX 5: Enable Supabase Realtime for federation tables
+-- The federation-backend uses Realtime to listen for changes
+-- Without REPLICA IDENTITY FULL, Realtime doesn't work properly
+-- =====================================================
+
+-- Enable REPLICA IDENTITY FULL for federation-critical tables
+ALTER TABLE public.posts REPLICA IDENTITY FULL;
+ALTER TABLE public.profiles REPLICA IDENTITY FULL;
+ALTER TABLE public.follows REPLICA IDENTITY FULL;
+ALTER TABLE public.user_blocks REPLICA IDENTITY FULL;
+ALTER TABLE public.reports REPLICA IDENTITY FULL;
+
+-- Add tables to the supabase_realtime publication
+-- This is what enables Realtime subscriptions to these tables
+DO $$
+BEGIN
+    -- Add posts to realtime publication if not already added
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'posts'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.posts;
+        RAISE LOG 'Added posts to supabase_realtime publication';
+    END IF;
+
+    -- Add profiles to realtime publication if not already added
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'profiles'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+        RAISE LOG 'Added profiles to supabase_realtime publication';
+    END IF;
+
+    -- Add follows to realtime publication if not already added
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'follows'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.follows;
+        RAISE LOG 'Added follows to supabase_realtime publication';
+    END IF;
+
+    -- Add user_blocks to realtime publication if not already added
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'user_blocks'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.user_blocks;
+        RAISE LOG 'Added user_blocks to supabase_realtime publication';
+    END IF;
+
+    -- Add reports to realtime publication if not already added
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'reports'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.reports;
+        RAISE LOG 'Added reports to supabase_realtime publication';
+    END IF;
+END $$;
+
+
+-- =====================================================
+-- FIX 6: Remove old Edge Function trigger (no longer used)
+-- The federation-backend now handles delivery via Realtime
+-- =====================================================
+
+-- Drop the old edge function trigger that calls deprecated Supabase functions
+DROP TRIGGER IF EXISTS "Federated Outbox" ON public.federation_delivery_queue;
+
+-- Comment explaining why it was removed
+COMMENT ON TABLE public.federation_delivery_queue IS 
+    'Queue for federated activity delivery with retry logic. Note: The federation-backend now handles delivery via Realtime subscriptions instead of edge function triggers.';
+
+
+-- =====================================================
 -- VERIFICATION: Log that migration was applied
 -- =====================================================
 DO $$
@@ -430,5 +507,7 @@ BEGIN
     RAISE LOG 'Fixed: is_author_suspended() now returns FALSE for missing profiles';
     RAISE LOG 'Fixed: Post federation trigger now active';
     RAISE LOG 'Fixed: RLS policies now use COALESCE for NULL-safe suspension checks';
+    RAISE LOG 'Fixed: posts, profiles, follows tables now have Realtime enabled';
+    RAISE LOG 'Fixed: Removed old Edge Function trigger from federation_delivery_queue';
 END $$;
 

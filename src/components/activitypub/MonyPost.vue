@@ -703,7 +703,9 @@ const reblogReferenceUrl = computed(() => {
 });
 
 const displayAuthor = computed(() => {
-  return (isReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
+  const author = (isReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
+  // Use fallback if author is missing to prevent crashes during re-renders
+  return author || authorFallback.value;
 });
 
 const originalInstanceDomain = computed(() => {

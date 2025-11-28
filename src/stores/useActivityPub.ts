@@ -1112,7 +1112,15 @@ export const useActivityPubStore = defineStore('activitypub', {
       feeds.forEach(feed => {
         const index = feed.posts.findIndex(p => p.id === post.id);
         if (index !== -1) {
-          feed.posts[index] = post;
+          // CRITICAL: Merge updates with existing post to preserve author and other joined data
+          // Realtime events don't include joined relations like author
+          const existingPost = feed.posts[index];
+          feed.posts[index] = {
+            ...existingPost,  // Keep existing data (especially author!)
+            ...post,          // Apply updates
+            author: post.author || existingPost.author,  // Explicitly preserve author
+            reblog_author: post.reblog_author || existingPost.reblog_author,  // Preserve reblog author
+          };
         }
       });
       
@@ -1120,7 +1128,14 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.userFeeds.forEach(feed => {
         const index = feed.posts.findIndex(p => p.id === post.id);
         if (index !== -1) {
-          feed.posts[index] = post;
+          // Same merge logic for user feeds
+          const existingPost = feed.posts[index];
+          feed.posts[index] = {
+            ...existingPost,
+            ...post,
+            author: post.author || existingPost.author,
+            reblog_author: post.reblog_author || existingPost.reblog_author,
+          };
         }
       });
     },
