@@ -560,6 +560,23 @@
     <circle v-if="name === 'user-check'" cx="9" cy="7" r="4"></circle>
     <path v-if="name === 'user-check'" d="M22 21l-5-5m5 5l-5-5m5 5l-5-5"></path>
 
+    <!-- Post -->
+    <!-- "Post" icon: document or speech bubble with a folded corner bottom-right -->
+    <rect v-if="name === 'post'" x="4" y="4" width="16" height="16" rx="3" ry="3"></rect>
+    <polyline v-if="name === 'post'" points="16 20 20 20 20 16"></polyline>
+    <polyline v-if="name === 'post'" points="16 20 20 16"></polyline>
+    <!-- Draw writing lines inside the post -->
+    <line v-if="name === 'post'" x1="8" y1="9" x2="16" y2="9"></line>
+    <line v-if="name === 'post'" x1="8" y1="13" x2="16" y2="13"></line>
+    <line v-if="name === 'post'" x1="8" y1="17" x2="13" y2="17"></line>
+
+    <!-- Interaction -->
+    <!-- "Interaction" icon: two arrows curving toward each other, like a handshake or interaction -->
+    <path v-if="name === 'interaction'" d="M7 17c-2-2-2-6 1-8 3-2 7 0 8 3"></path>
+    <path v-if="name === 'interaction'" d="M17 7c2 2 2 6-1 8-3 2-7 0-8-3"></path>
+    <polyline v-if="name === 'interaction'" points="7 17 7 21 11 21"></polyline>
+    <polyline v-if="name === 'interaction'" points="17 7 17 3 13 3"></polyline>
+
     <!-- Cute O with a four-pointed star in the middle -->
     <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2" fill="none"/>
     <g v-if="name === 'mony-mascot'">
