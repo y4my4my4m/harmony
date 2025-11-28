@@ -6,7 +6,8 @@ interface QueueItem {
   id: string;
   activity_data: any;
   target_inbox_url: string;  // Database uses target_inbox_url (not target_inbox)
-  sender_id: string;
+  sender_id: string | null;  // May be NULL for legacy items
+  actor_username: string | null;  // Fallback for resolving sender
   attempts: number;
   max_attempts: number;
   next_attempt_at: string;  // Database column name (not next_retry_at)
@@ -163,12 +164,38 @@ export class DeliveryQueue {
     const supabase = getSupabaseClient();
 
     try {
+      // Resolve sender_id if missing (legacy items don't have it)
+      let senderId = item.sender_id;
+      if (!senderId && item.actor_username) {
+        logger.info(`🔍 Resolving sender_id from actor_username: ${item.actor_username}`);
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', item.actor_username)
+          .eq('is_local', true)
+          .single();
+        
+        if (profile) {
+          senderId = profile.id;
+          // Update the queue item with resolved sender_id for future retries
+          await supabase
+            .from('federation_delivery_queue')
+            .update({ sender_id: senderId })
+            .eq('id', item.id);
+          logger.info(`✅ Resolved sender_id: ${senderId}`);
+        }
+      }
+
+      if (!senderId) {
+        throw new Error(`Cannot resolve sender for delivery - no sender_id or actor_username`);
+      }
+
       // Sign the request
       const { headers, digest } = await SignatureService.signRequest(
         item.target_inbox_url,
         'POST',
         item.activity_data,
-        item.sender_id
+        senderId
       );
 
       // Add content-type
