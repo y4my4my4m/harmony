@@ -846,11 +846,10 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Check if encryption is unlocked (user has entered recovery key this session)
+   * Note: No logging here as this is called frequently during message loading/rendering
    */
   isUnlocked(): boolean {
-    const unlocked = megolmService.isInitialized()
-    debug.log(`🔐 isUnlocked: ${unlocked}`)
-    return unlocked
+    return megolmService.isInitialized()
   }
 
   /**

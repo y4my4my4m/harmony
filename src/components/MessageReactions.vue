@@ -247,4 +247,11 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+
+@media (max-width: 768px) {
+  .reactions-gutter {
+    width: 48px;
+  }
+}
 </style>
