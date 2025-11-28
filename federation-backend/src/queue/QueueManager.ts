@@ -185,25 +185,44 @@ class QueueManagerService {
       jobType: string,
       emoji: string,
       handler: (data: FederationJobData) => Promise<void>
-    ) => async (job: any) => {
-      // pg-boss 10.x passes job object with id, name, data
-      const jobId = job?.id || 'unknown';
-      const jobData = job?.data;
+    ) => async (jobArg: any) => {
+      // Debug: Log exactly what we receive
+      logger.debug(`🔍 ${jobType} received type: ${typeof jobArg}, isArray: ${Array.isArray(jobArg)}`);
+      logger.debug(`🔍 ${jobType} raw value: ${JSON.stringify(jobArg)?.substring(0, 500)}`);
       
-      logger.info(`${emoji} Processing ${jobType} job: ${jobId}`);
-      logger.debug(`Job object keys: ${Object.keys(job || {}).join(', ')}`);
-      logger.debug(`Job data: ${JSON.stringify(jobData)?.substring(0, 200)}`);
+      // Skip if no argument (shouldn't happen but safety check)
+      if (jobArg === undefined || jobArg === null) {
+        logger.warn(`⚠️ ${jobType} received null/undefined, skipping`);
+        return;
+      }
       
-      try {
-        if (!jobData) {
-          logger.warn(`⚠️ ${jobType} job ${jobId} has no data, skipping`);
-          return;
+      // pg-boss 10.x: check if it's an array or single job
+      const jobs = Array.isArray(jobArg) ? jobArg : [jobArg];
+      
+      for (const job of jobs) {
+        // Skip empty/invalid jobs
+        if (!job || typeof job !== 'object') {
+          logger.warn(`⚠️ ${jobType} invalid job object: ${JSON.stringify(job)}`);
+          continue;
         }
-        await handler(jobData);
-        logger.info(`✅ ${jobType} job completed: ${jobId}`);
-      } catch (error) {
-        logger.error(`❌ ${jobType} job failed: ${jobId}`, error);
-        throw error; // pg-boss will handle retry
+        
+        const jobId = job.id || 'no-id';
+        const jobData = job.data;
+        
+        logger.info(`${emoji} Processing ${jobType} job: ${jobId}`);
+        
+        try {
+          if (!jobData) {
+            logger.warn(`⚠️ ${jobType} job ${jobId} has no data property`);
+            logger.debug(`Job object: ${JSON.stringify(job)}`);
+            continue;
+          }
+          await handler(jobData);
+          logger.info(`✅ ${jobType} job completed: ${jobId}`);
+        } catch (error) {
+          logger.error(`❌ ${jobType} job failed: ${jobId}`, error);
+          throw error;
+        }
       }
     };
 
