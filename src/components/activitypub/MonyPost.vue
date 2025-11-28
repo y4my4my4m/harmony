@@ -1,7 +1,9 @@
 <!-- MonyPost Component - Individual post display -->
 <template>
+  <!-- FIXED: Use v-show instead of v-if to prevent post disappearing on re-render -->
+  <!-- Also added fallback for missing author to prevent complete disappearance -->
   <article class="mony-post" 
-  v-if="author" :class="{ 'is-reply': post.reply_context, 'is-reblog': isReblog }">
+  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isReblog }">
     
     <!-- Reblog Header (if this is a reblog) -->
     <div v-if="isReblog" class="reblog-header">
@@ -588,6 +590,27 @@ const handleTimeClick = () => {
 const author = computed(() => {
   return props.post.author;
 });
+
+// Fallback author for edge cases where author is temporarily unavailable
+// This prevents posts from disappearing during re-renders due to RLS policy timing issues
+const authorFallback = computed(() => {
+  if (author.value) return null;
+  // Return a minimal author object to keep the post visible
+  return {
+    id: props.post.author_id,
+    username: 'Loading...',
+    display_name: 'Loading...',
+    avatar_url: null,
+    domain: 'har.mony.lol',
+    is_local: props.post.is_local ?? true
+  };
+});
+
+// Use the actual author if available, otherwise use fallback
+const displayAuthorSafe = computed(() => {
+  return author.value || authorFallback.value;
+});
+
 const viewProfile = (author: { username: string; domain: string, is_local?: boolean }) => {
   const isLocal = author.is_local ?? true; // Default to local if not specified
   const profileHandle = isLocal ? `@${author.username}` : `@${author.username}@${author.domain}`;
@@ -595,7 +618,7 @@ const viewProfile = (author: { username: string; domain: string, is_local?: bool
 };
 
 const instanceDomain = computed(() => {
-  const { domain } = props.post.author;
+  const domain = props.post.author?.domain || displayAuthorSafe.value?.domain;
   return domain || 'har.mony.lol';
 });
 
