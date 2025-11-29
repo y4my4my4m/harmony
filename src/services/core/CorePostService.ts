@@ -124,6 +124,7 @@ export class CorePostService {
       }
 
       debug.log('✅ Core: Post created successfully (local only), id:', post?.id)
+      
       return this.formatTimelinePost(post)
     } catch (error: any) {
       debug.error('❌ Core: Failed to create post:', error)
@@ -133,8 +134,7 @@ export class CorePostService {
 
   /**
    * Attempt to refresh connection for retry scenarios
-   * Only called on actual failures, not preemptively
-   * Uses a tight timeout to avoid blocking on network issues
+   * Uses the global ensureFreshConnection from supabase.ts for robust recovery
    */
   private async ensureFreshConnection(): Promise<void> {
     debug.log('🔄 Core: Refreshing connection for retry...')
@@ -142,34 +142,30 @@ export class CorePostService {
     // Clear auth context cache
     authContextService.clearCache()
     
-    // Attempt a quick session refresh with tight timeout (2 seconds)
-    // This helps if the token is stale, but won't block if network is slow
+    // Use the global connection health check for robust recovery
     try {
-      const refreshPromise = supabase.auth.getSession()
-      const timeoutPromise = new Promise<null>((resolve) => 
-        setTimeout(() => resolve(null), 2000)
-      )
+      const { ensureFreshConnection: globalEnsureFresh } = await import('@/supabase')
+      const isHealthy = await globalEnsureFresh()
       
-      const result = await Promise.race([refreshPromise, timeoutPromise])
-      
-      if (result && 'data' in result && result.data.session) {
-        debug.log('✅ Core: Session verified for retry')
+      if (isHealthy) {
+        debug.log('✅ Core: Connection verified healthy for retry')
       } else {
-        debug.log('⚠️ Core: Session check timed out or empty, continuing anyway')
+        debug.warn('⚠️ Core: Connection health check failed, continuing anyway')
       }
     } catch (error) {
-      debug.warn('⚠️ Core: Session refresh failed, continuing with existing session')
+      debug.warn('⚠️ Core: Connection refresh failed, continuing with existing session')
     }
   }
 
   /**
    * Execute a database operation with timeout and automatic retry on failure
+   * Note: The operation function is called fresh on each retry, creating a new query
    */
   private async executeWithRetry<T>(
     operation: () => Promise<T>,
     operationName: string,
     maxRetries: number = 2,
-    timeoutMs: number = 10000
+    timeoutMs: number = 20000  // 20 seconds - more generous for slow connections
   ): Promise<T> {
     let lastError: any
     

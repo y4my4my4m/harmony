@@ -407,8 +407,15 @@ class UserDataService extends EventTarget {
       })
   }
   
+  // Throttle for global presence tracking to prevent rapid re-tracking
+  private lastGlobalTrackTime: number = 0
+  private globalTrackThrottleMs: number = 15000 // 15 seconds minimum between tracks (increased from 5s)
+  private pendingGlobalTrack: ReturnType<typeof setTimeout> | null = null
+  private isGlobalTrackDirty: boolean = false  // Coalesce multiple track requests
+  
   /**
    * Track current user in global presence (cross-context online status)
+   * Throttled and coalesced to prevent rapid re-tracking which causes join/leave loops
    */
   private async trackCurrentUserGlobally(): Promise<void> {
     if (!this.globalChannel || !this.currentUserId) return
@@ -416,37 +423,81 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
-    // If user has set status to Offline (0), they should be invisible to others
-    // Don't track global presence at all
-    if (userData.status === UserStatus.Offline) {
-      debug.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking global presence`)
-      return
-    }
-    
-    // Track basic presence info globally (including color for real-time user color sync)
-    // 👻 INVISIBLE STATUS: Don't track presence if user is invisible
-    // They should appear offline to everyone
-    if (userData.status === UserStatus.Invisible) {
-      debug.log(`👻 User ${this.currentUserId} is Invisible - not tracking in global presence`)
+    // Handle invisible status - don't track at all
+    if (userData.status === UserStatus.Offline || userData.status === UserStatus.Invisible) {
       // Make sure we're NOT in the presence channel
-      await this.globalChannel.untrack()
+      try {
+        await this.globalChannel.untrack()
+      } catch {
+        // Ignore untrack errors
+      }
       return
     }
     
-    await this.globalChannel.track({
-      user_id: this.currentUserId,
-      username: userData.username,
-      display_name: userData.displayName,
-      avatar_url: userData.avatarUrl,
-      color: userData.color,
-      status: userData.status,
-      custom_status: userData.customStatus,
-      is_mobile: userData.isMobile,
-      online_at: new Date().toISOString()
-    })
+    // Throttle rapid track calls to prevent join/leave loops
+    const now = Date.now()
+    const timeSinceLastTrack = now - this.lastGlobalTrackTime
     
-    debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}${userData.isMobile ? ' (mobile)' : ''} - now visible to all users regardless of their current view`)
+    if (timeSinceLastTrack < this.globalTrackThrottleMs) {
+      // Mark as dirty - we need to track eventually
+      this.isGlobalTrackDirty = true
+      
+      // Coalesce: Cancel existing pending track and reschedule
+      // This ensures we only have ONE pending track at a time
+      if (this.pendingGlobalTrack) {
+        clearTimeout(this.pendingGlobalTrack)
+      }
+      
+      const delay = this.globalTrackThrottleMs - timeSinceLastTrack
+      this.pendingGlobalTrack = setTimeout(async () => {
+        this.pendingGlobalTrack = null
+        if (this.isGlobalTrackDirty) {
+          await this.doTrackGlobally()
+        }
+      }, delay)
+      return
+    }
+    
+    await this.doTrackGlobally()
+  }
+  
+  /**
+   * Actually perform the global presence track
+   */
+  private async doTrackGlobally(): Promise<void> {
+    if (!this.globalChannel || !this.currentUserId) return
+    
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) return
+    
+    // Skip if invisible
+    if (userData.status === UserStatus.Invisible || userData.status === UserStatus.Offline) {
+      return
+    }
+    
+    // Clear dirty flag and update timestamp
+    this.isGlobalTrackDirty = false
+    this.lastGlobalTrackTime = Date.now()
+    
+    try {
+      await this.globalChannel.track({
+        user_id: this.currentUserId,
+        username: userData.username,
+        display_name: userData.displayName,
+        avatar_url: userData.avatarUrl,
+        color: userData.color,
+        status: userData.status,
+        custom_status: userData.customStatus,
+        is_mobile: userData.isMobile,
+        online_at: new Date().toISOString()
+      })
+      
+      // Only log on initial track or status changes (reduce log spam)
+      debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}`)
+    } catch (error) {
+      // Don't spam logs with track errors - they're usually transient
+      debug.warn('⚠️ Global presence track failed:', error)
+    }
   }
   
   /**
@@ -456,7 +507,8 @@ class UserDataService extends EventTarget {
     if (!this.globalChannel) return
     
     const state = this.globalChannel.presenceState()
-    debug.log('🌐 Global presence sync with', Object.keys(state).length, 'users')
+    // Reduce log spam - only log on significant changes
+    const userCount = Object.keys(state).length
     
     // Track which users are globally online
     const globallyOnlineUserIds = new Set<string>()
@@ -498,7 +550,7 @@ class UserDataService extends EventTarget {
     newPresences.forEach((presence: any) => {
       if (presence.user_id) {
         this.updateUserFromGlobalPresence(presence.user_id, presence)
-        debug.log(`🌐 User ${presence.user_id} joined global presence - now globally online`)
+        // Reduce log spam - don't log every join
       }
     })
   }
@@ -519,8 +571,7 @@ class UserDataService extends EventTarget {
             userData.status = UserStatus.Offline
           }
           
-          // 🔥 CRITICAL FIX: Force UI updates for global presence changes
-          debug.log(`🌐 Global presence leave: User ${presence.user_id} went offline`)
+          // Force UI updates for global presence changes
           this.emitEvent('user-updated', { userId: presence.user_id })
           this.emitEvent('global-presence-updated', { userId: presence.user_id, isOnline: false })
         }
@@ -574,9 +625,7 @@ class UserDataService extends EventTarget {
     
     this.users.set(userId, userData)
     
-    // 🔥 CRITICAL FIX: Force UI updates for global presence changes
-    // This ensures that users see each other online regardless of current view
-    debug.log(`🌐 Global presence update: User ${userId} is now online with status ${UserStatus[userStatus]}, color: ${userData.color || 'none'} (source: global_presence)`)
+    // Force UI updates for global presence changes
     this.emitEvent('user-updated', { userId })
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
@@ -1517,24 +1566,18 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * 🔥 CRITICAL FIX: Force refresh global presence
+   * Force refresh global presence
    * Call this when user navigates between different view contexts
    * to ensure they remain visible to others regardless of current view
    */
   async refreshGlobalPresence(): Promise<void> {
     if (!this.initialized || !this.currentUserId) {
-      debug.warn('⚠️ Cannot refresh global presence - service not initialized')
       return
     }
     
-    debug.log('🔄 Refreshing global presence to ensure cross-context visibility...')
-    
-    // Re-track in global presence
+    // Re-track in global presence (throttled internally)
     if (this.globalChannel) {
       await this.trackCurrentUserGlobally()
-      debug.log('✅ Global presence refreshed - user is visible across all contexts')
-    } else {
-      debug.warn('⚠️ Global presence channel not available')
     }
   }
   
@@ -1548,6 +1591,12 @@ class UserDataService extends EventTarget {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
+    }
+    
+    // Clear pending global track
+    if (this.pendingGlobalTrack) {
+      clearTimeout(this.pendingGlobalTrack)
+      this.pendingGlobalTrack = null
     }
     
     // ✅ PERFORMANCE FIX: Clear any pending presence sync timeouts

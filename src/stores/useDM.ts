@@ -1573,13 +1573,15 @@ export const useDMStore = defineStore('dm', () => {
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore()
 
-      // Subscribe to new conversations using RealtimeConnectionManager
+      // Subscribe to conversation_participants for this user to detect new conversations
+      // This is more efficient than subscribing to entire conversations table
       const conversationsChannelName = `dm-conversations-${userId}`
       const conversationsUnsubscribe = realtimeConnectionManager.subscribeToTable({
         channelName: conversationsChannelName,
-        table: 'conversations',
+        table: 'conversation_participants',
+        filter: `user_id=eq.${userId}`,
         onInsert: (payload) => {
-          debug.log('🔔 New DM conversation created:', payload.new)
+          debug.log('🔔 User added to new DM conversation:', payload.new)
           fetchUserConversations(userId)
         },
         onStatusChange: (status, name) => {
@@ -1587,23 +1589,17 @@ export const useDMStore = defineStore('dm', () => {
         }
       })
 
-      // Subscribe to global DM reactions using RealtimeConnectionManager
+      // Note: For DM reactions, we subscribe per-conversation in setupConversationSubscription
+      // instead of subscribing to ALL reactions globally. This is more scalable.
+      // The per-conversation subscription handles reactions for the active conversation.
+      
+      // Only subscribe to reactions if we have active conversations
+      // We'll handle this in the conversation-specific subscription instead
       const reactionsChannelName = `dm-reactions-${userId}`
-      const reactionsUnsubscribe = realtimeConnectionManager.subscribeToTable({
-        channelName: reactionsChannelName,
-        table: 'reactions',
-        onInsert: (payload) => {
-          debug.log('🎯 Global DM reaction INSERT received')
-          reactionsStore.handleRealtimeUpdate(payload)
-        },
-        onDelete: (payload) => {
-          debug.log('🎯 Global DM reaction DELETE received')
-          reactionsStore.handleRealtimeUpdate(payload)
-        },
-        onStatusChange: (status, name) => {
-          debug.log(`📡 ${name} status: ${status}`)
-        }
-      })
+      // Skip global reactions subscription - we handle it per-conversation
+      const reactionsUnsubscribe = () => {
+        debug.log('📡 DM reactions handled per-conversation, no global subscription needed')
+      }
 
       // Store the unsubscribe functions
       dmSubscriptions.value.set(conversationsChannelName, conversationsUnsubscribe)

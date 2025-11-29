@@ -116,8 +116,9 @@ const RETRY_CONFIG = {
   jitterFactor: 0.2     // Add 20% random jitter to prevent thundering herd
 }
 
-const HEALTH_CHECK_INTERVAL = 15000  // 15 seconds
-const STALE_CONNECTION_THRESHOLD = 2 * 60 * 1000  // 2 minutes
+const HEALTH_CHECK_INTERVAL = 30000  // 30 seconds (increased from 15s to reduce overhead)
+const STALE_CONNECTION_THRESHOLD = 3 * 60 * 1000  // 3 minutes (increased from 2 to be less aggressive)
+const VISIBILITY_CHECK_DEBOUNCE = 2000  // 2 seconds debounce for visibility changes
 
 // ============================================================================
 // RealtimeConnectionManager Service
@@ -132,6 +133,8 @@ class RealtimeConnectionManagerService {
   private authListener: { data: { subscription: { unsubscribe: () => void } } } | null = null
   private initialized = false
   private isReconnecting = false  // Prevent multiple simultaneous reconnects
+  private lastVisibilityCheckTime = 0  // Debounce visibility checks
+  private pendingVisibilityCheck: ReturnType<typeof setTimeout> | null = null
 
   // ============================================================================
   // Lifecycle Methods
@@ -177,6 +180,11 @@ class RealtimeConnectionManagerService {
       this.visibilityHandler = null
     }
     
+    if (this.pendingVisibilityCheck) {
+      clearTimeout(this.pendingVisibilityCheck)
+      this.pendingVisibilityCheck = null
+    }
+    
     if (this.authListener) {
       this.authListener.data.subscription.unsubscribe()
       this.authListener = null
@@ -190,10 +198,40 @@ class RealtimeConnectionManagerService {
     // Discord-like behavior: DON'T disconnect or force reconnect just because tab was hidden
     // The websocket connection stays alive. Only check health when tab becomes visible.
     if (!document.hidden) {
-      debug.log('👁️ RealtimeManager: Tab visible - performing health check')
-      // Just do a health check to verify connections are still alive
-      // Don't force reconnect everything - that causes chaos
-      this.performHealthCheck()
+      // Debounce visibility checks to prevent rapid successive checks
+      const now = Date.now()
+      const timeSinceLastCheck = now - this.lastVisibilityCheckTime
+      
+      if (timeSinceLastCheck < VISIBILITY_CHECK_DEBOUNCE) {
+        // Cancel existing pending check and reschedule
+        if (this.pendingVisibilityCheck) {
+          clearTimeout(this.pendingVisibilityCheck)
+        }
+        
+        const delay = VISIBILITY_CHECK_DEBOUNCE - timeSinceLastCheck
+        this.pendingVisibilityCheck = setTimeout(() => {
+          this.pendingVisibilityCheck = null
+          this.doVisibilityCheck()
+        }, delay)
+        return
+      }
+      
+      this.doVisibilityCheck()
+    }
+  }
+  
+  private doVisibilityCheck(): void {
+    this.lastVisibilityCheckTime = Date.now()
+    debug.log('👁️ RealtimeManager: Tab visible - checking connections')
+    
+    // Only check subscriptions that appear to have issues
+    // Don't force reconnect healthy connections
+    for (const [channelName, sub] of this.subscriptions) {
+      // Only check if status is disconnected or error
+      if (sub.status === 'disconnected' || sub.status === 'error') {
+        debug.log(`🔄 RealtimeManager: ${channelName} needs reconnection (status: ${sub.status})`)
+        this.forceReconnect(channelName)
+      }
     }
   }
 
@@ -851,15 +889,15 @@ class RealtimeConnectionManagerService {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval)
       this.healthCheckInterval = null
-      debug.log(`💔 RealtimeManager: Health check stopped`)
     }
   }
 
   private performHealthCheck(): void {
     const now = new Date()
+    let reconnectCount = 0
     
     for (const [channelName, sub] of this.subscriptions) {
-      // Check for stale connections
+      // Check for stale connections - only if connection seems broken
       if (sub.status === 'connected' && sub.lastConnectedAt) {
         const timeSinceConnect = now.getTime() - sub.lastConnectedAt.getTime()
         
@@ -870,36 +908,43 @@ class RealtimeConnectionManagerService {
             const isSocketConnected = socket?.isConnected?.() ?? false
             const isJoined = state === 'joined'
             
+            // Only reconnect if socket is actually disconnected
             if (!isJoined || !isSocketConnected) {
-              debug.warn(`⚠️ RealtimeManager: ${channelName} appears stale (state: ${state}, socket: ${isSocketConnected}), reconnecting`)
+              debug.warn(`⚠️ RealtimeManager: ${channelName} stale, reconnecting`)
               this.forceReconnect(channelName)
+              reconnectCount++
             }
           } else {
-            debug.warn(`⚠️ RealtimeManager: ${channelName} has no channel, reconnecting`)
             this.forceReconnect(channelName)
+            reconnectCount++
           }
         }
       }
       
-      // Check for stuck error state
+      // Check for stuck error state (after 2 minutes instead of 1)
       if (sub.status === 'error' && sub.lastErrorAt) {
         const timeSinceError = now.getTime() - sub.lastErrorAt.getTime()
         
-        if (timeSinceError > 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
-          debug.log(`🔄 RealtimeManager: Resetting ${channelName} after extended error state`)
+        if (timeSinceError > 2 * 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
           sub.retryCount = 0
           this.scheduleReconnect(channelName)
+          reconnectCount++
         }
       }
       
-      // Check for stuck connecting state
+      // Check for stuck connecting state (after 45 seconds instead of 30)
       if ((sub.status === 'connecting' || sub.status === 'reconnecting') && sub.lastConnectedAt) {
         const timeSinceLastConnect = now.getTime() - sub.lastConnectedAt.getTime()
-        if (timeSinceLastConnect > 30 * 1000) {
-          debug.warn(`⚠️ RealtimeManager: ${channelName} stuck in ${sub.status} state, forcing reconnect`)
+        if (timeSinceLastConnect > 45 * 1000) {
           this.forceReconnect(channelName)
+          reconnectCount++
         }
       }
+    }
+    
+    // Only log if we actually did something
+    if (reconnectCount > 0) {
+      debug.log(`🔄 RealtimeManager: Health check triggered ${reconnectCount} reconnects`)
     }
   }
 
@@ -985,7 +1030,7 @@ class RealtimeConnectionManagerService {
       globalStatus: this.globalStatus,
       subscriptionCount: this.subscriptions.size,
       healthCheckRunning: !!this.healthCheckInterval,
-      lastVisibleTime: this.lastVisibleTime.toISOString(),
+      lastVisibilityCheckTime: this.lastVisibilityCheckTime ? new Date(this.lastVisibilityCheckTime).toISOString() : null,
       subscriptions
     }
   }
