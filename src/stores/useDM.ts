@@ -315,6 +315,8 @@ export const useDMStore = defineStore('dm', () => {
    * - 'immediate': Load ALL user profiles right away (best UX, more database load)
    */
   const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
+    debug.log('📬 initializeDMEnvironment called:', { userId, forceRefresh, metadataOnly, loadStrategy, existingConversations: conversations.value.length })
+    
     // Prevent duplicate initialization
     if (isInitializing.value && !forceRefresh) {
       debug.log('🔄 DM initialization already in progress, skipping duplicate')
@@ -328,12 +330,18 @@ export const useDMStore = defineStore('dm', () => {
       cleanupRealtimeSubscriptions()
       
       // Only fetch conversations if we don't have them or force refresh is requested
-      if (forceRefresh || conversations.value.length === 0) {
+      const shouldFetch = forceRefresh || conversations.value.length === 0
+      debug.log('📬 Should fetch conversations:', shouldFetch, '(forceRefresh:', forceRefresh, ', existing:', conversations.value.length, ')')
+      
+      if (shouldFetch) {
         if (metadataOnly) {
+          debug.log('📬 Fetching conversation metadata...')
           await fetchUserConversationsMetadata(userId, loadStrategy)
         } else {
+          debug.log('📬 Fetching full conversations...')
           await fetchUserConversations(userId)
         }
+        debug.log('📬 After fetch, conversations count:', conversations.value.length)
       }
       
       // Set up realtime subscriptions (always needed for new messages/updates)
@@ -359,6 +367,7 @@ export const useDMStore = defineStore('dm', () => {
     const fetchPromise = (async () => {
     try {
       loadingConversations.value = true
+      debug.log('📬 fetchUserConversationsMetadata: Starting fetch for user:', userId)
 
       // Step 1: Get conversation metadata in a single query
       const { data: participations, error: participationError } = await supabase
@@ -378,12 +387,18 @@ export const useDMStore = defineStore('dm', () => {
         .is('left_at', null)
         .limit(50) // Reasonable limit for metadata
 
+      debug.log('📬 fetchUserConversationsMetadata: Query result:', { 
+        participations: participations?.length || 0, 
+        error: participationError?.message || 'none' 
+      })
+
       if (participationError) {
         debug.error('❌ Error fetching conversation metadata:', participationError)
         return
       }
 
       if (!participations || participations.length === 0) {
+        debug.log('📬 fetchUserConversationsMetadata: No conversations found for user')
         conversations.value = []
         return
       }
@@ -485,36 +500,51 @@ export const useDMStore = defineStore('dm', () => {
         return dmConversation
       })
 
-      conversations.value = processedConversations
+      // MERGE: Preserve existing conversations that have full user data loaded
+      // Don't overwrite conversations that were already loaded with full details
+      const existingConversationsMap = new Map(
+        conversations.value.map(c => [c.id, c])
+      )
+      
+      const mergedConversations = processedConversations.map(newConv => {
+        const existing = existingConversationsMap.get(newConv.id)
+        // If we have an existing conversation with a non-placeholder user, keep it
+        if (existing && existing.other_user && !existing.other_user._isPlaceholder) {
+          debug.log('📋 Preserving full user data for conversation:', newConv.id)
+          return existing
+        }
+        return newConv
+      })
+      
+      conversations.value = mergedConversations
       
       // OPTIMIZATION: Different loading strategies for user profiles
       if (loadStrategy === 'immediate') {
-        // Load ALL user profiles immediately
-        const allDirectConversations = processedConversations
+        // Load ALL user profiles immediately (await to ensure they're loaded)
+        const allDirectConversations = mergedConversations
           .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
           
         if (allDirectConversations.length > 0) {
-          // Load all user profiles in background
-          setTimeout(() => {
-            loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
-          }, 100)
+          debug.log('🔄 Immediate: Loading all', allDirectConversations.length, 'user profiles')
+          // Await to ensure profiles are loaded before we finish
+          await loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
         }
       } else if (loadStrategy === 'partial') {
         // Load user profiles for most recent conversations immediately for better UX
         // Keep the rest as lazy-loaded for performance
-         const immediateLoadConversations = processedConversations
+         const immediateLoadConversations = mergedConversations
            .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
            .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
            .slice(0, 20) // Load first 20 most recent direct conversations immediately
            
         if (immediateLoadConversations.length > 0) {
-          // Load user profiles for recent conversations in background
-          setTimeout(() => {
-            loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
-          }, 100)
+          debug.log('🔄 Partial: Loading first', immediateLoadConversations.length, 'user profiles')
+          // Await to ensure profiles are loaded before we finish
+          await loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
         }
       } else if (loadStrategy === 'lazy') {
         // Pure lazy loading - everything loads on hover only
+        debug.log('🔄 Lazy: Profiles will load on hover')
       }
       
     } catch (error) {
@@ -687,10 +717,11 @@ export const useDMStore = defineStore('dm', () => {
         await setupRealtimeSubscriptions(userId)
         
         // DEFER: Load other conversations in background for sidebar (non-blocking)
+        // Use 'immediate' strategy to load profiles right away (better UX)
         if (conversations.value.length <= 1) {
           setTimeout(async () => {
             debug.log('🔄 Background: Loading other conversations for sidebar')
-            await fetchUserConversationsMetadata(userId, 'lazy')
+            await fetchUserConversationsMetadata(userId, 'immediate')
           }, 100)
         }
         
@@ -2314,7 +2345,10 @@ export const useDMStore = defineStore('dm', () => {
   // Load user profiles for conversations using centralized cache
   const loadConversationUserProfile = async (conversationId: string): Promise<boolean> => {
     try {
-      const conversation = conversations.value.find(c => c.id === conversationId)
+      const index = conversations.value.findIndex(c => c.id === conversationId)
+      if (index === -1) return false
+      
+      const conversation = conversations.value[index]
       if (!conversation?.other_user?._isPlaceholder) {
         return true // Already loaded or no placeholder
       }
@@ -2325,18 +2359,22 @@ export const useDMStore = defineStore('dm', () => {
       const userProfile = await userDataService.fetchUserProfile(conversation.other_user.id)
       
       if (userProfile) {
-        // Update conversation with cached user data
-        conversation.other_user = {
-          id: userProfile.id,
-          username: userProfile.username || userProfile.display_name || 'Unknown',
-          display_name: userProfile.display_name,
-          avatar_url: userProfile.avatar_url,
-          is_online: false, // Will be updated by presence if needed
-          domain: userProfile.domain,
-          is_local: userProfile.is_local,
-          federated_id: userProfile.federated_id,
-          handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
-          _isPlaceholder: false
+        // Update conversation with new object to trigger reactivity
+        conversations.value[index] = {
+          ...conversation,
+          other_user: {
+            id: userProfile.id,
+            username: userProfile.username || userProfile.display_name || 'Unknown',
+            display_name: userProfile.display_name,
+            avatar_url: userProfile.avatar_url,
+            is_online: false, // Will be updated by presence if needed
+            domain: userProfile.domain,
+            is_local: userProfile.is_local,
+            federated_id: userProfile.federated_id,
+            handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
+            color: userProfile.color,
+            _isPlaceholder: false
+          }
         }
         
         return true
@@ -2364,30 +2402,45 @@ export const useDMStore = defineStore('dm', () => {
       
       if (userIds.length === 0) return
       
+      debug.log('🔄 Loading user profiles for', userIds.length, 'conversations')
+      
       const { userDataService } = await import('@/services/userDataService')
       
       // Use centralized cache - batch loads missing users, uses cache for existing ones
       const userProfilesMap = await userDataService.fetchMultipleUserProfiles(userIds)
       
-      // Update conversations with cached user data
+      debug.log('✅ Loaded profiles:', Object.keys(userProfilesMap).length)
+      
+      // Update conversations with cached user data - using array index for proper reactivity
       for (const conversation of conversationsToLoad) {
         const userProfile = conversation.other_user?.id ? userProfilesMap[conversation.other_user.id] : null
         
         if (userProfile && conversation.other_user) {
-          conversation.other_user = {
-            id: userProfile.id,
-            username: userProfile.username || userProfile.display_name || 'Unknown',
-            display_name: userProfile.display_name,
-            avatar_url: userProfile.avatar_url,
-            is_online: false, // Will be updated by presence if needed
-            domain: userProfile.domain,
-            is_local: userProfile.is_local,
-            federated_id: userProfile.federated_id,
-            handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
-            _isPlaceholder: false
+          // Find the index and update via the array to trigger reactivity
+          const index = conversations.value.findIndex(c => c.id === conversation.id)
+          if (index !== -1) {
+            // Create a new object to trigger Vue reactivity
+            conversations.value[index] = {
+              ...conversations.value[index],
+              other_user: {
+                id: userProfile.id,
+                username: userProfile.username || userProfile.display_name || 'Unknown',
+                display_name: userProfile.display_name,
+                avatar_url: userProfile.avatar_url,
+                is_online: false, // Will be updated by presence if needed
+                domain: userProfile.domain,
+                is_local: userProfile.is_local,
+                federated_id: userProfile.federated_id,
+                handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
+                color: userProfile.color,
+                _isPlaceholder: false
+              }
+            }
           }
         }
       }
+      
+      debug.log('✅ Conversation profiles updated')
       
     } catch (error) {
       debug.error('❌ Failed to batch load user profiles:', error)

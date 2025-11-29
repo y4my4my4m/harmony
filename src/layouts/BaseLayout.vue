@@ -67,6 +67,7 @@
         :right-sidebar-open="rightSidebarOpen"
         :is-mobile="isMobile"
         :voice-panel-open="voicePanelOpen"
+        :is-d-m="isDMRoute"
         :is-dragging="isDragging"
         :drag-direction="dragDirection"
         :left-sidebar-drag-offset="leftSidebarDragOffset"
@@ -171,6 +172,11 @@ const hasServersLoaded = ref(false)
 
 // Computed
 const isAppReady = computed(() => isAppInitialized.value && hasServersLoaded.value)
+
+// Detect if we're on a DM route
+const isDMRoute = computed(() => {
+  return route.path.startsWith('/dm')
+})
 const servers = computed(() => serverChannelStore.servers)
 const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerWidth : 768)
 
@@ -260,6 +266,9 @@ const initializeApp = async () => {
       hasServersLoaded.value = true
       return
     }
+    
+    // Wait for router to be ready so we get the correct route
+    await router.isReady()
     
     // Determine what to load based on current route
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
