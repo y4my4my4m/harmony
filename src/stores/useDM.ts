@@ -691,8 +691,12 @@ export const useDMStore = defineStore('dm', () => {
   // OPTIMIZED: When loading directly from URL, only fetch the specific conversation
   // Other conversations load in the background for sidebar
   const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
-    // Set initializing state so UI shows loading
-    isInitializing.value = true
+    // Only set initializing if we have NO conversations yet
+    // This prevents the sidebar from flashing loading state when switching conversations
+    const hadConversations = conversations.value.length > 0
+    if (!hadConversations) {
+      isInitializing.value = true
+    }
     
     try {
       // If we have a specific conversation ID, prioritize loading just that one
@@ -735,7 +739,10 @@ export const useDMStore = defineStore('dm', () => {
       debug.error('Failed to initialize DM environment for direct access:', error)
       return null
     } finally {
-      isInitializing.value = false
+      // Only clear initializing if we set it (i.e., we didn't have conversations before)
+      if (!hadConversations) {
+        isInitializing.value = false
+      }
     }
   }
 
