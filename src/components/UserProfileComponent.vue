@@ -141,6 +141,8 @@ const currentStatusDisplay = computed(() => {
       return { class: 'status-away', text: 'Away' }
     case UserStatus.Busy:
       return { class: 'status-busy', text: 'Do Not Disturb' }
+    case UserStatus.Invisible:
+      return { class: 'status-invisible', text: 'Invisible' }
     case UserStatus.Offline:
     default:
       return { class: 'status-offline', text: 'Offline' }
@@ -157,6 +159,8 @@ const currentStatusForAvatar = computed(() => {
       return 'away'
     case UserStatus.Busy:
       return 'busy'
+    case UserStatus.Invisible:
+      return 'invisible'
     case UserStatus.Offline:
     default:
       return 'offline'
@@ -167,7 +171,7 @@ const statusOptions = [
   { value: UserStatus.Online, label: 'Online', class: 'status-online' },
   { value: UserStatus.Away, label: 'Away', class: 'status-away' },
   { value: UserStatus.Busy, label: 'Do Not Disturb', class: 'status-busy' },
-  { value: UserStatus.Offline, label: 'Invisible', class: 'status-offline' }
+  { value: UserStatus.Invisible, label: 'Invisible', class: 'status-invisible' }
 ]
 
 // Use unified voice system only
@@ -318,6 +322,13 @@ onBeforeUnmount(() => {
 
 .status-offline {
   background-color: #747f8d;
+}
+
+.status-invisible {
+  background-color: #747f8d;
+  /* Hollow circle to indicate invisible (like Discord) */
+  border: 2px solid #747f8d;
+  background: transparent !important;
 }
 
 .user-info {

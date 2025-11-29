@@ -25,10 +25,11 @@ export function useUserData() {
     const listeners = [
       { type: 'user-updated', listener: triggerUpdate },
       { type: 'status-changed', listener: triggerUpdate },
+      { type: 'custom-status-changed', listener: triggerUpdate },
       { type: 'presence-sync', listener: triggerUpdate },
       { type: 'data-refreshed', listener: triggerUpdate },
       { type: 'context-updated', listener: triggerUpdate },
-      { type: 'global-presence-updated', listener: triggerUpdate } // 🔥 CRITICAL FIX: Listen for global presence changes
+      { type: 'global-presence-updated', listener: triggerUpdate }
     ]
     
     listeners.forEach(({ type, listener }) => {
@@ -284,6 +285,54 @@ export function useUserData() {
   const updateCurrentUserStatus = async (status: UserStatus) => {
     await userDataService.updateCurrentUserStatus(status)
   }
+
+  /**
+   * Set custom status (Discord-style "Playing X", etc.)
+   */
+  const setCustomStatus = async (customStatus: { text: string; emoji?: string; expiresAt?: string } | undefined) => {
+    await userDataService.setCustomStatus(customStatus)
+  }
+
+  /**
+   * Clear custom status
+   */
+  const clearCustomStatus = async () => {
+    await userDataService.clearCustomStatus()
+  }
+
+  /**
+   * Get current user's custom status
+   */
+  const getCustomStatus = computed(() => {
+    forceUpdate.value // Force reactivity
+    return userDataService.getCustomStatus()
+  })
+
+  /**
+   * Check if current user is on mobile
+   */
+  const isCurrentUserMobile = computed(() => {
+    forceUpdate.value // Force reactivity
+    return userDataService.isCurrentUserMobile()
+  })
+
+  /**
+   * Check if a specific user is on mobile
+   */
+  const isUserMobile = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.isMobile || false
+  })
+
+  /**
+   * Get a specific user's custom status
+   */
+  const getUserCustomStatus = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.customStatus
+  })
   
   /**
    * Update current user profile
@@ -393,6 +442,11 @@ export function useUserData() {
     const user = userDataService.getUser(userId)
     
     if (!user) return 'offline'
+    
+    // Invisible users always appear offline to others
+    if (user.status === UserStatus.Invisible) {
+      return 'invisible'  // This will show as hollow circle
+    }
     
     // Check if user is actually present in real-time
     const isPresent = user.isOnline || false
@@ -528,6 +582,12 @@ export function useUserData() {
     unsubscribeFromContext,
     updateCurrentUserStatus,
     updateCurrentUserProfile,
+    setCustomStatus,
+    clearCustomStatus,
+    getCustomStatus,
+    getUserCustomStatus,
+    isCurrentUserMobile,
+    isUserMobile,
     
     // Utilities
     getStats,

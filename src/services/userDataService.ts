@@ -9,10 +9,27 @@
  */
 
 import { supabase } from '@/supabase'
-import { UserStatus, type UserData, type UserContext } from '@/types'
+import { UserStatus, type UserData, type UserContext, type CustomUserStatus } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+
+/**
+ * Detect if user is on a mobile device
+ */
+function detectMobileDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  
+  // Check user agent for mobile devices
+  const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera || ''
+  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i
+  
+  // Also check for touch capability + small screen (tablets with keyboards excluded)
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  const isSmallScreen = window.innerWidth <= 768
+  
+  return mobileRegex.test(userAgent) || (isTouchDevice && isSmallScreen)
+}
 
 
 
@@ -89,7 +106,8 @@ class UserDataService extends EventTarget {
       const saved = localStorage.getItem('harmony_user_status')
       if (saved !== null) {
         const statusNumber = parseInt(saved, 10)
-        if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 3) {
+        // Updated range to include Invisible (4)
+        if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 4) {
           debug.log('📱 Found status backup in localStorage:', UserStatus[statusNumber])
           return statusNumber as UserStatus
         }
@@ -98,6 +116,42 @@ class UserDataService extends EventTarget {
       debug.warn('⚠️ Failed to read status from localStorage:', error)
     }
     return null
+  }
+
+  /**
+   * Get custom status from localStorage (for persistence across sessions)
+   */
+  private getCustomStatusFromLocalStorage(): CustomUserStatus | null {
+    try {
+      const saved = localStorage.getItem('harmony_custom_status')
+      if (saved) {
+        const customStatus = JSON.parse(saved) as CustomUserStatus
+        // Check if expired
+        if (customStatus.expiresAt && new Date(customStatus.expiresAt) < new Date()) {
+          localStorage.removeItem('harmony_custom_status')
+          return null
+        }
+        return customStatus
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to read custom status from localStorage:', error)
+    }
+    return null
+  }
+
+  /**
+   * Save custom status to localStorage
+   */
+  private saveCustomStatusToLocalStorage(customStatus: CustomUserStatus | undefined): void {
+    try {
+      if (customStatus) {
+        localStorage.setItem('harmony_custom_status', JSON.stringify(customStatus))
+      } else {
+        localStorage.removeItem('harmony_custom_status')
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to save custom status to localStorage:', error)
+    }
   }
   
   /**
@@ -208,8 +262,8 @@ class UserDataService extends EventTarget {
         
         // Primary: Use database status if it exists and is valid AND not offline
         if (profile.status !== null && profile.status !== undefined) {
-          // If user was explicitly set to Away/Busy, preserve that
-          if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy) {
+          // If user was explicitly set to Away/Busy/Invisible, preserve that
+          if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy || profile.status === UserStatus.Invisible) {
             finalStatus = profile.status
             debug.log('✅ Preserving user-set status from database:', UserStatus[finalStatus])
           } else if (profile.status === UserStatus.Online) {
@@ -232,11 +286,11 @@ class UserDataService extends EventTarget {
             }
           }
         } else {
-          // No status in database, try localStorage backup for Away/Busy only
+          // No status in database, try localStorage backup for Away/Busy/Invisible only
           const backupStatus = this.getStatusFromLocalStorage()
-          if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) {
+          if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy || backupStatus === UserStatus.Invisible) {
             finalStatus = backupStatus
-            debug.log('🔄 Using Away/Busy status from localStorage backup:', UserStatus[finalStatus])
+            debug.log('🔄 Using user-preferred status from localStorage backup:', UserStatus[finalStatus])
             
             // Sync backup to database for consistency
             try {
@@ -265,7 +319,9 @@ class UserDataService extends EventTarget {
           domain: profile.domain || 'har.mony.lol',
           isLocal: profile.is_local || false,
           status: finalStatus,
+          customStatus: undefined, // Will be loaded separately if exists
           isOnline: true,
+          isMobile: detectMobileDevice(), // Track if user is on mobile
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
           lastCacheUpdate: new Date().toISOString(),
@@ -290,12 +346,14 @@ class UserDataService extends EventTarget {
           displayName: username,
           avatarUrl: avatarUrl,
           status: initialStatus,
+          customStatus: undefined,
           isOnline: true,
+          isMobile: detectMobileDevice(),
           isLocal: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
           lastCacheUpdate: new Date().toISOString(),
-          createdAt: new Date().toISOString(), //TODO: does that make sense?
+          createdAt: new Date().toISOString(),
           source: 'cache'
         }
         
@@ -359,6 +417,15 @@ class UserDataService extends EventTarget {
     }
     
     // Track basic presence info globally (including color for real-time user color sync)
+    // 👻 INVISIBLE STATUS: Don't track presence if user is invisible
+    // They should appear offline to everyone
+    if (userData.status === UserStatus.Invisible) {
+      debug.log(`👻 User ${this.currentUserId} is Invisible - not tracking in global presence`)
+      // Make sure we're NOT in the presence channel
+      await this.globalChannel.untrack()
+      return
+    }
+    
     await this.globalChannel.track({
       user_id: this.currentUserId,
       username: userData.username,
@@ -366,10 +433,12 @@ class UserDataService extends EventTarget {
       avatar_url: userData.avatarUrl,
       color: userData.color,
       status: userData.status,
+      custom_status: userData.customStatus,
+      is_mobile: userData.isMobile,
       online_at: new Date().toISOString()
     })
     
-    debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]} - now visible to all users regardless of their current view`)
+    debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}${userData.isMobile ? ' (mobile)' : ''} - now visible to all users regardless of their current view`)
   }
   
   /**
@@ -485,7 +554,9 @@ class UserDataService extends EventTarget {
       domain: existing?.domain,
       isLocal: existing?.isLocal || false,
       status: userStatus,
+      customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in global presence with a visible status, so they're online
+      isMobile: presence.is_mobile || existing?.isMobile || false,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
@@ -537,7 +608,9 @@ class UserDataService extends EventTarget {
       domain: existing?.domain || 'har.mony.lol',
       isLocal: existing?.isLocal || false,
       status: userStatus,
+      customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in context presence with a visible status, so they're online
+      isMobile: presence.is_mobile || existing?.isMobile || false,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
@@ -723,6 +796,13 @@ class UserDataService extends EventTarget {
       return
     }
     
+    // 👻 INVISIBLE STATUS: Don't track presence if user is invisible
+    if (userData.status === UserStatus.Invisible) {
+      debug.log(`👻 User ${this.currentUserId} is Invisible - not tracking in server ${serverId}`)
+      await channel.untrack()
+      return
+    }
+    
     await channel.track({
       user_id: this.currentUserId,
       username: userData.username,
@@ -731,11 +811,13 @@ class UserDataService extends EventTarget {
       banner_url: userData.bannerUrl,
       color: userData.color,
       status: userData.status,
+      custom_status: userData.customStatus,
+      is_mobile: userData.isMobile,
       server_id: serverId,
       online_at: new Date().toISOString()
     })
     
-    debug.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}`)
+    debug.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}${userData.isMobile ? ' (mobile)' : ''}`)
   }
   
   /**
@@ -1022,7 +1104,9 @@ class UserDataService extends EventTarget {
             domain: profile.domain || 'har.mony.lol',
             isLocal: profile.is_local || false,
             status: profile.status ?? UserStatus.Offline,
+            customStatus: undefined, // Would need separate table for custom status
             isOnline: false, // Will be updated by presence
+            isMobile: false, // Will be updated by presence
             lastSeen: profile.updated_at || new Date().toISOString(),
             lastHeartbeat: new Date().toISOString(),
             lastCacheUpdate: new Date().toISOString(),
@@ -1135,8 +1219,8 @@ class UserDataService extends EventTarget {
     
     // Track manual status changes
     if (isManual) {
-      // If user manually sets to Away or Busy, remember that choice
-      if (status === UserStatus.Away || status === UserStatus.Busy) {
+      // If user manually sets to Away, Busy, or Invisible, remember that choice
+      if (status === UserStatus.Away || status === UserStatus.Busy || status === UserStatus.Invisible) {
         this.wasManuallySet = true
         this.manualStatus = status
         debug.log('📌 Status manually set to:', UserStatus[status])
@@ -1196,15 +1280,63 @@ class UserDataService extends EventTarget {
       throw error
     }
   }
+
+  /**
+   * Set custom status (Discord-style "Playing X", "Listening to Y", etc.)
+   * @param customStatus - The custom status to set, or undefined to clear
+   */
+  async setCustomStatus(customStatus: CustomUserStatus | undefined): Promise<void> {
+    if (!this.currentUserId) throw new Error('No current user')
+    
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) throw new Error('Current user data not found')
+    
+    debug.log('🎭 Setting custom status:', customStatus?.text || '(clearing)')
+    
+    // Update local data
+    userData.customStatus = customStatus
+    userData.lastCacheUpdate = new Date().toISOString()
+    
+    // Save to localStorage for persistence
+    this.saveCustomStatusToLocalStorage(customStatus)
+    
+    // Update presence to broadcast custom status
+    await this.updatePresenceStatus(userData.status)
+    
+    this.emitEvent('custom-status-changed', { userId: this.currentUserId, customStatus })
+    debug.log('✅ Custom status updated')
+  }
+
+  /**
+   * Clear custom status
+   */
+  async clearCustomStatus(): Promise<void> {
+    await this.setCustomStatus(undefined)
+  }
+
+  /**
+   * Get current user's custom status
+   */
+  getCustomStatus(): CustomUserStatus | undefined {
+    if (!this.currentUserId) return undefined
+    return this.users.get(this.currentUserId)?.customStatus
+  }
+
+  /**
+   * Check if current user is on mobile
+   */
+  isCurrentUserMobile(): boolean {
+    if (!this.currentUserId) return false
+    return this.users.get(this.currentUserId)?.isMobile || false
+  }
   
   /**
    * Update status in context-specific presence channels only
    */
   private async updatePresenceStatus(status: UserStatus): Promise<void> {
-    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
-    // If user sets status to Offline (0), they should become invisible to others
-    if (status === UserStatus.Offline) {
-      debug.log(`👻 User going invisible - untracking from all presence channels`)
+    // 👻 INVISIBLE STATUS: User should appear offline to everyone
+    if (status === UserStatus.Invisible) {
+      debug.log(`👻 User going Invisible - untracking from all presence channels`)
       await this.untrackFromAllPresenceChannels()
       return
     }
@@ -1230,6 +1362,8 @@ class UserDataService extends EventTarget {
             banner_url: userData.bannerUrl,
             color: userData.color,
             status: status,
+            custom_status: userData.customStatus,
+            is_mobile: userData.isMobile,
             server_id: context.id,
             online_at: new Date().toISOString()
           })

@@ -90,7 +90,9 @@ export interface UserData {
   
   // Presence data (real-time)
   status: UserStatus
+  customStatus?: CustomUserStatus  // Custom status text (Discord-style)
   isOnline: boolean
+  isMobile: boolean  // Whether user is on mobile device
   lastSeen: string
   lastHeartbeat: string
   
@@ -98,6 +100,15 @@ export interface UserData {
   isLocal: boolean // true if loaded from local cache, false if fetched from server
   lastCacheUpdate: string // When we last fetched/updated this data in our local cache
   source: 'database' | 'presence' | 'cache'
+}
+
+/**
+ * Custom user status (Discord-style "Playing X", "Listening to Y", etc.)
+ */
+export interface CustomUserStatus {
+  text: string           // The status text
+  emoji?: string         // Optional emoji (can be custom emoji ID or unicode)
+  expiresAt?: string     // When the status expires (ISO date string)
 }
 
 export interface UserContext {
@@ -108,11 +119,15 @@ export interface UserContext {
   lastSync: Date
 }
 
+/**
+ * User presence status (Discord-style)
+ */
 export enum UserStatus {
-  Offline = 0,
-  Online = 1,
-  Away = 2,
-  Busy = 3
+  Offline = 0,        // Not connected
+  Online = 1,         // Active and available
+  Away = 2,           // Idle or manually set away (yellow moon)
+  Busy = 3,           // Do Not Disturb - suppresses notifications (red)
+  Invisible = 4       // Appears offline to others but still connected
 }
 export interface TextContent {
   type: 'text';

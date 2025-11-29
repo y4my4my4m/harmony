@@ -17,10 +17,21 @@
 
     <!-- Status Indicator -->
     <div
-      v-if="status"
+      v-if="status && !isMobile"
       class="avatar-status"
       :class="`status-${status}`"
     ></div>
+
+    <!-- Mobile Status Indicator (shows phone icon when on mobile) -->
+    <div
+      v-if="status && isMobile"
+      class="avatar-status avatar-status-mobile"
+      :class="`status-${status}`"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" class="mobile-icon">
+        <path d="M15.5 1h-8C6.12 1 5 2.12 5 3.5v17C5 21.88 6.12 23 7.5 23h8c1.38 0 2.5-1.12 2.5-2.5v-17C18 2.12 16.88 1 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/>
+      </svg>
+    </div>
 
     <!-- Edit Button -->
     <button
@@ -52,7 +63,7 @@ import CameraIcon from '@/components/icons/Camera.vue'
 
 // Types
 type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
-type UserStatus = 'online' | 'away' | 'busy' | 'offline'
+type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible'
 
 // Props
 interface Props {
@@ -60,6 +71,7 @@ interface Props {
   alt?: string
   size?: AvatarSize
   status?: UserStatus
+  isMobile?: boolean  // Show mobile indicator instead of regular status dot
   editable?: boolean
   interactive?: boolean
   loading?: boolean
@@ -68,6 +80,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   alt: 'Avatar',
   size: 'md',
+  isMobile: false,
   editable: false,
   interactive: false,
   loading: false
@@ -272,6 +285,47 @@ const handleImageLoad = () => {
 
 .avatar-status.status-offline {
   background-color: #747f8d;
+}
+
+.avatar-status.status-invisible {
+  background-color: transparent;
+  border: 2px solid #747f8d;
+  box-sizing: border-box;
+}
+
+/* Mobile indicator - shows phone icon */
+.avatar-status-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent !important;
+  border-radius: 3px !important;
+  width: auto !important;
+  min-width: 14px;
+  padding: 1px;
+}
+
+.mobile-icon {
+  width: 10px;
+  height: 10px;
+  color: currentColor;
+}
+
+.avatar-status-mobile.status-online .mobile-icon {
+  color: #43b581;
+}
+
+.avatar-status-mobile.status-away .mobile-icon {
+  color: #faa81a;
+}
+
+.avatar-status-mobile.status-busy .mobile-icon {
+  color: #f04747;
+}
+
+.avatar-status-mobile.status-offline .mobile-icon,
+.avatar-status-mobile.status-invisible .mobile-icon {
+  color: #747f8d;
 }
 
 /* Edit button */
