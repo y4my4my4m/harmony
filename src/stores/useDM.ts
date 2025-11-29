@@ -10,9 +10,7 @@ import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessin
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
-// NOTE: realtimeConnectionManager is initialized globally in BaseLayout.vue
-// The stores currently use raw supabase.channel() calls directly
-// TODO: Migrate to use realtimeConnectionManager.subscribe() for better reconnection handling
+import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 
 // Types for DM functionality
 export interface DMUser {
@@ -1510,112 +1508,119 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  /**
+   * Setup global DM realtime subscriptions using RealtimeConnectionManager
+   * Includes conversations updates and reactions
+   */
   const setupRealtimeSubscriptions = async (userId: string) => {
     try {
       debug.log('🔄 Setting up DM realtime subscriptions for user:', userId)
       
       // Listen to user profile updates from the centralized cache
-      // This ensures DM conversations update when users change their avatars/names
       const { userDataService } = await import('@/services/userDataService')
       userDataService.addEventListener('user-updated', (event: any) => {
         const { userId: updatedUserId } = event.detail
         
-        // Update any conversations that have this user
         const updatedConversations = conversations.value.filter(conv => 
           conv.other_user?.id === updatedUserId && !conv.other_user._isPlaceholder
         )
         
         if (updatedConversations.length > 0) {
-          // Reload the user profile data for these conversations
           for (const conv of updatedConversations) {
             loadConversationUserProfile(conv.id)
           }
         }
       })
       
-      // Subscribe to new conversations - use a unique channel name
-      const conversationsChannel = supabase
-        .channel(`dm-conversations-${userId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversations',
-          filter: `or(user1.eq.${userId},user2.eq.${userId})`
-        }, (payload) => {
-          debug.log('🔔 New DM conversation created:', payload)
-          fetchUserConversations(userId)
-        })
-        .subscribe((status) => {
-          debug.log('📡 DM conversations subscription status:', status)
-        })
-
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore()
 
-      // Set up GLOBAL DM reactions subscription (similar to chat)
-      // This ensures reactions work even when switching between conversations
-      const reactionsChannel = supabase
-        .channel(`dm-reactions-${userId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'reactions'
-        }, async (payload) => {
-          debug.log('🎯 Global DM reaction INSERT received:', payload)
-          reactionsStore.handleRealtimeUpdate(payload)
-        })
-        .on('postgres_changes', {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'reactions'
-        }, async (payload) => {
-          debug.log('🎯 Global DM reaction DELETE received:', payload)
-          reactionsStore.handleRealtimeUpdate(payload)
-        })
-        .subscribe((status) => {
-          debug.log('📡 Global DM reactions subscription status:', status)
-        })
+      // Subscribe to new conversations using RealtimeConnectionManager
+      const conversationsChannelName = `dm-conversations-${userId}`
+      const conversationsUnsubscribe = realtimeConnectionManager.subscribeToTable({
+        channelName: conversationsChannelName,
+        table: 'conversations',
+        onInsert: (payload) => {
+          debug.log('🔔 New DM conversation created:', payload.new)
+          fetchUserConversations(userId)
+        },
+        onStatusChange: (status, name) => {
+          debug.log(`📡 ${name} status: ${status}`)
+        }
+      })
 
-      // Store the subscriptions
-      dmSubscriptions.value.set(`dm-conversations-${userId}`, conversationsChannel)
-      dmSubscriptions.value.set(`dm-reactions-${userId}`, reactionsChannel)
+      // Subscribe to global DM reactions using RealtimeConnectionManager
+      const reactionsChannelName = `dm-reactions-${userId}`
+      const reactionsUnsubscribe = realtimeConnectionManager.subscribeToTable({
+        channelName: reactionsChannelName,
+        table: 'reactions',
+        onInsert: (payload) => {
+          debug.log('🎯 Global DM reaction INSERT received')
+          reactionsStore.handleRealtimeUpdate(payload)
+        },
+        onDelete: (payload) => {
+          debug.log('🎯 Global DM reaction DELETE received')
+          reactionsStore.handleRealtimeUpdate(payload)
+        },
+        onStatusChange: (status, name) => {
+          debug.log(`📡 ${name} status: ${status}`)
+        }
+      })
+
+      // Store the unsubscribe functions
+      dmSubscriptions.value.set(conversationsChannelName, conversationsUnsubscribe)
+      dmSubscriptions.value.set(reactionsChannelName, reactionsUnsubscribe)
 
     } catch (error) {
       debug.error('❌ Error setting up DM realtime subscriptions:', error)
     }
   }
 
-  // Set up subscription for a specific conversation (following useChat pattern)
+  /**
+   * Setup subscription for a specific DM conversation using RealtimeConnectionManager
+   * Handles INSERT, UPDATE, DELETE events with automatic reconnection
+   */
   const setupConversationSubscription = (conversationId: string) => {
-    // Clean up existing subscription for this conversation
-    cleanupConversationSubscription(conversationId)
+    const channelName = `dm-conversation-${conversationId}`
+    
+    // Check if already subscribed to this exact conversation
+    if (realtimeConnectionManager.hasSubscription(channelName)) {
+      debug.log('📡 Already subscribed to conversation:', channelName)
+      return
+    }
+    
+    // Clean up existing subscription for different conversation if needed
+    if (currentConversationId.value && currentConversationId.value !== conversationId) {
+      cleanupConversationSubscription(currentConversationId.value)
+    }
 
     debug.log('🔄 Setting up conversation subscription for:', conversationId)
-
-    const channelName = `dm-conversation-${conversationId}`
-    const conversationChannel = supabase
-      .channel(channelName)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, async (payload) => {
-        debug.log('🔔 New DM message received in DM store:', payload)
+    
+    // Use RealtimeConnectionManager for automatic reconnection
+    const unsubscribe = realtimeConnectionManager.subscribeToTable({
+      channelName,
+      table: 'messages',
+      filter: `conversation_id=eq.${conversationId}`,
+      
+      // Handle new messages
+      onInsert: async (payload) => {
+        debug.log('🔔 New DM message received:', payload.new)
         
         const message = payload.new as any
         
-        // Check if real message already exists (from sendDMMessage replacement)
-        const existingRealMessage = currentDMMessages.value.findIndex(m => m.id === message.id);
-        if (existingRealMessage !== -1) {
-          debug.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
-          return;
+        // Skip if message already exists (from optimistic update)
+        if (currentDMMessages.value.findIndex(m => m.id === message.id) !== -1) {
+          debug.log('⚠️ Real message already exists, skipping real-time duplicate')
+          return
         }
         
-        // Check if temp message exists (shouldn't happen - sendDMMessage should have replaced it)
-        const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
+        // Check for temp message (race condition fallback)
+        const tempMessageIndex = currentDMMessages.value.findIndex(m => 
+          m.id.startsWith('temp-') && m.user_id === message.user_id
+        )
+        
         if (tempMessageIndex !== -1) {
-          debug.warn('⚠️ Temp message still exists during real-time, replacing now');
+          debug.warn('⚠️ Temp message still exists during real-time, replacing now')
           let resolvedMessage: Message = {
             id: message.id,
             user_id: message.user_id,
@@ -1629,27 +1634,29 @@ export const useDMStore = defineStore('dm', () => {
             metadata: message.metadata || null,
             encrypted: message.encrypted || false,
             encryption_metadata: message.encryption_metadata
-          };
+          }
+          
           try {
-            ensureMessageEmbeds(resolvedMessage);
-            // 🔐 Decrypt if encrypted
+            ensureMessageEmbeds(resolvedMessage)
             if (resolvedMessage.encrypted) {
-              const decrypted = await processMessageDecryption([resolvedMessage]);
-              resolvedMessage = decrypted[0];
+              const decrypted = await processMessageDecryption([resolvedMessage])
+              resolvedMessage = decrypted[0]
             }
           } catch (error) {
-            debug.warn('Failed to process DM message:', error);
+            debug.warn('Failed to process DM message:', error)
           }
-          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage);
-          return;
+          
+          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage)
+          return
         }
         
+        // Create formatted message
         let formattedMessage: Message = {
           id: message.id,
           user_id: message.user_id,
           content: message.content,
           created_at: new Date(message.created_at),
-          channel_id: '', // Empty string for DMs
+          channel_id: '',
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
           reactions: message.reactions || [],
@@ -1659,42 +1666,31 @@ export const useDMStore = defineStore('dm', () => {
           encryption_metadata: message.encryption_metadata
         }
         
-        // 🔐 Decrypt if encrypted
+        // Decrypt if encrypted
         try {
-          debug.log('🔐 DM message encrypted status:', formattedMessage.encrypted)
           if (formattedMessage.encrypted) {
-            debug.log('🔐 Attempting to decrypt DM message...')
-            const decrypted = await processMessageDecryption([formattedMessage]);
-            formattedMessage = decrypted[0];
-            debug.log('🔐 After decryption - encrypted:', formattedMessage.encrypted, 'decrypted:', formattedMessage.decrypted)
+            const decrypted = await processMessageDecryption([formattedMessage])
+            formattedMessage = decrypted[0]
           }
         } catch (error) {
-          debug.warn('Failed to decrypt real-time DM message:', error);
+          debug.warn('Failed to decrypt real-time DM message:', error)
         }
         
-        debug.log('📨 Adding DM message to cache:', { 
-          id: formattedMessage.id, 
-          encrypted: formattedMessage.encrypted, 
-          decrypted: formattedMessage.decrypted 
-        })
         addMessageToCache(formattedMessage)
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, async (payload) => {
-        debug.log('🔄 DM message updated:', payload)
+      },
+      
+      // Handle message updates
+      onUpdate: async (payload) => {
+        debug.log('🔄 DM message updated:', payload.new)
         const message = payload.new as any
         
-        // Fetch properly formatted reactions if the message has any
-        let formattedReactions = []
+        // Fetch reactions if the message has any
+        let formattedReactions: any[] = []
         if (message.reactions && message.reactions.length > 0) {
           try {
             const { data: reactions, error: reactionsError } = await supabase
               .rpc('get_message_reactions', { message_id: message.id })
-        
+            
             if (!reactionsError && reactions) {
               formattedReactions = reactions
             }
@@ -1708,7 +1704,7 @@ export const useDMStore = defineStore('dm', () => {
           user_id: message.user_id,
           content: message.content,
           created_at: new Date(message.created_at),
-          channel_id: '', // Empty string for DMs
+          channel_id: '',
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
           reactions: formattedReactions,
@@ -1718,101 +1714,41 @@ export const useDMStore = defineStore('dm', () => {
           encryption_metadata: message.encryption_metadata
         }
         
-        // 🔐 Decrypt if encrypted
+        // Decrypt if encrypted
         try {
           if (updatedMessage.encrypted) {
-            const decrypted = await processMessageDecryption([updatedMessage]);
-            updatedMessage = decrypted[0];
+            const decrypted = await processMessageDecryption([updatedMessage])
+            updatedMessage = decrypted[0]
           }
         } catch (error) {
-          debug.warn('Failed to decrypt updated DM message:', error);
+          debug.warn('Failed to decrypt updated DM message:', error)
         }
         
         updateMessageInCache(message.id, updatedMessage)
-      })
-      .on('postgres_changes', {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, (payload) => {
-        debug.log('🗑️ DM message deleted:', payload)
-        const messageId = payload.old.id
-        removeMessageFromCache(messageId)
-      })
-      .subscribe((status) => {
-        debug.log(`📡 DM conversation ${conversationId} subscription status:`, status)
-        if (status === 'SUBSCRIBED') {
-          debug.log(`✅ Successfully subscribed to DM conversation: ${conversationId}`)
-          debug.log(`📍 Listening for messages on table: messages, filter: conversation_id=eq.${conversationId}`)
-          // Reset retry count on successful connection
-          conversationRetryCount.value.set(conversationId, 0)
-        } else if (status === 'CHANNEL_ERROR') {
-          debug.error(`❌ Error subscribing to DM conversation: ${conversationId}`)
-          scheduleConversationReconnect(conversationId)
-        } else if (status === 'CLOSED') {
-          debug.log(`🔒 DM conversation subscription closed: ${conversationId}`)
-          // Only reconnect if we still have this conversation in our subscriptions
-          if (dmSubscriptions.value.has(channelName) && currentConversationId.value === conversationId) {
-            scheduleConversationReconnect(conversationId)
-          }
-        } else if (status === 'TIMED_OUT') {
-          debug.warn(`⏰ DM conversation subscription timed out: ${conversationId}`)
-          scheduleConversationReconnect(conversationId)
-        }
-      })
+      },
+      
+      // Handle message deletions
+      onDelete: (payload) => {
+        debug.log('🗑️ DM message deleted:', payload.old)
+        const payloadOld = payload.old as any
+        removeMessageFromCache(payloadOld.id)
+      },
+      
+      // Handle connection status changes
+      onStatusChange: (status, name) => {
+        debug.log(`📡 ${name} status: ${status}`)
+      }
+    })
 
-    // Store the subscription
-    currentSubscription.value = conversationChannel
-    dmSubscriptions.value.set(channelName, conversationChannel)
+    // Store the unsubscribe function
+    currentSubscription.value = unsubscribe
+    dmSubscriptions.value.set(channelName, unsubscribe)
     
     debug.log(`📝 Stored DM subscription for ${channelName}, total subscriptions: ${dmSubscriptions.value.size}`)
   }
   
-  // Retry tracking for conversation subscriptions
-  const conversationRetryCount = ref<Map<string, number>>(new Map())
-  const conversationRetryTimeouts = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  const MAX_RETRY_COUNT = 10
-  const BASE_RETRY_DELAY = 1000 // 1 second
-  const MAX_RETRY_DELAY = 30000 // 30 seconds
-  
-  // Schedule reconnection with exponential backoff
-  const scheduleConversationReconnect = (conversationId: string) => {
-    const retryCount = conversationRetryCount.value.get(conversationId) || 0
-    
-    // Check if max retries exceeded
-    if (retryCount >= MAX_RETRY_COUNT) {
-      debug.error(`❌ DM conversation ${conversationId}: Max retries (${MAX_RETRY_COUNT}) exceeded`)
-      return
-    }
-    
-    // Calculate delay with exponential backoff
-    const delay = Math.min(BASE_RETRY_DELAY * Math.pow(2, retryCount), MAX_RETRY_DELAY)
-    const jitter = delay * 0.2 * Math.random()
-    const finalDelay = Math.floor(delay + jitter)
-    
-    debug.log(`🔄 DM conversation ${conversationId}: Scheduling reconnect in ${finalDelay}ms (attempt ${retryCount + 1}/${MAX_RETRY_COUNT})`)
-    
-    // Clear any existing retry timeout
-    const existingTimeout = conversationRetryTimeouts.value.get(conversationId)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
-    }
-    
-    // Schedule reconnect
-    const timeoutId = setTimeout(() => {
-      conversationRetryCount.value.set(conversationId, retryCount + 1)
-      conversationRetryTimeouts.value.delete(conversationId)
-      
-      // Only reconnect if this is still the current conversation
-      if (currentConversationId.value === conversationId) {
-        debug.log(`🔄 DM conversation ${conversationId}: Attempting reconnect...`)
-        setupConversationSubscription(conversationId)
-      }
-    }, finalDelay)
-    
-    conversationRetryTimeouts.value.set(conversationId, timeoutId)
-  }
+  // Connection status tracking (managed by RealtimeConnectionManager)
+  const connectionStatus = ref<ConnectionStatus>('disconnected')
 
   // Helper function to update conversation from a new message
   const updateConversationFromMessage = (message: any) => {

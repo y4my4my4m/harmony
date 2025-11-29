@@ -7,14 +7,7 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
 import { debug } from '@/utils/debug';
-
-// Retry configuration for realtime reconnection
-const RETRY_CONFIG = {
-  maxRetries: 10,
-  baseDelay: 1000,
-  maxDelay: 30000,
-  jitterFactor: 0.2
-};
+import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -38,9 +31,8 @@ export const useChatStore = defineStore('chat', {
     jumpedToMessages: new Map<string, Message>(),
     messageGaps: new Set<string>(), // Track where gaps should be shown
     
-    // Reconnection state for realtime subscriptions
-    channelRetryCount: new Map<string, number>(),
-    channelRetryTimeouts: new Map<string, ReturnType<typeof setTimeout>>(),
+    // Connection status (managed by RealtimeConnectionManager)
+    connectionStatus: 'disconnected' as ConnectionStatus,
   }),
   actions: {
     clearMessages() {
@@ -659,310 +651,226 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    /**
+     * Subscribe to real-time messages for a channel using RealtimeConnectionManager
+     * Handles INSERT, UPDATE, DELETE events with automatic reconnection
+     */
     subscribeToMessages(channelId: string) {
+      const channelName = `channel-messages-${channelId}`;
+      
+      // Check if already subscribed to this exact channel
+      if (realtimeConnectionManager.hasSubscription(channelName)) {
+        debug.log('📡 Already subscribed to channel:', channelName);
+        return;
+      }
+      
       debug.log('🔔 Setting up real-time subscription for channel:', channelId);
       
-      if (this.currentSubscription) {
-        debug.log('🔄 Unsubscribing from previous channel');
-        this.currentSubscription.unsubscribe();
+      // Unsubscribe from previous channel if exists (different channel)
+      if (this.currentSubscription && this.currentChannelId !== channelId) {
+        debug.log('🔄 Unsubscribing from previous channel:', this.currentChannelId);
+        if (typeof this.currentSubscription === 'function') {
+          this.currentSubscription(); // RealtimeConnectionManager returns unsubscribe function
+        } else {
+          this.currentSubscription.unsubscribe?.();
+        }
+        
+        // Also cleanup old reactions subscription
+        if (this.currentChannelId) {
+          realtimeConnectionManager.unsubscribe(`channel-reactions-${this.currentChannelId}`);
+        }
       }
 
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore();
+      const store = this; // Capture store reference for handlers
 
-      // Maintain a list of message IDs for which to listen to reactions
-      const listenedMessageIds = new Set();
-
-      const channelName = `channel-${channelId}`;
-      debug.log('📡 Creating real-time subscription:', channelName);
+      debug.log('📡 Creating real-time subscription via RealtimeConnectionManager:', channelName);
       
-      this.currentSubscription = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes', 
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'messages',
-            filter: `channel_id=eq.${channelId}`
-          },
-          async (payload) => {
-            debug.log('🟢 Real-time INSERT received:', payload);
-            
-            // Check if this is our own message (already replaced by sendMessage)
-            // Real-time should NOT add it again
-            const existingRealMessage = this.messages.findIndex(m => m.id === payload.new.id);
-            if (existingRealMessage !== -1) {
-              debug.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
-              return;
-            }
-            
-            // Check if temp message exists (shouldn't happen - sendMessage should have replaced it)
-            const tempMessageIndex = this.messages.findIndex(m => m.id.startsWith('temp-') && m.user_id === payload.new.user_id);
-            if (tempMessageIndex !== -1) {
-              debug.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
-              debug.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
-              let resolvedMessage: Message = {
-                id: payload.new.id,
-                created_at: new Date(payload.new.created_at),
-                updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
-                channel_id: payload.new.channel_id,
-                conversation_id: payload.new.conversation_id,
-                user_id: payload.new.user_id,
-                bot_id: payload.new.bot_id, // Add bot_id support
-                content: payload.new.content,
-                reactions: payload.new.reactions,
-                reply_to: payload.new.reply_to,
-                is_system: payload.new.is_system,
-                metadata: payload.new.metadata || null,
-                // 🔐 Include encryption fields for real-time decryption
-                encrypted: payload.new.encrypted === true || payload.new.encrypted === 'true',
-                encryption_metadata: payload.new.encryption_metadata || null,
-              };
-              try {
-                ensureMessageEmbeds(resolvedMessage);
-                // Check for encryption with improved fallback detection
-                const contentText = Array.isArray(resolvedMessage.content) && resolvedMessage.content[0]?.type === 'text' 
-                  ? resolvedMessage.content[0].text 
-                  : null;
-                const looksLikeBase64 = contentText && /^[A-Za-z0-9+/=]{20,}$/.test(contentText);
-                const looksEncrypted = resolvedMessage.encrypted || 
-                  resolvedMessage.encryption_metadata ||
-                  (looksLikeBase64 && resolvedMessage.encryption_metadata);
-                if (looksEncrypted) {
-                  if (!resolvedMessage.encrypted && resolvedMessage.encryption_metadata) {
-                    resolvedMessage.encrypted = true;
-                  }
-                  const decrypted = await processMessageDecryption([resolvedMessage]);
-                  resolvedMessage = decrypted[0];
-                }
-              } catch (error) {
-                debug.warn('Failed to prepare embeds for resolved realtime message:', error);
-              }
-              this.messages.splice(tempMessageIndex, 1, resolvedMessage);
-              return;
-            }
-            
-            // Check if message already exists (from manual replacement)
-            const existingIndex = this.messages.findIndex(m => m.id === payload.new.id);
-            if (existingIndex !== -1) {
-              debug.log('⚠️ Message already exists, skipping duplicate');
-              return;
-            }
-            
-            // 🔐 Debug: Log raw payload encryption fields to diagnose real-time decryption issues
-            debug.log('🔐 Real-time message payload encryption fields:', {
-              id: payload.new.id,
-              encrypted: payload.new.encrypted,
-              encrypted_type: typeof payload.new.encrypted,
-              has_encryption_metadata: !!payload.new.encryption_metadata,
-              content_preview: typeof payload.new.content === 'string' 
-                ? payload.new.content.substring(0, 50) 
-                : 'not a string'
-            });
-
-            let newMessage: Message = {
-              id: payload.new.id,
-              created_at: new Date(payload.new.created_at),
-              updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
-              channel_id: payload.new.channel_id,
-              conversation_id: payload.new.conversation_id,
-              user_id: payload.new.user_id,
-              bot_id: payload.new.bot_id, // Add bot_id support
-              content: payload.new.content,
-              reactions: payload.new.reactions,
-              reply_to: payload.new.reply_to,
-              is_system: payload.new.is_system,
-              metadata: payload.new.metadata || null,
-              // 🔐 Include encryption fields for real-time decryption
-              // Handle both boolean and truthy values from database
-              encrypted: payload.new.encrypted === true || payload.new.encrypted === 'true',
-              encryption_metadata: payload.new.encryption_metadata || null,
-            };
-            
-            // Debug: Log bot messages with metadata
-            if (newMessage.bot_id) {
-              debug.log('🤖 Real-time bot message received:', {
-                id: newMessage.id,
-                bot_id: newMessage.bot_id,
-                has_metadata: !!newMessage.metadata,
-                has_discord_user: !!newMessage.metadata?.discord_user,
-                discord_username: newMessage.metadata?.discord_user?.username
-              });
-            }
-
-            // 🔐 Decrypt encrypted messages or show glyphs if encryption not available
-            // Check multiple conditions for encryption detection:
-            // 1. Explicit encrypted flag
-            // 2. Has encryption_metadata (most reliable indicator)
-            // 3. Content looks like base64 and has metadata (fallback)
-            const contentText = Array.isArray(newMessage.content) && newMessage.content[0]?.type === 'text' 
-              ? newMessage.content[0].text 
-              : null;
-            const looksLikeBase64 = contentText && /^[A-Za-z0-9+/=]{20,}$/.test(contentText);
-            
-            const looksEncrypted = newMessage.encrypted || 
-              newMessage.encryption_metadata ||
-              (looksLikeBase64 && newMessage.encryption_metadata);
-            
-            if (looksEncrypted) {
-              debug.log('🔐 Real-time encrypted message received, attempting decryption...', {
-                encrypted_flag: newMessage.encrypted,
-                has_metadata: !!newMessage.encryption_metadata,
-                content_looks_like_base64: looksLikeBase64
-              });
-              try {
-                // Ensure encrypted flag is set if we detected encryption by metadata
-                if (!newMessage.encrypted && newMessage.encryption_metadata) {
-                  newMessage.encrypted = true;
-                }
-                const decrypted = await processMessageDecryption([newMessage]);
-                newMessage = decrypted[0];
-                debug.log('🔓 Real-time message decryption result:', newMessage.decrypted ? 'success' : 'glyphs shown');
-              } catch (error) {
-                debug.warn('Failed to decrypt real-time message:', error);
-              }
-            }
-
-            this.addMessageToCache(newMessage);
-            listenedMessageIds.add(newMessage.id);
-            debug.log('📝 Real-time message processed, total listened messages:', listenedMessageIds.size);
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'reactions' },
-          async (payload) => {
-            // debug.log('🟢 INSERT event received for reaction:', payload);
-            reactionsStore.handleRealtimeUpdate(payload);
-          }
-        )
-        .on(
-          'postgres_changes',
-          { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'messages',
-            filter: `channel_id=eq.${channelId}`
-          },
-          async (payload) => {
-            let updatedMessage: Message = {
-              id: payload.new.id,
-              created_at: new Date(payload.new.created_at),
-              channel_id: payload.new.channel_id,
-              conversation_id: payload.new.conversation_id,
-              user_id: payload.new.user_id,
-              bot_id: payload.new.bot_id, // Add bot_id support
-              content: payload.new.content,
-              reactions: payload.new.reactions,
-              reply_to: payload.new.reply_to,
-              is_system: payload.new.is_system,
-              updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
-              metadata: payload.new.metadata || null,
-              // 🔐 Include encryption fields for real-time decryption
-              encrypted: payload.new.encrypted || false,
-              encryption_metadata: payload.new.encryption_metadata || null,
-            };
-
-            // 🔐 Decrypt if encrypted (for edited encrypted messages)
-            if (updatedMessage.encrypted) {
-              try {
-                const decrypted = await processMessageDecryption([updatedMessage]);
-                updatedMessage = decrypted[0];
-              } catch (error) {
-                debug.warn('Failed to decrypt updated real-time message:', error);
-              }
-            }
-
-            this.updateMessageInCache(updatedMessage.id, updatedMessage);
-            debug.log('🔄 Message updated via real-time:', updatedMessage.id);
-          }
-        )
-        .on(
-          'postgres_changes',
-          { 
-            event: 'DELETE', 
-            schema: 'public', 
-            table: 'messages',
-            filter: `channel_id=eq.${channelId}`
-          },
-          (payload) => {
-            const deletedMessageId = payload.old.id;
-            this.removeMessageFromCache(deletedMessageId);
-            debug.log('🗑️ Message deleted via real-time:', deletedMessageId);
-          }
-        )
-        .on(
-          'postgres_changes',
-          { 
-            event: 'DELETE', 
-            schema: 'public', 
-            table: 'reactions',
-            filter: undefined
-          },
-          async (payload) => {
-            // debug.log('🔥 DELETE event received for reaction:', payload);
-            reactionsStore.handleRealtimeUpdate(payload);
-          }
-        )
-        .subscribe((status) => {
-          debug.log('📡 Real-time subscription status:', status, 'for channel:', channelName);
-          if (status === 'SUBSCRIBED') {
-            debug.log('✅ Successfully subscribed to real-time updates for channel:', channelId);
-            // Reset retry count on successful connection
-            this.channelRetryCount.set(channelId, 0);
-          } else if (status === 'CHANNEL_ERROR') {
-            debug.error('❌ Real-time subscription error for channel:', channelId);
-            this.scheduleChannelReconnect(channelId);
-          } else if (status === 'TIMED_OUT') {
-            debug.error('⏰ Real-time subscription timed out for channel:', channelId);
-            this.scheduleChannelReconnect(channelId);
-          } else if (status === 'CLOSED') {
-            debug.log('🔒 Real-time subscription closed for channel:', channelId);
-            // Only reconnect if this is still the current channel
-            if (this.currentChannelId === channelId) {
-              this.scheduleChannelReconnect(channelId);
-            }
-          }
-        });            
-    },
-    
-    // Schedule reconnection with exponential backoff
-    scheduleChannelReconnect(channelId: string) {
-      const retryCount = this.channelRetryCount.get(channelId) || 0;
-      
-      // Check if max retries exceeded
-      if (retryCount >= RETRY_CONFIG.maxRetries) {
-        debug.error(`❌ Channel ${channelId}: Max retries (${RETRY_CONFIG.maxRetries}) exceeded`);
-        return;
-      }
-      
-      // Calculate delay with exponential backoff
-      const delay = Math.min(RETRY_CONFIG.baseDelay * Math.pow(2, retryCount), RETRY_CONFIG.maxDelay);
-      const jitter = delay * RETRY_CONFIG.jitterFactor * Math.random();
-      const finalDelay = Math.floor(delay + jitter);
-      
-      debug.log(`🔄 Channel ${channelId}: Scheduling reconnect in ${finalDelay}ms (attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries})`);
-      
-      // Clear any existing retry timeout
-      const existingTimeout = this.channelRetryTimeouts.get(channelId);
-      if (existingTimeout) {
-        clearTimeout(existingTimeout);
-      }
-      
-      // Schedule reconnect
-      const timeoutId = setTimeout(() => {
-        this.channelRetryCount.set(channelId, retryCount + 1);
-        this.channelRetryTimeouts.delete(channelId);
+      // Use RealtimeConnectionManager for automatic reconnection and health monitoring
+      this.currentSubscription = realtimeConnectionManager.subscribeToTable({
+        channelName,
+        table: 'messages',
+        filter: `channel_id=eq.${channelId}`,
         
-        // Only reconnect if this is still the current channel
-        if (this.currentChannelId === channelId) {
-          debug.log(`🔄 Channel ${channelId}: Attempting reconnect...`);
-          this.subscribeToMessages(channelId);
+        // Handle new messages
+        onInsert: async (payload) => {
+          debug.log('🟢 Real-time INSERT received:', payload.new?.id);
+          
+          const payloadNew = payload.new as any;
+          
+          // Skip if this message already exists (from optimistic update)
+          if (store.messages.findIndex(m => m.id === payloadNew.id) !== -1) {
+            debug.log('⚠️ Real message already exists (from sendMessage), skipping');
+            return;
+          }
+          
+          // Check if temp message exists (race condition fallback)
+          const tempMessageIndex = store.messages.findIndex(m => 
+            m.id.startsWith('temp-') && m.user_id === payloadNew.user_id
+          );
+          
+          if (tempMessageIndex !== -1) {
+            debug.warn('⚠️ Temp message still exists during real-time, replacing now');
+            let resolvedMessage: Message = {
+              id: payloadNew.id,
+              created_at: new Date(payloadNew.created_at),
+              updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
+              channel_id: payloadNew.channel_id,
+              conversation_id: payloadNew.conversation_id,
+              user_id: payloadNew.user_id,
+              bot_id: payloadNew.bot_id,
+              content: payloadNew.content,
+              reactions: payloadNew.reactions,
+              reply_to: payloadNew.reply_to,
+              is_system: payloadNew.is_system,
+              metadata: payloadNew.metadata || null,
+              encrypted: payloadNew.encrypted === true || payloadNew.encrypted === 'true',
+              encryption_metadata: payloadNew.encryption_metadata || null,
+            };
+            
+            try {
+              ensureMessageEmbeds(resolvedMessage);
+              if (resolvedMessage.encrypted || resolvedMessage.encryption_metadata) {
+                const decrypted = await processMessageDecryption([resolvedMessage]);
+                resolvedMessage = decrypted[0];
+              }
+            } catch (error) {
+              debug.warn('Failed to process realtime message:', error);
+            }
+            
+            store.messages.splice(tempMessageIndex, 1, resolvedMessage);
+            return;
+          }
+          
+          // Create new message
+          let newMessage: Message = {
+            id: payloadNew.id,
+            created_at: new Date(payloadNew.created_at),
+            updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
+            channel_id: payloadNew.channel_id,
+            conversation_id: payloadNew.conversation_id,
+            user_id: payloadNew.user_id,
+            bot_id: payloadNew.bot_id,
+            content: payloadNew.content,
+            reactions: payloadNew.reactions,
+            reply_to: payloadNew.reply_to,
+            is_system: payloadNew.is_system,
+            metadata: payloadNew.metadata || null,
+            encrypted: payloadNew.encrypted === true || payloadNew.encrypted === 'true',
+            encryption_metadata: payloadNew.encryption_metadata || null,
+          };
+          
+          // Handle bot messages
+          if (newMessage.bot_id) {
+            debug.log('🤖 Real-time bot message received:', newMessage.id);
+          }
+
+          // Decrypt if encrypted
+          const contentText = Array.isArray(newMessage.content) && newMessage.content[0]?.type === 'text' 
+            ? newMessage.content[0].text 
+            : null;
+          const looksEncrypted = newMessage.encrypted || 
+            newMessage.encryption_metadata ||
+            (contentText && /^[A-Za-z0-9+/=]{20,}$/.test(contentText) && newMessage.encryption_metadata);
+          
+          if (looksEncrypted) {
+            try {
+              if (!newMessage.encrypted && newMessage.encryption_metadata) {
+                newMessage.encrypted = true;
+              }
+              const decrypted = await processMessageDecryption([newMessage]);
+              newMessage = decrypted[0];
+            } catch (error) {
+              debug.warn('Failed to decrypt real-time message:', error);
+            }
+          }
+
+          store.addMessageToCache(newMessage);
+          debug.log('📝 Real-time message added:', newMessage.id);
+        },
+        
+        // Handle message updates
+        onUpdate: async (payload) => {
+          const payloadNew = payload.new as any;
+          
+          let updatedMessage: Message = {
+            id: payloadNew.id,
+            created_at: new Date(payloadNew.created_at),
+            channel_id: payloadNew.channel_id,
+            conversation_id: payloadNew.conversation_id,
+            user_id: payloadNew.user_id,
+            bot_id: payloadNew.bot_id,
+            content: payloadNew.content,
+            reactions: payloadNew.reactions,
+            reply_to: payloadNew.reply_to,
+            is_system: payloadNew.is_system,
+            updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
+            metadata: payloadNew.metadata || null,
+            encrypted: payloadNew.encrypted || false,
+            encryption_metadata: payloadNew.encryption_metadata || null,
+          };
+
+          // Decrypt if encrypted
+          if (updatedMessage.encrypted) {
+            try {
+              const decrypted = await processMessageDecryption([updatedMessage]);
+              updatedMessage = decrypted[0];
+            } catch (error) {
+              debug.warn('Failed to decrypt updated message:', error);
+            }
+          }
+
+          store.updateMessageInCache(updatedMessage.id, updatedMessage);
+          debug.log('🔄 Message updated via real-time:', updatedMessage.id);
+        },
+        
+        // Handle message deletions
+        onDelete: (payload) => {
+          const payloadOld = payload.old as any;
+          store.removeMessageFromCache(payloadOld.id);
+          debug.log('🗑️ Message deleted via real-time:', payloadOld.id);
+        },
+        
+        // Handle connection status changes
+        onStatusChange: (status, name) => {
+          debug.log(`📡 ${name} status: ${status}`);
+          store.connectionStatus = status;
         }
-      }, finalDelay);
+      });
+
+      // Also subscribe to reactions (global, no filter needed)
+      const reactionsChannelName = `channel-reactions-${channelId}`;
+      realtimeConnectionManager.subscribeToTable({
+        channelName: reactionsChannelName,
+        table: 'reactions',
+        onInsert: (payload) => reactionsStore.handleRealtimeUpdate(payload),
+        onDelete: (payload) => reactionsStore.handleRealtimeUpdate(payload),
+      });
+    },
+
+    /**
+     * Unsubscribe from current channel
+     */
+    unsubscribeFromMessages() {
+      if (this.currentSubscription) {
+        if (typeof this.currentSubscription === 'function') {
+          this.currentSubscription();
+        }
+        this.currentSubscription = null;
+      }
       
-      this.channelRetryTimeouts.set(channelId, timeoutId);
+      // Also cleanup reactions subscription if exists
+      if (this.currentChannelId) {
+        realtimeConnectionManager.unsubscribe(`channel-reactions-${this.currentChannelId}`);
+      }
+    },
+
+    /**
+     * Get current connection status
+     */
+    getConnectionStatus(): ConnectionStatus {
+      return this.connectionStatus;
     },
 
     // Jump to a specific message (for reply navigation)

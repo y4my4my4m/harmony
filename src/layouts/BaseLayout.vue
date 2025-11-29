@@ -95,6 +95,9 @@
       @accept="handleGlobalCallAccept"
       @decline="handleGlobalCallDecline"
     />
+    
+    <!-- Connection Status Indicator (Discord/Slack-like) -->
+    <ConnectionStatusIndicator position="bottom" />
   </div>
 </template>
 
@@ -113,6 +116,7 @@ import { routeAwareInitialization } from '@/services/RouteAwareInitialization'
 import { supabase } from '@/supabase'
 import { globalDMCallListener } from '@/services/GlobalDMCallListener'
 import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
+import ConnectionStatusIndicator from '@/components/common/ConnectionStatusIndicator.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useDMStore } from '@/stores/useDM'
