@@ -101,7 +101,7 @@ async function fetchVapidKey(): Promise<string | null> {
     const data = await response.json()
     return data.publicKey || null
   } catch (err) {
-    debug.error('Failed to fetch VAPID key:', err)
+    debug.error('Failed to fetch VAPID key:', JSON.stringify(err))
     return null
   }
 }

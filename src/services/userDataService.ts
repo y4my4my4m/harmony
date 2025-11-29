@@ -179,31 +179,39 @@ class UserDataService extends EventTarget {
   private async handleActivityResumed(): Promise<void> {
     if (!this.currentUserId) return
     
-    // If user was set to Away/Offline automatically, restore their preferred status
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    // If status was manually set to Away, keep it Away (user wants to stay away)
-    if (this.wasManuallySet && this.manualStatus === UserStatus.Away) {
-      debug.log('👋 User active again, but keeping manual Away status (user preference)')
-      // Don't change status - user manually chose to be Away
-      return
+    debug.log('👋 Activity resumed, current status:', UserStatus[userData.status], 'wasManuallySet:', this.wasManuallySet)
+    
+    // If status was manually set to Away/Busy/Invisible, respect that choice
+    if (this.wasManuallySet) {
+      if (this.manualStatus === UserStatus.Away) {
+        debug.log('👋 Keeping manual Away status (user preference)')
+        return
+      }
+      if (this.manualStatus === UserStatus.Busy) {
+        debug.log('👋 Keeping manual Busy status (user preference)')
+        return
+      }
+      if (this.manualStatus === UserStatus.Invisible) {
+        debug.log('👋 Keeping manual Invisible status (user preference)')
+        return
+      }
     }
     
-    // If status was manually set to Busy, keep it Busy
-    if (this.wasManuallySet && this.manualStatus === UserStatus.Busy) {
-      debug.log('👋 User active again, but keeping manual Busy status (user preference)')
-      // Don't change status - user manually chose to be Busy
-      return
-    }
-    
-    // Otherwise, restore to Online if they were auto-set to Away/Offline
+    // Restore to Online if they were auto-set to Away/Offline due to inactivity
     if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
-      debug.log('👋 User active again, restoring to Online (was auto-set)')
-      await this.updateCurrentUserStatus(UserStatus.Online, false)
+      debug.log('👋 User active again, restoring to Online (was auto-set to', UserStatus[userData.status], ')')
+      try {
+        await this.updateCurrentUserStatus(UserStatus.Online, false)
+        debug.log('✅ Status restored to Online')
+      } catch (error) {
+        debug.error('❌ Failed to restore status to Online:', error)
+      }
     }
     
-    // Reset activity tracking
+    // Reset activity tracking flags
     activityTracker.resetStatusTracking()
   }
   

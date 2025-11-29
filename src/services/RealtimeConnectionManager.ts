@@ -99,6 +99,9 @@ interface ManagedSubscription {
   lastConnectedAt: Date | null
   lastErrorAt: Date | null
   lastError: string | null
+  // Track rapid close cycles to detect server-side rejection
+  rapidCloseCount: number
+  lastClosedAt: Date | null
 }
 
 // ============================================================================
@@ -232,7 +235,9 @@ class RealtimeConnectionManagerService {
       retryTimeoutId: null,
       lastConnectedAt: null,
       lastErrorAt: null,
-      lastError: null
+      lastError: null,
+      rapidCloseCount: 0,
+      lastClosedAt: null
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -274,7 +279,9 @@ class RealtimeConnectionManagerService {
       retryTimeoutId: null,
       lastConnectedAt: null,
       lastErrorAt: null,
-      lastError: null
+      lastError: null,
+      rapidCloseCount: 0,
+      lastClosedAt: null
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -307,7 +314,9 @@ class RealtimeConnectionManagerService {
       retryTimeoutId: null,
       lastConnectedAt: null,
       lastErrorAt: null,
-      lastError: null
+      lastError: null,
+      rapidCloseCount: 0,
+      lastClosedAt: null
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -547,7 +556,39 @@ class RealtimeConnectionManagerService {
       case 'CLOSED':
         this.updateSubscriptionStatus(channelName, 'disconnected')
         debug.log(`🔒 RealtimeManager: ${channelName} closed`)
+        
         if (this.subscriptions.has(channelName)) {
+          const now = Date.now()
+          
+          // Detect rapid close cycle (connected then closed within 5 seconds)
+          if (managedSub.lastConnectedAt) {
+            const timeSinceConnect = now - managedSub.lastConnectedAt.getTime()
+            if (timeSinceConnect < 5000) {
+              managedSub.rapidCloseCount++
+              debug.warn(`⚠️ RealtimeManager: ${channelName} rapid close detected (${managedSub.rapidCloseCount} times)`)
+              
+              // If we've had 3+ rapid closes, stop retrying and wait longer
+              if (managedSub.rapidCloseCount >= 3) {
+                debug.error(`❌ RealtimeManager: ${channelName} server rejecting connection, backing off for 30s`)
+                managedSub.lastErrorAt = new Date()
+                managedSub.lastError = 'Server rejecting connection - rapid close cycle detected'
+                this.updateSubscriptionStatus(channelName, 'error')
+                
+                // Schedule a long delay before trying again
+                if (managedSub.retryTimeoutId) clearTimeout(managedSub.retryTimeoutId)
+                managedSub.retryTimeoutId = setTimeout(() => {
+                  managedSub.rapidCloseCount = 0  // Reset after long wait
+                  this.reconnect(channelName)
+                }, 30000)  // 30 second cooldown
+                break
+              }
+            } else {
+              // Normal close after being connected for a while - reset rapid close count
+              managedSub.rapidCloseCount = 0
+            }
+          }
+          
+          managedSub.lastClosedAt = new Date()
           this.scheduleReconnect(channelName)
         }
         break
