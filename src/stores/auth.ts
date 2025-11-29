@@ -159,89 +159,106 @@ export const useAuthStore = defineStore('auth', {
       }
 
       supabase.auth.onAuthStateChange(async (event, session) => {
-        const wasLoggedIn = !!this.session;
-        const previousUserId = this.session?.user?.id;
+        const currentUserId = this.session?.user?.id;
+        const newUserId = session?.user?.id;
         
+        // =====================================================================
+        // CRITICAL: If already logged in with same user, IGNORE most events
+        // This prevents re-validation on tab visibility changes, token refresh, etc.
+        // Supabase fires SIGNED_IN when tab becomes visible - we must ignore it
+        // =====================================================================
+        if (currentUserId && newUserId === currentUserId) {
+          // Same user - only handle actual logout or user data changes
+          if (event === 'SIGNED_OUT') {
+            debug.log('🔐 Auth event: SIGNED_OUT');
+            this.isPasswordResetMode = false;
+            this.session = null;
+            this.cleanupNotificationSystem();
+            return;
+          }
+          if (event === 'USER_UPDATED') {
+            debug.log('🔐 Auth event: USER_UPDATED - updating session');
+            this.session = session;
+            return;
+          }
+          // SIGNED_IN, TOKEN_REFRESHED, INITIAL_SESSION with same user = IGNORE
+          // These fire on tab visibility changes and would break connections
+          return;
+        }
+        
+        // =====================================================================
+        // Not logged in, or different user - process the event
+        // =====================================================================
         debug.log(`🔐 Auth event: ${event}, AAL: ${this.getAAL(session)}`);
         
-        // Handle PASSWORD_RECOVERY event - don't treat recovery sessions as full logins
-        // When Supabase processes a recovery token, it creates a session and fires this event
-        // We need to prevent this session from granting full app access
+        // Handle PASSWORD_RECOVERY event
         if (event === 'PASSWORD_RECOVERY') {
           debug.log('🔒 PASSWORD_RECOVERY event detected - entering password reset mode');
-          
-          // Set password reset mode flag - this prevents isLoggedIn from returning true
           this.isPasswordResetMode = true;
-          
-          // Keep the session - it's needed for updateUser({ password }) to work
-          // The recovery session has special permissions to update password even with 2FA
-          // But we prevent it from being treated as "logged in" via isPasswordResetMode
           this.session = session;
           
-          // If not already on reset-password page, redirect there
           const currentPath = window.location.pathname;
           if (currentPath !== '/reset-password') {
             router.push('/reset-password');
           }
-          
           return;
         }
         
-        // Clear password reset mode on other auth events (like SIGNED_OUT or USER_UPDATED)
-        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        // Handle SIGNED_OUT
+        if (event === 'SIGNED_OUT') {
+          debug.log('🔐 Auth event: SIGNED_OUT');
           this.isPasswordResetMode = false;
+          this.session = null;
+          if (currentUserId) {
+            await this.setUserOffline(currentUserId);
+          }
+          this.cleanupNotificationSystem();
+          return;
         }
         
-        // IMPORTANT: During MFA_CHALLENGE_VERIFIED, the AAL upgrade happens AFTER the event
-        // So we must allow this event through without AAL checking
+        // Handle MFA_CHALLENGE_VERIFIED
         if (event === 'MFA_CHALLENGE_VERIFIED') {
           debug.log('✅ MFA challenge verified - allowing session through');
           this.session = session;
-          
           if (session?.user?.id) {
             this.setupOfflineHandlers(session.user.id);
           }
-          return; // Early return, skip AAL validation for this event
+          return;
         }
         
-        // 🚨 CRITICAL MFA ENFORCEMENT FOR ALL SESSION EVENTS
-        // Validate AAL2 for any event that provides a session
-        // This prevents MFA bypass via localStorage cross-tab contamination
-        // 
-        // The attack vector this protects against:
-        // 1. Tab A has a valid session
-        // 2. Tab B starts login for a user with MFA, creates AAL1 session  
-        // 3. Tab A receives storage change event, gets AAL1 session
-        // 4. Without this check, Tab A would accept the incomplete session
-        if (session) {
-          // ✅ PERFORMANCE: Skip validation if we already validated this exact session
-          // during initializeAuth() - INITIAL_SESSION fires immediately after getSession()
-          const alreadyValidated = this._mfaValidatedForSession === session.access_token;
+        // Handle new login (SIGNED_IN with different/new user)
+        if (event === 'SIGNED_IN' && session) {
+          // Validate MFA for new logins only
+          const isValid = await this.validateSessionForMFA(session);
+          if (!isValid) {
+            debug.warn('🚨 SIGNED_IN with invalid AAL1 session (MFA enabled) - rejecting');
+            return;
+          }
           
-          if (alreadyValidated) {
-            debug.log(`⚡ Skipping MFA validation for ${event} - already validated during init`);
-            // Clear the cache after use (one-time skip)
-            this._mfaValidatedForSession = null;
-          } else {
-            const isValid = await this.validateSessionForMFA(session);
-            
-            if (!isValid) {
-              debug.warn(`🚨 ${event} event with invalid AAL1 session (MFA enabled) - rejecting`);
-              // Don't set the session - this is an incomplete MFA login from another tab
-              // or an attempted bypass
-              return;
+          debug.log('✅ New login validated');
+          this.isPasswordResetMode = false;
+          this.session = session;
+          if (session.user?.id) {
+            this.setupOfflineHandlers(session.user.id);
+          }
+          return;
+        }
+        
+        // Handle INITIAL_SESSION (app startup)
+        if (event === 'INITIAL_SESSION' && session) {
+          // Already validated in initializeAuth, just set session if not set
+          if (!this.session) {
+            this.session = session;
+            if (session.user?.id) {
+              this.setupOfflineHandlers(session.user.id);
             }
           }
+          return;
         }
         
-        // Session is valid (either AAL2 with MFA, or AAL1 without MFA requirement)
-        this.session = session;
-        
-        if (session?.user?.id) {
-          this.setupOfflineHandlers(session.user.id);
-        } else if (wasLoggedIn && previousUserId) {
-          await this.setUserOffline(previousUserId);
-          this.cleanupNotificationSystem();
+        // TOKEN_REFRESHED, USER_UPDATED without current session - just update
+        if (session) {
+          this.session = session;
         }
       });
     },
@@ -295,42 +312,23 @@ export const useAuthStore = defineStore('auth', {
       // Clean up any existing handlers first
       this.cleanupOfflineHandlers();
       
-      // Handle browser/tab close - immediate cleanup and status update
+      // Handle browser/tab close - cleanup presence
       const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
-        // Immediately cleanup presence (this should trigger presence leave event)
         if ((window as any).__harmonyPresenceCleanup) {
           (window as any).__harmonyPresenceCleanup();
         }
-
-        // For beforeunload, we rely primarily on the presence system cleanup
-        // The presence "leave" event should automatically handle offline status for other users
-        // We can't reliably do async Supabase calls here due to timing constraints
       };
 
-      // Handle page visibility for better status management
-      const handleVisibilityChange = async () => {
-        if (document.hidden) {
-          // The ActivityTracker will handle automatic Away/Offline transitions
-          // No need to set timers here - let the activity system manage it
-          debug.log('📱 Tab hidden - activity tracker will handle status changes')
-        } else {
-          // User returned to tab - activity tracker will detect this automatically
-          debug.log('📱 Tab visible - activity tracker will restore status if needed')
-        }
-      };
-
-      // Add event listeners
+      // Add event listeners for page close only
       window.addEventListener('beforeunload', handleBeforeUnload);
       window.addEventListener('unload', handleBeforeUnload);
-      window.addEventListener('pagehide', handleBeforeUnload); // Additional event for mobile
-      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('pagehide', handleBeforeUnload);
 
       // Store references for cleanup
       (window as any).__harmonyOfflineHandlers = {
         beforeunload: handleBeforeUnload,
         unload: handleBeforeUnload,
-        pagehide: handleBeforeUnload,
-        visibilitychange: handleVisibilityChange
+        pagehide: handleBeforeUnload
       };
     },
 
@@ -340,7 +338,6 @@ export const useAuthStore = defineStore('auth', {
         window.removeEventListener('beforeunload', handlers.beforeunload);
         window.removeEventListener('unload', handlers.unload);
         window.removeEventListener('pagehide', handlers.pagehide);
-        document.removeEventListener('visibilitychange', handlers.visibilitychange);
         delete (window as any).__harmonyOfflineHandlers;
       }
     },

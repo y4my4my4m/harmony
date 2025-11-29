@@ -632,76 +632,15 @@ export class CoreMessageService {
   }
 
   // =====================================================
-  // QUERY EXECUTION WITH RETRY (PURE LOCAL)
-  // =====================================================
-
-  /**
-   * Execute a query with timeout and automatic retry on failure
-   * Creates FRESH queries on retry - critical fix for stale promise reuse bug
-   */
-  private async executeQueryWithRetry<T>(
-    buildQuery: () => any,
-    operationName: string,
-    timeoutMs: number = 30000  // 30 seconds - more generous than before
-  ): Promise<T[]> {
-    const executeWithTimeout = async (query: any): Promise<{ data: T[] | null; error: Error | null }> => {
-      return Promise.race([
-        query.then((result: any) => ({ data: result.data, error: result.error })),
-        new Promise<{ data: null; error: Error }>((resolve) =>
-          setTimeout(() => resolve({ 
-            data: null, 
-            error: new Error(`Query timeout after ${timeoutMs}ms`) 
-          }), timeoutMs)
-        )
-      ])
-    }
-
-    // First attempt with fresh query
-    const query1 = buildQuery()
-    const result1 = await executeWithTimeout(query1)
-    
-    if (!result1.error && result1.data) {
-      return result1.data
-    }
-
-    // If first attempt failed, try to refresh connection and retry with FRESH query
-    if (result1.error) {
-      debug.warn(`⚠️ First attempt for ${operationName} failed:`, result1.error.message)
-      
-      try {
-        debug.log(`🔄 Refreshing connection and retrying ${operationName}...`)
-        const { ensureFreshConnection } = await import('@/supabase')
-        await ensureFreshConnection()
-        
-        // Create a FRESH query - this is the critical fix!
-        // The old code reused the same query promise which doesn't work
-        const query2 = buildQuery()
-        const result2 = await executeWithTimeout(query2)
-        
-        if (!result2.error && result2.data) {
-          debug.log(`✅ Retry successful for ${operationName}`)
-          return result2.data
-        }
-        
-        if (result2.error) {
-          debug.error(`❌ Retry for ${operationName} also failed:`, result2.error.message)
-          throw this.createError('LOAD_FAILED', result2.error.message, result2.error)
-        }
-      } catch (retryError) {
-        debug.error(`❌ Retry for ${operationName} threw:`, retryError)
-        throw retryError
-      }
-    }
-
-    return []
-  }
-
-  // =====================================================
   // MESSAGE LOADING (PURE LOCAL)
   // =====================================================
 
   /**
    * Load channel messages with pagination (pure local)
+   * 
+   * NOTE: We trust Supabase to handle its own connection management.
+   * No artificial timeouts - queries complete when they complete.
+   * Supabase's websocket stays alive across tab changes.
    */
   async loadChannelMessages(
     channelId: string,
@@ -717,19 +656,19 @@ export class CoreMessageService {
 
       debug.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
-      // Query builder function - creates a FRESH query each time (important for retries)
-      const buildQuery = () => {
-        let q = supabase
-          .from('messages')
-          .select('*')
-          .eq('channel_id', channelId)
-          .or('is_deleted.is.null,is_deleted.eq.false')
-          .order('created_at', { ascending: false })
-          .limit(limit)
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .eq('channel_id', channelId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .order('created_at', { ascending: false })
+        .limit(limit)
 
-        if (before) q = q.lt('created_at', before)
-        if (after) q = q.gt('created_at', after)
-        return q
+      if (before) {
+        query = query.lt('created_at', before)
+      }
+      if (after) {
+        query = query.gt('created_at', after)
       }
 
       if (signal?.aborted) {
@@ -737,9 +676,12 @@ export class CoreMessageService {
       }
 
       debug.log('📤 Executing message load query...')
-      
-      // Execute query with timeout and proper retry
-      const messages = await this.executeQueryWithRetry(buildQuery, 'channel messages')
+      const { data: messages, error } = await query
+
+      if (error) {
+        debug.error('❌ Failed to load messages:', error)
+        throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+      }
 
       const messageList = messages || []
       debug.log(`✅ Loaded ${messageList.length} messages from database for channel ${channelId}`)
@@ -777,6 +719,9 @@ export class CoreMessageService {
 
   /**
    * Load conversation messages with pagination (pure local)
+   * 
+   * NOTE: We trust Supabase to handle its own connection management.
+   * No artificial timeouts - queries complete when they complete.
    */
   async loadConversationMessages(
     conversationId: string,
@@ -792,27 +737,30 @@ export class CoreMessageService {
 
       debug.log(`🔄 Core: Loading messages for conversation: ${conversationId}`)
 
-      // Query builder function - creates a FRESH query each time (important for retries)
-      const buildQuery = () => {
-        let q = supabase
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conversationId)
-          .or('is_deleted.is.null,is_deleted.eq.false')
-          .order('created_at', { ascending: false })
-          .limit(limit)
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .order('created_at', { ascending: false })
+        .limit(limit)
 
-        if (before) q = q.lt('created_at', before)
-        if (after) q = q.gt('created_at', after)
-        return q
+      if (before) {
+        query = query.lt('created_at', before)
+      }
+      if (after) {
+        query = query.gt('created_at', after)
       }
 
       if (signal?.aborted) {
         throw this.createError('ABORTED', 'Request was aborted')
       }
 
-      // Execute query with timeout and proper retry
-      const messages = await this.executeQueryWithRetry(buildQuery, 'conversation messages')
+      const { data: messages, error } = await query
+
+      if (error) {
+        throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+      }
 
       const messageList = messages || []
       

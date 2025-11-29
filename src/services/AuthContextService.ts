@@ -152,38 +152,41 @@ export class AuthContextService {
 
   /**
    * Initialize auth state listener to automatically clear cache
-   * Only clears on actual auth changes, not initial session loads
+   * ONLY clears on actual user changes, not token refreshes or tab visibility changes
    */
   initializeAuthListener(): void {
     supabase.auth.onAuthStateChange((event, session) => {
-      debug.log(`🔄 Auth state changed: ${event}`)
+      // Only clear cache when the ACTUAL USER changes
+      // TOKEN_REFRESHED just refreshes the access token - same user, keep cache
+      // SIGNED_IN on tab visible is just Supabase reconnecting - same user, keep cache
       
-      // Always clear cache on sign out or user updates
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+      if (event === 'SIGNED_OUT') {
+        debug.log('🔄 Auth state: SIGNED_OUT - clearing cache')
         this.clearCache()
         return
       }
       
-      // On SIGNED_IN, verify the cached user matches the new session
-      // This prevents security issues where a different user signs in
+      if (event === 'USER_UPDATED') {
+        debug.log('🔄 Auth state: USER_UPDATED - clearing cache')
+        this.clearCache()
+        return
+      }
+      
+      // For SIGNED_IN, only clear if it's a DIFFERENT user
       if (event === 'SIGNED_IN') {
         const newUserId = session?.user?.id
         const cachedUserId = this.cachedContext?.authUser?.id
         
         if (cachedUserId && cachedUserId !== newUserId) {
-          // Different user signed in - MUST clear cache for security
           debug.log('🔐 Different user signed in, clearing stale cache')
           this.clearCache()
-        } else if (!this.cachedContext) {
-          debug.log('🔄 Fresh sign-in detected, cache will be populated on first request')
         }
-        // Same user - keep cache (e.g., page refresh with existing session)
+        // Same user or no cache - don't clear, don't log spam
         return
       }
       
-      // INITIAL_SESSION: Skip cache clear - let existing cache persist
-      // PASSWORD_RECOVERY: User is still logged in, keep cache
-      // MFA_CHALLENGE_VERIFIED: Still same user, keep cache
+      // TOKEN_REFRESHED, INITIAL_SESSION, etc: No action needed
+      // These don't change who the user is
     })
   }
 

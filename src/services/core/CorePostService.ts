@@ -105,18 +105,15 @@ export class CorePostService {
 
       debug.log('🔄 Core: Inserting post into database...')
       
-      // Execute with retry on connection failure
-      const { data: post, error } = await this.executeWithRetry(
-        () => supabase
-          .from('posts')
-          .insert(postData)
-          .select(`
-            *,
-            author:profiles!posts_author_id_fkey(*)
-          `)
-          .single(),
-        'Post creation'
-      )
+      // Simple query - trust Supabase to handle connection
+      const { data: post, error } = await supabase
+        .from('posts')
+        .insert(postData)
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(*)
+        `)
+        .single()
 
       if (error) {
         debug.error('❌ Core: Insert failed:', error)
@@ -130,74 +127,6 @@ export class CorePostService {
       debug.error('❌ Core: Failed to create post:', error)
       throw error
     }
-  }
-
-  /**
-   * Attempt to refresh connection for retry scenarios
-   * Uses the global ensureFreshConnection from supabase.ts for robust recovery
-   */
-  private async ensureFreshConnection(): Promise<void> {
-    debug.log('🔄 Core: Refreshing connection for retry...')
-    
-    // Clear auth context cache
-    authContextService.clearCache()
-    
-    // Use the global connection health check for robust recovery
-    try {
-      const { ensureFreshConnection: globalEnsureFresh } = await import('@/supabase')
-      const isHealthy = await globalEnsureFresh()
-      
-      if (isHealthy) {
-        debug.log('✅ Core: Connection verified healthy for retry')
-      } else {
-        debug.warn('⚠️ Core: Connection health check failed, continuing anyway')
-      }
-    } catch (error) {
-      debug.warn('⚠️ Core: Connection refresh failed, continuing with existing session')
-    }
-  }
-
-  /**
-   * Execute a database operation with timeout and automatic retry on failure
-   * Note: The operation function is called fresh on each retry, creating a new query
-   */
-  private async executeWithRetry<T>(
-    operation: () => Promise<T>,
-    operationName: string,
-    maxRetries: number = 2,
-    timeoutMs: number = 20000  // 20 seconds - more generous for slow connections
-  ): Promise<T> {
-    let lastError: any
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        debug.log(`🔄 Core: ${operationName} attempt ${attempt}/${maxRetries}...`)
-        
-        // Race between operation and timeout
-        const result = await Promise.race([
-          operation(),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
-          )
-        ])
-        
-        return result
-      } catch (error: any) {
-        lastError = error
-        debug.warn(`⚠️ Core: ${operationName} attempt ${attempt} failed:`, error.message || error)
-        
-        if (attempt < maxRetries) {
-          // Refresh connection before retry
-          debug.log('🔄 Core: Refreshing connection before retry...')
-          await this.ensureFreshConnection()
-          // Small delay before retry
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
-      }
-    }
-    
-    debug.error(`❌ Core: ${operationName} failed after ${maxRetries} attempts`)
-    throw lastError
   }
 
   /**

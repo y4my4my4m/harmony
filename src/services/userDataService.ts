@@ -379,43 +379,43 @@ class UserDataService extends EventTarget {
   
   /**
    * Setup global presence channel for cross-context online/offline tracking
-   * This ensures users appear online to everyone regardless of what section they're in
+   * 
+   * SIMPLIFIED: Only track once on subscription, no repeated tracking.
+   * The presence events are logged but we don't react aggressively to them.
    */
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
     
-    // 🌐 GLOBAL PRESENCE SYSTEM - Discord/Slack style
-    // Track basic online/offline status across all contexts
+    // 🌐 GLOBAL PRESENCE SYSTEM - Keep it simple
     this.globalChannel = supabase.channel('harmony-global-presence')
       .on('presence', { event: 'sync' }, () => {
-        debug.log('🌐 Global presence sync')
+        // Just update our local state, don't log spam
         this.handleGlobalPresenceSync()
       })
       .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
-        debug.log('🌐 Users joined global presence:', newPresences.length)
         this.handleGlobalPresenceJoin(newPresences)
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
-        debug.log('🌐 Users left global presence:', leftPresences.length)
         this.handleGlobalPresenceLeave(leftPresences)
       })
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           debug.log('✅ Global presence channel connected')
+          // Track ONCE on subscription - that's all we need
           await this.trackCurrentUserGlobally()
         }
       })
   }
   
-  // Throttle for global presence tracking to prevent rapid re-tracking
-  private lastGlobalTrackTime: number = 0
-  private globalTrackThrottleMs: number = 15000 // 15 seconds minimum between tracks (increased from 5s)
-  private pendingGlobalTrack: ReturnType<typeof setTimeout> | null = null
-  private isGlobalTrackDirty: boolean = false  // Coalesce multiple track requests
-  
   /**
-   * Track current user in global presence (cross-context online status)
-   * Throttled and coalesced to prevent rapid re-tracking which causes join/leave loops
+   * Track current user in global presence
+   * 
+   * IMPORTANT: This should only be called on:
+   * - Initial connection
+   * - Status changes
+   * - Profile updates (avatar, color, etc.)
+   * 
+   * DO NOT call this on heartbeat or route changes - that causes churn!
    */
   private async trackCurrentUserGlobally(): Promise<void> {
     if (!this.globalChannel || !this.currentUserId) return
@@ -423,9 +423,8 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    // Handle invisible status - don't track at all
+    // Handle invisible status - untrack from presence
     if (userData.status === UserStatus.Offline || userData.status === UserStatus.Invisible) {
-      // Make sure we're NOT in the presence channel
       try {
         await this.globalChannel.untrack()
       } catch {
@@ -433,51 +432,6 @@ class UserDataService extends EventTarget {
       }
       return
     }
-    
-    // Throttle rapid track calls to prevent join/leave loops
-    const now = Date.now()
-    const timeSinceLastTrack = now - this.lastGlobalTrackTime
-    
-    if (timeSinceLastTrack < this.globalTrackThrottleMs) {
-      // Mark as dirty - we need to track eventually
-      this.isGlobalTrackDirty = true
-      
-      // Coalesce: Cancel existing pending track and reschedule
-      // This ensures we only have ONE pending track at a time
-      if (this.pendingGlobalTrack) {
-        clearTimeout(this.pendingGlobalTrack)
-      }
-      
-      const delay = this.globalTrackThrottleMs - timeSinceLastTrack
-      this.pendingGlobalTrack = setTimeout(async () => {
-        this.pendingGlobalTrack = null
-        if (this.isGlobalTrackDirty) {
-          await this.doTrackGlobally()
-        }
-      }, delay)
-      return
-    }
-    
-    await this.doTrackGlobally()
-  }
-  
-  /**
-   * Actually perform the global presence track
-   */
-  private async doTrackGlobally(): Promise<void> {
-    if (!this.globalChannel || !this.currentUserId) return
-    
-    const userData = this.users.get(this.currentUserId)
-    if (!userData) return
-    
-    // Skip if invisible
-    if (userData.status === UserStatus.Invisible || userData.status === UserStatus.Offline) {
-      return
-    }
-    
-    // Clear dirty flag and update timestamp
-    this.isGlobalTrackDirty = false
-    this.lastGlobalTrackTime = Date.now()
     
     try {
       await this.globalChannel.track({
@@ -492,22 +446,20 @@ class UserDataService extends EventTarget {
         online_at: new Date().toISOString()
       })
       
-      // Only log on initial track or status changes (reduce log spam)
       debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}`)
     } catch (error) {
-      // Don't spam logs with track errors - they're usually transient
       debug.warn('⚠️ Global presence track failed:', error)
     }
   }
   
   /**
    * Handle global presence sync - update basic online/offline status
+   * Kept minimal to avoid churn
    */
   private handleGlobalPresenceSync(): void {
     if (!this.globalChannel) return
     
     const state = this.globalChannel.presenceState()
-    // Reduce log spam - only log on significant changes
     const userCount = Object.keys(state).length
     
     // Track which users are globally online
@@ -680,7 +632,9 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Start heartbeat to maintain presence
+   * Start heartbeat for internal health tracking only
+   * NOTE: Heartbeat should NOT call presence track - that causes churn
+   * Presence is tracked once on connection, not repeatedly
    */
   private startHeartbeat(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
@@ -689,23 +643,9 @@ class UserDataService extends EventTarget {
       if (this.currentUserId) {
         const userData = this.users.get(this.currentUserId)
         if (userData) {
-          try {
-            userData.lastHeartbeat = new Date().toISOString()
-            await this.trackCurrentUserGlobally()
-            
-            // Reset failure count on successful heartbeat
-            this.heartbeatFailures = 0
-            
-          } catch (error) {
-            debug.warn('💔 Heartbeat failed:', error)
-            this.heartbeatFailures++
-            
-            // If heartbeat fails repeatedly, set offline
-            if (this.heartbeatFailures >= this.MAX_HEARTBEAT_FAILURES) {
-              debug.log('💀 Connection lost - setting offline after', this.heartbeatFailures, 'failures')
-              await this.handleConnectionLost()
-            }
-          }
+          // Just update internal timestamp, don't call trackCurrentUserGlobally()
+          // Presence tracking on heartbeat causes join/leave churn
+          userData.lastHeartbeat = new Date().toISOString()
         }
       }
     }, this.HEARTBEAT_INTERVAL)
@@ -1388,7 +1328,9 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Update status in context-specific presence channels only
+   * Update status in presence channels
+   * SIMPLIFIED: Only update if going invisible (untrack) 
+   * For visible statuses, the initial track is sufficient
    */
   private async updatePresenceStatus(status: UserStatus): Promise<void> {
     // 👻 INVISIBLE STATUS: User should appear offline to everyone
@@ -1398,38 +1340,9 @@ class UserDataService extends EventTarget {
       return
     }
     
-    // User is setting a visible status - ensure they're tracked in all relevant contexts
-    debug.log(`🌟 User becoming visible with status: ${UserStatus[status]}`)
-    
-    // Track in global presence if available
-    if (this.globalChannel) {
-      await this.trackCurrentUserGlobally()
-    }
-    
-    // Track in all context-specific presence channels (servers, DMs)
-    for (const context of this.contexts.values()) {
-      if (context.channel && context.userIds.has(this.currentUserId!)) {
-        const userData = this.users.get(this.currentUserId!)
-        if (userData) {
-          await context.channel.track({
-            user_id: this.currentUserId,
-            username: userData.username,
-            display_name: userData.displayName,
-            avatar_url: userData.avatarUrl,
-            banner_url: userData.bannerUrl,
-            color: userData.color,
-            status: status,
-            custom_status: userData.customStatus,
-            is_mobile: userData.isMobile,
-            server_id: context.id,
-            online_at: new Date().toISOString()
-          })
-          debug.log(`🌟 Tracking in ${context.type} context: ${context.id}`)
-        }
-      }
-    }
-    
-    debug.log(`📡 Status updated in ${this.contexts.size} context channels`)
+    // For visible statuses, we rely on the initial track that happened on channel subscription
+    // Calling track() again causes join/leave churn in Supabase
+    debug.log(`🌟 Status updated to: ${UserStatus[status]}`)
   }
   
   /**
@@ -1464,9 +1377,9 @@ class UserDataService extends EventTarget {
       // Broadcast profile changes to relevant contexts only (context-aware)
       await this.broadcastProfileToContexts(profileData)
       
-      // 🎨 Re-track globally to update presence with new profile data (including color)
-      // This ensures other users see the updated color immediately via global presence
-      await this.trackCurrentUserGlobally()
+      // Note: We don't re-track globally here anymore
+      // The initial track is sufficient, and re-tracking causes churn
+      // Profile broadcasts handle the update propagation
       
       this.emitEvent('user-updated', { userId: this.currentUserId })
       debug.log('✅ Profile updated and broadcast to relevant contexts')
@@ -1566,19 +1479,16 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Force refresh global presence
-   * Call this when user navigates between different view contexts
-   * to ensure they remain visible to others regardless of current view
+   * Refresh global presence - now a no-op
+   * 
+   * NOTE: This used to re-track on route changes, but that caused churn.
+   * Once you're tracked on initial connection, you stay tracked.
+   * Supabase presence maintains connection automatically.
+   * Only actual status/profile changes should update presence.
    */
   async refreshGlobalPresence(): Promise<void> {
-    if (!this.initialized || !this.currentUserId) {
-      return
-    }
-    
-    // Re-track in global presence (throttled internally)
-    if (this.globalChannel) {
-      await this.trackCurrentUserGlobally()
-    }
+    // No-op - presence is maintained by Supabase automatically
+    // Calling trackCurrentUserGlobally() on route changes causes join/leave churn
   }
   
   /**
@@ -1593,13 +1503,7 @@ class UserDataService extends EventTarget {
       this.heartbeatTimer = null
     }
     
-    // Clear pending global track
-    if (this.pendingGlobalTrack) {
-      clearTimeout(this.pendingGlobalTrack)
-      this.pendingGlobalTrack = null
-    }
-    
-    // ✅ PERFORMANCE FIX: Clear any pending presence sync timeouts
+    // Clear any pending presence sync timeouts
     for (const timeout of this.presenceSyncTimeouts.values()) {
       clearTimeout(timeout)
     }

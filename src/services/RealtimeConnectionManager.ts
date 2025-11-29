@@ -116,9 +116,9 @@ const RETRY_CONFIG = {
   jitterFactor: 0.2     // Add 20% random jitter to prevent thundering herd
 }
 
-const HEALTH_CHECK_INTERVAL = 30000  // 30 seconds (increased from 15s to reduce overhead)
-const STALE_CONNECTION_THRESHOLD = 3 * 60 * 1000  // 3 minutes (increased from 2 to be less aggressive)
-const VISIBILITY_CHECK_DEBOUNCE = 2000  // 2 seconds debounce for visibility changes
+// Health check is now minimal - Supabase handles its own reconnection
+const HEALTH_CHECK_INTERVAL = 60000  // 60 seconds - just a safety net, not aggressive
+const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // 5 minutes - very conservative
 
 // ============================================================================
 // RealtimeConnectionManager Service
@@ -129,41 +129,30 @@ class RealtimeConnectionManagerService {
   private globalStatus: ConnectionStatus = 'disconnected'
   private statusListeners = new Set<(status: ConnectionStatus) => void>()
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null
-  private visibilityHandler: (() => void) | null = null
   private authListener: { data: { subscription: { unsubscribe: () => void } } } | null = null
   private initialized = false
   private isReconnecting = false  // Prevent multiple simultaneous reconnects
-  private lastVisibilityCheckTime = 0  // Debounce visibility checks
-  private pendingVisibilityCheck: ReturnType<typeof setTimeout> | null = null
 
   // ============================================================================
   // Lifecycle Methods
   // ============================================================================
 
   /**
-   * Initialize the connection manager with visibility and auth listeners
+   * Initialize the connection manager
    * Should be called once when the app starts (e.g., in BaseLayout)
    */
   initialize(): void {
     if (this.initialized) return
     this.initialized = true
     
-    debug.log('🚀 RealtimeManager: Initializing with visibility and auth listeners')
+    debug.log('🚀 RealtimeManager: Initialized - Supabase handles all connection management')
     
-    // Handle page visibility changes - reconnect when tab becomes visible
-    this.visibilityHandler = this.handleVisibilityChange.bind(this)
-    document.addEventListener('visibilitychange', this.visibilityHandler)
-    
-    // Handle auth state changes
-    // Note: TOKEN_REFRESHED is a normal background event - DON'T reconnect on it
-    // The Supabase client handles token refresh internally without breaking connections
+    // Only handle SIGNED_OUT to cleanup subscriptions
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         debug.log('🚪 RealtimeManager: User signed out, unsubscribing all')
         this.unsubscribeAll()
       }
-      // TOKEN_REFRESHED: No action needed - Supabase handles this internally
-      // SIGNED_IN: Connections will be established as components mount
     })
     this.authListener = { data: { subscription: authListener.subscription } }
   }
@@ -175,16 +164,6 @@ class RealtimeConnectionManagerService {
   cleanup(): void {
     debug.log('🧹 RealtimeManager: Cleaning up')
     
-    if (this.visibilityHandler) {
-      document.removeEventListener('visibilitychange', this.visibilityHandler)
-      this.visibilityHandler = null
-    }
-    
-    if (this.pendingVisibilityCheck) {
-      clearTimeout(this.pendingVisibilityCheck)
-      this.pendingVisibilityCheck = null
-    }
-    
     if (this.authListener) {
       this.authListener.data.subscription.unsubscribe()
       this.authListener = null
@@ -192,47 +171,6 @@ class RealtimeConnectionManagerService {
     
     this.unsubscribeAll()
     this.initialized = false
-  }
-
-  private handleVisibilityChange(): void {
-    // Discord-like behavior: DON'T disconnect or force reconnect just because tab was hidden
-    // The websocket connection stays alive. Only check health when tab becomes visible.
-    if (!document.hidden) {
-      // Debounce visibility checks to prevent rapid successive checks
-      const now = Date.now()
-      const timeSinceLastCheck = now - this.lastVisibilityCheckTime
-      
-      if (timeSinceLastCheck < VISIBILITY_CHECK_DEBOUNCE) {
-        // Cancel existing pending check and reschedule
-        if (this.pendingVisibilityCheck) {
-          clearTimeout(this.pendingVisibilityCheck)
-        }
-        
-        const delay = VISIBILITY_CHECK_DEBOUNCE - timeSinceLastCheck
-        this.pendingVisibilityCheck = setTimeout(() => {
-          this.pendingVisibilityCheck = null
-          this.doVisibilityCheck()
-        }, delay)
-        return
-      }
-      
-      this.doVisibilityCheck()
-    }
-  }
-  
-  private doVisibilityCheck(): void {
-    this.lastVisibilityCheckTime = Date.now()
-    debug.log('👁️ RealtimeManager: Tab visible - checking connections')
-    
-    // Only check subscriptions that appear to have issues
-    // Don't force reconnect healthy connections
-    for (const [channelName, sub] of this.subscriptions) {
-      // Only check if status is disconnected or error
-      if (sub.status === 'disconnected' || sub.status === 'error') {
-        debug.log(`🔄 RealtimeManager: ${channelName} needs reconnection (status: ${sub.status})`)
-        this.forceReconnect(channelName)
-      }
-    }
   }
 
   // ============================================================================
@@ -893,58 +831,23 @@ class RealtimeConnectionManagerService {
   }
 
   private performHealthCheck(): void {
+    // Minimal health check - Supabase handles most reconnection automatically
+    // We only intervene for subscriptions stuck in error state for too long
+    
     const now = new Date()
-    let reconnectCount = 0
     
     for (const [channelName, sub] of this.subscriptions) {
-      // Check for stale connections - only if connection seems broken
-      if (sub.status === 'connected' && sub.lastConnectedAt) {
-        const timeSinceConnect = now.getTime() - sub.lastConnectedAt.getTime()
-        
-        if (timeSinceConnect > STALE_CONNECTION_THRESHOLD) {
-          if (sub.channel) {
-            const state = (sub.channel as any).state
-            const socket = (sub.channel as any).socket
-            const isSocketConnected = socket?.isConnected?.() ?? false
-            const isJoined = state === 'joined'
-            
-            // Only reconnect if socket is actually disconnected
-            if (!isJoined || !isSocketConnected) {
-              debug.warn(`⚠️ RealtimeManager: ${channelName} stale, reconnecting`)
-              this.forceReconnect(channelName)
-              reconnectCount++
-            }
-          } else {
-            this.forceReconnect(channelName)
-            reconnectCount++
-          }
-        }
-      }
-      
-      // Check for stuck error state (after 2 minutes instead of 1)
+      // Only fix stuck error states - let Supabase handle normal reconnection
       if (sub.status === 'error' && sub.lastErrorAt) {
         const timeSinceError = now.getTime() - sub.lastErrorAt.getTime()
         
-        if (timeSinceError > 2 * 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
+        // If stuck in error for 3+ minutes and exhausted retries, reset and try again
+        if (timeSinceError > 3 * 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
+          debug.log(`🔄 RealtimeManager: Resetting ${channelName} after prolonged error`)
           sub.retryCount = 0
           this.scheduleReconnect(channelName)
-          reconnectCount++
         }
       }
-      
-      // Check for stuck connecting state (after 45 seconds instead of 30)
-      if ((sub.status === 'connecting' || sub.status === 'reconnecting') && sub.lastConnectedAt) {
-        const timeSinceLastConnect = now.getTime() - sub.lastConnectedAt.getTime()
-        if (timeSinceLastConnect > 45 * 1000) {
-          this.forceReconnect(channelName)
-          reconnectCount++
-        }
-      }
-    }
-    
-    // Only log if we actually did something
-    if (reconnectCount > 0) {
-      debug.log(`🔄 RealtimeManager: Health check triggered ${reconnectCount} reconnects`)
     }
   }
 
@@ -1030,7 +933,6 @@ class RealtimeConnectionManagerService {
       globalStatus: this.globalStatus,
       subscriptionCount: this.subscriptions.size,
       healthCheckRunning: !!this.healthCheckInterval,
-      lastVisibilityCheckTime: this.lastVisibilityCheckTime ? new Date(this.lastVisibilityCheckTime).toISOString() : null,
       subscriptions
     }
   }
