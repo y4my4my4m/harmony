@@ -475,6 +475,8 @@ watch(
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
+  flex: 1;
+  min-width: 0; /* Allow text truncation */
 }
 
 .display-name {
@@ -489,6 +491,9 @@ watch(
 .user-status {
   font-size: 12px;
   color: #b9bbbe;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Divider */

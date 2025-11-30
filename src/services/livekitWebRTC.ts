@@ -806,15 +806,33 @@ export class LiveKitWebRTCService {
     
     // Track subscribed
     this.room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
-      debug.log('📺 [LiveKit] Track subscribed:', track.kind, 'from', participant.identity);
+      const source = publication.source;
+      debug.log('📺 [LiveKit] Track subscribed:', track.kind, 'source:', source, 'from', participant.identity);
       
       // Update user state
       const state = this.allUserStates.get(participant.identity);
       if (state) {
         if (track.kind === Track.Kind.Audio) {
           state.isAudioEnabled = true;
+          
+          // Auto-attach audio tracks to play them
+          // This is crucial for screenshare audio!
+          if (track instanceof RemoteAudioTrack) {
+            const audioElement = track.attach();
+            audioElement.volume = 1.0; // Default volume
+            debug.log('🔊 [LiveKit] Audio track attached for:', participant.identity, 'source:', source);
+            
+            // Store reference for volume control later
+            if (source === Track.Source.ScreenShareAudio) {
+              debug.log('🔊 [LiveKit] Screenshare audio attached for:', participant.identity);
+            }
+          }
         } else if (track.kind === Track.Kind.Video) {
           state.isVideoEnabled = true;
+          // Check if it's screenshare video
+          if (source === Track.Source.ScreenShare) {
+            state.isScreenSharing = true;
+          }
         }
         this.allUserStates.set(participant.identity, state);
       }
@@ -827,15 +845,30 @@ export class LiveKitWebRTCService {
     
     // Track unsubscribed
     this.room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
-      debug.log('📺 [LiveKit] Track unsubscribed:', track.kind, 'from', participant.identity);
+      const source = publication.source;
+      debug.log('📺 [LiveKit] Track unsubscribed:', track.kind, 'source:', source, 'from', participant.identity);
+      
+      // Detach audio track
+      if (track.kind === Track.Kind.Audio && track instanceof RemoteAudioTrack) {
+        track.detach();
+        debug.log('🔊 [LiveKit] Audio track detached for:', participant.identity);
+      }
       
       // Update user state
       const state = this.allUserStates.get(participant.identity);
       if (state) {
         if (track.kind === Track.Kind.Audio) {
-          state.isAudioEnabled = false;
+          // Only set audio disabled if it's the microphone, not screenshare audio
+          if (source !== Track.Source.ScreenShareAudio) {
+            state.isAudioEnabled = false;
+          }
         } else if (track.kind === Track.Kind.Video) {
-          state.isVideoEnabled = false;
+          // Check if it's screenshare ending
+          if (source === Track.Source.ScreenShare) {
+            state.isScreenSharing = false;
+          } else {
+            state.isVideoEnabled = false;
+          }
         }
         this.allUserStates.set(participant.identity, state);
       }

@@ -382,8 +382,13 @@ watch(
 // LIFECYCLE & EVENT LISTENERS
 // =============================================================================
 onMounted(() => {
-  // Start in dock mode when first connecting
-  currentMode.value = 'dock';
+  // Start in dock mode ONLY if the store doesn't want overlay visible
+  // (e.g., when auto-opening for video detection)
+  if (!voiceStore.isOverlayVisible) {
+    currentMode.value = 'dock';
+  } else {
+    currentMode.value = 'overlay';
+  }
   
   // Keyboard shortcuts
   const handleKeyPress = (event: KeyboardEvent) => {
