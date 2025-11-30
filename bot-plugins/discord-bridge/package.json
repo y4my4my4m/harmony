@@ -11,7 +11,7 @@
   },
   "keywords": ["harmony", "discord", "bridge", "bot"],
   "author": "",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "dependencies": {
     "discord.js": "^14.14.1",
     "ws": "^8.16.0",

@@ -19,7 +19,7 @@
     "discord"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",
     "bcrypt": "^5.1.1",

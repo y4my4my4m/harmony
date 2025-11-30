@@ -26,7 +26,7 @@
     "misskey"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "dependencies": {
     "@supabase/supabase-js": "^2.39.2",
     "compression": "^1.7.4",
