@@ -99,7 +99,6 @@
 </template>
 
 <script setup lang="ts">
-import { defineEmits, defineProps } from 'vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Props

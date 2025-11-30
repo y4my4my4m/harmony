@@ -32,14 +32,13 @@ import {
   createLocalVideoTrack,
   setLogLevel,
   LogLevel,
-  E2EEOptions,
   ExternalE2EEKeyProvider,
 } from 'livekit-client';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 
-// Set LiveKit log level based on debug mode
-setLogLevel(debug.isEnabled() ? LogLevel.debug : LogLevel.warn);
+// Set LiveKit log level based on environment
+setLogLevel(import.meta.env.DEV ? LogLevel.debug : LogLevel.warn);
 
 // =============================================================================
 // TYPES

@@ -17,7 +17,7 @@ port: 7880
 # Format: key: secret
 # PRODUCTION: Generate secure keys with: openssl rand -hex 32
 keys:
-  devkey: secret
+  devkey: ayBT3S4vMZQ8P2xKf9WnL6jR_hDcEaaaaAAA333cccaAcaAc
 
 # Logging
 log_level: info
