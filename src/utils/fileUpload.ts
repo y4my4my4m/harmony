@@ -39,12 +39,12 @@ export async function uploadFile(
 
     debug.log(`Uploading file to ${bucket}/${path}...`);
 
-    // Upload file to Supabase storage (Supabase will auto-generate UUID if needed)
+    // Upload file to Supabase storage
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(path, file, {
         cacheControl: '3600',
-        upsert: false // Don't overwrite, let Supabase handle unique naming
+        upsert: true // Allow overwriting existing files (e.g., avatar updates)
       });
 
     if (error) {
