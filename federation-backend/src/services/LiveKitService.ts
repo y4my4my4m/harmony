@@ -97,30 +97,33 @@ class LiveKitService {
   
   /**
    * Generate a room token for a local user
+   * @returns Object with token and profileId (the identity used in the token)
    */
-  async generateToken(request: TokenRequest): Promise<string> {
+  async generateToken(request: TokenRequest): Promise<{ token: string; profileId: string }> {
     const cfg = this.getConfig();
     if (!cfg.isConfigured) {
       throw new Error('LiveKit is not configured');
     }
     
     // Validate user has permission to join this room
+    // request.userId is auth_user_id (from Supabase auth)
     const hasPermission = await this.validateRoomPermission(request.userId, request.roomName, request.roomType);
     if (!hasPermission) {
       throw new Error('User does not have permission to join this room');
     }
     
-    // Get user profile for metadata
+    // Get user profile for metadata (lookup by auth_user_id)
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
-      .select('username, display_name, avatar_url')
-      .eq('id', request.userId)
+      .select('id, username, display_name, avatar_url')
+      .eq('auth_user_id', request.userId)
       .single();
     
-    // Create access token
+    // Create access token - use profile.id as identity (this is what the app uses)
+    const profileId = profile?.id || request.userId;
     const at = new AccessToken(cfg.apiKey, cfg.apiSecret, {
-      identity: request.userId,
+      identity: profileId,
       name: profile?.display_name || profile?.username || 'Unknown User',
       ttl: '24h', // Token valid for 24 hours
       metadata: JSON.stringify({
@@ -149,9 +152,9 @@ class LiveKitService {
     at.addGrant(videoGrant);
     
     const token = await at.toJwt();
-    logger.info(`Generated LiveKit token for user ${request.userId} in room ${request.roomName}`);
+    logger.info(`Generated LiveKit token for profile ${profileId} in room ${request.roomName}`);
     
-    return token;
+    return { token, profileId };
   }
   
   /**
@@ -229,54 +232,90 @@ class LiveKitService {
    * Validate that a user has permission to join a room
    */
   private async validateRoomPermission(
-    userId: string,
+    authUserId: string,
     roomName: string,
     roomType: 'voice_channel' | 'dm_call' | 'stage'
   ): Promise<boolean> {
     const supabase = getSupabaseClient();
     
+    logger.debug(`Validating room permission: authUserId=${authUserId}, roomName=${roomName}, roomType=${roomType}`);
+    
+    // First, get the profile.id from auth_user_id
+    // auth_user_id is the Supabase auth UUID, profiles.id is the profile UUID used in app tables
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', authUserId)
+      .single();
+    
+    if (profileError || !profile) {
+      logger.warn(`Profile not found for auth_user_id: ${authUserId}`, profileError);
+      return false;
+    }
+    
+    const userId = profile.id;
+    logger.debug(`Found profile.id: ${userId}`);
+    
     if (roomType === 'voice_channel' || roomType === 'stage') {
       // Room name format: channel-{channelId} or stage-{channelId}
       const channelId = roomName.replace(/^(channel|stage)-/, '');
+      logger.debug(`Extracted channelId: ${channelId}`);
       
       // Check if user has access to the channel
       // First get the server this channel belongs to
-      const { data: channel } = await supabase
+      const { data: channel, error: channelError } = await supabase
         .from('channels')
         .select('server_id')
         .eq('id', channelId)
         .single();
       
-      if (!channel) {
+      if (channelError || !channel) {
+        logger.warn(`Channel not found: ${channelId}`, channelError);
         return false;
       }
       
-      // Check if user is a member of the server
-      const { data: member } = await supabase
-        .from('server_members')
+      logger.debug(`Found channel, server_id: ${channel.server_id}`);
+      
+      // Check if user is a member of the server (table is user_servers, not server_members)
+      const { data: member, error: memberError } = await supabase
+        .from('user_servers')
         .select('id')
         .eq('server_id', channel.server_id)
         .eq('user_id', userId)
         .single();
       
-      return !!member;
+      if (memberError) {
+        logger.warn(`Server member check failed: userId=${userId}, serverId=${channel.server_id}`, memberError);
+      }
+      
+      const hasPermission = !!member;
+      logger.debug(`Permission check result: ${hasPermission}`);
+      return hasPermission;
     }
     
     if (roomType === 'dm_call') {
       // Room name format: dm-{conversationId}
       const conversationId = roomName.replace(/^dm-/, '');
+      logger.debug(`Extracted conversationId: ${conversationId}`);
       
       // Check if user is a participant in this DM conversation
-      const { data: participant } = await supabase
+      const { data: participant, error: participantError } = await supabase
         .from('dm_participants')
         .select('id')
         .eq('conversation_id', conversationId)
         .eq('user_id', userId)
         .single();
       
-      return !!participant;
+      if (participantError) {
+        logger.warn(`DM participant check failed: userId=${userId}, conversationId=${conversationId}`, participantError);
+      }
+      
+      const hasPermission = !!participant;
+      logger.debug(`DM permission check result: ${hasPermission}`);
+      return hasPermission;
     }
     
+    logger.warn(`Unknown room type: ${roomType}`);
     return false;
   }
   

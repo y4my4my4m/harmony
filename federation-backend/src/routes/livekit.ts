@@ -159,14 +159,14 @@ router.post('/token', requireAuth, requireLiveKit, async (req: Request, res: Res
       metadata,
     };
     
-    const token = await livekitService.generateToken(tokenRequest);
+    const { token, profileId } = await livekitService.generateToken(tokenRequest);
     const cfg = livekitService.getClientConfig();
     
     res.json({
       token,
       wsUrl: cfg.wsUrl,
       roomName,
-      identity: user.id,
+      identity: profileId,
     });
   } catch (error) {
     logger.error('Failed to generate token:', error);
