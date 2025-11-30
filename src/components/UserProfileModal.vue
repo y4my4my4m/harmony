@@ -308,6 +308,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
 import { useUserData } from '@/composables/useUserData'
+import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl } from '@/utils/bannerUtils'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
@@ -327,6 +328,7 @@ const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
+const { closeMobileSidebars, isMobile } = useLayoutState()
 
 // Use professional presence system
 const { 
@@ -345,9 +347,36 @@ const showActionsMenu = ref(false)
 const userNote = ref('')
 const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 const isLoadingInstanceInfo = ref(false)
+const fetchedUserStats = ref<{ posts: number; following: number; followers: number } | null>(null)
+const isLoadingUserStats = ref(false)
 
 // Get the current instance domain
 const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+
+/**
+ * Fetch user stats for federated users via the ActivityPub store
+ */
+async function loadUserStats(userId: string) {
+  if (isLoadingUserStats.value) return
+  
+  isLoadingUserStats.value = true
+  try {
+    // Try to fetch user profile from ActivityPub store to get stats
+    const profile = await activityPubStore.fetchUserProfile(userId)
+    if (profile) {
+      fetchedUserStats.value = {
+        posts: (profile as any).posts_count || (profile as any).statuses_count || 0,
+        following: (profile as any).following_count || 0,
+        followers: (profile as any).followers_count || 0
+      }
+      debug.log('👤 Loaded user stats:', fetchedUserStats.value)
+    }
+  } catch (error) {
+    debug.error('Failed to load user stats:', error)
+  } finally {
+    isLoadingUserStats.value = false
+  }
+}
 
 /**
  * Fetch instance info for a domain via nodeinfo
@@ -476,24 +505,61 @@ const socialStats = computed(() => {
                          user.following_count !== undefined || 
                          user.followers_count !== undefined;
   
+  // Use fetched stats as fallback if user object doesn't have them
+  if (!hasSocialStats && fetchedUserStats.value) {
+    return fetchedUserStats.value;
+  }
+  
   if (!hasSocialStats) return null;
   
   return {
-    posts: user.posts_count || 0,
-    following: user.following_count || 0,
-    followers: user.followers_count || 0
+    posts: user.posts_count || fetchedUserStats.value?.posts || 0,
+    following: user.following_count || fetchedUserStats.value?.following || 0,
+    followers: user.followers_count || fetchedUserStats.value?.followers || 0
   }
 })
 
 const userStatus = computed(() => {
   if (!props.user) return 'offline'
-  // Use presence-aware status for real-time accuracy
+  
+  // Federated users don't have real-time presence tracking
+  if (isFederatedUser(props.user)) {
+    // Check if we have last_status_at to infer recent activity
+    const lastStatus = (props.user as FederatedUser).last_status_at
+    if (lastStatus) {
+      const lastStatusDate = new Date(lastStatus)
+      const now = new Date()
+      const hoursDiff = (now.getTime() - lastStatusDate.getTime()) / (1000 * 60 * 60)
+      // If active in last 24 hours, show as potentially online
+      if (hoursDiff < 24) return 'online'
+      if (hoursDiff < 72) return 'away'
+    }
+    return 'offline' // Default for remote users with no recent activity
+  }
+  
+  // Local users - use presence-aware status for real-time accuracy
   const status = getPresenceAwareStatus(props.user.id).value
   return status || 'offline'
 })
 
 const userStatusText = computed(() => {
   if (!props.user) return 'Offline'
+  
+  // Federated users - show descriptive text based on last activity
+  if (isFederatedUser(props.user)) {
+    const lastStatus = (props.user as FederatedUser).last_status_at
+    if (lastStatus) {
+      const lastStatusDate = new Date(lastStatus)
+      const now = new Date()
+      const hoursDiff = (now.getTime() - lastStatusDate.getTime()) / (1000 * 60 * 60)
+      if (hoursDiff < 1) return 'Recently Active'
+      if (hoursDiff < 24) return 'Active Today'
+      if (hoursDiff < 72) return 'Active Recently'
+    }
+    return 'Unknown'
+  }
+  
+  // Local users - use real-time status text
   return getUserStatusText(props.user.id).value
 })
 
@@ -613,7 +679,10 @@ const handleFollowToggle = async () => {
   if (!props.user || !isFederatedUser(props.user)) return
   
   try {
-    if (props.user.is_following) {
+    // Use store's isFollowing method for current state (more reliable than user object)
+    const isCurrentlyFollowing = activityPubStore.isFollowing(props.user.id) || props.user.is_following
+    
+    if (isCurrentlyFollowing) {
       await activityPubStore.unfollowUser(props.user.id)
       emit('unfollow', props.user.id)
     } else {
@@ -718,8 +787,22 @@ const getUserIsLocal = (user: any) => {
   return user?.is_local ?? true // Default to local if not specified
 }
 
+// Computed property for reactive follow state
+const isFollowingUser = computed(() => {
+  if (!props.user) return false
+  
+  // First check the ActivityPub store's reactive state (for real-time updates)
+  if (activityPubStore.isFollowing(props.user.id)) {
+    return true
+  }
+  
+  // Fall back to user object property
+  return (props.user as any)?.is_following || false
+})
+
+// Keep helper for backwards compatibility with template
 const getUserIsFollowing = (user: any) => {
-  return user?.is_following || false
+  return isFollowingUser.value
 }
 
 const saveUserNote = () => {
@@ -770,10 +853,25 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     // Modal closed or no user - cleanup
     await cleanupProfilePresence()
     instanceInfo.value = null
+    fetchedUserStats.value = null
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
     await initializeProfilePresence()
+    
+    // Auto-close mobile profile/status menu when profile modal opens
+    if (isMobile.value) {
+      closeMobileSidebars()
+    }
+    
+    // Load user stats if not already available on user object
+    if (props.user) {
+      const user = props.user as any
+      const hasStats = user.posts_count !== undefined || user.following_count !== undefined
+      if (!hasStats && isFederatedUser(props.user)) {
+        loadUserStats(props.user.id)
+      }
+    }
     
     // Load instance info for federation section
     if (props.user && isFederatedUser(props.user)) {

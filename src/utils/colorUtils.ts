@@ -336,6 +336,12 @@ export function generateThemePalette(
     const bgTertiaryOklch = { l: Math.min(100, Math.max(56, baseLightness - 4)), c: bgTintChroma, h: bgHue }
     const sidebarOklch = { l: Math.min(100, Math.max(55, baseLightness - 4)), c: bgTintChroma * 1.5, h: bgHue }
     
+    // Generate oklch-based border colors using background hue
+    const borderLightness = Math.max(30, baseLightness - 40)
+    const borderChroma = bgTintChroma * 0.8
+    const borderPrimaryOklch = { l: borderLightness, c: borderChroma, h: bgHue }
+    const borderSecondaryOklch = { l: borderLightness + 10, c: borderChroma * 0.6, h: bgHue }
+    
     return {
       primary: primaryColor,
       primaryHover: adjustLightness(primaryColor, -10),
@@ -352,8 +358,9 @@ export function generateThemePalette(
       textSecondary: '#3d4148',
       textTertiary: '#5c6168',
       
-      borderPrimary: 'rgba(0, 0, 0, 0.15)',
-      borderSecondary: 'rgba(0, 0, 0, 0.10)',
+      // Dynamic oklch-based border colors with theme hue
+      borderPrimary: `oklch(${borderPrimaryOklch.l.toFixed(1)}% ${borderPrimaryOklch.c.toFixed(3)} ${borderPrimaryOklch.h.toFixed(1)} / 0.20)`,
+      borderSecondary: `oklch(${borderSecondaryOklch.l.toFixed(1)}% ${borderSecondaryOklch.c.toFixed(3)} ${borderSecondaryOklch.h.toFixed(1)} / 0.15)`,
       
       isLightTheme: true,
     }
@@ -379,6 +386,12 @@ export function generateThemePalette(
     const systemBgSecondaryOklch = { l: Math.max(1, Math.min(38, systemBaseLightness - 1.5)), c: bgTintChroma, h: bgHue }
     const systemBgTertiaryOklch = { l: Math.max(1, Math.min(35, systemBaseLightness - 3.5)), c: bgTintChroma, h: bgHue }
     
+    // Generate oklch-based border colors using background hue for dark theme
+    const borderLightness = Math.min(60, chatBaseLightness + 25)
+    const borderChroma = bgTintChroma * 1.2
+    const borderPrimaryOklch = { l: borderLightness, c: borderChroma, h: bgHue }
+    const borderSecondaryOklch = { l: borderLightness - 5, c: borderChroma * 0.8, h: bgHue }
+    
     return {
       primary: primaryColor,
       primaryHover: adjustLightness(primaryColor, -8),
@@ -398,8 +411,9 @@ export function generateThemePalette(
       textSecondary: '#b5bac1',
       textTertiary: '#80848e',
       
-      borderPrimary: 'rgba(255, 255, 255, 0.08)',
-      borderSecondary: 'rgba(255, 255, 255, 0.06)',
+      // Dynamic oklch-based border colors with theme hue
+      borderPrimary: `oklch(${borderPrimaryOklch.l.toFixed(1)}% ${borderPrimaryOklch.c.toFixed(3)} ${borderPrimaryOklch.h.toFixed(1)} / 0.12)`,
+      borderSecondary: `oklch(${borderSecondaryOklch.l.toFixed(1)}% ${borderSecondaryOklch.c.toFixed(3)} ${borderSecondaryOklch.h.toFixed(1)} / 0.08)`,
       
       isLightTheme: false,
     }

@@ -3,12 +3,55 @@
     <div class="emoji-picker">
       <div class="emoji-picker-header">
         <h3>Choose a reaction</h3>
-        <button @click="$emit('close')" class="close-btn" title="Close">
-          <Icon name="x" />
-        </button>
+        <div class="header-actions">
+          <!-- Pack Switcher -->
+          <div class="pack-switcher">
+            <button 
+              class="pack-btn"
+              :class="{ active: showPackMenu }"
+              @click="showPackMenu = !showPackMenu"
+              :title="`Current: ${currentPack.name}`"
+            >
+              <span v-if="isNativePack">🔤</span>
+              <span v-else>🎨</span>
+            </button>
+            <div v-if="showPackMenu" class="pack-menu" v-click-outside="() => showPackMenu = false">
+              <div 
+                v-for="pack in packs" 
+                :key="pack.id"
+                class="pack-option"
+                :class="{ active: currentPackId === pack.id }"
+                @click="switchPack(pack.id)"
+              >
+                <span class="pack-icon">{{ pack.id === 'native' ? '🔤' : '🎨' }}</span>
+                <span class="pack-name">{{ pack.name }}</span>
+                <span v-if="currentPackId === pack.id" class="check-mark">✓</span>
+              </div>
+            </div>
+          </div>
+          <button @click="$emit('close')" class="close-btn" title="Close">
+            <Icon name="x" />
+          </button>
+        </div>
       </div>
       
       <div class="emoji-picker-content">
+        <!-- Frequently used emojis (personalized) -->
+        <div v-if="hasFrequentEmojis" class="quick-reactions frequent-section">
+          <div class="quick-reactions-title">Frequently used</div>
+          <div class="quick-reactions-grid">
+            <button
+              v-for="emoji in frequentEmojiItems"
+              :key="emoji.content"
+              class="emoji-btn quick-emoji frequent-emoji"
+              @click="selectEmoji(emoji)"
+              :title="emoji.name"
+            >
+              {{ emoji.content }}
+            </button>
+          </div>
+        </div>
+        
         <!-- Quick reaction emojis (common ones) -->
         <div class="quick-reactions">
           <div class="quick-reactions-title">Quick reactions</div>
@@ -60,8 +103,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Icon from '@/components/common/Icon.vue';
+import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
+import { useEmojiPacks, loadPackEmojiIndex, getEmojiPackUrl, type EmojiPackItem } from '@/services/emojiPackService';
 
 interface EmojiItem {
   content: string;
@@ -346,7 +392,64 @@ const currentCategoryEmojis = computed(() => {
   return category ? category.emojis : [];
 });
 
+const { triggerReaction } = useHapticSettings();
+const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
+const { currentPackId, currentPack, packs, isNativePack, setCurrentPack } = useEmojiPacks();
+
+// Pack menu state
+const showPackMenu = ref(false);
+const mutantEmojis = ref<EmojiPackItem[]>([]);
+const isLoadingPack = ref(false);
+
+// Load mutant emojis when switching to mutant pack
+const loadMutantEmojis = async () => {
+  if (mutantEmojis.value.length > 0) return; // Already loaded
+  
+  isLoadingPack.value = true;
+  try {
+    mutantEmojis.value = await loadPackEmojiIndex('mutant');
+  } catch (error) {
+    console.error('Failed to load mutant emojis:', error);
+  } finally {
+    isLoadingPack.value = false;
+  }
+};
+
+// Switch pack
+const switchPack = (packId: string) => {
+  setCurrentPack(packId);
+  showPackMenu.value = false;
+  
+  if (packId === 'mutant') {
+    loadMutantEmojis();
+  }
+};
+
+// Convert frequent emojis to EmojiItem format
+const frequentEmojiItems = computed<EmojiItem[]>(() => {
+  return topEmojisForPicker.value.map(e => ({
+    content: e.native || e.name,
+    name: e.name
+  }));
+});
+
+// Load mutant emojis on mount if that's the current pack
+onMounted(() => {
+  if (currentPackId.value === 'mutant') {
+    loadMutantEmojis();
+  }
+});
+
 const selectEmoji = (emoji: EmojiItem) => {
+  // Haptic feedback when selecting an emoji for reaction
+  triggerReaction();
+  
+  // Record usage for frequently used emojis
+  recordEmojiUsage({
+    native: emoji.content,
+    name: emoji.name
+  });
+  
   emit('emojiSelected', emoji);
   emit('close');
 };
@@ -383,6 +486,81 @@ const selectEmoji = (emoji: EmojiItem) => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.25rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pack-switcher {
+  position: relative;
+}
+
+.pack-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-bg-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.15s ease;
+}
+
+.pack-btn:hover,
+.pack-btn.active {
+  background: var(--color-bg-tertiary);
+}
+
+.pack-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 160px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.pack-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pack-option:hover {
+  background: var(--color-bg-secondary);
+}
+
+.pack-option.active {
+  background: rgba(88, 101, 242, 0.15);
+}
+
+.pack-icon {
+  font-size: 16px;
+}
+
+.pack-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.check-mark {
+  color: #5865f2;
+  font-size: 14px;
   border-bottom: 1px solid var(--color-border);
 }
 
