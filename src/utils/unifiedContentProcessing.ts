@@ -180,12 +180,18 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
           
           // If we got a valid resolution (not just returning input back)
           if (resolved.display.type === 'svg' || 
-              (resolved.display.type === 'native' && resolved.unicode !== emojiName)) {
+              (resolved.display.type === 'native' && resolved.unicode !== emojiName) ||
+              resolved.unicode) {
+            // Always include BOTH url and native when available
+            // The renderer will choose based on current pack preference
+            const svgUrl = resolved.display.type === 'svg' ? resolved.display.content : null;
+            
             emojiDataMap[emojiName] = {
               id: resolved.unicode || emojiName,
               name: emojiName,
-              url: resolved.display.type === 'svg' ? resolved.display.content : null,
-              native: resolved.display.type === 'native' ? resolved.display.content : null,
+              url: svgUrl,
+              native: resolved.unicode,  // Always include unicode for pack switching
+              unicode: resolved.unicode,
               shortcode: resolved.shortcode,
               source: 'unified'
             };

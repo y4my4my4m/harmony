@@ -229,14 +229,26 @@ function resolveEmoji(input: string): ResolvedEmoji {
     const unicode = shortcodeToUnicode(input)
     const svgUrl = getSvgUrl(input)
     
+    // If we have a shortcode but no unicode/SVG, try to construct a path
+    // This handles cases where emoji data isn't fully loaded yet
+    let fallbackSvgUrl: string | null = null
+    if (!unicode && !svgUrl && lookups.value?.shortcodeToSvg) {
+      // Try lowercase
+      const lowercaseKey = Object.keys(lookups.value.shortcodeToSvg)
+        .find(k => k.toLowerCase() === input.toLowerCase())
+      if (lowercaseKey) {
+        fallbackSvgUrl = `${DEFAULT_SVG_BASE_PATH}/${lookups.value.shortcodeToSvg[lowercaseKey]}`
+      }
+    }
+    
     return {
       unicode: unicode || input,
       shortcode: input,
       display: currentPack.value === 'native' && unicode
         ? { type: 'native', content: unicode }
-        : svgUrl 
-          ? { type: 'svg', content: svgUrl }
-          : { type: 'native', content: unicode || `[${input}]` }
+        : svgUrl || fallbackSvgUrl
+          ? { type: 'svg', content: svgUrl || fallbackSvgUrl! }
+          : { type: 'native', content: unicode || input }  // Show shortcode instead of [shortcode]
     }
   }
   

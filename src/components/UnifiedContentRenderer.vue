@@ -319,7 +319,13 @@ onMounted(() => {
 const getEmojiDisplayUrl = (emoji: any) => {
   if (!emoji) return '';
   
-  // If emoji has a URL (server custom emoji or unified pack SVG), use it directly
+  // If native pack is selected and emoji has unicode, don't return URL
+  // (let shouldRenderNativeEmoji handle it)
+  if (isNativePack.value && (emoji.native || emoji.unicode)) {
+    return '';
+  }
+  
+  // If emoji has a URL (server custom emoji or unified pack SVG), use it
   if (emoji.url) {
     return getEmojiUrl(emoji.url, 96);
   }
@@ -339,16 +345,28 @@ const getEmojiDisplayUrl = (emoji: any) => {
 const shouldRenderNativeEmoji = (emoji: any): boolean => {
   if (!emoji) return false;
   
-  // If emoji already has native property set (from unified service resolution)
-  if (emoji.native) return true;
+  // Server custom emojis (with URL but NOT from unified pack) always use URL
+  // Check source explicitly - unified pack emojis have source: 'unified'
+  if (emoji.url && !emoji.source && emoji.source !== 'unified') return false;
   
-  // Server custom emojis always use URL
-  if (emoji.url) return false;
+  // If native pack selected, show unicode if available
+  if (isNativePack.value) {
+    // Check if we have unicode available
+    if (emoji.native || emoji.unicode) return true;
+    
+    // Try to resolve via unified service
+    if (emoji.name && emojiServiceLoaded.value) {
+      const resolved = resolveEmoji(emoji.name);
+      return resolved.display.type === 'native' || !!resolved.unicode;
+    }
+  }
   
-  // If native pack selected, try to show unicode
-  if (isNativePack.value && emoji.name && emojiServiceLoaded.value) {
-    const resolved = resolveEmoji(emoji.name);
-    return resolved.display.type === 'native';
+  // If mutant pack selected but no URL/SVG available, fall back to native
+  if ((emoji.native || emoji.unicode) && !emoji.url) return true;
+  
+  // Unified pack emoji with source set - respect pack preference
+  if (emoji.source === 'unified' && isNativePack.value && (emoji.native || emoji.unicode)) {
+    return true;
   }
   
   return false;
@@ -358,13 +376,14 @@ const shouldRenderNativeEmoji = (emoji: any): boolean => {
 const getNativeEmojiChar = (emoji: any): string => {
   if (!emoji) return '';
   
-  // If emoji already has native property set
+  // If emoji already has native/unicode property set
   if (emoji.native) return emoji.native;
+  if (emoji.unicode) return emoji.unicode;
   
   // Try to resolve via unified service
   if (emoji.name && emojiServiceLoaded.value) {
     const resolved = resolveEmoji(emoji.name);
-    return resolved.display.type === 'native' ? resolved.display.content : '';
+    return resolved.unicode || '';
   }
   
   return '';

@@ -116,7 +116,7 @@ const themeStore = useThemeStore()
 const router = useRouter()
 const showStatusDropdown = ref(false)
 const targetRef = ref<HTMLElement | null>(null)
-const { isMobile } = useLayoutState()
+const { isMobile, closeMobileSidebars } = useLayoutState()
 
 // add the optional prop toggle-mobile-profile
 const props = defineProps<{
@@ -304,6 +304,10 @@ const onClickOutside = (event: any) => {
 }
 
 const goToSettings = () => {
+  // Close mobile profile/sidebars when opening settings for better UX
+  if (isMobile.value) {
+    closeMobileSidebars()
+  }
   router.push({ name: 'UserSettings' })
 }
 
