@@ -414,8 +414,13 @@ export class LiveKitWebRTCService {
         
         const videoPublication = this.room.localParticipant.videoTrackPublications.values().next().value;
         if (videoPublication?.track) {
-          await this.room.localParticipant.unpublishTrack(videoPublication.track);
-          videoPublication.track.stop();
+          // Store track reference before unpublishing (unpublish may invalidate it)
+          const track = videoPublication.track;
+          await this.room.localParticipant.unpublishTrack(track);
+          // Stop the track to release camera
+          if (track.mediaStreamTrack) {
+            track.mediaStreamTrack.stop();
+          }
         }
         
         this.localMediaState.isVideoEnabled = false;
@@ -449,8 +454,11 @@ export class LiveKitWebRTCService {
         if (this.localMediaState.isVideoEnabled) {
           const videoPublication = this.room.localParticipant.videoTrackPublications.values().next().value;
           if (videoPublication?.track) {
-            await this.room.localParticipant.unpublishTrack(videoPublication.track);
-            videoPublication.track.stop();
+            const track = videoPublication.track;
+            await this.room.localParticipant.unpublishTrack(track);
+            if (track.mediaStreamTrack) {
+              track.mediaStreamTrack.stop();
+            }
           }
           this.localMediaState.isVideoEnabled = false;
         }

@@ -7,15 +7,81 @@
       </p>
     </div>
 
+    <!-- Global Keybinds -->
     <div class="settings-section">
       <h3 class="section-title">Global Keybinds</h3>
       <div class="keybind-item">
         <div class="keybind-info">
           <h4 class="keybind-label">Push to Talk</h4>
-          <p class="keybind-description">Hold to talk in voice channels.</p>
+          <p class="keybind-description">Hold to talk in voice channels (coming soon).</p>
         </div>
         <div class="keybind-control">
-          <div class="keybind-display">Ctrl + Space</div>
+          <div class="keybind-display not-implemented">Not configured</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Voice Overlay Keybinds -->
+    <div class="settings-section">
+      <h3 class="section-title">Voice Chat (when overlay is open)</h3>
+      
+      <div class="keybind-item">
+        <div class="keybind-info">
+          <h4 class="keybind-label">Toggle Mute</h4>
+          <p class="keybind-description">Mute or unmute your microphone.</p>
+        </div>
+        <div class="keybind-control">
+          <div class="keybind-display">M</div>
+        </div>
+      </div>
+
+      <div class="keybind-item">
+        <div class="keybind-info">
+          <h4 class="keybind-label">Toggle Deafen</h4>
+          <p class="keybind-description">Deafen or undeafen yourself.</p>
+        </div>
+        <div class="keybind-control">
+          <div class="keybind-display">D</div>
+        </div>
+      </div>
+
+      <div class="keybind-item">
+        <div class="keybind-info">
+          <h4 class="keybind-label">Toggle Camera</h4>
+          <p class="keybind-description">Turn camera on or off.</p>
+        </div>
+        <div class="keybind-control">
+          <div class="keybind-display">V</div>
+        </div>
+      </div>
+
+      <div class="keybind-item">
+        <div class="keybind-info">
+          <h4 class="keybind-label">Toggle Screen Share</h4>
+          <p class="keybind-description">Start or stop screen sharing.</p>
+        </div>
+        <div class="keybind-control">
+          <div class="keybind-display">S</div>
+        </div>
+      </div>
+
+      <div class="keybind-item">
+        <div class="keybind-info">
+          <h4 class="keybind-label">Open Settings</h4>
+          <p class="keybind-description">Open voice settings panel.</p>
+        </div>
+        <div class="keybind-control">
+          <div class="keybind-display">,</div>
+        </div>
+      </div>
+
+      <div class="keybind-item">
+        <div class="keybind-info">
+          <h4 class="keybind-label">Exit / Close</h4>
+          <p class="keybind-description">Exit fullscreen or close panels.</p>
+        </div>
+        <div class="keybind-control">
+          <div class="keybind-display">Esc</div>
         </div>
       </div>
     </div>
@@ -117,5 +183,11 @@ const emit = defineEmits<{
   color: #ffffff;
   font-size: 12px;
   font-family: monospace;
+}
+
+.keybind-display.not-implemented {
+  color: #72767d;
+  font-style: italic;
+  font-family: inherit;
 }
 </style>

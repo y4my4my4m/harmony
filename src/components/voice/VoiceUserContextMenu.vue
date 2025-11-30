@@ -140,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
@@ -166,6 +166,7 @@ const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserProfile } = useUserData();
 
 const menuRef = ref<HTMLElement | null>(null);
+// Initialize with props to prevent flash at 0,0
 const adjustedPosition = ref({ x: 0, y: 0 });
 
 // Computed
@@ -315,13 +316,37 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // Lifecycle
 onMounted(() => {
-  adjustPosition();
   document.addEventListener('keydown', handleKeydown);
 });
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown);
 });
+
+// Watch for visibility changes to adjust position
+watch(
+  () => props.visible,
+  async (visible) => {
+    if (visible) {
+      // Set initial position from props immediately
+      adjustedPosition.value = { x: props.x, y: props.y };
+      // Then adjust for screen bounds after DOM update
+      await adjustPosition();
+    }
+  },
+  { immediate: true }
+);
+
+// Also watch for position prop changes
+watch(
+  () => [props.x, props.y],
+  async () => {
+    if (props.visible) {
+      adjustedPosition.value = { x: props.x, y: props.y };
+      await adjustPosition();
+    }
+  }
+);
 </script>
 
 <style scoped>

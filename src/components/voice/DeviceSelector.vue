@@ -11,6 +11,12 @@
     </button>
 
     <Teleport to="body">
+      <!-- Invisible backdrop to catch clicks outside -->
+      <div 
+        v-if="isOpen"
+        class="device-dropdown-backdrop"
+        @click="closeDropdown"
+      />
       <Transition name="dropdown">
         <div
           v-if="isOpen"
@@ -186,6 +192,11 @@ const loadDevices = async () => {
 
 const toggleDropdown = async () => {
   if (!isOpen.value) {
+    // Set initial position from trigger before showing (prevents flash at 0,0)
+    if (selectorRef.value) {
+      const rect = selectorRef.value.getBoundingClientRect();
+      dropdownPosition.value = { x: rect.left, y: rect.bottom + 8 };
+    }
     // Load devices when opening
     await loadDevices();
   }
@@ -310,6 +321,16 @@ watch(isOpen, (newVal) => {
 </script>
 
 <style scoped>
+/* Backdrop to catch clicks outside */
+.device-dropdown-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10009;
+}
+
 .device-selector {
   position: relative;
   display: inline-flex;

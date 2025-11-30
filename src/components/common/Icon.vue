@@ -157,6 +157,12 @@
     <polyline v-if="name === 'maximize'" points="17 17 19 17 19 19 17 19"></polyline>
     <polyline v-if="name === 'maximize'" points="7 17 7 19 5 19 5 17"></polyline>
 
+    <!-- Maximize 2 (arrows pointing outward) -->
+    <polyline v-if="name === 'maximize-2'" points="15 3 21 3 21 9"></polyline>
+    <polyline v-if="name === 'maximize-2'" points="9 21 3 21 3 15"></polyline>
+    <line v-if="name === 'maximize-2'" x1="21" y1="3" x2="14" y2="10"></line>
+    <line v-if="name === 'maximize-2'" x1="3" y1="21" x2="10" y2="14"></line>
+
     <!-- Minimize -->
     <rect v-if="name === 'minimize'" x="3" y="11" width="18" height="2" rx="1" ry="1"></rect>
     
