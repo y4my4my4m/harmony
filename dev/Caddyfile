@@ -26,9 +26,9 @@
 har.mony.local {
 	tls /etc/certs/har.mony.local+3.pem /etc/certs/har.mony.local+3-key.pem
 
-	# API routes -> Federation backend
+	# API routes -> Federation backend (running in Docker)
 	handle /api/* {
-		reverse_proxy host.docker.internal:3001
+		reverse_proxy harmony-dev-backend:3001
 	}
 	
 	# WebSocket for Vite HMR

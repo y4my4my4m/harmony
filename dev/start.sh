@@ -44,17 +44,22 @@ echo "📡 Starting LiveKit..."
 cd "$ROOT_DIR/webrtc"
 docker compose up -d
 
-# Start Caddy proxy
-echo "🔒 Starting Caddy (HTTPS proxy)..."
+# Start Caddy proxy + Federation backend
+echo "🔒 Starting Caddy (HTTPS proxy) + Federation Backend..."
 cd "$SCRIPT_DIR"
-docker compose up -d
+docker compose up -d --build
 
 echo ""
 echo "✅ Infrastructure started!"
 echo ""
+echo "  Federation backend is running in Docker (connected to Supabase network)"
+echo ""
 echo "Next steps:"
-echo "  1. Start federation backend:  cd $ROOT_DIR/federation-backend && npm run dev"
-echo "  2. Start Vite dev server:     cd $ROOT_DIR && npm run dev -- --host 0.0.0.0"
-echo "  3. Open: https://har.mony.local"
+echo "  1. Start Vite dev server:  cd $ROOT_DIR && npm run dev -- --host 0.0.0.0"
+echo "  2. Open: https://har.mony.local"
+echo ""
+echo "Logs:"
+echo "  docker logs -f harmony-dev-backend   # Federation backend"
+echo "  docker logs -f harmony-dev-caddy     # Caddy proxy"
 echo ""
 

@@ -6,8 +6,8 @@ version: "3.8"
 # 
 # This docker-compose provides:
 # - Caddy reverse proxy with HTTPS (using mkcert certificates)
+# - Federation backend (in Docker to access PostgreSQL for pg-boss)
 # - Vite dev server proxied to https://har.mony.local
-# - Federation backend proxied to https://har.mony.local/api
 # - LiveKit proxied to wss://live.mony.local
 #
 # SETUP:
@@ -55,26 +55,38 @@ services:
       - supabase_default
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      - federation-backend
 
   # ---------------------------------------------------------------------------
-  # FEDERATION BACKEND (optional - can also run with npm run dev)
+  # FEDERATION BACKEND
+  # Must run in Docker to access PostgreSQL (pg-boss) on supabase_default network
   # ---------------------------------------------------------------------------
-  # Uncomment to run federation-backend in Docker instead of locally
-  # federation-backend:
-  #   build:
-  #     context: ../federation-backend
-  #     dockerfile: Dockerfile.dev
-  #   container_name: harmony-dev-backend
-  #   restart: unless-stopped
-  #   env_file:
-  #     - ../federation-backend/.env
-  #   volumes:
-  #     - ../federation-backend/src:/app/src:ro
-  #   networks:
-  #     - harmony-dev
-  #     - supabase_default
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
+  federation-backend:
+    build:
+      context: ../federation-backend
+      dockerfile: Dockerfile.dev
+    container_name: harmony-dev-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../federation-backend/.env
+    environment:
+      # Override for Docker networking
+      - SUPABASE_URL=http://supabase-kong:8000
+      - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - LIVEKIT_URL=ws://harmony-livekit:7880
+      - CORS_ORIGIN=https://har.mony.local
+    volumes:
+      # Mount source for hot-reload with tsx watch
+      - ../federation-backend/src:/app/src
+      - ../federation-backend/tsconfig.json:/app/tsconfig.json:ro
+    networks:
+      - harmony-dev
+      - supabase_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   harmony-dev:
@@ -85,4 +97,3 @@ networks:
 volumes:
   caddy-data:
   caddy-config:
-

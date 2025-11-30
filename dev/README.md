@@ -102,14 +102,7 @@ cd dev
 docker compose up -d
 ```
 
-### Step 4: Start the Federation Backend
-
-```bash
-cd federation-backend
-npm run dev
-```
-
-### Step 5: Start the Vite Dev Server
+### Step 4: Start the Vite Dev Server
 
 ```bash
 npm run dev -- --host 0.0.0.0
