@@ -155,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUpdated, nextTick } from 'vue';
+import { computed, ref, watch, onUpdated, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
@@ -285,22 +285,38 @@ const voiceIntensity = computed(() => {
   return Math.min(props.userState.audioLevel / 100, 1);
 });
 
-const hasVideo = computed(() => {
-  const hasVideoTracks = userStream.value?.getVideoTracks().length ?? 0;
-  const stateIndicatesVideo = props.userState.isVideoEnabled || props.userState.isScreenSharing;
+// Get user state directly from store for reactivity
+// This bypasses any issues with props not updating correctly
+const storeUserState = computed(() => {
+  const userId = props.userState.userId;
   
-  // Show video if tracks exist OR state says video is on
-  // This handles both turn-on (state first) and turn-off (tracks removed first)
-  return hasVideoTracks > 0 || stateIndicatesVideo;
+  // For local user, use localState
+  if (userId === voiceStore.localState.userId) {
+    return voiceStore.localState;
+  }
+  
+  // For remote users, find in allUsers
+  const user = voiceStore.allUsers.find(u => u.userId === userId);
+  return user || props.userState;
+});
+
+const hasVideo = computed(() => {
+  // Read directly from store state for better reactivity
+  // Also trigger on streamUpdateCounter changes
+  const _counter = voiceStore.streamUpdateCounter;
+  const state = storeUserState.value;
+  const result = state.isVideoEnabled || state.isScreenSharing;
+  debug.log(`🎥 hasVideo for ${state.userId}: ${result} (isVideoEnabled: ${state.isVideoEnabled}, isScreenSharing: ${state.isScreenSharing}, counter: ${_counter})`);
+  return result;
 });
 
 const connectionQuality = computed(() => {
   const state = connectionState.value;
-  // Note: This is a simplistic check. Real-world quality might come from WebRTC stats.
-  if (props.userState.audioLevel > 30) return 'excellent';
-  if (props.userState.audioLevel > 15) return 'good';
+  // Connection quality based on connection state
+  // TODO: In the future, integrate actual WebRTC stats (RTT, packet loss, etc.)
   if (state === 'disconnected') return 'poor';
-  return 'fair';
+  // Default to excellent for connected users - only show indicator if there's an issue
+  return 'excellent';
 });
 
 const userStatus = computed(() => {
@@ -331,10 +347,8 @@ const isLocallyMuted = computed(() => {
 const connectionBars = computed(() => {
   switch (connectionQuality.value) {
     case 'excellent': return 4;
-    case 'good': return 3;
-    case 'fair': return 2;
     case 'poor': return 1;
-    default: return 0;
+    default: return 4; // Default to excellent
   }
 });
 
@@ -404,31 +418,47 @@ const handleContextMenu = (event: MouseEvent) => {
 
 // Function to attach video to element
 const attachVideo = () => {
-  if (!videoElement.value) return;
+  const userId = props.userState.userId;
+  const state = storeUserState.value;
   
-  const shouldShowVideo = props.userState.isVideoEnabled || props.userState.isScreenSharing;
+  if (!videoElement.value) {
+    debug.log(`📹 attachVideo: No video element for ${userId}`);
+    return;
+  }
+  
+  const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
+  debug.log(`📹 attachVideo called for ${userId}:`, {
+    shouldShowVideo,
+    isVideoEnabled: state.isVideoEnabled,
+    isScreenSharing: state.isScreenSharing,
+    hasStream: !!userStream.value,
+    videoTracks: userStream.value?.getVideoTracks?.()?.length ?? 0
+  });
   
   if (shouldShowVideo) {
     // Use LiveKit's proper attach method - this is CRITICAL for adaptive streaming
     // Using srcObject directly causes LiveKit to disable all simulcast layers (frozen video)
-    const attached = voiceStore.attachVideoToElement(props.userState.userId, videoElement.value);
+    const attached = voiceStore.attachVideoToElement(userId, videoElement.value);
     if (attached) {
-      debug.log(`📹 Attached video for user ${props.userState.userId} using LiveKit attach()`);
+      debug.log(`📹 ✅ Attached video for user ${userId} using LiveKit attach()`);
     } else {
       // Fallback to srcObject for P2P mode or if attach fails
       const stream = userStream.value;
       if (stream && stream.getVideoTracks().length > 0) {
         videoElement.value.srcObject = stream;
-        debug.log(`📹 Fallback: Setting srcObject for user ${props.userState.userId}`);
+        debug.log(`📹 ⚠️ Fallback: Setting srcObject for user ${userId}`);
       } else {
-        debug.log(`⏳ No video track yet for ${props.userState.userId}, will retry on next update`);
+        debug.log(`📹 ⏳ No video track yet for ${userId}, will retry on next update`);
       }
     }
   } else {
     // Detach video properly when turning off
-    voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
+    voiceStore.detachVideoFromElement(userId, videoElement.value);
+    // Clear the video element completely
     videoElement.value.srcObject = null;
-    debug.log(`📹 Detached video for user ${props.userState.userId} (camera/screen off)`);
+    videoElement.value.src = '';
+    videoElement.value.load(); // Force reload to clear any cached frames
+    debug.log(`📹 Detached and cleared video for user ${userId} (camera/screen off)`);
   }
 };
 
@@ -438,8 +468,8 @@ const attachVideo = () => {
 watch(
   [
     () => userStream.value, 
-    () => props.userState.isVideoEnabled, 
-    () => props.userState.isScreenSharing,
+    () => storeUserState.value.isVideoEnabled, 
+    () => storeUserState.value.isScreenSharing,
     () => voiceStore.streamUpdateCounter // Force re-run when any stream updates
   ],
   () => {
@@ -447,6 +477,23 @@ watch(
     nextTick(() => attachVideo());
   },
   { immediate: true }
+);
+
+// Debug watcher to track when hasVideo changes
+watch(
+  () => hasVideo.value,
+  (newVal, oldVal) => {
+    debug.log(`🔄 hasVideo changed for ${props.userState.userId}: ${oldVal} -> ${newVal}`);
+  }
+);
+
+// Debug watcher for props changes
+watch(
+  () => props.userState,
+  (newState) => {
+    debug.log(`📋 Props userState changed for ${newState.userId}: isVideoEnabled=${newState.isVideoEnabled}, isScreenSharing=${newState.isScreenSharing}`);
+  },
+  { deep: true }
 );
 
 // Also watch for when video element becomes available (v-if renders it)
@@ -481,6 +528,12 @@ onUpdated(() => {
   min-height: 200px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Clickable cursor for video cards */

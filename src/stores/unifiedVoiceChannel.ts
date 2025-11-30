@@ -140,11 +140,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     // Get all participants (including self)
+    // Uses spread to create new object references, ensuring Vue detects changes
     allParticipants: (state) => {
-      const participants = [state.localState];
+      const participants = [{ ...state.localState }];
       state.allUsers.forEach(user => {
         if (user.userId !== state.localState.userId) {
-          participants.push(user);
+          participants.push({ ...user });
         }
       });
       return participants;
@@ -326,9 +327,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Initialize spatial audio
         await this.initializeSpatialAudio(userId);
         
-        // Start with overlay hidden - it will auto-open when video is detected
-        // via the user-state-changed or user-stream-changed event handlers
-        this.isOverlayVisible = false;
+        // Don't reset isOverlayVisible here - it may have been set to true
+        // by event handlers (user-joined, user-state-changed) that detected
+        // existing video/screenshare. Let the event handlers control this.
         
         // Play join sound
         themeStore.testAudio('voice_connect');
@@ -594,8 +595,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const saved = localStorage.getItem('harmony-stream-settings');
         if (saved) {
           const settings = JSON.parse(saved);
+          // Handle -1 (source/native) as valid, only default if truly undefined
           this.streamSettings = {
-            resolution: settings.resolution || 720,
+            resolution: settings.resolution !== undefined ? settings.resolution : 720,
             frameRate: settings.frameRate || 30
           };
         }
@@ -800,21 +802,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       webrtcManager.on('user-state-changed', (data) => {
-        debug.log('🎛️ User state changed:', data);
+        debug.log('🎛️ User state changed:', data, 'isVideoEnabled:', data.mediaState?.isVideoEnabled);
         
         // Update user state
         const userIndex = this.allUsers.findIndex(u => u.userId === data.userId);
         if (userIndex !== -1) {
+          // Direct assignment - Vue 3/Pinia should handle reactivity
           this.allUsers[userIndex] = data.mediaState;
+        } else if (data.mediaState && data.mediaState.userId) {
+          // User not in list yet - add them
+          debug.log('➕ User not in list, adding:', data.userId);
+          this.allUsers.push(data.mediaState);
         }
         
-        // Auto-open overlay when someone starts video/screenshare
-        if (data.mediaState?.isVideoEnabled || data.mediaState?.isScreenSharing) {
-          if (!this.isOverlayVisible) {
-            this.isOverlayVisible = true;
-            debug.log('📺 Auto-opening overlay - video/screenshare detected from:', data.userId);
-          }
-        }
+        // Force reactivity by incrementing counter
+        this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
+        
+        // NOTE: Don't auto-open overlay here - this fires on every state change
+        // Auto-open only happens in user-joined for initial sync when joining
       });
 
       webrtcManager.on('user-stream-changed', (data) => {
@@ -824,13 +829,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.remoteStreams.set(data.userId, data.stream);
           // Add to spatial audio
           this.addUserToSpatialAudio(data.userId);
-          
-          // Check if this stream has video tracks and auto-open overlay
-          const videoTracks = data.stream.getVideoTracks();
-          if (videoTracks.length > 0 && !this.isOverlayVisible) {
-            this.isOverlayVisible = true;
-            debug.log('📺 Auto-opening overlay - video stream detected from:', data.userId);
-          }
         } else {
           this.remoteStreams.delete(data.userId);
           // Remove from spatial audio
@@ -843,8 +841,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       // Local events
       webrtcManager.on('local-state-changed', (state) => {
-        // debug.log('🎛️ Local state changed in store:', state);
-        // debug.log('🗣️ Local speaking state in store:', state.isSpeaking, 'audioLevel:', state.audioLevel);
+        debug.log('🎛️ Local state changed in store:', {
+          isVideoEnabled: state.isVideoEnabled,
+          isScreenSharing: state.isScreenSharing,
+          isMuted: state.isMuted
+        });
         this.localState = state;
       });
       

@@ -7,6 +7,19 @@
       </p>
     </div>
 
+    <!-- Permission Notice for Read-Only Users -->
+    <div v-if="!permissions.canUpload && !permissions.canDelete" class="permission-notice">
+      <div class="notice-content">
+        <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
+          <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+        </svg>
+        <div class="notice-text">
+          <h4>{{ $t('confirmation.emojiViewOnlyAccess') }}</h4>
+          <p>{{ $t('confirmation.emojiViewOnlyMessage') }}</p>
+        </div>
+      </div>
+    </div>
+  
     <div class="settings-card" v-if="permissions.canManageCrossServer">
       <div class="form-group">
         <div class="setting-row">
@@ -214,19 +227,6 @@
               </svg>
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Permission Notice for Read-Only Users -->
-    <div v-if="!permissions.canUpload && !permissions.canDelete" class="permission-notice">
-      <div class="notice-content">
-        <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
-          <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
-        </svg>
-        <div class="notice-text">
-          <h4>{{ $t('server.emojiViewOnlyAccess') }}</h4>
-          <p>{{ $t('server.emojiViewOnlyMessage') }}</p>
         </div>
       </div>
     </div>

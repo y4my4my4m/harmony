@@ -276,10 +276,11 @@ const menuStyle = computed(() => ({
 }));
 
 // Stream Quality Options
+// Note: -1 = Source (native resolution), other values are specific resolutions
 const resolutionOptions = [
   { value: 720, label: '720p HD', short: '720p' },
   { value: 1080, label: '1080p Full HD', short: '1080p' },
-  { value: 0, label: 'Source', short: 'Source' }, // 0 = native resolution
+  { value: -1, label: 'Source (Native)', short: 'Source' }, // -1 = native resolution
 ];
 
 const frameRateOptions = [
@@ -289,7 +290,11 @@ const frameRateOptions = [
 ];
 
 // Current quality settings (from store or defaults)
-const currentResolution = computed(() => voiceStore.streamSettings?.resolution || 720);
+// Handle -1 (source) as a valid value, default to 720 only if undefined/null
+const currentResolution = computed(() => {
+  const res = voiceStore.streamSettings?.resolution;
+  return res !== undefined && res !== null ? res : 720;
+});
 const currentFrameRate = computed(() => voiceStore.streamSettings?.frameRate || 30);
 
 const setResolution = async (resolution: number) => {
@@ -444,8 +449,8 @@ watch(
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.6),
     0 4px 16px rgba(0, 0, 0, 0.4);
-  min-width: 240px;
-  max-width: 300px;
+  min-width: 280px;
+  max-width: 340px;
   overflow: hidden;
   animation: menu-appear 0.15s ease-out;
 }
@@ -614,7 +619,8 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  gap: 12px;
 }
 
 .quality-row:last-child {
@@ -624,23 +630,29 @@ watch(
 .quality-label {
   font-size: 12px;
   color: #b9bbbe;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .quality-options {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .quality-btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: 6px;
   color: #b9bbbe;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+  min-width: 50px;
+  text-align: center;
 }
 
 .quality-btn:hover {
