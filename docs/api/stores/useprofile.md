@@ -9,15 +9,14 @@ graph TB
     subgraph "useProfile Store"
         USEPROFILESTORE[useProfileStore]
     end
-    
-    
-    
-    
 ```
+
 
 ## Exports
 
-- **useProfileStore** - No description
+- **useProfileStore** - const export
+
+
 
 
 
@@ -31,14 +30,14 @@ graph TB
 
 ## Source Code Insights
 
-**File Size:** 4416 characters
-**Lines of Code:** 137
-**Imports:** 4
+**File Size:** 4921 characters
+**Lines of Code:** 138
+**Imports:** 5
 
 ## Usage Example
 
 ```typescript
-import { useProfileStore } from '@/stores/useProfile.ts'
+import { useProfileStore } from '@/stores/useProfile'
 
 // Example usage
 // Use the exported functionality

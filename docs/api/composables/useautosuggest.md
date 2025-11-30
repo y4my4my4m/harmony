@@ -14,47 +14,32 @@ graph TB
     end
     
     subgraph "Functions"
-        USEAUTOSUGGEST[useAutoSuggest()]
-        SEARCHACTIVITYPUBUSERS[searchActivityPubUsers()]
-        HANDLEINPUT[handleInput()]
-        CLOSESUGGESTIONS[closeSuggestions()]
-        UPDATEPOSITION[updatePosition()]
+        FN_SEARCHACTIVITYPUBUSERS[searchActivityPubUsers]
+        FN_CALCULATECURSORPOSITION[calculateCursorPosition]
+        FN_HANDLEINPUT[handleInput]
+        FN_HANDLEKEYDOWN[handleKeyDown]
+        FN_SELECTSUGGESTION[selectSuggestion]
+        FN_CLOSESUGGESTIONS[closeSuggestions]
+        FN_UPDATEPOSITION[updatePosition]
     end
     
     subgraph "Interfaces"
-        AUTOSUGGESTTRIGGER[AutoSuggestTrigger]
-        AUTOSUGGESTSTATE[AutoSuggestState]
-        AUTOSUGGESTCONFIG[AutoSuggestConfig]
-        RICHTEXTEDITORREF[RichTextEditorRef]
+        INT_AUTOSUGGESTTRIGGER[AutoSuggestTrigger]
+        INT_AUTOSUGGESTSTATE[AutoSuggestState]
+        INT_AUTOSUGGESTCONFIG[AutoSuggestConfig]
+        INT_RICHTEXTEDITORREF[RichTextEditorRef]
     end
 ```
 
+
 ## Exports
 
-- **AutoSuggestTrigger** - No description
-- **AutoSuggestState** - No description
-- **AutoSuggestConfig** - No description
-- **useAutoSuggest** - No description
+- **AutoSuggestTrigger** - interface export
+- **AutoSuggestState** - interface export
+- **AutoSuggestConfig** - interface export
+- **useAutoSuggest** - function export
 
 ## Functions
-
-### `useAutoSuggest(inputElement: Ref<InputElementType | null>, getCurrentText?: ()`
-
-No description available.
-
-**Parameters:**
-- `inputElement: Ref<InputElementType | null>`
-- `getCurrentText?: (`
-
-**Returns:** Unknown
-
-```typescript
-export function useAutoSuggest(
-  inputElement: Ref<InputElementType | null>,
-  getCurrentText?: () => string,
-  updateText?: (newText: string, cursorPosition?: number) => void,
-  config: AutoSuggestConfig = {
-```
 
 ### `searchActivityPubUsers(query: string)`
 
@@ -63,10 +48,23 @@ No description available.
 **Parameters:**
 - `query: string`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const searchActivityPubUsers = async (query: string) =>
+```
+
+### `calculateCursorPosition()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `SuggestionPosition`
+
+```typescript
+const calculateCursorPosition = (): SuggestionPosition =>
 ```
 
 ### `handleInput(value: string, cursorPosition: number)`
@@ -77,10 +75,36 @@ No description available.
 - `value: string`
 - `cursorPosition: number`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleInput = (value: string, cursorPosition: number) =>
+```
+
+### `handleKeyDown(event: KeyboardEvent)`
+
+No description available.
+
+**Parameters:**
+- `event: KeyboardEvent`
+
+**Returns:** `boolean`
+
+```typescript
+const handleKeyDown = (event: KeyboardEvent): boolean =>
+```
+
+### `selectSuggestion(suggestion: SuggestionItem)`
+
+No description available.
+
+**Parameters:**
+- `suggestion: SuggestionItem`
+
+**Returns:** `string`
+
+```typescript
+const selectSuggestion = (suggestion: SuggestionItem): string =>
 ```
 
 ### `closeSuggestions()`
@@ -90,7 +114,7 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const closeSuggestions = () =>
@@ -103,7 +127,7 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const updatePosition = () =>
@@ -119,10 +143,12 @@ const updatePosition = () =>
 No description available.
 
 ```typescript
-export interface AutoSuggestTrigger {
+interface AutoSuggestTrigger {
+
   char: string;
   pattern: RegExp;
   type: 'emoji' | 'mention';
+
 }
 ```
 
@@ -131,13 +157,15 @@ export interface AutoSuggestTrigger {
 No description available.
 
 ```typescript
-export interface AutoSuggestState {
+interface AutoSuggestState {
+
   isActive: boolean;
   triggerType: 'emoji' | 'mention' | null;
   query: string;
   triggerPosition: number;
   selectedIndex: number;
   position: SuggestionPosition;
+
 }
 ```
 
@@ -146,11 +174,13 @@ export interface AutoSuggestState {
 No description available.
 
 ```typescript
-export interface AutoSuggestConfig {
+interface AutoSuggestConfig {
+
   mode: 'chat' | 'activitypub';
   enableEmojis?: boolean;
   enableMentions?: boolean;
   maxSuggestions?: number;
+
 }
 ```
 
@@ -160,10 +190,12 @@ No description available.
 
 ```typescript
 interface RichTextEditorRef {
+
   getCursorPosition?: () => number;
   focus?: () => void;
   insertTextAtCursor?: (text: string) => void;
   $el?: HTMLElement;
+
 }
 ```
 
@@ -175,25 +207,27 @@ interface RichTextEditorRef {
 No description available.
 
 ```typescript
-type InputElementType = HTMLTextAreaElement | HTMLInputElement | RichTextEditorRef | any
+type InputElementType = HTMLTextAreaElement | HTMLInputElement | RichTextEditorRef | any;
 ```
+
+
 
 
 
 
 ## Source Code Insights
 
-**File Size:** 19565 characters
-**Lines of Code:** 581
-**Imports:** 8
+**File Size:** 22428 characters
+**Lines of Code:** 644
+**Imports:** 9
 
 ## Usage Example
 
 ```typescript
-import { AutoSuggestTrigger, AutoSuggestState, AutoSuggestConfig, useAutoSuggest } from '@/composables/useAutoSuggest.ts'
+import { AutoSuggestTrigger, AutoSuggestState, AutoSuggestConfig, useAutoSuggest } from '@/composables/useAutoSuggest'
 
 // Example usage
-useAutoSuggest()
+searchActivityPubUsers()
 ```
 
 ---

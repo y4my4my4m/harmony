@@ -1,6 +1,6 @@
 # MonyMediaGallery
 
-No description available.
+A Vue component.
 
 **File:** `src/components/activitypub/MonyMediaGallery.vue`
 

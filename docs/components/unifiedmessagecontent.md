@@ -1,6 +1,6 @@
 # UnifiedMessageContent
 
-No description available.
+A Vue component.
 
 **File:** `src/components/UnifiedMessageContent.vue`
 
@@ -26,6 +26,10 @@ graph TB
 | `isSingleEmoji` | `boolean` | `false` | ❌ | No description |
 | `editableContent` | `string` | `''` | ❌ | No description |
 | `isSystem` | `boolean` | `false` | ❌ | No description |
+| `embedPayloads` | `Record<string, EmbedPayload> | null` | `null` | ❌ | No description |
+| `encrypted` | `boolean` | `false` | ❌ | No description |
+| `decrypted` | `boolean` | `false` | ❌ | No description |
+| `canDecrypt` | `boolean` | `false` | ❌ | No description |
 
 ### Props Details
 
@@ -99,29 +103,63 @@ No description available.
 
 
 
+#### `embedPayloads`
+
+No description available.
+
+- **Type:** `Record<string, EmbedPayload> | null`
+- **Required:** No
+- **Default:** `null`
+
+
+
+#### `encrypted`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
+#### `decrypted`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
+#### `canDecrypt`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
 
 ## Events
 
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `show-user-profile` | unknown | No description |
-| `image-loaded` | unknown | No description |
 | `open-lightbox` | unknown | No description |
 | `update:message` | unknown | No description |
 | `update:content` | unknown | No description |
 | `cancel-edit` | unknown | No description |
+| `image-loaded` | unknown | No description |
+| `hashtag-click` | unknown | No description |
+| `decrypt-message` | unknown | No description |
 
 ### Event Details
 
 #### `show-user-profile`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `image-loaded`
 
 No description available.
 
@@ -161,6 +199,30 @@ No description available.
 
 
 
+#### `image-loaded`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `hashtag-click`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `decrypt-message`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -178,20 +240,18 @@ This component exposes no public methods.
     :content="undefined"
     :messageId=""example""
     @show-user-profile="handleShow-user-profile"
-    @image-loaded="handleImage-loaded"
     @open-lightbox="handleOpen-lightbox"
     @update:message="handleUpdate:message"
     @update:content="handleUpdate:content"
-    @cancel-edit="handleCancel-edit" />
+    @cancel-edit="handleCancel-edit"
+    @image-loaded="handleImage-loaded"
+    @hashtag-click="handleHashtag-click"
+    @decrypt-message="handleDecrypt-message" />
 </template>
 
 <script setup lang="ts">
 const handleShow-user-profile = (data) => {
   // Handle show-user-profile event
-}
-
-const handleImage-loaded = (data) => {
-  // Handle image-loaded event
 }
 
 const handleOpen-lightbox = (data) => {
@@ -208,6 +268,18 @@ const handleUpdate:content = (data) => {
 
 const handleCancel-edit = (data) => {
   // Handle cancel-edit event
+}
+
+const handleImage-loaded = (data) => {
+  // Handle image-loaded event
+}
+
+const handleHashtag-click = (data) => {
+  // Handle hashtag-click event
+}
+
+const handleDecrypt-message = (data) => {
+  // Handle decrypt-message event
 }
 </script>
 ```

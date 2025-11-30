@@ -12,17 +12,16 @@ graph TB
     end
     
     subgraph "Functions"
-        GETAVATARURL[getAvatarUrl()]
-        NORMALIZEAVATARFORSTORAGE[normalizeAvatarForStorage()]
+        FN_GETAVATARURL[getAvatarUrl]
+        FN_NORMALIZEAVATARFORSTORAGE[normalizeAvatarForStorage]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **getAvatarUrl** - No description
-- **normalizeAvatarForStorage** - No description
+- **getAvatarUrl** - function export
+- **normalizeAvatarForStorage** - function export
 
 ## Functions
 
@@ -33,10 +32,15 @@ No description available.
 **Parameters:**
 - `avatarUrl: string | null | undefined`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function getAvatarUrl(avatarUrl: string | null | undefined): string {
+/**
+ * Normalizes avatar URL to ensure consistent display across the application
+ * Handles both full URLs and path-only formats
+ * Always returns the proper public URL for Supabase storage paths
+ */
+export function getAvatarUrl(avatarUrl: string | null | undefined): string
 ```
 
 ### `normalizeAvatarForStorage(avatarUrl: string | null | undefined)`
@@ -46,11 +50,17 @@ No description available.
 **Parameters:**
 - `avatarUrl: string | null | undefined`
 
-**Returns:** Unknown
+**Returns:** `string | null`
 
 ```typescript
-export function normalizeAvatarForStorage(avatarUrl: string | null | undefined): string | null {
+/**
+ * Normalizes avatar URL for storage - ensures we store paths, not full URLs
+ * This should be used before saving avatar URLs to the database
+ */
+export function normalizeAvatarForStorage(avatarUrl: string | null | undefined): string | null
 ```
+
+
 
 
 
@@ -63,14 +73,14 @@ export function normalizeAvatarForStorage(avatarUrl: string | null | undefined):
 
 ## Source Code Insights
 
-**File Size:** 2219 characters
-**Lines of Code:** 64
+**File Size:** 2160 characters
+**Lines of Code:** 63
 **Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { getAvatarUrl, normalizeAvatarForStorage } from '@/utils/avatarUtils.ts'
+import { getAvatarUrl, normalizeAvatarForStorage } from '@/utils/avatarUtils'
 
 // Example usage
 getAvatarUrl()

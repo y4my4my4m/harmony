@@ -1,6 +1,6 @@
 # CodeBlock
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/CodeBlock.vue`
 

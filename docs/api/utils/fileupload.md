@@ -8,23 +8,31 @@
 graph TB
     subgraph "fileUpload Utility"
         UPLOADRESULT[UploadResult]
+        UPLOADFILE[uploadFile]
+        UPLOADAVATAR[uploadAvatar]
+        UPLOADSERVERICON[uploadServerIcon]
+        DELETEFILE[deleteFile]
     end
     
     subgraph "Functions"
-        UPLOADFILE[uploadFile()]
-        UPLOADAVATAR[uploadAvatar()]
-        UPLOADSERVERICON[uploadServerIcon()]
-        DELETEFILE[deleteFile()]
+        FN_UPLOADFILE[uploadFile]
+        FN_UPLOADSERVERICON[uploadServerIcon]
+        FN_DELETEFILE[deleteFile]
     end
     
     subgraph "Interfaces"
-        UPLOADRESULT[UploadResult]
+        INT_UPLOADRESULT[UploadResult]
     end
 ```
 
+
 ## Exports
 
-- **UploadResult** - No description
+- **UploadResult** - interface export
+- **uploadFile** - function export
+- **uploadAvatar** - function export
+- **uploadServerIcon** - function export
+- **deleteFile** - function export
 
 ## Functions
 
@@ -37,28 +45,21 @@ No description available.
 - `bucket: string`
 - `path: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;UploadResult&gt;`
 
 ```typescript
+/**
+ * Upload a file to Supabase storage
+ * @param file The file to upload
+ * @param bucket The storage bucket name
+ * @param path The file path in the bucket
+ * @returns Promise<UploadResult>
+ */
 export async function uploadFile(
   file: File,
   bucket: string,
   path: string
-): Promise<UploadResult> {
-```
-
-### `uploadAvatar(file: File, userId: string)`
-
-No description available.
-
-**Parameters:**
-- `file: File`
-- `userId: string`
-
-**Returns:** Unknown
-
-```typescript
-export async function uploadAvatar(file: File, userId: string): Promise<UploadResult> {
+): Promise<UploadResult>
 ```
 
 ### `uploadServerIcon(file: File, serverId: string)`
@@ -69,10 +70,35 @@ No description available.
 - `file: File`
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;UploadResult&gt;`
 
 ```typescript
-export async function uploadServerIcon(file: File, serverId: string): Promise<UploadResult> {
+/**
+ * Upload user avatar
+ * @param file The avatar file
+ * @param userId The user ID
+ * @returns Promise<UploadResult>
+ */
+// TODO: profileService.ts should handle avatar uploads, not this file
+export async function uploadAvatar(file: File, userId: string): Promise<UploadResult> {
+  // const fileExt = file.name.split('.').pop() || 'jpg';
+  // Let Supabase auto-generate the UUID, just provide the folder structure
+  const filePath = `${userId}/${file.name}`;
+
+  const processedFile: UploadResult = await uploadFile(file, 'avatars', filePath);
+  if (!processedFile.success) {
+    processedFile.path = filePath; // Include path even if upload failed
+  }
+  return processedFile;
+}
+
+/**
+ * Upload server icon
+ * @param file The icon file
+ * @param serverId The server ID
+ * @returns Promise<UploadResult>
+ */
+export async function uploadServerIcon(file: File, serverId: string): Promise<UploadResult>
 ```
 
 ### `deleteFile(bucket: string, path: string)`
@@ -83,10 +109,16 @@ No description available.
 - `bucket: string`
 - `path: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;boolean&gt;`
 
 ```typescript
-export async function deleteFile(bucket: string, path: string): Promise<boolean> {
+/**
+ * Delete a file from storage
+ * @param bucket The storage bucket name
+ * @param path The file path
+ * @returns Promise<boolean>
+ */
+export async function deleteFile(bucket: string, path: string): Promise<boolean>
 ```
 
 
@@ -99,11 +131,13 @@ export async function deleteFile(bucket: string, path: string): Promise<boolean>
 No description available.
 
 ```typescript
-export interface UploadResult {
+interface UploadResult {
+
   success: boolean;
   url?: string;
   path?: string;
   error?: string;
+
 }
 ```
 
@@ -112,16 +146,18 @@ export interface UploadResult {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 3409 characters
-**Lines of Code:** 133
-**Imports:** 1
+**File Size:** 3394 characters
+**Lines of Code:** 134
+**Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { UploadResult } from '@/utils/fileUpload.ts'
+import { UploadResult, uploadFile, uploadAvatar, uploadServerIcon, deleteFile } from '@/utils/fileUpload'
 
 // Example usage
 uploadFile()

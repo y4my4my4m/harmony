@@ -1,6 +1,6 @@
 # DMHeader
 
-No description available.
+A Vue component.
 
 **File:** `src/components/dm/DMHeader.vue`
 
@@ -50,11 +50,22 @@ No description available.
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `toggle-left-sidebar` | unknown | No description |
+| `add-user` | unknown | No description |
 | `toggle-voice-panel` | unknown | No description |
+| `group-updated` | unknown | No description |
+| `incoming-call` | { callerId: string, callType: 'voice' | 'video', conversationId: string } | No description |
 
 ### Event Details
 
 #### `toggle-left-sidebar`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `add-user`
 
 No description available.
 
@@ -67,6 +78,22 @@ No description available.
 No description available.
 
 **Parameters:** `unknown`
+
+
+
+#### `group-updated`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `incoming-call`
+
+No description available.
+
+**Parameters:** `{ callerId: string, callType: 'voice' | 'video', conversationId: string }`
 
 
 
@@ -86,7 +113,10 @@ This component exposes no public methods.
   <DMHeader
     :conversation="undefined"
     @toggle-left-sidebar="handleToggle-left-sidebar"
-    @toggle-voice-panel="handleToggle-voice-panel" />
+    @add-user="handleAdd-user"
+    @toggle-voice-panel="handleToggle-voice-panel"
+    @group-updated="handleGroup-updated"
+    @incoming-call="handleIncoming-call" />
 </template>
 
 <script setup lang="ts">
@@ -94,8 +124,20 @@ const handleToggle-left-sidebar = (data) => {
   // Handle toggle-left-sidebar event
 }
 
+const handleAdd-user = (data) => {
+  // Handle add-user event
+}
+
 const handleToggle-voice-panel = (data) => {
   // Handle toggle-voice-panel event
+}
+
+const handleGroup-updated = (data) => {
+  // Handle group-updated event
+}
+
+const handleIncoming-call = ({ callerId: string, callType: 'voice' | 'video', conversationId: string }) => {
+  // Handle incoming-call event
 }
 </script>
 ```

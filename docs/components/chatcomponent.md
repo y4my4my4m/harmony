@@ -1,6 +1,6 @@
 # ChatComponent
 
-No description available.
+A Vue component.
 
 **File:** `src/components/ChatComponent.vue`
 
@@ -23,6 +23,8 @@ graph TB
 | `isLoading` | `boolean` | `false` | ❌ | No description |
 | `loadMoreMessages` | `TSFunctionType` | `undefined` | ❌ | No description |
 | `isDM` | `boolean` | `false` | ❌ | No description |
+| `channelId` | `string` | `undefined` | ❌ | No description |
+| `conversationId` | `string` | `undefined` | ❌ | No description |
 
 ### Props Details
 
@@ -66,29 +68,49 @@ No description available.
 
 
 
+#### `channelId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `conversationId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
 
 ## Events
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `loadMoreMessages` | unknown | No description |
 | `sendMessage` | Array | No description |
+| `loadMoreMessages` | unknown | No description |
 
 ### Event Details
-
-#### `loadMoreMessages`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
 
 #### `sendMessage`
 
 No description available.
 
 **Parameters:** `Array`
+
+
+
+#### `loadMoreMessages`
+
+No description available.
+
+**Parameters:** `unknown`
 
 
 
@@ -107,17 +129,17 @@ This component exposes no public methods.
 <template>
   <ChatComponent
     :messages="[]"
-    @loadMoreMessages="handleLoadMoreMessages"
-    @sendMessage="handleSendMessage" />
+    @sendMessage="handleSendMessage"
+    @loadMoreMessages="handleLoadMoreMessages" />
 </template>
 
 <script setup lang="ts">
-const handleLoadMoreMessages = (data) => {
-  // Handle loadMoreMessages event
-}
-
 const handleSendMessage = (Array) => {
   // Handle sendMessage event
+}
+
+const handleLoadMoreMessages = (data) => {
+  // Handle loadMoreMessages event
 }
 </script>
 ```

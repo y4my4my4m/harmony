@@ -1,6 +1,6 @@
 # Trash
 
-No description available.
+A Vue component.
 
 **File:** `src/components/icons/Trash.vue`
 

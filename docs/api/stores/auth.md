@@ -11,44 +11,31 @@ graph TB
     end
     
     subgraph "Functions"
-        HANDLEBEFOREUNLOAD[handleBeforeUnload()]
-        HANDLEVISIBILITYCHANGE[handleVisibilityChange()]
+        FN_HANDLEBEFOREUNLOAD[handleBeforeUnload]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **useAuthStore** - No description
+- **useAuthStore** - const export
 
 ## Functions
 
-### `handleBeforeUnload(event: BeforeUnloadEvent)`
+### `handleBeforeUnload(_event: BeforeUnloadEvent)`
 
 No description available.
 
 **Parameters:**
-- `event: BeforeUnloadEvent`
+- `_event: BeforeUnloadEvent`
 
-**Returns:** Unknown
-
-```typescript
-const handleBeforeUnload = (event: BeforeUnloadEvent) =>
-```
-
-### `handleVisibilityChange()`
-
-No description available.
-
-**Parameters:**
-None
-
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
-const handleVisibilityChange = async () =>
+const handleBeforeUnload = (_event: BeforeUnloadEvent) =>
 ```
+
+
 
 
 
@@ -61,14 +48,14 @@ const handleVisibilityChange = async () =>
 
 ## Source Code Insights
 
-**File Size:** 7605 characters
-**Lines of Code:** 208
-**Imports:** 6
+**File Size:** 20400 characters
+**Lines of Code:** 543
+**Imports:** 8
 
 ## Usage Example
 
 ```typescript
-import { useAuthStore } from '@/stores/auth.ts'
+import { useAuthStore } from '@/stores/auth'
 
 // Example usage
 handleBeforeUnload()

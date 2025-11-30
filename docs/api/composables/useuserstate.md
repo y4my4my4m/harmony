@@ -11,20 +11,19 @@ graph TB
     end
     
     subgraph "Functions"
-        USEUSERSTATE[useUserState()]
-        BROADCASTPROFILEUPDATE[broadcastProfileUpdate()]
-        UPDATEUSERSTATUS[updateUserStatus()]
-        GETCURRENTUSER[getCurrentUser()]
-        GETUSER[getUser()]
-        GETSTATS[getStats()]
+        FN_USEUSERSTATE[useUserState]
+        FN_BROADCASTPROFILEUPDATE[broadcastProfileUpdate]
+        FN_UPDATEUSERSTATUS[updateUserStatus]
+        FN_GETCURRENTUSER[getCurrentUser]
+        FN_GETUSER[getUser]
+        FN_GETSTATS[getStats]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **useUserState** - No description
+- **useUserState** - function export
 
 ## Functions
 
@@ -35,10 +34,16 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useUserState() {
+/**
+ * useUserState Composable
+ * 
+ * Provides reactive access to user state management and profile broadcasting
+ * This replaces the old useCleanUserStatus composable with broader scope
+ */
+export function useUserState()
 ```
 
 ### `broadcastProfileUpdate(profileData: {
@@ -58,10 +63,22 @@ No description available.
     bio?: string
   }`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
-const broadcastProfileUpdate = async (profileData: {
+/**
+ * useUserState Composable
+ * 
+ * Provides reactive access to user state management and profile broadcasting
+ * This replaces the old useCleanUserStatus composable with broader scope
+ */
+export function useUserState() {
+  
+  /**
+   * Broadcast profile updates to all connected clients in context
+   * This ensures real-time profile updates across all UI views
+   */
+  const broadcastProfileUpdate = async (profileData: {
     displayName?: string
     avatarUrl?: string
     color?: string
@@ -76,10 +93,13 @@ No description available.
 **Parameters:**
 - `status: number`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
-const updateUserStatus = async (status: number) =>
+/**
+   * Update current user status (online, away, busy, offline)
+   */
+  const updateUserStatus = async (status: number) =>
 ```
 
 ### `getCurrentUser()`
@@ -89,10 +109,13 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
-const getCurrentUser = () =>
+/**
+   * Get current user data
+   */
+  const getCurrentUser = () =>
 ```
 
 ### `getUser(userId: string)`
@@ -102,10 +125,13 @@ No description available.
 **Parameters:**
 - `userId: string`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
-const getUser = (userId: string) =>
+/**
+   * Get user data by ID
+   */
+  const getUser = (userId: string) =>
 ```
 
 ### `getStats()`
@@ -115,11 +141,16 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
-const getStats = () =>
+/**
+   * Get service statistics
+   */
+  const getStats = () =>
 ```
+
+
 
 
 
@@ -132,14 +163,14 @@ const getStats = () =>
 
 ## Source Code Insights
 
-**File Size:** 1763 characters
-**Lines of Code:** 77
-**Imports:** 1
+**File Size:** 1793 characters
+**Lines of Code:** 78
+**Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { useUserState } from '@/composables/useUserState.ts'
+import { useUserState } from '@/composables/useUserState'
 
 // Example usage
 useUserState()

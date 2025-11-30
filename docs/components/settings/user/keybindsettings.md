@@ -1,6 +1,6 @@
 # KeybindSettings
 
-No description available.
+A Vue component.
 
 **File:** `src/components/settings/user/KeybindSettings.vue`
 

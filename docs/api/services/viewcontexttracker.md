@@ -12,19 +12,22 @@ graph TB
         VIEWCONTEXTTRACKER[viewContextTracker]
     end
     
-    
-    
     subgraph "Interfaces"
-        VIEWCONTEXT[ViewContext]
-        NOTIFICATIONUIDECISION[NotificationUIDecision]
+        INT_VIEWCONTEXT[ViewContext]
+        INT_NOTIFICATIONUIDECISION[NotificationUIDecision]
+    end
+    
+    subgraph "Classes"
+        CLS_VIEWCONTEXTTRACKER[ViewContextTracker]
     end
 ```
 
+
 ## Exports
 
-- **ViewContext** - No description
-- **NotificationUIDecision** - No description
-- **viewContextTracker** - No description
+- **ViewContext** - interface export
+- **NotificationUIDecision** - interface export
+- **viewContextTracker** - const export
 
 
 
@@ -35,12 +38,34 @@ graph TB
 No description available.
 
 **Methods:**
-None
+- `updateContext`
+- `getCurrentContext`
+- `isViewingChannel`
+- `isViewingConversation`
+- `shouldShowNotificationUI`
+- `reset`
 
 **Properties:**
 - `currentContext`
-- `ViewContext`
 - `view_type`
+- `context`
+- `navigates`
+- `updated`
+- `channel`
+- `channelId`
+- `conversation`
+- `conversationId`
+- `Note`
+- `server_id`
+- `channel_id`
+- `conversation_id`
+- `type`
+- `suppress`
+- `showToast`
+- `showDesktop`
+- `playSound`
+- `reason`
+- `notifications`
 
 
 ## Interfaces
@@ -50,11 +75,13 @@ None
 No description available.
 
 ```typescript
-export interface ViewContext {
+interface ViewContext {
+
   server_id?: string
   channel_id?: string
   conversation_id?: string
   view_type: 'server_channel' | 'dm' | 'settings' | 'home'
+
 }
 ```
 
@@ -63,11 +90,13 @@ export interface ViewContext {
 No description available.
 
 ```typescript
-export interface NotificationUIDecision {
+interface NotificationUIDecision {
+
   showToast: boolean
   showDesktop: boolean
   playSound: boolean
   reason: string
+
 }
 ```
 
@@ -76,16 +105,18 @@ export interface NotificationUIDecision {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 2426 characters
-**Lines of Code:** 89
-**Imports:** 0
+**File Size:** 3385 characters
+**Lines of Code:** 121
+**Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { ViewContext, NotificationUIDecision, viewContextTracker } from '@/services/ViewContextTracker.ts'
+import { ViewContext, NotificationUIDecision, viewContextTracker } from '@/services/ViewContextTracker'
 
 // Example usage
 // Use the exported functionality

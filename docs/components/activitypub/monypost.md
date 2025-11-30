@@ -1,6 +1,6 @@
 # MonyPost
 
-No description available.
+A Vue component.
 
 **File:** `src/components/activitypub/MonyPost.vue`
 
@@ -20,6 +20,8 @@ graph TB
 | Name | Type | Default | Required | Description |
 |------|------|---------|----------|-------------|
 | `post` | `TimelinePost` | `undefined` | ✅ | No description |
+| `hideReplyContext` | `boolean` | `false` | ❌ | No description |
+| `isInThread` | `boolean` | `false` | ❌ | No description |
 
 ### Props Details
 
@@ -30,6 +32,26 @@ No description available.
 - **Type:** `TimelinePost`
 - **Required:** Yes
 - **Default:** `undefined`
+
+
+
+#### `hideReplyContext`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
+#### `isInThread`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
 
 
 
@@ -46,6 +68,7 @@ No description available.
 | `hashtag-click` | string | No description |
 | `user-click` | any | No description |
 | `show-conversation` | string | No description |
+| `refresh` | string | No description |
 
 ### Event Details
 
@@ -113,6 +136,14 @@ No description available.
 
 
 
+#### `refresh`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
 
 ## Slots
 
@@ -135,7 +166,8 @@ This component exposes no public methods.
     @user-mention-click="handleUser-mention-click"
     @hashtag-click="handleHashtag-click"
     @user-click="handleUser-click"
-    @show-conversation="handleShow-conversation" />
+    @show-conversation="handleShow-conversation"
+    @refresh="handleRefresh" />
 </template>
 
 <script setup lang="ts">
@@ -169,6 +201,10 @@ const handleUser-click = (any) => {
 
 const handleShow-conversation = (string) => {
   // Handle show-conversation event
+}
+
+const handleRefresh = (string) => {
+  // Handle refresh event
 }
 </script>
 ```

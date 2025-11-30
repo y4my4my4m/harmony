@@ -6,14 +6,11 @@
 
 ```mermaid
 graph TB
-    subgraph "useProfilePresence Composable"
-        EMPTY[No exports]
-    end
-    
-    
-    
-    
+    MODULE[useProfilePresence Composable]
 ```
+
+
+
 
 
 
@@ -36,7 +33,7 @@ graph TB
 ## Usage Example
 
 ```typescript
-import { useProfilePresence } from '@/composables/useProfilePresence.ts'
+import { useProfilePresence } from '@/composables/useProfilePresence'
 
 // Example usage
 // Use the exported functionality

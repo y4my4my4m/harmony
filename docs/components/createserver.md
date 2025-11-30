@@ -1,6 +1,6 @@
 # CreateServer
 
-No description available.
+A Vue component.
 
 **File:** `src/components/CreateServer.vue`
 

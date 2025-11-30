@@ -9,37 +9,87 @@ graph TB
     subgraph "mentionUtils Utility"
         MENTIONMATCH[MentionMatch]
         RESOLVEDMENTION[ResolvedMention]
+        PARSEBIOWITHEMOJIS[parseBioWithEmojis]
         EXTRACTMENTIONS[extractMentions]
+        RESOLVEMENTIONS[resolveMentions]
         GENERATEMENTIONTAGS[generateMentionTags]
         GETDELIVERYINBOXES[getDeliveryInboxes]
         FORMATMENTIONSFORACTIVITYPUB[formatMentionsForActivityPub]
+        RESOLVEREMOTEMENTION[resolveRemoteMention]
     end
     
     subgraph "Functions"
-        EXTRACTMENTIONS[extractMentions()]
-        RESOLVEMENTIONS[resolveMentions()]
-        GENERATEMENTIONTAGS[generateMentionTags()]
-        GETDELIVERYINBOXES[getDeliveryInboxes()]
-        FORMATMENTIONSFORACTIVITYPUB[formatMentionsForActivityPub()]
-        RESOLVEREMOTEMENTION[resolveRemoteMention()]
+        FN_PARSEBIOWITHEMOJIS[parseBioWithEmojis]
+        FN_EXTRACTMENTIONS[extractMentions]
+        FN_RESOLVEMENTIONS[resolveMentions]
+        FN_GENERATEMENTIONTAGS[generateMentionTags]
+        FN_GETDELIVERYINBOXES[getDeliveryInboxes]
+        FN_FORMATMENTIONSFORACTIVITYPUB[formatMentionsForActivityPub]
+        FN_RESOLVEREMOTEMENTION[resolveRemoteMention]
     end
     
     subgraph "Interfaces"
-        MENTIONMATCH[MentionMatch]
-        RESOLVEDMENTION[ResolvedMention]
+        INT_MENTIONMATCH[MentionMatch]
+        INT_RESOLVEDMENTION[ResolvedMention]
     end
 ```
 
+
 ## Exports
 
-- **MentionMatch** - No description
-- **ResolvedMention** - No description
-- **extractMentions** - No description
-- **generateMentionTags** - No description
-- **getDeliveryInboxes** - No description
-- **formatMentionsForActivityPub** - No description
+- **MentionMatch** - interface export
+- **ResolvedMention** - interface export
+- **parseBioWithEmojis** - function export
+- **extractMentions** - function export
+- **resolveMentions** - function export
+- **generateMentionTags** - function export
+- **getDeliveryInboxes** - function export
+- **formatMentionsForActivityPub** - function export
+- **resolveRemoteMention** - function export
 
 ## Functions
+
+### `parseBioWithEmojis(bio: string, emojis: Array&lt;{name: string, url: string}&gt;)`
+
+No description available.
+
+**Parameters:**
+- `bio: string`
+- `emojis: Array&lt;{name: string, url: string}&gt;`
+
+**Returns:** `any[]`
+
+```typescript
+/**
+ * Professional mention extraction and processing utilities
+ * Handles both local (@username) and remote (@username@domain) mentions
+ */
+
+import { supabase } from '@/supabase';
+import type { UserData } from '@/types';
+import { debug } from '@/utils/debug'
+
+export interface MentionMatch {
+  full: string;          // "@tester004@mastodon.social"
+  username: string;      // "tester004"
+  domain?: string;       // "mastodon.social" or undefined for local
+  startIndex: number;
+  endIndex: number;
+}
+
+export interface ResolvedMention {
+  mention: MentionMatch;
+  user?: UserData;
+  inboxUrl?: string;
+  actorUrl?: string;
+}
+
+/**
+ * Parse bio text with custom emojis and convert to MessagePart[]
+ * Replaces :emoji: patterns with proper emoji parts
+ */
+export function parseBioWithEmojis(bio: string, emojis: Array<{name: string, url: string}>): any[]
+```
 
 ### `extractMentions(text: string)`
 
@@ -48,10 +98,14 @@ No description available.
 **Parameters:**
 - `text: string`
 
-**Returns:** Unknown
+**Returns:** `MentionMatch[]`
 
 ```typescript
-export function extractMentions(text: string): MentionMatch[] {
+/**
+ * Extract all mentions from text content
+ * Supports both @username (local) and @username@domain (remote) formats
+ */
+export function extractMentions(text: string): MentionMatch[]
 ```
 
 ### `resolveMentions(mentions: MentionMatch[])`
@@ -61,10 +115,13 @@ No description available.
 **Parameters:**
 - `mentions: MentionMatch[]`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;ResolvedMention[]&gt;`
 
 ```typescript
-export async function resolveMentions(mentions: MentionMatch[]): Promise<ResolvedMention[]> {
+/**
+ * Resolve mentions to actual users and their federation details
+ */
+export async function resolveMentions(mentions: MentionMatch[]): Promise<ResolvedMention[]>
 ```
 
 ### `generateMentionTags(resolvedMentions: ResolvedMention[])`
@@ -74,10 +131,13 @@ No description available.
 **Parameters:**
 - `resolvedMentions: ResolvedMention[]`
 
-**Returns:** Unknown
+**Returns:** `any[]`
 
 ```typescript
-export function generateMentionTags(resolvedMentions: ResolvedMention[]): any[] {
+/**
+ * Generate ActivityPub-compatible mention tags for activities
+ */
+export function generateMentionTags(resolvedMentions: ResolvedMention[]): any[]
 ```
 
 ### `getDeliveryInboxes(resolvedMentions: ResolvedMention[])`
@@ -87,10 +147,13 @@ No description available.
 **Parameters:**
 - `resolvedMentions: ResolvedMention[]`
 
-**Returns:** Unknown
+**Returns:** `string[]`
 
 ```typescript
-export function getDeliveryInboxes(resolvedMentions: ResolvedMention[]): string[] {
+/**
+ * Get unique inbox URLs from resolved mentions for federation delivery
+ */
+export function getDeliveryInboxes(resolvedMentions: ResolvedMention[]): string[]
 ```
 
 ### `formatMentionsForActivityPub(text: string, resolvedMentions: ResolvedMention[])`
@@ -101,27 +164,35 @@ No description available.
 - `text: string`
 - `resolvedMentions: ResolvedMention[]`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
+/**
+ * Convert plain text with mentions to ActivityPub HTML format
+ */
 export function formatMentionsForActivityPub(
   text: string, 
   resolvedMentions: ResolvedMention[]
-): string {
+): string
 ```
 
-### `resolveRemoteMention(username: string, domain: string)`
+### `resolveRemoteMention(username: string, domain: string, forceRefresh: boolean = false)`
 
 No description available.
 
 **Parameters:**
 - `username: string`
 - `domain: string`
+- `forceRefresh: boolean = false`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;FederatedUser | null&gt;`
 
 ```typescript
-export async function resolveRemoteMention(username: string, domain: string): Promise<FederatedUser | null> {
+/**
+ * Attempt to resolve remote mention via backend WebFinger proxy
+ * Uses the federation backend to bypass CORS restrictions
+ */
+export async function resolveRemoteMention(username: string, domain: string, forceRefresh: boolean = false): Promise<FederatedUser | null>
 ```
 
 
@@ -134,12 +205,14 @@ export async function resolveRemoteMention(username: string, domain: string): Pr
 No description available.
 
 ```typescript
-export interface MentionMatch {
+interface MentionMatch {
+
   full: string;          // "@tester004@mastodon.social"
   username: string;      // "tester004"
   domain?: string;       // "mastodon.social" or undefined for local
   startIndex: number;
   endIndex: number;
+
 }
 ```
 
@@ -148,11 +221,13 @@ export interface MentionMatch {
 No description available.
 
 ```typescript
-export interface ResolvedMention {
+interface ResolvedMention {
+
   mention: MentionMatch;
   user?: UserData;
   inboxUrl?: string;
   actorUrl?: string;
+
 }
 ```
 
@@ -161,19 +236,21 @@ export interface ResolvedMention {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 7914 characters
-**Lines of Code:** 275
-**Imports:** 2
+**File Size:** 10636 characters
+**Lines of Code:** 348
+**Imports:** 3
 
 ## Usage Example
 
 ```typescript
-import { MentionMatch, ResolvedMention, extractMentions, generateMentionTags, getDeliveryInboxes, formatMentionsForActivityPub } from '@/utils/mentionUtils.ts'
+import { MentionMatch, ResolvedMention, parseBioWithEmojis, extractMentions, resolveMentions, generateMentionTags, getDeliveryInboxes, formatMentionsForActivityPub, resolveRemoteMention } from '@/utils/mentionUtils'
 
 // Example usage
-extractMentions()
+parseBioWithEmojis()
 ```
 
 ---

@@ -10,18 +10,17 @@ graph TB
         USEEMOJICACHESTORE[useEmojiCacheStore]
     end
     
-    
-    
     subgraph "Interfaces"
-        EMOJICACHEENTRY[EmojiCacheEntry]
-        SERVEREMOJICACHE[ServerEmojiCache]
-        EMOJIMETADATA[EmojiMetadata]
+        INT_EMOJICACHEENTRY[EmojiCacheEntry]
+        INT_SERVEREMOJICACHE[ServerEmojiCache]
+        INT_EMOJIMETADATA[EmojiMetadata]
     end
 ```
 
+
 ## Exports
 
-- **useEmojiCacheStore** - No description
+- **useEmojiCacheStore** - const export
 
 
 
@@ -35,10 +34,12 @@ No description available.
 
 ```typescript
 interface EmojiCacheEntry {
+
   emoji: Emoji;
   lastUpdated: Date;
   accessCount: number;
   lastAccessed: Date;
+
 }
 ```
 
@@ -48,6 +49,7 @@ No description available.
 
 ```typescript
 interface ServerEmojiCache {
+
   serverId: string;
   serverName: string;
   serverIcon?: string;
@@ -55,6 +57,7 @@ interface ServerEmojiCache {
   lastFetched: Date;
   isStale: boolean;
   allowCrossServer: boolean;
+
 }
 ```
 
@@ -64,9 +67,11 @@ No description available.
 
 ```typescript
 interface EmojiMetadata {
+
   serverId: string;
   lastModified: Date;
   count: number;
+
 }
 ```
 
@@ -75,16 +80,18 @@ interface EmojiMetadata {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 19067 characters
-**Lines of Code:** 617
-**Imports:** 3
+**File Size:** 21282 characters
+**Lines of Code:** 673
+**Imports:** 4
 
 ## Usage Example
 
 ```typescript
-import { useEmojiCacheStore } from '@/stores/useEmojiCache.ts'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 
 // Example usage
 // Use the exported functionality

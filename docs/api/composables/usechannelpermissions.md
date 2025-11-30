@@ -11,19 +11,18 @@ graph TB
     end
     
     subgraph "Functions"
-        USECHANNELPERMISSIONS[useChannelPermissions()]
-        CANVIEWCHANNEL[canViewChannel()]
-        CANACCESSCHANNEL[canAccessChannel()]
-        GETDRAGCURSOR[getDragCursor()]
-        VALIDATEDRAGANDDROP[validateDragAndDrop()]
+        FN_USECHANNELPERMISSIONS[useChannelPermissions]
+        FN_CANVIEWCHANNEL[canViewChannel]
+        FN_CANACCESSCHANNEL[canAccessChannel]
+        FN_GETDRAGCURSOR[getDragCursor]
+        FN_VALIDATEDRAGANDDROP[validateDragAndDrop]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **useChannelPermissions** - No description
+- **useChannelPermissions** - function export
 
 ## Functions
 
@@ -34,10 +33,10 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useChannelPermissions() {
+export function useChannelPermissions()
 ```
 
 ### `canViewChannel(channelId: string)`
@@ -47,7 +46,7 @@ No description available.
 **Parameters:**
 - `channelId: string`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const canViewChannel = (channelId: string) =>
@@ -60,7 +59,7 @@ No description available.
 **Parameters:**
 - `channelId: string`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const canAccessChannel = (channelId: string) =>
@@ -74,7 +73,7 @@ No description available.
 - `itemType: 'channel' | 'category'`
 - `isDragging = false`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) =>
@@ -88,11 +87,13 @@ No description available.
 - `itemType: string`
 - `dropType: string`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const validateDragAndDrop = (itemType: string, dropType: string) =>
 ```
+
+
 
 
 
@@ -112,7 +113,7 @@ const validateDragAndDrop = (itemType: string, dropType: string) =>
 ## Usage Example
 
 ```typescript
-import { useChannelPermissions } from '@/composables/useChannelPermissions.ts'
+import { useChannelPermissions } from '@/composables/useChannelPermissions'
 
 // Example usage
 useChannelPermissions()

@@ -12,24 +12,25 @@ graph TB
     end
     
     subgraph "Functions"
-        GENERATESECURECODE[generateSecureCode()]
-        GENERATEINVITEURL[generateInviteUrl()]
-        ACCEPTINVITE[acceptInvite()]
-        GETINVITEHISTORY[getInviteHistory()]
-        REVOKEINVITE[revokeInvite()]
-        GETINVITEDETAILS[getInviteDetails()]
+        FN_GENERATESECURECODE[generateSecureCode]
+        FN_GENERATEINVITEURL[generateInviteUrl]
+        FN_ACCEPTINVITE[acceptInvite]
+        FN_GETINVITEHISTORY[getInviteHistory]
+        FN_REVOKEINVITE[revokeInvite]
+        FN_GETINVITEDETAILS[getInviteDetails]
     end
     
     subgraph "Interfaces"
-        INVITEOPTIONS[InviteOptions]
-        INVITE[Invite]
+        INT_INVITEOPTIONS[InviteOptions]
+        INT_INVITE[Invite]
     end
 ```
 
+
 ## Exports
 
-- **InviteOptions** - No description
-- **Invite** - No description
+- **InviteOptions** - interface export
+- **Invite** - interface export
 
 ## Functions
 
@@ -40,10 +41,10 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-function generateSecureCode(): string {
+function generateSecureCode(): string
 ```
 
 ### `generateInviteUrl(serverId: string, userId: string, options: InviteOptions = {})`
@@ -55,14 +56,14 @@ No description available.
 - `userId: string`
 - `options: InviteOptions = {}`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;`
 
 ```typescript
 async function generateInviteUrl(
   serverId: string, 
   userId: string, 
   options: InviteOptions = {}
-): Promise<{
+): Promise<
 ```
 
 ### `acceptInvite(code: string, userId: string)`
@@ -73,10 +74,10 @@ No description available.
 - `code: string`
 - `userId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;`
 
 ```typescript
-async function acceptInvite(code: string, userId: string): Promise<{
+async function acceptInvite(code: string, userId: string): Promise<
 ```
 
 ### `getInviteHistory(userId: string, serverId?: string)`
@@ -87,10 +88,10 @@ No description available.
 - `userId: string`
 - `serverId?: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;Invite[]&gt;`
 
 ```typescript
-async function getInviteHistory(userId: string, serverId?: string): Promise<Invite[]> {
+async function getInviteHistory(userId: string, serverId?: string): Promise<Invite[]>
 ```
 
 ### `revokeInvite(inviteId: string, userId: string)`
@@ -101,10 +102,10 @@ No description available.
 - `inviteId: string`
 - `userId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;boolean&gt;`
 
 ```typescript
-async function revokeInvite(inviteId: string, userId: string): Promise<boolean> {
+async function revokeInvite(inviteId: string, userId: string): Promise<boolean>
 ```
 
 ### `getInviteDetails(code: string)`
@@ -114,10 +115,10 @@ No description available.
 **Parameters:**
 - `code: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;`
 
 ```typescript
-async function getInviteDetails(code: string): Promise<{
+async function getInviteDetails(code: string): Promise<
 ```
 
 
@@ -130,10 +131,12 @@ async function getInviteDetails(code: string): Promise<{
 No description available.
 
 ```typescript
-export interface InviteOptions {
+interface InviteOptions {
+
   expiresIn?: number; // minutes, 0 = never expires
   maxUses?: number; // 0 = unlimited
   temporary?: boolean;
+
 }
 ```
 
@@ -142,7 +145,8 @@ export interface InviteOptions {
 No description available.
 
 ```typescript
-export interface Invite {
+interface Invite {
+
   id: string;
   code: string;
   server_id: string;
@@ -153,6 +157,7 @@ export interface Invite {
   temporary: boolean;
   created_at: string;
   used: boolean;
+
 }
 ```
 
@@ -161,16 +166,18 @@ export interface Invite {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 6997 characters
-**Lines of Code:** 256
-**Imports:** 2
+**File Size:** 7543 characters
+**Lines of Code:** 268
+**Imports:** 4
 
 ## Usage Example
 
 ```typescript
-import { InviteOptions, Invite } from '@/services/inviteService.ts'
+import { InviteOptions, Invite } from '@/services/inviteService'
 
 // Example usage
 generateSecureCode()

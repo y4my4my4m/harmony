@@ -1,6 +1,6 @@
 # MessageReply
 
-No description available.
+A Vue component.
 
 **File:** `src/components/MessageReply.vue`
 

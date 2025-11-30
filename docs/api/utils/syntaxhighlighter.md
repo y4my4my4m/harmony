@@ -13,20 +13,21 @@ graph TB
     end
     
     subgraph "Functions"
-        HIGHLIGHTSYNTAX[highlightSyntax()]
-        GETSUPPORTEDLANGUAGES[getSupportedLanguages()]
+        FN_HIGHLIGHTSYNTAX[highlightSyntax]
+        FN_GETSUPPORTEDLANGUAGES[getSupportedLanguages]
     end
     
     subgraph "Interfaces"
-        SYNTAXTOKEN[SyntaxToken]
+        INT_SYNTAXTOKEN[SyntaxToken]
     end
 ```
 
+
 ## Exports
 
-- **SyntaxToken** - No description
-- **highlightSyntax** - No description
-- **getSupportedLanguages** - No description
+- **SyntaxToken** - interface export
+- **highlightSyntax** - function export
+- **getSupportedLanguages** - function export
 
 ## Functions
 
@@ -38,10 +39,10 @@ No description available.
 - `code: string`
 - `language: string = 'text'`
 
-**Returns:** Unknown
+**Returns:** `SyntaxToken[]`
 
 ```typescript
-export function highlightSyntax(code: string, language: string = 'text'): SyntaxToken[] {
+export function highlightSyntax(code: string, language: string = 'text'): SyntaxToken[]
 ```
 
 ### `getSupportedLanguages()`
@@ -51,10 +52,10 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `string[]`
 
 ```typescript
-export function getSupportedLanguages(): string[] {
+export function getSupportedLanguages(): string[]
 ```
 
 
@@ -67,14 +68,33 @@ export function getSupportedLanguages(): string[] {
 No description available.
 
 ```typescript
-export interface SyntaxToken {
+interface SyntaxToken {
+
   type: 'keyword' | 'string' | 'number' | 'comment' | 'operator' | 'punctuation' | 'function' | 'variable' | 'property' | 'text';
   content: string;
   className: string;
+
 }
 ```
 
 
+
+
+## Constants
+
+### LANGUAGES
+
+No description available.
+
+```typescript
+const LANGUAGES: Record<string, {
+  keywords: string[];
+  operators: string[];
+  stringDelimiters: string[];
+  singleLineComment?: string;
+  multiLineComment?: { start: string; end: string };
+}> = {
+```
 
 
 
@@ -88,7 +108,7 @@ export interface SyntaxToken {
 ## Usage Example
 
 ```typescript
-import { SyntaxToken, highlightSyntax, getSupportedLanguages } from '@/utils/syntaxHighlighter.ts'
+import { SyntaxToken, highlightSyntax, getSupportedLanguages } from '@/utils/syntaxHighlighter'
 
 // Example usage
 highlightSyntax()

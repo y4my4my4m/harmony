@@ -1,6 +1,6 @@
 # MessageReactions
 
-No description available.
+A Vue component.
 
 **File:** `src/components/MessageReactions.vue`
 

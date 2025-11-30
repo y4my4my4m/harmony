@@ -11,15 +11,16 @@ graph TB
         REACTIONCACHEMANAGER[reactionCacheManager]
     end
     
-    
-    
-    
+    subgraph "Classes"
+        CLS_REACTIONCACHEMANAGER[ReactionCacheManager]
+    end
 ```
+
 
 ## Exports
 
-- **ReactionCacheManager** - No description
-- **reactionCacheManager** - No description
+- **ReactionCacheManager** - class export
+- **reactionCacheManager** - const export
 
 
 
@@ -30,15 +31,15 @@ graph TB
 No description available.
 
 **Methods:**
-- `startCleanup`
-- `if`
+- `clearOptimisticState`
+- `clearAllCache`
 
 **Properties:**
-- `cleanupInterval`
-- `null`
-- `CLEANUP_INTERVAL`
-- `cleanupInterval`
+- `message`
+- `data`
 - `reactionsStore`
+
+
 
 
 
@@ -49,14 +50,14 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 1209 characters
-**Lines of Code:** 48
-**Imports:** 1
+**File Size:** 1140 characters
+**Lines of Code:** 35
+**Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { ReactionCacheManager, reactionCacheManager } from '@/utils/reactionCacheManager.ts'
+import { ReactionCacheManager, reactionCacheManager } from '@/utils/reactionCacheManager'
 
 // Example usage
 // Use the exported functionality

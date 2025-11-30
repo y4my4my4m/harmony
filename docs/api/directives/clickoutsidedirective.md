@@ -7,17 +7,16 @@
 ```mermaid
 graph TB
     subgraph "ClickOutsideDirective Directive"
-        DEFAULT[default]
+        CLICKOUTSIDEDIRECTIVE[ClickOutsideDirective]
     end
-    
-    
-    
-    
 ```
+
 
 ## Exports
 
-- **default** - No description
+- **ClickOutsideDirective** - default export
+
+
 
 
 
@@ -38,7 +37,7 @@ graph TB
 ## Usage Example
 
 ```typescript
-import { default } from '@/directives/ClickOutsideDirective.ts'
+import { ClickOutsideDirective } from '@/directives/ClickOutsideDirective'
 
 // Example usage
 // Use the exported functionality

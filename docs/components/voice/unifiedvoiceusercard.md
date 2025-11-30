@@ -1,6 +1,6 @@
 # UnifiedVoiceUserCard
 
-No description available.
+A Vue component.
 
 **File:** `src/components/voice/UnifiedVoiceUserCard.vue`
 
@@ -20,10 +20,6 @@ graph TB
 | Name | Type | Default | Required | Description |
 |------|------|---------|----------|-------------|
 | `userState` | `UserMediaState` | `undefined` | ✅ | No description |
-| `userProfile` | `object` | `undefined` | ✅ | No description |
-| `userStream` | `MediaStream` | `null` | ❌ | No description |
-| `isSelf` | `boolean` | `false` | ❌ | No description |
-| `connectionState` | `string` | `'connected'` | ❌ | No description |
 
 ### Props Details
 
@@ -34,46 +30,6 @@ No description available.
 - **Type:** `UserMediaState`
 - **Required:** Yes
 - **Default:** `undefined`
-
-
-
-#### `userProfile`
-
-No description available.
-
-- **Type:** `object`
-- **Required:** Yes
-- **Default:** `undefined`
-
-
-
-#### `userStream`
-
-No description available.
-
-- **Type:** `MediaStream`
-- **Required:** No
-- **Default:** `null`
-
-
-
-#### `isSelf`
-
-No description available.
-
-- **Type:** `boolean`
-- **Required:** No
-- **Default:** `false`
-
-
-
-#### `connectionState`
-
-No description available.
-
-- **Type:** `string`
-- **Required:** No
-- **Default:** `'connected'`
 
 
 
@@ -118,7 +74,6 @@ This component exposes no public methods.
 <template>
   <UnifiedVoiceUserCard
     :userState="undefined"
-    :userProfile="{}"
     @toggle-video="handleToggle-video"
     @toggle-screen-share="handleToggle-screen-share" />
 </template>

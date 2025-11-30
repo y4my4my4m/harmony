@@ -1,6 +1,6 @@
 # ExploreContent
 
-No description available.
+A Vue component.
 
 **File:** `src/components/activitypub/ExploreContent.vue`
 
@@ -45,9 +45,9 @@ No description available.
 | `delete-post` | string | No description |
 | `show-user-profile` | FederatedUser | No description |
 | `show-conversation` | TimelinePost | No description |
-| `follow-user` | string | No description |
 | `switch-feed` | string | No description |
 | `refresh-timeline` | unknown | No description |
+| `follow-user` | string | No description |
 | `unfollow-user` | string | No description |
 
 ### Event Details
@@ -108,14 +108,6 @@ No description available.
 
 
 
-#### `follow-user`
-
-No description available.
-
-**Parameters:** `string`
-
-
-
 #### `switch-feed`
 
 No description available.
@@ -129,6 +121,14 @@ No description available.
 No description available.
 
 **Parameters:** `unknown`
+
+
+
+#### `follow-user`
+
+No description available.
+
+**Parameters:** `string`
 
 
 
@@ -162,9 +162,9 @@ This component exposes no public methods.
     @delete-post="handleDelete-post"
     @show-user-profile="handleShow-user-profile"
     @show-conversation="handleShow-conversation"
-    @follow-user="handleFollow-user"
     @switch-feed="handleSwitch-feed"
     @refresh-timeline="handleRefresh-timeline"
+    @follow-user="handleFollow-user"
     @unfollow-user="handleUnfollow-user" />
 </template>
 
@@ -197,16 +197,16 @@ const handleShow-conversation = (TimelinePost) => {
   // Handle show-conversation event
 }
 
-const handleFollow-user = (string) => {
-  // Handle follow-user event
-}
-
 const handleSwitch-feed = (string) => {
   // Handle switch-feed event
 }
 
 const handleRefresh-timeline = (data) => {
   // Handle refresh-timeline event
+}
+
+const handleFollow-user = (string) => {
+  // Handle follow-user event
 }
 
 const handleUnfollow-user = (string) => {

@@ -1,6 +1,6 @@
 # User
 
-No description available.
+A Vue component.
 
 **File:** `src/components/icons/User.vue`
 

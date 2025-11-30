@@ -12,17 +12,16 @@ graph TB
     end
     
     subgraph "Functions"
-        GETSERVERICONURL[getServerIconUrl()]
-        NORMALIZESERVERFORSTORAGE[normalizeServerForStorage()]
+        FN_GETSERVERICONURL[getServerIconUrl]
+        FN_NORMALIZESERVERFORSTORAGE[normalizeServerForStorage]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **getServerIconUrl** - No description
-- **normalizeServerForStorage** - No description
+- **getServerIconUrl** - function export
+- **normalizeServerForStorage** - function export
 
 ## Functions
 
@@ -33,10 +32,15 @@ No description available.
 **Parameters:**
 - `serverUrl: string | null | undefined`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function getServerIconUrl(serverUrl: string | null | undefined): string {
+/**
+ * Normalizes server URL to ensure consistent display across the application
+ * Handles both full URLs and path-only formats
+ * Always returns the proper public URL for Supabase storage paths
+ */
+export function getServerIconUrl(serverUrl: string | null | undefined): string
 ```
 
 ### `normalizeServerForStorage(serverUrl: string | null | undefined)`
@@ -46,11 +50,17 @@ No description available.
 **Parameters:**
 - `serverUrl: string | null | undefined`
 
-**Returns:** Unknown
+**Returns:** `string | null`
 
 ```typescript
-export function normalizeServerForStorage(serverUrl: string | null | undefined): string | null {
+/**
+ * Normalizes server URL for storage - ensures we store paths, not full URLs
+ * This should be used before saving server URLs to the database
+ */
+export function normalizeServerForStorage(serverUrl: string | null | undefined): string | null
 ```
+
+
 
 
 
@@ -63,14 +73,14 @@ export function normalizeServerForStorage(serverUrl: string | null | undefined):
 
 ## Source Code Insights
 
-**File Size:** 2182 characters
-**Lines of Code:** 63
+**File Size:** 2386 characters
+**Lines of Code:** 72
 **Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { getServerIconUrl, normalizeServerForStorage } from '@/utils/serverUtils.ts'
+import { getServerIconUrl, normalizeServerForStorage } from '@/utils/serverUtils'
 
 // Example usage
 getServerIconUrl()

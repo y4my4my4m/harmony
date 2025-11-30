@@ -11,17 +11,18 @@ graph TB
     end
     
     subgraph "Functions"
-        TIMESTRINGTOMINUTES[timeStringToMinutes()]
+        FN_TIMESTRINGTOMINUTES[timeStringToMinutes]
     end
     
     subgraph "Interfaces"
-        NOTIFICATIONSTATE[NotificationState]
+        INT_NOTIFICATIONSTATE[NotificationState]
     end
 ```
 
+
 ## Exports
 
-- **useNotificationStore** - No description
+- **useNotificationStore** - const export
 
 ## Functions
 
@@ -32,10 +33,10 @@ No description available.
 **Parameters:**
 - `timeString: string`
 
-**Returns:** Unknown
+**Returns:** `number`
 
 ```typescript
-function timeStringToMinutes(timeString: string): number {
+function timeStringToMinutes(timeString: string): number
 ```
 
 
@@ -49,6 +50,7 @@ No description available.
 
 ```typescript
 interface NotificationState {
+
   notifications: Notification[]
   unreadCount: number
   isLoading: boolean
@@ -61,24 +63,55 @@ interface NotificationState {
   isInitialized: boolean
   hasPermission: boolean
   currentFilter: string
+  // Cache for profileId to avoid repeated lookups
+  cachedProfileId: string | null
+  cachedAuthUserId: string | null
+
 }
 ```
 
 
 
 
+## Constants
+
+### NOTIFICATION_SOUND_MAPPING
+
+No description available.
+
+```typescript
+const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
+```
+
+### DEFAULT_PREFERENCES
+
+No description available.
+
+```typescript
+const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
+```
+
+### NOTIFICATION_RETRY_CONFIG
+
+No description available.
+
+```typescript
+const NOTIFICATION_RETRY_CONFIG = {
+```
+
+
 
 
 ## Source Code Insights
 
-**File Size:** 31741 characters
-**Lines of Code:** 952
-**Imports:** 7
+**File Size:** 43861 characters
+**Lines of Code:** 1298
+**Imports:** 11
 
 ## Usage Example
 
 ```typescript
-import { useNotificationStore } from '@/stores/useNotification.ts'
+import { useNotificationStore } from '@/stores/useNotification'
 
 // Example usage
 timeStringToMinutes()

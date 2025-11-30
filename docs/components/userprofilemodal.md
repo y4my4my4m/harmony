@@ -1,6 +1,6 @@
 # UserProfileModal
 
-No description available.
+A Vue component.
 
 **File:** `src/components/UserProfileModal.vue`
 

@@ -7,28 +7,26 @@
 ```mermaid
 graph TB
     subgraph "emojiService Service"
-        EMPTY[No exports]
     end
     
     subgraph "Functions"
-        RECORDEMOJIUSAGE[recordEmojiUsage()]
-        GETDETAILEDEMOJIANALYTICS[getDetailedEmojiAnalytics()]
-        GETUSEREMOJISTATS[getUserEmojiStats()]
-        GETEMOJI[getEmoji()]
-        UPLOADEMOJI[uploadEmoji()]
-        DELETEEMOJI[deleteEmoji()]
-        RENAMEEMOJI[renameEmoji()]
-        BULKDELETEEMOJIS[bulkDeleteEmojis()]
-        DOESEMOJINAMEEXIST[doesEmojiNameExist()]
-        BULKUPLOADEMOJIS[bulkUploadEmojis()]
-        SEARCHEMOJIS[searchEmojis()]
-        GETSERVEREMOJIANALYTICS[getServerEmojiAnalytics()]
-        PRELOADFREQUENTEMOJIS[preloadFrequentEmojis()]
-        CLEANFILENAME[cleanFileName()]
+        FN_RECORDEMOJIUSAGE[recordEmojiUsage]
+        FN_GETDETAILEDEMOJIANALYTICS[getDetailedEmojiAnalytics]
+        FN_GETUSEREMOJISTATS[getUserEmojiStats]
+        FN_GETEMOJI[getEmoji]
+        FN_UPLOADEMOJI[uploadEmoji]
+        FN_DELETEEMOJI[deleteEmoji]
+        FN_RENAMEEMOJI[renameEmoji]
+        FN_BULKDELETEEMOJIS[bulkDeleteEmojis]
+        FN_DOESEMOJINAMEEXIST[doesEmojiNameExist]
+        FN_BULKUPLOADEMOJIS[bulkUploadEmojis]
+        FN_SEARCHEMOJIS[searchEmojis]
+        FN_GETSERVEREMOJIANALYTICS[getServerEmojiAnalytics]
+        FN_PRELOADFREQUENTEMOJIS[preloadFrequentEmojis]
+        FN_CLEANFILENAME[cleanFileName]
     end
-    
-    
 ```
+
 
 
 
@@ -45,7 +43,7 @@ No description available.
 - `contextType: 'message' | 'reaction'`
 - `contextId?: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;void&gt;`
 
 ```typescript
 async function recordEmojiUsage(
@@ -54,7 +52,7 @@ async function recordEmojiUsage(
     serverId: string, 
     contextType: 'message' | 'reaction', 
     contextId?: string
-): Promise<void> {
+): Promise<void>
 ```
 
 ### `getDetailedEmojiAnalytics(serverId: string, userId?: string, limit = 10)`
@@ -66,10 +64,10 @@ No description available.
 - `userId?: string`
 - `limit = 10`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-async function getDetailedEmojiAnalytics(serverId: string, userId?: string, limit = 10) {
+async function getDetailedEmojiAnalytics(serverId: string, userId?: string, limit = 10)
 ```
 
 ### `getUserEmojiStats(userId: string, serverId?: string, limit = 20)`
@@ -81,10 +79,10 @@ No description available.
 - `serverId?: string`
 - `limit = 20`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-async function getUserEmojiStats(userId: string, serverId?: string, limit = 20) {
+async function getUserEmojiStats(userId: string, serverId?: string, limit = 20)
 ```
 
 ### `getEmoji(emojiId: string, trackUsage?: {
@@ -105,7 +103,7 @@ No description available.
     contextId?: string;
 }`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;Emoji | null&gt;`
 
 ```typescript
 async function getEmoji(emojiId: string, trackUsage?: {
@@ -113,7 +111,7 @@ async function getEmoji(emojiId: string, trackUsage?: {
     serverId: string;
     contextType: 'message' | 'reaction';
     contextId?: string;
-}): Promise<Emoji | null> {
+}): Promise<Emoji | null>
 ```
 
 ### `uploadEmoji(serverId: string, userId: string, file: File)`
@@ -125,10 +123,10 @@ No description available.
 - `userId: string`
 - `file: File`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;Emoji | null&gt;`
 
 ```typescript
-async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
+async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null>
 ```
 
 ### `deleteEmoji(emojiId: string)`
@@ -138,10 +136,10 @@ No description available.
 **Parameters:**
 - `emojiId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;boolean&gt;`
 
 ```typescript
-async function deleteEmoji(emojiId: string): Promise<boolean> {
+async function deleteEmoji(emojiId: string): Promise<boolean>
 ```
 
 ### `renameEmoji(emojiId: string, newName: string, serverId: string)`
@@ -153,10 +151,10 @@ No description available.
 - `newName: string`
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;boolean&gt;`
 
 ```typescript
-async function renameEmoji(emojiId: string, newName: string, serverId: string): Promise<boolean> {
+async function renameEmoji(emojiId: string, newName: string, serverId: string): Promise<boolean>
 ```
 
 ### `bulkDeleteEmojis(emojiIds: string[])`
@@ -166,10 +164,10 @@ No description available.
 **Parameters:**
 - `emojiIds: string[]`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;`
 
 ```typescript
-async function bulkDeleteEmojis(emojiIds: string[]): Promise<{
+async function bulkDeleteEmojis(emojiIds: string[]): Promise<
 ```
 
 ### `doesEmojiNameExist(serverId: string, name: string)`
@@ -180,10 +178,10 @@ No description available.
 - `serverId: string`
 - `name: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;boolean&gt;`
 
 ```typescript
-async function doesEmojiNameExist(serverId: string, name: string): Promise<boolean> {
+async function doesEmojiNameExist(serverId: string, name: string): Promise<boolean>
 ```
 
 ### `bulkUploadEmojis(serverId: string, userId: string, files: File[])`
@@ -195,10 +193,10 @@ No description available.
 - `userId: string`
 - `files: File[]`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;(Emoji | null)[]&gt;`
 
 ```typescript
-async function bulkUploadEmojis(serverId: string, userId: string, files: File[]): Promise<(Emoji | null)[]> {
+async function bulkUploadEmojis(serverId: string, userId: string, files: File[]): Promise<(Emoji | null)[]>
 ```
 
 ### `searchEmojis(query: string, options: {
@@ -217,14 +215,14 @@ No description available.
     includeServerName?: boolean;
 } = {}`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;any[]&gt;`
 
 ```typescript
 async function searchEmojis(query: string, options: {
     serverId?: string;
     limit?: number;
     includeServerName?: boolean;
-} = {}): Promise<any[]> {
+} = {}): Promise<any[]>
 ```
 
 ### `getServerEmojiAnalytics(serverId: string)`
@@ -234,10 +232,10 @@ No description available.
 **Parameters:**
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-async function getServerEmojiAnalytics(serverId: string) {
+async function getServerEmojiAnalytics(serverId: string)
 ```
 
 ### `preloadFrequentEmojis(serverIds: string[] = [])`
@@ -247,10 +245,10 @@ No description available.
 **Parameters:**
 - `serverIds: string[] = []`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-async function preloadFrequentEmojis(serverIds: string[] = []) {
+async function preloadFrequentEmojis(serverIds: string[] = [])
 ```
 
 ### `cleanFileName(originalName: string)`
@@ -260,7 +258,7 @@ No description available.
 **Parameters:**
 - `originalName: string`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const cleanFileName = (originalName: string) =>
@@ -275,16 +273,18 @@ const cleanFileName = (originalName: string) =>
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 16939 characters
-**Lines of Code:** 529
-**Imports:** 4
+**File Size:** 17349 characters
+**Lines of Code:** 542
+**Imports:** 5
 
 ## Usage Example
 
 ```typescript
-import { emojiService } from '@/services/emojiService.ts'
+import { emojiService } from '@/services/emojiService'
 
 // Example usage
 recordEmojiUsage()

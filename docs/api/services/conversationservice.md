@@ -8,20 +8,21 @@
 graph TB
     subgraph "ConversationService Service"
         CONVERSATIONSERVICE[ConversationService]
-        DEFAULT[default]
     end
     
     subgraph "Functions"
-        SORTREPLIES[sortReplies()]
+        FN_SORTREPLIES[sortReplies]
     end
     
-    
+    subgraph "Classes"
+        CLS_CONVERSATIONSERVICE[ConversationService]
+    end
 ```
+
 
 ## Exports
 
-- **ConversationService** - No description
-- **default** - No description
+- **ConversationService** - class export
 
 ## Functions
 
@@ -32,7 +33,7 @@ No description available.
 **Parameters:**
 - `post: ActivityPubPost & { replies?: ActivityPubPost[] }`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const sortReplies = (post: ActivityPubPost & { replies?: ActivityPubPost[] }) =>
@@ -46,11 +47,71 @@ const sortReplies = (post: ActivityPubPost & { replies?: ActivityPubPost[] }) =>
 No description available.
 
 **Methods:**
-- `O`
+- `findConversationRoot`
+- `catch`
+- `getConversationThread`
+- `getConversationContext`
+- `buildThreadHierarchy`
+- `createNavigationContext`
+- `getConversationNavigationData`
+- `getRouteContext`
 
 **Properties:**
-- `postId`
+- `operation`
+- `lookups`
 - `post`
+- `post_id`
+- `root`
+- `postId`
+- `rootId`
+- `retrieval`
+- `thread`
+- `conversation_root_id`
+- `in_conversation_root_id`
+- `error`
+- `posts`
+- `id`
+- `root_post`
+- `reply_count`
+- `created_at`
+- `index`
+- `context`
+- `null`
+- `display`
+- `postMap`
+- `rootPosts`
+- `pass`
+- `replies`
+- `postWithReplies`
+- `parent`
+- `date`
+- `sortReplies`
+- `b`
+- `highlighting`
+- `conversationRootId`
+- `clickedPostId`
+- `highlightPostId`
+- `timestamp`
+- `data`
+- `routing`
+- `options`
+- `highlightPost`
+- `scrollToPost`
+- `success`
+- `route`
+- `name`
+- `params`
+- `query`
+- `highlight`
+- `from`
+- `t`
+- `fallbackRoute`
+- `ID`
+- `parameters`
+- `scrolling`
+- `fromPostId`
+
+
 
 
 
@@ -61,14 +122,14 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 7976 characters
+**File Size:** 7931 characters
 **Lines of Code:** 259
-**Imports:** 2
+**Imports:** 3
 
 ## Usage Example
 
 ```typescript
-import { ConversationService, default } from '@/services/ConversationService.ts'
+import { ConversationService } from '@/services/ConversationService'
 
 // Example usage
 sortReplies()

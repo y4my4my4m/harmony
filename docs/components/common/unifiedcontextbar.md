@@ -1,6 +1,6 @@
 # UnifiedContextBar
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/UnifiedContextBar.vue`
 
@@ -138,13 +138,6 @@ No description available.
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `toggle-left-sidebar` | unknown | No description |
-| `toggle-voice-panel` | unknown | No description |
-| `toggle-search` | unknown | No description |
-| `toggle-right-sidebar` | unknown | No description |
-| `refresh-timeline` | unknown | No description |
-| `open-search` | unknown | No description |
-| `open-composer` | unknown | No description |
-| `switch-feed` | union | No description |
 
 ### Event Details
 
@@ -153,62 +146,6 @@ No description available.
 No description available.
 
 **Parameters:** `unknown`
-
-
-
-#### `toggle-voice-panel`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `toggle-search`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `toggle-right-sidebar`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `refresh-timeline`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `open-search`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `open-composer`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `switch-feed`
-
-No description available.
-
-**Parameters:** `union`
 
 
 
@@ -227,47 +164,12 @@ This component exposes no public methods.
 <template>
   <UnifiedContextBar
     :mode="undefined"
-    @toggle-left-sidebar="handleToggle-left-sidebar"
-    @toggle-voice-panel="handleToggle-voice-panel"
-    @toggle-search="handleToggle-search"
-    @toggle-right-sidebar="handleToggle-right-sidebar"
-    @refresh-timeline="handleRefresh-timeline"
-    @open-search="handleOpen-search"
-    @open-composer="handleOpen-composer"
-    @switch-feed="handleSwitch-feed" />
+    @toggle-left-sidebar="handleToggle-left-sidebar" />
 </template>
 
 <script setup lang="ts">
 const handleToggle-left-sidebar = (data) => {
   // Handle toggle-left-sidebar event
-}
-
-const handleToggle-voice-panel = (data) => {
-  // Handle toggle-voice-panel event
-}
-
-const handleToggle-search = (data) => {
-  // Handle toggle-search event
-}
-
-const handleToggle-right-sidebar = (data) => {
-  // Handle toggle-right-sidebar event
-}
-
-const handleRefresh-timeline = (data) => {
-  // Handle refresh-timeline event
-}
-
-const handleOpen-search = (data) => {
-  // Handle open-search event
-}
-
-const handleOpen-composer = (data) => {
-  // Handle open-composer event
-}
-
-const handleSwitch-feed = (union) => {
-  // Handle switch-feed event
 }
 </script>
 ```

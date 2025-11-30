@@ -11,17 +11,20 @@ graph TB
         ACTIVITYTRACKER[activityTracker]
     end
     
-    
-    
     subgraph "Interfaces"
-        ACTIVITYSTATE[ActivityState]
+        INT_ACTIVITYSTATE[ActivityState]
+    end
+    
+    subgraph "Classes"
+        CLS_ACTIVITYTRACKER[ActivityTracker]
     end
 ```
 
+
 ## Exports
 
-- **ActivityState** - No description
-- **activityTracker** - No description
+- **ActivityState** - interface export
+- **activityTracker** - const export
 
 
 
@@ -32,21 +35,53 @@ graph TB
 No description available.
 
 **Methods:**
-- `now`
+- `constructor`
+- `startTracking`
+- `stopTracking`
+- `onActivity`
+- `checkActivityStatus`
+- `resetStatusTracking`
+- `isInactive`
+- `getTimeSinceLastActivity`
+- `getActivityState`
 
 **Properties:**
 - `lastActivity`
-- `number`
 - `activityCheckTimer`
-- `null`
 - `isTracking`
-- `boolean`
 - `AWAY_THRESHOLD`
 - `OFFLINE_THRESHOLD`
 - `CHECK_INTERVAL`
+- `tracking`
 - `activityEvents`
 - `boundActivityHandler`
-- `boundActivityHandler`
+- `activity`
+- `true`
+- `passive`
+- `checks`
+- `false`
+- `listeners`
+- `timer`
+- `null`
+- `event`
+- `now`
+- `wasInactive`
+- `resumed`
+- `detail`
+- `changed`
+- `inactiveTime`
+- `isAway`
+- `isOffline`
+- `events`
+- `status`
+- `reason`
+- `wasAway`
+- `wasOffline`
+- `inactive`
+- `state`
+- `isIdle`
+- `wasManuallySet`
+- `manualStatus`
 
 
 ## Interfaces
@@ -56,12 +91,14 @@ No description available.
 No description available.
 
 ```typescript
-export interface ActivityState {
+interface ActivityState {
+
   lastActivity: number
   isIdle: boolean
   isAway: boolean
   wasManuallySet: boolean
   manualStatus: UserStatus | null
+
 }
 ```
 
@@ -70,16 +107,18 @@ export interface ActivityState {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 4610 characters
-**Lines of Code:** 173
-**Imports:** 1
+**File Size:** 4638 characters
+**Lines of Code:** 174
+**Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { ActivityState, activityTracker } from '@/services/ActivityTracker.ts'
+import { ActivityState, activityTracker } from '@/services/ActivityTracker'
 
 // Example usage
 // Use the exported functionality

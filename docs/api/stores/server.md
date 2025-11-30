@@ -9,15 +9,14 @@ graph TB
     subgraph "server Store"
         USESERVERSTORE[useServerStore]
     end
-    
-    
-    
-    
 ```
+
 
 ## Exports
 
-- **useServerStore** - No description
+- **useServerStore** - const export
+
+
 
 
 
@@ -31,14 +30,14 @@ graph TB
 
 ## Source Code Insights
 
-**File Size:** 4908 characters
-**Lines of Code:** 155
-**Imports:** 3
+**File Size:** 6019 characters
+**Lines of Code:** 178
+**Imports:** 5
 
 ## Usage Example
 
 ```typescript
-import { useServerStore } from '@/stores/server.ts'
+import { useServerStore } from '@/stores/server'
 
 // Example usage
 // Use the exported functionality

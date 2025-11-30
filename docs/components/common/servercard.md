@@ -1,6 +1,6 @@
 # ServerCard
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/ServerCard.vue`
 

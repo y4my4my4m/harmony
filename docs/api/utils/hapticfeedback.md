@@ -14,20 +14,25 @@ graph TB
     end
     
     subgraph "Functions"
-        HANDLETRIGGER[handleTrigger()]
+        FN_HANDLETRIGGER[handleTrigger]
     end
     
     subgraph "Interfaces"
-        HAPTICOPTIONS[HapticOptions]
+        INT_HAPTICOPTIONS[HapticOptions]
+    end
+    
+    subgraph "Classes"
+        CLS_HAPTICFEEDBACKMANAGER[HapticFeedbackManager]
     end
 ```
 
+
 ## Exports
 
-- **HapticPattern** - No description
-- **HapticOptions** - No description
-- **hapticManager** - No description
-- **vHaptic** - No description
+- **HapticPattern** - type export
+- **HapticOptions** - interface export
+- **hapticManager** - const export
+- **vHaptic** - const export
 
 ## Functions
 
@@ -38,7 +43,7 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleTrigger = () =>
@@ -53,12 +58,49 @@ No description available.
 
 **Methods:**
 - `constructor`
+- `detectSupport`
+- `loadPreferences`
+- `getPatternDuration`
+- `trigger`
+- `catch`
+- `light`
+- `medium`
+- `heavy`
+- `success`
+- `warning`
+- `error`
+- `selection`
+- `impact`
+- `notification`
+- `setEnabled`
+- `enabled`
+- `supported`
 
 **Properties:**
 - `isEnabled`
-- `boolean`
 - `isSupported`
-- `boolean`
+- `APIs`
+- `feedback`
+- `stored`
+- `patterns`
+- `light`
+- `medium`
+- `heavy`
+- `success`
+- `warning`
+- `error`
+- `selection`
+- `impact`
+- `notification`
+- `20`
+- `HapticOptions`
+- `pattern`
+- `available`
+- `vibrationPattern`
+- `browsers`
+- `failed`
+- `enabled`
+- `supported`
 
 
 ## Interfaces
@@ -68,11 +110,13 @@ No description available.
 No description available.
 
 ```typescript
-export interface HapticOptions {
+interface HapticOptions {
+
   pattern?: HapticPattern
   duration?: number
   intensity?: number
   enabled?: boolean
+
 }
 ```
 
@@ -84,22 +128,43 @@ export interface HapticOptions {
 No description available.
 
 ```typescript
+/**
+ * Haptic Feedback Utility for Native App Feel
+ * Provides tactile feedback on supported devices
+ */
+
 export type HapticPattern = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'impact' | 'notification'
+
+export interface HapticOptions {
+  pattern?: HapticPattern
+  duration?: number
+  intensity?: number
+  enabled?: boolean
+}
+
+class HapticFeedbackManager {
+  private isEnabled: boolean = true
+  private isSupported: boolean = false
+
+  constructor() {
+    this.dete...
 ```
+
+
 
 
 
 
 ## Source Code Insights
 
-**File Size:** 4405 characters
+**File Size:** 4403 characters
 **Lines of Code:** 176
 **Imports:** 0
 
 ## Usage Example
 
 ```typescript
-import { HapticPattern, HapticOptions, hapticManager, vHaptic } from '@/utils/hapticFeedback.ts'
+import { HapticPattern, HapticOptions, hapticManager, vHaptic } from '@/utils/hapticFeedback'
 
 // Example usage
 handleTrigger()

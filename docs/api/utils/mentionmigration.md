@@ -15,23 +15,22 @@ graph TB
     end
     
     subgraph "Functions"
-        MIGRATELEGACYMENTIONS[migrateLegacyMentions()]
-        VALIDATEMENTIONSTRUCTURE[validateMentionStructure()]
-        CREATEMENTIONFROMUSER[createMentionFromUser()]
-        FORMATMENTIONFORDISPLAY[formatMentionForDisplay()]
-        PARSEDISPLAYMENTION[parseDisplayMention()]
+        FN_MIGRATELEGACYMENTIONS[migrateLegacyMentions]
+        FN_VALIDATEMENTIONSTRUCTURE[validateMentionStructure]
+        FN_CREATEMENTIONFROMUSER[createMentionFromUser]
+        FN_FORMATMENTIONFORDISPLAY[formatMentionForDisplay]
+        FN_PARSEDISPLAYMENTION[parseDisplayMention]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **migrateLegacyMentions** - No description
-- **validateMentionStructure** - No description
-- **createMentionFromUser** - No description
-- **formatMentionForDisplay** - No description
-- **parseDisplayMention** - No description
+- **migrateLegacyMentions** - function export
+- **validateMentionStructure** - function export
+- **createMentionFromUser** - function export
+- **formatMentionForDisplay** - function export
+- **parseDisplayMention** - function export
 
 ## Functions
 
@@ -42,10 +41,19 @@ No description available.
 **Parameters:**
 - `content: MessagePart[]`
 
-**Returns:** Unknown
+**Returns:** `MessagePart[]`
 
 ```typescript
-export function migrateLegacyMentions(content: MessagePart[]): MessagePart[] {
+/**
+ * Utility functions for migrating and validating mention data structures
+ */
+
+/**
+ * Migrates legacy mention format to new structured format
+ * @param content MessagePart array that might contain legacy mentions
+ * @returns Updated MessagePart array with structured mentions
+ */
+export function migrateLegacyMentions(content: MessagePart[]): MessagePart[]
 ```
 
 ### `validateMentionStructure(mention: MentionContent)`
@@ -55,10 +63,15 @@ No description available.
 **Parameters:**
 - `mention: MentionContent`
 
-**Returns:** Unknown
+**Returns:** `boolean`
 
 ```typescript
-export function validateMentionStructure(mention: MentionContent): boolean {
+/**
+ * Validates that a mention object has all required fields
+ * @param mention MentionContent object to validate
+ * @returns boolean indicating if the mention is valid
+ */
+export function validateMentionStructure(mention: MentionContent): boolean
 ```
 
 ### `createMentionFromUser(userId: string, userProfile?: any)`
@@ -69,10 +82,16 @@ No description available.
 - `userId: string`
 - `userProfile?: any`
 
-**Returns:** Unknown
+**Returns:** `MentionContent | null`
 
 ```typescript
-export function createMentionFromUser(userId: string, userProfile?: any): MentionContent | null {
+/**
+ * Creates a properly structured mention object from user data
+ * @param userId User ID
+ * @param userProfile User profile data (optional, will be fetched if not provided)
+ * @returns MentionContent object or null if user not found
+ */
+export function createMentionFromUser(userId: string, userProfile?: any): MentionContent | null
 ```
 
 ### `formatMentionForDisplay(mention: MentionContent)`
@@ -82,10 +101,15 @@ No description available.
 **Parameters:**
 - `mention: MentionContent`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function formatMentionForDisplay(mention: MentionContent): string {
+/**
+ * Formats mention for display based on local/remote status
+ * @param mention MentionContent object
+ * @returns Display string (@username or @username@domain)
+ */
+export function formatMentionForDisplay(mention: MentionContent): string
 ```
 
 ### `parseDisplayMention(displayMention: string)`
@@ -95,11 +119,18 @@ No description available.
 **Parameters:**
 - `displayMention: string`
 
-**Returns:** Unknown
+**Returns:** `MentionContent | null`
 
 ```typescript
-export function parseDisplayMention(displayMention: string): MentionContent | null {
+/**
+ * Converts display format mention (@username or @username@domain) to structured mention
+ * @param displayMention Display format mention string
+ * @returns MentionContent object or null if user not found
+ */
+export function parseDisplayMention(displayMention: string): MentionContent | null
 ```
+
+
 
 
 
@@ -119,7 +150,7 @@ export function parseDisplayMention(displayMention: string): MentionContent | nu
 ## Usage Example
 
 ```typescript
-import { migrateLegacyMentions, validateMentionStructure, createMentionFromUser, formatMentionForDisplay, parseDisplayMention } from '@/utils/mentionMigration.ts'
+import { migrateLegacyMentions, validateMentionStructure, createMentionFromUser, formatMentionForDisplay, parseDisplayMention } from '@/utils/mentionMigration'
 
 // Example usage
 migrateLegacyMentions()

@@ -1,6 +1,6 @@
 # PublicServersSearch
 
-No description available.
+A Vue component.
 
 **File:** `src/components/PublicServers/PublicServersSearch.vue`
 

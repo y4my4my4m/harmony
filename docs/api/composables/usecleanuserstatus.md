@@ -6,14 +6,11 @@
 
 ```mermaid
 graph TB
-    subgraph "useCleanUserStatus Composable"
-        EMPTY[No exports]
-    end
-    
-    
-    
-    
+    MODULE[useCleanUserStatus Composable]
 ```
+
+
+
 
 
 
@@ -36,7 +33,7 @@ graph TB
 ## Usage Example
 
 ```typescript
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus.ts'
+import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
 
 // Example usage
 // Use the exported functionality

@@ -11,15 +11,14 @@ graph TB
     end
     
     subgraph "Functions"
-        CHECKCACHE[checkCache()]
+        FN_CHECKCACHE[checkCache]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **useChatStore** - No description
+- **useChatStore** - const export
 
 ## Functions
 
@@ -30,7 +29,7 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const checkCache = () =>
@@ -45,16 +44,18 @@ const checkCache = () =>
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 28484 characters
-**Lines of Code:** 806
-**Imports:** 5
+**File Size:** 38632 characters
+**Lines of Code:** 1009
+**Imports:** 10
 
 ## Usage Example
 
 ```typescript
-import { useChatStore } from '@/stores/useChat.ts'
+import { useChatStore } from '@/stores/useChat'
 
 // Example usage
 checkCache()

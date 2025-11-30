@@ -1,6 +1,6 @@
 # MessageDisplay
 
-No description available.
+A Vue component.
 
 **File:** `src/components/MessageDisplay.vue`
 
@@ -24,6 +24,8 @@ graph TB
 | `isAtBottom` | `boolean` | `undefined` | ❌ | No description |
 | `currentUserId` | `string` | `undefined` | ❌ | No description |
 | `isLoading` | `boolean` | `false` | ❌ | No description |
+| `channelId` | `string` | `undefined` | ❌ | No description |
+| `conversationId` | `string` | `undefined` | ❌ | No description |
 
 ### Props Details
 
@@ -74,6 +76,26 @@ No description available.
 - **Type:** `boolean`
 - **Required:** No
 - **Default:** `false`
+
+
+
+#### `channelId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `conversationId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
 
 
 

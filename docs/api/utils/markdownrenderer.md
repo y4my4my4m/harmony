@@ -13,22 +13,23 @@ graph TB
     end
     
     subgraph "Functions"
-        RENDERMARKDOWNTOHTML[renderMarkdownToHTML()]
-        RENDERTOKENTOHTML[renderTokenToHTML()]
-        ESCAPEHTML[escapeHtml()]
-        EXTRACTPLAINTEXT[extractPlainText()]
+        FN_RENDERMARKDOWNTOHTML[renderMarkdownToHTML]
+        FN_RENDERTOKENTOHTML[renderTokenToHTML]
+        FN_ESCAPEHTML[escapeHtml]
+        FN_EXTRACTPLAINTEXT[extractPlainText]
     end
     
     subgraph "Interfaces"
-        RENDEROPTIONS[RenderOptions]
+        INT_RENDEROPTIONS[RenderOptions]
     end
 ```
 
+
 ## Exports
 
-- **RenderOptions** - No description
-- **renderMarkdownToHTML** - No description
-- **extractPlainText** - No description
+- **RenderOptions** - interface export
+- **renderMarkdownToHTML** - function export
+- **extractPlainText** - function export
 
 ## Functions
 
@@ -40,10 +41,10 @@ No description available.
 - `text: string`
 - `options: RenderOptions = {}`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function renderMarkdownToHTML(text: string, options: RenderOptions = {}): string {
+export function renderMarkdownToHTML(text: string, options: RenderOptions = {}): string
 ```
 
 ### `renderTokenToHTML(token: MarkdownToken, options: RenderOptions)`
@@ -54,10 +55,10 @@ No description available.
 - `token: MarkdownToken`
 - `options: RenderOptions`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string {
+function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string
 ```
 
 ### `escapeHtml(text: string)`
@@ -67,10 +68,10 @@ No description available.
 **Parameters:**
 - `text: string`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-function escapeHtml(text: string): string {
+function escapeHtml(text: string): string
 ```
 
 ### `extractPlainText(text: string)`
@@ -80,10 +81,10 @@ No description available.
 **Parameters:**
 - `text: string`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function extractPlainText(text: string): string {
+export function extractPlainText(text: string): string
 ```
 
 
@@ -96,13 +97,18 @@ export function extractPlainText(text: string): string {
 No description available.
 
 ```typescript
-export interface RenderOptions {
+interface RenderOptions {
+
   showMarkers?: boolean; // Whether to show markdown markers
   singleLine?: boolean; // Render as single line (for previews)
   allowImages?: boolean; // Whether to render images
   allowVideos?: boolean; // Whether to render videos
-  emojiResolver?: (name: string) => { url: string; id: string }
+  emojiResolver?: (name: string) => { url: string; id: string } | null;
+
+}
 ```
+
+
 
 
 
@@ -118,7 +124,7 @@ export interface RenderOptions {
 ## Usage Example
 
 ```typescript
-import { RenderOptions, renderMarkdownToHTML, extractPlainText } from '@/utils/markdownRenderer.ts'
+import { RenderOptions, renderMarkdownToHTML, extractPlainText } from '@/utils/markdownRenderer'
 
 // Example usage
 renderMarkdownToHTML()

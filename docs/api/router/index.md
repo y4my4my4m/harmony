@@ -7,17 +7,16 @@
 ```mermaid
 graph TB
     subgraph "index Router"
-        DEFAULT[default]
+        ROUTER[router]
     end
-    
-    
-    
-    
 ```
+
 
 ## Exports
 
-- **default** - No description
+- **router** - default export
+
+
 
 
 
@@ -31,14 +30,14 @@ graph TB
 
 ## Source Code Insights
 
-**File Size:** 8769 characters
-**Lines of Code:** 309
+**File Size:** 10977 characters
+**Lines of Code:** 375
 **Imports:** 6
 
 ## Usage Example
 
 ```typescript
-import { default } from '@/router/index.ts'
+import { router } from '@/router/index'
 
 // Example usage
 // Use the exported functionality

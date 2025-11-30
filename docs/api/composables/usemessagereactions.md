@@ -7,24 +7,25 @@
 ```mermaid
 graph TB
     subgraph "useMessageReactions Composable"
-        DEFAULT[default]
+        DEFINECOMPONENT[defineComponent]
     end
     
     subgraph "Functions"
-        HASUSERREACTED[hasUserReacted()]
-        HANDLEREACTIONCLICK[handleReactionClick()]
-        SHOWTOOLTIP[showTooltip()]
-        HIDETOOLTIP[hideTooltip()]
+        FN_HASUSERREACTED[hasUserReacted]
+        FN_HANDLEREACTIONCLICK[handleReactionClick]
+        FN_SHOWTOOLTIP[showTooltip]
+        FN_HIDETOOLTIP[hideTooltip]
     end
     
     subgraph "Interfaces"
-        PROPS[Props]
+        INT_PROPS[Props]
     end
 ```
 
+
 ## Exports
 
-- **default** - No description
+- **defineComponent** - default export
 
 ## Functions
 
@@ -35,7 +36,7 @@ No description available.
 **Parameters:**
 - `emojiId: string`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const hasUserReacted = (emojiId: string) =>
@@ -48,7 +49,7 @@ No description available.
 **Parameters:**
 - `emoji: Emoji`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleReactionClick = async (emoji: Emoji) =>
@@ -62,7 +63,7 @@ No description available.
 - `event: MouseEvent`
 - `reactionGroup: any`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const showTooltip = (event: MouseEvent, reactionGroup: any) =>
@@ -75,7 +76,7 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const hideTooltip = () =>
@@ -92,8 +93,10 @@ No description available.
 
 ```typescript
 interface Props {
+
   message: Message;
   showReactions?: boolean;
+
 }
 ```
 
@@ -102,16 +105,18 @@ interface Props {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 2765 characters
-**Lines of Code:** 93
-**Imports:** 4
+**File Size:** 3107 characters
+**Lines of Code:** 99
+**Imports:** 5
 
 ## Usage Example
 
 ```typescript
-import { default } from '@/composables/useMessageReactions.ts'
+import { defineComponent } from '@/composables/useMessageReactions'
 
 // Example usage
 hasUserReacted()

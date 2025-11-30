@@ -1,6 +1,6 @@
 # AudioThemeShowcase
 
-No description available.
+A Vue component.
 
 **File:** `src/components/demo/AudioThemeShowcase.vue`
 

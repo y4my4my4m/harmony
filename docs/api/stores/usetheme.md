@@ -10,16 +10,15 @@ graph TB
         USETHEMESTORE[useThemeStore]
     end
     
-    
-    
     subgraph "Interfaces"
-        THEMESTATE[ThemeState]
+        INT_THEMESTATE[ThemeState]
     end
 ```
 
+
 ## Exports
 
-- **useThemeStore** - No description
+- **useThemeStore** - const export
 
 
 
@@ -33,6 +32,7 @@ No description available.
 
 ```typescript
 interface ThemeState {
+
   // Audio themes
   audioThemes: AudioTheme[]
   currentAudioTheme: string
@@ -50,6 +50,7 @@ interface ThemeState {
   // Visual themes (future expansion)
   // visualTheme: string
   // customColors: Record<string, string>
+
 }
 ```
 
@@ -58,16 +59,18 @@ interface ThemeState {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 9423 characters
-**Lines of Code:** 357
-**Imports:** 3
+**File Size:** 9425 characters
+**Lines of Code:** 358
+**Imports:** 4
 
 ## Usage Example
 
 ```typescript
-import { useThemeStore } from '@/stores/useTheme.ts'
+import { useThemeStore } from '@/stores/useTheme'
 
 // Example usage
 // Use the exported functionality

@@ -7,23 +7,31 @@
 ```mermaid
 graph TB
     subgraph "useServerPermissions Composable"
+        SERVERPERMISSION[ServerPermission]
         USERROLE[UserRole]
         USESERVERPERMISSIONS[useServerPermissions]
     end
     
     subgraph "Functions"
-        USESERVERPERMISSIONS[useServerPermissions()]
+        FN_USESERVERPERMISSIONS[useServerPermissions]
+        FN_ISSERVEROWNER[isServerOwner]
+        FN_GETUSERROLE[getUserRole]
+        FN_HASPERMISSION[hasPermission]
+        FN_HASCURRENTUSERPERMISSION[hasCurrentUserPermission]
+        FN_CHECKSERVERPERMISSION[checkServerPermission]
     end
     
     subgraph "Interfaces"
-        USERROLE[UserRole]
+        INT_USERROLE[UserRole]
     end
 ```
 
+
 ## Exports
 
-- **UserRole** - No description
-- **useServerPermissions** - No description
+- **ServerPermission** - enum export
+- **UserRole** - interface export
+- **useServerPermissions** - function export
 
 ## Functions
 
@@ -34,10 +42,89 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useServerPermissions() {
+export function useServerPermissions()
+```
+
+### `isServerOwner(serverId: string, profileId?: string)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `profileId?: string`
+
+**Returns:** `boolean`
+
+```typescript
+const isServerOwner = (serverId: string, profileId?: string): boolean =>
+```
+
+### `getUserRole(serverId: string, profileId?: string)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `profileId?: string`
+
+**Returns:** `UserRole`
+
+```typescript
+const getUserRole = (serverId: string, profileId?: string): UserRole =>
+```
+
+### `hasPermission(serverId: string, profileId: string, permission: ServerPermission)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `profileId: string`
+- `permission: ServerPermission`
+
+**Returns:** `boolean`
+
+```typescript
+const hasPermission = (
+    serverId: string, 
+    profileId: string, 
+    permission: ServerPermission
+  ): boolean =>
+```
+
+### `hasCurrentUserPermission(permission: ServerPermission)`
+
+No description available.
+
+**Parameters:**
+- `permission: ServerPermission`
+
+**Returns:** `boolean`
+
+```typescript
+const hasCurrentUserPermission = (permission: ServerPermission): boolean =>
+```
+
+### `checkServerPermission(serverId: string, permission: ServerPermission, userId?: string)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `permission: ServerPermission`
+- `userId?: string`
+
+**Returns:** `boolean`
+
+```typescript
+const checkServerPermission = (
+    serverId: string, 
+    permission: ServerPermission, 
+    userId?: string
+  ): boolean =>
 ```
 
 
@@ -50,7 +137,8 @@ export function useServerPermissions() {
 No description available.
 
 ```typescript
-export interface UserRole {
+interface UserRole {
+
   id: string
   name: string
   permissions: ServerPermission[]
@@ -59,6 +147,7 @@ export interface UserRole {
   isAdmin: boolean
   color?: string
   position: number
+
 }
 ```
 
@@ -67,16 +156,18 @@ export interface UserRole {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 5876 characters
-**Lines of Code:** 191
-**Imports:** 4
+**File Size:** 7208 characters
+**Lines of Code:** 224
+**Imports:** 7
 
 ## Usage Example
 
 ```typescript
-import { UserRole, useServerPermissions } from '@/composables/useServerPermissions.ts'
+import { ServerPermission, UserRole, useServerPermissions } from '@/composables/useServerPermissions'
 
 // Example usage
 useServerPermissions()

@@ -1,6 +1,6 @@
 # ChatHeader
 
-No description available.
+A Vue component.
 
 **File:** `src/components/chat/ChatHeader.vue`
 
@@ -74,6 +74,7 @@ No description available.
 | `toggle-left-sidebar` | unknown | No description |
 | `toggle-voice-panel` | unknown | No description |
 | `toggle-right-sidebar` | unknown | No description |
+| `toggle-search` | unknown | No description |
 
 ### Event Details
 
@@ -101,6 +102,14 @@ No description available.
 
 
 
+#### `toggle-search`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -118,7 +127,8 @@ This component exposes no public methods.
     :channel="undefined"
     @toggle-left-sidebar="handleToggle-left-sidebar"
     @toggle-voice-panel="handleToggle-voice-panel"
-    @toggle-right-sidebar="handleToggle-right-sidebar" />
+    @toggle-right-sidebar="handleToggle-right-sidebar"
+    @toggle-search="handleToggle-search" />
 </template>
 
 <script setup lang="ts">
@@ -132,6 +142,10 @@ const handleToggle-voice-panel = (data) => {
 
 const handleToggle-right-sidebar = (data) => {
   // Handle toggle-right-sidebar event
+}
+
+const handleToggle-search = (data) => {
+  // Handle toggle-search event
 }
 </script>
 ```

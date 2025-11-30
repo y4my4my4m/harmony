@@ -19,42 +19,41 @@ graph TB
         GENERATENODEINFOJSON[generateNodeInfoJson]
         WANTSACTIVITYPUB[wantsActivityPub]
         WANTSWEBFINGER[wantsWebFinger]
-        DEFAULT[default]
     end
     
     subgraph "Functions"
-        GETACTORURL[getActorUrl()]
-        GETWEBFINGERRESOURCE[getWebfingerResource()]
-        ISLOCALACTOR[isLocalActor()]
-        GENERATEACTORJSON[generateActorJson()]
-        GENERATEWEBFINGERJSON[generateWebFingerJson()]
-        GENERATENODEINFOJSON[generateNodeInfoJson()]
-        WANTSACTIVITYPUB[wantsActivityPub()]
-        WANTSWEBFINGER[wantsWebFinger()]
+        FN_GETACTORURL[getActorUrl]
+        FN_GETWEBFINGERRESOURCE[getWebfingerResource]
+        FN_ISLOCALACTOR[isLocalActor]
+        FN_GENERATEACTORJSON[generateActorJson]
+        FN_GENERATEWEBFINGERJSON[generateWebFingerJson]
+        FN_GENERATENODEINFOJSON[generateNodeInfoJson]
+        FN_WANTSACTIVITYPUB[wantsActivityPub]
+        FN_WANTSWEBFINGER[wantsWebFinger]
     end
     
     subgraph "Interfaces"
-        EXPORT[export]
-        EXPORT[export]
-        EXPORT[export]
+        INT_ACTIVITYPUBACTOR[ActivityPubActor]
+        INT_WEBFINGERRESPONSE[WebFingerResponse]
+        INT_NODEINFORESPONSE[NodeInfoResponse]
     end
 ```
 
+
 ## Exports
 
-- **ACTIVITYPUB_CONFIG** - No description
-- **ActivityPubActor** - No description
-- **WebFingerResponse** - No description
-- **NodeInfoResponse** - No description
-- **getActorUrl** - No description
-- **getWebfingerResource** - No description
-- **isLocalActor** - No description
-- **generateActorJson** - No description
-- **generateWebFingerJson** - No description
-- **generateNodeInfoJson** - No description
-- **wantsActivityPub** - No description
-- **wantsWebFinger** - No description
-- **default** - No description
+- **ACTIVITYPUB_CONFIG** - const export
+- **ActivityPubActor** - interface export
+- **WebFingerResponse** - interface export
+- **NodeInfoResponse** - interface export
+- **getActorUrl** - function export
+- **getWebfingerResource** - function export
+- **isLocalActor** - function export
+- **generateActorJson** - function export
+- **generateWebFingerJson** - function export
+- **generateNodeInfoJson** - function export
+- **wantsActivityPub** - function export
+- **wantsWebFinger** - function export
 
 ## Functions
 
@@ -65,10 +64,10 @@ No description available.
 **Parameters:**
 - `username: string`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function getActorUrl(username: string): string {
+export function getActorUrl(username: string): string
 ```
 
 ### `getWebfingerResource(username: string)`
@@ -78,10 +77,10 @@ No description available.
 **Parameters:**
 - `username: string`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function getWebfingerResource(username: string): string {
+export function getWebfingerResource(username: string): string
 ```
 
 ### `isLocalActor(actorUrl: string)`
@@ -91,10 +90,10 @@ No description available.
 **Parameters:**
 - `actorUrl: string`
 
-**Returns:** Unknown
+**Returns:** `boolean`
 
 ```typescript
-export function isLocalActor(actorUrl: string): boolean {
+export function isLocalActor(actorUrl: string): boolean
 ```
 
 ### `generateActorJson(user: FederatedUser)`
@@ -104,10 +103,10 @@ No description available.
 **Parameters:**
 - `user: FederatedUser`
 
-**Returns:** Unknown
+**Returns:** `ActivityPubActor`
 
 ```typescript
-export function generateActorJson(user: FederatedUser): ActivityPubActor {
+export function generateActorJson(user: FederatedUser): ActivityPubActor
 ```
 
 ### `generateWebFingerJson(username: string)`
@@ -117,10 +116,10 @@ No description available.
 **Parameters:**
 - `username: string`
 
-**Returns:** Unknown
+**Returns:** `WebFingerResponse`
 
 ```typescript
-export function generateWebFingerJson(username: string): WebFingerResponse {
+export function generateWebFingerJson(username: string): WebFingerResponse
 ```
 
 ### `generateNodeInfoJson(stats?: {
@@ -140,7 +139,7 @@ No description available.
   activeHalfyear?: number;
 }`
 
-**Returns:** Unknown
+**Returns:** `NodeInfoResponse`
 
 ```typescript
 export function generateNodeInfoJson(stats?: {
@@ -148,7 +147,7 @@ export function generateNodeInfoJson(stats?: {
   postCount?: number;
   activeMonth?: number;
   activeHalfyear?: number;
-}): NodeInfoResponse {
+}): NodeInfoResponse
 ```
 
 ### `wantsActivityPub(acceptHeader: string)`
@@ -158,10 +157,10 @@ No description available.
 **Parameters:**
 - `acceptHeader: string`
 
-**Returns:** Unknown
+**Returns:** `boolean`
 
 ```typescript
-export function wantsActivityPub(acceptHeader: string): boolean {
+export function wantsActivityPub(acceptHeader: string): boolean
 ```
 
 ### `wantsWebFinger(acceptHeader: string)`
@@ -171,10 +170,10 @@ No description available.
 **Parameters:**
 - `acceptHeader: string`
 
-**Returns:** Unknown
+**Returns:** `boolean`
 
 ```typescript
-export function wantsWebFinger(acceptHeader: string): boolean {
+export function wantsWebFinger(acceptHeader: string): boolean
 ```
 
 
@@ -182,13 +181,13 @@ export function wantsWebFinger(acceptHeader: string): boolean {
 
 ## Interfaces
 
-### export
+### ActivityPubActor
 
 No description available.
 
 ```typescript
-interface
-export interface ActivityPubActor {
+interface ActivityPubActor {
+
   '@context': string | string[];
   id: string;
   type: 'Person' | 'Service' | 'Group';
@@ -199,43 +198,92 @@ export interface ActivityPubActor {
     type: 'Image';
     mediaType: string;
     url: string;
-  }
+  };
+  inbox: string;
+  outbox: string;
+  following: string;
+  followers: string;
+  featured?: string;
+  publicKey: {
+    id: string;
+    owner: string;
+    publicKeyPem: string;
+  };
+  endpoints?: {
+    sharedInbox?: string;
+  };
+  url?: string;
+
+}
 ```
 
-### export
+### WebFingerResponse
 
 No description available.
 
 ```typescript
-interface
-export interface WebFingerResponse {
+interface WebFingerResponse {
+
   subject: string;
   links: Array<{
     rel: string;
     type?: string;
     href: string;
-  }
+  }>;
+
+}
 ```
 
-### export
+### NodeInfoResponse
 
 No description available.
 
 ```typescript
-interface
-export interface NodeInfoResponse {
+interface NodeInfoResponse {
+
   version: string;
   software: {
     name: string;
     version: string;
     repository?: string;
-  }
+  };
+  protocols: string[];
+  services: {
+    outbound: string[];
+    inbound: string[];
+  };
+  usage: {
+    users: {
+      total: number;
+      activeMonth: number;
+      activeHalfyear: number;
+    };
+    localPosts: number;
+    localComments: number;
+  };
+  openRegistrations: boolean;
+  metadata: {
+    nodeName: string;
+    nodeDescription: string;
+    maintainer?: {
+      name: string;
+      ema
+  // ...
+}
 ```
 
 
 
 
 ## Constants
+
+### INSTANCE_DOMAIN
+
+No description available.
+
+```typescript
+const INSTANCE_DOMAIN = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+```
 
 ### ACTIVITYPUB_CONFIG
 
@@ -246,16 +294,18 @@ export const ACTIVITYPUB_CONFIG = {
 ```
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 5732 characters
-**Lines of Code:** 234
+**File Size:** 6202 characters
+**Lines of Code:** 245
 **Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { ACTIVITYPUB_CONFIG, ActivityPubActor, WebFingerResponse, NodeInfoResponse, getActorUrl, getWebfingerResource, isLocalActor, generateActorJson, generateWebFingerJson, generateNodeInfoJson, wantsActivityPub, wantsWebFinger, default } from '@/config/activitypub.ts'
+import { ACTIVITYPUB_CONFIG, ActivityPubActor, WebFingerResponse, NodeInfoResponse, getActorUrl, getWebfingerResource, isLocalActor, generateActorJson, generateWebFingerJson, generateNodeInfoJson, wantsActivityPub, wantsWebFinger } from '@/config/activitypub'
 
 // Example usage
 getActorUrl()

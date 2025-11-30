@@ -10,17 +10,48 @@ graph TB
         USEACTIVITYPUBSTORE[useActivityPubStore]
     end
     
-    
+    subgraph "Functions"
+        FN_PARSEVALUE[parseValue]
+        FN_FILTERREBLOG[filterReblog]
+    end
     
     subgraph "Interfaces"
-        ACTIVITYPUBSTATE[ActivityPubState]
+        INT_ACTIVITYPUBSTATE[ActivityPubState]
     end
 ```
 
+
 ## Exports
 
-- **useActivityPubStore** - No description
+- **useActivityPubStore** - const export
 
+## Functions
+
+### `parseValue(val: any)`
+
+No description available.
+
+**Parameters:**
+- `val: any`
+
+**Returns:** `Unknown`
+
+```typescript
+const parseValue = (val: any) =>
+```
+
+### `filterReblog(posts: TimelinePost[])`
+
+No description available.
+
+**Parameters:**
+- `posts: TimelinePost[]`
+
+**Returns:** `Unknown`
+
+```typescript
+const filterReblog = (posts: TimelinePost[]) =>
+```
 
 
 
@@ -33,6 +64,7 @@ No description available.
 
 ```typescript
 interface ActivityPubState {
+
   // Feed state
   homeFeed: MonyFeed;
   publicFeed: MonyFeed;
@@ -53,54 +85,48 @@ interface ActivityPubState {
   followersCount: number;
   
   // Instance state
-  knownInstances: any[];
-  blockedInstances: Set<string>;
-  
-  // UI state
-  isComposerOpen: boolean;
-  composerState: PostComposerState;
-  selectedPost?: Post;
-  currentView: 'home' | 'public' | 'local';
-  
-  // Loading states
-  isLoadingFeed: boolean;
-  isLoadingPost: boolean;
-  isLoadingProfile: boolean;
-  isPosting: boolean;
-  isLoadingConversation: boolean;
-  
-  // Realtime subscriptions
-  realtimeSubscriptions: Map<string, any>;
-  
-  // Notification integration
-  lastNotificationCheck: Date | null;
-  unreadCount: number;
-  
-  // Bookmarks state
-  bookmarks: TimelinePost[];
-  hasMoreBookmarks: boolean;
-  bookmarksCursor: string | null;
+  knownInstances: a
+  // ...
 }
 ```
 
 
 
 
+## Constants
+
+### CACHE_DURATION
+
+No description available.
+
+```typescript
+const CACHE_DURATION = 5 * 60 * 1000
+```
+
+### CACHE_MAX_AGE
+
+No description available.
+
+```typescript
+const CACHE_MAX_AGE = 30 * 60 * 1000
+```
+
+
 
 
 ## Source Code Insights
 
-**File Size:** 67472 characters
-**Lines of Code:** 2107
-**Imports:** 5
+**File Size:** 98672 characters
+**Lines of Code:** 2862
+**Imports:** 9
 
 ## Usage Example
 
 ```typescript
-import { useActivityPubStore } from '@/stores/useActivityPub.ts'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 
 // Example usage
-// Use the exported functionality
+parseValue()
 ```
 
 ---

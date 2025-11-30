@@ -1,6 +1,6 @@
 # ReplyIcon
 
-No description available.
+A Vue component.
 
 **File:** `src/components/icons/More.vue`
 

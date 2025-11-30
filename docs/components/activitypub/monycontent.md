@@ -1,6 +1,6 @@
 # MonyContent
 
-No description available.
+A Vue component.
 
 **File:** `src/components/activitypub/MonyContent.vue`
 
@@ -20,6 +20,8 @@ graph TB
 | Name | Type | Default | Required | Description |
 |------|------|---------|----------|-------------|
 | `content` | `union` | `undefined` | ✅ | No description |
+| `isPreview` | `boolean` | `undefined` | ❌ | No description |
+| `previewLength` | `number` | `undefined` | ❌ | No description |
 
 ### Props Details
 
@@ -33,6 +35,26 @@ No description available.
 
 
 
+#### `isPreview`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `previewLength`
+
+No description available.
+
+- **Type:** `number`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
 
 ## Events
 
@@ -40,6 +62,7 @@ No description available.
 |------|------------|-------------|
 | `user-mention-click` | string | No description |
 | `hashtag-click` | string | No description |
+| `image-click` | string | No description |
 
 ### Event Details
 
@@ -52,6 +75,14 @@ No description available.
 
 
 #### `hashtag-click`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `image-click`
 
 No description available.
 
@@ -75,7 +106,8 @@ This component exposes no public methods.
   <MonyContent
     :content="undefined"
     @user-mention-click="handleUser-mention-click"
-    @hashtag-click="handleHashtag-click" />
+    @hashtag-click="handleHashtag-click"
+    @image-click="handleImage-click" />
 </template>
 
 <script setup lang="ts">
@@ -85,6 +117,10 @@ const handleUser-mention-click = (string) => {
 
 const handleHashtag-click = (string) => {
   // Handle hashtag-click event
+}
+
+const handleImage-click = (string) => {
+  // Handle image-click event
 }
 </script>
 ```

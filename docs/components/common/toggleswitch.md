@@ -1,6 +1,6 @@
 # ToggleSwitch
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/ToggleSwitch.vue`
 

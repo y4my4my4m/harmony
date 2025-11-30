@@ -1,6 +1,6 @@
 # CategoryContextMenu
 
-No description available.
+A Vue component.
 
 **File:** `src/components/CategoryContextMenu.vue`
 

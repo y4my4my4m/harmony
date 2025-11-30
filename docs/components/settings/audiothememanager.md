@@ -1,6 +1,6 @@
 # AudioThemeManager
 
-No description available.
+A Vue component.
 
 **File:** `src/components/settings/AudioThemeManager.vue`
 

@@ -7,58 +7,146 @@
 ```mermaid
 graph TB
     subgraph "useReactions Store"
-        REACTIONGROUP[ReactionGroup]
         USEREACTIONSSTORE[useReactionsStore]
     end
     
     subgraph "Functions"
-        CHECKLOADING[checkLoading()]
-    end
-    
-    subgraph "Interfaces"
-        REACTIONGROUP[ReactionGroup]
+        FN_FETCHMESSAGEREACTIONS[fetchMessageReactions]
+        FN_FETCHMULTIPLEMESSAGEREACTIONS[fetchMultipleMessageReactions]
+        FN_TOGGLEREACTION[toggleReaction]
+        FN_HANDLEREALTIMEUPDATE[handleRealtimeUpdate]
+        FN_CREATEOPTIMISTICREACTIONS[createOptimisticReactions]
+        FN_CLEANUPOPTIMISTICSTATE[cleanupOptimisticState]
     end
 ```
 
+
 ## Exports
 
-- **ReactionGroup** - No description
-- **useReactionsStore** - No description
+- **useReactionsStore** - const export
 
 ## Functions
 
-### `checkLoading()`
+### `fetchMessageReactions(messageId: string, force = false)`
+
+No description available.
+
+**Parameters:**
+- `messageId: string`
+- `force = false`
+
+**Returns:** `Promise&lt;void&gt;`
+
+```typescript
+async function fetchMessageReactions(messageId: string, force = false): Promise<void>
+```
+
+### `fetchMultipleMessageReactions(messageIds: string[], force = false)`
+
+No description available.
+
+**Parameters:**
+- `messageIds: string[]`
+- `force = false`
+
+**Returns:** `Promise&lt;void&gt;`
+
+```typescript
+/**
+   * CRITICAL: Batch fetch reactions for multiple messages to avoid N+1 queries
+   * This is essential for performance when loading chat history
+   */
+  async function fetchMultipleMessageReactions(messageIds: string[], force = false): Promise<void>
+```
+
+### `toggleReaction(messageId: string, emojiId: string, userId: string, emojiData?: Emoji)`
+
+No description available.
+
+**Parameters:**
+- `messageId: string`
+- `emojiId: string`
+- `userId: string`
+- `emojiData?: Emoji`
+
+**Returns:** `Promise&lt;`
+
+```typescript
+/**
+   * SIMPLE reaction toggle with instant UI feedback
+   * emojiData is optional - if provided, uses it immediately for zero-delay rendering
+   */
+  async function toggleReaction(
+    messageId: string, 
+    emojiId: string, 
+    userId: string, 
+    emojiData?: Emoji
+  ): Promise<
+```
+
+### `handleRealtimeUpdate(payload: any)`
+
+No description available.
+
+**Parameters:**
+- `payload: any`
+
+**Returns:** `Promise&lt;void&gt;`
+
+```typescript
+/**
+   * SMART realtime handling - works with optimistic state
+   */
+  async function handleRealtimeUpdate(payload: any): Promise<void>
+```
+
+### `createOptimisticReactions(baseReactions: ReactionGroup[], emojiId: string, userId: string, operation: 'add' | 'remove', providedEmojiData?: Emoji)`
+
+No description available.
+
+**Parameters:**
+- `baseReactions: ReactionGroup[]`
+- `emojiId: string`
+- `userId: string`
+- `operation: 'add' | 'remove'`
+- `providedEmojiData?: Emoji`
+
+**Returns:** `ReactionGroup[]`
+
+```typescript
+/**
+    * SIMPLE helper: Create optimistic reaction state
+    */
+   function createOptimisticReactions(
+     baseReactions: ReactionGroup[], 
+     emojiId: string, 
+     userId: string, 
+     operation: 'add' | 'remove',
+     providedEmojiData?: Emoji
+   ): ReactionGroup[]
+```
+
+### `cleanupOptimisticState()`
 
 No description available.
 
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-const checkLoading = () =>
+/**
+    * SMART cleanup for optimistic state - let successful reactions stay
+    */
+   function cleanupOptimisticState(): void
 ```
 
 
 
 
-## Interfaces
 
-### ReactionGroup
 
-No description available.
-
-```typescript
-export interface ReactionGroup {
-  id: string;
-  count: number;
-  emoji: Emoji;
-  reactions: Array<{
-    reaction_id: string;
-    user_id: string;
-  }
-```
 
 
 
@@ -67,17 +155,17 @@ export interface ReactionGroup {
 
 ## Source Code Insights
 
-**File Size:** 15118 characters
-**Lines of Code:** 418
-**Imports:** 4
+**File Size:** 12769 characters
+**Lines of Code:** 371
+**Imports:** 6
 
 ## Usage Example
 
 ```typescript
-import { ReactionGroup, useReactionsStore } from '@/stores/useReactions.ts'
+import { useReactionsStore } from '@/stores/useReactions'
 
 // Example usage
-checkLoading()
+fetchMessageReactions()
 ```
 
 ---

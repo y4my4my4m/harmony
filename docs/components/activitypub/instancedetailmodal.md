@@ -1,6 +1,6 @@
 # InstanceDetailModal
 
-No description available.
+A Vue component.
 
 **File:** `src/components/activitypub/InstanceDetailModal.vue`
 

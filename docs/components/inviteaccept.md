@@ -1,6 +1,6 @@
 # InviteAccept
 
-No description available.
+A Vue component.
 
 **File:** `src/components/InviteAccept.vue`
 

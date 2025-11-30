@@ -10,14 +10,15 @@ graph TB
         STATUSDEBUGGER[statusDebugger]
     end
     
-    
-    
-    
+    subgraph "Classes"
+        CLS_STATUSLIFECYCLEDEBUGGER[StatusLifecycleDebugger]
+    end
 ```
+
 
 ## Exports
 
-- **statusDebugger** - No description
+- **statusDebugger** - const export
 
 
 
@@ -29,16 +30,49 @@ No description available.
 
 **Methods:**
 - `startDebugging`
-- `if`
+- `stopDebugging`
+- `getCurrentStatusInfo`
+- `testManualStatusChange`
+- `catch`
+- `simulateInactivity`
+- `showDebugPanel`
 
 **Properties:**
 - `isDebugging`
 - `logHistory`
-- `isDebugging`
-- `logHistory`
-- `event`
+- `monitoring`
+- `true`
+- `events`
 - `log`
-- `changed`
+- `false`
+- `undefined`
+- `information`
+- `currentUser`
+- `activityState`
+- `user`
+- `id`
+- `username`
+- `status`
+- `lastHeartbeat`
+- `isOnline`
+- `activity`
+- `lastActivity`
+- `timeSinceLastActivity`
+- `isIdle`
+- `isAway`
+- `changes`
+- `to`
+- `failed`
+- `testing`
+- `time`
+- `millisecondsAgo`
+- `console`
+- `info`
+- `User`
+- `State`
+- `History`
+
+
 
 
 
@@ -49,14 +83,14 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 6151 characters
-**Lines of Code:** 179
-**Imports:** 3
+**File Size:** 6147 characters
+**Lines of Code:** 180
+**Imports:** 4
 
 ## Usage Example
 
 ```typescript
-import { statusDebugger } from '@/services/StatusLifecycleDebugger.ts'
+import { statusDebugger } from '@/services/StatusLifecycleDebugger'
 
 // Example usage
 // Use the exported functionality

@@ -1,6 +1,6 @@
 # PostDetailDisplay
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/PostDetailDisplay.vue`
 

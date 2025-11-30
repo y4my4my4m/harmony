@@ -1,6 +1,6 @@
 # VoiceSettingsPanel
 
-No description available.
+A Vue component.
 
 **File:** `src/components/voice/VoiceSettingsPanel.vue`
 

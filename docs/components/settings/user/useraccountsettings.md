@@ -1,6 +1,6 @@
 # UserAccountSettings
 
-No description available.
+A Vue component.
 
 **File:** `src/components/settings/user/UserAccountSettings.vue`
 
@@ -51,6 +51,7 @@ No description available.
 |------|------------|-------------|
 | `update-profile` | Partial | No description |
 | `upload-avatar` | File | No description |
+| `upload-banner` | File | No description |
 
 ### Event Details
 
@@ -63,6 +64,14 @@ No description available.
 
 
 #### `upload-avatar`
+
+No description available.
+
+**Parameters:** `File`
+
+
+
+#### `upload-banner`
 
 No description available.
 
@@ -87,7 +96,8 @@ This component exposes no public methods.
     :profile="undefined"
     :loading="true"
     @update-profile="handleUpdate-profile"
-    @upload-avatar="handleUpload-avatar" />
+    @upload-avatar="handleUpload-avatar"
+    @upload-banner="handleUpload-banner" />
 </template>
 
 <script setup lang="ts">
@@ -97,6 +107,10 @@ const handleUpdate-profile = (Partial) => {
 
 const handleUpload-avatar = (File) => {
   // Handle upload-avatar event
+}
+
+const handleUpload-banner = (File) => {
+  // Handle upload-banner event
 }
 </script>
 ```

@@ -7,29 +7,32 @@
 ```mermaid
 graph TB
     subgraph "permissionsService Service"
+        SERVERPERMISSION[ServerPermission]
         SERVERSETTINGS[ServerSettings]
         USERPERMISSIONS[UserPermissions]
     end
     
     subgraph "Functions"
-        GETUSERPERMISSIONS[getUserPermissions()]
-        GETSERVERSETTINGS[getServerSettings()]
-        UPDATESERVERSETTINGS[updateServerSettings()]
-        GETDEFAULTSERVERSETTINGS[getDefaultServerSettings()]
-        CANUSERCREATEINVITES[canUserCreateInvites()]
-        GETINVITECONSTRAINTS[getInviteConstraints()]
+        FN_GETUSERPERMISSIONS[getUserPermissions]
+        FN_GETSERVERSETTINGS[getServerSettings]
+        FN_UPDATESERVERSETTINGS[updateServerSettings]
+        FN_GETDEFAULTSERVERSETTINGS[getDefaultServerSettings]
+        FN_CANUSERCREATEINVITES[canUserCreateInvites]
+        FN_GETINVITECONSTRAINTS[getInviteConstraints]
     end
     
     subgraph "Interfaces"
-        SERVERSETTINGS[ServerSettings]
-        USERPERMISSIONS[UserPermissions]
+        INT_SERVERSETTINGS[ServerSettings]
+        INT_USERPERMISSIONS[UserPermissions]
     end
 ```
 
+
 ## Exports
 
-- **ServerSettings** - No description
-- **UserPermissions** - No description
+- **ServerPermission** - enum export
+- **ServerSettings** - interface export
+- **UserPermissions** - interface export
 
 ## Functions
 
@@ -41,10 +44,10 @@ No description available.
 - `userId: string`
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;UserPermissions&gt;`
 
 ```typescript
-async function getUserPermissions(userId: string, serverId: string): Promise<UserPermissions> {
+async function getUserPermissions(userId: string, serverId: string): Promise<UserPermissions>
 ```
 
 ### `getServerSettings(serverId: string)`
@@ -54,24 +57,24 @@ No description available.
 **Parameters:**
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;ServerSettings | null&gt;`
 
 ```typescript
-async function getServerSettings(serverId: string): Promise<ServerSettings | null> {
+async function getServerSettings(serverId: string): Promise<ServerSettings | null>
 ```
 
-### `updateServerSettings(serverId: string, settings: Partial<ServerSettings>)`
+### `updateServerSettings(serverId: string, settings: Partial&lt;ServerSettings&gt;)`
 
 No description available.
 
 **Parameters:**
 - `serverId: string`
-- `settings: Partial<ServerSettings>`
+- `settings: Partial&lt;ServerSettings&gt;`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;boolean&gt;`
 
 ```typescript
-async function updateServerSettings(serverId: string, settings: Partial<ServerSettings>): Promise<boolean> {
+async function updateServerSettings(serverId: string, settings: Partial<ServerSettings>): Promise<boolean>
 ```
 
 ### `getDefaultServerSettings(serverId: string)`
@@ -81,10 +84,10 @@ No description available.
 **Parameters:**
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `ServerSettings`
 
 ```typescript
-function getDefaultServerSettings(serverId: string): ServerSettings {
+function getDefaultServerSettings(serverId: string): ServerSettings
 ```
 
 ### `canUserCreateInvites(userId: string, serverId: string)`
@@ -95,10 +98,10 @@ No description available.
 - `userId: string`
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;boolean&gt;`
 
 ```typescript
-async function canUserCreateInvites(userId: string, serverId: string): Promise<boolean> {
+async function canUserCreateInvites(userId: string, serverId: string): Promise<boolean>
 ```
 
 ### `getInviteConstraints(userId: string, serverId: string)`
@@ -109,10 +112,10 @@ No description available.
 - `userId: string`
 - `serverId: string`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;`
 
 ```typescript
-async function getInviteConstraints(userId: string, serverId: string): Promise<{
+async function getInviteConstraints(userId: string, serverId: string): Promise<
 ```
 
 
@@ -125,7 +128,8 @@ async function getInviteConstraints(userId: string, serverId: string): Promise<{
 No description available.
 
 ```typescript
-export interface ServerSettings {
+interface ServerSettings {
+
   id: string
   server_id: string
   invite_permissions: {
@@ -136,6 +140,10 @@ export interface ServerSettings {
     allow_temporary: boolean
     max_uses_limit: number // 0 = no limit
   }
+  created_at?: string
+  updated_at?: string
+
+}
 ```
 
 ### UserPermissions
@@ -143,13 +151,15 @@ export interface ServerSettings {
 No description available.
 
 ```typescript
-export interface UserPermissions {
+interface UserPermissions {
+
   userId: string
   serverId: string
   permissions: ServerPermission[]
   roles: string[]
   isOwner: boolean
   isAdmin: boolean
+
 }
 ```
 
@@ -158,16 +168,18 @@ export interface UserPermissions {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 7364 characters
-**Lines of Code:** 275
-**Imports:** 1
+**File Size:** 7392 characters
+**Lines of Code:** 276
+**Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { ServerSettings, UserPermissions } from '@/services/permissionsService.ts'
+import { ServerPermission, ServerSettings, UserPermissions } from '@/services/permissionsService'
 
 // Example usage
 getUserPermissions()

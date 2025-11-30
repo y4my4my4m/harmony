@@ -12,20 +12,19 @@ graph TB
         USESPATIALAUDIOSTORE[useSpatialAudioStore]
     end
     
-    
-    
     subgraph "Interfaces"
-        USERPOSITION[UserPosition]
-        SPATIALAUDIOSETTINGS[SpatialAudioSettings]
-        SPATIALAUDIOSTATE[SpatialAudioState]
+        INT_USERPOSITION[UserPosition]
+        INT_SPATIALAUDIOSETTINGS[SpatialAudioSettings]
+        INT_SPATIALAUDIOSTATE[SpatialAudioState]
     end
 ```
 
+
 ## Exports
 
-- **UserPosition** - No description
-- **SpatialAudioSettings** - No description
-- **useSpatialAudioStore** - No description
+- **UserPosition** - interface export
+- **SpatialAudioSettings** - interface export
+- **useSpatialAudioStore** - const export
 
 
 
@@ -38,11 +37,13 @@ graph TB
 No description available.
 
 ```typescript
-export interface UserPosition {
+interface UserPosition {
+
   userId: string;
   x: number;
   y: number;
   z?: number; // For future 3D support
+
 }
 ```
 
@@ -51,7 +52,8 @@ export interface UserPosition {
 No description available.
 
 ```typescript
-export interface SpatialAudioSettings {
+interface SpatialAudioSettings {
+
   enabled: boolean;
   maxDistance: number;
   rolloffFactor: number;
@@ -59,6 +61,8 @@ export interface SpatialAudioSettings {
   distanceModel: 'linear' | 'inverse' | 'exponential';
   enableReverb: boolean;
   roomSize: number;
+  binauralIntensity: number; // 0-1, controls how dramatic the binaural effect is
+
 }
 ```
 
@@ -68,13 +72,27 @@ No description available.
 
 ```typescript
 interface SpatialAudioState {
+
   // Settings
   settings: SpatialAudioSettings;
   
   // UI State
   isPanelVisible: boolean;
-  panelSize: { width: number; height: number }
+  panelSize: { width: number; height: number };
+  gridScale: number;
+  
+  // User positions
+  userPositions: Map<string, UserPosition>;
+  
+  // Dragging state
+  isDragging: boolean;
+  draggedUserId: string | null;
+  dragOffset: { x: number; y: number };
+
+}
 ```
+
+
 
 
 
@@ -83,14 +101,14 @@ interface SpatialAudioState {
 
 ## Source Code Insights
 
-**File Size:** 10765 characters
-**Lines of Code:** 335
-**Imports:** 1
+**File Size:** 12189 characters
+**Lines of Code:** 363
+**Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { UserPosition, SpatialAudioSettings, useSpatialAudioStore } from '@/stores/spatialAudio.ts'
+import { UserPosition, SpatialAudioSettings, useSpatialAudioStore } from '@/stores/spatialAudio'
 
 // Example usage
 // Use the exported functionality

@@ -1,6 +1,6 @@
 # GifComponent
 
-No description available.
+A Vue component.
 
 **File:** `src/components/GifComponent.vue`
 

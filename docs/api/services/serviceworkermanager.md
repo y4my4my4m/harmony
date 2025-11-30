@@ -11,15 +11,16 @@ graph TB
         SERVICEWORKERMANAGER[serviceWorkerManager]
     end
     
-    
-    
-    
+    subgraph "Classes"
+        CLS_SERVICEWORKERMANAGER[ServiceWorkerManager]
+    end
 ```
+
 
 ## Exports
 
-- **ServiceWorkerManager** - No description
-- **serviceWorkerManager** - No description
+- **ServiceWorkerManager** - class export
+- **serviceWorkerManager** - const export
 
 
 
@@ -31,14 +32,93 @@ No description available.
 
 **Methods:**
 - `getInstance`
-- `if`
+- `initialize`
+- `catch`
+- `requestNotificationPermission`
+- `subscribeToPushNotifications`
+- `sendSubscriptionToServer`
+- `handleServiceWorkerMessage`
+- `switch`
+- `handleNavigateToNotification`
+- `handleMarkNotificationRead`
+- `handleServiceWorkerUpdate`
+- `sendMessage`
+- `updateNotificationSettings`
+- `clearStoredNotifications`
+- `unsubscribeFromPush`
+- `urlBase64ToUint8Array`
+- `activateWaitingServiceWorker`
+- `isSupported`
+- `ready`
+- `serviceWorkerRegistration`
+- `prefetchCriticalResources`
+- `getVersion`
+- `checkForUpdate`
 
 **Properties:**
 - `instance`
 - `registration`
-- `null`
 - `isRegistered`
-- `instance`
+- `notifications`
+- `ServiceWorker`
+- `supported`
+- `false`
+- `worker`
+- `scope`
+- `friendly`
+- `newWorker`
+- `updates`
+- `detail`
+- `skipWaiting`
+- `type`
+- `resources`
+- `true`
+- `permission`
+- `null`
+- `subscribed`
+- `subscription`
+- `vapidPublicKey`
+- `userVisibleOnly`
+- `applicationServerKey`
+- `created`
+- `server`
+- `userId`
+- `supabase`
+- `user_id`
+- `endpoint`
+- `onConflict`
+- `error`
+- `break`
+- `default`
+- `click`
+- `router`
+- `path`
+- `read`
+- `notification`
+- `notificationStore`
+- `here`
+- `it`
+- `settings`
+- `push`
+- `Uint8Array`
+- `padding`
+- `base64`
+- `rawData`
+- `outputArray`
+- `i`
+- `change`
+- `ready`
+- `window`
+- `registered`
+- `performance`
+- `info`
+- `version`
+- `updated`
+- `messageChannel`
+- `seconds`
+- `available`
+
+
 
 
 
@@ -49,14 +129,14 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 12257 characters
-**Lines of Code:** 428
-**Imports:** 0
+**File Size:** 12235 characters
+**Lines of Code:** 429
+**Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { ServiceWorkerManager, serviceWorkerManager } from '@/services/ServiceWorkerManager.ts'
+import { ServiceWorkerManager, serviceWorkerManager } from '@/services/ServiceWorkerManager'
 
 // Example usage
 // Use the exported functionality

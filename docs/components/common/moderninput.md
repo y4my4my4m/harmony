@@ -1,6 +1,6 @@
 # ModernInput
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/ModernInput.vue`
 

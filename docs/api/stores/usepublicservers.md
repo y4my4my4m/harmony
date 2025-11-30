@@ -13,21 +13,20 @@ graph TB
         USEPUBLICSERVERSSTORE[usePublicServersStore]
     end
     
-    
-    
     subgraph "Interfaces"
-        PUBLICSERVERWITHSTATS[PublicServerWithStats]
-        PUBLICSERVERSSTATE[PublicServersState]
-        PUBLICSERVERSFILTERS[PublicServersFilters]
+        INT_PUBLICSERVERWITHSTATS[PublicServerWithStats]
+        INT_PUBLICSERVERSSTATE[PublicServersState]
+        INT_PUBLICSERVERSFILTERS[PublicServersFilters]
     end
 ```
 
+
 ## Exports
 
-- **PublicServerWithStats** - No description
-- **PublicServersState** - No description
-- **PublicServersFilters** - No description
-- **usePublicServersStore** - No description
+- **PublicServerWithStats** - interface export
+- **PublicServersState** - interface export
+- **PublicServersFilters** - interface export
+- **usePublicServersStore** - const export
 
 
 
@@ -40,11 +39,13 @@ graph TB
 No description available.
 
 ```typescript
-export interface PublicServerWithStats extends Server {
+interface PublicServerWithStats {
+
   member_count?: number
   is_featured?: boolean
   category?: string
   last_activity?: string
+
 }
 ```
 
@@ -53,7 +54,8 @@ export interface PublicServerWithStats extends Server {
 No description available.
 
 ```typescript
-export interface PublicServersState {
+interface PublicServersState {
+
   servers: PublicServerWithStats[]
   searchResults: PublicServerWithStats[]
   categories: string[]
@@ -64,6 +66,7 @@ export interface PublicServersState {
   error: string | null
   hasLoaded: boolean
   lastFetchTime: number | null
+
 }
 ```
 
@@ -72,12 +75,14 @@ export interface PublicServersState {
 No description available.
 
 ```typescript
-export interface PublicServersFilters {
+interface PublicServersFilters {
+
   category?: string
   minMembers?: number
   maxMembers?: number
   sortBy?: 'name' | 'members' | 'activity' | 'created'
   sortOrder?: 'asc' | 'desc'
+
 }
 ```
 
@@ -86,16 +91,18 @@ export interface PublicServersFilters {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 10924 characters
-**Lines of Code:** 347
-**Imports:** 3
+**File Size:** 10940 characters
+**Lines of Code:** 348
+**Imports:** 4
 
 ## Usage Example
 
 ```typescript
-import { PublicServerWithStats, PublicServersState, PublicServersFilters, usePublicServersStore } from '@/stores/usePublicServers.ts'
+import { PublicServerWithStats, PublicServersState, PublicServersFilters, usePublicServersStore } from '@/stores/usePublicServers'
 
 // Example usage
 // Use the exported functionality

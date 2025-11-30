@@ -1,218 +1,244 @@
 # API Reference
 
-Welcome to the Harmony API documentation. This documentation is **automatically generated** from the TypeScript source code.
+Welcome to the Harmony API documentation. This documentation is automatically generated from the source code.
 
-> 🤖 **Auto-Generated Documentation**: All API documentation is automatically extracted from TypeScript services, stores, composables, and types. JSDoc comments, function signatures, and type information are parsed directly from the source code.
-
-## 📊 Quick Stats
-
-**Total Services:** 23 auto-discovered services  
-**Total Stores:** 15 Pinia stores  
-**Total Composables:** 17 Vue composables  
-**Total Type Files:** 1 type definitions  
-**Coverage:** All TypeScript files in `src/services/`, `src/stores/`, `src/composables/`, `src/types/`
-
-## 🚀 Auto-Generated API Documentation
-
-### Services (23 files)
-**Business logic and external integrations**
-
-Key auto-generated service documentation:
-- **[usersService](./services/usersservice.md)** - User management and profiles
-- **[userDataService](./services/userdataservice.md)** - User data operations
-- **[activityPubService](./services/activitypubservice.md)** - ActivityPub federation
-- **[fileService](./services/fileservice.md)** - File upload and management
-- **[emojiService](./services/emojiservice.md)** - Emoji and reactions
-- **[inviteService](./services/inviteservice.md)** - Server invitations
-- **[AdminService](./services/adminservice.md)** - Administrative functions
-
-### Pinia Stores (15 files)
-**State management with reactive data**
-
-Key auto-generated store documentation:
-- **[auth](./stores/auth.md)** - Authentication state management
-- **[useChat](./stores/usechat.md)** - Chat state and messages
-- **[useDM](./stores/usedm.md)** - Direct message state
-- **[useActivityPub](./stores/useactivitypub.md)** - ActivityPub state
-- **[useServerChannel](./stores/useserverchannel.md)** - Server and channel state
-- **[useNotification](./stores/usenotification.md)** - Notification management
-- **[useTheme](./stores/usetheme.md)** - Theme and appearance
-
-### Vue Composables (17 files)
-**Reusable composition functions**
-
-Key auto-generated composable documentation:
-- **[useUserData](./composables/useuserdata.md)** - User data management
-- **[useLayoutState](./composables/uselayoutstate.md)** - Layout state management
-- **[useMessageReactions](./composables/usemessagereactions.md)** - Message reaction handling
-- **[useServerPermissions](./composables/useserverpermissions.md)** - Server permission logic
-- **[usePostInteractions](./composables/usepostinteractions.md)** - Post interaction handling
-- **[useAudioThemeCommon](./composables/useaudiothemecommon.md)** - Audio theme utilities
-
-### Type Definitions (1 file)
-**TypeScript interfaces and types**
-
-- **[viewTypes](./types/viewtypes.md)** - View and layout type definitions
-
-## 🔄 How API Documentation is Generated
-
-The API documentation is automatically generated using:
-
-1. **TypeScript AST Parsing** - Analyzes TypeScript source code structure
-2. **JSDoc Extraction** - Parses JSDoc comments for descriptions
-3. **Function Signature Analysis** - Extracts parameters, return types, exports
-4. **Interface & Type Detection** - Documents TypeScript interfaces and types
-5. **Mermaid Diagrams** - Auto-generates API relationship diagrams
-
-### Regenerate API Documentation
-
-To update the API documentation after code changes:
-
-```bash
-# Generate API docs from TypeScript files
-npm run docs:generate-api
-
-# Generate everything (components + API + TypeDoc)
-npm run docs:generate-all
-```
-
-## Architecture
-
-The API follows a layered architecture:
+## Overview
 
 ```mermaid
 graph TB
-    subgraph "Presentation Layer"
-        COMPONENTS[Vue Components]
-        COMPOSABLES[Vue Composables]
-    end
-    
-    subgraph "State Management"
+    subgraph "Frontend Architecture"
+        COMPOSABLES[Composables]
         STORES[Pinia Stores]
-    end
-    
-    subgraph "Business Logic"
         SERVICES[Services]
+        UTILS[Utilities]
     end
     
-    subgraph "Data Layer"
-        SUPABASE[Supabase]
-        STORAGE[File Storage]
+    subgraph "UI Layer"
+        VIEWS[Views]
+        LAYOUTS[Layouts]
     end
     
-    COMPONENTS --> COMPOSABLES
-    COMPONENTS --> STORES
-    COMPOSABLES --> STORES
+    subgraph "Supporting"
+        CONFIG[Configuration]
+        TYPES[Types]
+        DIRECTIVES[Directives]
+        ROUTER[Router]
+    end
+    
+    VIEWS --> COMPOSABLES
+    VIEWS --> STORES
+    COMPOSABLES --> SERVICES
     STORES --> SERVICES
-    SERVICES --> SUPABASE
-    SERVICES --> STORAGE
+    SERVICES --> UTILS
 ```
 
-## Key Services
+## Categories
 
-### Core Services
-- **[Authentication Service](/api/services/auth)** - User authentication and session management
-- **[Chat Service](/api/services/chat)** - Real-time messaging functionality
-- **[ActivityPub Service](/api/services/activitypub)** - Federation and social features
-- **[User Data Service](/api/services/userdata)** - User profile and data management
+### Services
 
-### Specialized Services
-- **[Admin Service](/api/services/admin)** - Administrative functions
-- **[File Service](/api/services/file)** - File upload and storage
-- **[Emoji Service](/api/services/emoji)** - Custom emoji management
-- **[Voice Service](/api/services/voice)** - WebRTC voice/video calling
+56 files documented.
 
-## Store Architecture
+- [usersService](/api/services/usersservice)
+- [userDataService](/api/services/userdataservice)
+- [unifiedWebRTC](/api/services/unifiedwebrtc)
+- [spatialAudio](/api/services/spatialaudio)
+- [serverMembershipService](/api/services/servermembershipservice)
+- [permissionsService](/api/services/permissionsservice)
+- [membershipService](/api/services/membershipservice)
+- [inviteService](/api/services/inviteservice)
+- [index](/api/services/index)
+- [fileService](/api/services/fileservice)
+- [emojiService](/api/services/emojiservice)
+- [activityPubService](/api/services/activitypubservice)
+- [ViewContextTracker](/api/services/viewcontexttracker)
+- [TrendingService](/api/services/trendingservice)
+- [StatusLifecycleDebugger](/api/services/statuslifecycledebugger)
+- [StatePersistence](/api/services/statepersistence)
+- [SessionHeartbeat](/api/services/sessionheartbeat)
+- [ServiceWorkerManager](/api/services/serviceworkermanager)
+- [SearchService](/api/services/searchservice)
+- [RouteAwareInitialization](/api/services/routeawareinitialization)
+- [RealtimeConnectionManager](/api/services/realtimeconnectionmanager)
+- [ProfileService](/api/services/profileservice)
+- [PostService](/api/services/postservice)
+- [PWAManager](/api/services/pwamanager)
+- [NotificationService](/api/services/notificationservice)
+- [NotificationFormatter](/api/services/notificationformatter)
+- [MessageService](/api/services/messageservice)
+- [InteractionService](/api/services/interactionservice)
+- [GlobalDMCallListener](/api/services/globaldmcalllistener)
+- [DMCallSignaling](/api/services/dmcallsignaling)
+- [DMCallPermissions](/api/services/dmcallpermissions)
+- [ConversationService](/api/services/conversationservice)
+- [AuthContextService](/api/services/authcontextservice)
+- [AudioThemeService](/api/services/audiothemeservice)
+- [AppInitService](/api/services/appinitservice)
+- [AdminService](/api/services/adminservice)
+- [ActivityTracker](/api/services/activitytracker)
+- [index](/api/services/federation/index)
+- [FederationDecisionService](/api/services/federation/federationdecisionservice)
+- [FederationActivityService](/api/services/federation/federationactivityservice)
+- [index](/api/services/encryption/index)
+- [WebRTCEncryptionService](/api/services/encryption/webrtcencryptionservice)
+- [SignalProtocolServiceBrowser](/api/services/encryption/signalprotocolservicebrowser)
+- [SignalProtocolService](/api/services/encryption/signalprotocolservice)
+- [RecoveryKeyService](/api/services/encryption/recoverykeyservice)
+- [MessageEncryptionService](/api/services/encryption/messageencryptionservice)
+- [MegolmService](/api/services/encryption/megolmservice)
+- [MegolmMessageEncryptionService](/api/services/encryption/megolmmessageencryptionservice)
+- [MegolmKeyBackupService](/api/services/encryption/megolmkeybackupservice)
+- [EncryptionKeyStoreBrowser](/api/services/encryption/encryptionkeystorebrowser)
+- [EncryptionKeyStore](/api/services/encryption/encryptionkeystore)
+- [index](/api/services/core/index)
+- [CoreProfileService](/api/services/core/coreprofileservice)
+- [CorePostService](/api/services/core/corepostservice)
+- [CoreMessageService](/api/services/core/coremessageservice)
+- [CoreInteractionService](/api/services/core/coreinteractionservice)
 
-Harmony uses Pinia for state management with these key stores:
+### Pinia Stores
 
-### Primary Stores
-- **[Auth Store](/api/stores/auth)** - Authentication state
-- **[Chat Store](/api/stores/chat)** - Chat messages and channels
-- **[ActivityPub Store](/api/stores/activitypub)** - Social timeline and federation
-- **[Server Channel Store](/api/stores/serverchannel)** - Server and channel management
+16 files documented.
 
-### Supporting Stores
-- **[DM Store](/api/stores/dm)** - Direct message conversations
-- **[Notification Store](/api/stores/notification)** - User notifications
-- **[Theme Store](/api/stores/theme)** - UI theme and preferences
+- [useTheme](/api/stores/usetheme)
+- [useServerUsers](/api/stores/useserverusers)
+- [useServerChannel](/api/stores/useserverchannel)
+- [useReactions](/api/stores/usereactions)
+- [usePublicServers](/api/stores/usepublicservers)
+- [useProfile](/api/stores/useprofile)
+- [useNotification](/api/stores/usenotification)
+- [useEmojiCache](/api/stores/useemojicache)
+- [useDM](/api/stores/usedm)
+- [useChat](/api/stores/usechat)
+- [useActivityPub](/api/stores/useactivitypub)
+- [unifiedVoiceChannel](/api/stores/unifiedvoicechannel)
+- [spatialAudio](/api/stores/spatialaudio)
+- [server](/api/stores/server)
+- [postReactions](/api/stores/postreactions)
+- [auth](/api/stores/auth)
 
-## Type System
+### Vue Composables
 
-Harmony is fully typed with TypeScript. Key type categories:
+30 files documented.
 
-- **[Core Types](/api/types/core)** - Basic interfaces and enums
-- **[Chat Types](/api/types/chat)** - Message, channel, and server types
-- **[ActivityPub Types](/api/types/activitypub)** - Federation and social types
-- **[User Types](/api/types/user)** - Profile and authentication types
+- [useVisualTheme](/api/composables/usevisualtheme)
+- [useViewContext](/api/composables/useviewcontext)
+- [useUserState](/api/composables/useuserstate)
+- [useUserData](/api/composables/useuserdata)
+- [useUnreadCounts](/api/composables/useunreadcounts)
+- [useServerPermissions](/api/composables/useserverpermissions)
+- [usePushNotifications](/api/composables/usepushnotifications)
+- [useProfilePresence](/api/composables/useprofilepresence)
+- [usePostReactions](/api/composables/usepostreactions)
+- [usePostInteractions](/api/composables/usepostinteractions)
+- [usePopupPositioning](/api/composables/usepopuppositioning)
+- [useMobileGestures](/api/composables/usemobilegestures)
+- [useMessageSearch](/api/composables/usemessagesearch)
+- [useMessageReactions](/api/composables/usemessagereactions)
+- [useLocalMessageSearch](/api/composables/uselocalmessagesearch)
+- [useLoadingState](/api/composables/useloadingstate)
+- [useLayoutState](/api/composables/uselayoutstate)
+- [useHapticSettings](/api/composables/usehapticsettings)
+- [useFloatingVideo](/api/composables/usefloatingvideo)
+- [useDebounce](/api/composables/usedebounce)
+- [useContentRenderer](/api/composables/usecontentrenderer)
+- [useComposerState](/api/composables/usecomposerstate)
+- [useComposerActions](/api/composables/usecomposeractions)
+- [useCommonUI](/api/composables/usecommonui)
+- [useCleanUserStatus](/api/composables/usecleanuserstatus)
+- [useChannelPermissions](/api/composables/usechannelpermissions)
+- [useAutoSuggest](/api/composables/useautosuggest)
+- [useAudioThemeCommon](/api/composables/useaudiothemecommon)
+- [useApplicationState](/api/composables/useapplicationstate)
+- [useActivityPubUserSearch](/api/composables/useactivitypubusersearch)
 
-## Usage Patterns
+### Types & Interfaces
 
-### Service Usage
-```typescript
-import { authService } from '@/services/authService'
+1 files documented.
 
-// Use service methods
-const user = await authService.getCurrentUser()
-```
+- [viewTypes](/api/types/viewtypes)
 
-### Store Usage
-```typescript
-import { useAuthStore } from '@/stores/auth'
+### Utilities
 
-const authStore = useAuthStore()
-const isLoggedIn = authStore.isLoggedIn
-```
+25 files documented.
 
-### Composable Usage
-```typescript
-import { useUserData } from '@/composables/useUserData'
+- [unifiedContentProcessing](/api/utils/unifiedcontentprocessing)
+- [syntaxHighlighter](/api/utils/syntaxhighlighter)
+- [settingsUtils](/api/utils/settingsutils)
+- [serverUtils](/api/utils/serverutils)
+- [requestDeduplicator](/api/utils/requestdeduplicator)
+- [reactionCacheManager](/api/utils/reactioncachemanager)
+- [notFoundUtils](/api/utils/notfoundutils)
+- [messageEmbedUtils](/api/utils/messageembedutils)
+- [messageDecryption](/api/utils/messagedecryption)
+- [messageContentUtils](/api/utils/messagecontentutils)
+- [mentionUtils](/api/utils/mentionutils)
+- [mentionMigration](/api/utils/mentionmigration)
+- [markdownRenderer](/api/utils/markdownrenderer)
+- [markdownParser](/api/utils/markdownparser)
+- [hapticFeedback](/api/utils/hapticfeedback)
+- [groupIconUtils](/api/utils/groupiconutils)
+- [getFromUser](/api/utils/getfromuser)
+- [fileUpload](/api/utils/fileupload)
+- [emojiUtils](/api/utils/emojiutils)
+- [embedDetection](/api/utils/embeddetection)
+- [debug](/api/utils/debug)
+- [colorUtils](/api/utils/colorutils)
+- [botUtils](/api/utils/botutils)
+- [bannerUtils](/api/utils/bannerutils)
+- [avatarUtils](/api/utils/avatarutils)
 
-const { getCurrentUser, updateProfile } = useUserData()
-```
+### Configuration
 
-## Error Handling
+1 files documented.
 
-All API methods include comprehensive error handling:
+- [activitypub](/api/config/activitypub)
 
-```typescript
-try {
-  const result = await service.method()
-  // Handle success
-} catch (error) {
-  console.error('Operation failed:', error)
-  // Handle error
-}
-```
+### Directives
 
-## Real-time Features
+1 files documented.
 
-Many APIs include real-time subscriptions:
+- [ClickOutsideDirective](/api/directives/clickoutsidedirective)
 
-```typescript
-// Subscribe to real-time updates
-const subscription = store.subscribeToUpdates()
+### Layouts
 
-// Clean up subscription
-onUnmounted(() => {
-  subscription?.unsubscribe()
-})
-```
+4 files documented.
 
-## Performance Considerations
+- [SocialLayout](/api/layouts/sociallayout)
+- [ChatLayout](/api/layouts/chatlayout)
+- [BaseLayout](/api/layouts/baselayout)
+- [AuthLayout](/api/layouts/authlayout)
 
-- **Caching**: Services implement intelligent caching
-- **Pagination**: Large data sets use cursor-based pagination
-- **Debouncing**: Search and input operations are debounced
-- **Lazy Loading**: Components and data load on demand
+### Router
 
-## Next Steps
+1 files documented.
 
-- Explore the [Service Documentation](/api/services/auth)
-- Learn about [Store Management](/api/stores/auth)
-- Check out [Component APIs](/components/)
-- View [System Flow Diagrams](/flows/)
+- [index](/api/router/index)
+
+### Views
+
+19 files documented.
+
+- [UserSettings](/api/views/usersettings)
+- [UserProfileView](/api/views/userprofileview)
+- [TimelineView](/api/views/timelineview)
+- [ServerSettings](/api/views/serversettings)
+- [ResetPasswordView](/api/views/resetpasswordview)
+- [RegisterView](/api/views/registerview)
+- [PostView](/api/views/postview)
+- [NotificationsView](/api/views/notificationsview)
+- [NotFoundView](/api/views/notfoundview)
+- [NewProfile](/api/views/newprofile)
+- [LoginView](/api/views/loginview)
+- [ListsView](/api/views/listsview)
+- [HashtagView](/api/views/hashtagview)
+- [FollowersView](/api/views/followersview)
+- [ExploreView](/api/views/exploreview)
+- [DMView](/api/views/dmview)
+- [ChatView](/api/views/chatview)
+- [BookmarksView](/api/views/bookmarksview)
+- [AdminPanel](/api/views/adminpanel)
+
 
 ---
 
-*This documentation is auto-generated from TypeScript code and kept in sync with the latest changes.*
+*Last generated: 2025-11-30T08:44:43.054Z*

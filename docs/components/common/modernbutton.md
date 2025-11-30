@@ -1,6 +1,6 @@
 # ModernButton
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/ModernButton.vue`
 

@@ -16,24 +16,23 @@ graph TB
     end
     
     subgraph "Functions"
-        GETSETTINGSROUTE[getSettingsRoute()]
-        GETSETTINGSPATH[getSettingsPath()]
-        ISVALIDSETTINGSSECTION[isValidSettingsSection()]
-        GETDEFAULTSETTINGSSECTION[getDefaultSettingsSection()]
-        CREATESETTINGSNAVIGATOR[createSettingsNavigator()]
+        FN_GETSETTINGSROUTE[getSettingsRoute]
+        FN_GETSETTINGSPATH[getSettingsPath]
+        FN_ISVALIDSETTINGSSECTION[isValidSettingsSection]
+        FN_GETDEFAULTSETTINGSSECTION[getDefaultSettingsSection]
+        FN_CREATESETTINGSNAVIGATOR[createSettingsNavigator]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **SettingsSection** - No description
-- **getSettingsRoute** - No description
-- **getSettingsPath** - No description
-- **isValidSettingsSection** - No description
-- **getDefaultSettingsSection** - No description
-- **createSettingsNavigator** - No description
+- **SettingsSection** - type export
+- **getSettingsRoute** - function export
+- **getSettingsPath** - function export
+- **isValidSettingsSection** - function export
+- **getDefaultSettingsSection** - function export
+- **createSettingsNavigator** - function export
 
 ## Functions
 
@@ -44,10 +43,30 @@ No description available.
 **Parameters:**
 - `section: SettingsSection`
 
-**Returns:** Unknown
+**Returns:** `RouteLocationRaw`
 
 ```typescript
-export function getSettingsRoute(section: SettingsSection): RouteLocationRaw {
+/**
+ * Utility functions for settings navigation and URL handling
+ */
+
+import type { RouteLocationRaw } from 'vue-router'
+
+export type SettingsSection = 
+  | 'account' 
+  | 'privacy' 
+  | 'appearance' 
+  | 'notifications' 
+  | 'activitypub'
+  | 'voice' 
+  | 'keybinds' 
+  | 'language' 
+  | 'advanced'
+
+/**
+ * Generates a settings route for the given section
+ */
+export function getSettingsRoute(section: SettingsSection): RouteLocationRaw
 ```
 
 ### `getSettingsPath(section: SettingsSection)`
@@ -57,10 +76,13 @@ No description available.
 **Parameters:**
 - `section: SettingsSection`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function getSettingsPath(section: SettingsSection): string {
+/**
+ * Generates a settings URL path for the given section
+ */
+export function getSettingsPath(section: SettingsSection): string
 ```
 
 ### `isValidSettingsSection(section: string)`
@@ -70,10 +92,13 @@ No description available.
 **Parameters:**
 - `section: string`
 
-**Returns:** Unknown
+**Returns:** `section is SettingsSection`
 
 ```typescript
-export function isValidSettingsSection(section: string): section is SettingsSection {
+/**
+ * Validates if a section name is valid
+ */
+export function isValidSettingsSection(section: string): section is SettingsSection
 ```
 
 ### `getDefaultSettingsSection()`
@@ -83,10 +108,13 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `SettingsSection`
 
 ```typescript
-export function getDefaultSettingsSection(): SettingsSection {
+/**
+ * Gets the default settings section
+ */
+export function getDefaultSettingsSection(): SettingsSection
 ```
 
 ### `createSettingsNavigator(router: any)`
@@ -96,10 +124,13 @@ No description available.
 **Parameters:**
 - `router: any`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function createSettingsNavigator(router: any) {
+/**
+ * Creates a programmatic navigation helper for settings
+ */
+export function createSettingsNavigator(router: any)
 ```
 
 
@@ -107,16 +138,8 @@ export function createSettingsNavigator(router: any) {
 
 
 
-## Type Definitions
 
-### SettingsSection
 
-No description available.
-
-```typescript
-export type SettingsSection = 
-  | 'account' 
-```
 
 
 
@@ -130,7 +153,7 @@ export type SettingsSection =
 ## Usage Example
 
 ```typescript
-import { SettingsSection, getSettingsRoute, getSettingsPath, isValidSettingsSection, getDefaultSettingsSection, createSettingsNavigator } from '@/utils/settingsUtils.ts'
+import { SettingsSection, getSettingsRoute, getSettingsPath, isValidSettingsSection, getDefaultSettingsSection, createSettingsNavigator } from '@/utils/settingsUtils'
 
 // Example usage
 getSettingsRoute()

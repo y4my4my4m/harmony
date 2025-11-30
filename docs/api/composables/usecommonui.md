@@ -13,27 +13,25 @@ graph TB
     end
     
     subgraph "Functions"
-        USECLICKOUTSIDE[useClickOutside()]
-        USEKEYBOARDEVENTS[useKeyboardEvents()]
-        USEAUDIOEFFECTS[useAudioEffects()]
-        HANDLECLICKOUTSIDE[handleClickOutside()]
-        ONCLICK[onClick()]
-        HANDLEKEYDOWN[handleKeydown()]
-        HANDLEESCAPEKEY[handleEscapeKey()]
-        ONKEYDOWN[onKeydown()]
-        HANDLEENTERKEY[handleEnterKey()]
-        ONKEYDOWN[onKeydown()]
-        PLAYSOUND[playSound()]
+        FN_USECLICKOUTSIDE[useClickOutside]
+        FN_USEKEYBOARDEVENTS[useKeyboardEvents]
+        FN_USEAUDIOEFFECTS[useAudioEffects]
+        FN_HANDLECLICKOUTSIDE[handleClickOutside]
+        FN_ONCLICK[onClick]
+        FN_HANDLEKEYDOWN[handleKeydown]
+        FN_HANDLEESCAPEKEY[handleEscapeKey]
+        FN_ONKEYDOWN[onKeydown]
+        FN_HANDLEENTERKEY[handleEnterKey]
+        FN_PLAYSOUND[playSound]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **useClickOutside** - No description
-- **useKeyboardEvents** - No description
-- **useAudioEffects** - No description
+- **useClickOutside** - function export
+- **useKeyboardEvents** - function export
+- **useAudioEffects** - function export
 
 ## Functions
 
@@ -44,10 +42,10 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useClickOutside() {
+export function useClickOutside()
 ```
 
 ### `useKeyboardEvents()`
@@ -57,10 +55,10 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useKeyboardEvents() {
+export function useKeyboardEvents()
 ```
 
 ### `useAudioEffects()`
@@ -70,10 +68,10 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useAudioEffects() {
+export function useAudioEffects()
 ```
 
 ### `handleClickOutside(callback: ()`
@@ -83,7 +81,7 @@ No description available.
 **Parameters:**
 - `callback: (`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleClickOutside = (callback: () =>
@@ -96,7 +94,7 @@ No description available.
 **Parameters:**
 - `event: MouseEvent`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const onClick = (event: MouseEvent) =>
@@ -109,7 +107,7 @@ No description available.
 **Parameters:**
 - `callback: (event: KeyboardEvent`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleKeydown = (callback: (event: KeyboardEvent) =>
@@ -122,7 +120,7 @@ No description available.
 **Parameters:**
 - `callback: (`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleEscapeKey = (callback: () =>
@@ -135,7 +133,7 @@ No description available.
 **Parameters:**
 - `event: KeyboardEvent`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const onKeydown = (event: KeyboardEvent) =>
@@ -148,23 +146,10 @@ No description available.
 **Parameters:**
 - `callback: (`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleEnterKey = (callback: () =>
-```
-
-### `onKeydown(event: KeyboardEvent)`
-
-No description available.
-
-**Parameters:**
-- `event: KeyboardEvent`
-
-**Returns:** Unknown
-
-```typescript
-const onKeydown = (event: KeyboardEvent) =>
 ```
 
 ### `playSound(soundPath: string, volume = 0.5)`
@@ -175,7 +160,7 @@ No description available.
 - `soundPath: string`
 - `volume = 0.5`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const playSound = (soundPath: string, volume = 0.5) =>
@@ -190,16 +175,18 @@ const playSound = (soundPath: string, volume = 0.5) =>
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 1903 characters
-**Lines of Code:** 82
-**Imports:** 1
+**File Size:** 1937 characters
+**Lines of Code:** 83
+**Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { useClickOutside, useKeyboardEvents, useAudioEffects } from '@/composables/useCommonUI.ts'
+import { useClickOutside, useKeyboardEvents, useAudioEffects } from '@/composables/useCommonUI'
 
 // Example usage
 useClickOutside()

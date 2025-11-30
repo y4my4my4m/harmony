@@ -1,6 +1,6 @@
 # Avatar
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/Avatar.vue`
 
@@ -23,6 +23,7 @@ graph TB
 | `alt` | `string` | `'Avatar'` | ❌ | No description |
 | `size` | `AvatarSize` | `'md'` | ❌ | No description |
 | `status` | `UserStatus` | `undefined` | ❌ | No description |
+| `isMobile` | `boolean` | `false` | ❌ | No description |
 | `editable` | `boolean` | `false` | ❌ | No description |
 | `interactive` | `boolean` | `false` | ❌ | No description |
 | `loading` | `boolean` | `false` | ❌ | No description |
@@ -66,6 +67,16 @@ No description available.
 - **Type:** `UserStatus`
 - **Required:** No
 - **Default:** `undefined`
+
+
+
+#### `isMobile`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
 
 
 

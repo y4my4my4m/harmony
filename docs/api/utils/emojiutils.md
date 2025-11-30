@@ -11,15 +11,14 @@ graph TB
     end
     
     subgraph "Functions"
-        GETEMOJIURL[getEmojiUrl()]
+        FN_GETEMOJIURL[getEmojiUrl]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **getEmojiUrl** - No description
+- **getEmojiUrl** - function export
 
 ## Functions
 
@@ -31,11 +30,18 @@ No description available.
 - `emojiUrl: string | null | undefined`
 - `size: number = 48`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 48): string {
+/**
+ * Get the public URL for an emoji, handling both local and remote emojis
+ * Local emojis are processed through Supabase storage with transformation
+ * Remote emojis (from federated instances) are returned as-is
+ */
+export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 48): string
 ```
+
+
 
 
 
@@ -48,14 +54,14 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
 
 ## Source Code Insights
 
-**File Size:** 1258 characters
-**Lines of Code:** 30
+**File Size:** 1640 characters
+**Lines of Code:** 41
 **Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { getEmojiUrl } from '@/utils/emojiUtils.ts'
+import { getEmojiUrl } from '@/utils/emojiUtils'
 
 // Example usage
 getEmojiUrl()

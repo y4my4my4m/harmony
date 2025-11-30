@@ -10,16 +10,15 @@ graph TB
         USEUNIFIEDVOICECHANNELSTORE[useUnifiedVoiceChannelStore]
     end
     
-    
-    
     subgraph "Interfaces"
-        VOICECHANNELSTATE[VoiceChannelState]
+        INT_VOICECHANNELSTATE[VoiceChannelState]
     end
 ```
 
+
 ## Exports
 
-- **useUnifiedVoiceChannelStore** - No description
+- **useUnifiedVoiceChannelStore** - const export
 
 
 
@@ -33,11 +32,14 @@ No description available.
 
 ```typescript
 interface VoiceChannelState {
+
   // Connection info
   currentChannelId: string | null;
   currentServerId: string | null;
   currentChannelName: string | null;
   isConnected: boolean;
+  sessionStartTime: Date | null; // Track when the user joined the channel
+  callStartTime: Date | null; // Track when the call started (first user joined)
   
   // Users and their states
   allUsers: UserMediaState[];
@@ -47,9 +49,8 @@ interface VoiceChannelState {
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
   
-  // UI state
-  isOverlayVisible: boolean;
-  layoutMode: 'grid' | 'speaker' | 'gallery';
+  //
+  // ...
 }
 ```
 
@@ -58,16 +59,18 @@ interface VoiceChannelState {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 20987 characters
-**Lines of Code:** 641
-**Imports:** 9
+**File Size:** 32300 characters
+**Lines of Code:** 951
+**Imports:** 11
 
 ## Usage Example
 
 ```typescript
-import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel.ts'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 
 // Example usage
 // Use the exported functionality

@@ -1,6 +1,6 @@
 # ServerIcon
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/ServerIcon.vue`
 

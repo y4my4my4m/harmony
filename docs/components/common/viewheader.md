@@ -1,6 +1,6 @@
 # ViewHeader
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/ViewHeader.vue`
 

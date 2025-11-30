@@ -2,8 +2,17 @@
 
 import { promises as fs } from 'fs'
 import path from 'path'
-import { parse } from 'vue-docgen-api'
 import { glob } from 'glob'
+
+// Try to import vue-docgen-api, fall back to basic parsing if not available
+let parse
+try {
+  const vueDocgen = await import('vue-docgen-api')
+  parse = vueDocgen.parse
+} catch (e) {
+  console.log('⚠️  vue-docgen-api not available, using basic parsing')
+  parse = null
+}
 
 const COMPONENTS_DIR = 'src/components'
 const DOCS_DIR = 'docs/components'
@@ -14,24 +23,43 @@ await fs.mkdir(GENERATED_DIR, { recursive: true })
 await fs.mkdir(`${GENERATED_DIR}/components`, { recursive: true })
 
 // Find all Vue components
-const componentFiles = await glob(`${COMPONENTS_DIR}/**/*.vue`)
+const componentFiles = await glob(`${COMPONENTS_DIR}/**/*.vue`, {
+  ignore: ['**/*.legacy', '**/*.backup']
+})
 
 console.log(`Found ${componentFiles.length} Vue components`)
 
 // Generate documentation for each component
 const componentDocs = []
+const errors = []
 
 for (const filePath of componentFiles) {
   try {
     console.log(`Processing ${filePath}...`)
     
-    // Parse the component
-    const componentInfo = await parse(filePath)
+    // Read component content
+    const content = await fs.readFile(filePath, 'utf-8')
     
-    // Generate relative path for documentation
+    // Calculate relative path for documentation
     const relativePath = path.relative(COMPONENTS_DIR, filePath)
     const docPath = relativePath.replace('.vue', '.md').toLowerCase()
     const componentName = path.basename(filePath, '.vue')
+    
+    let componentInfo = null
+    
+    // Try to parse with vue-docgen-api
+    if (parse) {
+      try {
+        componentInfo = await parse(filePath)
+      } catch (parseError) {
+        console.log(`  ⚠️  vue-docgen-api parse failed, using fallback: ${parseError.message}`)
+      }
+    }
+    
+    // Fallback to basic parsing if vue-docgen fails
+    if (!componentInfo) {
+      componentInfo = parseComponentBasic(content, componentName)
+    }
     
     // Generate markdown documentation
     const markdown = generateComponentMarkdown(componentInfo, componentName, filePath)
@@ -47,35 +75,169 @@ for (const filePath of componentFiles) {
     componentDocs.push({
       name: componentName,
       path: docPath,
-      info: componentInfo
+      info: componentInfo,
+      relativePath: relativePath
     })
     
-    console.log(`Generated docs for ${componentName}`)
+    console.log(`  ✅ Generated docs for ${componentName}`)
   } catch (error) {
-    console.error(`Error processing ${filePath}:`, error.message)
+    console.error(`  ❌ Error processing ${filePath}:`, error.message)
+    errors.push({ file: filePath, error: error.message })
   }
 }
 
 // Generate component index
 const indexMarkdown = generateComponentIndex(componentDocs)
+await fs.writeFile(path.join(DOCS_DIR, 'index.md'), indexMarkdown)
 await fs.writeFile(path.join(DOCS_DIR, 'generated-index.md'), indexMarkdown)
 
 // Save component data as JSON for programmatic access
 await fs.writeFile(
   path.join(GENERATED_DIR, 'components.json'), 
-  JSON.stringify(componentDocs, null, 2)
+  JSON.stringify(componentDocs.map(doc => ({
+    name: doc.name,
+    path: doc.path,
+    relativePath: doc.relativePath,
+    props: doc.info.props?.length || 0,
+    events: doc.info.events?.length || 0,
+    slots: doc.info.slots?.length || 0
+  })), null, 2)
 )
 
 console.log(`\n✅ Generated documentation for ${componentDocs.length} components`)
 console.log(`📁 Documentation files written to: ${DOCS_DIR}`)
-console.log(`📄 Component index: ${DOCS_DIR}/generated-index.md`)
+console.log(`📄 Component index: ${DOCS_DIR}/index.md`)
+
+if (errors.length > 0) {
+  console.log(`\n⚠️  ${errors.length} components had errors:`)
+  errors.forEach(e => console.log(`   - ${e.file}: ${e.error}`))
+}
+
+// Basic component parser (fallback when vue-docgen-api fails)
+function parseComponentBasic(content, componentName) {
+  const result = {
+    displayName: componentName,
+    description: '',
+    props: [],
+    events: [],
+    slots: [],
+    methods: [],
+    tags: []
+  }
+  
+  // Extract script setup content
+  const scriptMatch = content.match(/<script[^>]*setup[^>]*>([\s\S]*?)<\/script>/i)
+  const scriptContent = scriptMatch ? scriptMatch[1] : ''
+  
+  // Extract props from defineProps
+  const propsMatch = scriptContent.match(/defineProps(?:<([^>]+)>)?\s*\(\s*(?:\{([\s\S]*?)\}|\[([\s\S]*?)\])?\s*\)/s)
+  if (propsMatch) {
+    const propsType = propsMatch[1] || ''
+    const propsObject = propsMatch[2] || ''
+    const propsArray = propsMatch[3] || ''
+    
+    // Extract from type definition
+    if (propsType) {
+      const propMatches = propsType.matchAll(/(\w+)(?:\?)?:\s*([^,;\n}]+)/g)
+      for (const match of propMatches) {
+        result.props.push({
+          name: match[1],
+          type: { name: match[2].trim() },
+          required: !propsType.includes(`${match[1]}?`),
+          description: ''
+        })
+      }
+    }
+    
+    // Extract from object definition
+    if (propsObject) {
+      const propMatches = propsObject.matchAll(/(\w+)\s*:\s*\{([^}]+)\}/g)
+      for (const match of propMatches) {
+        const propDef = match[2]
+        const typeMatch = propDef.match(/type\s*:\s*(\w+)/)
+        const requiredMatch = propDef.match(/required\s*:\s*(true|false)/)
+        result.props.push({
+          name: match[1],
+          type: { name: typeMatch ? typeMatch[1] : 'unknown' },
+          required: requiredMatch ? requiredMatch[1] === 'true' : false,
+          description: ''
+        })
+      }
+    }
+    
+    // Extract from array definition
+    if (propsArray) {
+      const propNames = propsArray.match(/'(\w+)'/g) || []
+      propNames.forEach(name => {
+        result.props.push({
+          name: name.replace(/'/g, ''),
+          type: { name: 'unknown' },
+          required: false,
+          description: ''
+        })
+      })
+    }
+  }
+  
+  // Extract emits from defineEmits
+  const emitsMatch = scriptContent.match(/defineEmits(?:<([^>]+)>)?\s*\(\s*(?:\[([\s\S]*?)\])?\s*\)/s)
+  if (emitsMatch) {
+    const emitsType = emitsMatch[1] || ''
+    const emitsArray = emitsMatch[2] || ''
+    
+    // Extract from type definition
+    if (emitsType) {
+      const emitMatches = emitsType.matchAll(/\(\s*e\s*:\s*['"](\w+)['"]/g)
+      for (const match of emitMatches) {
+        result.events.push({
+          name: match[1],
+          description: ''
+        })
+      }
+    }
+    
+    // Extract from array definition
+    if (emitsArray) {
+      const eventNames = emitsArray.match(/'(\w+)'/g) || []
+      eventNames.forEach(name => {
+        result.events.push({
+          name: name.replace(/'/g, ''),
+          description: ''
+        })
+      })
+    }
+  }
+  
+  // Extract slots from template
+  const templateMatch = content.match(/<template[^>]*>([\s\S]*?)<\/template>/i)
+  const templateContent = templateMatch ? templateMatch[1] : ''
+  
+  const slotMatches = templateContent.matchAll(/<slot(?:\s+name=["']([^"']+)["'])?[^>]*(?:\/>|>[\s\S]*?<\/slot>)/g)
+  for (const match of slotMatches) {
+    const slotName = match[1] || 'default'
+    if (!result.slots.find(s => s.name === slotName)) {
+      result.slots.push({
+        name: slotName,
+        description: ''
+      })
+    }
+  }
+  
+  // Extract component description from comments
+  const docCommentMatch = content.match(/<!--\s*@component\s*([\s\S]*?)-->/i)
+  if (docCommentMatch) {
+    result.description = docCommentMatch[1].trim()
+  }
+  
+  return result
+}
 
 function generateComponentMarkdown(componentInfo, componentName, filePath) {
   const { displayName, description, props, events, slots, methods, tags } = componentInfo
   
   return `# ${displayName || componentName}
 
-${description || 'No description available.'}
+${description || 'A Vue component.'}
 
 **File:** \`${filePath}\`
 
@@ -200,28 +362,68 @@ function generateComponentIndex(componentDocs) {
   const categorized = {}
   
   componentDocs.forEach(doc => {
-    const category = doc.path.split('/')[0] || 'uncategorized'
+    // Get category from first directory in path
+    const pathParts = doc.path.split('/')
+    const category = pathParts.length > 1 ? pathParts[0] : 'root'
     if (!categorized[category]) {
       categorized[category] = []
     }
     categorized[category].push(doc)
   })
   
-  return `# Auto-Generated Component Documentation
+  // Sort categories and components
+  const sortedCategories = Object.keys(categorized).sort()
+  sortedCategories.forEach(key => {
+    categorized[key].sort((a, b) => a.name.localeCompare(b.name))
+  })
+  
+  return `# Component Library
 
 This documentation is automatically generated from the Vue component source code.
 
 **Total Components:** ${componentDocs.length}
 
+## Overview
+
+\`\`\`mermaid
+graph TB
+    subgraph "Component Architecture"
+        LAYOUTS[Layouts]
+        VIEWS[Views]
+        SHARED[Shared Components]
+        FEATURE[Feature Components]
+    end
+    
+    VIEWS --> LAYOUTS
+    VIEWS --> SHARED
+    VIEWS --> FEATURE
+    FEATURE --> SHARED
+\`\`\`
+
 ## Components by Category
 
-${Object.entries(categorized).map(([category, components]) => `### ${capitalize(category)}
+${sortedCategories.map(category => `### ${capitalize(category)}
 
-${components.map(comp => `- [${comp.name}](./${comp.path}) - ${comp.info.description || 'No description'}`).join('\n')}`).join('\n\n')}
+${categorized[category].map(comp => {
+  const propCount = comp.info.props?.length || 0
+  const eventCount = comp.info.events?.length || 0
+  const slotCount = comp.info.slots?.length || 0
+  const stats = [
+    propCount > 0 ? `${propCount} props` : null,
+    eventCount > 0 ? `${eventCount} events` : null,
+    slotCount > 0 ? `${slotCount} slots` : null
+  ].filter(Boolean).join(', ')
+  
+  return `- [${comp.name}](./${comp.path})${stats ? ` - ${stats}` : ''}`
+}).join('\n')}`).join('\n\n')}
 
 ## All Components
 
-${componentDocs.map(doc => `- **[${doc.name}](./${doc.path})** - ${doc.info.description || 'No description'}`).join('\n')}
+| Component | Props | Events | Slots | Path |
+|-----------|-------|--------|-------|------|
+${componentDocs.sort((a, b) => a.name.localeCompare(b.name)).map(doc => {
+  return `| [${doc.name}](./${doc.path}) | ${doc.info.props?.length || 0} | ${doc.info.events?.length || 0} | ${doc.info.slots?.length || 0} | \`${doc.relativePath}\` |`
+}).join('\n')}
 
 ---
 
@@ -242,5 +444,6 @@ function getExampleValue(prop) {
 }
 
 function capitalize(str) {
+  if (!str) return ''
   return str.charAt(0).toUpperCase() + str.slice(1)
 }

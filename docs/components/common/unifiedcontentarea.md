@@ -1,6 +1,6 @@
 # UnifiedContentArea
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/UnifiedContentArea.vue`
 
@@ -23,6 +23,8 @@ graph TB
 | `chatMessages` | `Array` | `() => []` | ❌ | No description |
 | `isLoading` | `boolean` | `false` | ❌ | No description |
 | `isDM` | `boolean` | `false` | ❌ | No description |
+| `channelId` | `string` | `undefined` | ❌ | No description |
+| `conversationId` | `string` | `undefined` | ❌ | No description |
 | `viewType` | `ViewType` | `ViewType.TIMELINE` | ❌ | No description |
 | `currentView` | `string` | `'home'` | ❌ | No description |
 | `posts` | `Array` | `() => []` | ❌ | No description |
@@ -73,6 +75,26 @@ No description available.
 - **Type:** `boolean`
 - **Required:** No
 - **Default:** `false`
+
+
+
+#### `channelId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `conversationId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
 
 
 
@@ -181,7 +203,6 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `load-more-messages` | unknown | No description |
 | `update:is-at-bottom` | boolean | No description |
 | `send-message` | any | No description |
 | `clear-all-bookmarks` | unknown | No description |
@@ -189,17 +210,16 @@ No description available.
 | `switch-feed` | union | No description |
 | `post-created` | TimelinePost | No description |
 | `load-more-posts` | unknown | No description |
+| `reply-to-post` | any | No description |
+| `favorite-post` | string | No description |
+| `reblog-post` | string | No description |
+| `bookmark-post` | string | No description |
+| `delete-post` | string | No description |
+| `show-user-profile` | any | No description |
+| `load-more-messages` | unknown | No description |
 | `back-to-timeline` | unknown | No description |
 
 ### Event Details
-
-#### `load-more-messages`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
 
 #### `update:is-at-bottom`
 
@@ -257,6 +277,62 @@ No description available.
 
 
 
+#### `reply-to-post`
+
+No description available.
+
+**Parameters:** `any`
+
+
+
+#### `favorite-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `reblog-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `bookmark-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `delete-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `show-user-profile`
+
+No description available.
+
+**Parameters:** `any`
+
+
+
+#### `load-more-messages`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 #### `back-to-timeline`
 
 No description available.
@@ -280,7 +356,6 @@ This component exposes no public methods.
 <template>
   <UnifiedContentArea
     :mode="undefined"
-    @load-more-messages="handleLoad-more-messages"
     @update:is-at-bottom="handleUpdate:is-at-bottom"
     @send-message="handleSend-message"
     @clear-all-bookmarks="handleClear-all-bookmarks"
@@ -288,14 +363,17 @@ This component exposes no public methods.
     @switch-feed="handleSwitch-feed"
     @post-created="handlePost-created"
     @load-more-posts="handleLoad-more-posts"
+    @reply-to-post="handleReply-to-post"
+    @favorite-post="handleFavorite-post"
+    @reblog-post="handleReblog-post"
+    @bookmark-post="handleBookmark-post"
+    @delete-post="handleDelete-post"
+    @show-user-profile="handleShow-user-profile"
+    @load-more-messages="handleLoad-more-messages"
     @back-to-timeline="handleBack-to-timeline" />
 </template>
 
 <script setup lang="ts">
-const handleLoad-more-messages = (data) => {
-  // Handle load-more-messages event
-}
-
 const handleUpdate:is-at-bottom = (boolean) => {
   // Handle update:is-at-bottom event
 }
@@ -322,6 +400,34 @@ const handlePost-created = (TimelinePost) => {
 
 const handleLoad-more-posts = (data) => {
   // Handle load-more-posts event
+}
+
+const handleReply-to-post = (any) => {
+  // Handle reply-to-post event
+}
+
+const handleFavorite-post = (string) => {
+  // Handle favorite-post event
+}
+
+const handleReblog-post = (string) => {
+  // Handle reblog-post event
+}
+
+const handleBookmark-post = (string) => {
+  // Handle bookmark-post event
+}
+
+const handleDelete-post = (string) => {
+  // Handle delete-post event
+}
+
+const handleShow-user-profile = (any) => {
+  // Handle show-user-profile event
+}
+
+const handleLoad-more-messages = (data) => {
+  // Handle load-more-messages event
 }
 
 const handleBack-to-timeline = (data) => {

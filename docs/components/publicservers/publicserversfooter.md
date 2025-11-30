@@ -1,6 +1,6 @@
 # PublicServersFooter
 
-No description available.
+A Vue component.
 
 **File:** `src/components/PublicServers/PublicServersFooter.vue`
 

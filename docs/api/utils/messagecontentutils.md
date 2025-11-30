@@ -13,19 +13,18 @@ graph TB
     end
     
     subgraph "Functions"
-        MESSAGEPARTSTOMARKDOWN[messagePartsToMarkdown()]
-        MESSAGEPARTSTOPLAINTEXT[messagePartsToPlainText()]
-        ISSINGLEEMOJIMESSAGE[isSingleEmojiMessage()]
+        FN_MESSAGEPARTSTOMARKDOWN[messagePartsToMarkdown]
+        FN_MESSAGEPARTSTOPLAINTEXT[messagePartsToPlainText]
+        FN_ISSINGLEEMOJIMESSAGE[isSingleEmojiMessage]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **messagePartsToMarkdown** - No description
-- **messagePartsToPlainText** - No description
-- **isSingleEmojiMessage** - No description
+- **messagePartsToMarkdown** - function export
+- **messagePartsToPlainText** - function export
+- **isSingleEmojiMessage** - function export
 
 ## Functions
 
@@ -36,10 +35,13 @@ No description available.
 **Parameters:**
 - `parts: MessagePart[]`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function messagePartsToMarkdown(parts: MessagePart[]): string {
+/**
+ * Convert MessagePart[] to markdown text for rendering with MarkdownContent
+ */
+export function messagePartsToMarkdown(parts: MessagePart[]): string
 ```
 
 ### `messagePartsToPlainText(parts: MessagePart[])`
@@ -49,10 +51,13 @@ No description available.
 **Parameters:**
 - `parts: MessagePart[]`
 
-**Returns:** Unknown
+**Returns:** `string`
 
 ```typescript
-export function messagePartsToPlainText(parts: MessagePart[]): string {
+/**
+ * Extract plain text from MessagePart[] for previews
+ */
+export function messagePartsToPlainText(parts: MessagePart[]): string
 ```
 
 ### `isSingleEmojiMessage(parts: MessagePart[])`
@@ -62,11 +67,16 @@ No description available.
 **Parameters:**
 - `parts: MessagePart[]`
 
-**Returns:** Unknown
+**Returns:** `boolean`
 
 ```typescript
-export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
+/**
+ * Check if message content contains only a single emoji
+ */
+export function isSingleEmojiMessage(parts: MessagePart[]): boolean
 ```
+
+
 
 
 
@@ -79,14 +89,14 @@ export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
 
 ## Source Code Insights
 
-**File Size:** 1860 characters
-**Lines of Code:** 85
+**File Size:** 1906 characters
+**Lines of Code:** 88
 **Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage } from '@/utils/messageContentUtils.ts'
+import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage } from '@/utils/messageContentUtils'
 
 // Example usage
 messagePartsToMarkdown()

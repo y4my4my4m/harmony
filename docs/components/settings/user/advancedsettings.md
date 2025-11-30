@@ -1,6 +1,6 @@
 # AdvancedSettings
 
-No description available.
+A Vue component.
 
 **File:** `src/components/settings/user/AdvancedSettings.vue`
 

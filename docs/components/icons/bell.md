@@ -1,6 +1,6 @@
 # Bell
 
-No description available.
+A Vue component.
 
 **File:** `src/components/icons/Bell.vue`
 

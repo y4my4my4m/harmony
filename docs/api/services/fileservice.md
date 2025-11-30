@@ -12,19 +12,24 @@ graph TB
     end
     
     subgraph "Functions"
-        HANDLEFILEDROP[handleFileDrop()]
-        HANDLEFILEUPLOADWITHPROGRESS[handleFileUploadWithProgress()]
+        FN_HANDLEFILEDROP[handleFileDrop]
+        FN_HANDLEFILEUPLOADWITHPROGRESS[handleFileUploadWithProgress]
     end
     
     subgraph "Interfaces"
-        UPLOADPROGRESSCALLBACK[UploadProgressCallback]
+        INT_UPLOADPROGRESSCALLBACK[UploadProgressCallback]
+    end
+    
+    subgraph "Classes"
+        CLS_BACKGROUNDUPLOADMANAGER[BackgroundUploadManager]
     end
 ```
 
+
 ## Exports
 
-- **UploadProgressCallback** - No description
-- **backgroundUploadManager** - No description
+- **UploadProgressCallback** - interface export
+- **backgroundUploadManager** - const export
 
 ## Functions
 
@@ -36,10 +41,10 @@ No description available.
 - `userId: string`
 - `file: any`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-async function handleFileDrop(userId: string, file: any) {
+async function handleFileDrop(userId: string, file: any)
 ```
 
 ### `handleFileUploadWithProgress(userId: string, file: File, onProgress?: UploadProgressCallback)`
@@ -51,14 +56,14 @@ No description available.
 - `file: File`
 - `onProgress?: UploadProgressCallback`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;string | null&gt;`
 
 ```typescript
 async function handleFileUploadWithProgress(
     userId: string, 
     file: File, 
     onProgress?: UploadProgressCallback
-): Promise<string | null> {
+): Promise<string | null>
 ```
 
 
@@ -70,7 +75,9 @@ No description available.
 
 **Methods:**
 - `startUpload`
-- `if`
+- `cancelUpload`
+- `hasActiveUploads`
+- `getActiveUploadCount`
 
 **Properties:**
 - `uploads`
@@ -78,6 +85,10 @@ No description available.
 - `uploadId`
 - `userId`
 - `file`
+- `onProgress`
+- `uploadPromise`
+- `callback`
+- `0`
 
 
 ## Interfaces
@@ -87,8 +98,10 @@ No description available.
 No description available.
 
 ```typescript
-export interface UploadProgressCallback {
+interface UploadProgressCallback {
+
   (progress: number): void;
+
 }
 ```
 
@@ -97,16 +110,18 @@ export interface UploadProgressCallback {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 3835 characters
-**Lines of Code:** 133
-**Imports:** 2
+**File Size:** 3867 characters
+**Lines of Code:** 134
+**Imports:** 3
 
 ## Usage Example
 
 ```typescript
-import { UploadProgressCallback, backgroundUploadManager } from '@/services/fileService.ts'
+import { UploadProgressCallback, backgroundUploadManager } from '@/services/fileService'
 
 // Example usage
 handleFileDrop()

@@ -1,6 +1,6 @@
 # Palette
 
-No description available.
+A Vue component.
 
 **File:** `src/components/icons/Palette.vue`
 

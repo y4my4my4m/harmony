@@ -10,14 +10,31 @@ graph TB
         USESERVERCHANNELSTORE[useServerChannelStore]
     end
     
-    
-    
-    
+    subgraph "Functions"
+        FN_FETCHPROMISE[fetchPromise]
+    end
 ```
+
 
 ## Exports
 
-- **useServerChannelStore** - No description
+- **useServerChannelStore** - const export
+
+## Functions
+
+### `fetchPromise(async ()`
+
+No description available.
+
+**Parameters:**
+- `async (`
+
+**Returns:** `Unknown`
+
+```typescript
+const fetchPromise = (async () =>
+```
+
 
 
 
@@ -31,17 +48,17 @@ graph TB
 
 ## Source Code Insights
 
-**File Size:** 25567 characters
-**Lines of Code:** 737
-**Imports:** 5
+**File Size:** 78931 characters
+**Lines of Code:** 2157
+**Imports:** 9
 
 ## Usage Example
 
 ```typescript
-import { useServerChannelStore } from '@/stores/useServerChannel.ts'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 
 // Example usage
-// Use the exported functionality
+fetchPromise()
 ```
 
 ---

@@ -1,6 +1,6 @@
 # ServerBasicInfo
 
-No description available.
+A Vue component.
 
 **File:** `src/components/settings/ServerBasicInfo.vue`
 

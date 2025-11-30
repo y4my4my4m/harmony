@@ -14,21 +14,26 @@ graph TB
     end
     
     subgraph "Functions"
-        GETMEMBERSHIPSERVICE[getMembershipService()]
+        FN_GETMEMBERSHIPSERVICE[getMembershipService]
     end
     
     subgraph "Interfaces"
-        MEMBERSHIPEVENT[MembershipEvent]
-        MEMBERSHIPSERVICEOPTIONS[MembershipServiceOptions]
+        INT_MEMBERSHIPEVENT[MembershipEvent]
+        INT_MEMBERSHIPSERVICEOPTIONS[MembershipServiceOptions]
+    end
+    
+    subgraph "Classes"
+        CLS_MEMBERSHIPSERVICE[MembershipService]
     end
 ```
 
+
 ## Exports
 
-- **MembershipEvent** - No description
-- **MembershipServiceOptions** - No description
-- **MembershipService** - No description
-- **getMembershipService** - No description
+- **MembershipEvent** - interface export
+- **MembershipServiceOptions** - interface export
+- **MembershipService** - class export
+- **getMembershipService** - function export
 
 ## Functions
 
@@ -39,10 +44,10 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `MembershipService`
 
 ```typescript
-export function getMembershipService(): MembershipService {
+export function getMembershipService(): MembershipService
 ```
 
 
@@ -53,12 +58,46 @@ export function getMembershipService(): MembershipService {
 No description available.
 
 **Methods:**
-- `Map`
+- `constructor`
+- `getServerUsersStore`
+- `subscribeToServer`
+- `catch`
+- `unsubscribeFromServer`
+- `subscribeToServers`
+- `cleanup`
+- `handleMembershipEvent`
+- `handleUserJoin`
+- `handleUserLeave`
+- `refreshServerUserList`
+- `getActiveSubscriptions`
+- `getMembershipHistory`
 
 **Properties:**
 - `subscriptions`
 - `options`
 - `MembershipServiceOptions`
+- `server`
+- `channel`
+- `event`
+- `schema`
+- `table`
+- `filter`
+- `received`
+- `subscription`
+- `existingChannel`
+- `servers`
+- `events`
+- `member`
+- `consistency`
+- `members`
+- `userIds`
+- `data`
+- `list`
+- `limit`
+- `supabase`
+- `ascending`
+- `error`
+- `history`
 
 
 ## Interfaces
@@ -68,7 +107,8 @@ No description available.
 No description available.
 
 ```typescript
-export interface MembershipEvent {
+interface MembershipEvent {
+
   id: string
   server_id: string
   user_id: string
@@ -81,6 +121,9 @@ export interface MembershipEvent {
     left_at?: string
     via_invite?: boolean
   }
+  created_at: string
+
+}
 ```
 
 ### MembershipServiceOptions
@@ -88,12 +131,16 @@ export interface MembershipEvent {
 No description available.
 
 ```typescript
-export interface MembershipServiceOptions {
+interface MembershipServiceOptions {
+
   onUserJoin?: (event: MembershipEvent) => void
   onUserLeave?: (event: MembershipEvent) => void
   onError?: (error: Error) => void
+
 }
 ```
+
+
 
 
 
@@ -103,13 +150,13 @@ export interface MembershipServiceOptions {
 ## Source Code Insights
 
 **File Size:** 7351 characters
-**Lines of Code:** 232
-**Imports:** 4
+**Lines of Code:** 233
+**Imports:** 5
 
 ## Usage Example
 
 ```typescript
-import { MembershipEvent, MembershipServiceOptions, MembershipService, getMembershipService } from '@/services/membershipService.ts'
+import { MembershipEvent, MembershipServiceOptions, MembershipService, getMembershipService } from '@/services/membershipService'
 
 // Example usage
 getMembershipService()

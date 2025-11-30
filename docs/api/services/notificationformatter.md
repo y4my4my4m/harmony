@@ -11,17 +11,20 @@ graph TB
         NOTIFICATIONFORMATTER[NotificationFormatter]
     end
     
-    
-    
     subgraph "Interfaces"
-        NOTIFICATIONMESSAGE[NotificationMessage]
+        INT_NOTIFICATIONMESSAGE[NotificationMessage]
+    end
+    
+    subgraph "Classes"
+        CLS_NOTIFICATIONFORMATTER[NotificationFormatter]
     end
 ```
 
+
 ## Exports
 
-- **NotificationMessage** - No description
-- **NotificationFormatter** - No description
+- **NotificationMessage** - interface export
+- **NotificationFormatter** - class export
 
 
 
@@ -33,14 +36,47 @@ No description available.
 
 **Methods:**
 - `formatNotification`
-- `if`
+- `catch`
+- `getPreviewText`
+- `getUsername`
+- `getAvatarUrl`
+- `getServerName`
+- `getChannelName`
+- `isClickable`
+- `getNavigationData`
 
 **Properties:**
-- `notification`
+- `messages`
 - `template`
+- `types`
 - `title`
 - `message`
 - `shortTitle`
+- `notification`
+- `data`
+- `formatted`
+- `format`
+- `users`
+- `user`
+- `username`
+- `object`
+- `displayName`
+- `fallbacks`
+- `avatar`
+- `fallback`
+- `null`
+- `IDs`
+- `navigation`
+- `type`
+- `postId`
+- `postUrl`
+- `part`
+- `highlightUser`
+- `formats`
+- `conversationId`
+- `messageId`
+- `serverId`
+- `channelId`
 
 
 ## Interfaces
@@ -50,10 +86,12 @@ No description available.
 No description available.
 
 ```typescript
-export interface NotificationMessage {
+interface NotificationMessage {
+
   title: string
   message: string
   shortTitle?: string // For badges/compact views
+
 }
 ```
 
@@ -71,16 +109,18 @@ const MESSAGE_TEMPLATES = {
 ```
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 11206 characters
-**Lines of Code:** 316
-**Imports:** 1
+**File Size:** 18363 characters
+**Lines of Code:** 514
+**Imports:** 3
 
 ## Usage Example
 
 ```typescript
-import { NotificationMessage, NotificationFormatter } from '@/services/NotificationFormatter.ts'
+import { NotificationMessage, NotificationFormatter } from '@/services/NotificationFormatter'
 
 // Example usage
 // Use the exported functionality

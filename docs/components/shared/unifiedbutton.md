@@ -1,6 +1,6 @@
 # UnifiedButton
 
-No description available.
+A Vue component.
 
 **File:** `src/components/shared/UnifiedButton.vue`
 

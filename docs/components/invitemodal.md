@@ -1,6 +1,6 @@
 # InviteModal
 
-No description available.
+A Vue component.
 
 **File:** `src/components/InviteModal.vue`
 

@@ -11,15 +11,15 @@ graph TB
     end
     
     subgraph "Functions"
-        USEACTIVITYPUBUSERSEARCH[useActivityPubUserSearch()]
+        FN_USEACTIVITYPUBUSERSEARCH[useActivityPubUserSearch]
+        FN_SEARCHUSERS[searchUsers]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **useActivityPubUserSearch** - No description
+- **useActivityPubUserSearch** - function export
 
 ## Functions
 
@@ -30,11 +30,26 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useActivityPubUserSearch() {
+export function useActivityPubUserSearch()
 ```
+
+### `searchUsers(query: string)`
+
+No description available.
+
+**Parameters:**
+- `query: string`
+
+**Returns:** `Promise&lt;SuggestionItem[]&gt;`
+
+```typescript
+const searchUsers = async (query: string): Promise<SuggestionItem[]> =>
+```
+
+
 
 
 
@@ -47,14 +62,14 @@ export function useActivityPubUserSearch() {
 
 ## Source Code Insights
 
-**File Size:** 4121 characters
-**Lines of Code:** 118
-**Imports:** 4
+**File Size:** 4155 characters
+**Lines of Code:** 119
+**Imports:** 5
 
 ## Usage Example
 
 ```typescript
-import { useActivityPubUserSearch } from '@/composables/useActivityPubUserSearch.ts'
+import { useActivityPubUserSearch } from '@/composables/useActivityPubUserSearch'
 
 // Example usage
 useActivityPubUserSearch()

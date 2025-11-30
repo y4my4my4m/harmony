@@ -12,22 +12,21 @@ graph TB
     end
     
     subgraph "Functions"
-        USEAPPLICATIONSTATE[useApplicationState()]
-        STARTINITIALIZATION[startInitialization()]
-        COMPLETEINITIALIZATION[completeInitialization()]
-        UPDATESERVERCOUNT[updateServerCount()]
-        SETINITIALIZATIONERROR[setInitializationError()]
-        RESETAPPLICATIONSTATE[resetApplicationState()]
-        GETEARLYSTATE[getEarlyState()]
+        FN_USEAPPLICATIONSTATE[useApplicationState]
+        FN_STARTINITIALIZATION[startInitialization]
+        FN_COMPLETEINITIALIZATION[completeInitialization]
+        FN_UPDATESERVERCOUNT[updateServerCount]
+        FN_SETINITIALIZATIONERROR[setInitializationError]
+        FN_RESETAPPLICATIONSTATE[resetApplicationState]
+        FN_GETEARLYSTATE[getEarlyState]
     end
-    
-    
 ```
+
 
 ## Exports
 
-- **useApplicationState** - No description
-- **applicationState** - No description
+- **useApplicationState** - function export
+- **applicationState** - const export
 
 ## Functions
 
@@ -38,10 +37,14 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useApplicationState() {
+/**
+ * Composable for managing application initialization state
+ * Prevents splash screen flashes and provides smooth loading experience
+ */
+export function useApplicationState()
 ```
 
 ### `startInitialization()`
@@ -51,10 +54,47 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;void&gt;`
 
 ```typescript
-async function startInitialization(): Promise<void> {
+/**
+   * Check if the application should show loading state
+   */
+  const isInitializing = computed(() => _isInitializing.value)
+  
+  /**
+   * Check if the application has completed initialization
+   */
+  const hasInitialized = computed(() => _hasInitialized.value)
+  
+  /**
+   * Check if user has any servers
+   */
+  const hasServers = computed(() => _hasServers.value)
+  
+  /**
+   * Get initialization error if any occurred
+   */
+  const initializationError = computed(() => _initializationError.value)
+  
+  /**
+   * Determine if splash screen should be shown
+   */
+  const shouldShowSplash = computed(() => {
+    return hasInitialized.value && !hasServers.value && !initializationError.value
+  })
+  
+  /**
+   * Determine if loading screen should be shown
+   */
+  const shouldShowLoading = computed(() => {
+    return isInitializing.value && !initializationError.value
+  })
+  
+  /**
+   * Start application initialization
+   */
+  async function startInitialization(): Promise<void>
 ```
 
 ### `completeInitialization(serverCount: number)`
@@ -64,10 +104,13 @@ No description available.
 **Parameters:**
 - `serverCount: number`
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;void&gt;`
 
 ```typescript
-async function completeInitialization(serverCount: number): Promise<void> {
+/**
+   * Complete initialization process
+   */
+  async function completeInitialization(serverCount: number): Promise<void>
 ```
 
 ### `updateServerCount(count: number)`
@@ -77,10 +120,13 @@ No description available.
 **Parameters:**
 - `count: number`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-function updateServerCount(count: number): void {
+/**
+   * Update server count (when user joins/leaves servers)
+   */
+  function updateServerCount(count: number): void
 ```
 
 ### `setInitializationError(error: string | null)`
@@ -90,10 +136,13 @@ No description available.
 **Parameters:**
 - `error: string | null`
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-function setInitializationError(error: string | null): void {
+/**
+   * Set initialization error
+   */
+  function setInitializationError(error: string | null): void
 ```
 
 ### `resetApplicationState()`
@@ -103,10 +152,13 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Promise&lt;void&gt;`
 
 ```typescript
-async function resetApplicationState(): Promise<void> {
+/**
+   * Reset application state (for logout, etc.)
+   */
+  async function resetApplicationState(): Promise<void>
 ```
 
 ### `getEarlyState()`
@@ -116,11 +168,16 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-function getEarlyState() {
+/**
+   * Get early state for preventing flash (synchronous)
+   */
+  function getEarlyState()
 ```
+
+
 
 
 
@@ -133,14 +190,14 @@ function getEarlyState() {
 
 ## Source Code Insights
 
-**File Size:** 4660 characters
-**Lines of Code:** 167
-**Imports:** 2
+**File Size:** 4684 characters
+**Lines of Code:** 168
+**Imports:** 3
 
 ## Usage Example
 
 ```typescript
-import { useApplicationState, applicationState } from '@/composables/useApplicationState.ts'
+import { useApplicationState, applicationState } from '@/composables/useApplicationState'
 
 // Example usage
 useApplicationState()

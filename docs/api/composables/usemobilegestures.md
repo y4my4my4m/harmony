@@ -11,22 +11,25 @@ graph TB
     end
     
     subgraph "Functions"
-        USEMOBILEGESTURES[useMobileGestures()]
-        HANDLETOUCHSTART[handleTouchStart()]
-        HANDLETOUCHMOVE[handleTouchMove()]
-        HANDLETOUCHEND[handleTouchEnd()]
-        RESETTOUCHSTATE[resetTouchState()]
+        FN_USEMOBILEGESTURES[useMobileGestures]
+        FN_GETVELOCITY[getVelocity]
+        FN_HANDLETOUCHSTART[handleTouchStart]
+        FN_HANDLETOUCHMOVE[handleTouchMove]
+        FN_HANDLETOUCHEND[handleTouchEnd]
+        FN_RESETTOUCHSTATE[resetTouchState]
     end
     
     subgraph "Interfaces"
-        TOUCHSTATE[TouchState]
-        SWIPECONFIG[SwipeConfig]
+        INT_TOUCHSTATE[TouchState]
+        INT_SWIPECONFIG[SwipeConfig]
+        INT_DRAGCALLBACKS[DragCallbacks]
     end
 ```
 
+
 ## Exports
 
-- **useMobileGestures** - No description
+- **useMobileGestures** - function export
 
 ## Functions
 
@@ -37,10 +40,23 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `void`
 
 ```typescript
-export function useMobileGestures() {
+export function useMobileGestures()
+```
+
+### `getVelocity()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const getVelocity = () =>
 ```
 
 ### `handleTouchStart(event: TouchEvent, isMobile: boolean)`
@@ -51,13 +67,13 @@ No description available.
 - `event: TouchEvent`
 - `isMobile: boolean`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleTouchStart = (event: TouchEvent, isMobile: boolean) =>
 ```
 
-### `handleTouchMove(event: TouchEvent, isMobile: boolean, hasOpenSidebars: boolean)`
+### `handleTouchMove(event: TouchEvent, isMobile: boolean, hasOpenSidebars: boolean, callbacks?: DragCallbacks)`
 
 No description available.
 
@@ -65,32 +81,36 @@ No description available.
 - `event: TouchEvent`
 - `isMobile: boolean`
 - `hasOpenSidebars: boolean`
+- `callbacks?: DragCallbacks`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
-const handleTouchMove = (event: TouchEvent, isMobile: boolean, hasOpenSidebars: boolean) =>
+const handleTouchMove = (
+    event: TouchEvent, 
+    isMobile: boolean, 
+    hasOpenSidebars: boolean,
+    callbacks?: DragCallbacks
+  ) =>
 ```
 
-### `handleTouchEnd(event: TouchEvent, isMobile: boolean, callbacks: {
-      onSwipeRight: ()`
+### `handleTouchEnd(event: TouchEvent, isMobile: boolean, callbacks: DragCallbacks)`
 
 No description available.
 
 **Parameters:**
 - `event: TouchEvent`
 - `isMobile: boolean`
-- `callbacks: {
-      onSwipeRight: (`
+- `callbacks: DragCallbacks`
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const handleTouchEnd = (
     event: TouchEvent, 
     isMobile: boolean,
-    callbacks: {
-      onSwipeRight: () =>
+    callbacks: DragCallbacks
+  ) =>
 ```
 
 ### `resetTouchState()`
@@ -100,7 +120,7 @@ No description available.
 **Parameters:**
 None
 
-**Returns:** Unknown
+**Returns:** `Unknown`
 
 ```typescript
 const resetTouchState = () =>
@@ -117,6 +137,7 @@ No description available.
 
 ```typescript
 interface TouchState {
+
   startX: number
   startY: number
   currentX: number
@@ -125,6 +146,10 @@ interface TouchState {
   initialDirection: 'horizontal' | 'vertical' | null
   isEdgeSwipe: boolean
   startTime: number
+  dragDirection: 'left' | 'right' | null
+  lastMoveTime: number
+  lastMoveX: number
+
 }
 ```
 
@@ -134,10 +159,30 @@ No description available.
 
 ```typescript
 interface SwipeConfig {
+
   swipeThreshold: number
   directionThreshold: number
   edgeZone: number
   velocityThreshold: number
+  sidebarWidth: number
+  completionThreshold: number
+
+}
+```
+
+### DragCallbacks
+
+No description available.
+
+```typescript
+interface DragCallbacks {
+
+  onSwipeRight: () => void
+  onSwipeLeft: () => void
+  onDragStart?: (direction: 'left' | 'right') => void
+  onDragMove?: (deltaX: number, direction: 'left' | 'right') => void
+  onDragEnd?: (velocity: number, direction: 'left' | 'right') => void
+
 }
 ```
 
@@ -146,16 +191,18 @@ interface SwipeConfig {
 
 
 
+
+
 ## Source Code Insights
 
-**File Size:** 4428 characters
-**Lines of Code:** 161
+**File Size:** 7596 characters
+**Lines of Code:** 244
 **Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { useMobileGestures } from '@/composables/useMobileGestures.ts'
+import { useMobileGestures } from '@/composables/useMobileGestures'
 
 // Example usage
 useMobileGestures()

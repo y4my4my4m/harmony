@@ -1,6 +1,6 @@
 # PostsContainer
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/PostsContainer.vue`
 
@@ -127,6 +127,14 @@ No description available.
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `empty-action` | unknown | No description |
+| `reply` | any | No description |
+| `favorite` | string | No description |
+| `reblog` | string | No description |
+| `bookmark` | string | No description |
+| `delete` | string | No description |
+| `user-click` | any | No description |
+| `hashtag-click` | string | No description |
+| `show-conversation` | string | No description |
 | `load-more` | unknown | No description |
 
 ### Event Details
@@ -136,6 +144,70 @@ No description available.
 No description available.
 
 **Parameters:** `unknown`
+
+
+
+#### `reply`
+
+No description available.
+
+**Parameters:** `any`
+
+
+
+#### `favorite`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `reblog`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `bookmark`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `delete`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `user-click`
+
+No description available.
+
+**Parameters:** `any`
+
+
+
+#### `hashtag-click`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `show-conversation`
+
+No description available.
+
+**Parameters:** `string`
 
 
 
@@ -163,12 +235,52 @@ This component exposes no public methods.
   <PostsContainer
     :posts="[]"
     @empty-action="handleEmpty-action"
+    @reply="handleReply"
+    @favorite="handleFavorite"
+    @reblog="handleReblog"
+    @bookmark="handleBookmark"
+    @delete="handleDelete"
+    @user-click="handleUser-click"
+    @hashtag-click="handleHashtag-click"
+    @show-conversation="handleShow-conversation"
     @load-more="handleLoad-more" />
 </template>
 
 <script setup lang="ts">
 const handleEmpty-action = (data) => {
   // Handle empty-action event
+}
+
+const handleReply = (any) => {
+  // Handle reply event
+}
+
+const handleFavorite = (string) => {
+  // Handle favorite event
+}
+
+const handleReblog = (string) => {
+  // Handle reblog event
+}
+
+const handleBookmark = (string) => {
+  // Handle bookmark event
+}
+
+const handleDelete = (string) => {
+  // Handle delete event
+}
+
+const handleUser-click = (any) => {
+  // Handle user-click event
+}
+
+const handleHashtag-click = (string) => {
+  // Handle hashtag-click event
+}
+
+const handleShow-conversation = (string) => {
+  // Handle show-conversation event
 }
 
 const handleLoad-more = (data) => {

@@ -1,6 +1,6 @@
 # ServerCardSkeleton
 
-No description available.
+A Vue component.
 
 **File:** `src/components/common/ServerCardSkeleton.vue`
 

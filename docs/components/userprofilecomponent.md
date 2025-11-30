@@ -1,6 +1,6 @@
 # UserProfileComponent
 
-No description available.
+A Vue component.
 
 **File:** `src/components/UserProfileComponent.vue`
 
