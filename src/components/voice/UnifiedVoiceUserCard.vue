@@ -42,10 +42,15 @@
           </button>
         </div>
 
-        <!-- Connection quality indicator -->
-        <div class="connection-indicator" :class="connectionQuality">
-          <div class="connection-dots">
-            <span v-for="i in 3" :key="i"></span>
+        <!-- Connection quality indicator - only show if not excellent -->
+        <div 
+          v-if="connectionQuality !== 'excellent'" 
+          class="connection-indicator" 
+          :class="connectionQuality"
+          :title="`Connection: ${connectionQuality}`"
+        >
+          <div class="connection-bars">
+            <span v-for="i in 4" :key="i" :class="{ active: i <= connectionBars }"></span>
           </div>
         </div>
 
@@ -105,6 +110,9 @@
           </div>
           <div v-if="effectiveDeafened" class="status-badge deafened" title="Deafened">
             <Icon name="headphones-off" />
+          </div>
+          <div v-if="isLocallyMuted && !isSelf" class="status-badge locally-muted" title="Muted by you">
+            <Icon name="volume-x" />
           </div>
           <div v-if="connectionQuality === 'poor'" class="status-badge connection-poor" title="Poor connection">
             <Icon name="wifi-low" />
@@ -313,6 +321,22 @@ const isFullscreenActive = computed(() => {
 // Check if PIP is active for this user
 const isPIPActive = computed(() => {
   return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
+});
+
+// Check if this user is locally muted (volume set to 0 by local user)
+const isLocallyMuted = computed(() => {
+  return voiceStore.getUserVolume(props.userState.userId) === 0;
+});
+
+// Connection bars count for indicator
+const connectionBars = computed(() => {
+  switch (connectionQuality.value) {
+    case 'excellent': return 4;
+    case 'good': return 3;
+    case 'fair': return 2;
+    case 'poor': return 1;
+    default: return 0;
+  }
 });
 
 // Voice ring animation
@@ -530,44 +554,50 @@ watch(
   color: #fff;
 }
 
+/* Connection quality indicator - bars style */
 .connection-indicator {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 6px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
 }
 
-.connection-dots {
+.connection-bars {
   display: flex;
-  gap: 3px;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
 }
 
-.connection-dots span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+.connection-bars span {
+  width: 3px;
   background: #40444b;
+  border-radius: 1px;
   transition: all 0.3s ease;
 }
 
-.connection-indicator.excellent .connection-dots span {
+.connection-bars span:nth-child(1) { height: 4px; }
+.connection-bars span:nth-child(2) { height: 6px; }
+.connection-bars span:nth-child(3) { height: 9px; }
+.connection-bars span:nth-child(4) { height: 12px; }
+
+.connection-bars span.active {
+  background: #b9bbbe;
+}
+
+.connection-indicator.good .connection-bars span.active {
   background: #00d4aa;
 }
 
-.connection-indicator.good .connection-dots span:nth-child(-n + 2) {
+.connection-indicator.fair .connection-bars span.active {
   background: #faa61a;
 }
 
-.connection-indicator.fair .connection-dots span:first-child {
-  background: #faa61a;
-}
-
-.connection-indicator.poor .connection-dots span:first-child {
+.connection-indicator.poor .connection-bars span.active {
   background: #ed4245;
-}
-
-.connection-indicator.connecting .connection-dots span {
-  background: #5865f2;
-  animation: pulse 1s infinite;
 }
 
 .video-controls {
@@ -705,6 +735,10 @@ watch(
 
 .status-badge.deafened {
   background: #faa61a;
+}
+
+.status-badge.locally-muted {
+  background: #5865f2;
 }
 
 .status-badge.connection-poor {

@@ -11,6 +11,9 @@ import { useThemeStore } from '@/stores/useTheme';
 import { useUserData } from '@/composables/useUserData';
 import { debug } from '@/utils/debug';
 
+// Module-level variable for cross-tab heartbeat (not reactive)
+let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -196,6 +199,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
   actions: {
     /**
      * Join a voice channel
+     * Automatically leaves any existing voice channel first
      */
     async joinVoiceChannel(channelId: string, serverId: string): Promise<boolean> {
       try {
@@ -209,6 +213,28 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         const userId = authStore.session.user.id;
+        
+        // Check if already in the same channel
+        if (this.isConnected && this.currentChannelId === channelId) {
+          debug.log('⚠️ Already connected to this voice channel');
+          return true;
+        }
+        
+        // If already in a different voice channel, leave it first
+        if (this.isConnected && this.currentChannelId) {
+          debug.log('⚠️ Already in a voice channel, leaving first...');
+          await this.leaveVoiceChannel();
+        }
+        
+        // Check cross-tab: prevent joining if another tab is already in a voice channel
+        const activeVoiceSession = localStorage.getItem('harmony-active-voice-session');
+        if (activeVoiceSession) {
+          const session = JSON.parse(activeVoiceSession);
+          if (session.tabId !== this.getTabId() && Date.now() - session.timestamp < 5000) {
+            debug.warn('⚠️ Another tab is already in a voice channel');
+            throw new Error('You are already in a voice channel in another tab');
+          }
+        }
         
         debug.log('🎯 Joining voice channel:', channelId, 'on server:', serverId);
         
@@ -257,6 +283,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Save voice channel state to localStorage for auto-reconnect
         this.saveVoiceChannelState();
+        
+        // Start cross-tab session heartbeat
+        this.startVoiceSessionHeartbeat();
         
         // Check if anyone else is in the channel to determine if we're starting the call
         // We'll set call start time after channel state sync
@@ -829,7 +858,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Get unique tab ID (persistent for this tab session)
+     */
+    getTabId(): string {
+      let tabId = sessionStorage.getItem('harmony-tab-id');
+      if (!tabId) {
+        tabId = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        sessionStorage.setItem('harmony-tab-id', tabId);
+      }
+      return tabId;
+    },
+
+    /**
      * Save voice channel state to localStorage for auto-reconnect
+     * Also tracks active voice session for cross-tab prevention
      */
     saveVoiceChannelState(): void {
       if (this.currentChannelId && this.currentServerId) {
@@ -840,7 +882,46 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           timestamp: Date.now()
         };
         localStorage.setItem('voiceChannelState', JSON.stringify(voiceState));
+        
+        // Track active voice session for cross-tab prevention
+        const activeSession = {
+          tabId: this.getTabId(),
+          channelId: this.currentChannelId,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('harmony-active-voice-session', JSON.stringify(activeSession));
+        
         debug.log('💾 Saved voice channel state for auto-reconnect');
+      }
+    },
+
+    /**
+     * Start heartbeat to maintain cross-tab session
+     */
+    startVoiceSessionHeartbeat(): void {
+      // Stop any existing heartbeat first
+      this.stopVoiceSessionHeartbeat();
+      
+      // Update session timestamp every 2 seconds
+      voiceSessionHeartbeat = setInterval(() => {
+        if (this.isConnected && this.currentChannelId) {
+          const activeSession = {
+            tabId: this.getTabId(),
+            channelId: this.currentChannelId,
+            timestamp: Date.now()
+          };
+          localStorage.setItem('harmony-active-voice-session', JSON.stringify(activeSession));
+        }
+      }, 2000);
+    },
+
+    /**
+     * Stop heartbeat
+     */
+    stopVoiceSessionHeartbeat(): void {
+      if (voiceSessionHeartbeat) {
+        clearInterval(voiceSessionHeartbeat);
+        voiceSessionHeartbeat = null;
       }
     },
 
@@ -849,6 +930,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     clearVoiceChannelState(): void {
       localStorage.removeItem('voiceChannelState');
+      localStorage.removeItem('harmony-active-voice-session');
+      this.stopVoiceSessionHeartbeat();
       debug.log('🗑️ Cleared voice channel state');
     },
 

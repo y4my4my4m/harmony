@@ -88,42 +88,41 @@
         </div>
       </div>
 
-      <div v-if="!isSelf" class="menu-divider" />
-
-      <!-- Actions -->
-      <div class="menu-actions">
-        <button
-          v-if="hasVideo"
-          class="menu-action"
-          @click="focusUser"
-        >
-          <Icon name="maximize-2" />
-          <span>{{ isFullscreen ? 'Exit Focus' : 'Focus Video' }}</span>
-        </button>
-
-        <button
-          v-if="isScreenSharing"
-          class="menu-action"
-          @click="togglePIP"
-        >
-          <Icon name="picture-in-picture" />
-          <span>{{ isPIP ? 'Exit PiP' : 'Picture in Picture' }}</span>
-        </button>
-
-        <button
-          v-if="!isSelf"
-          class="menu-action"
-          :class="{ active: currentVolume === 0 }"
-          @click="toggleMuteUser"
-        >
-          <Icon :name="currentVolume === 0 ? 'volume-x' : 'volume-2'" />
-          <span>{{ currentVolume === 0 ? 'Unmute User' : 'Mute User' }}</span>
-        </button>
-      </div>
-
-      <!-- Self Actions (if this is the local user) -->
-      <template v-if="isSelf">
+      <!-- Actions for other users -->
+      <template v-if="!isSelf">
         <div class="menu-divider" />
+        <div class="menu-actions">
+          <button
+            v-if="hasVideo"
+            class="menu-action"
+            @click="focusUser"
+          >
+            <Icon name="maximize-2" />
+            <span>{{ isFullscreen ? 'Exit Focus' : 'Focus Video' }}</span>
+          </button>
+
+          <button
+            v-if="isScreenSharing"
+            class="menu-action"
+            @click="togglePIP"
+          >
+            <Icon name="picture-in-picture" />
+            <span>{{ isPIP ? 'Exit PiP' : 'Picture in Picture' }}</span>
+          </button>
+
+          <button
+            class="menu-action"
+            :class="{ active: currentVolume === 0 }"
+            @click="toggleMuteUser"
+          >
+            <Icon :name="currentVolume === 0 ? 'volume-x' : 'volume-2'" />
+            <span>{{ currentVolume === 0 ? 'Unmute User' : 'Mute User' }}</span>
+          </button>
+        </div>
+      </template>
+
+      <!-- Self Actions -->
+      <template v-if="isSelf">
         <div class="menu-actions">
           <button class="menu-action" @click="toggleMute">
             <Icon :name="localMuted ? 'mic-off' : 'mic'" />
@@ -132,6 +131,14 @@
           <button class="menu-action" @click="toggleDeafen">
             <Icon :name="localDeafened ? 'headphones-off' : 'headphones'" />
             <span>{{ localDeafened ? 'Undeafen' : 'Deafen' }}</span>
+          </button>
+          <button 
+            v-if="hasVideo"
+            class="menu-action"
+            @click="focusUser"
+          >
+            <Icon name="maximize-2" />
+            <span>{{ isFullscreen ? 'Exit Focus' : 'Focus Video' }}</span>
           </button>
         </div>
       </template>
@@ -519,7 +526,7 @@ watch(
   position: absolute;
   top: 2px;
   right: 2px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #00d4aa;
 }
