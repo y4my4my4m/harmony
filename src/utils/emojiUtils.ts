@@ -10,6 +10,12 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
         return '';
     }
 
+    // Static asset emojis (unified emoji pack like Mutant Standard)
+    // These are served directly from /assets/, not through Supabase storage
+    if (emojiUrl.startsWith('/assets/')) {
+        return emojiUrl;
+    }
+
     // Check if this is a remote emoji URL (from another instance)
     // Remote emojis should be returned as-is without local processing
     if (emojiUrl.startsWith('http://') || emojiUrl.startsWith('https://')) {

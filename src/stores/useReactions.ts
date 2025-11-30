@@ -4,6 +4,7 @@ import { services } from '@/services'
 import type { ReactionGroup, Emoji } from '@/types'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { debug } from '@/utils/debug'
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 
 export const useReactionsStore = defineStore('reactions', () => {
   // State - SIMPLE AND CLEAN
@@ -280,18 +281,47 @@ export const useReactionsStore = defineStore('reactions', () => {
              emoji = cachedEmojiData
              debug.log('✅ Found emoji in cache:', emoji.name, emoji.url)
            } else {
-             emoji = {
-               id: emojiId,
-               name: 'unknown',
-               url: '',
-               server_id: '',
-               uploader: '',
-               created_at: '',
-               updated_at: '',
-               usage_count: 0,
-               last_used: ''
+             // Check if this is a native/mutant emoji (not a UUID)
+             // UUIDs have format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emojiId)
+             
+             if (!isUuid) {
+               // Try to resolve using unified emoji service
+               const { resolveEmoji, isNativePack, getSvgUrl } = useUnifiedEmoji()
+               const resolved = resolveEmoji(emojiId)
+               
+               debug.log('🎨 Resolving native/mutant emoji:', emojiId, resolved)
+               
+               emoji = {
+                 id: emojiId,
+                 name: resolved.shortcode || emojiId,
+                 // For native pack, don't set URL (render as native)
+                 // For mutant pack, set SVG URL
+                 url: resolved.display.type === 'svg' ? resolved.display.content : '',
+                 native: resolved.unicode,
+                 unicode: resolved.unicode,
+                 server_id: '',
+                 uploader: '',
+                 created_at: '',
+                 updated_at: '',
+                 usage_count: 0,
+                 last_used: ''
+               }
+             } else {
+               // UUID emoji not found in cache
+               emoji = {
+                 id: emojiId,
+                 name: 'unknown',
+                 url: '',
+                 server_id: '',
+                 uploader: '',
+                 created_at: '',
+                 updated_at: '',
+                 usage_count: 0,
+                 last_used: ''
+               }
+               debug.warn('❌ Emoji not found in cache:', emojiId)
              }
-             debug.warn('❌ Emoji not found in cache:', emojiId)
            }
          }
          

@@ -38,6 +38,7 @@ import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownPa
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { userDataService } from '@/services/userDataService';
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 
 interface Props {
   modelValue: string;
@@ -66,6 +67,7 @@ const emit = defineEmits<Emits>();
 const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
 const emojiCache = useEmojiCacheStore();
+const { resolveEmoji, isNativePack, getSvgUrl, isLoaded: unifiedLoaded } = useUnifiedEmoji();
 const isRendering = ref(false);
 const skipNextWatch = ref(false); // Flag to skip watch when manually rendering
 
@@ -79,9 +81,10 @@ const isSingleLine = computed(() => {
   return !props.modelValue.includes('\n');
 });
 
-// Find emoji by name in cache
+// Find emoji by name in cache or unified emoji pack
 const findEmojiByName = (name: string) => {
   try {
+    // First check server custom emojis
     const allServerIds = Array.from(emojiCache.serverCaches.keys());
     for (const serverId of allServerIds) {
       const serverEmojis = emojiCache.getServerEmojis(serverId);
@@ -92,6 +95,25 @@ const findEmojiByName = (name: string) => {
         }
       }
     }
+    
+    // Then check unified emoji pack (mutant or native)
+    if (unifiedLoaded.value) {
+      const resolved = resolveEmoji(name);
+      if (resolved.display.type === 'svg') {
+        return {
+          name: resolved.shortcode || name,
+          url: resolved.display.content
+        };
+      } else if (resolved.display.type === 'native' && resolved.unicode !== name) {
+        // Return native emoji (renderer will handle display)
+        return {
+          name: resolved.shortcode || name,
+          url: null,
+          native: resolved.unicode
+        };
+      }
+    }
+    
     return null;
   } catch (error) {
     debug.warn('Error finding emoji by name:', error);
@@ -675,19 +697,29 @@ const createElementFromToken = (token: MarkdownToken): Node => {
     
     case 'emoji': {
       const emoji = findEmojiByName(token.content);
-      if (emoji && emoji.url) {
+      if (emoji) {
         const span = document.createElement('span');
         span.className = 'editor-emoji';
         span.contentEditable = 'false';
         span.setAttribute('data-emoji', token.content);
         
-        const img = document.createElement('img');
-        img.src = emoji.url;
-        img.alt = `:${token.content}:`;
-        img.className = 'emoji-image';
-        img.draggable = false;
+        if (emoji.url) {
+          // SVG/Custom emoji - use image
+          const img = document.createElement('img');
+          img.src = emoji.url;
+          img.alt = `:${token.content}:`;
+          img.className = 'emoji-image';
+          img.draggable = false;
+          span.appendChild(img);
+        } else if (emoji.native) {
+          // Native unicode emoji
+          span.className = 'editor-emoji native-emoji';
+          span.textContent = emoji.native;
+        } else {
+          // Fallback to shortcode text
+          return document.createTextNode(`:${token.content}:`);
+        }
         
-        span.appendChild(img);
         return span;
       } else {
         return document.createTextNode(`:${token.content}:`);
@@ -1027,6 +1059,12 @@ onMounted(() => {
   margin: 0 0.05em 0 0.1em;
   vertical-align: -0.2em;
   object-fit: contain;
+}
+
+.rich-text-editor :deep(.editor-emoji.native-emoji) {
+  font-size: 1.25em;
+  line-height: 1;
+  margin: 0 0.05em;
 }
 
 /* Focus styling */

@@ -27,14 +27,18 @@
             size="sm"
           />
           <img
-            v-else-if="suggestion.emoji"
+            v-else-if="suggestion.emoji && suggestion.url"
             :src="suggestion.url"
             alt="Emoji"
             class="suggest-icon emoji-icon"
           />
+          <span
+            v-else-if="suggestion.emoji && suggestion.native"
+            class="suggest-icon native-emoji-icon"
+          >{{ suggestion.native }}</span>
           <div class="suggest-text">
             <span class="suggest-name" v-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
-            <span class="suggest-name" v-else>:{{ suggestion.emoji.name }}:</span>
+            <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
             <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
             <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
           </div>
@@ -192,6 +196,15 @@ watch(() => props.selectedIndex, (newIndex) => {
   width: 24px;
   height: 24px;
   object-fit: contain;
+}
+
+.native-emoji-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 20px;
+  line-height: 24px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 /* Auto-suggest item styling */

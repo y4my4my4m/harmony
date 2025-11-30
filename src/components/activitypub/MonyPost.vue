@@ -1078,11 +1078,16 @@ const handleEmojiSelected = async (emoji: any) => {
       }
     } else {
       // Fallback to direct API call
+      // Check if emoji.id is a valid UUID (server custom emoji) or native unicode
+      const isUuid = emoji.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji.id);
+      const emojiId = isUuid ? emoji.id : null;
+      const customContent = !isUuid ? (emoji.native || emoji.id || emoji.name) : null;
+      
       const { error } = await supabase.rpc('add_post_emoji_reaction', {
         p_user_id: currentUser.id,
         p_post_id: props.post.id,
-        p_emoji_id: emoji.id || null,
-        p_custom_emoji_content: emoji.native || emoji.name || null
+        p_emoji_id: emojiId,
+        p_custom_emoji_content: customContent
       });
 
       if (error) {
@@ -1562,7 +1567,7 @@ const closeLightbox = () => {
 }
 
 .mony-post.is-reply {
-  border-left: 3px solid #2563eb;
+  border-left: 3px solid var(--harmony-primary);
 }
 
 .reblog-header {
@@ -1712,7 +1717,7 @@ const closeLightbox = () => {
 }
 
 .reply-author-link {
-  color: #60a5fa;
+  color: var(--harmony-primary);
   cursor: pointer;
   font-weight: 500;
 }

@@ -163,12 +163,22 @@ export class MessageService {
       // (chat reactions stay local, DM reactions may federate based on participants)
       const result = await coreMessageService.toggleReaction(messageId, emojiId)
 
-      // Get updated count for the response
-      const { count } = await supabase
+      // Check if this is a native/mutant emoji (not a UUID)
+      const isNativeEmoji = !this.isValidUUID(emojiId)
+
+      // Get updated count for the response - query by correct field
+      let countQuery = supabase
         .from('reactions')
         .select('*', { count: 'exact', head: true })
         .eq('message_id', messageId)
-        .eq('emoji_id', emojiId)
+      
+      if (isNativeEmoji) {
+        countQuery = countQuery.eq('custom_emoji_content', emojiId)
+      } else {
+        countQuery = countQuery.eq('emoji_id', emojiId)
+      }
+
+      const { count } = await countQuery
 
       const response = {
         added: result.added,
@@ -182,6 +192,15 @@ export class MessageService {
       debug.error('❌ Simplified: Failed to toggle message reaction:', error)
       throw error
     }
+  }
+
+  /**
+   * Check if a string is a valid UUID
+   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
   }
 
   /**

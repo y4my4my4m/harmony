@@ -49,6 +49,8 @@ import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostReactionsStore } from '@/stores/postReactions';
+import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
@@ -96,6 +98,8 @@ const emit = defineEmits<Emits>();
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const postReactionsStore = usePostReactionsStore();
+const { triggerReaction } = useHapticSettings();
+const { recordEmojiUsage } = useFrequentEmojis();
 
 // Use store-based reactions with safety checks, also include remote reactions from metadata
 const reactions = computed(() => {
@@ -190,6 +194,17 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
   }
   
   try {
+    // Haptic feedback on reaction
+    triggerReaction();
+    
+    // Record emoji usage for frequently used emojis
+    recordEmojiUsage({
+      id: reaction.emoji_id || reaction.emoji_name || '',
+      native: reaction.custom_emoji_content || undefined,
+      name: reaction.emoji_name || '',
+      url: reaction.emoji_url || undefined
+    });
+    
     // Play audio feedback immediately for better UX
     try {
       await themeStore.testAudio('reaction');

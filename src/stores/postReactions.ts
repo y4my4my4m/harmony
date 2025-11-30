@@ -225,20 +225,25 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       }, 30000) // 30 seconds like messages
 
       // Actual database update
+      // Check if emoji.id is a valid UUID (server custom emoji) or native unicode
+      const isUuid = emoji.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji.id);
+      const emojiId = isUuid ? emoji.id : null;
+      const customContent = !isUuid ? (emoji.native || emoji.id || emoji.name) : null;
+      
       if (operation === 'remove') {
         const { error } = await supabase.rpc('remove_post_emoji_reaction', {
           p_user_id: userId,
           p_post_id: postId,
-          p_emoji_id: emoji.id || null,
-          p_custom_emoji_content: emoji.native || null
+          p_emoji_id: emojiId,
+          p_custom_emoji_content: customContent
         })
         if (error) throw error
       } else {
         const { error } = await supabase.rpc('add_post_emoji_reaction', {
           p_user_id: userId,
           p_post_id: postId,
-          p_emoji_id: emoji.id || null,
-          p_custom_emoji_content: emoji.native || emoji.name || null
+          p_emoji_id: emojiId,
+          p_custom_emoji_content: customContent
         })
         if (error) throw error
       }

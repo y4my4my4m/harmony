@@ -4,6 +4,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
 import type { ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
@@ -47,6 +48,7 @@ export function useAutoSuggest(
 ) {
   const emojiCacheStore = useEmojiCacheStore();
   const serverChannelStore = useServerChannelStore();
+  const { searchEmojis: searchUnifiedEmojis, isLoaded: unifiedLoaded, isNativePack, getSvgUrl } = useUnifiedEmoji();
 
   // Merge config with defaults
   const finalConfig = {
@@ -89,7 +91,7 @@ export function useAutoSuggest(
     });
   }
 
-  // Get emoji suggestions
+  // Get emoji suggestions (server emojis + unified emoji pack)
   const emojiSuggestions = computed((): SuggestionItem[] => {
     if (!finalConfig.enableEmojis || state.value.triggerType !== 'emoji' || !state.value.query) {
       return [];
@@ -98,8 +100,9 @@ export function useAutoSuggest(
     const suggestions: SuggestionItem[] = [];
     const query = state.value.query.toLowerCase();
     const resolvedEmojiList = emojiCacheStore.resolvedEmojis;
+    const seenNames = new Set<string>();
 
-    // Collect emojis from all servers
+    // Collect emojis from all servers (custom server emojis)
     for (const serverId in resolvedEmojiList) {
       const server = resolvedEmojiList[serverId];
       const matchingEmojis = server.emojis.filter((emoji: ResolvedEmoji) => 
@@ -107,14 +110,46 @@ export function useAutoSuggest(
         emoji.display_name.toLowerCase().includes(query)
       );
 
-      suggestions.push(...matchingEmojis.map((emoji: ResolvedEmoji): SuggestionItem => ({
-        id: emoji.id,
-        name: emoji.name,
-        display_name: emoji.display_name,
-        url: emoji.url,
-        server_name: server.server_name,
-        emoji: emoji // Keep reference for easy access
-      })));
+      suggestions.push(...matchingEmojis.map((emoji: ResolvedEmoji): SuggestionItem => {
+        seenNames.add(emoji.name.toLowerCase());
+        return {
+          id: emoji.id,
+          name: emoji.name,
+          display_name: emoji.display_name,
+          url: emoji.url,
+          server_name: server.server_name,
+          emoji: emoji // Keep reference for easy access
+        };
+      }));
+    }
+
+    // Also search unified emoji pack (Mutant Standard / native emojis)
+    if (unifiedLoaded.value && query.length >= 2) {
+      const unifiedResults = searchUnifiedEmojis(query, finalConfig.maxSuggestions);
+      
+      for (const emoji of unifiedResults) {
+        // Skip if already added from server emojis
+        if (seenNames.has(emoji.shortcode.toLowerCase())) continue;
+        
+        // Get URL for display (SVG or null for native)
+        const svgUrl = getSvgUrl(emoji.shortcode);
+        
+        suggestions.push({
+          id: emoji.unicode || emoji.shortcode,
+          name: emoji.shortcode,
+          display_name: emoji.description || emoji.shortcode,
+          url: isNativePack.value ? undefined : svgUrl || undefined,
+          native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
+          server_name: 'Emojis',
+          emoji: {
+            id: emoji.unicode || emoji.shortcode,
+            name: emoji.shortcode,
+            url: svgUrl || undefined,
+            native: emoji.unicode,
+            source: 'unified'
+          }
+        });
+      }
     }
 
     // Sort by relevance (exact matches first, then starts with, then contains)

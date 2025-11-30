@@ -20,16 +20,42 @@
         @mouseenter="showTooltip($event, reactionGroup)"
         @mouseleave="hideTooltip"
       >
+        <!-- Custom server emoji with URL (priority) -->
         <img 
-          v-if="reactionGroup.emoji?.url"
+          v-if="reactionGroup.emoji?.url && !reactionGroup.emoji?.is_native"
           :src="reactionGroup.emoji.url" 
           :alt="reactionGroup.emoji.name || 'emoji'"
           class="reaction-emoji"
           @error="handleEmojiError(reactionGroup.emoji)"
         />
-        <span v-else class="missing-emoji" :title="`Emoji not found: ${reactionGroup.emoji?.name}`">?</span>
+        <!-- Resolved emoji (native unicode or pack SVG) -->
+        <template v-else-if="getResolvedEmoji(reactionGroup)">
+          <img 
+            v-if="getResolvedEmoji(reactionGroup).display.type === 'svg'"
+            :src="getResolvedEmoji(reactionGroup).display.content"
+            :alt="getResolvedEmoji(reactionGroup).shortcode || 'emoji'"
+            class="reaction-emoji"
+          />
+          <span v-else class="native-emoji">{{ getResolvedEmoji(reactionGroup).display.content }}</span>
+        </template>
+        <!-- Fallback for missing emoji -->
+        <span v-else class="missing-emoji" :title="`Emoji: ${reactionGroup.emoji?.name || reactionGroup.emoji_id}`">?</span>
         <span class="reaction-count">{{ reactionGroup.count }}</span>
       </div>
+      
+      <!-- Add reaction button (only shown when reactions exist) -->
+      <button 
+        v-if="reactions.length > 0"
+        class="add-reaction-btn"
+        @click="handleAddReactionClick"
+        title="Add Reaction"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="16"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -40,6 +66,8 @@ import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import type { Message, Emoji } from '@/types';
 
 interface Props {
@@ -51,6 +79,7 @@ interface Emits {
   (e: 'toggle-reaction', messageId: string, emoji: Emoji): void;
   (e: 'show-reaction-tooltip', event: MouseEvent, reactionGroup: any): void;
   (e: 'hide-reaction-tooltip'): void;
+  (e: 'open-emoji-picker', messageId: string, event: MouseEvent): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -62,6 +91,8 @@ const emit = defineEmits<Emits>();
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
 const { triggerReaction } = useHapticSettings();
+const { recordEmojiUsage } = useFrequentEmojis();
+const { resolveEmoji, isNativePack } = useUnifiedEmoji();
 
 // ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
 const reactions = computed(() => {
@@ -96,6 +127,13 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   // Haptic feedback on reaction
   triggerReaction();
   
+  // Record emoji usage for frequently used emojis
+  recordEmojiUsage({
+    id: emojiId,
+    name: emoji.name || emojiId,
+    url: emoji.url
+  });
+  
   emit('toggle-reaction', props.message.id, emoji);
   
   // Discord-style: Instant UI feedback with background API call
@@ -120,6 +158,31 @@ const hideTooltip = () => {
 // Handle emoji loading errors
 const handleEmojiError = (emoji: Emoji) => {
   debug.warn('Failed to load emoji:', emoji);
+};
+
+/**
+ * Resolve emoji for display using the unified emoji service
+ * Handles: unicode, shortcodes, legacy mutant:path format
+ */
+const getResolvedEmoji = (reactionGroup: any) => {
+  const emoji = reactionGroup.emoji;
+  if (!emoji) return null;
+  
+  // Get the identifier to resolve
+  const identifier = emoji.content || emoji.name || emoji.id || reactionGroup.emoji_id;
+  if (!identifier) return null;
+  
+  try {
+    return resolveEmoji(identifier);
+  } catch (e) {
+    return null;
+  }
+};
+
+// Handle add reaction button click
+const handleAddReactionClick = (event: MouseEvent) => {
+  triggerReaction();
+  emit('open-emoji-picker', props.message.id, event);
 };
 
 // ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by CoreMessageService  
@@ -208,6 +271,12 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   flex-shrink: 0;
 }
 
+.native-emoji {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .reaction-count {
   font-size: 0.8125rem;
   font-weight: 500;
@@ -253,6 +322,37 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   100% { transform: rotate(360deg); }
 }
 
+
+.add-reaction-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  background-color: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  transition: all 0.15s ease-out;
+  flex-shrink: 0;
+}
+
+.add-reaction-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.add-reaction-btn:active {
+  transform: scale(0.95);
+}
+
+.add-reaction-btn svg {
+  width: 14px;
+  height: 14px;
+}
 
 @media (max-width: 768px) {
   .reactions-gutter {

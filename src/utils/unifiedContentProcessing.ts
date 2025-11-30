@@ -10,6 +10,7 @@ import type { MessagePart } from '@/types';
 import { getEmoji } from '@/services/emojiService';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
+import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 
 // Support both UUID-based emojis (legacy) and shortcode emojis (new)
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
@@ -110,7 +111,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
 
 /**
  * Helper function to efficiently resolve emoji data in batch
- * Supports both UUID-based emojis and shortcode emojis
+ * Supports both UUID-based emojis, shortcode emojis, and unified emoji pack
  */
 export async function resolveEmojisData(content: string): Promise<Record<string, any>> {
   const emojiDataMap: Record<string, any> = {};
@@ -141,7 +142,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
   if (uniqueEmojiIds.size === 0 && uniqueEmojiNames.size === 0) return emojiDataMap;
   
   try {
-    // Query emojis by ID (UUID-based)
+    // Query emojis by ID (UUID-based) from database
     if (uniqueEmojiIds.size > 0) {
       const { data: emojisByIds } = await supabase
         .from('emojis')
@@ -155,7 +156,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
       }
     }
     
-    // Query emojis by name (shortcode-based)
+    // Query emojis by name (shortcode-based) from database
     if (uniqueEmojiNames.size > 0) {
       const { data: emojisByNames } = await supabase
         .from('emojis')
@@ -166,6 +167,37 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
         emojisByNames.forEach(emoji => {
           emojiDataMap[emoji.name] = emoji;
         });
+      }
+      
+      // For emojis not found in database, check unified emoji pack
+      // This supports Mutant Standard and other emoji packs
+      await loadEmojiData(); // Ensure emoji data is loaded
+      
+      for (const emojiName of uniqueEmojiNames) {
+        if (!emojiDataMap[emojiName]) {
+          // Try to resolve from unified emoji service
+          const resolved = resolveEmoji(emojiName);
+          
+          // Check if we got a valid resolution:
+          // 1. SVG path exists (mutant pack has it), OR
+          // 2. Unicode is different from input (we found a real unicode mapping), OR
+          // 3. resolved.shortcode exists and differs from input (case-insensitive match found it)
+          const hasValidSvg = resolved.display.type === 'svg' && resolved.display.content;
+          const hasValidUnicode = resolved.unicode && resolved.unicode !== emojiName;
+          const hasShortcodeMatch = resolved.shortcode && resolved.shortcode.toLowerCase() === emojiName.toLowerCase();
+          
+          if (hasValidUnicode || (hasShortcodeMatch && hasValidSvg)) {
+            emojiDataMap[emojiName] = {
+              id: resolved.unicode || emojiName,
+              name: emojiName,
+              unicode: resolved.unicode || null,
+              // Mark as inline so parser outputs as text, not emoji object
+              _inlineAsText: !!resolved.unicode,
+              source: 'unified'
+            };
+          }
+          // If no valid resolution, don't add to map - will render as :shortcode: text
+        }
       }
     }
   } catch (error) {
@@ -414,7 +446,15 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     }
     
     if (emojiData) {
-      parts.push({ type: 'emoji', emoji: emojiData });
+      // SIMPLIFIED: If emoji is from unified pack (has unicode), just output as text!
+      // This makes emojis portable and pack-agnostic in storage
+      if (emojiData._inlineAsText && emojiData.unicode) {
+        debug.log('✅ Inlining unified emoji as text:', emojiData.unicode);
+        parts.push({ type: 'text', text: emojiData.unicode });
+      } else {
+        // Server custom emoji - needs the full object for URL lookup
+        parts.push({ type: 'emoji', emoji: emojiData });
+      }
     } else {
       debug.warn('⚠️ Emoji not resolved, showing as text:', emojiMatch[0]);
       parts.push({ type: 'text', text: emojiMatch[0] });

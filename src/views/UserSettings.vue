@@ -196,6 +196,7 @@ import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
 import { normalizeBannerForStorage } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
 import { useUserData } from '@/composables/useUserData'
+import { useMobileGestures } from '@/composables/useMobileGestures'
 import type { User } from '@/types'
 import { useToast } from 'vue-toastification'
 
@@ -243,6 +244,7 @@ const toast = useToast()
 const { t } = useI18n()
 const settingsNav = createSettingsNavigator(router)
 const { updateCurrentUserProfile } = useUserData()
+const { handleTouchStart, handleTouchMove, handleTouchEnd, touchState } = useMobileGestures()
 
 // Reactive state
 const loading = ref(false)
@@ -316,6 +318,38 @@ const handleSidebarSwipe = () => {
   if (isMobile.value) {
     closeSidebar()
   }
+}
+
+// Touch gesture handlers for opening sidebar from anywhere
+const onSettingsTouchStart = (event: TouchEvent) => {
+  handleTouchStart(event, isMobile.value)
+}
+
+const onSettingsTouchMove = (event: TouchEvent) => {
+  handleTouchMove(event, isMobile.value, showSidebar.value, {
+    onSwipeRight: () => {},
+    onSwipeLeft: () => {},
+    onDragStart: () => {},
+    onDragMove: () => {}
+  })
+}
+
+const onSettingsTouchEnd = (event: TouchEvent) => {
+  handleTouchEnd(event, isMobile.value, {
+    onSwipeRight: () => {
+      // Swipe right to open sidebar
+      if (!showSidebar.value) {
+        showSidebar.value = true
+      }
+    },
+    onSwipeLeft: () => {
+      // Swipe left to close sidebar
+      if (showSidebar.value) {
+        showSidebar.value = false
+      }
+    },
+    onDragEnd: () => {}
+  })
 }
 
 const setActiveSection = (sectionId: string) => {
@@ -504,6 +538,11 @@ onMounted(async () => {
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleResize)
     handleResize() // Set initial width
+    
+    // Add touch event listeners for swipe gestures
+    window.addEventListener('touchstart', onSettingsTouchStart, { passive: true })
+    window.addEventListener('touchmove', onSettingsTouchMove, { passive: false })
+    window.addEventListener('touchend', onSettingsTouchEnd, { passive: true })
   }
 
   // Validate and set initial section
@@ -533,6 +572,10 @@ onMounted(async () => {
 onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', handleResize)
+    // Clean up touch event listeners
+    window.removeEventListener('touchstart', onSettingsTouchStart)
+    window.removeEventListener('touchmove', onSettingsTouchMove)
+    window.removeEventListener('touchend', onSettingsTouchEnd)
   }
 })
 </script>

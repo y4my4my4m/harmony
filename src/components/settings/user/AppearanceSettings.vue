@@ -243,6 +243,41 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">Emoji Style</h3>
+      
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Emoji Pack</h4>
+          <p class="setting-description">Choose which emoji style to use throughout the app</p>
+        </div>
+        <div class="setting-control">
+          <div class="emoji-pack-options">
+            <button
+              class="emoji-pack-btn"
+              :class="{ active: settings.emojiPack === 'mutant' }"
+              @click="settings.emojiPack = 'mutant'; onEmojiPackChange()"
+            >
+              <img 
+                src="/assets/emojis/mutant_emojis_svg/expressions/smileys/typical/grinning.svg" 
+                alt="Mutant" 
+                class="pack-preview"
+              />
+              <span>Mutant Standard</span>
+            </button>
+            <button
+              class="emoji-pack-btn"
+              :class="{ active: settings.emojiPack === 'native' }"
+              @click="settings.emojiPack = 'native'; onEmojiPackChange()"
+            >
+              <span class="pack-preview-native">😀</span>
+              <span>System Unicode</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.highContrast') }}</h3>
       
       <div class="setting-item">
@@ -312,6 +347,7 @@ import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
 import { useVisualTheme } from '@/composables/useVisualTheme'
 import { generateThemePalette, applyThemePalette, generatePreviewColors } from '@/utils/colorUtils'
+import { useEmojiPacks } from '@/services/emojiPackService'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -333,6 +369,7 @@ const emit = defineEmits<{
 // Composables
 const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } = useFloatingVideo()
 const visualTheme = useVisualTheme()
+const { currentPackId, packs, setCurrentPack } = useEmojiPacks()
 
 // State
 const settings = ref({
@@ -352,6 +389,7 @@ const settings = ref({
   highContrast: false,
   reduceMotion: false,
   screenReaderSupport: false,
+  emojiPack: currentPackId.value as 'mutant' | 'native',
 })
 
 // Computed preview colors for custom theme
@@ -471,6 +509,10 @@ const onFloatingVideoChange = () => {
   setFloatingVideoEnabled(settings.value.floatingVideoEnabled)
 }
 
+const onEmojiPackChange = () => {
+  setCurrentPack(settings.value.emojiPack)
+}
+
 const onSettingChange = () => {
   // Settings changed - will auto-save via composable
 }
@@ -534,6 +576,7 @@ onMounted(async () => {
     highContrast: currentSettings.highContrast,
     reduceMotion: currentSettings.reduceMotion,
     screenReaderSupport: currentSettings.screenReaderSupport,
+    emojiPack: currentPackId.value as 'mutant' | 'native',
   }
   originalSettings.value = { ...settings.value }
 })
@@ -724,6 +767,51 @@ onMounted(async () => {
   border-color: var(--h-primary, #5865f2);
   background-color: rgba(88, 101, 242, 0.15);
   color: var(--text-primary, #ffffff);
+}
+
+/* Emoji pack selector */
+.emoji-pack-options {
+  display: flex;
+  gap: 12px;
+}
+
+.emoji-pack-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border: 2px solid var(--h-chat-light);
+  background-color: var(--h-chat-darker);
+  color: var(--text-secondary, #b9bbbe);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  min-width: 120px;
+}
+
+.emoji-pack-btn:hover {
+  border-color: var(--h-primary, #5865f2);
+  background-color: var(--h-chat-light);
+}
+
+.emoji-pack-btn.active {
+  border-color: var(--h-primary, #5865f2);
+  background-color: rgba(88, 101, 242, 0.15);
+  color: var(--text-primary, #ffffff);
+}
+
+.pack-preview {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.pack-preview-native {
+  font-size: 32px;
+  line-height: 1;
 }
 
 .color-picker-section {

@@ -33,6 +33,12 @@ const cleanFileName = (originalName: string) => {
     return { name: fileNameWithoutExtension, extension };
 };
 
+// Helper to check if a string is a valid UUID
+function isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+}
+
 // Enhanced emoji usage tracking with context
 async function recordEmojiUsage(
     emojiId: string, 
@@ -42,6 +48,13 @@ async function recordEmojiUsage(
     contextId?: string
 ): Promise<void> {
     try {
+        // Skip recording for native Unicode emojis (non-UUID emoji IDs)
+        // Native emojis use the unicode character as their ID
+        if (!isValidUUID(emojiId)) {
+            debug.log('📊 Skipping emoji usage tracking for native emoji:', emojiId);
+            return;
+        }
+        
         const { error } = await supabase.rpc('record_emoji_usage', {
             p_emoji_id: emojiId,
             p_user_id: userId,

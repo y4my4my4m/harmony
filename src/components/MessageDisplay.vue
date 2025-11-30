@@ -88,6 +88,7 @@
             @toggle-reaction="handleToggleReaction"
             @show-reaction-tooltip="showTooltip"
             @hide-reaction-tooltip="hideTooltip"
+            @open-emoji-picker="handleOpenEmojiPicker"
           />
         </div>
 
@@ -220,6 +221,7 @@
           @toggle-reaction="handleToggleReaction"
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
+          @open-emoji-picker="handleOpenEmojiPicker"
         />
       </div>
         </template>
@@ -284,6 +286,8 @@
     :channel-id="props.channelId"
     :conversation-id="props.conversationId"
     @close="closeContextMenu"
+    @add-reaction="handleContextMenuReaction"
+    @open-emoji-picker="handleContextMenuEmojiPicker"
   />
 </template>
 
@@ -1135,6 +1139,38 @@ const openEmojiReactor = (message: Message, event: MouseEvent) => {
 const handleToggleReaction = (messageId: string, emoji: Emoji) => {
   if (tooltip.value.visible) hideTooltip();
   emit('sendReaction', messageId, emoji);
+};
+
+// Handle opening emoji picker from inline add reaction button
+const handleOpenEmojiPicker = (messageId: string, event: MouseEvent) => {
+  // Find the message object from the store
+  const message = props.messages.find(m => m.id === messageId);
+  if (!message) return;
+  
+  // Emit with proper parameters: (isReaction: boolean, message: Message, triggerElement: HTMLElement)
+  emit('toggleEmojiList', true, message, event.currentTarget as HTMLElement);
+};
+
+// Handle quick reaction from context menu
+const handleContextMenuReaction = (emoji: { native?: string; name: string; id?: string }) => {
+  if (!contextMenuMessage.value) return;
+  
+  // Convert to the Emoji type expected by sendReaction
+  const emojiForReaction: Emoji = {
+    id: emoji.id || emoji.native || emoji.name,
+    name: emoji.name,
+    url: '', // Native emojis don't have URLs
+    content: emoji.native || emoji.name
+  };
+  
+  emit('sendReaction', contextMenuMessage.value.id, emojiForReaction);
+};
+
+// Handle opening emoji picker from context menu
+const handleContextMenuEmojiPicker = () => {
+  if (!contextMenuMessage.value) return;
+  // Emit with proper parameters for reaction mode
+  emit('toggleEmojiList', true, contextMenuMessage.value, undefined);
 };
 
 // Reply Logic

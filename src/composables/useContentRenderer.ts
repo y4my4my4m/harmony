@@ -17,6 +17,7 @@ import type { MessagePart } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -56,6 +57,9 @@ export function useContentRenderer(
 ): ContentRenderResult {
   
   const emojiCache = useEmojiCacheStore();
+  
+  // Unified emoji service for mutant pack rendering
+  const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
   
   // Default options
   const renderOptions = {
@@ -125,13 +129,25 @@ export function useContentRenderer(
     return normalized;
   });
 
-  // Check if content is a single emoji
+  // Check if content is a single emoji (either emoji type or single unicode in text)
   const isSingleEmoji = computed(() => {
     const parts = renderableContent.value;
     if (parts.length !== 1) return false;
     
     const part = parts[0];
-    return part && part.type === 'emoji';
+    
+    // Traditional emoji type
+    if (part && part.type === 'emoji') return true;
+    
+    // Check if single text part is just one emoji (with optional whitespace)
+    if (part && part.type === 'text') {
+      const trimmed = part.text?.trim() || '';
+      // Unicode emoji regex - must be ONLY an emoji (or a few with zero-width joiners)
+      const singleEmojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+      return singleEmojiRegex.test(trimmed);
+    }
+    
+    return false;
   });
 
   // Format mention display consistently
@@ -215,6 +231,26 @@ export function useContentRenderer(
         case 'text': {
           let text = part.text || '';
           
+          // For mutant pack: Replace unicode emojis with SVG images
+          // For native pack: Leave unicode as-is (browser renders them)
+          if (!isNativePack.value && emojiServiceLoaded.value) {
+            const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+            text = text.replace(emojiRegex, (match) => {
+              const resolved = resolveEmoji(match);
+              if (resolved.display.type === 'svg') {
+                const sizeClass = isSingleEmoji.value ? 'inline-emoji single' : 'inline-emoji';
+                return `<img class="${sizeClass}" src="${resolved.display.content}" alt="${resolved.shortcode || match}" draggable="false" />`;
+              }
+              return match;
+            });
+          } else if (isSingleEmoji.value) {
+            // Native pack with single emoji - wrap for bigger styling
+            const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+            text = text.replace(emojiRegex, (match) => {
+              return `<span class="native-emoji single">${match}</span>`;
+            });
+          }
+          
           if (renderOptions.enableMarkdown) {
             // Basic markdown formatting
             text = text.replace(/\n/g, '<br>');
@@ -257,14 +293,53 @@ export function useContentRenderer(
         
         case 'emoji': {
           const emoji = part.emoji;
-          if (!emoji || !emoji.url) {
-            return `:${emoji?.name || 'emoji'}:`;
+          if (!emoji) {
+            return `:emoji:`;
           }
           
           const sizeClass = isSingleEmoji.value ? 'single' : '';
-          const url = getEmojiUrl(emoji.url, 96);
           
-          return `<img src="${url}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
+          // Check if this is a native/unified emoji (has unicode but no server URL)
+          const isServerEmoji = emoji.url && (emoji.url.includes('/storage/v1/') || emoji.url.includes('/object/public/emojis/'));
+          
+          if (isServerEmoji) {
+            // Server custom emoji - use URL
+            const url = getEmojiUrl(emoji.url, 96);
+            return `<img src="${url}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
+          }
+          
+          // Native/unified emoji - check pack preference
+          const unicode = emoji.native || emoji.unicode;
+          if (unicode) {
+            if (isNativePack.value) {
+              // Native pack - render unicode
+              return isSingleEmoji.value 
+                ? `<span class="native-emoji single">${unicode}</span>`
+                : unicode;
+            } else if (emojiServiceLoaded.value) {
+              // Mutant pack - try to get SVG
+              const resolved = resolveEmoji(unicode);
+              if (resolved.display.type === 'svg') {
+                return `<img src="${resolved.display.content}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
+              }
+            }
+            // Fallback to unicode
+            return unicode;
+          }
+          
+          // Try to resolve by name
+          if (emoji.name && emojiServiceLoaded.value) {
+            const resolved = resolveEmoji(emoji.name);
+            if (resolved.display.type === 'svg' && !isNativePack.value) {
+              return `<img src="${resolved.display.content}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
+            } else if (resolved.unicode) {
+              return isSingleEmoji.value 
+                ? `<span class="native-emoji single">${resolved.unicode}</span>`
+                : resolved.unicode;
+            }
+          }
+          
+          return `:${emoji.name || 'emoji'}:`;
         }
         
         case 'url': {

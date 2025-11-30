@@ -218,13 +218,23 @@ export class PostService {
       // Just toggle the reaction - database triggers handle federation automatically
       const coreResult = await corePostService.toggleReaction(postId, emojiId)
 
-      // Get reaction count for the API response
-      const { count } = await supabase
+      // Check if this is a native/mutant emoji (not a UUID)
+      const isNativeEmoji = !this.isValidUUID(emojiId)
+
+      // Get reaction count for the API response - query by correct field
+      let countQuery = supabase
         .from('post_interactions')
         .select('*', { count: 'exact', head: true })
         .eq('post_id', postId)
         .eq('interaction_type', 'reaction')
-        .eq('emoji_id', emojiId)
+      
+      if (isNativeEmoji) {
+        countQuery = countQuery.eq('custom_emoji_content', emojiId)
+      } else {
+        countQuery = countQuery.eq('emoji_id', emojiId)
+      }
+
+      const { count } = await countQuery
 
       const result = {
         added: coreResult.added,
@@ -238,6 +248,15 @@ export class PostService {
       debug.error('❌ Simplified: Failed to toggle post reaction:', error)
       throw error
     }
+  }
+
+  /**
+   * Check if a string is a valid UUID
+   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
   }
 
   // =====================================================

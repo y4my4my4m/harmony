@@ -83,5 +83,22 @@ export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
   }
 
   const part = parts[0];
-  return part && typeof part === 'object' && part.type === 'emoji';
+  if (!part || typeof part !== 'object') {
+    return false;
+  }
+  
+  // Traditional emoji type
+  if (part.type === 'emoji') {
+    return true;
+  }
+  
+  // Check if single text part is just one emoji (with optional whitespace)
+  if (part.type === 'text') {
+    const trimmed = (part.text || '').trim();
+    // Unicode emoji regex - must be ONLY an emoji (or a few with zero-width joiners)
+    const singleEmojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+    return singleEmojiRegex.test(trimmed);
+  }
+  
+  return false;
 }

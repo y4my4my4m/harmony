@@ -441,8 +441,18 @@ export class CoreMessageService {
    * Toggle emoji reaction on a message (pure local database operation)
    */
   /**
+   * Check if a string is a valid UUID
+   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
+  }
+
+  /**
    * Toggle reaction on a message
    * Uses AuthContextService for efficient auth lookup
+   * Supports both server emojis (UUID) and native Unicode emojis
    */
   async toggleReaction(
     messageId: string, 
@@ -450,36 +460,63 @@ export class CoreMessageService {
   ): Promise<{ added: boolean; hadRaceCondition?: boolean }> {
     try {
       const profileId = await this.getCurrentUserProfileId()
+      
+      // Determine if this is a native emoji (not a UUID) or a server emoji (UUID)
+      const isNativeEmoji = !this.isValidUUID(emojiId)
+      
+      debug.log(`🔄 Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, native=${isNativeEmoji}, user=${profileId}`)
 
-      debug.log(`🔄 Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, user=${profileId}`)
-
-      // Check if reaction already exists
-      const { data: existingReaction } = await supabase
+      // Build the match condition based on emoji type
+      let existingReactionQuery = supabase
         .from('reactions')
         .select('id')
-        .match({ message_id: messageId, emoji_id: emojiId, user_id: profileId })
-        .maybeSingle()
+        .eq('message_id', messageId)
+        .eq('user_id', profileId)
+      
+      if (isNativeEmoji) {
+        existingReactionQuery = existingReactionQuery.eq('custom_emoji_content', emojiId)
+      } else {
+        existingReactionQuery = existingReactionQuery.eq('emoji_id', emojiId)
+      }
+
+      const { data: existingReaction } = await existingReactionQuery.maybeSingle()
 
       if (existingReaction) {
-        // Remove reaction
-        const { error } = await supabase
+        // Remove reaction - build delete query based on emoji type
+        let deleteQuery = supabase
           .from('reactions')
           .delete()
-          .match({ message_id: messageId, emoji_id: emojiId, user_id: profileId })
+          .eq('message_id', messageId)
+          .eq('user_id', profileId)
+        
+        if (isNativeEmoji) {
+          deleteQuery = deleteQuery.eq('custom_emoji_content', emojiId)
+        } else {
+          deleteQuery = deleteQuery.eq('emoji_id', emojiId)
+        }
+
+        const { error } = await deleteQuery
 
         if (error) throw this.createError('REMOVE_REACTION_FAILED', error.message, error)
         
         debug.log('✅ Core: Reaction removed successfully')
         return { added: false }
       } else {
-        // Add reaction
+        // Add reaction - insert with either emoji_id or custom_emoji_content
+        const reactionData: any = {
+          message_id: messageId,
+          user_id: profileId,
+        }
+        
+        if (isNativeEmoji) {
+          reactionData.custom_emoji_content = emojiId
+        } else {
+          reactionData.emoji_id = emojiId
+        }
+        
         const { error } = await supabase
           .from('reactions')
-          .insert([{ 
-            message_id: messageId, 
-            emoji_id: emojiId,
-            user_id: profileId,
-          }])
+          .insert([reactionData])
 
         if (error) {
           // Handle race condition (duplicate constraint violation)
@@ -487,11 +524,20 @@ export class CoreMessageService {
             debug.log('🎯 Core: Race condition detected in reaction toggle')
             
             // Double-check current state after race condition
-            const { data: nowExists } = await supabase
+            // Double-check using the same query style as above
+            let raceCheckQuery = supabase
               .from('reactions')
               .select('id')
-              .match({ message_id: messageId, emoji_id: emojiId, user_id: profileId })
-              .maybeSingle()
+              .eq('message_id', messageId)
+              .eq('user_id', profileId)
+            
+            if (isNativeEmoji) {
+              raceCheckQuery = raceCheckQuery.eq('custom_emoji_content', emojiId)
+            } else {
+              raceCheckQuery = raceCheckQuery.eq('emoji_id', emojiId)
+            }
+            
+            const { data: nowExists } = await raceCheckQuery.maybeSingle()
 
             if (nowExists) {
               debug.log('✅ Core: Reaction was added by another process, treating as success')
