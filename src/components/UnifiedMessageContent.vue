@@ -995,7 +995,7 @@ export default defineComponent({
 
 :deep(.native-emoji.single) {
   font-size: 3em;
-  line-height: 1;
+  line-height: 3.5rem;
 }
 
 /* Media containers */

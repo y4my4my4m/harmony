@@ -178,18 +178,25 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
           // Try to resolve from unified emoji service
           const resolved = resolveEmoji(emojiName);
           
-          // If we got a valid unicode resolution, mark for inline text rendering
-          // This is MUCH simpler - just store the unicode character directly!
-          if (resolved.unicode && resolved.unicode !== emojiName) {
+          // Check if we got a valid resolution:
+          // 1. SVG path exists (mutant pack has it), OR
+          // 2. Unicode is different from input (we found a real unicode mapping), OR
+          // 3. resolved.shortcode exists and differs from input (case-insensitive match found it)
+          const hasValidSvg = resolved.display.type === 'svg' && resolved.display.content;
+          const hasValidUnicode = resolved.unicode && resolved.unicode !== emojiName;
+          const hasShortcodeMatch = resolved.shortcode && resolved.shortcode.toLowerCase() === emojiName.toLowerCase();
+          
+          if (hasValidUnicode || (hasShortcodeMatch && hasValidSvg)) {
             emojiDataMap[emojiName] = {
-              id: resolved.unicode,
+              id: resolved.unicode || emojiName,
               name: emojiName,
-              unicode: resolved.unicode,
+              unicode: resolved.unicode || null,
               // Mark as inline so parser outputs as text, not emoji object
-              _inlineAsText: true,
+              _inlineAsText: !!resolved.unicode,
               source: 'unified'
             };
           }
+          // If no valid resolution, don't add to map - will render as :shortcode: text
         }
       }
     }
