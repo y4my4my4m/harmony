@@ -554,7 +554,7 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
  * POST /api/livekit/federated-call/reject
  * Reject a federated call via ActivityPub
  */
-router.post('/federated-call/reject', requireAuth, async (req: Request, res: Response) => {
+router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const { conversationId, callerFederatedId } = req.body;
@@ -629,7 +629,7 @@ router.post('/federated-call/reject', requireAuth, async (req: Request, res: Res
  * POST /api/livekit/federated-call/end
  * End a federated call via ActivityPub
  */
-router.post('/federated-call/end', requireAuth, async (req: Request, res: Response) => {
+router.post('/federated-call/end', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const { conversationId, otherParticipantFederatedId } = req.body;
