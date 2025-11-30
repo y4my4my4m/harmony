@@ -125,13 +125,25 @@ export function useContentRenderer(
     return normalized;
   });
 
-  // Check if content is a single emoji
+  // Check if content is a single emoji (either emoji type or single unicode in text)
   const isSingleEmoji = computed(() => {
     const parts = renderableContent.value;
     if (parts.length !== 1) return false;
     
     const part = parts[0];
-    return part && part.type === 'emoji';
+    
+    // Traditional emoji type
+    if (part && part.type === 'emoji') return true;
+    
+    // Check if single text part is just one emoji (with optional whitespace)
+    if (part && part.type === 'text') {
+      const trimmed = part.text?.trim() || '';
+      // Unicode emoji regex - must be ONLY an emoji (or a few with zero-width joiners)
+      const singleEmojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+      return singleEmojiRegex.test(trimmed);
+    }
+    
+    return false;
   });
 
   // Format mention display consistently

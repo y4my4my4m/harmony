@@ -306,6 +306,7 @@ import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -366,6 +367,9 @@ export default defineComponent({
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
     const decrypting = ref(false);
+    
+    // Unified emoji service for mutant pack rendering
+    const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
@@ -557,6 +561,26 @@ export default defineComponent({
         });
         return blockId;
       });
+      
+      // For mutant pack: Replace unicode emojis with SVG images
+      // For native pack: Leave unicode as-is (browser renders them)
+      if (!isNativePack.value && emojiServiceLoaded.value) {
+        const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+        rendered = rendered.replace(emojiRegex, (match) => {
+          const resolved = resolveEmoji(match);
+          if (resolved.display.type === 'svg') {
+            const sizeClass = props.isSingleEmoji ? 'inline-emoji single' : 'inline-emoji';
+            return `<img class="${sizeClass}" src="${resolved.display.content}" alt="${resolved.shortcode || match}" draggable="false" />`;
+          }
+          return match; // Fallback to native if no SVG
+        });
+      } else if (props.isSingleEmoji) {
+        // Native pack with single emoji - wrap for bigger styling
+        const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+        rendered = rendered.replace(emojiRegex, (match) => {
+          return `<span class="native-emoji single">${match}</span>`;
+        });
+      }
       
       // Process other markdown after extracting code blocks
       // Inline code: `text`
@@ -954,7 +978,8 @@ export default defineComponent({
 }
 
 /* Emoji styling */
-.emoji-icon {
+.emoji-icon,
+:deep(.inline-emoji) {
   width: auto;
   max-width: 120px;
   height: 24px;
@@ -962,8 +987,15 @@ export default defineComponent({
   margin: 0 1px;
 }
 
-.emoji-icon.single {
+.emoji-icon.single,
+:deep(.inline-emoji.single) {
   height: 64px;
+  max-width: 64px;
+}
+
+:deep(.native-emoji.single) {
+  font-size: 3em;
+  line-height: 1;
 }
 
 /* Media containers */

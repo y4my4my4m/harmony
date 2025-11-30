@@ -178,21 +178,15 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
           // Try to resolve from unified emoji service
           const resolved = resolveEmoji(emojiName);
           
-          // If we got a valid resolution (not just returning input back)
-          if (resolved.display.type === 'svg' || 
-              (resolved.display.type === 'native' && resolved.unicode !== emojiName) ||
-              resolved.unicode) {
-            // Always include BOTH url and native when available
-            // The renderer will choose based on current pack preference
-            const svgUrl = resolved.display.type === 'svg' ? resolved.display.content : null;
-            
+          // If we got a valid unicode resolution, mark for inline text rendering
+          // This is MUCH simpler - just store the unicode character directly!
+          if (resolved.unicode && resolved.unicode !== emojiName) {
             emojiDataMap[emojiName] = {
-              id: resolved.unicode || emojiName,
+              id: resolved.unicode,
               name: emojiName,
-              url: svgUrl,
-              native: resolved.unicode,  // Always include unicode for pack switching
               unicode: resolved.unicode,
-              shortcode: resolved.shortcode,
+              // Mark as inline so parser outputs as text, not emoji object
+              _inlineAsText: true,
               source: 'unified'
             };
           }
@@ -445,7 +439,15 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     }
     
     if (emojiData) {
-      parts.push({ type: 'emoji', emoji: emojiData });
+      // SIMPLIFIED: If emoji is from unified pack (has unicode), just output as text!
+      // This makes emojis portable and pack-agnostic in storage
+      if (emojiData._inlineAsText && emojiData.unicode) {
+        debug.log('✅ Inlining unified emoji as text:', emojiData.unicode);
+        parts.push({ type: 'text', text: emojiData.unicode });
+      } else {
+        // Server custom emoji - needs the full object for URL lookup
+        parts.push({ type: 'emoji', emoji: emojiData });
+      }
     } else {
       debug.warn('⚠️ Emoji not resolved, showing as text:', emojiMatch[0]);
       parts.push({ type: 'text', text: emojiMatch[0] });
