@@ -121,7 +121,6 @@
       <div v-if="activeVideoUser" class="minimized-video-preview" @click.stop>
         <video
           ref="minimizedVideoRef"
-          :srcObject="activeVideoStream"
           autoplay
           playsinline
           muted
@@ -203,7 +202,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
@@ -342,6 +341,28 @@ const activatePIPForActiveVideo = () => {
     voiceStore.togglePIP(activeVideoUser.value.userId, 'fixed');
   }
 };
+
+// =============================================================================
+// WATCHERS
+// =============================================================================
+
+// Attach video to minimized preview using LiveKit's proper method
+watch(
+  [activeVideoUser, minimizedVideoRef],
+  ([user, videoEl]) => {
+    if (user && videoEl) {
+      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
+      if (!attached && activeVideoStream.value) {
+        // Fallback to srcObject if attach fails (P2P mode)
+        videoEl.srcObject = activeVideoStream.value;
+      }
+    } else if (videoEl) {
+      // Clean up when no active video user
+      videoEl.srcObject = null;
+    }
+  },
+  { immediate: true }
+);
 
 // =============================================================================
 // LIFECYCLE & EVENT LISTENERS

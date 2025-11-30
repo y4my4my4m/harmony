@@ -585,11 +585,17 @@ export class LiveKitWebRTCService {
   }
   
   /**
-   * Get remote user's stream
+   * Get user's stream (both local and remote)
    */
   getUserStream(userId: string): MediaStream | null {
     if (!this.room) return null;
     
+    // Handle local participant
+    if (userId === this.currentUserId) {
+      return this.getLocalStream();
+    }
+    
+    // Handle remote participant
     const participant = this.room.remoteParticipants.get(userId);
     if (!participant) return null;
     
@@ -610,6 +616,73 @@ export class LiveKitWebRTCService {
     }
     
     return stream.getTracks().length > 0 ? stream : null;
+  }
+
+  /**
+   * Attach video track to a video element using LiveKit's proper attachment method.
+   * This is REQUIRED for adaptive streaming to work correctly!
+   * When using srcObject directly, LiveKit doesn't know the video is being consumed
+   * and may disable all simulcast layers.
+   */
+  attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
+    if (!this.room) return false;
+    
+    // For local participant
+    if (userId === this.currentUserId) {
+      const localParticipant = this.room.localParticipant;
+      for (const publication of localParticipant.videoTrackPublications.values()) {
+        if (publication.track) {
+          // Use LiveKit's attach method for proper adaptive streaming
+          publication.track.attach(videoElement);
+          debug.log('📺 [LiveKit] Attached local video to element');
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // For remote participant
+    const participant = this.room.remoteParticipants.get(userId);
+    if (!participant) return false;
+    
+    for (const publication of participant.videoTrackPublications.values()) {
+      if (publication.track) {
+        // Use LiveKit's attach method for proper adaptive streaming
+        publication.track.attach(videoElement);
+        debug.log('📺 [LiveKit] Attached remote video to element for:', userId);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Detach video from element
+   */
+  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void {
+    if (!this.room) return;
+    
+    // For local participant
+    if (userId === this.currentUserId) {
+      const localParticipant = this.room.localParticipant;
+      for (const publication of localParticipant.videoTrackPublications.values()) {
+        if (publication.track) {
+          publication.track.detach(videoElement);
+        }
+      }
+      return;
+    }
+    
+    // For remote participant
+    const participant = this.room.remoteParticipants.get(userId);
+    if (!participant) return;
+    
+    for (const publication of participant.videoTrackPublications.values()) {
+      if (publication.track) {
+        publication.track.detach(videoElement);
+      }
+    }
   }
   
   /**

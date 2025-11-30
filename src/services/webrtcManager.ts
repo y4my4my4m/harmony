@@ -41,6 +41,10 @@ export interface WebRTCManager {
   getLocalState(): UserMediaState;
   getAllUsers(): UserMediaState[];
   
+  // Video element attachment (required for LiveKit adaptive streaming)
+  attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean;
+  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void;
+  
   // Events
   on(event: string, callback: Function): void;
   off(event: string, callback: Function): void;
@@ -324,6 +328,34 @@ class WebRTCManagerService implements WebRTCManager {
       return unifiedWebRTC.getUserStream(userId);
     }
     return null;
+  }
+
+  /**
+   * Attach video track to element (required for LiveKit adaptive streaming)
+   */
+  attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.attachVideoToElement(userId, videoElement);
+    } else if (this.activeService === 'p2p') {
+      // For P2P, just use srcObject directly
+      const stream = unifiedWebRTC.getUserStream(userId);
+      if (stream) {
+        videoElement.srcObject = stream;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Detach video from element
+   */
+  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.detachVideoFromElement(userId, videoElement);
+    } else {
+      videoElement.srcObject = null;
+    }
   }
   
   /**

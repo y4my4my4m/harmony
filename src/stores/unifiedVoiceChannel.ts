@@ -526,6 +526,22 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Attach video track to a video element using LiveKit's proper method.
+     * This is REQUIRED for adaptive streaming to work - using srcObject directly
+     * causes LiveKit to disable all simulcast layers (frozen video).
+     */
+    attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
+      return webrtcManager.attachVideoToElement(userId, videoElement);
+    },
+
+    /**
+     * Detach video from element
+     */
+    detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void {
+      webrtcManager.detachVideoFromElement(userId, videoElement);
+    },
+
+    /**
      * Set per-user volume (0-200, 100 = normal)
      * Persisted to localStorage and applied to audio
      */

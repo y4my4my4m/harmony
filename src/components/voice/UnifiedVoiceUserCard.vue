@@ -404,22 +404,31 @@ const handleContextMenu = (event: MouseEvent) => {
 // =============================================================================
 
 // Update video element when stream OR state changes
+// Uses LiveKit's proper track.attach() method for adaptive streaming to work correctly
 watch(
   [() => userStream.value, () => props.userState.isVideoEnabled, () => props.userState.isScreenSharing],
   ([newStream, isVideoEnabled, isScreenSharing]) => {
     if (videoElement.value) {
-      const hasVideoTracks = newStream?.getVideoTracks().length ?? 0;
+      const shouldShowVideo = isVideoEnabled || isScreenSharing;
       
-      if (hasVideoTracks > 0) {
-        // Has video tracks - update srcObject
-        videoElement.value.srcObject = newStream;
-        debug.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
-      } else if (!isVideoEnabled && !isScreenSharing) {
-        // No video tracks AND state says off - clear to remove frozen frame
+      if (shouldShowVideo) {
+        // Use LiveKit's proper attach method - this is CRITICAL for adaptive streaming
+        // Using srcObject directly causes LiveKit to disable all simulcast layers (frozen video)
+        // The attach method directly accesses LiveKit tracks, so we prioritize state over stream
+        const attached = voiceStore.attachVideoToElement(props.userState.userId, videoElement.value);
+        if (attached) {
+          debug.log(`📹 Attached video for user ${props.userState.userId} using LiveKit attach()`);
+        } else if (newStream) {
+          // Fallback to srcObject for P2P mode or if attach fails
+          videoElement.value.srcObject = newStream;
+          debug.log(`📹 Fallback: Setting srcObject for user ${props.userState.userId}`);
+        }
+      } else {
+        // Detach video properly when turning off
+        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
         videoElement.value.srcObject = null;
-        debug.log(`📹 Clearing video stream for user ${props.userState.userId} (camera/screen off)`);
+        debug.log(`📹 Detached video for user ${props.userState.userId} (camera/screen off)`);
       }
-      // else: No tracks yet but state says on - keep old srcObject temporarily (negotiation in progress)
     }
   },
   { immediate: true }
