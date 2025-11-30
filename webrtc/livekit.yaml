@@ -1,184 +1,36 @@
 # LiveKit Server Configuration for Harmony
 # See: https://docs.livekit.io/realtime/self-hosting/deployment/
 
-# =============================================================================
-# CORE SETTINGS
-# =============================================================================
-
 # Port for WebSocket and HTTP connections
 port: 7880
 
-# Bind address (0.0.0.0 for all interfaces)
-bind_addresses:
-  - "0.0.0.0"
-
-# API keys for authentication (use strong secrets in production!)
+# API keys for authentication
 # Format: key: secret
 # Generate with: openssl rand -hex 32
 keys:
-  # Development key (CHANGE IN PRODUCTION)
   devkey: secret
-  # Add production keys here:
-  # APIxxxxxxxx: your-secret-key-here
 
-# Logging configuration
-logging:
-  level: info  # debug, info, warn, error
-  json: false  # Set to true for structured logging in production
+# Logging
+log_level: info
 
-# =============================================================================
-# RTC (WebRTC) SETTINGS
-# =============================================================================
-
+# RTC (WebRTC) Settings
 rtc:
-  # UDP port for WebRTC media
   port_range_start: 50000
   port_range_end: 50100
-  
-  # TCP fallback port (when UDP is blocked)
   tcp_port: 7881
-  
-  # Use external IP for ICE candidates
-  # Set to your server's public IP in production
-  # use_external_ip: true
-  # node_ip: 1.2.3.4
-  
-  # Enable ICE-lite for better NAT traversal
   use_ice_lite: true
-  
-  # Congestion control
-  congestion_control:
-    enabled: true
-    # Probe for more bandwidth when available
-    probe_bwe: true
 
-# =============================================================================
-# TURN SERVER (NAT Traversal)
-# =============================================================================
-
+# TURN Server (NAT Traversal)
 turn:
   enabled: true
-  # TURN domain (use your domain in production)
   domain: localhost
-  # TURN credentials (LiveKit manages these automatically)
-  # External TURN server for production:
-  # external_tls: true
-  # udp_port: 3478
-  # tls_port: 5349
+  udp_port: 3478
 
-# =============================================================================
-# ROOM SETTINGS
-# =============================================================================
-
+# Room Settings
 room:
-  # Enable rooms (channels)
-  enabled: true
-  
-  # Maximum participants per room (0 = unlimited)
-  # For stage events, you want high limits
-  max_participants: 0
-  
-  # Empty room timeout (seconds) - auto-close empty rooms
-  empty_timeout: 300  # 5 minutes
-  
-  # Departure timeout - how long to wait before considering participant gone
+  empty_timeout: 300
   departure_timeout: 20
-  
-  # Enable dynacast (only send video to active viewers)
-  # Critical for large stage events
-  enable_dynacast: true
-  
-  # Enable adaptive stream (adjusts quality based on viewer bandwidth)
-  enable_adaptive_stream: true
-  
-  # Playout delay for jitter buffer (ms)
-  playout_delay:
-    enabled: true
-    min: 100
-    max: 2000
 
-# =============================================================================
-# AUDIO SETTINGS
-# =============================================================================
-
-audio:
-  # Active speaker detection
-  active_speaker_update_interval: 300  # ms
-  
-  # Audio level smoothing
-  smooth_intervals: 3
-
-# =============================================================================
-# VIDEO SETTINGS
-# =============================================================================
-
-video:
-  # Dynacast settings for efficient bandwidth usage
-  dynacast_pause_delay: 1s
-  
-  # Simulcast configuration (multiple quality layers)
-  # Critical for scaling to many viewers
-
-# =============================================================================
-# REDIS (Required for multi-node deployment)
-# =============================================================================
-
+# Redis (for multi-node)
 redis:
   address: redis:6379
-  # password: your-redis-password
-  # db: 0
-
-# =============================================================================
-# END-TO-END ENCRYPTION
-# =============================================================================
-
-# E2EE is client-side - the server only forwards encrypted frames
-# LiveKit supports built-in E2EE with key rotation
-# Enabled per-room by clients using livekit-client SDK
-
-# =============================================================================
-# WEBHOOK (Optional)
-# =============================================================================
-
-# webhook:
-#   urls:
-#     - https://your-backend.com/api/livekit/webhook
-#   api_key: your-webhook-key
-
-# =============================================================================
-# LIMITS & QUOTAS
-# =============================================================================
-
-limit:
-  # Maximum bitrate per track (kbps)
-  max_track_bitrate: 10000000  # 10 Mbps (for screen share)
-  
-  # Maximum subscription bandwidth per participant
-  max_subscription_bandwidth: 25000000  # 25 Mbps
-  
-  # Maximum bytes per data packet
-  max_data_packet_size: 15000
-  
-  # Number of audio tracks per participant
-  num_audio_tracks: 5
-  
-  # Number of video tracks per participant  
-  num_video_tracks: 5
-
-# =============================================================================
-# REGION (Multi-region deployment)
-# =============================================================================
-
-# region: us-west-2
-# node_id: harmony-livekit-1
-
-# =============================================================================
-# SIGNAL RELAY (For large rooms)
-# =============================================================================
-
-signal_relay:
-  # Enable for rooms > 500 participants
-  enabled: true
-  min_idle_relay_conn: 2
-  max_relay_conn: 100
-

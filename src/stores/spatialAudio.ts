@@ -127,10 +127,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
           gain = 1;
       }
       
-      // Only log occasionally to avoid spam
-      if (Math.random() < 0.1) {
-        debug.log(`🎧 Audio gain for ${userId2}: ${gain.toFixed(3)} (distance: ${distance.toFixed(1)}px)`);
-      }
+      // Note: Removed per-frame debug logging for performance
       return gain;
     },
     

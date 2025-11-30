@@ -39,4 +39,4 @@ coverage
 
 docs/.vitepress/cache
 docker
-docker-compose.yml
+# docker-compose.yml
