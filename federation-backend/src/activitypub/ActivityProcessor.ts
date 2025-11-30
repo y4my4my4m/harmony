@@ -9,6 +9,7 @@ import {
   extractDeleteData,
   normalizeActor,
 } from './converters/fromActivityPub.js';
+import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 
 export class ActivityProcessor {
   /**
@@ -78,7 +79,12 @@ export class ActivityProcessor {
         await this.processBlock(activity);
         break;
       default:
-        logger.info(`Unhandled activity type: ${activity.type}`);
+        // Check for Harmony voice activities
+        if (VoiceActivityHandler.isVoiceActivity(activity)) {
+          await VoiceActivityHandler.processVoiceActivity(activity);
+        } else {
+          logger.info(`Unhandled activity type: ${activity.type}`);
+        }
     }
   }
 

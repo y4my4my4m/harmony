@@ -83,3 +83,112 @@ export interface RequestContext {
   isLocal: boolean;
 }
 
+// =============================================================================
+// VOICE/VIDEO ACTIVITY TYPES (Harmony Extensions)
+// =============================================================================
+
+/**
+ * Voice call invitation activity
+ * Used for federated DM voice/video calls
+ */
+export interface VoiceCallInvite {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceCallInvite';
+  actor: string;
+  to: string[];
+  object: {
+    type: 'harmony:VoiceCall';
+    id: string;
+    callType: 'voice' | 'video';
+    conversationId: string;
+    livekitUrl: string; // The caller's LiveKit server URL
+    roomName: string;
+  };
+  published: string;
+}
+
+/**
+ * Voice call acceptance activity
+ */
+export interface VoiceCallAccept {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceCallAccept';
+  actor: string;
+  to: string[];
+  object: string; // Reference to the original VoiceCallInvite
+  published: string;
+}
+
+/**
+ * Voice call rejection activity
+ */
+export interface VoiceCallReject {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceCallReject';
+  actor: string;
+  to: string[];
+  object: string; // Reference to the original VoiceCallInvite
+  published: string;
+}
+
+/**
+ * Voice call ended activity
+ */
+export interface VoiceCallEnd {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceCallEnd';
+  actor: string;
+  to: string[];
+  object: string; // Reference to the original VoiceCallInvite
+  published: string;
+}
+
+/**
+ * Voice channel join activity (for server voice channels)
+ */
+export interface VoiceChannelJoin {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceChannelJoin';
+  actor: string;
+  object: {
+    type: 'harmony:VoiceChannel';
+    id: string;
+    name: string;
+    serverId: string;
+    serverName: string;
+  };
+  target: string; // Server ActivityPub ID
+  published: string;
+}
+
+/**
+ * Voice channel leave activity
+ */
+export interface VoiceChannelLeave {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceChannelLeave';
+  actor: string;
+  object: {
+    type: 'harmony:VoiceChannel';
+    id: string;
+  };
+  published: string;
+}
+
+/**
+ * Union type for all voice activities
+ */
+export type VoiceActivity = 
+  | VoiceCallInvite 
+  | VoiceCallAccept 
+  | VoiceCallReject 
+  | VoiceCallEnd
+  | VoiceChannelJoin 
+  | VoiceChannelLeave;
+

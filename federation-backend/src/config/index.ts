@@ -42,6 +42,19 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().email().optional(), // mailto: email for VAPID
+  
+  // LiveKit WebRTC Server
+  // Generate keys with: openssl rand -hex 32
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
+  LIVEKIT_URL: z.string().optional(), // ws://localhost:7880 or wss://livekit.domain.com
+  LIVEKIT_PUBLIC_URL: z.string().optional(), // Public URL for federated access
+  
+  // WebRTC Mode: 'sfu' | 'p2p' | 'hybrid' (sfu with p2p fallback)
+  WEBRTC_MODE: z.enum(['sfu', 'p2p', 'hybrid']).default('hybrid'),
+  
+  // Allow federated voice/video calls
+  ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
 });
 
 // Validate and export configuration

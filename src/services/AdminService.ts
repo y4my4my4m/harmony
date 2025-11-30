@@ -460,8 +460,29 @@ class AdminService {
    */
   async getInstanceConfig(): Promise<any> {
     try {
-      // For now, return default configuration since we don't have a config table yet
-      // In the future, this would query an instance_config table
+      // Try to fetch WebRTC settings from database
+      let webrtcSettings = {
+        mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
+        livekitUrl: '',
+        allowFederatedVoice: true,
+        maxStageListeners: 100000
+      };
+      
+      const { data: webrtcData } = await supabase
+        .from('instance_webrtc_settings')
+        .select('*')
+        .limit(1)
+        .single();
+      
+      if (webrtcData) {
+        webrtcSettings = {
+          mode: webrtcData.webrtc_mode || 'hybrid',
+          livekitUrl: webrtcData.livekit_url || '',
+          allowFederatedVoice: webrtcData.allow_federated_voice ?? true,
+          maxStageListeners: webrtcData.max_stage_listeners || 100000
+        };
+      }
+      
       return {
         chat: {
           maxServerSize: 1000,
@@ -475,6 +496,7 @@ class AdminService {
           enableOutbound: true,
           enableInbound: true
         },
+        webrtc: webrtcSettings,
         instance: {
           name: 'Harmony Instance',
           description: 'A federated social platform',
@@ -486,6 +508,39 @@ class AdminService {
     } catch (error) {
       debug.error('Failed to get instance config:', error);
       return null;
+    }
+  }
+  
+  /**
+   * Update WebRTC settings
+   */
+  async updateWebRTCSettings(settings: {
+    mode?: 'sfu' | 'p2p' | 'hybrid';
+    livekitUrl?: string;
+    allowFederatedVoice?: boolean;
+    maxStageListeners?: number;
+  }): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_webrtc_settings')
+        .upsert({
+          webrtc_mode: settings.mode,
+          livekit_url: settings.livekitUrl,
+          allow_federated_voice: settings.allowFederatedVoice,
+          max_stage_listeners: settings.maxStageListeners,
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        debug.error('Failed to update WebRTC settings:', error);
+        return false;
+      }
+      
+      debug.log('WebRTC settings updated successfully');
+      return true;
+    } catch (error) {
+      debug.error('Failed to update WebRTC settings:', error);
+      return false;
     }
   }
 

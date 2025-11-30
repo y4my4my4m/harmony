@@ -1,6 +1,7 @@
 /**
  * DM Call Signaling Service
  * Handles call initiation, ringing, accept/decline via Supabase real-time
+ * Supports federated calls via ActivityPub voice extensions
  * No database needed - pure real-time signaling
  */
 
@@ -15,6 +16,11 @@ export interface CallSignal {
   timestamp: number
   conversationId: string
   reason?: 'timeout' | 'busy' | 'blocked' | 'dnd' // Decline/busy reasons
+  // Federated call fields
+  isFederated?: boolean
+  callerFederatedId?: string
+  livekitUrl?: string
+  roomName?: string
 }
 
 export interface ActiveCall {
@@ -25,6 +31,20 @@ export interface ActiveCall {
   participants: string[] // user IDs currently in call
   startedAt: Date
   timeoutTimer?: number // Timer ID for call timeout
+  // Federated call fields
+  isFederated?: boolean
+  callerFederatedId?: string
+  calleeFederatedId?: string
+  livekitUrl?: string
+  roomName?: string
+}
+
+export interface FederatedCallInfo {
+  callerFederatedId: string
+  calleeFederatedId: string
+  callerInstanceUrl: string
+  livekitUrl: string
+  roomName: string
 }
 
 class DMCallSignalingService {
@@ -383,6 +403,343 @@ class DMCallSignalingService {
    */
   getCallParticipants(conversationId: string): string[] {
     return this.activeCalls.get(conversationId)?.participants || []
+  }
+
+  // =============================================================================
+  // FEDERATED CALL METHODS
+  // =============================================================================
+
+  /**
+   * Initiate a federated call (to a user on a remote instance)
+   * Uses ActivityPub voice extensions instead of Supabase Realtime
+   */
+  async initiateFederatedCall(
+    conversationId: string,
+    callerId: string,
+    callerFederatedId: string,
+    calleeFederatedId: string,
+    callType: 'voice' | 'video'
+  ): Promise<FederatedCallInfo | null> {
+    debug.log('📞 [Federated] Initiating federated call to:', calleeFederatedId)
+    
+    try {
+      // Get LiveKit config from the backend
+      const configResponse = await fetch('/api/livekit/config')
+      const config = await configResponse.json()
+      
+      if (!config.enabled || !config.wsUrl) {
+        debug.error('❌ LiveKit not configured for federated calls')
+        return null
+      }
+      
+      // Generate a room name for this federated call
+      const roomName = `federated-dm-${conversationId}-${Date.now()}`
+      
+      // Get a token for this room
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        debug.error('❌ Not authenticated')
+        return null
+      }
+      
+      const tokenResponse = await fetch('/api/livekit/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          roomName,
+          roomType: 'dm_call',
+        }),
+      })
+      
+      if (!tokenResponse.ok) {
+        debug.error('❌ Failed to get LiveKit token')
+        return null
+      }
+      
+      // Send federated call invite via ActivityPub
+      // This is handled by the federation backend
+      const inviteResponse = await fetch('/api/livekit/federated-call/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          callerFederatedId,
+          calleeFederatedId,
+          callType,
+          conversationId,
+          livekitUrl: config.wsUrl,
+          roomName,
+        }),
+      })
+      
+      if (!inviteResponse.ok) {
+        debug.error('❌ Failed to send federated call invite')
+        return null
+      }
+      
+      // Track as active federated call
+      const timeoutTimer = window.setTimeout(() => {
+        this.handleFederatedCallTimeout(conversationId, callerId)
+      }, this.CALL_TIMEOUT_MS)
+      
+      const callInfo: FederatedCallInfo = {
+        callerFederatedId,
+        calleeFederatedId,
+        callerInstanceUrl: config.instanceDomain || window.location.origin,
+        livekitUrl: config.wsUrl,
+        roomName,
+      }
+      
+      this.activeCalls.set(conversationId, {
+        conversationId,
+        channelId: roomName,
+        callType,
+        callerId,
+        participants: [callerId],
+        startedAt: new Date(),
+        timeoutTimer,
+        isFederated: true,
+        callerFederatedId,
+        calleeFederatedId,
+        livekitUrl: config.wsUrl,
+        roomName,
+      })
+      
+      debug.log('✅ [Federated] Call initiated, waiting for response')
+      return callInfo
+    } catch (error) {
+      debug.error('❌ [Federated] Failed to initiate call:', error)
+      return null
+    }
+  }
+
+  /**
+   * Accept a federated call
+   */
+  async acceptFederatedCall(
+    conversationId: string,
+    userId: string,
+    callerFederatedId: string
+  ): Promise<{ token: string; wsUrl: string; roomName: string } | null> {
+    debug.log('📞 [Federated] Accepting federated call from:', callerFederatedId)
+    
+    try {
+      const call = this.activeCalls.get(conversationId)
+      if (!call || !call.isFederated) {
+        debug.error('❌ No federated call found for conversation')
+        return null
+      }
+      
+      // Clear timeout
+      if (call.timeoutTimer) {
+        clearTimeout(call.timeoutTimer)
+        call.timeoutTimer = undefined
+      }
+      
+      // Add to participants
+      if (!call.participants.includes(userId)) {
+        call.participants.push(userId)
+      }
+      
+      // Get federated token from caller's instance
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        debug.error('❌ Not authenticated')
+        return null
+      }
+      
+      // Send accept via ActivityPub
+      await fetch('/api/livekit/federated-call/accept', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          conversationId,
+          callerFederatedId,
+        }),
+      })
+      
+      // Return connection info
+      return {
+        token: '', // Token will be fetched when connecting
+        wsUrl: call.livekitUrl || '',
+        roomName: call.roomName || '',
+      }
+    } catch (error) {
+      debug.error('❌ [Federated] Failed to accept call:', error)
+      return null
+    }
+  }
+
+  /**
+   * Decline a federated call
+   */
+  async declineFederatedCall(
+    conversationId: string,
+    userId: string,
+    callerFederatedId: string
+  ): Promise<void> {
+    debug.log('📞 [Federated] Declining federated call from:', callerFederatedId)
+    
+    try {
+      const call = this.activeCalls.get(conversationId)
+      if (call?.timeoutTimer) {
+        clearTimeout(call.timeoutTimer)
+      }
+      
+      // Send decline via ActivityPub
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        await fetch('/api/livekit/federated-call/reject', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            conversationId,
+            callerFederatedId,
+          }),
+        })
+      }
+      
+      this.activeCalls.delete(conversationId)
+    } catch (error) {
+      debug.error('❌ [Federated] Failed to decline call:', error)
+    }
+  }
+
+  /**
+   * End a federated call
+   */
+  async endFederatedCall(
+    conversationId: string,
+    userId: string
+  ): Promise<void> {
+    debug.log('📞 [Federated] Ending federated call')
+    
+    try {
+      const call = this.activeCalls.get(conversationId)
+      if (!call?.isFederated) return
+      
+      if (call.timeoutTimer) {
+        clearTimeout(call.timeoutTimer)
+      }
+      
+      // Send end via ActivityPub
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        await fetch('/api/livekit/federated-call/end', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            conversationId,
+            otherParticipantFederatedId: call.calleeFederatedId || call.callerFederatedId,
+          }),
+        })
+      }
+      
+      this.activeCalls.delete(conversationId)
+    } catch (error) {
+      debug.error('❌ [Federated] Failed to end call:', error)
+    }
+  }
+
+  /**
+   * Handle federated call timeout
+   */
+  private handleFederatedCallTimeout(conversationId: string, callerId: string): void {
+    debug.log('⏰ [Federated] Call timeout for:', conversationId)
+    
+    const call = this.activeCalls.get(conversationId)
+    if (!call?.isFederated) return
+    
+    // Only timeout if still ringing
+    if (call.participants.length === 1) {
+      this.activeCalls.delete(conversationId)
+      
+      // Notify UI of timeout
+      const listeners = this.listeners.get(conversationId)
+      if (listeners) {
+        const signal: CallSignal = {
+          type: 'timeout',
+          callerId,
+          callType: call.callType,
+          timestamp: Date.now(),
+          conversationId,
+          reason: 'timeout',
+          isFederated: true,
+        }
+        listeners.forEach(listener => listener(signal))
+      }
+    }
+  }
+
+  /**
+   * Subscribe to incoming federated calls (via Supabase Realtime)
+   * The federation backend broadcasts to this channel
+   */
+  subscribeToFederatedCalls(userId: string, onIncomingCall: (callInfo: {
+    callId: string
+    callerId: string
+    callerName: string
+    callerAvatar: string
+    callerFederatedId: string
+    callType: 'voice' | 'video'
+    livekitUrl: string
+    roomName: string
+    conversationId: string
+  }) => void): () => void {
+    const channelName = `federated-calls:${userId}`
+    debug.log('📡 [Federated] Subscribing to:', channelName)
+    
+    const channel = supabase.channel(channelName)
+    
+    channel
+      .on('broadcast', { event: 'incoming-call' }, (payload) => {
+        debug.log('📞 [Federated] Incoming call:', payload.payload)
+        onIncomingCall(payload.payload)
+      })
+      .on('broadcast', { event: 'call-accepted' }, (payload) => {
+        debug.log('📞 [Federated] Call accepted:', payload.payload)
+        // Update active call state
+        const { callId, livekitUrl, roomName } = payload.payload
+        const call = this.activeCalls.get(callId)
+        if (call && call.timeoutTimer) {
+          clearTimeout(call.timeoutTimer)
+          call.timeoutTimer = undefined
+        }
+      })
+      .on('broadcast', { event: 'call-rejected' }, (payload) => {
+        debug.log('📞 [Federated] Call rejected:', payload.payload)
+        this.activeCalls.delete(payload.payload.callId)
+      })
+      .on('broadcast', { event: 'call-ended' }, (payload) => {
+        debug.log('📞 [Federated] Call ended:', payload.payload)
+        this.activeCalls.delete(payload.payload.callId)
+      })
+      .subscribe()
+    
+    return () => {
+      channel.unsubscribe()
+    }
+  }
+
+  /**
+   * Check if a call is federated
+   */
+  isFederatedCall(conversationId: string): boolean {
+    return this.activeCalls.get(conversationId)?.isFederated ?? false
   }
 
   /**
