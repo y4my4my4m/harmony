@@ -21,6 +21,7 @@ services:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     networks:
       - harmony-webrtc
+      - supabase_default # So federation-backend can reach LiveKit
     depends_on:
       - redis
     healthcheck:
@@ -67,6 +68,9 @@ services:
 networks:
   harmony-webrtc:
     driver: bridge
+  # Connect to supabase network so federation-backend can reach LiveKit
+  supabase_default:
+    external: true
 
 volumes:
   redis-data:
