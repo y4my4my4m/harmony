@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { nextTick } from 'vue';
-import { unifiedWebRTC, type UserMediaState } from '@/services/unifiedWebRTC';
+import { webrtcManager } from '@/services/webrtcManager';
+import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
@@ -10,9 +11,17 @@ import { useThemeStore } from '@/stores/useTheme';
 import { useUserData } from '@/composables/useUserData';
 import { debug } from '@/utils/debug';
 
+// Module-level variable for cross-tab heartbeat (not reactive)
+let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
+
 // =============================================================================
 // TYPES
 // =============================================================================
+
+interface RecentSpeaker {
+  userId: string;
+  lastSpokeAt: number;
+}
 
 interface VoiceChannelState {
   // Connection info
@@ -31,6 +40,12 @@ interface VoiceChannelState {
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
   
+  // Per-user volume settings (0-200, 100 = normal)
+  userVolumes: Map<string, number>;
+  
+  // Recent speakers (last 5 users who spoke)
+  recentSpeakers: RecentSpeaker[];
+  
   // UI state
   isOverlayVisible: boolean;
   layoutMode: 'grid' | 'speaker' | 'gallery';
@@ -41,6 +56,15 @@ interface VoiceChannelState {
   pipActive: boolean;
   pipUserId: string | null;
   pipMode: 'draggable' | 'fixed' | 'native';
+  
+  // Stream quality settings
+  streamSettings: {
+    resolution: number; // 720, 1080, 0 (source)
+    frameRate: number; // 15, 30, 60
+  };
+  
+  // Counter to force reactivity when streams update (Map doesn't trigger Vue reactivity well)
+  streamUpdateCounter: number;
 }
 
 // =============================================================================
@@ -71,6 +95,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     localStream: null,
     remoteStreams: new Map(),
     
+    // Per-user volume (loaded from localStorage)
+    userVolumes: new Map(),
+    
+    // Recent speakers (last 5 users who spoke)
+    recentSpeakers: [],
+    
     isOverlayVisible: false,
     layoutMode: 'grid',
     viewMode: 'normal',
@@ -78,7 +108,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     pipActive: false,
     pipUserId: null,
-    pipMode: 'native'
+    pipMode: 'native',
+    
+    streamSettings: {
+      resolution: 720,
+      frameRate: 30
+    },
+    
+    streamUpdateCounter: 0
   }),
 
   // =============================================================================
@@ -103,11 +140,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     // Get all participants (including self)
+    // Uses spread to create new object references, ensuring Vue detects changes
     allParticipants: (state) => {
-      const participants = [state.localState];
+      const participants = [{ ...state.localState }];
       state.allUsers.forEach(user => {
         if (user.userId !== state.localState.userId) {
-          participants.push(user);
+          participants.push({ ...user });
         }
       });
       return participants;
@@ -142,6 +180,32 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const speaking = state.allUsers.filter(u => u.audioLevel > 20).length + (state.localState.audioLevel > 20 ? 1 : 0);
       
       return { total, withVideo, speaking };
+    },
+
+    // Get user volume (0-200, 100 = normal)
+    getUserVolume: (state) => (userId: string): number => {
+      return state.userVolumes.get(userId) ?? 100;
+    },
+
+    // Get recent speakers (sorted by most recent, max 5)
+    getRecentSpeakers: (state) => {
+      return [...state.recentSpeakers]
+        .sort((a, b) => b.lastSpokeAt - a.lastSpokeAt)
+        .slice(0, 5);
+    },
+
+    // Get currently speaking user IDs
+    activelySpeakingUserIds: (state) => {
+      const speaking: string[] = [];
+      if (state.localState.audioLevel > 20 && !state.localState.isMuted) {
+        speaking.push(state.localState.userId);
+      }
+      state.allUsers.forEach(user => {
+        if (user.audioLevel > 20) {
+          speaking.push(user.userId);
+        }
+      });
+      return speaking;
     }
   },
 
@@ -152,6 +216,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
   actions: {
     /**
      * Join a voice channel
+     * Automatically leaves any existing voice channel first
      */
     async joinVoiceChannel(channelId: string, serverId: string): Promise<boolean> {
       try {
@@ -166,6 +231,28 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         const userId = authStore.session.user.id;
         
+        // Check if already in the same channel
+        if (this.isConnected && this.currentChannelId === channelId) {
+          debug.log('⚠️ Already connected to this voice channel');
+          return true;
+        }
+        
+        // If already in a different voice channel, leave it first
+        if (this.isConnected && this.currentChannelId) {
+          debug.log('⚠️ Already in a voice channel, leaving first...');
+          await this.leaveVoiceChannel();
+        }
+        
+        // Check cross-tab: prevent joining if another tab is already in a voice channel
+        const activeVoiceSession = localStorage.getItem('harmony-active-voice-session');
+        if (activeVoiceSession) {
+          const session = JSON.parse(activeVoiceSession);
+          if (session.tabId !== this.getTabId() && Date.now() - session.timestamp < 5000) {
+            debug.warn('⚠️ Another tab is already in a voice channel');
+            throw new Error('You are already in a voice channel in another tab');
+          }
+        }
+        
         debug.log('🎯 Joining voice channel:', channelId, 'on server:', serverId);
         
         // Update server presence first
@@ -177,13 +264,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Setup WebRTC event listeners before joining
         this.setupWebRTCListeners();
         
-        // Join WebRTC channel
-        const webrtcSuccess = await unifiedWebRTC.joinChannel(channelId, userId);
+        // Determine room type: DM calls use 'dm_call', server channels use 'voice_channel'
+        const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
+        
+        // Join WebRTC channel (uses LiveKit SFU or P2P based on config)
+        const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType);
         if (!webrtcSuccess) {
           // Rollback server presence
           await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
           throw new Error('Failed to join WebRTC channel');
         }
+        
+        debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
         
         // Update store state
         this.currentChannelId = channelId;
@@ -209,31 +301,35 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Save voice channel state to localStorage for auto-reconnect
         this.saveVoiceChannelState();
         
+        // Start cross-tab session heartbeat
+        this.startVoiceSessionHeartbeat();
+        
         // Check if anyone else is in the channel to determine if we're starting the call
         // We'll set call start time after channel state sync
         
         // Get fresh state from WebRTC service
-        const newLocalState = unifiedWebRTC.getLocalState();
+        const newLocalState = webrtcManager.getLocalState();
         
         // Apply any preemptive mute/deafen state
         if (this.localState.isMuted && !newLocalState.isMuted) {
           debug.log('Applying preemptive mute state');
-          unifiedWebRTC.toggleMute();
+          webrtcManager.toggleMute();
         }
         if (this.localState.isDeafened && !newLocalState.isDeafened) {
           debug.log('Applying preemptive deafen state');
-          unifiedWebRTC.toggleDeafen();
+          webrtcManager.toggleDeafen();
         }
         
         // Update state after applying preemptive settings
-        this.localState = unifiedWebRTC.getLocalState();
-        this.localStream = unifiedWebRTC.getLocalStream();
+        this.localState = webrtcManager.getLocalState();
+        this.localStream = webrtcManager.getLocalStream();
         
         // Initialize spatial audio
         await this.initializeSpatialAudio(userId);
         
-        // Start in dock mode, not overlay mode
-        this.isOverlayVisible = false;
+        // Don't reset isOverlayVisible here - it may have been set to true
+        // by event handlers (user-joined, user-state-changed) that detected
+        // existing video/screenshare. Let the event handlers control this.
         
         // Play join sound
         themeStore.testAudio('voice_connect');
@@ -266,7 +362,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.clearVoiceChannelState();
         
         // Leave WebRTC first
-        await unifiedWebRTC.leaveChannel();
+        await webrtcManager.leaveChannel();
 
         // Clean up spatial audio
         this.cleanupSpatialAudio();
@@ -294,11 +390,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     async toggleVideo(): Promise<boolean> {
       const themeStore = useThemeStore();
-      const enabled = await unifiedWebRTC.toggleVideo();
+      const enabled = await webrtcManager.toggleVideo();
       
       // Force sync with WebRTC service state
-      this.localState = unifiedWebRTC.getLocalState();
-      this.localStream = unifiedWebRTC.getLocalStream();
+      this.localState = webrtcManager.getLocalState();
+      this.localStream = webrtcManager.getLocalStream();
       
       // Give UI time to update before playing sound
       setTimeout(() => {
@@ -322,12 +418,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Toggle screen share on/off
      */
     async toggleScreenShare(): Promise<boolean> {
-      const enabled = await unifiedWebRTC.toggleScreenShare();
+      const enabled = await webrtcManager.toggleScreenShare();
       const themeStore = useThemeStore();
       
       // Force sync with WebRTC service state
-      this.localState = unifiedWebRTC.getLocalState();
-      this.localStream = unifiedWebRTC.getLocalStream();
+      this.localState = webrtcManager.getLocalState();
+      this.localStream = webrtcManager.getLocalStream();
       
       // Give UI time to update before playing sound
       setTimeout(() => {
@@ -354,8 +450,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const themeStore = useThemeStore();
       // Allow mute/unmute even when not connected (preemptive state)
       if (this.isConnected) {
-        const muted = unifiedWebRTC.toggleMute();
-        this.localState = unifiedWebRTC.getLocalState();
+        const muted = webrtcManager.toggleMute();
+        this.localState = webrtcManager.getLocalState();
         themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
         return muted;
       } else {
@@ -374,8 +470,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const themeStore = useThemeStore();
       // Allow deafen/undeafen even when not connected (preemptive state)
       if (this.isConnected) {
-        const deafened = unifiedWebRTC.toggleDeafen();
-        this.localState = unifiedWebRTC.getLocalState();
+        const deafened = webrtcManager.toggleDeafen();
+        this.localState = webrtcManager.getLocalState();
         themeStore.testAudio(deafened ? 'deafen_on' : 'deafen_off');
         return deafened;
       } else {
@@ -448,6 +544,149 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Attach video track to a video element using LiveKit's proper method.
+     * This is REQUIRED for adaptive streaming to work - using srcObject directly
+     * causes LiveKit to disable all simulcast layers (frozen video).
+     */
+    attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
+      return webrtcManager.attachVideoToElement(userId, videoElement);
+    },
+
+    /**
+     * Detach video from element
+     */
+    detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void {
+      webrtcManager.detachVideoFromElement(userId, videoElement);
+    },
+
+    /**
+     * Update stream quality settings (resolution/framerate)
+     * Applies to camera and screenshare
+     */
+    async updateStreamQuality(settings: { resolution?: number; frameRate?: number }): Promise<void> {
+      const newSettings = { ...this.streamSettings, ...settings };
+      this.streamSettings = newSettings;
+      
+      debug.log('🎬 Updating stream quality:', newSettings);
+      
+      // Apply to active video/screenshare if any
+      if (this.localState.isVideoEnabled || this.localState.isScreenSharing) {
+        try {
+          await webrtcManager.updateStreamQuality?.(newSettings);
+          debug.log('✅ Stream quality updated');
+        } catch (error) {
+          debug.error('❌ Failed to update stream quality:', error);
+        }
+      }
+      
+      // Persist settings
+      try {
+        localStorage.setItem('harmony-stream-settings', JSON.stringify(newSettings));
+      } catch (error) {
+        debug.warn('Failed to save stream settings:', error);
+      }
+    },
+
+    /**
+     * Load stream settings from localStorage
+     */
+    loadStreamSettings(): void {
+      try {
+        const saved = localStorage.getItem('harmony-stream-settings');
+        if (saved) {
+          const settings = JSON.parse(saved);
+          // Handle -1 (source/native) as valid, only default if truly undefined
+          this.streamSettings = {
+            resolution: settings.resolution !== undefined ? settings.resolution : 720,
+            frameRate: settings.frameRate || 30
+          };
+        }
+      } catch (error) {
+        debug.warn('Failed to load stream settings:', error);
+      }
+    },
+
+    /**
+     * Set per-user volume (0-200, 100 = normal)
+     * Persisted to localStorage and applied to audio
+     */
+    setUserVolume(userId: string, volume: number): void {
+      // Clamp volume to valid range
+      const clampedVolume = Math.max(0, Math.min(200, volume));
+      this.userVolumes.set(userId, clampedVolume);
+      
+      // Apply volume to the user's audio stream
+      webrtcManager.setUserVolume?.(userId, clampedVolume / 100);
+      
+      // Persist to localStorage
+      this.saveUserVolumes();
+      
+      debug.log(`🔊 Set volume for user ${userId}: ${clampedVolume}%`);
+    },
+
+    /**
+     * Save user volumes to localStorage
+     */
+    saveUserVolumes(): void {
+      try {
+        const volumeObj: Record<string, number> = {};
+        this.userVolumes.forEach((volume, odUserId) => {
+          volumeObj[odUserId] = volume;
+        });
+        localStorage.setItem('harmony-user-volumes', JSON.stringify(volumeObj));
+      } catch (error) {
+        debug.warn('Failed to save user volumes:', error);
+      }
+    },
+
+    /**
+     * Load user volumes from localStorage
+     */
+    loadUserVolumes(): void {
+      try {
+        const saved = localStorage.getItem('harmony-user-volumes');
+        if (saved) {
+          const volumeObj = JSON.parse(saved) as Record<string, number>;
+          Object.entries(volumeObj).forEach(([odUserId, volume]) => {
+            this.userVolumes.set(odUserId, volume);
+          });
+          debug.log('🔊 Loaded user volumes from localStorage');
+        }
+      } catch (error) {
+        debug.warn('Failed to load user volumes:', error);
+      }
+    },
+
+    /**
+     * Update recent speakers list when someone speaks
+     */
+    updateRecentSpeakers(userId: string): void {
+      const now = Date.now();
+      const existingIndex = this.recentSpeakers.findIndex(s => s.userId === userId);
+      
+      if (existingIndex !== -1) {
+        // Update timestamp for existing speaker
+        this.recentSpeakers[existingIndex].lastSpokeAt = now;
+      } else {
+        // Add new speaker
+        this.recentSpeakers.push({ userId, lastSpokeAt: now });
+        
+        // Keep only the last 10 speakers (we display 5, but keep more for rotation)
+        if (this.recentSpeakers.length > 10) {
+          this.recentSpeakers.sort((a, b) => b.lastSpokeAt - a.lastSpokeAt);
+          this.recentSpeakers = this.recentSpeakers.slice(0, 10);
+        }
+      }
+    },
+
+    /**
+     * Clear recent speakers (when leaving channel)
+     */
+    clearRecentSpeakers(): void {
+      this.recentSpeakers = [];
+    },
+
+    /**
      * Set call start time (synced across all participants)
      */
     setCallStartTime(timestamp: Date | null): void {
@@ -460,15 +699,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     setupWebRTCListeners(): void {
       const themeStore = useThemeStore();
       // Channel events
-      unifiedWebRTC.on('channel-joined', (data) => {
+      webrtcManager.on('channel-joined', (data) => {
         debug.log('✅ Channel joined:', data);
       });
 
-      unifiedWebRTC.on('channel-left', (data) => {
+      webrtcManager.on('channel-left', (data) => {
         debug.log('👋 Channel left:', data);
       });
 
-      unifiedWebRTC.on('channel-state-synced', async (data) => {
+      webrtcManager.on('channel-state-synced', async (data) => {
         debug.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
         
@@ -505,7 +744,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       // User events
-      unifiedWebRTC.on('user-joined', async (data) => {
+      webrtcManager.on('user-joined', async (data) => {
         debug.log('👋 User joined:', data);
         
         // Add user if not already in list
@@ -514,6 +753,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.allUsers.push(data.mediaState);
         } else {
           this.allUsers[existingIndex] = data.mediaState;
+        }
+
+        // Auto-open overlay if joining user has video/screenshare (for late-joiners seeing existing streams)
+        if (data.mediaState?.isVideoEnabled || data.mediaState?.isScreenSharing) {
+          if (!this.isOverlayVisible) {
+            this.isOverlayVisible = true;
+            debug.log('📺 Auto-opening overlay - existing video/screenshare user detected:', data.userId);
+          }
         }
 
         // Request call start time from existing participants
@@ -534,7 +781,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         themeStore.testAudio('voice_connect');
       });
 
-      unifiedWebRTC.on('user-left', (data) => {
+      webrtcManager.on('user-left', (data) => {
         debug.log('👋 User left:', data);
         
         // Remove user from list
@@ -554,18 +801,29 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         themeStore.testAudio('voice_disconnect');
       });
 
-      unifiedWebRTC.on('user-state-changed', (data) => {
-        debug.log('🎛️ User state changed:', data);
+      webrtcManager.on('user-state-changed', (data) => {
+        debug.log('🎛️ User state changed:', data, 'isVideoEnabled:', data.mediaState?.isVideoEnabled);
         
         // Update user state
         const userIndex = this.allUsers.findIndex(u => u.userId === data.userId);
         if (userIndex !== -1) {
+          // Direct assignment - Vue 3/Pinia should handle reactivity
           this.allUsers[userIndex] = data.mediaState;
+        } else if (data.mediaState && data.mediaState.userId) {
+          // User not in list yet - add them
+          debug.log('➕ User not in list, adding:', data.userId);
+          this.allUsers.push(data.mediaState);
         }
+        
+        // Force reactivity by incrementing counter
+        this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
+        
+        // NOTE: Don't auto-open overlay here - this fires on every state change
+        // Auto-open only happens in user-joined for initial sync when joining
       });
 
-      unifiedWebRTC.on('user-stream-changed', (data) => {
-        // debug.log('📹 User stream changed:', data.userId, data.stream);
+      webrtcManager.on('user-stream-changed', (data) => {
+        debug.log('📹 User stream changed:', data.userId, 'hasStream:', !!data.stream);
         
         if (data.stream) {
           this.remoteStreams.set(data.userId, data.stream);
@@ -576,22 +834,28 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // Remove from spatial audio
           this.removeUserFromSpatialAudio(data.userId);
         }
+        
+        // Force reactivity update by incrementing a counter
+        this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
       });
 
       // Local events
-      unifiedWebRTC.on('local-state-changed', (state) => {
-        // debug.log('🎛️ Local state changed in store:', state);
-        // debug.log('🗣️ Local speaking state in store:', state.isSpeaking, 'audioLevel:', state.audioLevel);
+      webrtcManager.on('local-state-changed', (state) => {
+        debug.log('🎛️ Local state changed in store:', {
+          isVideoEnabled: state.isVideoEnabled,
+          isScreenSharing: state.isScreenSharing,
+          isMuted: state.isMuted
+        });
         this.localState = state;
       });
       
-      unifiedWebRTC.on('local-stream-changed', (stream) => {
+      webrtcManager.on('local-stream-changed', (stream) => {
         // debug.log('📹 Local stream changed:', stream);
         this.localStream = stream;
       });
       
       // Handle generic stream changes (for better compatibility)
-      unifiedWebRTC.on('stream-changed', (data) => {
+      webrtcManager.on('stream-changed', (data) => {
         // debug.log('📡 Stream changed:', data.userId, data.type, data.stream);
         if (data.type === 'local' && data.userId === this.localState.userId) {
           this.localStream = data.stream;
@@ -605,34 +869,42 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       // Audio levels
-      unifiedWebRTC.on('audio-level', (data) => {
+      webrtcManager.on('audio-level', (data) => {
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
+          // Track recent speakers when audio level exceeds threshold
+          if (data.level > 20 && !this.localState.isMuted) {
+            this.updateRecentSpeakers(data.userId);
+          }
         } else {
           const user = this.allUsers.find(u => u.userId === data.userId);
           if (user) {
             user.audioLevel = data.level;
+            // Track recent speakers when audio level exceeds threshold
+            if (data.level > 20) {
+              this.updateRecentSpeakers(data.userId);
+            }
           }
         }
       });
 
       // Connection events
-      unifiedWebRTC.on('connection-state-changed', () => {
+      webrtcManager.on('connection-state-changed', () => {
         // debug.log('🔗 Connection state changed:', data);
       });
 
       // Error handling
-      unifiedWebRTC.on('error', (error) => {
+      webrtcManager.on('error', (error) => {
         debug.error('❌ WebRTC error:', error);
         // Could show notification to user
       });
 
       // Call start time sync
-      unifiedWebRTC.on('call-start-time', (data: { timestamp: string; from: string }) => {
+      webrtcManager.on('call-start-time', (data: { timestamp: string; from: string }) => {
         this.handleCallStartTime(data.timestamp);
       });
 
-      unifiedWebRTC.on('request-call-start-time', (data: { from: string }) => {
+      webrtcManager.on('request-call-start-time', (data: { from: string }) => {
         // Respond with our call start time if we have it
         if (this.callStartTime) {
           this.broadcastCallStartTime();
@@ -659,7 +931,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     broadcastCallStartTime(): void {
       if (!this.currentChannelId || !this.callStartTime) return;
       
-      unifiedWebRTC.broadcastMessage({
+      webrtcManager.broadcastMessage({
         type: 'call-start-time',
         from: this.localState.userId,
         data: { timestamp: this.callStartTime.toISOString() },
@@ -673,7 +945,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     requestCallStartTime(): void {
       if (!this.currentChannelId) return;
       
-      unifiedWebRTC.broadcastMessage({
+      webrtcManager.broadcastMessage({
         type: 'request-call-start-time',
         from: this.localState.userId,
         data: {},
@@ -692,7 +964,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Get unique tab ID (persistent for this tab session)
+     */
+    getTabId(): string {
+      let tabId = sessionStorage.getItem('harmony-tab-id');
+      if (!tabId) {
+        tabId = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        sessionStorage.setItem('harmony-tab-id', tabId);
+      }
+      return tabId;
+    },
+
+    /**
      * Save voice channel state to localStorage for auto-reconnect
+     * Also tracks active voice session for cross-tab prevention
      */
     saveVoiceChannelState(): void {
       if (this.currentChannelId && this.currentServerId) {
@@ -703,7 +988,46 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           timestamp: Date.now()
         };
         localStorage.setItem('voiceChannelState', JSON.stringify(voiceState));
+        
+        // Track active voice session for cross-tab prevention
+        const activeSession = {
+          tabId: this.getTabId(),
+          channelId: this.currentChannelId,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('harmony-active-voice-session', JSON.stringify(activeSession));
+        
         debug.log('💾 Saved voice channel state for auto-reconnect');
+      }
+    },
+
+    /**
+     * Start heartbeat to maintain cross-tab session
+     */
+    startVoiceSessionHeartbeat(): void {
+      // Stop any existing heartbeat first
+      this.stopVoiceSessionHeartbeat();
+      
+      // Update session timestamp every 2 seconds
+      voiceSessionHeartbeat = setInterval(() => {
+        if (this.isConnected && this.currentChannelId) {
+          const activeSession = {
+            tabId: this.getTabId(),
+            channelId: this.currentChannelId,
+            timestamp: Date.now()
+          };
+          localStorage.setItem('harmony-active-voice-session', JSON.stringify(activeSession));
+        }
+      }, 2000);
+    },
+
+    /**
+     * Stop heartbeat
+     */
+    stopVoiceSessionHeartbeat(): void {
+      if (voiceSessionHeartbeat) {
+        clearInterval(voiceSessionHeartbeat);
+        voiceSessionHeartbeat = null;
       }
     },
 
@@ -712,6 +1036,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     clearVoiceChannelState(): void {
       localStorage.removeItem('voiceChannelState');
+      localStorage.removeItem('harmony-active-voice-session');
+      this.stopVoiceSessionHeartbeat();
       debug.log('🗑️ Cleared voice channel state');
     },
 
@@ -783,14 +1109,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           
           // IMMEDIATELY mute traditional audio to prevent double audio (dry + wet)
           // This is critical - must happen right after enabling, not in the timeout!
-          unifiedWebRTC.setTraditionalAudioEnabled(false);
+          webrtcManager.setTraditionalAudioEnabled(false);
           debug.log('🔇 Traditional audio muted immediately after spatial audio enabled');
           
           // Wait a bit for streams to be ready, then setup spatial audio for any existing users
           // This delay is important because streams might not be immediately available on join
           setTimeout(async () => {
-            const allUsers = unifiedWebRTC.getAllUsers();
-            const localUserId = unifiedWebRTC.getLocalState().userId;
+            const allUsers = webrtcManager.getAllUsers();
+            const localUserId = webrtcManager.getLocalState().userId;
             
             // Setup spatial audio for existing remote users
             for (const user of allUsers) {
@@ -801,7 +1127,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
                 }
                 
                 // Setup spatial audio with their stream
-                const userStream = unifiedWebRTC.getUserStream(user.userId);
+                const userStream = webrtcManager.getUserStream(user.userId);
                 if (userStream) {
                   await spatialAudioService.setupSpatialForUser(user.userId, userStream);
                   debug.log(`🎧 Setup spatial audio on load for user: ${user.userId}`);
@@ -837,7 +1163,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Small delay to ensure MediaStream is properly set up
       setTimeout(() => {
         // Get the MediaStream for this user from WebRTC service
-        const userStream = unifiedWebRTC.getUserStream(userId);
+        const userStream = webrtcManager.getUserStream(userId);
         if (userStream) {
           spatialAudioService.setupSpatialForUser(userId, userStream);
           
@@ -845,7 +1171,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           const spatialStore = useSpatialAudioStore();
           if (spatialStore.settings.enabled) {
             debug.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
-            unifiedWebRTC.setTraditionalAudioEnabled(false);
+            webrtcManager.setTraditionalAudioEnabled(false);
             
             // Force spatial effects update for new user
             spatialAudioService.updateSpatialEffects();
@@ -854,7 +1180,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           debug.warn('No media stream found for user:', userId, '- retrying in 100ms');
           // Retry once more if stream isn't ready
           setTimeout(() => {
-            const retryUserStream = unifiedWebRTC.getUserStream(userId);
+            const retryUserStream = webrtcManager.getUserStream(userId);
             if (retryUserStream) {
               spatialAudioService.setupSpatialForUser(userId, retryUserStream);
               
@@ -862,7 +1188,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               const spatialStore = useSpatialAudioStore();
               if (spatialStore.settings.enabled) {
                 debug.log('🔇 Muting traditional audio for user (spatial audio active, retry):', userId);
-                unifiedWebRTC.setTraditionalAudioEnabled(false);
+                webrtcManager.setTraditionalAudioEnabled(false);
                 
                 // Force spatial effects update for new user
                 spatialAudioService.updateSpatialEffects();
@@ -938,7 +1264,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     refreshStreamState(): void {
       // Force Vue reactivity by creating a new reference
-      const currentStream = unifiedWebRTC.getLocalStream();
+      const currentStream = webrtcManager.getLocalStream();
       if (currentStream) {
         this.localStream = null;
         nextTick(() => {

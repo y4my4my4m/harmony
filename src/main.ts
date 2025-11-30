@@ -35,6 +35,14 @@ import MasonryWall from '@yeger/vue-masonry-wall'
 import ClickOutsideDirective from './directives/ClickOutsideDirective';
 import { vHaptic } from './utils/hapticFeedback';
 import { debug } from '@/utils/debug'
+import { webrtcManager } from '@/services/webrtcManager';
+import { livekitWebRTC } from '@/services/livekitWebRTC';
+
+// Expose for debugging in browser console
+if (typeof window !== 'undefined') {
+  (window as any).webrtcManager = webrtcManager;
+  (window as any).livekitWebRTC = livekitWebRTC;
+}
 
 const app = createApp(App);
 

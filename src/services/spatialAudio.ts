@@ -591,8 +591,8 @@ export class SpatialAudioService {
         node.pannerNode.setPosition(audioX, audioY, audioZ);
       }
       
-      const angleDegrees = (angle * 180 / Math.PI).toFixed(0);
-      debug.log(`🎧 Set binaural position for ${userId}: screen(${x},${y}) -> angle: ${angleDegrees}° -> 3D(${audioX.toFixed(2)}, ${audioY.toFixed(2)}, ${audioZ.toFixed(2)}) [intensity: ${(intensity * 100).toFixed(0)}%]`);
+      // Note: Removed per-frame debug logging for performance
+      // Uncomment for debugging: debug.log(`🎧 Set binaural position for ${userId}: angle ${(angle * 180 / Math.PI).toFixed(0)}°`);
     } catch (error) {
       debug.error('❌ Failed to set 3D position for user:', userId, error);
     }
@@ -623,34 +623,24 @@ export class SpatialAudioService {
   }
 
   /**
-   * Start continuous spatial audio updates (call once when spatial audio is enabled)
+   * @deprecated Animation frame loop removed for performance.
+   * Spatial effects are now updated only when positions change.
+   * Kept for API compatibility but does nothing.
    */
   startSpatialUpdates(): void {
-    if (this.animationFrameId) {
-      return; // Already running
-    }
-
-    const updateLoop = () => {
-      if (this.isInitialized) {
-        this.updateSpatialEffects();
-        this.animationFrameId = requestAnimationFrame(updateLoop);
-      } else {
-        this.animationFrameId = null;
-      }
-    };
-    
-    this.animationFrameId = requestAnimationFrame(updateLoop);
-    debug.log('🎧 Started spatial audio update loop');
+    // No-op: We no longer use an animation frame loop.
+    // Spatial effects are updated on-demand when positions change.
+    debug.log('🎧 Spatial audio updates now triggered by position changes (no animation loop)');
   }
 
   /**
-   * Stop continuous spatial audio updates
+   * @deprecated Animation frame loop removed for performance.
+   * Kept for API compatibility but does nothing.
    */
   stopSpatialUpdates(): void {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
-      debug.log('🎧 Stopped spatial audio update loop');
     }
   }
 

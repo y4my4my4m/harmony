@@ -1,0 +1,59 @@
+# LiveKit Egress Configuration
+# For recording and streaming stage events
+# See: https://docs.livekit.io/egress/overview/
+
+# =============================================================================
+# API CONFIGURATION
+# =============================================================================
+
+# Must match the key in livekit.yaml
+api_key: devkey
+api_secret: secret
+
+# LiveKit server WebSocket URL (internal Docker network)
+ws_url: ws://livekit:7880
+
+# =============================================================================
+# REDIS
+# =============================================================================
+
+redis:
+  address: redis:6379
+
+# =============================================================================
+# STORAGE
+# =============================================================================
+
+# Local file storage for recordings
+file_output:
+  local:
+    - /recordings
+
+# S3 storage (optional, for production)
+# s3:
+#   access_key: your-access-key
+#   secret: your-secret-key
+#   region: us-west-2
+#   bucket: harmony-recordings
+
+# =============================================================================
+# PROCESSING
+# =============================================================================
+
+# CPU limit per egress process
+cpu_cost:
+  room_composite: 3.0
+  web: 4.0
+  participant: 2.0
+  track_composite: 1.0
+  track: 0.5
+
+# Enable hardware acceleration if available
+# enable_chrome_sandbox: false
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+log_level: info
+

@@ -55,11 +55,15 @@
             </button>
             <button 
               @click="toggleSpatialPanel"
-              class="layout-btn"
-              :class="{ active: spatialStore.isPanelVisible }"
-              title="Toggle Spatial Audio"
+              class="layout-btn spatial-btn"
+              :class="{ 
+                active: spatialStore.isPanelVisible,
+                'spatial-enabled': spatialStore.settings.enabled
+              }"
+              :title="spatialStore.settings.enabled ? 'Spatial Audio: ON' : 'Spatial Audio: OFF'"
             >
               <Icon name="map" />
+              <span v-if="spatialStore.settings.enabled" class="spatial-badge">3D</span>
             </button>
             <button 
               @click="toggleSettings"
@@ -102,7 +106,8 @@
             name="participant"
             tag="div"
             class="participants-grid"
-            :class="{ 'speaker-mode': voiceStore.layoutMode === 'speaker' }"
+            :class="[adaptiveGridClass, { 'speaker-mode': voiceStore.layoutMode === 'speaker' }]"
+            :style="voiceStore.layoutMode === 'grid' ? gridStyle : {}"
           >
             <UnifiedVoiceUserCard
               v-for="participant in displayedParticipants"
@@ -142,40 +147,52 @@
         <div class="voice-controls">
           <!-- Media controls -->
           <div class="media-controls">
-            <button 
-              @click="voiceStore.toggleMute"
-              class="control-button"
-              :class="{ 
-                active: !voiceStore.localState.isMuted,
-                muted: voiceStore.localState.isMuted 
-              }"
-              :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
-            >
-              <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
-            </button>
+            <!-- Microphone with device selector -->
+            <div class="control-group">
+              <button 
+                @click="voiceStore.toggleMute"
+                class="control-button"
+                :class="{ 
+                  active: !voiceStore.localState.isMuted,
+                  muted: voiceStore.localState.isMuted 
+                }"
+                :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
+              >
+                <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
+              </button>
+              <DeviceSelector type="input" @open-settings="showSettings = true" />
+            </div>
             
-            <button 
-              @click="voiceStore.toggleDeafen"
-              class="control-button"
-              :class="{ 
-                active: !voiceStore.localState.isDeafened,
-                deafened: voiceStore.localState.isDeafened 
-              }"
-              :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
-            >
-              <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
-            </button>
+            <!-- Speakers with device selector -->
+            <div class="control-group">
+              <button 
+                @click="voiceStore.toggleDeafen"
+                class="control-button"
+                :class="{ 
+                  active: !voiceStore.localState.isDeafened,
+                  deafened: voiceStore.localState.isDeafened 
+                }"
+                :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
+              >
+                <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
+              </button>
+              <DeviceSelector type="output" @open-settings="showSettings = true" />
+            </div>
             
-            <button 
-              @click="voiceStore.toggleVideo"
-              class="control-button"
-              :class="{ 
-                active: voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing 
-              }"
-              :title="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
-            >
-              <Icon name="camera" />
-            </button>
+            <!-- Camera with device selector -->
+            <div class="control-group">
+              <button 
+                @click="voiceStore.toggleVideo"
+                class="control-button"
+                :class="{ 
+                  active: voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing 
+                }"
+                :title="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
+              >
+                <Icon name="camera" />
+              </button>
+              <DeviceSelector type="video" @open-settings="showSettings = true" />
+            </div>
             
             <button 
               @click="voiceStore.toggleScreenShare"
@@ -229,10 +246,12 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
+import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import ScreensharePIP from './ScreensharePIP.vue';
+import DeviceSelector from './DeviceSelector.vue';
 import Icon from '@/components/common/Icon.vue';
 
 interface Props {
@@ -255,6 +274,14 @@ const spatialStore = useSpatialAudioStore();
 const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
+
+// =============================================================================
+// ADAPTIVE GRID
+// =============================================================================
+
+const { gridStyle, gridClass: adaptiveGridClass } = useAdaptiveGrid(
+  () => voiceStore.allParticipants.length
+);
 
 // =============================================================================
 // COMPUTED PROPERTIES
@@ -567,6 +594,44 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   border-color: rgba(88, 101, 242, 0.6);
 }
 
+/* Spatial audio button with indicator */
+.spatial-btn {
+  position: relative;
+}
+
+.spatial-btn.spatial-enabled {
+  background: linear-gradient(145deg, #00d4aa, #00b894);
+  color: white;
+  border-color: rgba(0, 212, 170, 0.6);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
+}
+
+.spatial-btn.spatial-enabled:hover {
+  background: linear-gradient(145deg, #00e5b8, #00c9a0);
+}
+
+.spatial-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #00d4aa;
+  color: #000;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
 .close-btn:hover {
   background: #ed4245;
   color: white;
@@ -619,15 +684,55 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .participants-grid {
   display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--grid-gap, 16px);
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-width, 320px), var(--grid-max-width, 1fr)));
   place-items: stretch;
+}
+
+/* Adaptive grid classes for specific participant counts */
+.participants-grid.grid-single {
+  justify-content: center;
+  grid-template-columns: minmax(400px, 600px);
+}
+
+.participants-grid.grid-duo {
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+}
+
+.participants-grid.grid-quad {
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+}
+
+.participants-grid.grid-six {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.participants-grid.grid-nine {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.participants-grid.grid-large {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.participants-grid.grid-gallery {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+/* Participant card height based on grid config */
+.participants-grid .participant-card :deep(.harmony-voice-card) {
+  min-height: var(--grid-card-height, 200px);
 }
 
 /* Maximized mode - larger tiles */
 .voice-container.maximized .participants-grid {
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 20px;
+  --grid-min-width: 380px;
+  --grid-gap: 20px;
+}
+
+.voice-container.maximized .participants-grid.grid-single,
+.voice-container.maximized .participants-grid.grid-duo {
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
 }
 
 .participants-grid.speaker-mode {
@@ -653,6 +758,13 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 .media-controls {
   display: flex;
   gap: 12px;
+}
+
+/* Control group with button and device selector */
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .control-button {

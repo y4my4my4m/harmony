@@ -1,0 +1,519 @@
+<template>
+  <div class="device-selector" :class="{ open: isOpen }" ref="selectorRef">
+    <button
+      class="selector-trigger"
+      :class="{ open: isOpen }"
+      @click.stop="toggleDropdown"
+      :title="triggerTitle"
+    >
+      <Icon :name="triggerIcon" />
+      <Icon name="chevron-down" class="chevron" />
+    </button>
+
+    <Teleport to="body">
+      <!-- Invisible backdrop to catch clicks outside -->
+      <div 
+        v-if="isOpen"
+        class="device-dropdown-backdrop"
+        @click="closeDropdown"
+      />
+      <Transition name="dropdown">
+        <div
+          v-if="isOpen"
+          class="device-dropdown"
+          :style="dropdownStyle"
+          ref="dropdownRef"
+          @click.stop
+        >
+          <!-- Input Devices (Microphones) -->
+          <div v-if="type === 'input' || type === 'all'" class="device-section">
+            <div class="section-header">
+              <Icon name="mic" />
+              <span>Microphone</span>
+            </div>
+            <div class="device-list">
+              <button
+                v-for="device in inputDevices"
+                :key="device.deviceId"
+                class="device-item"
+                :class="{ active: device.deviceId === selectedInputDevice }"
+                @click="selectInputDevice(device.deviceId)"
+              >
+                <Icon :name="device.deviceId === selectedInputDevice ? 'check' : 'mic'" />
+                <span class="device-label">{{ device.label || 'Microphone' }}</span>
+              </button>
+              <div v-if="inputDevices.length === 0" class="no-devices">
+                No microphones found
+              </div>
+            </div>
+          </div>
+
+          <!-- Output Devices (Speakers) -->
+          <div v-if="type === 'output' || type === 'all'" class="device-section">
+            <div class="section-header">
+              <Icon name="volume-2" />
+              <span>Speaker / Headphones</span>
+            </div>
+            <div class="device-list">
+              <button
+                v-for="device in outputDevices"
+                :key="device.deviceId"
+                class="device-item"
+                :class="{ active: device.deviceId === selectedOutputDevice }"
+                @click="selectOutputDevice(device.deviceId)"
+              >
+                <Icon :name="device.deviceId === selectedOutputDevice ? 'check' : 'volume-2'" />
+                <span class="device-label">{{ device.label || 'Speaker' }}</span>
+              </button>
+              <div v-if="outputDevices.length === 0" class="no-devices">
+                No speakers found
+              </div>
+            </div>
+          </div>
+
+          <!-- Video Devices (Cameras) -->
+          <div v-if="type === 'video' || type === 'all'" class="device-section">
+            <div class="section-header">
+              <Icon name="camera" />
+              <span>Camera</span>
+            </div>
+            <div class="device-list">
+              <button
+                v-for="device in videoDevices"
+                :key="device.deviceId"
+                class="device-item"
+                :class="{ active: device.deviceId === selectedVideoDevice }"
+                @click="selectVideoDevice(device.deviceId)"
+              >
+                <Icon :name="device.deviceId === selectedVideoDevice ? 'check' : 'camera'" />
+                <span class="device-label">{{ device.label || 'Camera' }}</span>
+              </button>
+              <div v-if="videoDevices.length === 0" class="no-devices">
+                No cameras found
+              </div>
+            </div>
+          </div>
+
+          <div class="dropdown-footer">
+            <button class="settings-link" @click="openSettings">
+              <Icon name="settings" />
+              <span>Audio Settings</span>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { webrtcManager } from '@/services/webrtcManager';
+import Icon from '@/components/common/Icon.vue';
+
+interface Props {
+  type?: 'input' | 'output' | 'video' | 'all';
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  type: 'all',
+});
+
+interface Emits {
+  (e: 'open-settings'): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const selectorRef = ref<HTMLElement | null>(null);
+const dropdownRef = ref<HTMLElement | null>(null);
+const isOpen = ref(false);
+const dropdownPosition = ref({ x: 0, y: 0 });
+
+// Device lists
+const inputDevices = ref<MediaDeviceInfo[]>([]);
+const outputDevices = ref<MediaDeviceInfo[]>([]);
+const videoDevices = ref<MediaDeviceInfo[]>([]);
+
+// Selected devices
+const selectedInputDevice = ref<string | null>(null);
+const selectedOutputDevice = ref<string | null>(null);
+const selectedVideoDevice = ref<string | null>(null);
+
+// Computed
+const triggerIcon = computed(() => {
+  switch (props.type) {
+    case 'input': return 'mic';
+    case 'output': return 'volume-2';
+    case 'video': return 'camera';
+    default: return 'settings';
+  }
+});
+
+const triggerTitle = computed(() => {
+  switch (props.type) {
+    case 'input': return 'Select Microphone';
+    case 'output': return 'Select Speaker';
+    case 'video': return 'Select Camera';
+    default: return 'Audio/Video Settings';
+  }
+});
+
+const dropdownStyle = computed(() => ({
+  left: `${dropdownPosition.value.x}px`,
+  top: `${dropdownPosition.value.y}px`,
+}));
+
+// Methods
+const loadDevices = async () => {
+  try {
+    // Request permission first if needed
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    } catch {
+      // Continue even if permission denied - might already have it
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    
+    inputDevices.value = devices.filter(d => d.kind === 'audioinput');
+    outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
+    videoDevices.value = devices.filter(d => d.kind === 'videoinput');
+
+    // Get currently selected devices
+    const selected = webrtcManager.getSelectedDevices();
+    selectedInputDevice.value = selected.inputDevice;
+    selectedOutputDevice.value = selected.outputDevice;
+    selectedVideoDevice.value = selected.videoDevice;
+  } catch (error) {
+    console.error('Failed to enumerate devices:', error);
+  }
+};
+
+const toggleDropdown = async () => {
+  if (!isOpen.value) {
+    // Set initial position from trigger before showing (prevents flash at 0,0)
+    if (selectorRef.value) {
+      const rect = selectorRef.value.getBoundingClientRect();
+      dropdownPosition.value = { x: rect.left, y: rect.bottom + 8 };
+    }
+    // Load devices when opening
+    await loadDevices();
+  }
+  isOpen.value = !isOpen.value;
+  
+  if (isOpen.value) {
+    await nextTick();
+    positionDropdown();
+  }
+};
+
+const positionDropdown = () => {
+  if (!selectorRef.value || !dropdownRef.value) return;
+
+  const triggerRect = selectorRef.value.getBoundingClientRect();
+  const dropdownRect = dropdownRef.value.getBoundingClientRect();
+  const padding = 8;
+
+  let x = triggerRect.left;
+  let y = triggerRect.bottom + padding;
+
+  // Adjust if dropdown goes off-screen right
+  if (x + dropdownRect.width > window.innerWidth - padding) {
+    x = window.innerWidth - dropdownRect.width - padding;
+  }
+
+  // Adjust if dropdown goes off-screen bottom - show above instead
+  if (y + dropdownRect.height > window.innerHeight - padding) {
+    y = triggerRect.top - dropdownRect.height - padding;
+  }
+
+  // Ensure minimum position
+  x = Math.max(padding, x);
+  y = Math.max(padding, y);
+
+  dropdownPosition.value = { x, y };
+};
+
+const closeDropdown = () => {
+  isOpen.value = false;
+};
+
+const selectInputDevice = async (deviceId: string) => {
+  try {
+    await webrtcManager.updateInputDevice(deviceId);
+    selectedInputDevice.value = deviceId;
+  } catch (error) {
+    console.error('Failed to switch input device:', error);
+  }
+};
+
+const selectOutputDevice = async (deviceId: string) => {
+  try {
+    await webrtcManager.updateOutputDevice(deviceId);
+    selectedOutputDevice.value = deviceId;
+  } catch (error) {
+    console.error('Failed to switch output device:', error);
+  }
+};
+
+const selectVideoDevice = async (deviceId: string) => {
+  try {
+    await webrtcManager.updateVideoDevice(deviceId);
+    selectedVideoDevice.value = deviceId;
+  } catch (error) {
+    console.error('Failed to switch video device:', error);
+  }
+};
+
+const openSettings = () => {
+  closeDropdown();
+  emit('open-settings');
+};
+
+// Handle clicks outside
+const handleClickOutside = (event: MouseEvent) => {
+  if (
+    selectorRef.value &&
+    !selectorRef.value.contains(event.target as Node) &&
+    dropdownRef.value &&
+    !dropdownRef.value.contains(event.target as Node)
+  ) {
+    closeDropdown();
+  }
+};
+
+// Handle device changes (hot-plug support)
+const handleDeviceChange = () => {
+  if (isOpen.value) {
+    loadDevices();
+  }
+};
+
+// Handle keyboard
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && isOpen.value) {
+    closeDropdown();
+  }
+};
+
+// Lifecycle
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+  document.addEventListener('keydown', handleKeydown);
+  navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener('keydown', handleKeydown);
+  navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+});
+
+// Watch for window resize to reposition dropdown
+watch(isOpen, (newVal) => {
+  if (newVal) {
+    window.addEventListener('resize', positionDropdown);
+  } else {
+    window.removeEventListener('resize', positionDropdown);
+  }
+});
+</script>
+
+<style scoped>
+/* Backdrop to catch clicks outside */
+.device-dropdown-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10009;
+}
+
+.device-selector {
+  position: relative;
+  display: inline-flex;
+}
+
+.selector-trigger {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #b9bbbe;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 12px;
+}
+
+.selector-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.selector-trigger.open {
+  background: rgba(88, 101, 242, 0.3);
+  color: #ffffff;
+  border-color: rgba(88, 101, 242, 0.5);
+}
+
+.chevron {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.selector-trigger.open .chevron {
+  transform: rotate(180deg);
+}
+
+/* Dropdown */
+.device-dropdown {
+  position: fixed;
+  z-index: 10010;
+  background: linear-gradient(145deg, #2f3136, #36393f);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.6),
+    0 4px 16px rgba(0, 0, 0, 0.4);
+  min-width: 280px;
+  max-width: 360px;
+  max-height: 400px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dropdown animation */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+}
+
+/* Device Section */
+.device-section {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.device-section:last-of-type {
+  border-bottom: none;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #72767d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.device-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: #dcddde;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.device-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.device-item.active {
+  background: rgba(88, 101, 242, 0.15);
+  color: #5865f2;
+}
+
+.device-item.active:hover {
+  background: rgba(88, 101, 242, 0.25);
+}
+
+.device-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-devices {
+  padding: 12px 16px;
+  color: #72767d;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Footer */
+.dropdown-footer {
+  padding: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #b9bbbe;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+/* Scrollbar styling */
+.device-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.device-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.device-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.device-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+</style>
+

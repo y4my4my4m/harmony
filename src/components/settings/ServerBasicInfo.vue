@@ -7,6 +7,19 @@
       </p>
     </div>
 
+    <!-- Permission Warning for Read-Only Users -->
+    <div v-if="!permissions.canEditBasicInfo" class="permission-notice">
+      <div class="notice-content">
+        <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
+          <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+        </svg>
+        <div class="notice-text">
+          <h4>{{ $t('server.viewOnlyAccess') }}</h4>
+          <p>{{ $t('server.viewOnlyMessage') }}</p>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-card">
       <div class="form-group">
         <label class="form-label" for="server-name">{{ $t('server.serverName') }}</label>
@@ -257,6 +270,41 @@ const updateServerDescription = (event: Event) => {
   border-radius: 8px;
   padding: 24px;
   border: 1px solid var(--h-chat-light);
+}
+
+/* Permission Notice */
+.permission-notice {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: rgba(250, 166, 26, 0.1);
+  border: 1px solid rgba(250, 166, 26, 0.3);
+  border-radius: 8px;
+}
+
+.notice-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.notice-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #faa61a;
+}
+
+.notice-text h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #faa61a;
+}
+
+.notice-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #b9bbbe;
+  line-height: 1.4;
 }
 
 .form-group {

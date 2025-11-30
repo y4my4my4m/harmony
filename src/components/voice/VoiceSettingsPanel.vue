@@ -199,30 +199,43 @@
             <Icon name="keyboard" />
             Keybinds
           </h4>
+          <p class="keybind-hint">Active when voice overlay is open</p>
 
           <div class="keybind-list">
             <div class="keybind-item">
               <span>Toggle Mute</span>
               <div class="keybind-combo">
-                <kbd>Ctrl</kbd> + <kbd>M</kbd>
+                <kbd>M</kbd>
               </div>
             </div>
             <div class="keybind-item">
               <span>Toggle Deafen</span>
               <div class="keybind-combo">
-                <kbd>Ctrl</kbd> + <kbd>D</kbd>
+                <kbd>D</kbd>
               </div>
             </div>
             <div class="keybind-item">
-              <span>Toggle Video</span>
+              <span>Toggle Camera</span>
               <div class="keybind-combo">
-                <kbd>Ctrl</kbd> + <kbd>V</kbd>
+                <kbd>V</kbd>
               </div>
             </div>
             <div class="keybind-item">
-              <span>Toggle Screensharing</span>
+              <span>Toggle Screen Share</span>
               <div class="keybind-combo">
-                <kbd>Meta</kbd> + <kbd>S</kbd>
+                <kbd>S</kbd>
+              </div>
+            </div>
+            <div class="keybind-item">
+              <span>Voice Settings</span>
+              <div class="keybind-combo">
+                <kbd>,</kbd>
+              </div>
+            </div>
+            <div class="keybind-item">
+              <span>Exit / Close</span>
+              <div class="keybind-combo">
+                <kbd>Esc</kbd>
               </div>
             </div>
           </div>
@@ -249,6 +262,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
+import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
 
 export default defineComponent({
@@ -887,6 +901,13 @@ export default defineComponent({
   align-items: center;
   gap: 12px;
   color: #b9bbbe;
+}
+
+.keybind-hint {
+  font-size: 12px;
+  color: #72767d;
+  margin: 0 0 12px 0;
+  font-style: italic;
 }
 
 .keybind-list {

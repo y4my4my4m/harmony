@@ -157,6 +157,12 @@
     <polyline v-if="name === 'maximize'" points="17 17 19 17 19 19 17 19"></polyline>
     <polyline v-if="name === 'maximize'" points="7 17 7 19 5 19 5 17"></polyline>
 
+    <!-- Maximize 2 (arrows pointing outward) -->
+    <polyline v-if="name === 'maximize-2'" points="15 3 21 3 21 9"></polyline>
+    <polyline v-if="name === 'maximize-2'" points="9 21 3 21 3 15"></polyline>
+    <line v-if="name === 'maximize-2'" x1="21" y1="3" x2="14" y2="10"></line>
+    <line v-if="name === 'maximize-2'" x1="3" y1="21" x2="10" y2="14"></line>
+
     <!-- Minimize -->
     <rect v-if="name === 'minimize'" x="3" y="11" width="18" height="2" rx="1" ry="1"></rect>
     
@@ -375,10 +381,11 @@
     <path v-if="name === 'volume-1'" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
     
     <!-- Refresh CW -->
-    <polyline v-if="name === 'refresh-cw'" points="23 4 23 10 17 10"></polyline>
-    <path v-if="name === 'refresh-cw'" d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-    <polyline v-if="name === 'refresh-cw'" points="1 20 1 14 7 14"></polyline>
-    
+    <polyline v-if="name === 'refresh-cw'" points="23 4 23 10 17 10" />
+    <polyline v-if="name === 'refresh-cw'" points="1 20 1 14 7 14" />
+    <path v-if="name === 'refresh-cw'" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+    <path v-if="name === 'refresh-cw'" d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
+
     <!-- Loader -->
     <line v-if="name === 'loader'" x1="12" y1="2" x2="12" y2="6"></line>
     <line v-if="name === 'loader'" x1="12" y1="18" x2="12" y2="22"></line>

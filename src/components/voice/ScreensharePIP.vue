@@ -22,7 +22,6 @@
       <div v-if="!isMinimized" class="pip-video-container">
         <video
           ref="fixedVideoElement"
-          :srcObject="pipStream"
           autoplay
           playsinline
           class="pip-video"
@@ -51,7 +50,6 @@
       <div v-if="!isMinimized" class="pip-video-container">
         <video
           ref="draggableVideoElement"
-          :srcObject="pipStream"
           autoplay
           playsinline
           class="pip-video"
@@ -212,6 +210,38 @@ watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async (
     }
   }
 }, { immediate: true });
+
+// Attach video to fixed PIP element using LiveKit's proper method
+// Watch streamUpdateCounter to react to stream changes
+watch(
+  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, fixedVideoElement, () => voiceStore.streamUpdateCounter],
+  ([active, mode, userId, videoEl, _counter]) => {
+    if (active && mode === 'fixed' && userId && videoEl) {
+      const attached = voiceStore.attachVideoToElement(userId, videoEl);
+      if (!attached && pipStream.value) {
+        // Fallback to srcObject if attach fails
+        videoEl.srcObject = pipStream.value;
+      }
+    }
+  },
+  { immediate: true }
+);
+
+// Attach video to draggable PIP element using LiveKit's proper method
+// Watch streamUpdateCounter to react to stream changes
+watch(
+  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, draggableVideoElement, () => voiceStore.streamUpdateCounter],
+  ([active, mode, userId, videoEl, _counter]) => {
+    if (active && mode === 'draggable' && userId && videoEl) {
+      const attached = voiceStore.attachVideoToElement(userId, videoEl);
+      if (!attached && pipStream.value) {
+        // Fallback to srcObject if attach fails
+        videoEl.srcObject = pipStream.value;
+      }
+    }
+  },
+  { immediate: true }
+);
 
 // Cleanup
 onUnmounted(() => {

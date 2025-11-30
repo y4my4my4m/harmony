@@ -583,6 +583,54 @@
               </label>
             </div>
           </div>
+
+          <div class="config-section">
+            <h3>WebRTC / Voice Settings</h3>
+            <div class="setting-group">
+              <label>WebRTC Mode</label>
+              <select v-model="config.webrtc.mode" class="cyber-input">
+                <option value="hybrid">Hybrid (SFU with P2P fallback)</option>
+                <option value="sfu">SFU Only (LiveKit)</option>
+                <option value="p2p">P2P Only (Peer-to-Peer)</option>
+              </select>
+              <span class="setting-hint">
+                Hybrid uses LiveKit server when available, falls back to P2P
+              </span>
+            </div>
+            <div class="setting-group">
+              <label>LiveKit Server URL</label>
+              <input 
+                v-model="config.webrtc.livekitUrl" 
+                type="text" 
+                class="cyber-input"
+                placeholder="wss://livekit.yourdomain.com"
+              />
+              <span class="setting-hint">
+                WebSocket URL for the LiveKit server (configured in backend .env)
+              </span>
+            </div>
+            <div class="setting-group">
+              <label>Max Stage Listeners</label>
+              <input 
+                v-model.number="config.webrtc.maxStageListeners" 
+                type="number" 
+                class="cyber-input"
+              />
+              <span class="setting-hint">
+                Maximum audience size for stage events (speaker mode)
+              </span>
+            </div>
+            <div class="setting-row">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.webrtc.allowFederatedVoice" />
+                <span class="toggle-slider"></span>
+                Allow Federated Voice Calls
+                <span class="setting-hint-inline">
+                  Enable voice/video calls with users from other instances
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -800,6 +848,12 @@ const config = ref({
     retryAttempts: 3,
     enableOutbound: true,
     enableInbound: true
+  },
+  webrtc: {
+    mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
+    livekitUrl: '',
+    allowFederatedVoice: true,
+    maxStageListeners: 100000
   }
 })
 

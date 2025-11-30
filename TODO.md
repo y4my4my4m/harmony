@@ -64,3 +64,39 @@ After these changes, verify:
 - [ ] Presence shows correct online/offline status
 - [ ] Messages load after being idle
 
+---
+
+## Voice Chat Improvements
+
+### Screenshare Rework (Discord-Style)
+
+**Current state:** Screenshare replaces camera track, automatically shown to all users.
+
+**Discord approach:**
+1. **Separate Streams**: Camera and screenshare are independent tracks - user can have both active
+2. **Viewer Opt-in**: Others click to "join" and watch a screenshare (not automatic)
+3. **Viewer List**: Shows who's currently watching your stream
+4. **Quality Selection**: Before sharing, choose settings:
+   - Resolution: 720p, 1080p, 4K (Source)
+   - Frame rate: 15fps, 30fps, 60fps
+   - Preset modes: Gaming (high FPS), Screenshare (high quality/low FPS), Custom
+5. **Source Selection**: Application window picker vs entire screen
+6. **Stream Controls**: Pause/resume, quality adjustment mid-stream
+
+**Implementation tasks:**
+- [ ] Modify LiveKit service to handle multiple video tracks per user (camera + screen)
+- [ ] Create screenshare picker UI with quality options
+- [ ] Add "Go Live" button and stream announcement
+- [ ] Implement viewer subscription system (opt-in to watch)
+- [ ] Add viewer list panel showing who's watching
+- [ ] Create separate PIP/focus handling for screenshares vs cameras
+- [ ] Add stream quality indicator for viewers
+
+**Files to modify:**
+- `src/services/livekitWebRTC.ts` - Multi-track handling
+- `src/stores/unifiedVoiceChannel.ts` - Screenshare viewer state
+- `src/components/voice/UnifiedVoiceOverlay.vue` - Screenshare picker UI
+- `src/components/voice/UnifiedVoiceUserCard.vue` - Separate video/screen display
+- New: `src/components/voice/ScreensharePicker.vue` - Quality/source selection
+- New: `src/components/voice/ViewerList.vue` - Who's watching panel
+

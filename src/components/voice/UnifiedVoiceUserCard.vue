@@ -3,8 +3,8 @@
     class="harmony-voice-card"
     :class="{
       speaking: isSpeaking,
-      muted: props.userState.isMuted,
-      deafened: props.userState.isDeafened,
+      muted: effectiveMuted,
+      deafened: effectiveDeafened,
       'video-enabled': hasVideo,
       'screen-sharing': props.userState.isScreenSharing,
       self: isSelf,
@@ -12,12 +12,12 @@
       'fullscreen-active': isFullscreenActive,
     }"
     @click="handleCardClick"
+    @contextmenu.prevent="handleContextMenu"
   >
     <!-- Video Container -->
     <div v-if="hasVideo || props.userState.isScreenSharing" class="video-container">
       <video
         ref="videoElement"
-        :srcObject="userStream"
         autoplay
         playsinline
         :muted="isSelf"
@@ -41,10 +41,15 @@
           </button>
         </div>
 
-        <!-- Connection quality indicator -->
-        <div class="connection-indicator" :class="connectionQuality">
-          <div class="connection-dots">
-            <span v-for="i in 3" :key="i"></span>
+        <!-- Connection quality indicator - only show if not excellent -->
+        <div 
+          v-if="connectionQuality !== 'excellent'" 
+          class="connection-indicator" 
+          :class="connectionQuality"
+          :title="`Connection: ${connectionQuality}`"
+        >
+          <div class="connection-bars">
+            <span v-for="i in 4" :key="i" :class="{ active: i <= connectionBars }"></span>
           </div>
         </div>
 
@@ -99,11 +104,14 @@
 
         <!-- Status indicators -->
         <div class="status-indicators">
-          <div v-if="props.userState.isMuted" class="status-badge muted" title="Muted">
+          <div v-if="effectiveMuted" class="status-badge muted" title="Muted">
             <Icon name="mic-off" />
           </div>
-          <div v-if="props.userState.isDeafened" class="status-badge deafened" title="Deafened">
+          <div v-if="effectiveDeafened" class="status-badge deafened" title="Deafened">
             <Icon name="headphones-off" />
+          </div>
+          <div v-if="isLocallyMuted && !isSelf" class="status-badge locally-muted" title="Muted by you">
+            <Icon name="volume-x" />
           </div>
           <div v-if="connectionQuality === 'poor'" class="status-badge connection-poor" title="Poor connection">
             <Icon name="wifi-low" />
@@ -134,17 +142,27 @@
         }"
       ></div>
     </div>
+
+    <!-- Context Menu -->
+    <VoiceUserContextMenu
+      :user-state="props.userState"
+      :x="contextMenuPosition.x"
+      :y="contextMenuPosition.y"
+      :visible="showContextMenu"
+      @close="showContextMenu = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onUpdated, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 
 // =============================================================================
 // PROPS & EMITS
@@ -171,6 +189,10 @@ const { getUserProfile } = useUserData();
 // =============================================================================
 
 const videoElement = ref<HTMLVideoElement | null>(null);
+
+// Context menu state
+const showContextMenu = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
 
 // =============================================================================
 // COMPUTED PROPERTIES
@@ -215,6 +237,23 @@ const isSelf = computed(() => {
   return props.userState.userId === voiceStore.localState.userId;
 });
 
+// Effective mute/deafen state - isolates local user state from remote users
+// For self: always use voiceStore.localState for immediate reactivity
+// For others: use their broadcasted state from props.userState
+const effectiveMuted = computed(() => {
+  if (isSelf.value) {
+    return voiceStore.localState.isMuted;
+  }
+  return props.userState.isMuted;
+});
+
+const effectiveDeafened = computed(() => {
+  if (isSelf.value) {
+    return voiceStore.localState.isDeafened;
+  }
+  return props.userState.isDeafened;
+});
+
 // Get connection state
 const connectionState = computed(() => {
   // For self, always connected when in channel
@@ -235,7 +274,8 @@ const displayName = computed(() => {
 const isSpeaking = computed(() => {
   if (isSelf.value) {
     // For self user, use audioLevel-based detection to feel more responsive
-    return props.userState.audioLevel > 20 && !props.userState.isMuted;
+    // Use effectiveMuted to ensure proper state isolation
+    return props.userState.audioLevel > 20 && !effectiveMuted.value;
   }
   // For peer users, rely on the state provided by the WebRTC service
   return props.userState.isSpeaking;
@@ -245,29 +285,45 @@ const voiceIntensity = computed(() => {
   return Math.min(props.userState.audioLevel / 100, 1);
 });
 
-const hasVideo = computed(() => {
-  const hasVideoTracks = userStream.value?.getVideoTracks().length ?? 0;
-  const stateIndicatesVideo = props.userState.isVideoEnabled || props.userState.isScreenSharing;
+// Get user state directly from store for reactivity
+// This bypasses any issues with props not updating correctly
+const storeUserState = computed(() => {
+  const userId = props.userState.userId;
   
-  // Show video if tracks exist OR state says video is on
-  // This handles both turn-on (state first) and turn-off (tracks removed first)
-  return hasVideoTracks > 0 || stateIndicatesVideo;
+  // For local user, use localState
+  if (userId === voiceStore.localState.userId) {
+    return voiceStore.localState;
+  }
+  
+  // For remote users, find in allUsers
+  const user = voiceStore.allUsers.find(u => u.userId === userId);
+  return user || props.userState;
+});
+
+const hasVideo = computed(() => {
+  // Read directly from store state for better reactivity
+  // Also trigger on streamUpdateCounter changes
+  const _counter = voiceStore.streamUpdateCounter;
+  const state = storeUserState.value;
+  const result = state.isVideoEnabled || state.isScreenSharing;
+  debug.log(`🎥 hasVideo for ${state.userId}: ${result} (isVideoEnabled: ${state.isVideoEnabled}, isScreenSharing: ${state.isScreenSharing}, counter: ${_counter})`);
+  return result;
 });
 
 const connectionQuality = computed(() => {
   const state = connectionState.value;
-  // Note: This is a simplistic check. Real-world quality might come from WebRTC stats.
-  if (props.userState.audioLevel > 30) return 'excellent';
-  if (props.userState.audioLevel > 15) return 'good';
+  // Connection quality based on connection state
+  // TODO: In the future, integrate actual WebRTC stats (RTT, packet loss, etc.)
   if (state === 'disconnected') return 'poor';
-  return 'fair';
+  // Default to excellent for connected users - only show indicator if there's an issue
+  return 'excellent';
 });
 
 const userStatus = computed(() => {
   if (props.userState.isScreenSharing) return 'Screen sharing';
   if (props.userState.isVideoEnabled && !props.userState.isScreenSharing) return 'Camera on';
-  if (props.userState.isDeafened) return 'Deafened';
-  if (props.userState.isMuted) return 'Muted';
+  if (effectiveDeafened.value) return 'Deafened';
+  if (effectiveMuted.value) return 'Muted';
   if (isSpeaking.value) return 'Speaking';
   return 'In voice';
 });
@@ -280,6 +336,20 @@ const isFullscreenActive = computed(() => {
 // Check if PIP is active for this user
 const isPIPActive = computed(() => {
   return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
+});
+
+// Check if this user is locally muted (volume set to 0 by local user)
+const isLocallyMuted = computed(() => {
+  return voiceStore.getUserVolume(props.userState.userId) === 0;
+});
+
+// Connection bars count for indicator
+const connectionBars = computed(() => {
+  switch (connectionQuality.value) {
+    case 'excellent': return 4;
+    case 'poor': return 1;
+    default: return 4; // Default to excellent
+  }
 });
 
 // Voice ring animation
@@ -334,31 +404,115 @@ const togglePIP = () => {
   }
 };
 
+/**
+ * Handle right-click context menu
+ */
+const handleContextMenu = (event: MouseEvent) => {
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  showContextMenu.value = true;
+};
+
 // =============================================================================
 // WATCHERS
 // =============================================================================
 
-// Update video element when stream OR state changes
-watch(
-  [() => userStream.value, () => props.userState.isVideoEnabled, () => props.userState.isScreenSharing],
-  ([newStream, isVideoEnabled, isScreenSharing]) => {
-    if (videoElement.value) {
-      const hasVideoTracks = newStream?.getVideoTracks().length ?? 0;
-      
-      if (hasVideoTracks > 0) {
-        // Has video tracks - update srcObject
-        videoElement.value.srcObject = newStream;
-        debug.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
-      } else if (!isVideoEnabled && !isScreenSharing) {
-        // No video tracks AND state says off - clear to remove frozen frame
-        videoElement.value.srcObject = null;
-        debug.log(`📹 Clearing video stream for user ${props.userState.userId} (camera/screen off)`);
+// Function to attach video to element
+const attachVideo = () => {
+  const userId = props.userState.userId;
+  const state = storeUserState.value;
+  
+  if (!videoElement.value) {
+    debug.log(`📹 attachVideo: No video element for ${userId}`);
+    return;
+  }
+  
+  const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
+  debug.log(`📹 attachVideo called for ${userId}:`, {
+    shouldShowVideo,
+    isVideoEnabled: state.isVideoEnabled,
+    isScreenSharing: state.isScreenSharing,
+    hasStream: !!userStream.value,
+    videoTracks: userStream.value?.getVideoTracks?.()?.length ?? 0
+  });
+  
+  if (shouldShowVideo) {
+    // Use LiveKit's proper attach method - this is CRITICAL for adaptive streaming
+    // Using srcObject directly causes LiveKit to disable all simulcast layers (frozen video)
+    const attached = voiceStore.attachVideoToElement(userId, videoElement.value);
+    if (attached) {
+      debug.log(`📹 ✅ Attached video for user ${userId} using LiveKit attach()`);
+    } else {
+      // Fallback to srcObject for P2P mode or if attach fails
+      const stream = userStream.value;
+      if (stream && stream.getVideoTracks().length > 0) {
+        videoElement.value.srcObject = stream;
+        debug.log(`📹 ⚠️ Fallback: Setting srcObject for user ${userId}`);
+      } else {
+        debug.log(`📹 ⏳ No video track yet for ${userId}, will retry on next update`);
       }
-      // else: No tracks yet but state says on - keep old srcObject temporarily (negotiation in progress)
     }
+  } else {
+    // Detach video properly when turning off
+    voiceStore.detachVideoFromElement(userId, videoElement.value);
+    // Clear the video element completely
+    videoElement.value.srcObject = null;
+    videoElement.value.src = '';
+    videoElement.value.load(); // Force reload to clear any cached frames
+    debug.log(`📹 Detached and cleared video for user ${userId} (camera/screen off)`);
+  }
+};
+
+// Update video element when stream OR state changes
+// Uses LiveKit's proper track.attach() method for adaptive streaming to work correctly
+// Also watches streamUpdateCounter to re-trigger when remote streams update (Map reactivity workaround)
+watch(
+  [
+    () => userStream.value, 
+    () => storeUserState.value.isVideoEnabled, 
+    () => storeUserState.value.isScreenSharing,
+    () => voiceStore.streamUpdateCounter // Force re-run when any stream updates
+  ],
+  () => {
+    // Use nextTick to ensure DOM is updated before attaching
+    nextTick(() => attachVideo());
   },
   { immediate: true }
 );
+
+// Debug watcher to track when hasVideo changes
+watch(
+  () => hasVideo.value,
+  (newVal, oldVal) => {
+    debug.log(`🔄 hasVideo changed for ${props.userState.userId}: ${oldVal} -> ${newVal}`);
+  }
+);
+
+// Debug watcher for props changes
+watch(
+  () => props.userState,
+  (newState) => {
+    debug.log(`📋 Props userState changed for ${newState.userId}: isVideoEnabled=${newState.isVideoEnabled}, isScreenSharing=${newState.isScreenSharing}`);
+  },
+  { deep: true }
+);
+
+// Also watch for when video element becomes available (v-if renders it)
+watch(videoElement, (newEl) => {
+  if (newEl) {
+    debug.log(`📹 Video element now available for ${props.userState.userId}`);
+    attachVideo();
+  }
+});
+
+// Retry attachment on component updates (catches edge cases)
+onUpdated(() => {
+  if (videoElement.value && (props.userState.isVideoEnabled || props.userState.isScreenSharing)) {
+    // Only retry if video element has no source
+    if (!videoElement.value.srcObject) {
+      attachVideo();
+    }
+  }
+});
 </script>
 
 
@@ -374,6 +528,12 @@ watch(
   min-height: 200px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Clickable cursor for video cards */
@@ -412,7 +572,9 @@ watch(
 .video-container {
   position: relative;
   width: 100%;
-  height: 280px;
+  aspect-ratio: 16 / 9;
+  min-height: 180px;
+  max-height: 400px;
   border-radius: 12px;
   overflow: hidden;
   background: #000;
@@ -421,11 +583,17 @@ watch(
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
+/* Webcam video - crop to fill (cover) */
 .video-stream {
   width: 100%;
   height: 100%;
   object-fit: cover;
   background: #000;
+}
+
+/* Screenshare video - preserve full content (contain) */
+.harmony-voice-card.screen-sharing .video-stream {
+  object-fit: contain;
 }
 
 .video-overlay {
@@ -481,44 +649,50 @@ watch(
   color: #fff;
 }
 
+/* Connection quality indicator - bars style */
 .connection-indicator {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 6px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
 }
 
-.connection-dots {
+.connection-bars {
   display: flex;
-  gap: 3px;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
 }
 
-.connection-dots span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+.connection-bars span {
+  width: 3px;
   background: #40444b;
+  border-radius: 1px;
   transition: all 0.3s ease;
 }
 
-.connection-indicator.excellent .connection-dots span {
+.connection-bars span:nth-child(1) { height: 4px; }
+.connection-bars span:nth-child(2) { height: 6px; }
+.connection-bars span:nth-child(3) { height: 9px; }
+.connection-bars span:nth-child(4) { height: 12px; }
+
+.connection-bars span.active {
+  background: #b9bbbe;
+}
+
+.connection-indicator.good .connection-bars span.active {
   background: #00d4aa;
 }
 
-.connection-indicator.good .connection-dots span:nth-child(-n + 2) {
+.connection-indicator.fair .connection-bars span.active {
   background: #faa61a;
 }
 
-.connection-indicator.fair .connection-dots span:first-child {
-  background: #faa61a;
-}
-
-.connection-indicator.poor .connection-dots span:first-child {
+.connection-indicator.poor .connection-bars span.active {
   background: #ed4245;
-}
-
-.connection-indicator.connecting .connection-dots span {
-  background: #5865f2;
-  animation: pulse 1s infinite;
 }
 
 .video-controls {
@@ -658,6 +832,10 @@ watch(
   background: #faa61a;
 }
 
+.status-badge.locally-muted {
+  background: #5865f2;
+}
+
 .status-badge.connection-poor {
   background: #ed4245;
 }
@@ -752,7 +930,8 @@ watch(
   }
 
   .video-container {
-    height: 200px;
+    min-height: 140px;
+    max-height: 280px;
   }
 
   .avatar-container {
@@ -771,6 +950,13 @@ watch(
 
   .harmony-voice-card-user-status {
     font-size: 11px;
+  }
+}
+
+/* Larger screens - allow taller video containers */
+@media (min-width: 1200px) {
+  .video-container {
+    max-height: 500px;
   }
 }
 </style>

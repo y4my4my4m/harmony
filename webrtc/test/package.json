@@ -1,0 +1,23 @@
+{
+  "name": "harmony-webrtc-tests",
+  "version": "1.0.0",
+  "description": "Load testing scripts for Harmony LiveKit server",
+  "type": "module",
+  "scripts": {
+    "test": "tsx load-test.ts",
+    "test:small": "NUM_PUBLISHERS=2 NUM_SUBSCRIBERS=5 TEST_DURATION_MS=30000 tsx load-test.ts",
+    "test:medium": "NUM_PUBLISHERS=10 NUM_SUBSCRIBERS=50 TEST_DURATION_MS=60000 tsx load-test.ts",
+    "test:large": "NUM_PUBLISHERS=25 NUM_SUBSCRIBERS=200 TEST_DURATION_MS=120000 tsx load-test.ts",
+    "test:stage": "NUM_PUBLISHERS=3 NUM_SUBSCRIBERS=1000 TEST_DURATION_MS=180000 tsx load-test.ts"
+  },
+  "dependencies": {
+    "livekit-client": "^2.6.2",
+    "livekit-server-sdk": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
+

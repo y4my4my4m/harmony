@@ -11,6 +11,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
 import pushRouter from './routes/push.js';
+import livekitRouter from './routes/livekit.js';
 
 // Import ActivityPub routes (FEDERATION ONLY!)
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -75,6 +76,9 @@ app.use('/link-preview', linkPreviewRouter);
 
 // Push notification routes (with rate limiting)
 app.use('/push', apiLimiter, pushRouter);
+
+// LiveKit WebRTC routes
+app.use('/api/livekit', livekitRouter);
 
 // 404 handler
 app.use(notFound);
