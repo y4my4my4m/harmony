@@ -124,7 +124,7 @@ export async function uploadGroupIcon(
       .from(BUCKET_NAME)
       .upload(filePath, file, {
         cacheControl: '3600',
-        upsert: false
+        upsert: true // Allow overwriting existing group icons
       })
 
     if (uploadError) {

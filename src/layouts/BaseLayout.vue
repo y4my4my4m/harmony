@@ -67,6 +67,7 @@
         :right-sidebar-open="rightSidebarOpen"
         :is-mobile="isMobile"
         :voice-panel-open="voicePanelOpen"
+        :is-d-m="isDMRoute"
         :is-dragging="isDragging"
         :drag-direction="dragDirection"
         :left-sidebar-drag-offset="leftSidebarDragOffset"
@@ -95,6 +96,7 @@
       @accept="handleGlobalCallAccept"
       @decline="handleGlobalCallDecline"
     />
+    
   </div>
 </template>
 
@@ -170,6 +172,11 @@ const hasServersLoaded = ref(false)
 
 // Computed
 const isAppReady = computed(() => isAppInitialized.value && hasServersLoaded.value)
+
+// Detect if we're on a DM route
+const isDMRoute = computed(() => {
+  return route.path.startsWith('/dm')
+})
 const servers = computed(() => serverChannelStore.servers)
 const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerWidth : 768)
 
@@ -259,6 +266,9 @@ const initializeApp = async () => {
       hasServersLoaded.value = true
       return
     }
+    
+    // Wait for router to be ready so we get the correct route
+    await router.isReady()
     
     // Determine what to load based on current route
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
@@ -669,6 +679,45 @@ watch(() => route.name, async (newRouteName, oldRouteName) => {
         debug.error('Failed to refresh global presence:', error)
       }
     }, PRESENCE_REFRESH_DEBOUNCE_MS)
+  }
+})
+
+// Track previous route type to detect cross-context navigation
+let previousRouteType: string | null = null
+
+// Route-aware store initialization when navigating between different contexts
+// e.g., from /chat to /dm, from /social to /dm, etc.
+watch(() => route.path, async (newPath) => {
+  if (!isAppInitialized.value || !authStore.session?.user?.id) return
+  
+  const userId = authStore.session.user.id
+  const newStrategy = routeAwareInitialization.getLoadingStrategy(route)
+  
+  // Skip if same route type (already initialized)
+  if (previousRouteType === newStrategy.routeType) return
+  
+  debug.log('🔄 Route context changed:', { from: previousRouteType, to: newStrategy.routeType, path: newPath })
+  previousRouteType = newStrategy.routeType
+  
+  // Initialize stores for the new route context
+  if (newStrategy.routeType === 'dm' || newStrategy.routeType === 'dm-list') {
+    try {
+      const { useDMStore } = await import('@/stores/useDM')
+      const dmStore = useDMStore()
+      
+      // Check if DM store needs initialization
+      if (dmStore.conversations.length === 0) {
+        debug.log('📬 Initializing DM store for navigation to:', newPath)
+        
+        if (newStrategy.routeType === 'dm' && newStrategy.currentConversationId) {
+          await dmStore.initializeDMEnvironmentForDirectAccess(userId, newStrategy.currentConversationId)
+        } else {
+          await dmStore.initializeDMEnvironment(userId, false, true, 'immediate')
+        }
+      }
+    } catch (error) {
+      debug.error('Failed to initialize DM store on navigation:', error)
+    }
   }
 })
 

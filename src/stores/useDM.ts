@@ -10,9 +10,7 @@ import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessin
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
-// NOTE: realtimeConnectionManager is initialized globally in BaseLayout.vue
-// The stores currently use raw supabase.channel() calls directly
-// TODO: Migrate to use realtimeConnectionManager.subscribe() for better reconnection handling
+import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 
 // Types for DM functionality
 export interface DMUser {
@@ -317,6 +315,8 @@ export const useDMStore = defineStore('dm', () => {
    * - 'immediate': Load ALL user profiles right away (best UX, more database load)
    */
   const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
+    debug.log('📬 initializeDMEnvironment called:', { userId, forceRefresh, metadataOnly, loadStrategy, existingConversations: conversations.value.length })
+    
     // Prevent duplicate initialization
     if (isInitializing.value && !forceRefresh) {
       debug.log('🔄 DM initialization already in progress, skipping duplicate')
@@ -330,12 +330,18 @@ export const useDMStore = defineStore('dm', () => {
       cleanupRealtimeSubscriptions()
       
       // Only fetch conversations if we don't have them or force refresh is requested
-      if (forceRefresh || conversations.value.length === 0) {
+      const shouldFetch = forceRefresh || conversations.value.length === 0
+      debug.log('📬 Should fetch conversations:', shouldFetch, '(forceRefresh:', forceRefresh, ', existing:', conversations.value.length, ')')
+      
+      if (shouldFetch) {
         if (metadataOnly) {
+          debug.log('📬 Fetching conversation metadata...')
           await fetchUserConversationsMetadata(userId, loadStrategy)
         } else {
+          debug.log('📬 Fetching full conversations...')
           await fetchUserConversations(userId)
         }
+        debug.log('📬 After fetch, conversations count:', conversations.value.length)
       }
       
       // Set up realtime subscriptions (always needed for new messages/updates)
@@ -361,6 +367,7 @@ export const useDMStore = defineStore('dm', () => {
     const fetchPromise = (async () => {
     try {
       loadingConversations.value = true
+      debug.log('📬 fetchUserConversationsMetadata: Starting fetch for user:', userId)
 
       // Step 1: Get conversation metadata in a single query
       const { data: participations, error: participationError } = await supabase
@@ -380,12 +387,18 @@ export const useDMStore = defineStore('dm', () => {
         .is('left_at', null)
         .limit(50) // Reasonable limit for metadata
 
+      debug.log('📬 fetchUserConversationsMetadata: Query result:', { 
+        participations: participations?.length || 0, 
+        error: participationError?.message || 'none' 
+      })
+
       if (participationError) {
         debug.error('❌ Error fetching conversation metadata:', participationError)
         return
       }
 
       if (!participations || participations.length === 0) {
+        debug.log('📬 fetchUserConversationsMetadata: No conversations found for user')
         conversations.value = []
         return
       }
@@ -487,36 +500,51 @@ export const useDMStore = defineStore('dm', () => {
         return dmConversation
       })
 
-      conversations.value = processedConversations
+      // MERGE: Preserve existing conversations that have full user data loaded
+      // Don't overwrite conversations that were already loaded with full details
+      const existingConversationsMap = new Map(
+        conversations.value.map(c => [c.id, c])
+      )
+      
+      const mergedConversations = processedConversations.map(newConv => {
+        const existing = existingConversationsMap.get(newConv.id)
+        // If we have an existing conversation with a non-placeholder user, keep it
+        if (existing && existing.other_user && !existing.other_user._isPlaceholder) {
+          debug.log('📋 Preserving full user data for conversation:', newConv.id)
+          return existing
+        }
+        return newConv
+      })
+      
+      conversations.value = mergedConversations
       
       // OPTIMIZATION: Different loading strategies for user profiles
       if (loadStrategy === 'immediate') {
-        // Load ALL user profiles immediately
-        const allDirectConversations = processedConversations
+        // Load ALL user profiles immediately (await to ensure they're loaded)
+        const allDirectConversations = mergedConversations
           .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
           
         if (allDirectConversations.length > 0) {
-          // Load all user profiles in background
-          setTimeout(() => {
-            loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
-          }, 100)
+          debug.log('🔄 Immediate: Loading all', allDirectConversations.length, 'user profiles')
+          // Await to ensure profiles are loaded before we finish
+          await loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
         }
       } else if (loadStrategy === 'partial') {
         // Load user profiles for most recent conversations immediately for better UX
         // Keep the rest as lazy-loaded for performance
-         const immediateLoadConversations = processedConversations
+         const immediateLoadConversations = mergedConversations
            .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
            .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
            .slice(0, 20) // Load first 20 most recent direct conversations immediately
            
         if (immediateLoadConversations.length > 0) {
-          // Load user profiles for recent conversations in background
-          setTimeout(() => {
-            loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
-          }, 100)
+          debug.log('🔄 Partial: Loading first', immediateLoadConversations.length, 'user profiles')
+          // Await to ensure profiles are loaded before we finish
+          await loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
         }
       } else if (loadStrategy === 'lazy') {
         // Pure lazy loading - everything loads on hover only
+        debug.log('🔄 Lazy: Profiles will load on hover')
       }
       
     } catch (error) {
@@ -663,8 +691,12 @@ export const useDMStore = defineStore('dm', () => {
   // OPTIMIZED: When loading directly from URL, only fetch the specific conversation
   // Other conversations load in the background for sidebar
   const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
-    // Set initializing state so UI shows loading
-    isInitializing.value = true
+    // Only set initializing if we have NO conversations yet
+    // This prevents the sidebar from flashing loading state when switching conversations
+    const hadConversations = conversations.value.length > 0
+    if (!hadConversations) {
+      isInitializing.value = true
+    }
     
     try {
       // If we have a specific conversation ID, prioritize loading just that one
@@ -689,10 +721,11 @@ export const useDMStore = defineStore('dm', () => {
         await setupRealtimeSubscriptions(userId)
         
         // DEFER: Load other conversations in background for sidebar (non-blocking)
+        // Use 'immediate' strategy to load profiles right away (better UX)
         if (conversations.value.length <= 1) {
           setTimeout(async () => {
             debug.log('🔄 Background: Loading other conversations for sidebar')
-            await fetchUserConversationsMetadata(userId, 'lazy')
+            await fetchUserConversationsMetadata(userId, 'immediate')
           }, 100)
         }
         
@@ -706,7 +739,10 @@ export const useDMStore = defineStore('dm', () => {
       debug.error('Failed to initialize DM environment for direct access:', error)
       return null
     } finally {
-      isInitializing.value = false
+      // Only clear initializing if we set it (i.e., we didn't have conversations before)
+      if (!hadConversations) {
+        isInitializing.value = false
+      }
     }
   }
 
@@ -1510,112 +1546,115 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  /**
+   * Setup global DM realtime subscriptions using RealtimeConnectionManager
+   * Includes conversations updates and reactions
+   */
   const setupRealtimeSubscriptions = async (userId: string) => {
     try {
       debug.log('🔄 Setting up DM realtime subscriptions for user:', userId)
       
       // Listen to user profile updates from the centralized cache
-      // This ensures DM conversations update when users change their avatars/names
       const { userDataService } = await import('@/services/userDataService')
       userDataService.addEventListener('user-updated', (event: any) => {
         const { userId: updatedUserId } = event.detail
         
-        // Update any conversations that have this user
         const updatedConversations = conversations.value.filter(conv => 
           conv.other_user?.id === updatedUserId && !conv.other_user._isPlaceholder
         )
         
         if (updatedConversations.length > 0) {
-          // Reload the user profile data for these conversations
           for (const conv of updatedConversations) {
             loadConversationUserProfile(conv.id)
           }
         }
       })
       
-      // Subscribe to new conversations - use a unique channel name
-      const conversationsChannel = supabase
-        .channel(`dm-conversations-${userId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversations',
-          filter: `or(user1.eq.${userId},user2.eq.${userId})`
-        }, (payload) => {
-          debug.log('🔔 New DM conversation created:', payload)
-          fetchUserConversations(userId)
-        })
-        .subscribe((status) => {
-          debug.log('📡 DM conversations subscription status:', status)
-        })
-
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore()
 
-      // Set up GLOBAL DM reactions subscription (similar to chat)
-      // This ensures reactions work even when switching between conversations
-      const reactionsChannel = supabase
-        .channel(`dm-reactions-${userId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'reactions'
-        }, async (payload) => {
-          debug.log('🎯 Global DM reaction INSERT received:', payload)
-          reactionsStore.handleRealtimeUpdate(payload)
-        })
-        .on('postgres_changes', {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'reactions'
-        }, async (payload) => {
-          debug.log('🎯 Global DM reaction DELETE received:', payload)
-          reactionsStore.handleRealtimeUpdate(payload)
-        })
-        .subscribe((status) => {
-          debug.log('📡 Global DM reactions subscription status:', status)
-        })
+      // Subscribe to conversation_participants for this user to detect new conversations
+      // This is more efficient than subscribing to entire conversations table
+      const conversationsChannelName = `dm-conversations-${userId}`
+      const conversationsUnsubscribe = realtimeConnectionManager.subscribeToTable({
+        channelName: conversationsChannelName,
+        table: 'conversation_participants',
+        filter: `user_id=eq.${userId}`,
+        onInsert: (payload) => {
+          debug.log('🔔 User added to new DM conversation:', payload.new)
+          fetchUserConversations(userId)
+        },
+        onStatusChange: (status, name) => {
+          debug.log(`📡 ${name} status: ${status}`)
+        }
+      })
 
-      // Store the subscriptions
-      dmSubscriptions.value.set(`dm-conversations-${userId}`, conversationsChannel)
-      dmSubscriptions.value.set(`dm-reactions-${userId}`, reactionsChannel)
+      // Note: For DM reactions, we subscribe per-conversation in setupConversationSubscription
+      // instead of subscribing to ALL reactions globally. This is more scalable.
+      // The per-conversation subscription handles reactions for the active conversation.
+      
+      // Only subscribe to reactions if we have active conversations
+      // We'll handle this in the conversation-specific subscription instead
+      const reactionsChannelName = `dm-reactions-${userId}`
+      // Skip global reactions subscription - we handle it per-conversation
+      const reactionsUnsubscribe = () => {
+        debug.log('📡 DM reactions handled per-conversation, no global subscription needed')
+      }
+
+      // Store the unsubscribe functions
+      dmSubscriptions.value.set(conversationsChannelName, conversationsUnsubscribe)
+      dmSubscriptions.value.set(reactionsChannelName, reactionsUnsubscribe)
 
     } catch (error) {
       debug.error('❌ Error setting up DM realtime subscriptions:', error)
     }
   }
 
-  // Set up subscription for a specific conversation (following useChat pattern)
+  /**
+   * Setup subscription for a specific DM conversation using RealtimeConnectionManager
+   * Handles INSERT, UPDATE, DELETE events with automatic reconnection
+   */
   const setupConversationSubscription = (conversationId: string) => {
-    // Clean up existing subscription for this conversation
-    cleanupConversationSubscription(conversationId)
+    const channelName = `dm-conversation-${conversationId}`
+    
+    // Check if already subscribed to this exact conversation
+    if (realtimeConnectionManager.hasSubscription(channelName)) {
+      debug.log('📡 Already subscribed to conversation:', channelName)
+      return
+    }
+    
+    // Clean up existing subscription for different conversation if needed
+    if (currentConversationId.value && currentConversationId.value !== conversationId) {
+      cleanupConversationSubscription(currentConversationId.value)
+    }
 
     debug.log('🔄 Setting up conversation subscription for:', conversationId)
-
-    const channelName = `dm-conversation-${conversationId}`
-    const conversationChannel = supabase
-      .channel(channelName)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, async (payload) => {
-        debug.log('🔔 New DM message received in DM store:', payload)
+    
+    // Use RealtimeConnectionManager for automatic reconnection
+    const unsubscribe = realtimeConnectionManager.subscribeToTable({
+      channelName,
+      table: 'messages',
+      filter: `conversation_id=eq.${conversationId}`,
+      
+      // Handle new messages
+      onInsert: async (payload) => {
+        debug.log('🔔 New DM message received:', payload.new)
         
         const message = payload.new as any
         
-        // Check if real message already exists (from sendDMMessage replacement)
-        const existingRealMessage = currentDMMessages.value.findIndex(m => m.id === message.id);
-        if (existingRealMessage !== -1) {
-          debug.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
-          return;
+        // Skip if message already exists (from optimistic update)
+        if (currentDMMessages.value.findIndex(m => m.id === message.id) !== -1) {
+          debug.log('⚠️ Real message already exists, skipping real-time duplicate')
+          return
         }
         
-        // Check if temp message exists (shouldn't happen - sendDMMessage should have replaced it)
-        const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
+        // Check for temp message (race condition fallback)
+        const tempMessageIndex = currentDMMessages.value.findIndex(m => 
+          m.id.startsWith('temp-') && m.user_id === message.user_id
+        )
+        
         if (tempMessageIndex !== -1) {
-          debug.warn('⚠️ Temp message still exists during real-time, replacing now');
+          debug.warn('⚠️ Temp message still exists during real-time, replacing now')
           let resolvedMessage: Message = {
             id: message.id,
             user_id: message.user_id,
@@ -1629,27 +1668,29 @@ export const useDMStore = defineStore('dm', () => {
             metadata: message.metadata || null,
             encrypted: message.encrypted || false,
             encryption_metadata: message.encryption_metadata
-          };
+          }
+          
           try {
-            ensureMessageEmbeds(resolvedMessage);
-            // 🔐 Decrypt if encrypted
+            ensureMessageEmbeds(resolvedMessage)
             if (resolvedMessage.encrypted) {
-              const decrypted = await processMessageDecryption([resolvedMessage]);
-              resolvedMessage = decrypted[0];
+              const decrypted = await processMessageDecryption([resolvedMessage])
+              resolvedMessage = decrypted[0]
             }
           } catch (error) {
-            debug.warn('Failed to process DM message:', error);
+            debug.warn('Failed to process DM message:', error)
           }
-          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage);
-          return;
+          
+          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage)
+          return
         }
         
+        // Create formatted message
         let formattedMessage: Message = {
           id: message.id,
           user_id: message.user_id,
           content: message.content,
           created_at: new Date(message.created_at),
-          channel_id: '', // Empty string for DMs
+          channel_id: '',
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
           reactions: message.reactions || [],
@@ -1659,42 +1700,31 @@ export const useDMStore = defineStore('dm', () => {
           encryption_metadata: message.encryption_metadata
         }
         
-        // 🔐 Decrypt if encrypted
+        // Decrypt if encrypted
         try {
-          debug.log('🔐 DM message encrypted status:', formattedMessage.encrypted)
           if (formattedMessage.encrypted) {
-            debug.log('🔐 Attempting to decrypt DM message...')
-            const decrypted = await processMessageDecryption([formattedMessage]);
-            formattedMessage = decrypted[0];
-            debug.log('🔐 After decryption - encrypted:', formattedMessage.encrypted, 'decrypted:', formattedMessage.decrypted)
+            const decrypted = await processMessageDecryption([formattedMessage])
+            formattedMessage = decrypted[0]
           }
         } catch (error) {
-          debug.warn('Failed to decrypt real-time DM message:', error);
+          debug.warn('Failed to decrypt real-time DM message:', error)
         }
         
-        debug.log('📨 Adding DM message to cache:', { 
-          id: formattedMessage.id, 
-          encrypted: formattedMessage.encrypted, 
-          decrypted: formattedMessage.decrypted 
-        })
         addMessageToCache(formattedMessage)
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, async (payload) => {
-        debug.log('🔄 DM message updated:', payload)
+      },
+      
+      // Handle message updates
+      onUpdate: async (payload) => {
+        debug.log('🔄 DM message updated:', payload.new)
         const message = payload.new as any
         
-        // Fetch properly formatted reactions if the message has any
-        let formattedReactions = []
+        // Fetch reactions if the message has any
+        let formattedReactions: any[] = []
         if (message.reactions && message.reactions.length > 0) {
           try {
             const { data: reactions, error: reactionsError } = await supabase
               .rpc('get_message_reactions', { message_id: message.id })
-        
+            
             if (!reactionsError && reactions) {
               formattedReactions = reactions
             }
@@ -1708,7 +1738,7 @@ export const useDMStore = defineStore('dm', () => {
           user_id: message.user_id,
           content: message.content,
           created_at: new Date(message.created_at),
-          channel_id: '', // Empty string for DMs
+          channel_id: '',
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
           reactions: formattedReactions,
@@ -1718,101 +1748,41 @@ export const useDMStore = defineStore('dm', () => {
           encryption_metadata: message.encryption_metadata
         }
         
-        // 🔐 Decrypt if encrypted
+        // Decrypt if encrypted
         try {
           if (updatedMessage.encrypted) {
-            const decrypted = await processMessageDecryption([updatedMessage]);
-            updatedMessage = decrypted[0];
+            const decrypted = await processMessageDecryption([updatedMessage])
+            updatedMessage = decrypted[0]
           }
         } catch (error) {
-          debug.warn('Failed to decrypt updated DM message:', error);
+          debug.warn('Failed to decrypt updated DM message:', error)
         }
         
         updateMessageInCache(message.id, updatedMessage)
-      })
-      .on('postgres_changes', {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, (payload) => {
-        debug.log('🗑️ DM message deleted:', payload)
-        const messageId = payload.old.id
-        removeMessageFromCache(messageId)
-      })
-      .subscribe((status) => {
-        debug.log(`📡 DM conversation ${conversationId} subscription status:`, status)
-        if (status === 'SUBSCRIBED') {
-          debug.log(`✅ Successfully subscribed to DM conversation: ${conversationId}`)
-          debug.log(`📍 Listening for messages on table: messages, filter: conversation_id=eq.${conversationId}`)
-          // Reset retry count on successful connection
-          conversationRetryCount.value.set(conversationId, 0)
-        } else if (status === 'CHANNEL_ERROR') {
-          debug.error(`❌ Error subscribing to DM conversation: ${conversationId}`)
-          scheduleConversationReconnect(conversationId)
-        } else if (status === 'CLOSED') {
-          debug.log(`🔒 DM conversation subscription closed: ${conversationId}`)
-          // Only reconnect if we still have this conversation in our subscriptions
-          if (dmSubscriptions.value.has(channelName) && currentConversationId.value === conversationId) {
-            scheduleConversationReconnect(conversationId)
-          }
-        } else if (status === 'TIMED_OUT') {
-          debug.warn(`⏰ DM conversation subscription timed out: ${conversationId}`)
-          scheduleConversationReconnect(conversationId)
-        }
-      })
+      },
+      
+      // Handle message deletions
+      onDelete: (payload) => {
+        debug.log('🗑️ DM message deleted:', payload.old)
+        const payloadOld = payload.old as any
+        removeMessageFromCache(payloadOld.id)
+      },
+      
+      // Handle connection status changes
+      onStatusChange: (status, name) => {
+        debug.log(`📡 ${name} status: ${status}`)
+      }
+    })
 
-    // Store the subscription
-    currentSubscription.value = conversationChannel
-    dmSubscriptions.value.set(channelName, conversationChannel)
+    // Store the unsubscribe function
+    currentSubscription.value = unsubscribe
+    dmSubscriptions.value.set(channelName, unsubscribe)
     
     debug.log(`📝 Stored DM subscription for ${channelName}, total subscriptions: ${dmSubscriptions.value.size}`)
   }
   
-  // Retry tracking for conversation subscriptions
-  const conversationRetryCount = ref<Map<string, number>>(new Map())
-  const conversationRetryTimeouts = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  const MAX_RETRY_COUNT = 10
-  const BASE_RETRY_DELAY = 1000 // 1 second
-  const MAX_RETRY_DELAY = 30000 // 30 seconds
-  
-  // Schedule reconnection with exponential backoff
-  const scheduleConversationReconnect = (conversationId: string) => {
-    const retryCount = conversationRetryCount.value.get(conversationId) || 0
-    
-    // Check if max retries exceeded
-    if (retryCount >= MAX_RETRY_COUNT) {
-      debug.error(`❌ DM conversation ${conversationId}: Max retries (${MAX_RETRY_COUNT}) exceeded`)
-      return
-    }
-    
-    // Calculate delay with exponential backoff
-    const delay = Math.min(BASE_RETRY_DELAY * Math.pow(2, retryCount), MAX_RETRY_DELAY)
-    const jitter = delay * 0.2 * Math.random()
-    const finalDelay = Math.floor(delay + jitter)
-    
-    debug.log(`🔄 DM conversation ${conversationId}: Scheduling reconnect in ${finalDelay}ms (attempt ${retryCount + 1}/${MAX_RETRY_COUNT})`)
-    
-    // Clear any existing retry timeout
-    const existingTimeout = conversationRetryTimeouts.value.get(conversationId)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
-    }
-    
-    // Schedule reconnect
-    const timeoutId = setTimeout(() => {
-      conversationRetryCount.value.set(conversationId, retryCount + 1)
-      conversationRetryTimeouts.value.delete(conversationId)
-      
-      // Only reconnect if this is still the current conversation
-      if (currentConversationId.value === conversationId) {
-        debug.log(`🔄 DM conversation ${conversationId}: Attempting reconnect...`)
-        setupConversationSubscription(conversationId)
-      }
-    }, finalDelay)
-    
-    conversationRetryTimeouts.value.set(conversationId, timeoutId)
-  }
+  // Connection status tracking (managed by RealtimeConnectionManager)
+  const connectionStatus = ref<ConnectionStatus>('disconnected')
 
   // Helper function to update conversation from a new message
   const updateConversationFromMessage = (message: any) => {
@@ -2378,7 +2348,10 @@ export const useDMStore = defineStore('dm', () => {
   // Load user profiles for conversations using centralized cache
   const loadConversationUserProfile = async (conversationId: string): Promise<boolean> => {
     try {
-      const conversation = conversations.value.find(c => c.id === conversationId)
+      const index = conversations.value.findIndex(c => c.id === conversationId)
+      if (index === -1) return false
+      
+      const conversation = conversations.value[index]
       if (!conversation?.other_user?._isPlaceholder) {
         return true // Already loaded or no placeholder
       }
@@ -2389,18 +2362,22 @@ export const useDMStore = defineStore('dm', () => {
       const userProfile = await userDataService.fetchUserProfile(conversation.other_user.id)
       
       if (userProfile) {
-        // Update conversation with cached user data
-        conversation.other_user = {
-          id: userProfile.id,
-          username: userProfile.username || userProfile.display_name || 'Unknown',
-          display_name: userProfile.display_name,
-          avatar_url: userProfile.avatar_url,
-          is_online: false, // Will be updated by presence if needed
-          domain: userProfile.domain,
-          is_local: userProfile.is_local,
-          federated_id: userProfile.federated_id,
-          handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
-          _isPlaceholder: false
+        // Update conversation with new object to trigger reactivity
+        conversations.value[index] = {
+          ...conversation,
+          other_user: {
+            id: userProfile.id,
+            username: userProfile.username || userProfile.display_name || 'Unknown',
+            display_name: userProfile.display_name,
+            avatar_url: userProfile.avatar_url,
+            is_online: false, // Will be updated by presence if needed
+            domain: userProfile.domain,
+            is_local: userProfile.is_local,
+            federated_id: userProfile.federated_id,
+            handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
+            color: userProfile.color,
+            _isPlaceholder: false
+          }
         }
         
         return true
@@ -2428,30 +2405,45 @@ export const useDMStore = defineStore('dm', () => {
       
       if (userIds.length === 0) return
       
+      debug.log('🔄 Loading user profiles for', userIds.length, 'conversations')
+      
       const { userDataService } = await import('@/services/userDataService')
       
       // Use centralized cache - batch loads missing users, uses cache for existing ones
       const userProfilesMap = await userDataService.fetchMultipleUserProfiles(userIds)
       
-      // Update conversations with cached user data
+      debug.log('✅ Loaded profiles:', Object.keys(userProfilesMap).length)
+      
+      // Update conversations with cached user data - using array index for proper reactivity
       for (const conversation of conversationsToLoad) {
         const userProfile = conversation.other_user?.id ? userProfilesMap[conversation.other_user.id] : null
         
         if (userProfile && conversation.other_user) {
-          conversation.other_user = {
-            id: userProfile.id,
-            username: userProfile.username || userProfile.display_name || 'Unknown',
-            display_name: userProfile.display_name,
-            avatar_url: userProfile.avatar_url,
-            is_online: false, // Will be updated by presence if needed
-            domain: userProfile.domain,
-            is_local: userProfile.is_local,
-            federated_id: userProfile.federated_id,
-            handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
-            _isPlaceholder: false
+          // Find the index and update via the array to trigger reactivity
+          const index = conversations.value.findIndex(c => c.id === conversation.id)
+          if (index !== -1) {
+            // Create a new object to trigger Vue reactivity
+            conversations.value[index] = {
+              ...conversations.value[index],
+              other_user: {
+                id: userProfile.id,
+                username: userProfile.username || userProfile.display_name || 'Unknown',
+                display_name: userProfile.display_name,
+                avatar_url: userProfile.avatar_url,
+                is_online: false, // Will be updated by presence if needed
+                domain: userProfile.domain,
+                is_local: userProfile.is_local,
+                federated_id: userProfile.federated_id,
+                handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
+                color: userProfile.color,
+                _isPlaceholder: false
+              }
+            }
           }
         }
       }
+      
+      debug.log('✅ Conversation profiles updated')
       
     } catch (error) {
       debug.error('❌ Failed to batch load user profiles:', error)

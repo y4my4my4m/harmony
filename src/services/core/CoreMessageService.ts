@@ -637,6 +637,10 @@ export class CoreMessageService {
 
   /**
    * Load channel messages with pagination (pure local)
+   * 
+   * NOTE: We trust Supabase to handle its own connection management.
+   * No artificial timeouts - queries complete when they complete.
+   * Supabase's websocket stays alive across tab changes.
    */
   async loadChannelMessages(
     channelId: string,
@@ -657,7 +661,7 @@ export class CoreMessageService {
         .select('*')
         .eq('channel_id', channelId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })  // Get NEWEST messages first
+        .order('created_at', { ascending: false })
         .limit(limit)
 
       if (before) {
@@ -715,6 +719,9 @@ export class CoreMessageService {
 
   /**
    * Load conversation messages with pagination (pure local)
+   * 
+   * NOTE: We trust Supabase to handle its own connection management.
+   * No artificial timeouts - queries complete when they complete.
    */
   async loadConversationMessages(
     conversationId: string,
@@ -735,7 +742,7 @@ export class CoreMessageService {
         .select('*')
         .eq('conversation_id', conversationId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })  // Get NEWEST messages first (same as channels)
+        .order('created_at', { ascending: false })
         .limit(limit)
 
       if (before) {
@@ -751,7 +758,9 @@ export class CoreMessageService {
 
       const { data: messages, error } = await query
 
-      if (error) throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+      if (error) {
+        throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+      }
 
       const messageList = messages || []
       

@@ -47,6 +47,39 @@
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
+      <!-- Custom Status Section -->
+      <div class="custom-status-section">
+        <div class="custom-status-label">Set Custom Status</div>
+        <div class="custom-status-input-row">
+          <input 
+            v-model="customStatusText"
+            type="text"
+            class="custom-status-input"
+            placeholder="What's on your mind?"
+            maxlength="128"
+            @keyup.enter="saveCustomStatus"
+          />
+          <button 
+            v-if="customStatusText || currentCustomStatus"
+            class="custom-status-btn clear"
+            @click="clearCustomStatus"
+            title="Clear"
+          >✕</button>
+          <button 
+            v-if="customStatusText && customStatusText !== currentCustomStatus?.text"
+            class="custom-status-btn save"
+            @click="saveCustomStatus"
+            title="Save"
+          >✓</button>
+        </div>
+        <div v-if="currentCustomStatus" class="current-custom-status">
+          Currently: {{ currentCustomStatus.text }}
+        </div>
+      </div>
+      
+      <div class="status-divider"></div>
+      
+      <!-- Status Options -->
       <div 
         v-for="status in statusOptions" 
         :key="status.value"
@@ -96,8 +129,15 @@ const {
   getCurrentUserStatus,
   getUserAvatarUrlCurrent,
   updateCurrentUserStatus,
+  setCustomStatus,
+  clearCustomStatus: clearCustomStatusFn,
+  getCustomStatus,
   getStats
 } = useUserData()
+
+// Custom status state
+const customStatusText = ref('')
+const currentCustomStatus = computed(() => getCustomStatus.value)
 
 // Add a local reactive status for immediate UI updates
 const localStatus = ref<UserStatus>(UserStatus.Offline)
@@ -141,6 +181,8 @@ const currentStatusDisplay = computed(() => {
       return { class: 'status-away', text: 'Away' }
     case UserStatus.Busy:
       return { class: 'status-busy', text: 'Do Not Disturb' }
+    case UserStatus.Invisible:
+      return { class: 'status-invisible', text: 'Invisible' }
     case UserStatus.Offline:
     default:
       return { class: 'status-offline', text: 'Offline' }
@@ -157,6 +199,8 @@ const currentStatusForAvatar = computed(() => {
       return 'away'
     case UserStatus.Busy:
       return 'busy'
+    case UserStatus.Invisible:
+      return 'invisible'
     case UserStatus.Offline:
     default:
       return 'offline'
@@ -167,7 +211,7 @@ const statusOptions = [
   { value: UserStatus.Online, label: 'Online', class: 'status-online' },
   { value: UserStatus.Away, label: 'Away', class: 'status-away' },
   { value: UserStatus.Busy, label: 'Do Not Disturb', class: 'status-busy' },
-  { value: UserStatus.Offline, label: 'Invisible', class: 'status-offline' }
+  { value: UserStatus.Invisible, label: 'Invisible', class: 'status-invisible' }
 ]
 
 // Use unified voice system only
@@ -228,6 +272,28 @@ const selectStatus = async (status: UserStatus) => {
     }
   } finally {
     showStatusDropdown.value = false
+  }
+}
+
+// Custom status functions
+const saveCustomStatus = async () => {
+  if (!customStatusText.value.trim()) return
+  
+  try {
+    await setCustomStatus({ text: customStatusText.value.trim() })
+    debug.log('✅ Custom status saved:', customStatusText.value)
+  } catch (error) {
+    debug.error('❌ Failed to save custom status:', error)
+  }
+}
+
+const clearCustomStatus = async () => {
+  try {
+    await clearCustomStatusFn()
+    customStatusText.value = ''
+    debug.log('✅ Custom status cleared')
+  } catch (error) {
+    debug.error('❌ Failed to clear custom status:', error)
   }
 }
 
@@ -320,6 +386,13 @@ onBeforeUnmount(() => {
   background-color: #747f8d;
 }
 
+.status-invisible {
+  background-color: #747f8d;
+  /* Hollow circle to indicate invisible (like Discord) */
+  border: 2px solid #747f8d;
+  background: transparent !important;
+}
+
 .user-info {
   flex-grow: 1;
   margin-left: 4px;
@@ -403,7 +476,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   left: 0px;
-  width: 165px;
+  width: 220px;
   gap: 4px;
   background: #18191c;
   border-radius: 8px;
@@ -412,6 +485,94 @@ onBeforeUnmount(() => {
   border: 1px solid #202225;
   z-index: 1000;
   animation: slideUp 0.15s ease-out;
+}
+
+/* Custom Status Section */
+.custom-status-section {
+  padding: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.custom-status-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #8e9297;
+  font-weight: 600;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.custom-status-input-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.custom-status-input {
+  flex: 1;
+  background: #2f3136;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  color: #dcddde;
+  outline: none;
+}
+
+.custom-status-input::placeholder {
+  color: #72767d;
+}
+
+.custom-status-input:focus {
+  box-shadow: 0 0 0 2px #5865f2;
+}
+
+.custom-status-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.custom-status-btn.save {
+  background: #43b581;
+  color: white;
+}
+
+.custom-status-btn.save:hover {
+  background: #3ca374;
+}
+
+.custom-status-btn.clear {
+  background: #f04747;
+  color: white;
+}
+
+.custom-status-btn.clear:hover {
+  background: #d84040;
+}
+
+.current-custom-status {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: #8e9297;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-divider {
+  height: 1px;
+  background: #2f3136;
+  margin: 4px 0;
 }
 
 @keyframes slideUp {

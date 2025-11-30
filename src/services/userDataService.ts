@@ -9,10 +9,27 @@
  */
 
 import { supabase } from '@/supabase'
-import { UserStatus, type UserData, type UserContext } from '@/types'
+import { UserStatus, type UserData, type UserContext, type CustomUserStatus } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+
+/**
+ * Detect if user is on a mobile device
+ */
+function detectMobileDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  
+  // Check user agent for mobile devices
+  const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera || ''
+  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i
+  
+  // Also check for touch capability + small screen (tablets with keyboards excluded)
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  const isSmallScreen = window.innerWidth <= 768
+  
+  return mobileRegex.test(userAgent) || (isTouchDevice && isSmallScreen)
+}
 
 
 
@@ -89,7 +106,8 @@ class UserDataService extends EventTarget {
       const saved = localStorage.getItem('harmony_user_status')
       if (saved !== null) {
         const statusNumber = parseInt(saved, 10)
-        if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 3) {
+        // Updated range to include Invisible (4)
+        if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 4) {
           debug.log('📱 Found status backup in localStorage:', UserStatus[statusNumber])
           return statusNumber as UserStatus
         }
@@ -98,6 +116,42 @@ class UserDataService extends EventTarget {
       debug.warn('⚠️ Failed to read status from localStorage:', error)
     }
     return null
+  }
+
+  /**
+   * Get custom status from localStorage (for persistence across sessions)
+   */
+  private getCustomStatusFromLocalStorage(): CustomUserStatus | null {
+    try {
+      const saved = localStorage.getItem('harmony_custom_status')
+      if (saved) {
+        const customStatus = JSON.parse(saved) as CustomUserStatus
+        // Check if expired
+        if (customStatus.expiresAt && new Date(customStatus.expiresAt) < new Date()) {
+          localStorage.removeItem('harmony_custom_status')
+          return null
+        }
+        return customStatus
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to read custom status from localStorage:', error)
+    }
+    return null
+  }
+
+  /**
+   * Save custom status to localStorage
+   */
+  private saveCustomStatusToLocalStorage(customStatus: CustomUserStatus | undefined): void {
+    try {
+      if (customStatus) {
+        localStorage.setItem('harmony_custom_status', JSON.stringify(customStatus))
+      } else {
+        localStorage.removeItem('harmony_custom_status')
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to save custom status to localStorage:', error)
+    }
   }
   
   /**
@@ -125,31 +179,39 @@ class UserDataService extends EventTarget {
   private async handleActivityResumed(): Promise<void> {
     if (!this.currentUserId) return
     
-    // If user was set to Away/Offline automatically, restore their preferred status
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    // If status was manually set to Away, keep it Away (user wants to stay away)
-    if (this.wasManuallySet && this.manualStatus === UserStatus.Away) {
-      debug.log('👋 User active again, but keeping manual Away status (user preference)')
-      // Don't change status - user manually chose to be Away
-      return
+    debug.log('👋 Activity resumed, current status:', UserStatus[userData.status], 'wasManuallySet:', this.wasManuallySet)
+    
+    // If status was manually set to Away/Busy/Invisible, respect that choice
+    if (this.wasManuallySet) {
+      if (this.manualStatus === UserStatus.Away) {
+        debug.log('👋 Keeping manual Away status (user preference)')
+        return
+      }
+      if (this.manualStatus === UserStatus.Busy) {
+        debug.log('👋 Keeping manual Busy status (user preference)')
+        return
+      }
+      if (this.manualStatus === UserStatus.Invisible) {
+        debug.log('👋 Keeping manual Invisible status (user preference)')
+        return
+      }
     }
     
-    // If status was manually set to Busy, keep it Busy
-    if (this.wasManuallySet && this.manualStatus === UserStatus.Busy) {
-      debug.log('👋 User active again, but keeping manual Busy status (user preference)')
-      // Don't change status - user manually chose to be Busy
-      return
-    }
-    
-    // Otherwise, restore to Online if they were auto-set to Away/Offline
+    // Restore to Online if they were auto-set to Away/Offline due to inactivity
     if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
-      debug.log('👋 User active again, restoring to Online (was auto-set)')
-      await this.updateCurrentUserStatus(UserStatus.Online, false)
+      debug.log('👋 User active again, restoring to Online (was auto-set to', UserStatus[userData.status], ')')
+      try {
+        await this.updateCurrentUserStatus(UserStatus.Online, false)
+        debug.log('✅ Status restored to Online')
+      } catch (error) {
+        debug.error('❌ Failed to restore status to Online:', error)
+      }
     }
     
-    // Reset activity tracking
+    // Reset activity tracking flags
     activityTracker.resetStatusTracking()
   }
   
@@ -208,8 +270,8 @@ class UserDataService extends EventTarget {
         
         // Primary: Use database status if it exists and is valid AND not offline
         if (profile.status !== null && profile.status !== undefined) {
-          // If user was explicitly set to Away/Busy, preserve that
-          if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy) {
+          // If user was explicitly set to Away/Busy/Invisible, preserve that
+          if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy || profile.status === UserStatus.Invisible) {
             finalStatus = profile.status
             debug.log('✅ Preserving user-set status from database:', UserStatus[finalStatus])
           } else if (profile.status === UserStatus.Online) {
@@ -232,11 +294,11 @@ class UserDataService extends EventTarget {
             }
           }
         } else {
-          // No status in database, try localStorage backup for Away/Busy only
+          // No status in database, try localStorage backup for Away/Busy/Invisible only
           const backupStatus = this.getStatusFromLocalStorage()
-          if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) {
+          if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy || backupStatus === UserStatus.Invisible) {
             finalStatus = backupStatus
-            debug.log('🔄 Using Away/Busy status from localStorage backup:', UserStatus[finalStatus])
+            debug.log('🔄 Using user-preferred status from localStorage backup:', UserStatus[finalStatus])
             
             // Sync backup to database for consistency
             try {
@@ -265,7 +327,9 @@ class UserDataService extends EventTarget {
           domain: profile.domain || 'har.mony.lol',
           isLocal: profile.is_local || false,
           status: finalStatus,
+          customStatus: undefined, // Will be loaded separately if exists
           isOnline: true,
+          isMobile: detectMobileDevice(), // Track if user is on mobile
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
           lastCacheUpdate: new Date().toISOString(),
@@ -290,12 +354,14 @@ class UserDataService extends EventTarget {
           displayName: username,
           avatarUrl: avatarUrl,
           status: initialStatus,
+          customStatus: undefined,
           isOnline: true,
+          isMobile: detectMobileDevice(),
           isLocal: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
           lastCacheUpdate: new Date().toISOString(),
-          createdAt: new Date().toISOString(), //TODO: does that make sense?
+          createdAt: new Date().toISOString(),
           source: 'cache'
         }
         
@@ -313,36 +379,43 @@ class UserDataService extends EventTarget {
   
   /**
    * Setup global presence channel for cross-context online/offline tracking
-   * This ensures users appear online to everyone regardless of what section they're in
+   * 
+   * SIMPLIFIED: Only track once on subscription, no repeated tracking.
+   * The presence events are logged but we don't react aggressively to them.
    */
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
     
-    // 🌐 GLOBAL PRESENCE SYSTEM - Discord/Slack style
-    // Track basic online/offline status across all contexts
+    // 🌐 GLOBAL PRESENCE SYSTEM - Keep it simple
     this.globalChannel = supabase.channel('harmony-global-presence')
       .on('presence', { event: 'sync' }, () => {
-        debug.log('🌐 Global presence sync')
+        // Just update our local state, don't log spam
         this.handleGlobalPresenceSync()
       })
       .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
-        debug.log('🌐 Users joined global presence:', newPresences.length)
         this.handleGlobalPresenceJoin(newPresences)
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
-        debug.log('🌐 Users left global presence:', leftPresences.length)
         this.handleGlobalPresenceLeave(leftPresences)
       })
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           debug.log('✅ Global presence channel connected')
+          // Track ONCE on subscription - that's all we need
           await this.trackCurrentUserGlobally()
         }
       })
   }
   
   /**
-   * Track current user in global presence (cross-context online status)
+   * Track current user in global presence
+   * 
+   * IMPORTANT: This should only be called on:
+   * - Initial connection
+   * - Status changes
+   * - Profile updates (avatar, color, etc.)
+   * 
+   * DO NOT call this on heartbeat or route changes - that causes churn!
    */
   private async trackCurrentUserGlobally(): Promise<void> {
     if (!this.globalChannel || !this.currentUserId) return
@@ -350,36 +423,44 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
-    // If user has set status to Offline (0), they should be invisible to others
-    // Don't track global presence at all
-    if (userData.status === UserStatus.Offline) {
-      debug.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking global presence`)
+    // Handle invisible status - untrack from presence
+    if (userData.status === UserStatus.Offline || userData.status === UserStatus.Invisible) {
+      try {
+        await this.globalChannel.untrack()
+      } catch {
+        // Ignore untrack errors
+      }
       return
     }
     
-    // Track basic presence info globally (including color for real-time user color sync)
-    await this.globalChannel.track({
-      user_id: this.currentUserId,
-      username: userData.username,
-      display_name: userData.displayName,
-      avatar_url: userData.avatarUrl,
-      color: userData.color,
-      status: userData.status,
-      online_at: new Date().toISOString()
-    })
-    
-    debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]} - now visible to all users regardless of their current view`)
+    try {
+      await this.globalChannel.track({
+        user_id: this.currentUserId,
+        username: userData.username,
+        display_name: userData.displayName,
+        avatar_url: userData.avatarUrl,
+        color: userData.color,
+        status: userData.status,
+        custom_status: userData.customStatus,
+        is_mobile: userData.isMobile,
+        online_at: new Date().toISOString()
+      })
+      
+      debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}`)
+    } catch (error) {
+      debug.warn('⚠️ Global presence track failed:', error)
+    }
   }
   
   /**
    * Handle global presence sync - update basic online/offline status
+   * Kept minimal to avoid churn
    */
   private handleGlobalPresenceSync(): void {
     if (!this.globalChannel) return
     
     const state = this.globalChannel.presenceState()
-    debug.log('🌐 Global presence sync with', Object.keys(state).length, 'users')
+    const userCount = Object.keys(state).length
     
     // Track which users are globally online
     const globallyOnlineUserIds = new Set<string>()
@@ -421,7 +502,7 @@ class UserDataService extends EventTarget {
     newPresences.forEach((presence: any) => {
       if (presence.user_id) {
         this.updateUserFromGlobalPresence(presence.user_id, presence)
-        debug.log(`🌐 User ${presence.user_id} joined global presence - now globally online`)
+        // Reduce log spam - don't log every join
       }
     })
   }
@@ -442,8 +523,7 @@ class UserDataService extends EventTarget {
             userData.status = UserStatus.Offline
           }
           
-          // 🔥 CRITICAL FIX: Force UI updates for global presence changes
-          debug.log(`🌐 Global presence leave: User ${presence.user_id} went offline`)
+          // Force UI updates for global presence changes
           this.emitEvent('user-updated', { userId: presence.user_id })
           this.emitEvent('global-presence-updated', { userId: presence.user_id, isOnline: false })
         }
@@ -485,7 +565,9 @@ class UserDataService extends EventTarget {
       domain: existing?.domain,
       isLocal: existing?.isLocal || false,
       status: userStatus,
+      customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in global presence with a visible status, so they're online
+      isMobile: presence.is_mobile || existing?.isMobile || false,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
@@ -495,9 +577,7 @@ class UserDataService extends EventTarget {
     
     this.users.set(userId, userData)
     
-    // 🔥 CRITICAL FIX: Force UI updates for global presence changes
-    // This ensures that users see each other online regardless of current view
-    debug.log(`🌐 Global presence update: User ${userId} is now online with status ${UserStatus[userStatus]}, color: ${userData.color || 'none'} (source: global_presence)`)
+    // Force UI updates for global presence changes
     this.emitEvent('user-updated', { userId })
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
@@ -537,7 +617,9 @@ class UserDataService extends EventTarget {
       domain: existing?.domain || 'har.mony.lol',
       isLocal: existing?.isLocal || false,
       status: userStatus,
+      customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in context presence with a visible status, so they're online
+      isMobile: presence.is_mobile || existing?.isMobile || false,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
@@ -550,7 +632,9 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Start heartbeat to maintain presence
+   * Start heartbeat for internal health tracking only
+   * NOTE: Heartbeat should NOT call presence track - that causes churn
+   * Presence is tracked once on connection, not repeatedly
    */
   private startHeartbeat(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
@@ -559,23 +643,9 @@ class UserDataService extends EventTarget {
       if (this.currentUserId) {
         const userData = this.users.get(this.currentUserId)
         if (userData) {
-          try {
-            userData.lastHeartbeat = new Date().toISOString()
-            await this.trackCurrentUserGlobally()
-            
-            // Reset failure count on successful heartbeat
-            this.heartbeatFailures = 0
-            
-          } catch (error) {
-            debug.warn('💔 Heartbeat failed:', error)
-            this.heartbeatFailures++
-            
-            // If heartbeat fails repeatedly, set offline
-            if (this.heartbeatFailures >= this.MAX_HEARTBEAT_FAILURES) {
-              debug.log('💀 Connection lost - setting offline after', this.heartbeatFailures, 'failures')
-              await this.handleConnectionLost()
-            }
-          }
+          // Just update internal timestamp, don't call trackCurrentUserGlobally()
+          // Presence tracking on heartbeat causes join/leave churn
+          userData.lastHeartbeat = new Date().toISOString()
         }
       }
     }, this.HEARTBEAT_INTERVAL)
@@ -723,6 +793,13 @@ class UserDataService extends EventTarget {
       return
     }
     
+    // 👻 INVISIBLE STATUS: Don't track presence if user is invisible
+    if (userData.status === UserStatus.Invisible) {
+      debug.log(`👻 User ${this.currentUserId} is Invisible - not tracking in server ${serverId}`)
+      await channel.untrack()
+      return
+    }
+    
     await channel.track({
       user_id: this.currentUserId,
       username: userData.username,
@@ -731,11 +808,13 @@ class UserDataService extends EventTarget {
       banner_url: userData.bannerUrl,
       color: userData.color,
       status: userData.status,
+      custom_status: userData.customStatus,
+      is_mobile: userData.isMobile,
       server_id: serverId,
       online_at: new Date().toISOString()
     })
     
-    debug.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}`)
+    debug.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}${userData.isMobile ? ' (mobile)' : ''}`)
   }
   
   /**
@@ -1022,7 +1101,9 @@ class UserDataService extends EventTarget {
             domain: profile.domain || 'har.mony.lol',
             isLocal: profile.is_local || false,
             status: profile.status ?? UserStatus.Offline,
+            customStatus: undefined, // Would need separate table for custom status
             isOnline: false, // Will be updated by presence
+            isMobile: false, // Will be updated by presence
             lastSeen: profile.updated_at || new Date().toISOString(),
             lastHeartbeat: new Date().toISOString(),
             lastCacheUpdate: new Date().toISOString(),
@@ -1135,8 +1216,8 @@ class UserDataService extends EventTarget {
     
     // Track manual status changes
     if (isManual) {
-      // If user manually sets to Away or Busy, remember that choice
-      if (status === UserStatus.Away || status === UserStatus.Busy) {
+      // If user manually sets to Away, Busy, or Invisible, remember that choice
+      if (status === UserStatus.Away || status === UserStatus.Busy || status === UserStatus.Invisible) {
         this.wasManuallySet = true
         this.manualStatus = status
         debug.log('📌 Status manually set to:', UserStatus[status])
@@ -1196,49 +1277,72 @@ class UserDataService extends EventTarget {
       throw error
     }
   }
+
+  /**
+   * Set custom status (Discord-style "Playing X", "Listening to Y", etc.)
+   * @param customStatus - The custom status to set, or undefined to clear
+   */
+  async setCustomStatus(customStatus: CustomUserStatus | undefined): Promise<void> {
+    if (!this.currentUserId) throw new Error('No current user')
+    
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) throw new Error('Current user data not found')
+    
+    debug.log('🎭 Setting custom status:', customStatus?.text || '(clearing)')
+    
+    // Update local data
+    userData.customStatus = customStatus
+    userData.lastCacheUpdate = new Date().toISOString()
+    
+    // Save to localStorage for persistence
+    this.saveCustomStatusToLocalStorage(customStatus)
+    
+    // Update presence to broadcast custom status
+    await this.updatePresenceStatus(userData.status)
+    
+    this.emitEvent('custom-status-changed', { userId: this.currentUserId, customStatus })
+    debug.log('✅ Custom status updated')
+  }
+
+  /**
+   * Clear custom status
+   */
+  async clearCustomStatus(): Promise<void> {
+    await this.setCustomStatus(undefined)
+  }
+
+  /**
+   * Get current user's custom status
+   */
+  getCustomStatus(): CustomUserStatus | undefined {
+    if (!this.currentUserId) return undefined
+    return this.users.get(this.currentUserId)?.customStatus
+  }
+
+  /**
+   * Check if current user is on mobile
+   */
+  isCurrentUserMobile(): boolean {
+    if (!this.currentUserId) return false
+    return this.users.get(this.currentUserId)?.isMobile || false
+  }
   
   /**
-   * Update status in context-specific presence channels only
+   * Update status in presence channels
+   * SIMPLIFIED: Only update if going invisible (untrack) 
+   * For visible statuses, the initial track is sufficient
    */
   private async updatePresenceStatus(status: UserStatus): Promise<void> {
-    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
-    // If user sets status to Offline (0), they should become invisible to others
-    if (status === UserStatus.Offline) {
-      debug.log(`👻 User going invisible - untracking from all presence channels`)
+    // 👻 INVISIBLE STATUS: User should appear offline to everyone
+    if (status === UserStatus.Invisible) {
+      debug.log(`👻 User going Invisible - untracking from all presence channels`)
       await this.untrackFromAllPresenceChannels()
       return
     }
     
-    // User is setting a visible status - ensure they're tracked in all relevant contexts
-    debug.log(`🌟 User becoming visible with status: ${UserStatus[status]}`)
-    
-    // Track in global presence if available
-    if (this.globalChannel) {
-      await this.trackCurrentUserGlobally()
-    }
-    
-    // Track in all context-specific presence channels (servers, DMs)
-    for (const context of this.contexts.values()) {
-      if (context.channel && context.userIds.has(this.currentUserId!)) {
-        const userData = this.users.get(this.currentUserId!)
-        if (userData) {
-          await context.channel.track({
-            user_id: this.currentUserId,
-            username: userData.username,
-            display_name: userData.displayName,
-            avatar_url: userData.avatarUrl,
-            banner_url: userData.bannerUrl,
-            color: userData.color,
-            status: status,
-            server_id: context.id,
-            online_at: new Date().toISOString()
-          })
-          debug.log(`🌟 Tracking in ${context.type} context: ${context.id}`)
-        }
-      }
-    }
-    
-    debug.log(`📡 Status updated in ${this.contexts.size} context channels`)
+    // For visible statuses, we rely on the initial track that happened on channel subscription
+    // Calling track() again causes join/leave churn in Supabase
+    debug.log(`🌟 Status updated to: ${UserStatus[status]}`)
   }
   
   /**
@@ -1273,9 +1377,9 @@ class UserDataService extends EventTarget {
       // Broadcast profile changes to relevant contexts only (context-aware)
       await this.broadcastProfileToContexts(profileData)
       
-      // 🎨 Re-track globally to update presence with new profile data (including color)
-      // This ensures other users see the updated color immediately via global presence
-      await this.trackCurrentUserGlobally()
+      // Note: We don't re-track globally here anymore
+      // The initial track is sufficient, and re-tracking causes churn
+      // Profile broadcasts handle the update propagation
       
       this.emitEvent('user-updated', { userId: this.currentUserId })
       debug.log('✅ Profile updated and broadcast to relevant contexts')
@@ -1375,25 +1479,16 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * 🔥 CRITICAL FIX: Force refresh global presence
-   * Call this when user navigates between different view contexts
-   * to ensure they remain visible to others regardless of current view
+   * Refresh global presence - now a no-op
+   * 
+   * NOTE: This used to re-track on route changes, but that caused churn.
+   * Once you're tracked on initial connection, you stay tracked.
+   * Supabase presence maintains connection automatically.
+   * Only actual status/profile changes should update presence.
    */
   async refreshGlobalPresence(): Promise<void> {
-    if (!this.initialized || !this.currentUserId) {
-      debug.warn('⚠️ Cannot refresh global presence - service not initialized')
-      return
-    }
-    
-    debug.log('🔄 Refreshing global presence to ensure cross-context visibility...')
-    
-    // Re-track in global presence
-    if (this.globalChannel) {
-      await this.trackCurrentUserGlobally()
-      debug.log('✅ Global presence refreshed - user is visible across all contexts')
-    } else {
-      debug.warn('⚠️ Global presence channel not available')
-    }
+    // No-op - presence is maintained by Supabase automatically
+    // Calling trackCurrentUserGlobally() on route changes causes join/leave churn
   }
   
   /**
@@ -1408,7 +1503,7 @@ class UserDataService extends EventTarget {
       this.heartbeatTimer = null
     }
     
-    // ✅ PERFORMANCE FIX: Clear any pending presence sync timeouts
+    // Clear any pending presence sync timeouts
     for (const timeout of this.presenceSyncTimeouts.values()) {
       clearTimeout(timeout)
     }
