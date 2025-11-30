@@ -279,8 +279,13 @@ export class LiveKitWebRTCService {
       this.setupRoomListeners();
       
       // Connect to LiveKit server
+      // Use relay-only ICE to avoid browser "local network" prompt
+      // No latency impact since traffic goes through LiveKit SFU server anyway
       await this.room.connect(tokenResponse.wsUrl, tokenResponse.token, {
         autoSubscribe: true,
+        // rtcConfig: {
+        //   iceTransportPolicy: 'relay',
+        // },
       });
       
       debug.log('✅ [LiveKit] Connected to room:', roomName);

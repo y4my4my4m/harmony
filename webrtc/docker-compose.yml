@@ -11,8 +11,13 @@ services:
       - "7880:7880"
       # RTC UDP ports for media
       - "7881:7881/udp"
-      # TURN server UDP ports (for NAT traversal)
+      # TURN server UDP port (for NAT traversal)
       - "3478:3478/udp"
+      # TURN server TCP port (fallback)
+      - "3478:3478/tcp"
+      # TURNS (TURN over TLS) - more reliable through corporate firewalls
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
       # RTC TCP port (fallback when UDP blocked)
       - "7881:7881/tcp"
       # UDP port range for WebRTC media

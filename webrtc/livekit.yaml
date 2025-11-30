@@ -35,6 +35,15 @@ rtc:
   
   # ICE Lite mode (recommended for servers)
   use_ice_lite: true
+  
+  # PRODUCTION: Set your server's public IP address
+  # This is REQUIRED when running in Docker so LiveKit advertises
+  # the correct IP for ICE candidates instead of internal Docker IPs.
+  # Options:
+  #   1. Set explicit IP: node_ip: 203.0.113.50
+  #   2. Auto-detect: use_external_ip: true (queries external service)
+  # node_ip: YOUR_PUBLIC_IP
+  use_external_ip: true
 
 # =============================================================================
 # TURN Server (NAT Traversal)
@@ -45,10 +54,10 @@ turn:
   enabled: true
   # Development: localhost
   # Production: your public domain (e.g., live.yourdomain.com)
-  domain: localhost
+  domain: live.mony.lol
   udp_port: 3478
-  # TLS port for TURN over TLS (production)
-  # tls_port: 5349
+  # TLS port for TURN over TLS (production) - more reliable through firewalls
+  tls_port: 5349
 
 # =============================================================================
 # Room Settings
