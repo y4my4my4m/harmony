@@ -249,6 +249,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
+import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
 
 export default defineComponent({

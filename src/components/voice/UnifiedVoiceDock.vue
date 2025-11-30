@@ -69,11 +69,13 @@
         <button
           @click="toggleSpatialPanel"
           :class="['control-btn', 'spatial-btn', { 
-            active: spatialStore.isPanelVisible
+            active: spatialStore.isPanelVisible,
+            'spatial-enabled': spatialStore.settings.enabled
           }]"
-          title="Toggle Spatial Audio Panel"
+          :title="spatialStore.settings.enabled ? 'Spatial Audio: ON' : 'Spatial Audio: OFF'"
         >
           <Icon name="map" />
+          <span v-if="spatialStore.settings.enabled" class="spatial-badge">3D</span>
         </button>
 
         <button
@@ -115,11 +117,38 @@
 
     <!-- Minimized Mode -->
     <div v-else-if="currentMode === 'minimized'" class="minimized-container" @click="expandToDock">
+      <!-- Mini Video Preview (when someone is sharing video/screen) -->
+      <div v-if="activeVideoUser" class="minimized-video-preview" @click.stop>
+        <video
+          ref="minimizedVideoRef"
+          :srcObject="activeVideoStream"
+          autoplay
+          playsinline
+          muted
+          class="mini-video"
+        />
+        <div class="mini-video-overlay">
+          <span class="mini-video-label">
+            <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'camera'" />
+            {{ activeVideoUserName }}
+          </span>
+          <button
+            class="mini-pip-btn"
+            @click.stop="activatePIPForActiveVideo"
+            title="Pop out"
+          >
+            <Icon name="maximize-2" />
+          </button>
+        </div>
+      </div>
+
       <div class="minimized-content">
         <div class="minimized-info">
           <Icon name="volume" class="channel-icon" />
           <span class="channel-name">{{ channelName }}</span>
           <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
+          <!-- Recent Speakers -->
+          <RecentSpeakers class="recent-speakers-container" :max-speakers="4" />
         </div>
         
         <div class="minimized-controls">
@@ -186,6 +215,7 @@ import Avatar from '@/components/common/Avatar.vue';
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
+const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 
 // =============================================================================
 // STORE INSTANCES
@@ -201,6 +231,7 @@ const { getUser } = useUserData();
 // =============================================================================
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
+const minimizedVideoRef = ref<HTMLVideoElement | null>(null);
 
 // =============================================================================
 // COMPUTED PROPERTIES
@@ -243,6 +274,28 @@ const dockMode = computed(() => ({
   'overlay-mode': currentMode.value === 'overlay'
 }));
 
+// Get first user with active video or screenshare (for minimized preview)
+const activeVideoUser = computed(() => {
+  // First check for screensharing users (higher priority)
+  const screensharing = voiceStore.allParticipants.find((p: any) => p.isScreenSharing);
+  if (screensharing) return screensharing;
+  
+  // Then check for video-enabled users
+  const withVideo = voiceStore.allParticipants.find((p: any) => p.isVideoEnabled && !p.isScreenSharing);
+  return withVideo || null;
+});
+
+const activeVideoStream = computed(() => {
+  if (!activeVideoUser.value) return null;
+  return voiceStore.getUserStream(activeVideoUser.value.userId);
+});
+
+const activeVideoUserName = computed(() => {
+  if (!activeVideoUser.value) return '';
+  const profile = getUser(activeVideoUser.value.userId)?.value;
+  return profile?.displayName || profile?.username || 'User';
+});
+
 // =============================================================================
 // METHODS
 // =============================================================================
@@ -282,6 +335,12 @@ const leaveChannel = async () => {
 const handleOverlayClosed = () => {
   // When the overlay is closed, return to the docked mode.
   currentMode.value = 'dock';
+};
+
+const activatePIPForActiveVideo = () => {
+  if (activeVideoUser.value) {
+    voiceStore.togglePIP(activeVideoUser.value.userId, 'fixed');
+  }
 };
 
 // =============================================================================
@@ -507,6 +566,38 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(250, 166, 26, 0.3);
 }
 
+/* Spatial audio button with indicator */
+.control-btn.spatial-btn {
+  position: relative;
+}
+
+.control-btn.spatial-enabled {
+  background: linear-gradient(145deg, #00d4aa, #00b894);
+  color: white;
+  border-color: rgba(0, 212, 170, 0.6);
+  box-shadow: 0 0 10px rgba(0, 212, 170, 0.4);
+}
+
+.control-btn.spatial-enabled:hover {
+  background: linear-gradient(145deg, #00e5b8, #00c9a0);
+}
+
+.spatial-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #00d4aa;
+  color: #000;
+  font-size: 7px;
+  font-weight: 800;
+  padding: 2px 3px;
+  border-radius: 3px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
 /* Action Controls */
 .action-controls {
   display: flex;
@@ -558,6 +649,62 @@ onMounted(() => {
     0 3px 10px rgba(0, 0, 0, 0.4);
 }
 
+/* Minimized Video Preview */
+.minimized-video-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  background: #000;
+  cursor: default;
+}
+
+.mini-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mini-video-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+}
+
+.mini-video-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.mini-pip-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 12px;
+}
+
+.mini-pip-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
 .minimized-content {
   display: flex;
   align-items: center;
@@ -596,6 +743,11 @@ onMounted(() => {
   font-weight: 600;
   min-width: 20px;
   text-align: center;
+}
+
+.recent-speakers-container {
+  margin-left: 4px;
+  flex-shrink: 0;
 }
 
 .minimized-controls {

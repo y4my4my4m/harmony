@@ -15,6 +15,11 @@ import { debug } from '@/utils/debug';
 // TYPES
 // =============================================================================
 
+interface RecentSpeaker {
+  userId: string;
+  lastSpokeAt: number;
+}
+
 interface VoiceChannelState {
   // Connection info
   currentChannelId: string | null;
@@ -31,6 +36,12 @@ interface VoiceChannelState {
   // Streams
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
+  
+  // Per-user volume settings (0-200, 100 = normal)
+  userVolumes: Map<string, number>;
+  
+  // Recent speakers (last 5 users who spoke)
+  recentSpeakers: RecentSpeaker[];
   
   // UI state
   isOverlayVisible: boolean;
@@ -71,6 +82,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     localStream: null,
     remoteStreams: new Map(),
+    
+    // Per-user volume (loaded from localStorage)
+    userVolumes: new Map(),
+    
+    // Recent speakers (last 5 users who spoke)
+    recentSpeakers: [],
     
     isOverlayVisible: false,
     layoutMode: 'grid',
@@ -143,6 +160,32 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const speaking = state.allUsers.filter(u => u.audioLevel > 20).length + (state.localState.audioLevel > 20 ? 1 : 0);
       
       return { total, withVideo, speaking };
+    },
+
+    // Get user volume (0-200, 100 = normal)
+    getUserVolume: (state) => (userId: string): number => {
+      return state.userVolumes.get(userId) ?? 100;
+    },
+
+    // Get recent speakers (sorted by most recent, max 5)
+    getRecentSpeakers: (state) => {
+      return [...state.recentSpeakers]
+        .sort((a, b) => b.lastSpokeAt - a.lastSpokeAt)
+        .slice(0, 5);
+    },
+
+    // Get currently speaking user IDs
+    activelySpeakingUserIds: (state) => {
+      const speaking: string[] = [];
+      if (state.localState.audioLevel > 20 && !state.localState.isMuted) {
+        speaking.push(state.localState.userId);
+      }
+      state.allUsers.forEach(user => {
+        if (user.audioLevel > 20) {
+          speaking.push(user.userId);
+        }
+      });
+      return speaking;
     }
   },
 
@@ -454,6 +497,86 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Set per-user volume (0-200, 100 = normal)
+     * Persisted to localStorage and applied to audio
+     */
+    setUserVolume(userId: string, volume: number): void {
+      // Clamp volume to valid range
+      const clampedVolume = Math.max(0, Math.min(200, volume));
+      this.userVolumes.set(userId, clampedVolume);
+      
+      // Apply volume to the user's audio stream
+      webrtcManager.setUserVolume?.(userId, clampedVolume / 100);
+      
+      // Persist to localStorage
+      this.saveUserVolumes();
+      
+      debug.log(`🔊 Set volume for user ${userId}: ${clampedVolume}%`);
+    },
+
+    /**
+     * Save user volumes to localStorage
+     */
+    saveUserVolumes(): void {
+      try {
+        const volumeObj: Record<string, number> = {};
+        this.userVolumes.forEach((volume, odUserId) => {
+          volumeObj[odUserId] = volume;
+        });
+        localStorage.setItem('harmony-user-volumes', JSON.stringify(volumeObj));
+      } catch (error) {
+        debug.warn('Failed to save user volumes:', error);
+      }
+    },
+
+    /**
+     * Load user volumes from localStorage
+     */
+    loadUserVolumes(): void {
+      try {
+        const saved = localStorage.getItem('harmony-user-volumes');
+        if (saved) {
+          const volumeObj = JSON.parse(saved) as Record<string, number>;
+          Object.entries(volumeObj).forEach(([odUserId, volume]) => {
+            this.userVolumes.set(odUserId, volume);
+          });
+          debug.log('🔊 Loaded user volumes from localStorage');
+        }
+      } catch (error) {
+        debug.warn('Failed to load user volumes:', error);
+      }
+    },
+
+    /**
+     * Update recent speakers list when someone speaks
+     */
+    updateRecentSpeakers(userId: string): void {
+      const now = Date.now();
+      const existingIndex = this.recentSpeakers.findIndex(s => s.userId === userId);
+      
+      if (existingIndex !== -1) {
+        // Update timestamp for existing speaker
+        this.recentSpeakers[existingIndex].lastSpokeAt = now;
+      } else {
+        // Add new speaker
+        this.recentSpeakers.push({ userId, lastSpokeAt: now });
+        
+        // Keep only the last 10 speakers (we display 5, but keep more for rotation)
+        if (this.recentSpeakers.length > 10) {
+          this.recentSpeakers.sort((a, b) => b.lastSpokeAt - a.lastSpokeAt);
+          this.recentSpeakers = this.recentSpeakers.slice(0, 10);
+        }
+      }
+    },
+
+    /**
+     * Clear recent speakers (when leaving channel)
+     */
+    clearRecentSpeakers(): void {
+      this.recentSpeakers = [];
+    },
+
+    /**
      * Set call start time (synced across all participants)
      */
     setCallStartTime(timestamp: Date | null): void {
@@ -614,10 +737,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       webrtcManager.on('audio-level', (data) => {
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
+          // Track recent speakers when audio level exceeds threshold
+          if (data.level > 20 && !this.localState.isMuted) {
+            this.updateRecentSpeakers(data.userId);
+          }
         } else {
           const user = this.allUsers.find(u => u.userId === data.userId);
           if (user) {
             user.audioLevel = data.level;
+            // Track recent speakers when audio level exceeds threshold
+            if (data.level > 20) {
+              this.updateRecentSpeakers(data.userId);
+            }
           }
         }
       });

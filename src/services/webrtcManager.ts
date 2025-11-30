@@ -445,6 +445,18 @@ class WebRTCManagerService implements WebRTCManager {
       unifiedWebRTC.setTraditionalAudioEnabled(enabled);
     }
   }
+
+  /**
+   * Set volume for a specific user (0-2, where 1 = normal)
+   * Used for per-user volume control
+   */
+  setUserVolume(userId: string, volume: number): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.setUserVolume?.(userId, volume);
+    } else if (this.activeService === 'p2p') {
+      unifiedWebRTC.setUserVolume?.(userId, volume);
+    }
+  }
   
   // =============================================================================
   // EVENT SYSTEM

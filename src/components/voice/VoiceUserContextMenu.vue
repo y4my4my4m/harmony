@@ -1,0 +1,541 @@
+<template>
+  <Teleport to="body">
+    <div
+      v-if="isVisible"
+      class="context-menu-backdrop"
+      @click="close"
+      @contextmenu.prevent="close"
+    />
+    <div
+      v-if="isVisible"
+      ref="menuRef"
+      class="voice-context-menu"
+      :style="menuStyle"
+      @click.stop
+    >
+      <!-- User Header -->
+      <div class="menu-header">
+        <Avatar
+          :src="userProfile?.avatar_url || '/default_avatar.png'"
+          :alt="displayName"
+          size="sm"
+        />
+        <div class="user-info">
+          <span class="display-name">{{ displayName }}</span>
+          <span class="user-status">{{ userStatus }}</span>
+        </div>
+      </div>
+
+      <div class="menu-divider" />
+
+      <!-- Volume Control -->
+      <div v-if="!isSelf" class="menu-section">
+        <div class="section-label">
+          <Icon name="volume-2" />
+          <span>User Volume</span>
+          <span class="volume-value">{{ currentVolume }}%</span>
+        </div>
+        <div class="volume-slider-container">
+          <input
+            type="range"
+            :value="currentVolume"
+            min="0"
+            max="200"
+            step="1"
+            class="volume-slider"
+            @input="handleVolumeChange"
+          />
+          <div class="volume-marks">
+            <span>0%</span>
+            <span>100%</span>
+            <span>200%</span>
+          </div>
+        </div>
+        <div class="volume-presets">
+          <button
+            class="preset-btn"
+            :class="{ active: currentVolume === 0 }"
+            @click="setVolume(0)"
+            title="Mute"
+          >
+            <Icon name="volume-x" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentVolume === 50 }"
+            @click="setVolume(50)"
+            title="50%"
+          >
+            <Icon name="volume-1" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentVolume === 100 }"
+            @click="setVolume(100)"
+            title="Normal"
+          >
+            <Icon name="volume-2" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentVolume === 200 }"
+            @click="setVolume(200)"
+            title="Max (200%)"
+          >
+            <Icon name="volume-2" />
+            <span class="boost-indicator">+</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="!isSelf" class="menu-divider" />
+
+      <!-- Actions -->
+      <div class="menu-actions">
+        <button
+          v-if="hasVideo"
+          class="menu-action"
+          @click="focusUser"
+        >
+          <Icon name="maximize-2" />
+          <span>{{ isFullscreen ? 'Exit Focus' : 'Focus Video' }}</span>
+        </button>
+
+        <button
+          v-if="isScreenSharing"
+          class="menu-action"
+          @click="togglePIP"
+        >
+          <Icon name="picture-in-picture" />
+          <span>{{ isPIP ? 'Exit PiP' : 'Picture in Picture' }}</span>
+        </button>
+
+        <button
+          v-if="!isSelf"
+          class="menu-action"
+          :class="{ active: currentVolume === 0 }"
+          @click="toggleMuteUser"
+        >
+          <Icon :name="currentVolume === 0 ? 'volume-x' : 'volume-2'" />
+          <span>{{ currentVolume === 0 ? 'Unmute User' : 'Mute User' }}</span>
+        </button>
+      </div>
+
+      <!-- Self Actions (if this is the local user) -->
+      <template v-if="isSelf">
+        <div class="menu-divider" />
+        <div class="menu-actions">
+          <button class="menu-action" @click="toggleMute">
+            <Icon :name="localMuted ? 'mic-off' : 'mic'" />
+            <span>{{ localMuted ? 'Unmute' : 'Mute' }}</span>
+          </button>
+          <button class="menu-action" @click="toggleDeafen">
+            <Icon :name="localDeafened ? 'headphones-off' : 'headphones'" />
+            <span>{{ localDeafened ? 'Undeafen' : 'Deafen' }}</span>
+          </button>
+        </div>
+      </template>
+    </div>
+  </Teleport>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import type { UserMediaState } from '@/services/unifiedWebRTC';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useUserData } from '@/composables/useUserData';
+import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
+
+interface Props {
+  userState: UserMediaState;
+  x: number;
+  y: number;
+  visible: boolean;
+}
+
+const props = defineProps<Props>();
+
+interface Emits {
+  (e: 'close'): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const voiceStore = useUnifiedVoiceChannelStore();
+const { getUserProfile } = useUserData();
+
+const menuRef = ref<HTMLElement | null>(null);
+const adjustedPosition = ref({ x: 0, y: 0 });
+
+// Computed
+const isVisible = computed(() => props.visible);
+
+const userProfile = computed(() => {
+  const profile = getUserProfile(props.userState.userId).value;
+  return profile || {
+    display_name: null,
+    username: 'Unknown User',
+    avatar_url: '/default_avatar.png'
+  };
+});
+
+const displayName = computed(() => {
+  return userProfile.value.display_name || userProfile.value.username || 'Unknown User';
+});
+
+const isSelf = computed(() => {
+  return props.userState.userId === voiceStore.localState.userId;
+});
+
+const userStatus = computed(() => {
+  if (props.userState.isScreenSharing) return 'Screen sharing';
+  if (props.userState.isVideoEnabled) return 'Camera on';
+  if (props.userState.isDeafened) return 'Deafened';
+  if (props.userState.isMuted) return 'Muted';
+  if (props.userState.isSpeaking) return 'Speaking';
+  return 'In voice';
+});
+
+const hasVideo = computed(() => {
+  return props.userState.isVideoEnabled || props.userState.isScreenSharing;
+});
+
+const isScreenSharing = computed(() => props.userState.isScreenSharing);
+
+const isFullscreen = computed(() => {
+  return voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId === props.userState.userId;
+});
+
+const isPIP = computed(() => {
+  return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
+});
+
+const currentVolume = computed(() => {
+  return voiceStore.getUserVolume(props.userState.userId);
+});
+
+const localMuted = computed(() => voiceStore.localState.isMuted);
+const localDeafened = computed(() => voiceStore.localState.isDeafened);
+
+const menuStyle = computed(() => ({
+  left: `${adjustedPosition.value.x}px`,
+  top: `${adjustedPosition.value.y}px`,
+}));
+
+// Methods
+const close = () => {
+  emit('close');
+};
+
+const handleVolumeChange = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const volume = parseInt(target.value, 10);
+  voiceStore.setUserVolume(props.userState.userId, volume);
+};
+
+const setVolume = (volume: number) => {
+  voiceStore.setUserVolume(props.userState.userId, volume);
+};
+
+const toggleMuteUser = () => {
+  if (currentVolume.value === 0) {
+    setVolume(100);
+  } else {
+    setVolume(0);
+  }
+};
+
+const focusUser = () => {
+  if (isFullscreen.value) {
+    voiceStore.exitFullscreen();
+  } else {
+    voiceStore.enterFullscreen(props.userState.userId);
+  }
+  close();
+};
+
+const togglePIP = () => {
+  if (isPIP.value) {
+    voiceStore.togglePIP(null);
+  } else {
+    voiceStore.togglePIP(props.userState.userId, 'fixed');
+  }
+  close();
+};
+
+const toggleMute = () => {
+  voiceStore.toggleMute();
+  close();
+};
+
+const toggleDeafen = () => {
+  voiceStore.toggleDeafen();
+  close();
+};
+
+// Position adjustment to keep menu on screen
+const adjustPosition = async () => {
+  await nextTick();
+  
+  if (!menuRef.value) {
+    adjustedPosition.value = { x: props.x, y: props.y };
+    return;
+  }
+  
+  const rect = menuRef.value.getBoundingClientRect();
+  const padding = 10;
+  
+  let x = props.x;
+  let y = props.y;
+  
+  // Adjust if menu goes off-screen right
+  if (x + rect.width + padding > window.innerWidth) {
+    x = window.innerWidth - rect.width - padding;
+  }
+  
+  // Adjust if menu goes off-screen bottom
+  if (y + rect.height + padding > window.innerHeight) {
+    y = window.innerHeight - rect.height - padding;
+  }
+  
+  // Ensure minimum position
+  x = Math.max(padding, x);
+  y = Math.max(padding, y);
+  
+  adjustedPosition.value = { x, y };
+};
+
+// Keyboard handler
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    close();
+  }
+};
+
+// Lifecycle
+onMounted(() => {
+  adjustPosition();
+  document.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown);
+});
+</script>
+
+<style scoped>
+.context-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10005;
+}
+
+.voice-context-menu {
+  position: fixed;
+  z-index: 10006;
+  background: linear-gradient(145deg, #2f3136, #36393f);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    0 4px 16px rgba(0, 0, 0, 0.4);
+  min-width: 240px;
+  max-width: 300px;
+  overflow: hidden;
+  animation: menu-appear 0.15s ease-out;
+}
+
+@keyframes menu-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Header */
+.menu-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.display-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-status {
+  font-size: 12px;
+  color: #b9bbbe;
+}
+
+/* Divider */
+.menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
+}
+
+/* Volume Section */
+.menu-section {
+  padding: 12px 16px;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b9bbbe;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.volume-value {
+  margin-left: auto;
+  color: #5865f2;
+  font-weight: 700;
+}
+
+.volume-slider-container {
+  margin-bottom: 12px;
+}
+
+.volume-slider {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #5865f2;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(88, 101, 242, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.volume-marks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #72767d;
+}
+
+.volume-presets {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.preset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #b9bbbe;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.preset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.preset-btn.active {
+  background: #5865f2;
+  color: white;
+  border-color: #5865f2;
+}
+
+.boost-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #00d4aa;
+}
+
+.preset-btn.active .boost-indicator {
+  color: white;
+}
+
+/* Actions */
+.menu-actions {
+  padding: 8px;
+}
+
+.menu-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #dcddde;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.menu-action:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.menu-action.active {
+  background: rgba(237, 66, 69, 0.15);
+  color: #ed4245;
+}
+
+.menu-action.active:hover {
+  background: rgba(237, 66, 69, 0.25);
+}
+</style>
+

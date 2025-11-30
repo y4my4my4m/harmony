@@ -3,8 +3,8 @@
     class="harmony-voice-card"
     :class="{
       speaking: isSpeaking,
-      muted: props.userState.isMuted,
-      deafened: props.userState.isDeafened,
+      muted: effectiveMuted,
+      deafened: effectiveDeafened,
       'video-enabled': hasVideo,
       'screen-sharing': props.userState.isScreenSharing,
       self: isSelf,
@@ -12,6 +12,7 @@
       'fullscreen-active': isFullscreenActive,
     }"
     @click="handleCardClick"
+    @contextmenu.prevent="handleContextMenu"
   >
     <!-- Video Container -->
     <div v-if="hasVideo || props.userState.isScreenSharing" class="video-container">
@@ -99,10 +100,10 @@
 
         <!-- Status indicators -->
         <div class="status-indicators">
-          <div v-if="props.userState.isMuted" class="status-badge muted" title="Muted">
+          <div v-if="effectiveMuted" class="status-badge muted" title="Muted">
             <Icon name="mic-off" />
           </div>
-          <div v-if="props.userState.isDeafened" class="status-badge deafened" title="Deafened">
+          <div v-if="effectiveDeafened" class="status-badge deafened" title="Deafened">
             <Icon name="headphones-off" />
           </div>
           <div v-if="connectionQuality === 'poor'" class="status-badge connection-poor" title="Poor connection">
@@ -134,6 +135,15 @@
         }"
       ></div>
     </div>
+
+    <!-- Context Menu -->
+    <VoiceUserContextMenu
+      :user-state="props.userState"
+      :x="contextMenuPosition.x"
+      :y="contextMenuPosition.y"
+      :visible="showContextMenu"
+      @close="showContextMenu = false"
+    />
   </div>
 </template>
 
@@ -145,6 +155,7 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 
 // =============================================================================
 // PROPS & EMITS
@@ -171,6 +182,10 @@ const { getUserProfile } = useUserData();
 // =============================================================================
 
 const videoElement = ref<HTMLVideoElement | null>(null);
+
+// Context menu state
+const showContextMenu = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
 
 // =============================================================================
 // COMPUTED PROPERTIES
@@ -215,6 +230,23 @@ const isSelf = computed(() => {
   return props.userState.userId === voiceStore.localState.userId;
 });
 
+// Effective mute/deafen state - isolates local user state from remote users
+// For self: always use voiceStore.localState for immediate reactivity
+// For others: use their broadcasted state from props.userState
+const effectiveMuted = computed(() => {
+  if (isSelf.value) {
+    return voiceStore.localState.isMuted;
+  }
+  return props.userState.isMuted;
+});
+
+const effectiveDeafened = computed(() => {
+  if (isSelf.value) {
+    return voiceStore.localState.isDeafened;
+  }
+  return props.userState.isDeafened;
+});
+
 // Get connection state
 const connectionState = computed(() => {
   // For self, always connected when in channel
@@ -235,7 +267,8 @@ const displayName = computed(() => {
 const isSpeaking = computed(() => {
   if (isSelf.value) {
     // For self user, use audioLevel-based detection to feel more responsive
-    return props.userState.audioLevel > 20 && !props.userState.isMuted;
+    // Use effectiveMuted to ensure proper state isolation
+    return props.userState.audioLevel > 20 && !effectiveMuted.value;
   }
   // For peer users, rely on the state provided by the WebRTC service
   return props.userState.isSpeaking;
@@ -266,8 +299,8 @@ const connectionQuality = computed(() => {
 const userStatus = computed(() => {
   if (props.userState.isScreenSharing) return 'Screen sharing';
   if (props.userState.isVideoEnabled && !props.userState.isScreenSharing) return 'Camera on';
-  if (props.userState.isDeafened) return 'Deafened';
-  if (props.userState.isMuted) return 'Muted';
+  if (effectiveDeafened.value) return 'Deafened';
+  if (effectiveMuted.value) return 'Muted';
   if (isSpeaking.value) return 'Speaking';
   return 'In voice';
 });
@@ -332,6 +365,14 @@ const togglePIP = () => {
     const pipMode = document.pictureInPictureEnabled ? 'native' : 'fixed';
     voiceStore.togglePIP(props.userState.userId, pipMode);
   }
+};
+
+/**
+ * Handle right-click context menu
+ */
+const handleContextMenu = (event: MouseEvent) => {
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  showContextMenu.value = true;
 };
 
 // =============================================================================
@@ -412,7 +453,9 @@ watch(
 .video-container {
   position: relative;
   width: 100%;
-  height: 280px;
+  aspect-ratio: 16 / 9;
+  min-height: 180px;
+  max-height: 400px;
   border-radius: 12px;
   overflow: hidden;
   background: #000;
@@ -421,11 +464,17 @@ watch(
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
+/* Webcam video - crop to fill (cover) */
 .video-stream {
   width: 100%;
   height: 100%;
   object-fit: cover;
   background: #000;
+}
+
+/* Screenshare video - preserve full content (contain) */
+.harmony-voice-card.screen-sharing .video-stream {
+  object-fit: contain;
 }
 
 .video-overlay {
@@ -752,7 +801,8 @@ watch(
   }
 
   .video-container {
-    height: 200px;
+    min-height: 140px;
+    max-height: 280px;
   }
 
   .avatar-container {
@@ -771,6 +821,13 @@ watch(
 
   .harmony-voice-card-user-status {
     font-size: 11px;
+  }
+}
+
+/* Larger screens - allow taller video containers */
+@media (min-width: 1200px) {
+  .video-container {
+    max-height: 500px;
   }
 }
 </style>
