@@ -181,16 +181,22 @@ class WebRTCManagerService implements WebRTCManager {
       // Try LiveKit first
       debug.log('🔄 [WebRTCManager] Attempting LiveKit connection...');
       
+      // Set activeService BEFORE joining so events are forwarded during connection
+      this.activeService = 'livekit';
+      
       try {
         const success = await livekitWebRTC.joinChannel(channelId, userId, roomType);
         
         if (success) {
-          this.activeService = 'livekit';
           debug.log('✅ [WebRTCManager] Connected via LiveKit SFU');
           return true;
         }
+        
+        // Connection failed, reset activeService
+        this.activeService = null;
       } catch (error) {
         debug.warn('⚠️ [WebRTCManager] LiveKit connection failed:', error);
+        this.activeService = null;
       }
       
       // If SFU-only mode, don't fallback
@@ -204,16 +210,21 @@ class WebRTCManagerService implements WebRTCManager {
     }
     
     // Use P2P (unifiedWebRTC)
+    // Set activeService BEFORE joining so events are forwarded during connection
+    this.activeService = 'p2p';
+    
     try {
       const success = await unifiedWebRTC.joinChannel(channelId, userId);
       
       if (success) {
-        this.activeService = 'p2p';
         debug.log('✅ [WebRTCManager] Connected via P2P');
         return true;
       }
+      
+      this.activeService = null;
     } catch (error) {
       debug.error('❌ [WebRTCManager] P2P connection failed:', error);
+      this.activeService = null;
       this.emit('error', error);
     }
     

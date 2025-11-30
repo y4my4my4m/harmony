@@ -285,11 +285,17 @@ export class LiveKitWebRTCService {
       
       debug.log('✅ [LiveKit] Connected to room:', roomName);
       
+      // Sync existing participants (they don't trigger ParticipantConnected event)
+      this.syncExistingParticipants();
+      
       // Publish local audio track
       await this.publishLocalAudio();
       
       this.emit('channel-joined', { channelId, userId });
       this.emit('local-state-changed', this.localMediaState);
+      
+      // Emit channel state sync with all users including existing ones
+      this.emit('channel-state-synced', { users: this.getAllUsers() });
       
       return true;
     } catch (error) {
@@ -615,6 +621,42 @@ export class LiveKitWebRTCService {
   // =============================================================================
   // ROOM EVENT HANDLING
   // =============================================================================
+  
+  /**
+   * Sync existing participants in the room (called after connecting)
+   * This handles participants who were already in the room before we joined
+   */
+  private syncExistingParticipants(): void {
+    if (!this.room) {
+      debug.warn('⚠️ [LiveKit] syncExistingParticipants called but no room');
+      return;
+    }
+    
+    const existingParticipants = this.room.remoteParticipants;
+    debug.log(`🔄 [LiveKit] Syncing ${existingParticipants.size} existing participants`);
+    debug.log(`🔄 [LiveKit] Room state: ${this.room.state}, local participant: ${this.room.localParticipant?.identity}`);
+    
+    if (existingParticipants.size === 0) {
+      debug.log('📭 [LiveKit] No existing participants to sync');
+      return;
+    }
+    
+    existingParticipants.forEach((participant: RemoteParticipant) => {
+      debug.log(`👤 [LiveKit] Found existing participant: ${participant.identity}, sid: ${participant.sid}`);
+      
+      const mediaState = this.createMediaState(participant);
+      this.allUserStates.set(participant.identity, mediaState);
+      debug.log(`👤 [LiveKit] Added to allUserStates, total: ${this.allUserStates.size}`);
+      
+      // Setup listeners for this participant
+      this.setupParticipantListeners(participant);
+      
+      // Emit user-joined event so the store knows about them
+      this.emit('user-joined', { userId: participant.identity, mediaState });
+    });
+    
+    debug.log(`✅ [LiveKit] Sync complete. Total users tracked: ${this.allUserStates.size}`);
+  }
   
   /**
    * Setup LiveKit room event listeners
