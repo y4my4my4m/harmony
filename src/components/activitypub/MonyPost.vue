@@ -1562,7 +1562,7 @@ const closeLightbox = () => {
 }
 
 .mony-post.is-reply {
-  border-left: 3px solid #2563eb;
+  border-left: 3px solid var(--harmony-primary);
 }
 
 .reblog-header {
@@ -1712,7 +1712,7 @@ const closeLightbox = () => {
 }
 
 .reply-author-link {
-  color: #60a5fa;
+  color: var(--harmony-primary);
   cursor: pointer;
   font-weight: 500;
 }

@@ -60,23 +60,7 @@
         </div>
       </div>
       
-      <!-- Standard Unicode Emojis by Category (only when native pack selected) -->
-      <div v-for="category in displayedNativeCategories" :key="category.name" class="emoji-section">
-        <h3 class="section-title">{{ category.icon }} {{ category.name }}</h3>
-        <div class="emoji-list native-list">
-          <div
-            v-for="emoji in category.emojis"
-            :key="emoji.content"
-            class="emoji-item native-emoji-item"
-            :title="emoji.name"
-            @click="selectQuickEmoji(emoji)"
-          >
-            <span>{{ emoji.content }}</span>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Mutant Standard Emojis by Category -->
+      <!-- Unified Emojis by Category (from unified emoji service) -->
       <div v-if="mutantLoading" class="emoji-loading">
         <span class="loading-spinner"></span>
         <span>Loading emojis...</span>
@@ -87,22 +71,27 @@
         <div class="emoji-list mutant-list">
           <div
             v-for="emoji in category.emojis"
-            :key="emoji.id"
-            class="emoji-item mutant-emoji-item"
-            :title="`:${emoji.name}:`"
-            @click="selectMutantEmoji(emoji)"
+            :key="emoji.shortcode"
+            class="emoji-item"
+            :class="{ 'mutant-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
+            :title="`:${emoji.shortcode}:`"
+            @click="selectUnifiedEmoji(emoji)"
           >
+            <!-- Mutant pack: show SVG -->
             <img 
-              :src="`/assets/emojis/mutant_emojis_svg/${emoji.path}`" 
-              :alt="emoji.name"
+              v-if="!isNativePack"
+              :src="`/assets/emojis/mutant_emojis_svg/${emoji.svgPath}`" 
+              :alt="emoji.shortcode"
               loading="lazy"
             />
+            <!-- Native pack: show unicode -->
+            <span v-else class="native-emoji-char">{{ emoji.unicode }}</span>
           </div>
         </div>
       </div>
       
       <!-- No Results -->
-      <div v-if="searchQuery && !filteredEmojiList.length && !displayedNativeCategories.length && !displayedMutantCategories.length" class="no-results">
+      <div v-if="searchQuery && !filteredEmojiList.length && !displayedMutantCategories.length" class="no-results">
         <div class="no-results-content">
           <div class="no-results-icon">{{ noResultsInfo.icon }}</div>
           <p>{{ noResultsInfo.title }}</p>
@@ -119,12 +108,12 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { usePopupPositioning } from '@/composables/usePopupPositioning';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
-import { useEmojiPacks, loadPackEmojiIndex, type EmojiPackItem } from '@/services/emojiPackService';
+import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { debug } from '@/utils/debug';
 
-// Native emoji item interface
+// Legacy interface for backwards compatibility
 interface NativeEmojiItem {
   content: string;
   name: string;
@@ -175,189 +164,39 @@ const emit = defineEmits<{
 const emojiCacheStore = useEmojiCacheStore();
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
-const { currentPack, isNativePack, currentPackId } = useEmojiPacks();
+const { 
+  isNativePack, 
+  currentPack,
+  isLoaded: unifiedLoaded,
+  isLoading: unifiedLoading,
+  getAllEmojis,
+  getCategories,
+  searchEmojis,
+  resolveEmoji,
+  getSvgUrl
+} = useUnifiedEmoji();
+
 const emojiPopup = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const hoveredEmojiId = ref<string | null>(null);
 
-// Mutant emoji pack data
-const mutantEmojis = ref<EmojiPackItem[]>([]);
-const mutantCategories = ref<{ id: string; name: string; icon: string; count: number }[]>([]);
-const mutantLoading = ref(false);
-const mutantLoaded = ref(false);
+// Loading state for unified emoji data
+const mutantLoading = computed(() => unifiedLoading.value);
+const mutantLoaded = computed(() => unifiedLoaded.value);
 
-// Quick reaction emojis (native unicode)
-const quickReactionEmojis: NativeEmojiItem[] = [
-  { content: '👍', name: 'thumbs up' },
-  { content: '❤️', name: 'heart' },
-  { content: '😂', name: 'laughing' },
-  { content: '😮', name: 'wow' },
-  { content: '😢', name: 'sad' },
-  { content: '😡', name: 'angry' },
-  { content: '🎉', name: 'party' },
-  { content: '🔥', name: 'fire' },
-  { content: '👀', name: 'eyes' },
-  { content: '🤔', name: 'thinking' },
-  { content: '💯', name: '100' },
-  { content: '✨', name: 'sparkles' },
-];
-
-// Extended native emojis for search
-const allNativeEmojis: NativeEmojiItem[] = [
-  // Smileys
-  { content: '😀', name: 'grinning' },
-  { content: '😃', name: 'smiley' },
-  { content: '😄', name: 'smile' },
-  { content: '😁', name: 'grin' },
-  { content: '😆', name: 'laughing squint' },
-  { content: '😅', name: 'sweat smile' },
-  { content: '🤣', name: 'rofl' },
-  { content: '😂', name: 'joy tears' },
-  { content: '🙂', name: 'slightly smiling' },
-  { content: '🙃', name: 'upside down' },
-  { content: '😉', name: 'wink' },
-  { content: '😊', name: 'blush' },
-  { content: '😇', name: 'innocent' },
-  { content: '🥰', name: 'smiling hearts' },
-  { content: '😍', name: 'heart eyes' },
-  { content: '🤩', name: 'star struck' },
-  { content: '😘', name: 'kiss' },
-  { content: '😗', name: 'kissing' },
-  { content: '😚', name: 'kissing closed eyes' },
-  { content: '😋', name: 'yum' },
-  { content: '😛', name: 'tongue out' },
-  { content: '😜', name: 'winking tongue' },
-  { content: '🤪', name: 'zany' },
-  { content: '😝', name: 'squinting tongue' },
-  { content: '🤑', name: 'money face' },
-  { content: '🤗', name: 'hugging' },
-  { content: '🤭', name: 'hand over mouth' },
-  { content: '🤫', name: 'shushing' },
-  { content: '🤔', name: 'thinking' },
-  { content: '🤐', name: 'zipper mouth' },
-  { content: '🤨', name: 'raised eyebrow' },
-  { content: '😐', name: 'neutral' },
-  { content: '😑', name: 'expressionless' },
-  { content: '😶', name: 'no mouth' },
-  { content: '😏', name: 'smirk' },
-  { content: '😒', name: 'unamused' },
-  { content: '🙄', name: 'eye roll' },
-  { content: '😬', name: 'grimace' },
-  { content: '🤥', name: 'lying' },
-  { content: '😌', name: 'relieved' },
-  { content: '😔', name: 'pensive' },
-  { content: '😪', name: 'sleepy' },
-  { content: '🤤', name: 'drooling' },
-  { content: '😴', name: 'sleeping' },
-  { content: '😷', name: 'mask' },
-  { content: '🤒', name: 'thermometer' },
-  { content: '🤕', name: 'head bandage' },
-  { content: '🤢', name: 'nauseated' },
-  { content: '🤮', name: 'vomiting' },
-  { content: '🤧', name: 'sneezing' },
-  { content: '🥵', name: 'hot' },
-  { content: '🥶', name: 'cold' },
-  { content: '🥴', name: 'woozy' },
-  { content: '😵', name: 'dizzy' },
-  { content: '🤯', name: 'exploding head' },
-  { content: '🤠', name: 'cowboy' },
-  { content: '🥳', name: 'partying' },
-  { content: '😎', name: 'cool sunglasses' },
-  { content: '🤓', name: 'nerd' },
-  { content: '🧐', name: 'monocle' },
-  { content: '😕', name: 'confused' },
-  { content: '😟', name: 'worried' },
-  { content: '🙁', name: 'slightly frowning' },
-  { content: '😮', name: 'open mouth' },
-  { content: '😯', name: 'hushed' },
-  { content: '😲', name: 'astonished' },
-  { content: '😳', name: 'flushed' },
-  { content: '🥺', name: 'pleading' },
-  { content: '😦', name: 'frowning open mouth' },
-  { content: '😧', name: 'anguished' },
-  { content: '😨', name: 'fearful' },
-  { content: '😰', name: 'anxious sweat' },
-  { content: '😥', name: 'sad relieved' },
-  { content: '😢', name: 'crying' },
-  { content: '😭', name: 'loudly crying' },
-  { content: '😱', name: 'screaming' },
-  { content: '😖', name: 'confounded' },
-  { content: '😣', name: 'persevering' },
-  { content: '😞', name: 'disappointed' },
-  { content: '😓', name: 'downcast sweat' },
-  { content: '😩', name: 'weary' },
-  { content: '😫', name: 'tired' },
-  { content: '🥱', name: 'yawning' },
-  { content: '😤', name: 'triumph' },
-  { content: '😡', name: 'angry' },
-  { content: '😠', name: 'pouting' },
-  { content: '🤬', name: 'cursing' },
-  { content: '😈', name: 'smiling devil' },
-  { content: '👿', name: 'angry devil' },
-  { content: '💀', name: 'skull' },
-  { content: '☠️', name: 'skull crossbones' },
-  { content: '💩', name: 'poop' },
-  { content: '🤡', name: 'clown' },
-  { content: '👹', name: 'ogre' },
-  { content: '👺', name: 'goblin' },
-  { content: '👻', name: 'ghost' },
-  { content: '👽', name: 'alien' },
-  { content: '👾', name: 'alien monster' },
-  { content: '🤖', name: 'robot' },
-  // Gestures
-  { content: '👍', name: 'thumbs up' },
-  { content: '👎', name: 'thumbs down' },
-  { content: '👌', name: 'ok hand' },
-  { content: '✌️', name: 'peace' },
-  { content: '🤞', name: 'crossed fingers' },
-  { content: '🤟', name: 'love you' },
-  { content: '🤘', name: 'rock' },
-  { content: '👋', name: 'wave' },
-  { content: '🤚', name: 'raised back hand' },
-  { content: '✋', name: 'raised hand' },
-  { content: '🖐️', name: 'hand splayed' },
-  { content: '👊', name: 'fist bump' },
-  { content: '✊', name: 'raised fist' },
-  { content: '👏', name: 'clap' },
-  { content: '🙌', name: 'raising hands' },
-  { content: '🙏', name: 'pray please' },
-  // Hearts
-  { content: '❤️', name: 'red heart' },
-  { content: '🧡', name: 'orange heart' },
-  { content: '💛', name: 'yellow heart' },
-  { content: '💚', name: 'green heart' },
-  { content: '💙', name: 'blue heart' },
-  { content: '💜', name: 'purple heart' },
-  { content: '🖤', name: 'black heart' },
-  { content: '🤍', name: 'white heart' },
-  { content: '🤎', name: 'brown heart' },
-  { content: '💔', name: 'broken heart' },
-  { content: '💕', name: 'two hearts' },
-  { content: '💖', name: 'sparkling heart' },
-  { content: '💗', name: 'growing heart' },
-  { content: '💘', name: 'heart arrow' },
-  { content: '💝', name: 'heart ribbon' },
-  // Objects & Symbols
-  { content: '🔥', name: 'fire' },
-  { content: '✨', name: 'sparkles' },
-  { content: '⭐', name: 'star' },
-  { content: '🌟', name: 'glowing star' },
-  { content: '💫', name: 'dizzy star' },
-  { content: '🎉', name: 'party popper' },
-  { content: '🎊', name: 'confetti ball' },
-  { content: '💯', name: '100' },
-  { content: '💢', name: 'anger' },
-  { content: '💥', name: 'collision' },
-  { content: '💦', name: 'sweat drops' },
-  { content: '💨', name: 'dash' },
-  { content: '💬', name: 'speech bubble' },
-  { content: '💭', name: 'thought bubble' },
-  { content: '👀', name: 'eyes' },
-  { content: '🙈', name: 'see no evil' },
-  { content: '🙉', name: 'hear no evil' },
-  { content: '🙊', name: 'speak no evil' },
-];
+// Category icons for display
+const categoryIcons: Record<string, string> = {
+  'expressions': '😊',
+  'food_drink_herbs': '🍕',
+  'activities_clothing': '🎮',
+  'nature': '🌿',
+  'objects': '🔧',
+  'symbols': '❤️',
+  'travel_places': '✈️',
+  'people': '👋',
+  'extra': '✨'
+};
 
 // --- Composables ---
 
@@ -404,85 +243,18 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
 });
 
 /**
- * Native emoji categories for display
- */
-const nativeEmojiCategories = [
-  {
-    name: 'Smileys',
-    icon: '😀',
-    emojis: allNativeEmojis.slice(0, 70) // Smileys section
-  },
-  {
-    name: 'Gestures',
-    icon: '👋',
-    emojis: allNativeEmojis.slice(70, 86) // Gestures
-  },
-  {
-    name: 'Hearts',
-    icon: '❤️',
-    emojis: allNativeEmojis.slice(86, 101) // Hearts
-  },
-  {
-    name: 'Symbols',
-    icon: '✨',
-    emojis: allNativeEmojis.slice(101) // Rest (symbols, objects)
-  }
-];
-
-/**
- * Displayed native emoji categories (filtered if searching, all if not)
- * Only shown when using native pack
- */
-const displayedNativeCategories = computed(() => {
-  // Don't show native categories if using mutant pack
-  if (!isNativePack.value) return [];
-  
-  const query = searchQuery.value.toLowerCase().trim();
-  
-  if (!query) {
-    // Show all categories when not searching
-    return nativeEmojiCategories;
-  }
-  
-  // Filter emojis within each category when searching
-  return nativeEmojiCategories
-    .map(cat => ({
-      ...cat,
-      emojis: cat.emojis.filter(emoji => 
-        emoji.name.toLowerCase().includes(query) ||
-        emoji.content.includes(query)
-      )
-    }))
-    .filter(cat => cat.emojis.length > 0);
-});
-
-/**
- * Category icons for mutant emojis
- */
-const mutantCategoryIcons: Record<string, string> = {
-  'expressions': '😊',
-  'food_drink_herbs': '🍕',
-  'activities_clothing': '🎮',
-  'nature_effects': '🌿',
-  'objects': '🔧',
-  'symbols': '❤️',
-  'travel_places': '✈️',
-  'people_animals': '🐱',
-  'extra': '✨'
-};
-
-/**
- * Displayed mutant emoji categories (filtered if searching, all if not)
+ * Displayed emoji categories from unified emoji service
+ * Works for both native and mutant pack - rendering differs
  */
 const displayedMutantCategories = computed(() => {
-  // Only show mutant categories if using mutant pack
-  if (isNativePack.value || !mutantLoaded.value) return [];
+  if (!mutantLoaded.value) return [];
   
   const query = searchQuery.value.toLowerCase().trim();
+  const allEmojis = getAllEmojis();
   
   // Group emojis by category
-  const categoryMap = new Map<string, EmojiPackItem[]>();
-  for (const emoji of mutantEmojis.value) {
+  const categoryMap = new Map<string, EmojiEntry[]>();
+  for (const emoji of allEmojis) {
     const catId = emoji.category;
     if (!categoryMap.has(catId)) {
       categoryMap.set(catId, []);
@@ -491,43 +263,28 @@ const displayedMutantCategories = computed(() => {
   }
   
   // Convert to array with category metadata
-  const categories = Array.from(categoryMap.entries()).map(([catId, emojis]) => {
-    const catInfo = mutantCategories.value.find(c => c.id === catId);
-    return {
-      id: catId,
-      name: catInfo?.name || catId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      icon: mutantCategoryIcons[catId] || '📦',
-      emojis
-    };
-  });
+  const categories = Array.from(categoryMap.entries()).map(([catId, emojis]) => ({
+    id: catId,
+    name: catId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    icon: categoryIcons[catId] || '📦',
+    emojis
+  }));
   
   if (!query) {
     return categories;
   }
   
-  // Filter emojis within each category when searching
+  // Filter emojis when searching
   return categories
     .map(cat => ({
       ...cat,
       emojis: cat.emojis.filter(emoji => 
-        emoji.name.toLowerCase().includes(query) ||
+        emoji.shortcode.toLowerCase().includes(query) ||
+        emoji.description.toLowerCase().includes(query) ||
         emoji.keywords?.some(kw => kw.toLowerCase().includes(query))
       )
     }))
     .filter(cat => cat.emojis.length > 0);
-});
-
-/**
- * Filters native emojis based on search query (for backwards compatibility)
- */
-const filteredNativeEmojis = computed((): NativeEmojiItem[] => {
-  const query = searchQuery.value.toLowerCase().trim();
-  if (!query) return [];
-  
-  return allNativeEmojis.filter(emoji => 
-    emoji.name.toLowerCase().includes(query) ||
-    emoji.content.includes(query)
-  ).slice(0, 50); // Limit results
 });
 
 /**
@@ -551,127 +308,55 @@ const noResultsInfo = computed(() => {
 // --- Logic & Handlers ---
 
 /**
- * Load mutant emojis from the pack index
+ * Select an emoji from the unified emoji data
+ * ALWAYS stores the UNICODE character for portability across packs
  */
-const loadMutantEmojis = async (): Promise<void> => {
-  if (mutantLoaded.value || mutantLoading.value || isNativePack.value) return;
-  
-  mutantLoading.value = true;
-  try {
-    const response = await fetch('/assets/emojis/mutant_emojis_svg/emoji-index.json');
-    if (!response.ok) {
-      throw new Error('Failed to load mutant emoji index');
-    }
-    
-    const data = await response.json();
-    mutantEmojis.value = data.emojis || [];
-    mutantCategories.value = data.categories || [];
-    mutantLoaded.value = true;
-    debug.log(`📦 Loaded ${mutantEmojis.value.length} mutant emojis`);
-  } catch (error) {
-    debug.error('Failed to load mutant emojis:', error);
-  } finally {
-    mutantLoading.value = false;
-  }
-};
-
-/**
- * Select a mutant emoji
- * Stores as "mutant:path" format so reactions can render the SVG
- */
-const selectMutantEmoji = (emoji: EmojiPackItem): void => {
+const selectUnifiedEmoji = (emoji: EmojiEntry): void => {
   triggerReaction();
   
-  // Create a special ID format that includes the path for rendering
-  // Format: mutant:path/to/emoji.svg
-  const mutantId = `mutant:${emoji.path}`;
-  
+  // Record usage with the unicode character
   recordEmojiUsage({
-    id: emoji.id,
-    name: emoji.name,
-    native: undefined,
-    url: `/assets/emojis/mutant_emojis_svg/${emoji.path}`
+    id: emoji.unicode,
+    native: emoji.unicode,
+    name: emoji.shortcode
   });
   
-  // Convert to Emoji type - use mutant: prefix so reactions can identify it
+  // ALWAYS send the unicode character - rendering will be handled by the display component
+  // based on user's pack preference
   const emojiObj = {
-    id: mutantId,
-    name: emoji.name,
-    url: `/assets/emojis/mutant_emojis_svg/${emoji.path}`,
+    id: emoji.unicode,  // Unicode character for storage
+    name: emoji.shortcode,
+    url: '',  // Empty - rendering handled by resolveEmoji at display time
     created_at: new Date(),
     uploader: '',
-    server_id: 'mutant'
+    server_id: ''
   } as Emoji;
   emit('sendEmoji', emojiObj);
 };
+
+// Alias for backwards compatibility with template
+const selectMutantEmoji = selectUnifiedEmoji;
 
 const selectEmoji = (emoji: Emoji): void => {
   triggerReaction();
   emit('sendEmoji', emoji);
 };
 
-// Select a native emoji (from quick reactions or frequent)
-const selectQuickEmoji = (emoji: NativeEmojiItem): void => {
-  triggerReaction();
-  recordEmojiUsage({
-    native: emoji.content,
-    name: emoji.name
-  });
-  
-  // Convert to Emoji type - use native char as ID for native emojis
-  const emojiObj = {
-    id: emoji.content,
-    name: emoji.name,
-    url: '', // Native emojis don't have URLs
-    created_at: new Date(),
-    uploader: '',
-    server_id: ''
-  } as Emoji;
-  emit('sendEmoji', emojiObj);
-};
-
-// Select from frequently used emojis
-const selectNativeEmoji = (emoji: { id: string; native?: string; name: string }): void => {
-  triggerReaction();
-  recordEmojiUsage({
-    id: emoji.id,
-    native: emoji.native,
-    name: emoji.name
-  });
-  
-  // Convert to Emoji type
-  const emojiObj = {
-    id: emoji.native || emoji.id,
-    name: emoji.name,
-    url: emoji.native ? '' : (emoji as any).url || '',
-    created_at: new Date(),
-    uploader: '',
-    server_id: ''
-  } as Emoji;
-  emit('sendEmoji', emojiObj);
-};
-
-// Select from frequently used emojis (handles all types: native, custom, mutant)
+// Select from frequently used emojis (handles all types)
 const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string; url?: string }): void => {
   triggerReaction();
   
-  // Check if it's a mutant emoji (URL contains mutant path)
-  if (emoji.url && emoji.url.includes('/mutant_emojis_svg/')) {
-    // Extract path from URL for mutant: format
-    const pathMatch = emoji.url.match(/\/mutant_emojis_svg\/(.+)$/);
-    const mutantPath = pathMatch ? pathMatch[1] : emoji.name;
-    
-    const emojiObj = {
-      id: `mutant:${mutantPath}`,
-      name: emoji.name,
-      url: emoji.url,
-      created_at: new Date(),
-      uploader: '',
-      server_id: 'mutant'
-    } as Emoji;
-    emit('sendEmoji', emojiObj);
-  } else if (emoji.url) {
-    // Custom server emoji with URL
+  // Determine the unicode to use
+  let unicode = emoji.native || emoji.id;
+  
+  // If it's a legacy mutant:path format, try to resolve to unicode
+  if (unicode.startsWith('mutant:')) {
+    const resolved = resolveEmoji(unicode);
+    unicode = resolved.unicode;
+  }
+  
+  // Custom server emoji with URL (not from unified pack)
+  if (emoji.url && !emoji.url.includes('/mutant_emojis_svg/')) {
     const emojiObj = {
       id: emoji.id,
       name: emoji.name,
@@ -682,9 +367,9 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
     } as Emoji;
     emit('sendEmoji', emojiObj);
   } else {
-    // Native unicode emoji
+    // Native or unified pack emoji - send unicode
     const emojiObj = {
-      id: emoji.native || emoji.id,
+      id: unicode,
       name: emoji.name,
       url: '',
       created_at: new Date(),
@@ -693,8 +378,6 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
     } as Emoji;
     emit('sendEmoji', emojiObj);
   }
-  
-  // Recording already done when emoji was first used
 };
 
 const handleClickOutside = (event: MouseEvent): void => {
@@ -724,10 +407,7 @@ onMounted(() => {
     searchInput.value?.focus();
   });
   
-  // Load mutant emojis if using mutant pack
-  if (!isNativePack.value) {
-    loadMutantEmojis();
-  }
+  // Unified emoji data is loaded automatically by the service
 });
 
 onUnmounted(() => {
@@ -745,18 +425,6 @@ watch(
   (isClicked) => {
     if (isClicked) {
       searchQuery.value = '';
-    }
-  },
-);
-
-/**
- * Load mutant emojis when pack changes to mutant
- */
-watch(
-  () => currentPackId.value,
-  (packId) => {
-    if (packId === 'mutant' && !mutantLoaded.value) {
-      loadMutantEmojis();
     }
   },
 );
@@ -867,7 +535,8 @@ watch(
   height: 36px;
 }
 
-.native-emoji-item span {
+.native-emoji-item span,
+.native-emoji-char {
   font-size: 24px;
   line-height: 1;
 }

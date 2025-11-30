@@ -128,10 +128,14 @@ function setEmojiPack(pack: EmojiPack): void {
 /**
  * Convert shortcode to unicode emoji
  * e.g., "joy" → "😂"
+ * Case insensitive lookup
  */
 function shortcodeToUnicode(shortcode: string): string | null {
   if (!lookups.value) return null
-  return lookups.value.shortcodeToUnicode[shortcode] || null
+  // Try exact match first, then lowercase
+  return lookups.value.shortcodeToUnicode[shortcode] || 
+         lookups.value.shortcodeToUnicode[shortcode.toLowerCase()] || 
+         null
 }
 
 /**
@@ -145,20 +149,28 @@ function unicodeToShortcode(unicode: string): string | null {
 
 /**
  * Get SVG path for a shortcode
- * e.g., "joy" → "expressions/smileys/typical/1f602_joy.svg"
+ * e.g., "joy" → "expressions/smileys/typical/joy.svg"
+ * Case insensitive lookup
  */
 function shortcodeToSvgPath(shortcode: string): string | null {
   if (!lookups.value) return null
-  return lookups.value.shortcodeToSvg[shortcode] || null
+  // Try exact match first, then lowercase
+  return lookups.value.shortcodeToSvg[shortcode] || 
+         lookups.value.shortcodeToSvg[shortcode.toLowerCase()] || 
+         null
 }
+
+// Default base path for emoji SVGs
+const DEFAULT_SVG_BASE_PATH = '/assets/emojis/mutant_emojis_svg'
 
 /**
  * Get full SVG URL for a shortcode
  */
 function getSvgUrl(shortcode: string): string | null {
   const path = shortcodeToSvgPath(shortcode)
-  if (!path || !lookups.value) return null
-  return `${lookups.value.svgBasePath}/${path}`
+  if (!path) return null
+  const basePath = lookups.value?.svgBasePath || DEFAULT_SVG_BASE_PATH
+  return `${basePath}/${path}`
 }
 
 /**
@@ -200,12 +212,13 @@ function resolveEmoji(input: string): ResolvedEmoji {
     
     const unicode = shortcodeToUnicode(shortcode)
     
+    const basePath = lookups.value?.svgBasePath || DEFAULT_SVG_BASE_PATH
     return {
       unicode: unicode || input,
       shortcode,
       display: currentPack.value === 'native' && unicode
         ? { type: 'native', content: unicode }
-        : { type: 'svg', content: `${lookups.value?.svgBasePath || '/assets/emojis/mutant_emojis_svg'}/${path}` }
+        : { type: 'svg', content: `${basePath}/${path}` }
     }
   }
   

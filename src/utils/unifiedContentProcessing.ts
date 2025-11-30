@@ -10,6 +10,7 @@ import type { MessagePart } from '@/types';
 import { getEmoji } from '@/services/emojiService';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
+import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 
 // Support both UUID-based emojis (legacy) and shortcode emojis (new)
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
@@ -110,7 +111,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
 
 /**
  * Helper function to efficiently resolve emoji data in batch
- * Supports both UUID-based emojis and shortcode emojis
+ * Supports both UUID-based emojis, shortcode emojis, and unified emoji pack
  */
 export async function resolveEmojisData(content: string): Promise<Record<string, any>> {
   const emojiDataMap: Record<string, any> = {};
@@ -141,7 +142,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
   if (uniqueEmojiIds.size === 0 && uniqueEmojiNames.size === 0) return emojiDataMap;
   
   try {
-    // Query emojis by ID (UUID-based)
+    // Query emojis by ID (UUID-based) from database
     if (uniqueEmojiIds.size > 0) {
       const { data: emojisByIds } = await supabase
         .from('emojis')
@@ -155,7 +156,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
       }
     }
     
-    // Query emojis by name (shortcode-based)
+    // Query emojis by name (shortcode-based) from database
     if (uniqueEmojiNames.size > 0) {
       const { data: emojisByNames } = await supabase
         .from('emojis')
@@ -166,6 +167,30 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
         emojisByNames.forEach(emoji => {
           emojiDataMap[emoji.name] = emoji;
         });
+      }
+      
+      // For emojis not found in database, check unified emoji pack
+      // This supports Mutant Standard and other emoji packs
+      await loadEmojiData(); // Ensure emoji data is loaded
+      
+      for (const emojiName of uniqueEmojiNames) {
+        if (!emojiDataMap[emojiName]) {
+          // Try to resolve from unified emoji service
+          const resolved = resolveEmoji(emojiName);
+          
+          // If we got a valid resolution (not just returning input back)
+          if (resolved.display.type === 'svg' || 
+              (resolved.display.type === 'native' && resolved.unicode !== emojiName)) {
+            emojiDataMap[emojiName] = {
+              id: resolved.unicode || emojiName,
+              name: emojiName,
+              url: resolved.display.type === 'svg' ? resolved.display.content : null,
+              native: resolved.display.type === 'native' ? resolved.display.content : null,
+              shortcode: resolved.shortcode,
+              source: 'unified'
+            };
+          }
+        }
       }
     }
   } catch (error) {

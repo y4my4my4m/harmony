@@ -48,16 +48,26 @@
           @click="handleMentionClick(part)"
         >{{ renderer.formatMentionDisplay(part) }}</span>
         
-        <!-- Custom emojis -->
-        <img 
-          v-else-if="part && part.type === 'emoji'"
-          class="emoji-icon"
-          :class="{ 'single': renderer.isSingleEmoji.value }"
-          :src="getEmojiDisplayUrl(part.emoji)"
-          :alt="part.emoji?.name"
-          :title="`:${part.emoji?.name}:`"
-          draggable="false"
-        />
+        <!-- Emojis (custom server or unified pack) -->
+        <template v-else-if="part && part.type === 'emoji'">
+          <!-- Native unicode rendering (when native pack selected) -->
+          <span 
+            v-if="shouldRenderNativeEmoji(part.emoji)"
+            class="native-emoji"
+            :class="{ 'single': renderer.isSingleEmoji.value }"
+            :title="`:${part.emoji?.name}:`"
+          >{{ getNativeEmojiChar(part.emoji) }}</span>
+          <!-- SVG/Image rendering (custom emojis or mutant pack) -->
+          <img 
+            v-else
+            class="emoji-icon"
+            :class="{ 'single': renderer.isSingleEmoji.value }"
+            :src="getEmojiDisplayUrl(part.emoji)"
+            :alt="part.emoji?.name"
+            :title="`:${part.emoji?.name}:`"
+            draggable="false"
+          />
+        </template>
         
         <!-- URLs with media preview -->
         <template v-else-if="part && part.type === 'url'">
@@ -174,10 +184,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import type { MessagePart } from '@/types';
 import { useContentRenderer, type ContentRenderOptions } from '@/composables/useContentRenderer';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -297,10 +308,66 @@ const handleLinkClick = (url: string, event: Event) => {
   emit('link-click', url, event);
 };
 
+// Initialize unified emoji service
+const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
+
+onMounted(() => {
+  // Emoji service auto-loads
+});
+
 // Utility functions
 const getEmojiDisplayUrl = (emoji: any) => {
-  if (!emoji || !emoji.url) return '';
-  return getEmojiUrl(emoji.url, 96);
+  if (!emoji) return '';
+  
+  // If emoji has a URL (server custom emoji or unified pack SVG), use it directly
+  if (emoji.url) {
+    return getEmojiUrl(emoji.url, 96);
+  }
+  
+  // If emoji has a name, try to resolve via unified service
+  if (emoji.name && emojiServiceLoaded.value) {
+    const resolved = resolveEmoji(emoji.name);
+    if (resolved.display.type === 'svg') {
+      return resolved.display.content;
+    }
+  }
+  
+  return '';
+};
+
+// Check if emoji should render as native unicode
+const shouldRenderNativeEmoji = (emoji: any): boolean => {
+  if (!emoji) return false;
+  
+  // If emoji already has native property set (from unified service resolution)
+  if (emoji.native) return true;
+  
+  // Server custom emojis always use URL
+  if (emoji.url) return false;
+  
+  // If native pack selected, try to show unicode
+  if (isNativePack.value && emoji.name && emojiServiceLoaded.value) {
+    const resolved = resolveEmoji(emoji.name);
+    return resolved.display.type === 'native';
+  }
+  
+  return false;
+};
+
+// Get unicode for native emoji rendering
+const getNativeEmojiChar = (emoji: any): string => {
+  if (!emoji) return '';
+  
+  // If emoji already has native property set
+  if (emoji.native) return emoji.native;
+  
+  // Try to resolve via unified service
+  if (emoji.name && emojiServiceLoaded.value) {
+    const resolved = resolveEmoji(emoji.name);
+    return resolved.display.type === 'native' ? resolved.display.content : '';
+  }
+  
+  return '';
 };
 
 const renderTextWithMarkdown = (text: string | undefined): string => {
@@ -406,6 +473,7 @@ const formatFileSize = (bytes: number): string => {
 .content-html :deep(.mention) {
   background-color: rgba(16, 185, 129, 0.1);
   color: #10b981;
+  /* color: var(--harmony-accent); */
   cursor: pointer;
   padding: 1px 2px;
   border-radius: 3px;
@@ -454,6 +522,17 @@ const formatFileSize = (bytes: number): string => {
 
 .emoji-icon.single {
   height: 64px;
+}
+
+.native-emoji {
+  font-size: 1.25em;
+  line-height: 1;
+  vertical-align: middle;
+  margin: 0 1px;
+}
+
+.native-emoji.single {
+  font-size: 3em;
 }
 
 .content-html :deep(.emoji-icon) {

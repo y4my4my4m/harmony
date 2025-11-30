@@ -550,6 +550,8 @@ export function applyThemePalette(palette: ThemePalette): void {
   // Border colors
   root.style.setProperty('--border-primary', palette.borderPrimary)
   root.style.setProperty('--border-secondary', palette.borderSecondary)
+  root.style.setProperty('--border-color', palette.borderPrimary)  // Main border color used by components
+  root.style.setProperty('--color-border', palette.borderPrimary)  // Alternative naming
   
   // Set theme attribute
   root.setAttribute('data-theme', 'custom')

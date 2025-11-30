@@ -75,7 +75,7 @@
   import GifComponent from '@/components/GifComponent.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
-  import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
+  import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { debug } from '@/utils/debug';
 
@@ -281,21 +281,10 @@
         // Use efficient batch mention resolution
         const userDataMap = await resolveMentionsUserData(input);
         
-        // Build emoji data map from loaded emojis
-        const emojiDataMap: Record<string, any> = {};
-        const emojiCacheStore = useEmojiCacheStore();
+        // Use unified emoji resolution - includes both server emojis AND unified pack
+        const emojiDataMap = await resolveEmojisData(input);
         
-        if (emojiCacheStore.resolvedEmojis) {
-          Object.values(emojiCacheStore.resolvedEmojis).forEach((serverEmojis: any) => {
-            serverEmojis.emojis.forEach((emoji: any) => {
-              // Map both by ID and by name for lookups
-              emojiDataMap[emoji.id] = emoji;
-              emojiDataMap[emoji.name] = emoji;
-            });
-          });
-        }
-        
-        debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length / 2); // Divide by 2 since we map twice
+        debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length);
         
         // Parse with unified system (now with emoji data)
         const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap);
