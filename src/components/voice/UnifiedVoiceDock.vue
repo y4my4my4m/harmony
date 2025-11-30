@@ -347,9 +347,10 @@ const activatePIPForActiveVideo = () => {
 // =============================================================================
 
 // Attach video to minimized preview using LiveKit's proper method
+// Watch streamUpdateCounter to react to stream changes (Map reactivity workaround)
 watch(
-  [activeVideoUser, minimizedVideoRef],
-  ([user, videoEl]) => {
+  [activeVideoUser, minimizedVideoRef, () => voiceStore.streamUpdateCounter],
+  ([user, videoEl, _counter]) => {
     if (user && videoEl) {
       const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
       if (!attached && activeVideoStream.value) {
@@ -359,6 +360,19 @@ watch(
     } else if (videoEl) {
       // Clean up when no active video user
       videoEl.srcObject = null;
+    }
+  },
+  { immediate: true }
+);
+
+// Sync store's isOverlayVisible with local currentMode
+// This ensures when the store auto-opens overlay (e.g., when video is detected), the dock responds
+watch(
+  () => voiceStore.isOverlayVisible,
+  (shouldShowOverlay) => {
+    if (shouldShowOverlay && currentMode.value !== 'overlay') {
+      currentMode.value = 'overlay';
+      debug.log('📺 [Dock] Auto-switching to overlay mode from store');
     }
   },
   { immediate: true }

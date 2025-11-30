@@ -625,12 +625,17 @@ export class LiveKitWebRTCService {
    * and may disable all simulcast layers.
    */
   attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
-    if (!this.room) return false;
+    if (!this.room) {
+      debug.warn('📺 [LiveKit] attachVideoToElement: No room');
+      return false;
+    }
     
     // For local participant
     if (userId === this.currentUserId) {
       const localParticipant = this.room.localParticipant;
+      debug.log('📺 [LiveKit] Attaching local video, publications:', localParticipant.videoTrackPublications.size);
       for (const publication of localParticipant.videoTrackPublications.values()) {
+        debug.log('📺 [LiveKit] Local publication:', publication.trackSid, 'track exists:', !!publication.track);
         if (publication.track) {
           // Use LiveKit's attach method for proper adaptive streaming
           publication.track.attach(videoElement);
@@ -638,22 +643,34 @@ export class LiveKitWebRTCService {
           return true;
         }
       }
+      debug.warn('📺 [LiveKit] No local video track to attach');
       return false;
     }
     
     // For remote participant
     const participant = this.room.remoteParticipants.get(userId);
-    if (!participant) return false;
+    if (!participant) {
+      debug.warn('📺 [LiveKit] attachVideoToElement: Participant not found:', userId);
+      return false;
+    }
+    
+    debug.log('📺 [LiveKit] Attaching remote video for:', userId, 'publications:', participant.videoTrackPublications.size);
     
     for (const publication of participant.videoTrackPublications.values()) {
+      debug.log('📺 [LiveKit] Remote publication:', publication.trackSid, 
+        'isSubscribed:', publication.isSubscribed, 
+        'track exists:', !!publication.track,
+        'trackName:', publication.trackName);
+      
       if (publication.track) {
         // Use LiveKit's attach method for proper adaptive streaming
         publication.track.attach(videoElement);
-        debug.log('📺 [LiveKit] Attached remote video to element for:', userId);
+        debug.log('📺 [LiveKit] ✅ Attached remote video to element for:', userId);
         return true;
       }
     }
     
+    debug.warn('📺 [LiveKit] No subscribed video track to attach for:', userId);
     return false;
   }
 
@@ -734,6 +751,19 @@ export class LiveKitWebRTCService {
       
       // Emit user-joined event so the store knows about them
       this.emit('user-joined', { userId: participant.identity, mediaState });
+      
+      // CRITICAL: Also emit stream change for existing tracks (video/screenshare)
+      // This ensures late-joiners can see video that was already streaming
+      const hasExistingTracks = participant.videoTrackPublications.size > 0 || 
+                                 participant.audioTrackPublications.size > 0;
+      if (hasExistingTracks) {
+        debug.log(`📺 [LiveKit] Syncing existing tracks for ${participant.identity}: ` +
+          `video=${participant.videoTrackPublications.size}, audio=${participant.audioTrackPublications.size}`);
+        
+        const stream = this.getUserStream(participant.identity);
+        this.emit('user-stream-changed', { userId: participant.identity, stream });
+        this.emit('user-state-changed', { userId: participant.identity, mediaState });
+      }
     });
     
     debug.log(`✅ [LiveKit] Sync complete. Total users tracked: ${this.allUserStates.size}`);

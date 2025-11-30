@@ -212,9 +212,10 @@ watch(() => [voiceStore.pipActive, voiceStore.pipMode, pipStream.value], async (
 }, { immediate: true });
 
 // Attach video to fixed PIP element using LiveKit's proper method
+// Watch streamUpdateCounter to react to stream changes
 watch(
-  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, fixedVideoElement],
-  ([active, mode, userId, videoEl]) => {
+  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, fixedVideoElement, () => voiceStore.streamUpdateCounter],
+  ([active, mode, userId, videoEl, _counter]) => {
     if (active && mode === 'fixed' && userId && videoEl) {
       const attached = voiceStore.attachVideoToElement(userId, videoEl);
       if (!attached && pipStream.value) {
@@ -227,9 +228,10 @@ watch(
 );
 
 // Attach video to draggable PIP element using LiveKit's proper method
+// Watch streamUpdateCounter to react to stream changes
 watch(
-  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, draggableVideoElement],
-  ([active, mode, userId, videoEl]) => {
+  [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, draggableVideoElement, () => voiceStore.streamUpdateCounter],
+  ([active, mode, userId, videoEl, _counter]) => {
     if (active && mode === 'draggable' && userId && videoEl) {
       const attached = voiceStore.attachVideoToElement(userId, videoEl);
       if (!attached && pipStream.value) {

@@ -56,6 +56,15 @@ interface VoiceChannelState {
   pipActive: boolean;
   pipUserId: string | null;
   pipMode: 'draggable' | 'fixed' | 'native';
+  
+  // Stream quality settings
+  streamSettings: {
+    resolution: number; // 720, 1080, 0 (source)
+    frameRate: number; // 15, 30, 60
+  };
+  
+  // Counter to force reactivity when streams update (Map doesn't trigger Vue reactivity well)
+  streamUpdateCounter: number;
 }
 
 // =============================================================================
@@ -99,7 +108,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     pipActive: false,
     pipUserId: null,
-    pipMode: 'native'
+    pipMode: 'native',
+    
+    streamSettings: {
+      resolution: 720,
+      frameRate: 30
+    },
+    
+    streamUpdateCounter: 0
   }),
 
   // =============================================================================
@@ -310,7 +326,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Initialize spatial audio
         await this.initializeSpatialAudio(userId);
         
-        // Start in dock mode, not overlay mode
+        // Start with overlay hidden - it will auto-open when video is detected
+        // via the user-state-changed or user-stream-changed event handlers
         this.isOverlayVisible = false;
         
         // Play join sound
@@ -542,6 +559,52 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Update stream quality settings (resolution/framerate)
+     * Applies to camera and screenshare
+     */
+    async updateStreamQuality(settings: { resolution?: number; frameRate?: number }): Promise<void> {
+      const newSettings = { ...this.streamSettings, ...settings };
+      this.streamSettings = newSettings;
+      
+      debug.log('🎬 Updating stream quality:', newSettings);
+      
+      // Apply to active video/screenshare if any
+      if (this.localState.isVideoEnabled || this.localState.isScreenSharing) {
+        try {
+          await webrtcManager.updateStreamQuality?.(newSettings);
+          debug.log('✅ Stream quality updated');
+        } catch (error) {
+          debug.error('❌ Failed to update stream quality:', error);
+        }
+      }
+      
+      // Persist settings
+      try {
+        localStorage.setItem('harmony-stream-settings', JSON.stringify(newSettings));
+      } catch (error) {
+        debug.warn('Failed to save stream settings:', error);
+      }
+    },
+
+    /**
+     * Load stream settings from localStorage
+     */
+    loadStreamSettings(): void {
+      try {
+        const saved = localStorage.getItem('harmony-stream-settings');
+        if (saved) {
+          const settings = JSON.parse(saved);
+          this.streamSettings = {
+            resolution: settings.resolution || 720,
+            frameRate: settings.frameRate || 30
+          };
+        }
+      } catch (error) {
+        debug.warn('Failed to load stream settings:', error);
+      }
+    },
+
+    /**
      * Set per-user volume (0-200, 100 = normal)
      * Persisted to localStorage and applied to audio
      */
@@ -690,6 +753,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.allUsers[existingIndex] = data.mediaState;
         }
 
+        // Auto-open overlay if joining user has video/screenshare (for late-joiners seeing existing streams)
+        if (data.mediaState?.isVideoEnabled || data.mediaState?.isScreenSharing) {
+          if (!this.isOverlayVisible) {
+            this.isOverlayVisible = true;
+            debug.log('📺 Auto-opening overlay - existing video/screenshare user detected:', data.userId);
+          }
+        }
+
         // Request call start time from existing participants
         if (!this.callStartTime) {
           debug.log('🕐 Requesting call start time from existing participants');
@@ -736,20 +807,38 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (userIndex !== -1) {
           this.allUsers[userIndex] = data.mediaState;
         }
+        
+        // Auto-open overlay when someone starts video/screenshare
+        if (data.mediaState?.isVideoEnabled || data.mediaState?.isScreenSharing) {
+          if (!this.isOverlayVisible) {
+            this.isOverlayVisible = true;
+            debug.log('📺 Auto-opening overlay - video/screenshare detected from:', data.userId);
+          }
+        }
       });
 
       webrtcManager.on('user-stream-changed', (data) => {
-        // debug.log('📹 User stream changed:', data.userId, data.stream);
+        debug.log('📹 User stream changed:', data.userId, 'hasStream:', !!data.stream);
         
         if (data.stream) {
           this.remoteStreams.set(data.userId, data.stream);
           // Add to spatial audio
           this.addUserToSpatialAudio(data.userId);
+          
+          // Check if this stream has video tracks and auto-open overlay
+          const videoTracks = data.stream.getVideoTracks();
+          if (videoTracks.length > 0 && !this.isOverlayVisible) {
+            this.isOverlayVisible = true;
+            debug.log('📺 Auto-opening overlay - video stream detected from:', data.userId);
+          }
         } else {
           this.remoteStreams.delete(data.userId);
           // Remove from spatial audio
           this.removeUserFromSpatialAudio(data.userId);
         }
+        
+        // Force reactivity update by incrementing a counter
+        this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
       });
 
       // Local events

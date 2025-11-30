@@ -123,6 +123,50 @@
 
       <!-- Self Actions -->
       <template v-if="isSelf">
+        <!-- Stream Quality Settings (when streaming) -->
+        <div v-if="hasVideo" class="menu-section">
+          <div class="section-label">
+            <Icon name="settings" />
+            <span>Stream Quality</span>
+          </div>
+          
+          <!-- Resolution -->
+          <div class="quality-row">
+            <span class="quality-label">Resolution</span>
+            <div class="quality-options">
+              <button
+                v-for="res in resolutionOptions"
+                :key="res.value"
+                class="quality-btn"
+                :class="{ active: currentResolution === res.value }"
+                @click="setResolution(res.value)"
+                :title="res.label"
+              >
+                {{ res.short }}
+              </button>
+            </div>
+          </div>
+          
+          <!-- Frame Rate -->
+          <div class="quality-row">
+            <span class="quality-label">Frame Rate</span>
+            <div class="quality-options">
+              <button
+                v-for="fps in frameRateOptions"
+                :key="fps.value"
+                class="quality-btn"
+                :class="{ active: currentFrameRate === fps.value }"
+                @click="setFrameRate(fps.value)"
+                :title="`${fps.value} FPS`"
+              >
+                {{ fps.value }}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="menu-divider" />
+        
         <div class="menu-actions">
           <button class="menu-action" @click="toggleMute">
             <Icon :name="localMuted ? 'mic-off' : 'mic'" />
@@ -230,6 +274,31 @@ const menuStyle = computed(() => ({
   left: `${adjustedPosition.value.x}px`,
   top: `${adjustedPosition.value.y}px`,
 }));
+
+// Stream Quality Options
+const resolutionOptions = [
+  { value: 720, label: '720p HD', short: '720p' },
+  { value: 1080, label: '1080p Full HD', short: '1080p' },
+  { value: 0, label: 'Source', short: 'Source' }, // 0 = native resolution
+];
+
+const frameRateOptions = [
+  { value: 15, label: '15 FPS' },
+  { value: 30, label: '30 FPS' },
+  { value: 60, label: '60 FPS' },
+];
+
+// Current quality settings (from store or defaults)
+const currentResolution = computed(() => voiceStore.streamSettings?.resolution || 720);
+const currentFrameRate = computed(() => voiceStore.streamSettings?.frameRate || 30);
+
+const setResolution = async (resolution: number) => {
+  await voiceStore.updateStreamQuality({ resolution });
+};
+
+const setFrameRate = async (frameRate: number) => {
+  await voiceStore.updateStreamQuality({ frameRate });
+};
 
 // Methods
 const close = () => {
@@ -533,6 +602,52 @@ watch(
 
 .preset-btn.active .boost-indicator {
   color: white;
+}
+
+/* Stream Quality Options */
+.quality-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.quality-row:last-child {
+  margin-bottom: 0;
+}
+
+.quality-label {
+  font-size: 12px;
+  color: #b9bbbe;
+}
+
+.quality-options {
+  display: flex;
+  gap: 4px;
+}
+
+.quality-btn {
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #b9bbbe;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quality-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.quality-btn.active {
+  background: #5865f2;
+  color: white;
+  border-color: #5865f2;
 }
 
 /* Actions */
