@@ -126,7 +126,7 @@ async function refreshHarmonyUserCache() {
       return
     }
     
-    const members = await response.json()
+    const members = await response.json() as any[]
     console.log(`📡 Received ${members.length} members from API`)
     
     harmonyUserCache.clear()
