@@ -381,8 +381,8 @@ export function useAutoSuggest(
     }
     
     try {
-      const botGatewayUrl = import.meta.env.VITE_BOT_GATEWAY_URL || 'http://localhost:3002';
-      const url = `${botGatewayUrl}/api/v1/channels/${channelId}/bridged-users`;
+      // Use the nginx proxy path (same as WebSocket gateway)
+      const url = `/bot-gateway/api/v1/channels/${channelId}/bridged-users`;
       debug.log(`🌉 fetchBridgedUsers: Fetching from ${url}`);
       
       const response = await fetch(url);
