@@ -973,35 +973,35 @@ async function registerSlashCommands(guildId: string) {
   const commands = [
     new SlashCommandBuilder()
       .setName('mention')
-      .setDescription('Mention a Harmony user')
-      .addStringOption(option =>
-        option
-          .setName('user')
-          .setDescription('The Harmony user to mention')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
+      .setDescription('Mention a Harmony user with a message')
       .addStringOption(option =>
         option
           .setName('message')
-          .setDescription('Optional message to include')
+          .setDescription('Your message (include @username to mention)')
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user')
+          .setDescription('Harmony user to mention (optional if @username in message)')
           .setRequired(false)
+          .setAutocomplete(true)
       ),
     new SlashCommandBuilder()
       .setName('m')
-      .setDescription('Quick mention a Harmony user (shortcut)')
-      .addStringOption(option =>
-        option
-          .setName('user')
-          .setDescription('The Harmony user to mention')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
+      .setDescription('Quick message to Harmony (use @username in text)')
       .addStringOption(option =>
         option
           .setName('message')
-          .setDescription('Optional message to include')
+          .setDescription('Your message')
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user')
+          .setDescription('Harmony user to @mention')
           .setRequired(false)
+          .setAutocomplete(true)
       )
   ]
 
