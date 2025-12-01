@@ -1504,7 +1504,7 @@ const closeInviteModal = () => {
 /* Message header with avatar + username + timestamp */
 .message-header {
   display: flex;
-  // align-items: center;
+  /* align-items: center; */
   gap: 16px;
 }
 
