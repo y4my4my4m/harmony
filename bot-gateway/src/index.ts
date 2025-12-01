@@ -70,10 +70,13 @@ app.get('/api/v1/gateway/status', (req, res) => {
 app.get('/api/v1/channels/:channelId/bridged-users', (req, res) => {
   const { channelId } = req.params
   const bridgedUsers = gateway.getBridgedUsers(channelId)
+  const hasBridge = gateway.hasChannelBridge(channelId)
+  
+  console.log(`🌉 API: GET /bridged-users for ${channelId} → ${bridgedUsers.length} users, hasBridge=${hasBridge}`)
   
   res.json({
     channel_id: channelId,
-    has_bridge: gateway.hasChannelBridge(channelId),
+    has_bridge: hasBridge,
     users: bridgedUsers
   })
 })

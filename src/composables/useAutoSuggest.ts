@@ -202,12 +202,9 @@ export function useAutoSuggest(
 
       // Get current server ID to filter users by server membership
       const currentServerId = serverChannelStore.currentServerId;
-      const currentChannelId = serverChannelStore.currentChannelId;
       
-      // Fetch bridged users for current channel (async, updates ref)
-      if (currentChannelId && !bridgedUsersLoaded.value) {
-        fetchBridgedUsers(currentChannelId);
-      }
+      // Log bridged users status
+      debug.log(`🎯 AutoSuggest: bridgedUsers count = ${bridgedUsers.value.length}, loaded = ${bridgedUsersLoaded.value}`);
       
       if (currentServerId) {
         // Get users only from the current server context
@@ -373,30 +370,43 @@ export function useAutoSuggest(
   
   // Fetch bridged users from bot-gateway for current channel
   const fetchBridgedUsers = async (channelId: string) => {
-    if (!channelId || bridgedUsersChannelId.value === channelId) {
+    if (!channelId) {
+      debug.log('🌉 fetchBridgedUsers: No channel ID provided');
+      return;
+    }
+    
+    if (bridgedUsersChannelId.value === channelId && bridgedUsersLoaded.value) {
+      debug.log(`🌉 fetchBridgedUsers: Already loaded for channel ${channelId}, have ${bridgedUsers.value.length} users`);
       return; // Already loaded for this channel
     }
     
     try {
       const botGatewayUrl = import.meta.env.VITE_BOT_GATEWAY_URL || 'http://localhost:3002';
-      const response = await fetch(`${botGatewayUrl}/api/v1/channels/${channelId}/bridged-users`);
+      const url = `${botGatewayUrl}/api/v1/channels/${channelId}/bridged-users`;
+      debug.log(`🌉 fetchBridgedUsers: Fetching from ${url}`);
+      
+      const response = await fetch(url);
       
       if (response.ok) {
         const data = await response.json();
+        debug.log(`🌉 fetchBridgedUsers: Response:`, data);
+        
         if (data.has_bridge && Array.isArray(data.users)) {
           bridgedUsers.value = data.users;
-          debug.log(`🌉 Loaded ${data.users.length} bridged Discord users for channel ${channelId}`);
+          debug.log(`🌉 ✅ Loaded ${data.users.length} bridged Discord users for channel ${channelId}`);
         } else {
           bridgedUsers.value = [];
+          debug.log(`🌉 Channel ${channelId} has no bridge or no users`);
         }
         bridgedUsersChannelId.value = channelId;
         bridgedUsersLoaded.value = true;
       } else {
+        debug.log(`🌉 ❌ Failed to fetch bridged users: ${response.status} ${response.statusText}`);
         bridgedUsers.value = [];
         bridgedUsersLoaded.value = true;
       }
     } catch (error) {
-      debug.debug('Bridge API not available:', error);
+      debug.log('🌉 ❌ Bridge API not available:', error);
       bridgedUsers.value = [];
       bridgedUsersLoaded.value = true;
     }
@@ -749,13 +759,16 @@ export function useAutoSuggest(
     }
   });
   
-  // Reset bridged users when channel changes
+  // Fetch bridged users when channel changes
   watch(() => serverChannelStore.currentChannelId, (newChannelId) => {
-    if (newChannelId !== bridgedUsersChannelId.value) {
+    if (newChannelId && newChannelId !== bridgedUsersChannelId.value) {
+      debug.log(`🌉 Channel changed to ${newChannelId}, fetching bridged users...`);
       bridgedUsersLoaded.value = false;
       bridgedUsers.value = [];
+      // Proactively fetch bridged users for the new channel
+      fetchBridgedUsers(newChannelId);
     }
-  });
+  }, { immediate: true }); // Run immediately to fetch on mount
 
   // Watch window resize to reposition suggestions
   if (typeof window !== 'undefined') {

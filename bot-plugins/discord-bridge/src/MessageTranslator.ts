@@ -69,6 +69,7 @@ export class MessageTranslator {
           
           if (user) {
             // Create proper mention MessagePart for Discord user
+            console.log(`🔔 D→H Mention: <@${discordUserId}> → @${user.username}@discord.com`)
             parts.push({
               type: 'mention',
               userId: discordUserId,
@@ -79,6 +80,7 @@ export class MessageTranslator {
             })
           } else {
             // User not found in mentions cache, keep as text
+            console.log(`⚠️ D→H Mention: <@${discordUserId}> not found in mentions cache`)
             parts.push({ type: 'text', text: match[0] })
           }
         } else if (match[5]) {
@@ -208,21 +210,28 @@ export class MessageTranslator {
           return part.text || ''
         } else if (part.type === 'mention') {
           // Handle mention parts
-          console.log('🔔 Converting mention to Discord:', JSON.stringify(part, null, 2))
-          
           if (part.domain === 'discord.com' && part.userId) {
             // Discord user mention - convert back to Discord format
+            console.log(`🔔 H→D Mention: @${part.username}@discord.com → <@${part.userId}>`)
             return `<@${part.userId}>`
           } else if (discordMemberCache) {
             // Try to find this Harmony user in Discord by username
-            const discordId = discordMemberCache.get(part.username?.toLowerCase())
+            const lookupUsername = part.username?.toLowerCase()
+            const discordId = discordMemberCache.get(lookupUsername)
+            console.log(`🔔 H→D Mention lookup: "${lookupUsername}" in cache (size=${discordMemberCache.size})`)
             if (discordId) {
+              console.log(`🔔 H→D Mention: @${part.username} → <@${discordId}> (found in Discord)`)
               return `<@${discordId}>`
+            } else {
+              console.log(`⚠️ H→D Mention: @${part.username} not found in Discord member cache`)
             }
+          } else {
+            console.log(`⚠️ H→D Mention: No Discord member cache provided`)
           }
           
           // Fallback: show as plain @username for Harmony users
           const displayName = part.displayName || part.username || 'unknown'
+          console.log(`🔔 H→D Mention fallback: @${displayName}`)
           return `@${displayName}`
         } else if (part.type === 'emoji') {
           // Convert Harmony emoji to Discord format

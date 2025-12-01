@@ -383,16 +383,23 @@ export class HarmonyClient extends EventEmitter {
     }>
   }>) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.error('❌ Cannot register bridge data - not connected')
+      console.error('❌ Cannot register bridge data - WebSocket not connected')
+      console.error(`   WebSocket state: ${this.ws?.readyState}`)
       return
     }
     
-    console.log(`📡 Registering bridge data for ${channels.length} channels`)
+    const totalMembers = channels.reduce((sum, ch) => sum + ch.members.length, 0)
+    console.log(`📡 Sending REGISTER_BRIDGE_DATA to gateway:`)
+    console.log(`   Channels: ${channels.length}`)
+    console.log(`   Total members: ${totalMembers}`)
     
-    this.ws.send(JSON.stringify({
+    const payload = {
       op: 6, // REGISTER_BRIDGE_DATA
       d: { channels }
-    }))
+    }
+    
+    this.ws.send(JSON.stringify(payload))
+    console.log(`✅ Bridge data sent to gateway`)
   }
   
   disconnect() {

@@ -298,7 +298,11 @@ export class WebSocketGateway {
       return
     }
     
-    console.log(`🌉 Registering bridge data from ${botConnection.username}`)
+    console.log('╔════════════════════════════════════════╗')
+    console.log('║   🌉 Gateway: Bridge Data Received    ║')
+    console.log('╠════════════════════════════════════════╣')
+    console.log(`║   From bot: ${botConnection.username}`)
+    console.log(`║   Channels: ${data.channels.length}`)
     
     // Track channels registered by this bot
     if (!this.channelsByBot.has(botConnection.botId)) {
@@ -312,9 +316,10 @@ export class WebSocketGateway {
       if (harmonyChannelId && Array.isArray(members)) {
         this.bridgedUsersByChannel.set(harmonyChannelId, members)
         botChannels.add(harmonyChannelId)
-        console.log(`📝 Registered ${members.length} bridged users for channel ${harmonyChannelId}`)
+        console.log(`║   📍 ${harmonyChannelId}: ${members.length} Discord users`)
       }
     }
+    console.log('╚════════════════════════════════════════╝')
   }
   
   /**

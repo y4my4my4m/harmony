@@ -63,12 +63,11 @@ function cacheMember(member: GuildMember) {
 }
 
 /**
- * Remove a member from the cache
+ * Remove a member from the cache by ID
  */
-function uncacheMember(member: GuildMember) {
-  const username = member.user.username.toLowerCase()
-  discordMemberCache.delete(username)
-  discordMemberDetails.delete(member.id)
+function uncacheMemberById(memberId: string, username: string) {
+  discordMemberCache.delete(username.toLowerCase())
+  discordMemberDetails.delete(memberId)
 }
 
 // Track ready states for bridge data registration
@@ -80,7 +79,10 @@ let harmonyReady = false
  * Called when both Discord and Harmony are ready
  */
 function registerBridgeDataWithGateway() {
-  if (!discordReady || !harmonyReady) return
+  if (!discordReady || !harmonyReady) {
+    console.log(`⏳ Bridge data registration waiting: Discord=${discordReady}, Harmony=${harmonyReady}`)
+    return
+  }
   
   // Build channel data with members for each mapping
   const channels = config.channelMappings.map(mapping => ({
@@ -95,8 +97,17 @@ function registerBridgeDataWithGateway() {
     }))
   }))
   
+  console.log('╔════════════════════════════════════════╗')
+  console.log('║   🌉 Registering Bridge Data          ║')
+  console.log('╠════════════════════════════════════════╣')
+  console.log(`║   Channels: ${channels.length}`)
+  console.log(`║   Discord Members: ${discordMemberDetails.size}`)
+  channels.forEach(ch => {
+    console.log(`║   📍 ${ch.harmonyChannelId.substring(0, 8)}... <-> Discord ${ch.discordChannelId}`)
+  })
+  console.log('╚════════════════════════════════════════╝')
+  
   harmonyClient.registerBridgeData(channels)
-  console.log(`✅ Registered bridge data for ${channels.length} channels with ${discordMemberDetails.size} Discord members`)
 }
 
 // Get or create webhook for channel (for puppeting)
@@ -819,7 +830,7 @@ discordClient.on('guildMemberAdd', (member) => {
 })
 
 discordClient.on('guildMemberRemove', (member) => {
-  uncacheMember(member)
+  uncacheMemberById(member.id, member.user.username)
   console.log(`👋 Removed member from cache: ${member.user.username}`)
   // Re-register bridge data with updated members
   registerBridgeDataWithGateway()
@@ -829,7 +840,9 @@ discordClient.on('guildMemberUpdate', (oldMember, newMember) => {
   // Update cache if username or display name changed
   if (oldMember.user.username !== newMember.user.username || 
       oldMember.displayName !== newMember.displayName) {
-    uncacheMember(oldMember)
+    // Remove old entry
+    uncacheMemberById(oldMember.id, oldMember.user.username)
+    // Add new entry if not a bot
     if (!newMember.user.bot) {
       cacheMember(newMember)
     }
