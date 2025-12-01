@@ -7,60 +7,136 @@ export class EventDispatcher {
   private lastProcessedTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
   
+  // Track message versions for edit detection (includes channel_id for delete dispatch)
+  private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
+  // Track known message IDs for delete detection
+  private knownMessageIds: Set<string> = new Set()
+  
   constructor(private gateway: WebSocketGateway) {}
   
   async start() {
     console.log('🎯 Starting Event Dispatcher...')
     
-    // Use polling instead of realtime subscriptions for local development
-    // This is more reliable with local Supabase and service role
-    this.startPolling()
-    this.startRealtimeSubscriptions()
+    // Initialize known messages for a recent window (for delete detection)
+    await this.initializeKnownMessages()
     
-    console.log('✅ Event Dispatcher started with polling mode + realtime for edits/deletes')
+    // Use polling for everything - more reliable than Realtime
+    this.startPolling()
+    
+    console.log('✅ Event Dispatcher started with polling mode (creates, edits, deletes)')
+  }
+  
+  private async initializeKnownMessages() {
+    // Load recent messages to track for edits and deletes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('id, updated_at, content, channel_id, metadata')
+      .gt('created_at', fiveMinutesAgo)
+      .limit(500)
+    
+    if (messages) {
+      for (const msg of messages) {
+        this.knownMessageIds.add(msg.id)
+        this.messageVersions.set(msg.id, { 
+          updated_at: msg.updated_at, 
+          content: msg.content,
+          channel_id: msg.channel_id,
+          metadata: msg.metadata
+        })
+      }
+      console.log(`📋 Initialized ${messages.length} known messages for edit/delete tracking`)
+    }
   }
   
   private startPolling() {
-    console.log('🔄 Starting polling mode for message events (every 1 second)...')
+    console.log('🔄 Starting polling mode for all message events (every 1 second)...')
     
-    // Poll every second for new messages
+    // Poll every second for new messages, edits, and deletes
     this.pollingInterval = setInterval(async () => {
       await this.pollMessages()
+      await this.pollEdits()
+      await this.pollDeletes()
     }, 1000)
   }
   
-  private startRealtimeSubscriptions() {
-    console.log('🔄 Starting realtime subscriptions for message updates/deletes...')
-    
-    // Subscribe to message updates
-    const updateChannel = supabase
-      .channel('bot-message-updates')
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload) => {
-          console.log('📡 Realtime: MESSAGE UPDATE received')
-          this.handleMessageUpdate(payload)
+  private async pollEdits() {
+    try {
+      // Check for recently updated messages
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select('id, updated_at, content, channel_id, user_id, bot_id, content_raw, metadata, encrypted')
+        .gt('updated_at', new Date(Date.now() - 5000).toISOString()) // Last 5 seconds
+        .order('updated_at', { ascending: true })
+        .limit(50)
+      
+      if (error) return
+      
+      for (const msg of messages || []) {
+        const cached = this.messageVersions.get(msg.id)
+        
+        // Check if this is an actual edit (updated_at changed and content differs)
+        if (cached && cached.updated_at !== msg.updated_at && cached.content !== msg.content) {
+          console.log(`📝 Detected message edit: ${msg.id}`)
+          await this.handleMessageUpdate({ new: msg, old: { id: msg.id } })
         }
-      )
-      .subscribe((status) => {
-        console.log(`📡 Message updates subscription: ${status}`)
-      })
-    
-    // Subscribe to message deletes
-    const deleteChannel = supabase
-      .channel('bot-message-deletes')
-      .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'messages' },
-        (payload) => {
-          console.log('📡 Realtime: MESSAGE DELETE received')
-          this.handleMessageDelete(payload)
+        
+        // Update cache
+        this.messageVersions.set(msg.id, { 
+          updated_at: msg.updated_at, 
+          content: msg.content,
+          channel_id: msg.channel_id,
+          metadata: msg.metadata
+        })
+        this.knownMessageIds.add(msg.id)
+      }
+    } catch (error) {
+      // Silent fail for polling
+    }
+  }
+  
+  private async pollDeletes() {
+    try {
+      // Only check if we have known messages to track
+      if (this.knownMessageIds.size === 0) return
+      
+      // Sample check: verify a batch of known messages still exist
+      const idsToCheck = Array.from(this.knownMessageIds).slice(0, 100)
+      
+      const { data: existing } = await supabase
+        .from('messages')
+        .select('id')
+        .in('id', idsToCheck)
+      
+      const existingIds = new Set((existing || []).map(m => m.id))
+      
+      for (const id of idsToCheck) {
+        if (!existingIds.has(id)) {
+          // Get cached data for this message (we saved channel_id earlier)
+          const cached = this.messageVersions.get(id)
+          
+          if (cached?.channel_id) {
+            console.log(`🗑️ Detected message delete: ${id} in channel ${cached.channel_id}`)
+            
+            await this.handleMessageDelete({ 
+              old: { 
+                id, 
+                channel_id: cached.channel_id,
+                metadata: cached.metadata
+              } 
+            })
+          } else {
+            console.log(`⚠️ Detected delete but no cached channel_id for message ${id}`)
+          }
+          
+          this.knownMessageIds.delete(id)
+          this.messageVersions.delete(id)
         }
-      )
-      .subscribe((status) => {
-        console.log(`📡 Message deletes subscription: ${status}`)
-      })
-    
-    this.subscriptions.push(updateChannel, deleteChannel)
+      }
+    } catch (error) {
+      // Silent fail for polling
+    }
   }
   
   private async pollMessages() {
@@ -90,10 +166,27 @@ export class EventDispatcher {
             this.processedMessageIds.add(message.id)
             this.lastProcessedTimestamp = new Date(message.created_at)
             
+            // Add to version cache for edit/delete tracking
+            this.knownMessageIds.add(message.id)
+            this.messageVersions.set(message.id, {
+              updated_at: message.updated_at,
+              content: message.content,
+              channel_id: message.channel_id,
+              metadata: message.metadata
+            })
+            
             // Keep set size reasonable (only keep last 1000 IDs)
             if (this.processedMessageIds.size > 1000) {
               const idsArray = Array.from(this.processedMessageIds);
               this.processedMessageIds = new Set(idsArray.slice(-1000));
+            }
+            
+            // Also prune version cache
+            if (this.messageVersions.size > 1000) {
+              const entries = Array.from(this.messageVersions.entries());
+              const toKeep = entries.slice(-1000);
+              this.messageVersions = new Map(toKeep);
+              this.knownMessageIds = new Set(toKeep.map(([id]) => id));
             }
           }
         }
