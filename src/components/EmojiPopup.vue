@@ -521,14 +521,10 @@ watch(
 
 .emoji-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 32px);
+  grid-template-columns: repeat(auto-fill, 36px);
   gap: 6px;
   justify-content: start;
   margin-bottom: 8px;
-}
-
-.unified-list {
-  grid-template-columns: repeat(auto-fill, 36px);
 }
 
 .emoji-item {
