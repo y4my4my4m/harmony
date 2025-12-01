@@ -21,14 +21,21 @@
             v-for="emoji in topEmojisForPicker"
             :key="emoji.id"
             class="emoji-item"
-            :class="{ 'native-emoji-item': emoji.native && !emoji.url, 'mutant-emoji-item': emoji.url }"
+            :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
             :title="`:${emoji.name}:`"
             @click="selectFrequentEmoji(emoji)"
           >
-            <!-- Custom/Mutant emoji with URL -->
+            <!-- Custom server emoji with URL -->
             <img 
-              v-if="emoji.url"
+              v-if="emoji.url && !emoji.url.includes('/twemoji/') && !emoji.url.includes('/mutant_emojis_svg/')"
               :src="emoji.url"
+              :alt="emoji.name"
+              class="frequent-emoji-img"
+            />
+            <!-- SVG pack emoji -->
+            <img 
+              v-else-if="!isNativePack && getFrequentEmojiSvgUrl(emoji)"
+              :src="getFrequentEmojiSvgUrl(emoji)"
               :alt="emoji.name"
               class="frequent-emoji-img"
             />
@@ -61,28 +68,29 @@
       </div>
       
       <!-- Unified Emojis by Category (from unified emoji service) -->
-      <div v-if="mutantLoading" class="emoji-loading">
+      <div v-if="unifiedLoading" class="emoji-loading">
         <span class="loading-spinner"></span>
         <span>Loading emojis...</span>
       </div>
       
-      <div v-for="category in displayedMutantCategories" :key="category.id" class="emoji-section">
+      <div v-for="category in displayedCategories" :key="category.id" class="emoji-section">
         <h3 class="section-title">{{ category.icon }} {{ category.name }}</h3>
-        <div class="emoji-list mutant-list">
+        <div class="emoji-list unified-list">
           <div
             v-for="emoji in category.emojis"
             :key="emoji.shortcode"
             class="emoji-item"
-            :class="{ 'mutant-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
+            :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
             :title="`:${emoji.shortcode}:`"
             @click="selectUnifiedEmoji(emoji)"
           >
-            <!-- Mutant pack: show SVG -->
+            <!-- SVG pack (twemoji or mutant): show SVG -->
             <img 
               v-if="!isNativePack"
-              :src="`/assets/emojis/mutant_emojis_svg/${emoji.svgPath}`" 
+              :src="getEmojiSvgUrl(emoji)" 
               :alt="emoji.shortcode"
               loading="lazy"
+              class="emoji-svg"
             />
             <!-- Native pack: show unicode -->
             <span v-else class="native-emoji-char">{{ emoji.unicode }}</span>
@@ -91,7 +99,7 @@
       </div>
       
       <!-- No Results -->
-      <div v-if="searchQuery && !filteredEmojiList.length && !displayedMutantCategories.length" class="no-results">
+      <div v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length" class="no-results">
         <div class="no-results-content">
           <div class="no-results-icon">{{ noResultsInfo.icon }}</div>
           <p>{{ noResultsInfo.title }}</p>
@@ -111,13 +119,7 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
-import { debug } from '@/utils/debug';
-
-// Legacy interface for backwards compatibility
-interface NativeEmojiItem {
-  content: string;
-  name: string;
-}
+import { EMOJI_CATEGORIES, CATEGORY_ORDER } from '@/utils/emojiConstants';
 
 // --- Types ---
 
@@ -126,6 +128,14 @@ interface FilteredServerEmojiGroup {
   server_name: string;
   server_icon?: string;
   emojis: ResolvedEmoji[];
+}
+
+interface DisplayCategory {
+  id: string;
+  name: string;
+  icon: string;
+  order: number;
+  emojis: EmojiEntry[];
 }
 
 // --- Props & Emits ---
@@ -166,6 +176,7 @@ const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage } = useFrequentE
 const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
+  isTwemojiPack,
   currentPack,
   isLoaded: unifiedLoaded,
   isLoading: unifiedLoading,
@@ -173,7 +184,8 @@ const {
   getCategories,
   searchEmojis,
   resolveEmoji,
-  getSvgUrl
+  getTwemojiUrl,
+  getMutantSvgUrl
 } = useUnifiedEmoji();
 
 const emojiPopup = ref<HTMLElement | null>(null);
@@ -181,29 +193,12 @@ const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const hoveredEmojiId = ref<string | null>(null);
 
-// Loading state for unified emoji data
-const mutantLoading = computed(() => unifiedLoading.value);
-const mutantLoaded = computed(() => unifiedLoaded.value);
-
-// Category icons for display
-const categoryIcons: Record<string, string> = {
-  'expressions': '😊',
-  'food_drink_herbs': '🍕',
-  'activities_clothing': '🎮',
-  'nature': '🌿',
-  'objects': '🔧',
-  'symbols': '❤️',
-  'travel_places': '✈️',
-  'people': '👋',
-  'extra': '✨'
-};
-
 // --- Composables ---
 
 const triggerElementRef = computed(() => props.triggerElement || null);
 const { positionStyle, updatePosition } = usePopupPositioning(
   triggerElementRef,
-  { width: 320, height: 400 }, // Dimensions of the popup
+  { width: 320, height: 400 },
   { position: props.position },
 );
 
@@ -217,14 +212,12 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
   const query = searchQuery.value.toLowerCase().trim();
   const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis);
 
-  // If there's no search query, return all non-empty servers
   if (!query) {
     return allEmojisByServer
       .map(([serverId, data]) => ({ serverId, ...data }))
       .filter((group) => group.emojis.length > 0);
   }
 
-  // If there is a search query, filter emojis within each server group
   return allEmojisByServer
     .map(([serverId, data]) => {
       const matchingEmojis = data.emojis.filter(
@@ -239,15 +232,15 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
         emojis: matchingEmojis,
       };
     })
-    .filter((group) => group.emojis.length > 0); // Only include groups with matching emojis
+    .filter((group) => group.emojis.length > 0);
 });
 
 /**
  * Displayed emoji categories from unified emoji service
- * Works for both native and mutant pack - rendering differs
+ * Sorted by Unicode standard order (People, Nature, Food, etc.)
  */
-const displayedMutantCategories = computed(() => {
-  if (!mutantLoaded.value) return [];
+const displayedCategories = computed((): DisplayCategory[] => {
+  if (!unifiedLoaded.value) return [];
   
   const query = searchQuery.value.toLowerCase().trim();
   const allEmojis = getAllEmojis();
@@ -262,33 +255,81 @@ const displayedMutantCategories = computed(() => {
     categoryMap.get(catId)!.push(emoji);
   }
   
-  // Convert to array with category metadata
-  const categories = Array.from(categoryMap.entries()).map(([catId, emojis]) => ({
-    id: catId,
-    name: catId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    icon: categoryIcons[catId] || '📦',
-    emojis
-  }));
+  // Get category metadata from service or constants
+  const serviceCats = getCategories();
+  const categoryMetadata = serviceCats.length > 0 
+    ? serviceCats 
+    : EMOJI_CATEGORIES;
   
-  if (!query) {
-    return categories;
+  // Build categories with emojis, sorted by order
+  const categories: DisplayCategory[] = [];
+  
+  for (const meta of categoryMetadata) {
+    const emojis = categoryMap.get(meta.id) || [];
+    if (emojis.length === 0) continue;
+    
+    let filteredEmojis = emojis;
+    
+    // Filter by search query if present
+    if (query) {
+      filteredEmojis = emojis.filter(emoji => 
+        emoji.shortcode.toLowerCase().includes(query) ||
+        (emoji.name && emoji.name.toLowerCase().includes(query)) ||
+        emoji.keywords?.some(kw => kw.toLowerCase().includes(query))
+      );
+      if (filteredEmojis.length === 0) continue;
+    }
+    
+    categories.push({
+      id: meta.id,
+      name: meta.name,
+      icon: meta.icon,
+      order: meta.order,
+      emojis: filteredEmojis
+    });
   }
   
-  // Filter emojis when searching
-  return categories
-    .map(cat => ({
-      ...cat,
-      emojis: cat.emojis.filter(emoji => 
-        emoji.shortcode.toLowerCase().includes(query) ||
-        emoji.description.toLowerCase().includes(query) ||
-        emoji.keywords?.some(kw => kw.toLowerCase().includes(query))
-      )
-    }))
-    .filter(cat => cat.emojis.length > 0);
+  // Sort by order
+  return categories.sort((a, b) => a.order - b.order);
 });
 
 /**
- * Provides content for the "no results" message, adapting to the context.
+ * Get SVG URL for an emoji based on current pack
+ */
+function getEmojiSvgUrl(emoji: EmojiEntry): string {
+  if (isNativePack.value) return '';
+  
+  // For twemoji, use codepoint-based URL
+  if (isTwemojiPack.value) {
+    const url = getTwemojiUrl(emoji.unicode);
+    if (url) return url;
+  }
+  
+  // For mutant, use svgPath if available
+  if (emoji.svgPath) {
+    return `/assets/emojis/mutant_emojis_svg/${emoji.svgPath}`;
+  }
+  
+  // Fallback to resolve
+  const resolved = resolveEmoji(emoji.unicode);
+  return resolved.display.type === 'svg' ? resolved.display.content : '';
+}
+
+/**
+ * Get SVG URL for a frequent emoji
+ */
+function getFrequentEmojiSvgUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {
+  if (isNativePack.value) return null;
+  
+  const unicode = emoji.native || emoji.id;
+  if (!unicode) return null;
+  
+  const resolved = resolveEmoji(unicode);
+  return resolved.display.type === 'svg' ? resolved.display.content : null;
+}
+
+/**
+ * Provides content for the "no results" message.
  */
 const noResultsInfo = computed(() => {
   if (searchQuery.value.trim()) {
@@ -321,21 +362,17 @@ const selectUnifiedEmoji = (emoji: EmojiEntry): void => {
     name: emoji.shortcode
   });
   
-  // ALWAYS send the unicode character - rendering will be handled by the display component
-  // based on user's pack preference
+  // ALWAYS send the unicode character - rendering handled by display component
   const emojiObj = {
-    id: emoji.unicode,  // Unicode character for storage
+    id: emoji.unicode,
     name: emoji.shortcode,
-    url: '',  // Empty - rendering handled by resolveEmoji at display time
+    url: '',
     created_at: new Date(),
     uploader: '',
     server_id: ''
   } as Emoji;
   emit('sendEmoji', emojiObj);
 };
-
-// Alias for backwards compatibility with template
-const selectMutantEmoji = selectUnifiedEmoji;
 
 const selectEmoji = (emoji: Emoji): void => {
   triggerReaction();
@@ -346,17 +383,16 @@ const selectEmoji = (emoji: Emoji): void => {
 const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string; url?: string }): void => {
   triggerReaction();
   
-  // Determine the unicode to use
   let unicode = emoji.native || emoji.id;
   
-  // If it's a legacy mutant:path format, try to resolve to unicode
+  // Handle legacy mutant:path format
   if (unicode.startsWith('mutant:')) {
     const resolved = resolveEmoji(unicode);
     unicode = resolved.unicode;
   }
   
-  // Custom server emoji with URL (not from unified pack)
-  if (emoji.url && !emoji.url.includes('/mutant_emojis_svg/')) {
+  // Custom server emoji with URL
+  if (emoji.url && !emoji.url.includes('/twemoji/') && !emoji.url.includes('/mutant_emojis_svg/')) {
     const emojiObj = {
       id: emoji.id,
       name: emoji.name,
@@ -381,7 +417,6 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
 };
 
 const handleClickOutside = (event: MouseEvent): void => {
-  // Close the popup when clicking outside
   if (emojiPopup.value && !emojiPopup.value.contains(event.target as Node)) {
     props.closeEmojiList?.();
   }
@@ -396,7 +431,6 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 // --- Lifecycle Hooks ---
 
 onMounted(() => {
-  // Add event listeners with a small delay to prevent immediate closure
   setTimeout(() => {
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
@@ -406,8 +440,6 @@ onMounted(() => {
     updatePosition();
     searchInput.value?.focus();
   });
-  
-  // Unified emoji data is loaded automatically by the service
 });
 
 onUnmounted(() => {
@@ -417,9 +449,6 @@ onUnmounted(() => {
 
 // --- Watchers ---
 
-/**
- * Clear the search query when the popup is re-opened.
- */
 watch(
   () => props.emojiIconClicked,
   (isClicked) => {
@@ -446,7 +475,7 @@ watch(
 
 .emoji-search {
   padding: 12px;
-  border: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -477,17 +506,15 @@ watch(
   padding: 8px;
 }
 
-.server-name,
 .section-title {
   font-size: 11px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--color-text-secondary, #b9bbbe);
   text-transform: uppercase;
   margin: 12px 0 6px 0;
   letter-spacing: 0.02em;
 }
 
-.server-name:first-of-type,
 .section-title:first-of-type {
   margin-top: 4px;
 }
@@ -495,14 +522,18 @@ watch(
 .emoji-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, 32px);
-  gap: 8px;
-  justify-content: space-between;
+  gap: 6px;
+  justify-content: start;
   margin-bottom: 8px;
+}
+
+.unified-list {
+  grid-template-columns: repeat(auto-fill, 36px);
 }
 
 .emoji-item {
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.15s ease, background-color 0.15s ease;
   border-radius: 4px;
   padding: 2px;
   display: flex;
@@ -515,7 +546,8 @@ watch(
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-.emoji-item img {
+.emoji-item img,
+.emoji-svg {
   width: 28px;
   height: 28px;
   border-radius: 2px;
@@ -524,10 +556,6 @@ watch(
 
 .emoji-section {
   margin-bottom: 8px;
-}
-
-.native-list {
-  grid-template-columns: repeat(auto-fill, 36px);
 }
 
 .native-emoji-item {
@@ -541,23 +569,17 @@ watch(
   line-height: 1;
 }
 
-/* Mutant emoji styles */
-.mutant-list {
-  grid-template-columns: repeat(auto-fill, 36px);
-}
-
-.mutant-emoji-item {
+.svg-emoji-item {
   width: 36px;
   height: 36px;
 }
 
-.mutant-emoji-item img {
+.svg-emoji-item img {
   width: 28px;
   height: 28px;
   object-fit: contain;
 }
 
-/* Frequent emoji list */
 .frequent-list {
   grid-template-columns: repeat(auto-fill, 36px);
 }
@@ -570,7 +592,7 @@ watch(
 
 .emoji-shortcode {
   font-size: 10px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, #b9bbbe);
   word-break: break-all;
 }
 
@@ -581,7 +603,7 @@ watch(
   justify-content: center;
   gap: 8px;
   padding: 24px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, #b9bbbe);
   font-size: 13px;
 }
 
@@ -589,7 +611,7 @@ watch(
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--h-primary, #5865f2);
+  border-top-color: var(--color-primary, #5865f2);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -603,7 +625,7 @@ watch(
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: #72767d;
+  color: var(--color-text-secondary, #72767d);
   font-size: 14px;
   text-align: center;
   padding: 16px;
@@ -626,7 +648,7 @@ watch(
 }
 
 .no-results small {
-  color: #6f7177;
+  color: var(--color-text-muted, #6f7177);
   font-size: 12px;
 }
 
@@ -640,12 +662,12 @@ watch(
 }
 
 .emoji-content::-webkit-scrollbar-thumb {
-  background: #40444b;
+  background: var(--color-bg-tertiary, #40444b);
   border-radius: 4px;
 }
 
 .emoji-content::-webkit-scrollbar-thumb:hover {
-  background: #4f545c;
+  background: var(--color-bg-hover, #4f545c);
 }
 
 @media (max-width: 768px) {
