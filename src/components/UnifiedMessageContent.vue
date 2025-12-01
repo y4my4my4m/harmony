@@ -102,7 +102,9 @@
         <span 
           v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
           class="mention" 
-          @click="$emit('show-user-profile', part.userId, $event)"
+          :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com' }"
+          @click="handleMentionClick(part, $event)"
+          :title="getMentionTooltip(part)"
         >{{ formatMentionDisplay(part) }}</span>
         
         <!-- Hashtags -->
@@ -783,6 +785,34 @@ export default defineComponent({
       // For example, you might want to emit an event to notify the parent component
       emit('hashtag-click', hashtag);
     };
+    
+    // Check if a mention is from a bridged platform (e.g., Discord)
+    const isBridgedMention = (part: any): boolean => {
+      return part?.isBridged || part?.domain === 'discord.com';
+    };
+    
+    // Get tooltip text for a mention
+    const getMentionTooltip = (part: any): string => {
+      if (part?.domain === 'discord.com') {
+        return `Discord user: ${part.displayName || part.username}`;
+      }
+      return part?.displayName || part?.username || '';
+    };
+    
+    // Handle mention click - only open profile for local Harmony users
+    const handleMentionClick = (part: any, event: MouseEvent) => {
+      event.stopPropagation();
+      
+      // Don't try to open profile for bridged/Discord users
+      if (isBridgedMention(part)) {
+        debug.log('Bridged mention clicked (Discord user):', part.username);
+        // Could show a tooltip or mini-popup with Discord user info in the future
+        return;
+      }
+      
+      // For Harmony users, emit event to show profile
+      emit('show-user-profile', part.userId, event);
+    };
 
     // Generate cool glyph characters for encrypted messages
     // Uses message content hash for consistent but unique glyphs per message
@@ -853,6 +883,9 @@ export default defineComponent({
       renderTextSegments,
       getFileName,
       handleHashtagClick,
+      handleMentionClick,
+      isBridgedMention,
+      getMentionTooltip,
       resolveEmbedPayload,
       decrypting,
       handleDecryptClick,
@@ -1215,6 +1248,31 @@ export default defineComponent({
 .mention:hover {
   background-color: rgba(88, 101, 242, 0.3);
   text-decoration: underline;
+}
+
+/* Discord bridged mentions */
+.mention.discord-mention {
+  background-color: rgba(88, 101, 242, 0.2);
+  border-left: 2px solid #5865f2;
+  padding-left: 4px;
+}
+
+.mention.discord-mention::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 2px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 127.14 96.36'%3E%3Cpath fill='%235865f2' d='M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+}
+
+.mention.bridged-mention:not(.discord-mention) {
+  background-color: rgba(150, 100, 200, 0.2);
+  border-left: 2px solid #9664c8;
+  padding-left: 4px;
 }
 
 /* Encrypted glyphs styling - uses global styles from design-system.css */

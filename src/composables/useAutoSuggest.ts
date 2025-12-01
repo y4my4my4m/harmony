@@ -265,16 +265,18 @@ export function useAutoSuggest(
         const usernameStr = bridgedUser.username?.toLowerCase() || '';
         
         if (displayName.includes(query) || usernameStr.includes(query)) {
-          // For Discord users, use @username@discord.com format
-          const displayText = `@${bridgedUser.username}@discord.com`;
+          // For Discord users, use special format that includes Discord ID
+          // Format: @discord:DISCORD_ID:username - this preserves the ID for translation
+          const displayText = `@${bridgedUser.username}`;
+          const mentionText = `@discord:${bridgedUser.id}:${bridgedUser.username}`;
           
           suggestions.push({
             id: bridgedUser.id,
             display_name: bridgedUser.displayName,
             username: bridgedUser.username,
             avatar: bridgedUser.avatarUrl,
-            display_text: displayText,
-            mention_text: displayText, // Same format for storage
+            display_text: displayText, // What user sees: @username
+            mention_text: mentionText, // What gets stored: @discord:ID:username
             isBridged: true,
             bridgeSource: 'discord',
             user: {
@@ -697,8 +699,11 @@ export function useAutoSuggest(
             insertText
           });
         } else {
-          // Chat mode: use display_text for what user sees
-          if (suggestion.display_text) {
+          // Chat mode: use mention_text for storage (includes Discord ID for bridged users)
+          // Falls back to display_text, then @username
+          if (suggestion.mention_text) {
+            insertText = suggestion.mention_text + ' '; // Use mention_text for proper ID storage
+          } else if (suggestion.display_text) {
             insertText = suggestion.display_text + ' '; // Add space after mention
           } else {
             insertText = `@${suggestion.username} `; // Add space after mention

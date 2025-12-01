@@ -69,14 +69,16 @@ export class MessageTranslator {
           
           if (user) {
             // Create proper mention MessagePart for Discord user
-            console.log(`🔔 D→H Mention: <@${discordUserId}> → @${user.username}@discord.com`)
+            console.log(`🔔 D→H Mention: <@${discordUserId}> → @${user.username}@discord.com (ID: ${discordUserId})`)
             parts.push({
               type: 'mention',
-              userId: discordUserId,
+              userId: discordUserId, // Store Discord snowflake ID for reverse translation
               username: user.username,
               domain: 'discord.com',
               isLocal: false,
-              displayName: user.globalName || user.username
+              displayName: user.globalName || user.username,
+              isBridged: true,
+              bridgeSource: 'discord'
             })
           } else {
             // User not found in mentions cache, keep as text
@@ -210,26 +212,30 @@ export class MessageTranslator {
           return part.text || ''
         } else if (part.type === 'mention') {
           // Handle mention parts
+          
+          // Check if this is a bridged Discord mention (has isBridged flag or domain is discord.com)
           if (part.domain === 'discord.com' && part.userId) {
-            // Discord user mention - convert back to Discord format
-            console.log(`🔔 H→D Mention: @${part.username}@discord.com → <@${part.userId}>`)
-            return `<@${part.userId}>`
-          } else if (discordMemberCache) {
-            // Try to find this Harmony user in Discord by username
+            // Discord user mention - userId contains the Discord ID
+            // Check if it's a valid Discord snowflake (numeric)
+            if (/^\d+$/.test(part.userId)) {
+              console.log(`🔔 H→D Mention (Discord user): @${part.username} → <@${part.userId}>`)
+              return `<@${part.userId}>`
+            } else {
+              console.log(`⚠️ H→D Mention: Invalid Discord ID: ${part.userId}`)
+            }
+          }
+          
+          // Try to find this user in Discord by username
+          if (discordMemberCache) {
             const lookupUsername = part.username?.toLowerCase()
             const discordId = discordMemberCache.get(lookupUsername)
-            console.log(`🔔 H→D Mention lookup: "${lookupUsername}" in cache (size=${discordMemberCache.size})`)
             if (discordId) {
               console.log(`🔔 H→D Mention: @${part.username} → <@${discordId}> (found in Discord)`)
               return `<@${discordId}>`
-            } else {
-              console.log(`⚠️ H→D Mention: @${part.username} not found in Discord member cache`)
             }
-          } else {
-            console.log(`⚠️ H→D Mention: No Discord member cache provided`)
           }
           
-          // Fallback: show as plain @username for Harmony users
+          // Fallback: show as plain @username for users not in Discord
           const displayName = part.displayName || part.username || 'unknown'
           console.log(`🔔 H→D Mention fallback: @${displayName}`)
           return `@${displayName}`
