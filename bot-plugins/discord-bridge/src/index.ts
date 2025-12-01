@@ -970,35 +970,63 @@ discordClient.on('guildMemberUpdate', (oldMember, newMember) => {
  * Register slash commands with Discord
  */
 async function registerSlashCommands(guildId: string) {
-  const commands = [
-    new SlashCommandBuilder()
-      .setName('mention')
-      .setDescription('Send a message to Harmony with @mentions')
+  // Helper to add user options to a command
+  const addUserOptions = (builder: SlashCommandBuilder) => {
+    return builder
       .addStringOption(option =>
         option
-          .setName('text')
-          .setDescription('Your message - use @username to mention Harmony users')
+          .setName('user')
+          .setDescription('Harmony user to mention')
           .setRequired(true)
-      ),
-    new SlashCommandBuilder()
-      .setName('m')
-      .setDescription('Quick message to Harmony with @mentions')
+          .setAutocomplete(true)
+      )
       .addStringOption(option =>
         option
-          .setName('text')
-          .setDescription('Your message - use @username to mention')
-          .setRequired(true)
-      ),
-    new SlashCommandBuilder()
-      .setName('harmony-users')
-      .setDescription('Search for Harmony users (to find usernames for mentions)')
+          .setName('message')
+          .setDescription('Your message')
+          .setRequired(false)
+      )
       .addStringOption(option =>
         option
-          .setName('search')
-          .setDescription('Search query')
+          .setName('user2')
+          .setDescription('Additional user to mention')
           .setRequired(false)
           .setAutocomplete(true)
       )
+      .addStringOption(option =>
+        option
+          .setName('user3')
+          .setDescription('Additional user to mention')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user4')
+          .setDescription('Additional user to mention')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user5')
+          .setDescription('Additional user to mention')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+  }
+  
+  const commands = [
+    addUserOptions(
+      new SlashCommandBuilder()
+        .setName('mention')
+        .setDescription('Mention Harmony user(s) with a message')
+    ),
+    addUserOptions(
+      new SlashCommandBuilder()
+        .setName('m')
+        .setDescription('Quick mention Harmony user(s)')
+    )
   ]
 
   try {
@@ -1019,19 +1047,22 @@ async function registerSlashCommands(guildId: string) {
 
 // Handle slash command interactions
 discordClient.on('interactionCreate', async (interaction) => {
-  // Handle autocomplete for /harmony-users command
+  // Handle autocomplete for user fields
   if (interaction.isAutocomplete()) {
     const autocomplete = interaction as AutocompleteInteraction
     const focusedOption = autocomplete.options.getFocused(true)
     
-    if (focusedOption.name === 'search') {
+    // Handle user, user2, user3, user4, user5 autocomplete
+    if (focusedOption.name.startsWith('user')) {
       const query = focusedOption.value
+      console.log(`🔍 Autocomplete: "${query}", cache: ${harmonyUserCache.size}`)
+      
       const matches = searchHarmonyUsers(query)
       
       await autocomplete.respond(
         matches.map(user => ({
-          name: `@${user.username} (${user.displayName})`,
-          value: `@${user.username}` // Return the @username format they can copy
+          name: `${user.displayName} (@${user.username})`,
+          value: user.id
         }))
       )
     }
@@ -1043,9 +1074,18 @@ discordClient.on('interactionCreate', async (interaction) => {
     const command = interaction as ChatInputCommandInteraction
     
     if (command.commandName === 'mention' || command.commandName === 'm') {
-      const text = command.options.getString('text', true)
+      // Get all user IDs from the options
+      const userIds = [
+        command.options.getString('user', true),
+        command.options.getString('user2', false),
+        command.options.getString('user3', false),
+        command.options.getString('user4', false),
+        command.options.getString('user5', false)
+      ].filter(Boolean) as string[]
       
-      console.log(`🔔 Slash command: text="${text}"`)
+      const message = command.options.getString('message', false) || ''
+      
+      console.log(`🔔 Slash command: users=${userIds.length}, message="${message}"`)
       
       // Get the Discord channel mapping
       const harmonyChannelId = mapper.getHarmonyChannel(command.channelId)
@@ -1057,69 +1097,51 @@ discordClient.on('interactionCreate', async (interaction) => {
         return
       }
       
-      // Parse @mentions and Discord emojis from the text and build content parts
+      // Build content parts: mentions first, then message
       const contentParts: any[] = []
-      // Combined regex for @mentions and Discord custom emojis
-      const tokenRegex = /@([a-zA-Z0-9_-]+)|<(a?):(\w+):(\d+)>/g
-      let lastIndex = 0
-      let match
-      const mentionedUsers: string[] = []
-      let discordDisplayText = text
+      const mentionedUsers: CachedHarmonyUser[] = []
       
-      while ((match = tokenRegex.exec(text)) !== null) {
-        // Add text before the token
-        if (match.index > lastIndex) {
-          const textBefore = text.substring(lastIndex, match.index)
-          if (textBefore) {
-            contentParts.push({ type: 'text', text: textBefore })
-          }
+      // Add all user mentions
+      for (const userId of userIds) {
+        const harmonyUser = harmonyUserCache.get(userId)
+        if (harmonyUser) {
+          contentParts.push({
+            type: 'mention',
+            userId: harmonyUser.id,
+            username: harmonyUser.username,
+            domain: null,
+            isLocal: true,
+            displayName: harmonyUser.displayName
+          })
+          mentionedUsers.push(harmonyUser)
+          console.log(`🔔 Adding mention: @${harmonyUser.username}`)
         }
+      }
+      
+      // Add space between mentions and message if both exist
+      if (mentionedUsers.length > 0 && message) {
+        contentParts.push({ type: 'text', text: ' ' })
+      }
+      
+      // Parse message for Discord emojis
+      if (message) {
+        const emojiRegex = /<(a?):(\w+):(\d+)>/g
+        let lastIndex = 0
+        let match
         
-        if (match[1]) {
-          // @mention
-          const username = match[1]
-          
-          // Look up the Harmony user by username
-          let foundUser: CachedHarmonyUser | null = null
-          for (const user of harmonyUserCache.values()) {
-            if (user.username.toLowerCase() === username.toLowerCase()) {
-              foundUser = user
-              break
-            }
+        while ((match = emojiRegex.exec(message)) !== null) {
+          // Add text before emoji
+          if (match.index > lastIndex) {
+            contentParts.push({ type: 'text', text: message.substring(lastIndex, match.index) })
           }
           
-          if (foundUser) {
-            // Add proper mention part
-            contentParts.push({
-              type: 'mention',
-              userId: foundUser.id,
-              username: foundUser.username,
-              domain: null,
-              isLocal: true,
-              displayName: foundUser.displayName
-            })
-            mentionedUsers.push(foundUser.username)
-            
-            // Update Discord display text with federated format
-            discordDisplayText = discordDisplayText.replace(
-              `@${username}`,
-              `@${foundUser.username}@har.mony.lol`
-            )
-            
-            console.log(`🔔 Found Harmony user: @${foundUser.username}`)
-          } else {
-            // User not found, keep as plain text
-            contentParts.push({ type: 'text', text: `@${username}` })
-            console.log(`⚠️ Harmony user not found: @${username}`)
-          }
-        } else if (match[3] && match[4]) {
-          // Discord custom emoji: <:name:id> or <a:name:id>
-          const isAnimated = match[2] === 'a'
-          const emojiName = match[3]
-          const emojiId = match[4]
+          // Add emoji part
+          const isAnimated = match[1] === 'a'
+          const emojiName = match[2]
+          const emojiId = match[3]
           const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${isAnimated ? 'gif' : 'png'}`
           
-          console.log(`🎨 Slash cmd emoji: :${emojiName}: → ${emojiUrl}`)
+          console.log(`🎨 Emoji: :${emojiName}: → ${emojiUrl}`)
           
           contentParts.push({
             type: 'emoji',
@@ -1131,22 +1153,24 @@ discordClient.on('interactionCreate', async (interaction) => {
               display_name: emojiName
             }
           })
+          
+          lastIndex = emojiRegex.lastIndex
         }
         
-        lastIndex = tokenRegex.lastIndex
+        // Add remaining text
+        if (lastIndex < message.length) {
+          contentParts.push({ type: 'text', text: message.substring(lastIndex) })
+        } else if (lastIndex === 0) {
+          // No emojis found, add whole message
+          contentParts.push({ type: 'text', text: message })
+        }
       }
       
-      // Add remaining text after last token
-      if (lastIndex < text.length) {
-        contentParts.push({ type: 'text', text: text.substring(lastIndex) })
-      }
+      // Build Discord display text
+      const mentionDisplay = mentionedUsers.map(u => `@${u.username}@har.mony.lol`).join(' ')
+      const discordDisplayText = message ? `${mentionDisplay} ${message}` : mentionDisplay
       
-      // If no parts were created, just send the text
-      if (contentParts.length === 0) {
-        contentParts.push({ type: 'text', text: text })
-      }
-      
-      console.log(`📤 Sending ${contentParts.length} parts to Harmony:`, JSON.stringify(contentParts))
+      console.log(`📤 Sending ${contentParts.length} parts to Harmony`)
       
       // Get Discord user metadata for attribution
       const member = command.member as GuildMember
@@ -1188,11 +1212,9 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
         
         // Acknowledge the command
-        const mentionSummary = mentionedUsers.length > 0 
-          ? `Mentioned: ${mentionedUsers.map(u => `@${u}`).join(', ')}`
-          : 'Sent to Harmony'
+        const mentionList = mentionedUsers.map(u => `@${u.username}`).join(', ')
         await command.reply({ 
-          content: `✅ ${mentionSummary}`, 
+          content: `✅ Mentioned ${mentionList} in Harmony`, 
           ephemeral: true 
         })
       } catch (error: any) {
@@ -1200,27 +1222,6 @@ discordClient.on('interactionCreate', async (interaction) => {
         await command.reply({ 
           content: `❌ Failed to send: ${error.message}`, 
           ephemeral: true 
-        })
-      }
-    }
-    
-    // Handle /harmony-users command - shows username to copy
-    if (command.commandName === 'harmony-users') {
-      const search = command.options.getString('search', false) || ''
-      
-      if (search) {
-        // User selected from autocomplete, show them the @username
-        await command.reply({
-          content: `📋 Use this in your message: \`${search}\`\n\nExample: \`/m ${search} hello!\``,
-          ephemeral: true
-        })
-      } else {
-        // No search, list some users
-        const users = Array.from(harmonyUserCache.values()).slice(0, 10)
-        const userList = users.map(u => `• \`@${u.username}\` - ${u.displayName}`).join('\n')
-        await command.reply({
-          content: `**Harmony Users** (use @username in /m or /mention)\n\n${userList}`,
-          ephemeral: true
         })
       }
     }
