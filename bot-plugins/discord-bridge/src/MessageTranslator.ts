@@ -117,6 +117,58 @@ export class MessageTranslator {
           parts.push({ type: 'text', text: remainingText })
         }
       }
+      
+      // Post-process: detect plain @username mentions (for Harmony users)
+      // These are typed manually in Discord (not using Discord's autocomplete)
+      // Convert them to proper mention parts so they appear as mentions in Harmony
+      const processedParts: any[] = []
+      const plainMentionRegex = /@([a-zA-Z0-9_-]+)(?!\S)/g
+      
+      for (const part of parts) {
+        if (part.type === 'text') {
+          const text = part.text
+          let textLastIndex = 0
+          let mentionMatch
+          
+          while ((mentionMatch = plainMentionRegex.exec(text)) !== null) {
+            // Add text before the mention
+            if (mentionMatch.index > textLastIndex) {
+              processedParts.push({ type: 'text', text: text.substring(textLastIndex, mentionMatch.index) })
+            }
+            
+            const username = mentionMatch[1]
+            console.log(`🔔 D→H Plain mention detected: @${username} (Harmony user)`)
+            
+            // Create mention part for Harmony user
+            processedParts.push({
+              type: 'mention',
+              userId: `unresolved-${username}`, // Will be resolved by Harmony
+              username: username,
+              domain: null, // Local user
+              isLocal: true,
+              displayName: username
+            })
+            
+            textLastIndex = plainMentionRegex.lastIndex
+          }
+          
+          // Add remaining text
+          if (textLastIndex < text.length) {
+            processedParts.push({ type: 'text', text: text.substring(textLastIndex) })
+          } else if (textLastIndex === 0) {
+            // No mentions found, keep original part
+            processedParts.push(part)
+          }
+        } else {
+          processedParts.push(part)
+        }
+      }
+      
+      // Replace parts with processed parts if any mentions were found
+      if (processedParts.length > 0) {
+        parts.length = 0
+        parts.push(...processedParts)
+      }
     }
     
     // Attachments as proper file parts (images, videos, files)

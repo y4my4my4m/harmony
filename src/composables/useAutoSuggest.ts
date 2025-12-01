@@ -265,10 +265,10 @@ export function useAutoSuggest(
         const usernameStr = bridgedUser.username?.toLowerCase() || '';
         
         if (displayName.includes(query) || usernameStr.includes(query)) {
-          // For Discord users, use special format that includes Discord ID
-          // Format: @discord:DISCORD_ID:username - this preserves the ID for translation
+          // For Discord users, use compact format: @d!ID:username
+          // This preserves the Discord ID for translation while keeping username for display
           const displayText = `@${bridgedUser.username}`;
-          const mentionText = `@discord:${bridgedUser.id}:${bridgedUser.username}`;
+          const mentionText = `@d!${bridgedUser.id}:${bridgedUser.username}`;
           
           suggestions.push({
             id: bridgedUser.id,

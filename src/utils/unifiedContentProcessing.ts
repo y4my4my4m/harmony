@@ -269,9 +269,9 @@ export async function parseContentToMessageParts(
 
   // Parse mentions, hashtags, URLs, and emojis in order of appearance
   // Combined regex to match mentions, hashtags in one pass
-  // Includes special Discord mention format: @discord:ID:username
+  // Includes compact Discord mention format: @d!ID:username
   // Unicode-aware: \p{L} = any letter, \p{N} = any number (includes CJK, etc.)
-  const combinedRegex = /(@discord:(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
+  const combinedRegex = /(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
   const parts: MessagePart[] = [];
   
   let lastIndex = 0;
@@ -285,13 +285,13 @@ export async function parseContentToMessageParts(
     }
     
     if (match[1]) {
-      // This is a Discord bridged mention: @discord:ID:username
+      // This is a Discord bridged mention: @d!ID:username (compact format)
       const discordId = match[2];
       const discordUsername = match[3];
       
       parts.push({
         type: 'mention',
-        userId: discordId, // Store Discord ID directly
+        userId: discordId, // Store Discord ID directly for translation to <@ID>
         username: discordUsername,
         domain: 'discord.com',
         isLocal: false,

@@ -346,14 +346,29 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
       
+      // Check if emoji is a UUID (custom emoji) or Unicode (native emoji)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
+      
+      const insertData: any = {
+        message_id: messageId,
+        bot_id: botId,
+        metadata: metadata || null
+      }
+      
+      if (isUUID) {
+        // Custom emoji - use emoji_id
+        insertData.emoji_id = emoji
+      } else {
+        // Unicode/native emoji - use custom_emoji_content
+        insertData.custom_emoji_content = emoji
+        insertData.emoji_id = null
+      }
+      
+      console.log(`🎭 Adding reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" to message ${messageId}`)
+      
       const { error } = await supabase
         .from('reactions')
-        .insert({
-          message_id: messageId,
-          bot_id: botId,
-          emoji_id: emoji,
-          metadata: metadata || null
-        })
+        .insert(insertData)
       
       if (error) {
         console.error('❌ Reaction insert error:', error);
@@ -388,13 +403,24 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
       
-      // Delete the bot's reaction for this emoji on this message
-      const { error } = await supabase
+      // Check if emoji is a UUID (custom emoji) or Unicode (native emoji)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
+      
+      let query = supabase
         .from('reactions')
         .delete()
         .eq('message_id', messageId)
         .eq('bot_id', botId)
-        .eq('emoji_id', emoji)
+      
+      if (isUUID) {
+        query = query.eq('emoji_id', emoji)
+      } else {
+        query = query.is('emoji_id', null).eq('custom_emoji_content', emoji)
+      }
+      
+      console.log(`🎭 Removing reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" from message ${messageId}`)
+      
+      const { error } = await query
       
       if (error) {
         console.error('❌ Reaction delete error:', error);

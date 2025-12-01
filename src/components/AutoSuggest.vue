@@ -38,8 +38,8 @@
           >{{ suggestion.native }}</span>
           <div class="suggest-text">
             <div class="suggest-name-row">
-              <span class="suggest-name" v-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
-              <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
+            <span class="suggest-name" v-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
+            <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
               <!-- Discord badge for bridged users -->
               <span v-if="suggestion.isBridged && suggestion.bridgeSource === 'discord'" class="bridge-badge discord" title="Discord user">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
