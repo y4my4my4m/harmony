@@ -323,8 +323,10 @@ const goToMonyverse = () => {
 .separator {
   position: relative;
   width:80%;
-  border-top: 1px solid #000000;
-  border-bottom: 1px solid #2d2d2d;
+  /* border-top: 1px solid #000000; */
+  border-top: 1px solid var(--border-secondary);
+  /* border-bottom: 1px solid #2d2d2d; */
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 5px;
 }
 .dm-button:hover,
