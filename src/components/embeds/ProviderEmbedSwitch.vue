@@ -8,7 +8,7 @@
   
   <!-- Regular embed with header/collapse -->
   <div v-else class="provider-embed" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
-    <div class="provider-embed__header">
+    <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post'">
       <div class="provider-embed__label">
         {{ providerLabel }}
       </div>
