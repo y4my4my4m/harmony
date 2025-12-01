@@ -51,6 +51,8 @@ export class MessageTranslator {
           const discordEmojiId = match[3]
           const discordEmojiUrl = `https://cdn.discordapp.com/emojis/${discordEmojiId}.${isAnimated ? 'gif' : 'png'}`
           
+          console.log(`🎨 D→H Custom emoji: :${emojiName}: → ${discordEmojiUrl}`)
+          
           parts.push({
             type: 'emoji',
             emoji: {
@@ -173,16 +175,20 @@ export class MessageTranslator {
     
     // Attachments as proper file parts (images, videos, files)
     if (discordMsg.attachments && discordMsg.attachments.size > 0) {
+      console.log(`📎 D→H ${discordMsg.attachments.size} attachment(s):`)
       discordMsg.attachments.forEach((attachment: any) => {
         const contentType = attachment.contentType || ''
         const isImage = contentType.startsWith('image/')
         const isVideo = contentType.startsWith('video/')
+        const fileType = isImage ? 'image' : isVideo ? 'video' : 'file'
+        
+        console.log(`   📎 ${attachment.name} (${fileType}) → ${attachment.url}`)
         
         parts.push({
           type: 'file',
           url: attachment.url,
           fileName: attachment.name,
-          fileType: isImage ? 'image' : isVideo ? 'video' : 'file'
+          fileType: fileType
         })
       })
     }
