@@ -242,7 +242,8 @@ const getIconPath = (iconName: string): string => {
   align-items: center;
   gap: 4px;
   background: rgba(32, 34, 37, 0.8);
-  border: 2px solid rgba(88, 101, 242, 0.3);
+  /* border: 2px solid rgba(88, 101, 242, 0.3); */
+  border: 2px solid var(--harmony-primary-alpha);
   border-radius: 16px;
   padding: 4px;
   backdrop-filter: blur(10px);
@@ -270,13 +271,14 @@ const getIconPath = (iconName: string): string => {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1), rgba(88, 101, 242, 0.05));
+  /* background: linear-gradient(135deg, rgba(88, 101, 242, 0.1), rgba(88, 101, 242, 0.05)); */
+  background: linear-gradient(135deg, var(--harmony-primary-alpha), var(--harmony-primary-alpha-light));
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .feed-tab:hover {
-  color: #ffffff;
+  color: #fff;
   transform: translateY(-1px);
 }
 
@@ -285,10 +287,15 @@ const getIconPath = (iconName: string): string => {
 }
 
 .feed-tab.active {
-  background: linear-gradient(135deg, var(--harmony-primary), #4752c4);
-  color: #ffffff;
-  box-shadow: 
-    0 0 13px rgba(88, 101, 242, 0.4),
+  /* background: linear-gradient(135deg, var(--harmony-primary), #4752c4); */
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
+  color: #fff;
+  /* box-shadow:  */
+    /* 0 0 13px rgba(88, 101, 242, 0.4), */
+    /* inset 0 -2px 2px rgba(0, 0, 0, 0.3), */
+    /* inset 0 1px 0 rgba(255, 255, 255, 0.2); */
+  box-shadow:
+    0 0 13px var(--harmony-primary-alpha),
     inset 0 -2px 2px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }

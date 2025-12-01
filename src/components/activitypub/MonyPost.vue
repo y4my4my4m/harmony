@@ -1645,7 +1645,7 @@ const closeLightbox = () => {
 }
 
 .author-handle {
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -1661,7 +1661,7 @@ const closeLightbox = () => {
   flex-direction: column;
   align-items: flex-end;
   justify-content: flex-end;
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   flex-shrink: 0;
 }
@@ -1705,16 +1705,16 @@ const closeLightbox = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 0.8rem;
 }
 
 .reply-icon {
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .reply-text {
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .reply-author-link {
@@ -1736,14 +1736,14 @@ const closeLightbox = () => {
   background: transparent;
   border: 1px solid #374151;
   border-radius: 0.375rem;
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .show-thread-btn:hover {
-  background: #374151;
+  background: var(--background-secondary);
   color: white;
 }
 

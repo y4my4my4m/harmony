@@ -636,6 +636,7 @@ onUnmounted(() => {
   margin-bottom: 16px;
   width: 100%;
   padding: 16px;
+  color: var(--text-primary);
 }
 .stats-refresh {
   background: none;

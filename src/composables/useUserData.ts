@@ -99,17 +99,26 @@ export function useUserData() {
   
   /**
    * Get user status text
+   * Takes into account whether user is actually online (present)
    */
   const getUserStatusText = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
     if (!user) return 'Offline'
     
+    // If user is not present (not online), show as Offline
+    // regardless of their stored status preference
+    if (!user.isOnline) {
+      return 'Offline'
+    }
+    
+    // User is online - check for custom status first
     if (user.bio && user.bio.includes('status:')) {
       const customStatus = user.bio.split('status:')[1]?.trim()
       if (customStatus) return customStatus
     }
     
+    // Return their status preference
     switch (user.status) {
       case UserStatus.Online:
         return 'Online'
