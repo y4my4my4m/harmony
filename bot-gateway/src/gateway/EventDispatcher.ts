@@ -27,13 +27,14 @@ export class EventDispatcher {
   }
   
   private async initializeKnownMessages() {
-    // Load recent messages to track for edits and deletes (last 72 hours)
+    // Load recent NON-DELETED messages to track for edits and deletes (last 72 hours)
     const seventyTwoHoursAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
     
     const { data: messages } = await supabase
       .from('messages')
       .select('id, updated_at, content, channel_id, metadata')
       .gt('created_at', seventyTwoHoursAgo)
+      .eq('is_deleted', false) // Only track non-deleted messages
       .order('created_at', { ascending: false })
       .limit(10000)
     
@@ -88,7 +89,7 @@ export class EventDispatcher {
       
       const { data: currentMessages, error } = await supabase
         .from('messages')
-        .select('id, content, channel_id, user_id, bot_id, metadata, encrypted, updated_at')
+        .select('id, content, channel_id, user_id, bot_id, metadata, encrypted, updated_at, is_deleted')
         .in('id', idsToCheck)
       
       if (error) {
@@ -104,19 +105,40 @@ export class EventDispatcher {
       }
       
       let changesFound = 0
+      let deletesFound = 0
+      
       for (const msg of currentMessages || []) {
         const cached = this.messageVersions.get(msg.id)
+        
+        // Check for soft-deletes (is_deleted = true)
+        if (msg.is_deleted && cached) {
+          deletesFound++
+          console.log(`🗑️ SOFT DELETE detected: ${msg.id} (is_deleted = true)`)
+          await this.handleMessageDelete({ 
+            old: { 
+              id: msg.id, 
+              channel_id: msg.channel_id,
+              metadata: msg.metadata
+            } 
+          })
+          // Remove from cache
+          this.knownMessageIds.delete(msg.id)
+          this.messageVersions.delete(msg.id)
+          continue
+        }
+        
+        // Check for content changes (edits)
         if (cached && this.contentChanged(cached.content, msg.content)) {
           changesFound++
-          console.log(`🔍 CHANGE DETECTED in ${msg.id}:`)
+          console.log(`🔍 EDIT DETECTED in ${msg.id}:`)
           console.log(`   DB type: ${typeof msg.content}, Cache type: ${typeof cached.content}`)
           console.log(`   DB: "${this.contentPreview(msg.content)}"`)
           console.log(`   Cache: "${this.contentPreview(cached.content)}"`)
         }
       }
       
-      if (this.pollCount % 5 === 0 && changesFound === 0) {
-        console.log(`   No content changes detected`)
+      if (this.pollCount % 5 === 0 && changesFound === 0 && deletesFound === 0) {
+        console.log(`   No changes detected`)
       }
       
       const currentById = new Map((currentMessages || []).map(m => [m.id, m]))
