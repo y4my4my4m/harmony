@@ -10,6 +10,7 @@ harmony:
   token: "YOUR_HARMONY_BOT_TOKEN"
   gatewayUrl: "ws://localhost:3001/gateway"
   apiUrl: "http://localhost:3002"
+  serverId: "YOUR_HARMONY_SERVER_UUID"  # Required for Discord autocomplete of Harmony users
 
 # Channel Mappings
 # Each mapping connects a Discord channel to a Harmony channel

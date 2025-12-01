@@ -17,6 +17,7 @@ export interface BridgeConfig {
     token: string
     gatewayUrl: string
     apiUrl: string
+    serverId: string  // Harmony server UUID for autocomplete
   }
   channelMappings: ChannelMapping[]
   settings: {

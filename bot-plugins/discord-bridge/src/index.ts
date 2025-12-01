@@ -1,4 +1,17 @@
-import { Client as DiscordClient, GatewayIntentBits, Message as DiscordMessage, Webhook, TextChannel, Partials, GuildMember } from 'discord.js'
+import { 
+  Client as DiscordClient, 
+  GatewayIntentBits, 
+  Message as DiscordMessage, 
+  Webhook, 
+  TextChannel, 
+  Partials, 
+  GuildMember,
+  SlashCommandBuilder,
+  REST,
+  Routes,
+  ChatInputCommandInteraction,
+  AutocompleteInteraction
+} from 'discord.js'
 import { HarmonyClient } from './HarmonyClient.js'
 import { MessageTranslator } from './MessageTranslator.js'
 import { ChannelMapper } from './ChannelMapper.js'
@@ -68,6 +81,75 @@ function cacheMember(member: GuildMember) {
 function uncacheMemberById(memberId: string, username: string) {
   discordMemberCache.delete(username.toLowerCase())
   discordMemberDetails.delete(memberId)
+}
+
+// =====================================================
+// HARMONY USER CACHE (for Discord autocomplete)
+// =====================================================
+interface CachedHarmonyUser {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+}
+const harmonyUserCache = new Map<string, CachedHarmonyUser>()
+
+/**
+ * Fetch Harmony users for the bridged server
+ * Called on startup and periodically
+ */
+async function refreshHarmonyUserCache() {
+  try {
+    // Use the bot-gateway API to fetch server members
+    const response = await fetch(`${config.harmony.apiUrl}/api/v1/servers/${config.harmony.serverId}/members?limit=1000`, {
+      headers: {
+        'Authorization': `Bot ${config.harmony.token}`
+      }
+    })
+    
+    if (!response.ok) {
+      console.error('❌ Failed to fetch Harmony users:', await response.text())
+      return
+    }
+    
+    const members = await response.json()
+    harmonyUserCache.clear()
+    
+    for (const member of members) {
+      if (member.user) {
+        harmonyUserCache.set(member.user.id, {
+          id: member.user.id,
+          username: member.user.username || 'unknown',
+          displayName: member.user.display_name || member.user.username || 'Unknown',
+          avatarUrl: member.user.avatar || null
+        })
+      }
+    }
+    
+    console.log(`🔄 Refreshed Harmony user cache: ${harmonyUserCache.size} users`)
+  } catch (error) {
+    console.error('❌ Error fetching Harmony users:', error)
+  }
+}
+
+/**
+ * Get Harmony users matching a query (for autocomplete)
+ */
+function searchHarmonyUsers(query: string): CachedHarmonyUser[] {
+  const lowerQuery = query.toLowerCase()
+  const results: CachedHarmonyUser[] = []
+  
+  for (const user of harmonyUserCache.values()) {
+    if (
+      user.username.toLowerCase().includes(lowerQuery) ||
+      user.displayName.toLowerCase().includes(lowerQuery)
+    ) {
+      results.push(user)
+      if (results.length >= 25) break // Discord autocomplete limit
+    }
+  }
+  
+  return results
 }
 
 // Track ready states for bridge data registration
@@ -809,10 +891,19 @@ discordClient.on('ready', async () => {
       })
       
       console.log(`✅ Cached ${discordMemberCache.size} Discord members for mention lookups`)
+      
+      // Register slash commands for this guild
+      await registerSlashCommands(config.discord.guildId)
     } catch (error) {
       console.error('❌ Failed to fetch guild members:', error)
     }
   }
+  
+  // Fetch Harmony users for autocomplete
+  await refreshHarmonyUserCache()
+  
+  // Refresh Harmony user cache periodically (every 5 minutes)
+  setInterval(refreshHarmonyUserCache, 5 * 60 * 1000)
   
   // Mark Discord as ready and register bridge data if Harmony is also ready
   discordReady = true
@@ -848,6 +939,145 @@ discordClient.on('guildMemberUpdate', (oldMember, newMember) => {
     }
     // Re-register bridge data with updated members
     registerBridgeDataWithGateway()
+  }
+})
+
+// =====================================================
+// SLASH COMMANDS
+// =====================================================
+
+/**
+ * Register slash commands with Discord
+ */
+async function registerSlashCommands(guildId: string) {
+  const commands = [
+    new SlashCommandBuilder()
+      .setName('mention')
+      .setDescription('Mention a Harmony user')
+      .addStringOption(option =>
+        option
+          .setName('user')
+          .setDescription('The Harmony user to mention')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('message')
+          .setDescription('Optional message to include')
+          .setRequired(false)
+      ),
+    new SlashCommandBuilder()
+      .setName('m')
+      .setDescription('Quick mention a Harmony user (shortcut)')
+      .addStringOption(option =>
+        option
+          .setName('user')
+          .setDescription('The Harmony user to mention')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('message')
+          .setDescription('Optional message to include')
+          .setRequired(false)
+      )
+  ]
+
+  try {
+    const rest = new REST({ version: '10' }).setToken(config.discord.token)
+    
+    console.log('🔧 Registering slash commands...')
+    
+    await rest.put(
+      Routes.applicationGuildCommands(discordClient.user!.id, guildId),
+      { body: commands.map(cmd => cmd.toJSON()) }
+    )
+    
+    console.log('✅ Slash commands registered: /mention, /m')
+  } catch (error) {
+    console.error('❌ Failed to register slash commands:', error)
+  }
+}
+
+// Handle slash command interactions
+discordClient.on('interactionCreate', async (interaction) => {
+  // Handle autocomplete for /mention and /m commands
+  if (interaction.isAutocomplete()) {
+    const autocomplete = interaction as AutocompleteInteraction
+    const focusedOption = autocomplete.options.getFocused(true)
+    
+    if (focusedOption.name === 'user') {
+      const query = focusedOption.value
+      const matches = searchHarmonyUsers(query)
+      
+      await autocomplete.respond(
+        matches.map(user => ({
+          name: `${user.displayName} (@${user.username})`,
+          value: user.id // Store user ID for the command
+        }))
+      )
+    }
+    return
+  }
+  
+  // Handle slash command execution
+  if (interaction.isChatInputCommand()) {
+    const command = interaction as ChatInputCommandInteraction
+    
+    if (command.commandName === 'mention' || command.commandName === 'm') {
+      const userId = command.options.getString('user', true)
+      const message = command.options.getString('message', false) || ''
+      
+      // Look up the Harmony user
+      const harmonyUser = harmonyUserCache.get(userId)
+      if (!harmonyUser) {
+        await command.reply({ 
+          content: '❌ User not found. Try refreshing the autocomplete.', 
+          ephemeral: true 
+        })
+        return
+      }
+      
+      // Get the Discord channel mapping
+      const harmonyChannelId = mapper.getHarmonyChannel(command.channelId)
+      if (!harmonyChannelId) {
+        await command.reply({ 
+          content: '❌ This channel is not bridged to Harmony.', 
+          ephemeral: true 
+        })
+        return
+      }
+      
+      // Build the message with mention
+      const mentionText = `@${harmonyUser.username}`
+      const fullMessage = message ? `${mentionText} ${message}` : mentionText
+      
+      // Get webhook to send as the Discord user
+      const webhook = await getOrCreateWebhook(command.channelId)
+      if (!webhook) {
+        await command.reply({ 
+          content: '❌ Failed to send message (webhook error).', 
+          ephemeral: true 
+        })
+        return
+      }
+      
+      // Send via webhook so it appears as the Discord user
+      const member = command.member as GuildMember
+      await webhook.send({
+        content: fullMessage,
+        username: member?.displayName || command.user.username,
+        avatarURL: command.user.displayAvatarURL()
+      })
+      
+      // Acknowledge the command (ephemeral so it doesn't show)
+      await command.reply({ 
+        content: `✅ Mentioned @${harmonyUser.username} in Harmony`, 
+        ephemeral: true 
+      })
+    }
   }
 })
 

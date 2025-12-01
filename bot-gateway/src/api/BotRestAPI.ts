@@ -54,16 +54,21 @@ export class BotRestAPI {
     this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
     
     // =====================================================
-    // GUILD (SERVER) ENDPOINTS
+    // SERVER ENDPOINTS (Harmony terminology)
     // =====================================================
     
-    // Get guild info
+    // Get server info
+    this.router.get('/servers/:serverId', this.getGuild.bind(this))
+    
+    // Get server members
+    this.router.get('/servers/:serverId/members', this.getGuildMembers.bind(this))
+    
+    // Get server channels
+    this.router.get('/servers/:serverId/channels', this.getGuildChannels.bind(this))
+    
+    // Legacy aliases (Discord terminology - deprecated)
     this.router.get('/guilds/:guildId', this.getGuild.bind(this))
-    
-    // Get guild members
     this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
-    
-    // Get guild channels
     this.router.get('/guilds/:guildId/channels', this.getGuildChannels.bind(this))
     
     // =====================================================
@@ -449,20 +454,20 @@ export class BotRestAPI {
   
   private async getGuild(req: BotRequest, res: Response) {
     try {
-      const { guildId } = req.params
+      const serverId = req.params.serverId || req.params.guildId
       const botId = req.bot!.id
       
-      // Check if bot is in the guild
+      // Check if bot is in the server
       const { data: permission } = await supabase
         .from('bot_server_permissions')
         .select('*')
         .eq('bot_id', botId)
-        .eq('server_id', guildId)
+        .eq('server_id', serverId)
         .eq('is_active', true)
         .single()
       
       if (!permission) {
-        return res.status(403).json({ error: 'Bot not in guild' })
+        return res.status(403).json({ error: 'Bot not in server' })
       }
       
       const { data: guild, error } = await supabase
@@ -471,7 +476,7 @@ export class BotRestAPI {
           *,
           owner:profiles!servers_owner_fkey(id, username, display_name, avatar_url)
         `)
-        .eq('id', guildId)
+        .eq('id', serverId)
         .single()
       
       if (error) {
@@ -486,12 +491,13 @@ export class BotRestAPI {
   
   private async getGuildMembers(req: BotRequest, res: Response) {
     try {
-      const { guildId } = req.params
+      // Support both /servers/:serverId and /guilds/:guildId
+      const serverId = req.params.serverId || req.params.guildId
       const { limit = 100, after } = req.query
       const botId = req.bot!.id
       
-      // Check if bot is in the guild
-      const hasAccess = await this.checkBotInGuild(botId, guildId)
+      // Check if bot is in the server
+      const hasAccess = await this.checkBotInGuild(botId, serverId)
       if (!hasAccess) {
         return res.status(403).json({ error: 'Bot not in guild' })
       }
@@ -502,7 +508,7 @@ export class BotRestAPI {
           *,
           user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status)
         `)
-        .eq('server_id', guildId)
+        .eq('server_id', serverId)
         .limit(Number(limit))
       
       if (after) {
@@ -523,18 +529,18 @@ export class BotRestAPI {
   
   private async getGuildChannels(req: BotRequest, res: Response) {
     try {
-      const { guildId } = req.params
+      const serverId = req.params.serverId || req.params.guildId
       const botId = req.bot!.id
       
-      const hasAccess = await this.checkBotInGuild(botId, guildId)
+      const hasAccess = await this.checkBotInGuild(botId, serverId)
       if (!hasAccess) {
-        return res.status(403).json({ error: 'Bot not in guild' })
+        return res.status(403).json({ error: 'Bot not in server' })
       }
       
       const { data: channels, error } = await supabase
         .from('channels')
         .select('*')
-        .eq('server_id', guildId)
+        .eq('server_id', serverId)
         .order('position')
       
       if (error) {
