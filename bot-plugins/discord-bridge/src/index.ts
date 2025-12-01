@@ -709,6 +709,7 @@ harmonyClient.on('messageUpdate', async (msg: any) => {
   console.log(`📝 Harmony message updated:`, { 
     id: msg.id, 
     channel_id: msg.channel_id,
+    content: msg.content?.substring?.(0, 50) || JSON.stringify(msg.content_raw)?.substring(0, 50),
     metadata: msg.metadata,
     mappingExists: harmonyToDiscordMessages.has(msg.id),
     totalMappings: harmonyToDiscordMessages.size
@@ -717,6 +718,17 @@ harmonyClient.on('messageUpdate', async (msg: any) => {
   // Don't bridge messages that came from Discord (prevent loops!)
   if (msg.metadata?.bridge_source === 'discord') {
     console.log('⏭️  Skipping message from Discord (preventing loop)')
+    return
+  }
+  
+  // Skip "[deleted]" edits - the MESSAGE_DELETE event will handle actual deletion
+  const contentText = msg.content || ''
+  const contentRaw = msg.content_raw || []
+  const isDeleted = contentText === '[deleted]' || 
+    (Array.isArray(contentRaw) && contentRaw.length === 1 && contentRaw[0]?.text === '[deleted]')
+  
+  if (isDeleted) {
+    console.log('⏭️  Skipping [deleted] content - waiting for MESSAGE_DELETE event')
     return
   }
   
@@ -823,9 +835,10 @@ harmonyClient.on('messageDelete', async (msg: any) => {
     }
     
     // Delete the webhook message
+    console.log(`🗑️ Attempting to delete Discord message ${discordMessageId} via webhook...`)
     await webhook.deleteMessage(discordMessageId)
     
-    console.log(`✅ Harmony -> Discord delete: Message ${discordMessageId}`)
+    console.log(`✅ Harmony -> Discord delete SUCCESS: Message ${discordMessageId} deleted from Discord`)
     
     // Clean up mapping
     harmonyToDiscordMessages.delete(msg.id)
