@@ -51,74 +51,47 @@ export class EventDispatcher {
   }
   
   private startPolling() {
-    console.log('🔄 Starting polling mode for all message events (every 1 second)...')
+    console.log('🔄 Starting polling mode for all message events...')
     
-    // Poll every second for new messages, edits, and deletes
+    // Poll every second for new messages
     this.pollingInterval = setInterval(async () => {
       await this.pollMessages()
-      await this.pollEdits()
-      await this.pollDeletes()
     }, 1000)
+    
+    // Poll every 2 seconds for edits/deletes (compares cached content vs DB)
+    setInterval(async () => {
+      await this.pollEditsAndDeletes()
+    }, 2000)
   }
   
-  private async pollEdits() {
-    try {
-      // Check for recently updated messages
-      const { data: messages, error } = await supabase
-        .from('messages')
-        .select('id, updated_at, content, channel_id, user_id, bot_id, content_raw, metadata, encrypted')
-        .gt('updated_at', new Date(Date.now() - 5000).toISOString()) // Last 5 seconds
-        .order('updated_at', { ascending: true })
-        .limit(50)
-      
-      if (error) return
-      
-      for (const msg of messages || []) {
-        const cached = this.messageVersions.get(msg.id)
-        
-        // Check if this is an actual edit (updated_at changed and content differs)
-        if (cached && cached.updated_at !== msg.updated_at && cached.content !== msg.content) {
-          console.log(`📝 Detected message edit: ${msg.id}`)
-          await this.handleMessageUpdate({ new: msg, old: { id: msg.id } })
-        }
-        
-        // Update cache
-        this.messageVersions.set(msg.id, { 
-          updated_at: msg.updated_at, 
-          content: msg.content,
-          channel_id: msg.channel_id,
-          metadata: msg.metadata
-        })
-        this.knownMessageIds.add(msg.id)
-      }
-    } catch (error) {
-      // Silent fail for polling
-    }
-  }
-  
-  private async pollDeletes() {
+  private async pollEditsAndDeletes() {
     try {
       // Only check if we have known messages to track
       if (this.knownMessageIds.size === 0) return
       
-      // Sample check: verify a batch of known messages still exist
+      // Check a batch of our cached messages against the database
       const idsToCheck = Array.from(this.knownMessageIds).slice(0, 100)
       
-      const { data: existing } = await supabase
+      const { data: currentMessages, error } = await supabase
         .from('messages')
-        .select('id')
+        .select('id, content, channel_id, user_id, bot_id, content_raw, metadata, encrypted, updated_at')
         .in('id', idsToCheck)
       
-      const existingIds = new Set((existing || []).map(m => m.id))
+      if (error) {
+        console.error('❌ pollEditsAndDeletes error:', error)
+        return
+      }
+      
+      const currentById = new Map((currentMessages || []).map(m => [m.id, m]))
       
       for (const id of idsToCheck) {
-        if (!existingIds.has(id)) {
-          // Get cached data for this message (we saved channel_id earlier)
-          const cached = this.messageVersions.get(id)
-          
+        const cached = this.messageVersions.get(id)
+        const current = currentById.get(id)
+        
+        if (!current) {
+          // Message was DELETED
           if (cached?.channel_id) {
-            console.log(`🗑️ Detected message delete: ${id} in channel ${cached.channel_id}`)
-            
+            console.log(`🗑️ Detected message delete: ${id}`)
             await this.handleMessageDelete({ 
               old: { 
                 id, 
@@ -126,18 +99,31 @@ export class EventDispatcher {
                 metadata: cached.metadata
               } 
             })
-          } else {
-            console.log(`⚠️ Detected delete but no cached channel_id for message ${id}`)
           }
-          
           this.knownMessageIds.delete(id)
           this.messageVersions.delete(id)
+        } else if (cached && cached.content !== current.content) {
+          // Message was EDITED (content changed)
+          console.log(`📝 Detected message edit: ${id}`)
+          console.log(`   old: "${cached.content?.substring(0, 40)}..."`)
+          console.log(`   new: "${current.content?.substring(0, 40)}..."`)
+          
+          await this.handleMessageUpdate({ new: current, old: { id } })
+          
+          // Update cache with new content
+          this.messageVersions.set(id, {
+            updated_at: current.updated_at,
+            content: current.content,
+            channel_id: current.channel_id,
+            metadata: current.metadata
+          })
         }
       }
     } catch (error) {
-      // Silent fail for polling
+      console.error('❌ pollEditsAndDeletes exception:', error)
     }
   }
+  
   
   private async pollMessages() {
     try {
