@@ -27,14 +27,15 @@ export class EventDispatcher {
   }
   
   private async initializeKnownMessages() {
-    // Load recent messages to track for edits and deletes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    // Load recent messages to track for edits and deletes (last 72 hours)
+    const seventyTwoHoursAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
     
     const { data: messages } = await supabase
       .from('messages')
       .select('id, updated_at, content, channel_id, metadata')
-      .gt('created_at', fiveMinutesAgo)
-      .limit(500)
+      .gt('created_at', seventyTwoHoursAgo)
+      .order('created_at', { ascending: false })
+      .limit(10000)
     
     if (messages) {
       for (const msg of messages) {
@@ -46,7 +47,7 @@ export class EventDispatcher {
           metadata: msg.metadata
         })
       }
-      console.log(`📋 Initialized ${messages.length} known messages for edit/delete tracking`)
+      console.log(`📋 Initialized ${messages.length} known messages for edit/delete tracking (last 72h)`)
     }
   }
   
@@ -74,7 +75,7 @@ export class EventDispatcher {
       
       const { data: currentMessages, error } = await supabase
         .from('messages')
-        .select('id, content, channel_id, user_id, bot_id, content_raw, metadata, encrypted, updated_at')
+        .select('id, content, channel_id, user_id, bot_id, metadata, encrypted, updated_at')
         .in('id', idsToCheck)
       
       if (error) {
@@ -161,16 +162,16 @@ export class EventDispatcher {
               metadata: message.metadata
             })
             
-            // Keep set size reasonable (only keep last 1000 IDs)
-            if (this.processedMessageIds.size > 1000) {
+            // Keep set size reasonable (only keep last 10000 IDs)
+            if (this.processedMessageIds.size > 10000) {
               const idsArray = Array.from(this.processedMessageIds);
-              this.processedMessageIds = new Set(idsArray.slice(-1000));
+              this.processedMessageIds = new Set(idsArray.slice(-10000));
             }
             
             // Also prune version cache
-            if (this.messageVersions.size > 1000) {
+            if (this.messageVersions.size > 10000) {
               const entries = Array.from(this.messageVersions.entries());
-              const toKeep = entries.slice(-1000);
+              const toKeep = entries.slice(-10000);
               this.messageVersions = new Map(toKeep);
               this.knownMessageIds = new Set(toKeep.map(([id]) => id));
             }
