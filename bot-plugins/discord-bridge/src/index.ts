@@ -1053,6 +1053,8 @@ discordClient.on('interactionCreate', async (interaction) => {
       const userId = command.options.getString('user', true)
       const message = command.options.getString('message', false) || ''
       
+      console.log(`🔔 Slash command: user="${userId}", message="${message}"`)
+      
       // Look up the Harmony user
       const harmonyUser = harmonyUserCache.get(userId)
       if (!harmonyUser) {
@@ -1086,9 +1088,12 @@ discordClient.on('interactionCreate', async (interaction) => {
       ]
       
       // Add message text if provided
-      if (message) {
+      if (message && message.trim()) {
         contentParts.push({ type: 'text', text: ' ' + message })
+        console.log(`📝 Added text part: "${message}"`)
       }
+      
+      console.log(`📤 Sending ${contentParts.length} parts to Harmony:`, JSON.stringify(contentParts))
       
       // Build display text for Discord
       const displayText = message 
