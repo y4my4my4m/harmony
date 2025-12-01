@@ -77,6 +77,9 @@ const isLoading = ref(false)
 // Cache for mutant lookups (loaded separately when needed)
 const mutantLookups = ref<EmojiLookups | null>(null)
 
+// Twemoji file map for accurate SVG path resolution
+const twemojiFileMap = ref<Record<string, boolean> | null>(null)
+
 /**
  * Load the unified emoji data
  */
@@ -100,6 +103,17 @@ async function loadEmojiData(): Promise<void> {
         lookups.value = emojiData.value?.lookups || null
         debug.log(`📦 Loaded legacy emoji data: ${emojiData.value?.totalCount} emojis`)
       }
+    }
+    
+    // Load Twemoji file map for accurate SVG path resolution
+    try {
+      const fileMapResponse = await fetch('/assets/emojis/twemoji-file-map.json')
+      if (fileMapResponse.ok) {
+        twemojiFileMap.value = await fileMapResponse.json()
+        debug.log(`📦 Loaded Twemoji file map: ${Object.keys(twemojiFileMap.value || {}).length} entries`)
+      }
+    } catch (e) {
+      debug.warn('Could not load Twemoji file map, using fallback normalization')
     }
     
     isLoaded.value = true
@@ -211,19 +225,102 @@ function shortcodeToCodepoint(shortcode: string): string | null {
 }
 
 /**
+ * Find a Twemoji file by trying different fe0f variations
+ * Returns the actual filename if found, or null
+ */
+function findTwemojiFile(codepoint: string): string | null {
+  if (!twemojiFileMap.value) return null
+  
+  // Try exact match first
+  if (twemojiFileMap.value[codepoint]) {
+    return codepoint
+  }
+  
+  const parts = codepoint.split('-')
+  
+  // Try without all fe0f
+  const withoutFe0f = parts.filter(p => p !== 'fe0f').join('-')
+  if (twemojiFileMap.value[withoutFe0f]) {
+    return withoutFe0f
+  }
+  
+  // Try with fe0f only after gender symbols
+  const withGenderFe0f: string[] = []
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (part === 'fe0f') {
+      const prev = parts[i - 1]
+      if (prev === '2640' || prev === '2642' || prev === '27a1') {
+        withGenderFe0f.push(part)
+      }
+    } else {
+      withGenderFe0f.push(part)
+    }
+  }
+  const genderVariant = withGenderFe0f.join('-')
+  if (twemojiFileMap.value[genderVariant]) {
+    return genderVariant
+  }
+  
+  // Try with all fe0f at the end stripped
+  if (parts[parts.length - 1] === 'fe0f') {
+    const withoutTrailing = parts.slice(0, -1).join('-')
+    if (twemojiFileMap.value[withoutTrailing]) {
+      return withoutTrailing
+    }
+  }
+  
+  // Try with fe0f added after base emoji (for emojis like 26f9-fe0f-200d-...)
+  if (parts.length >= 2 && parts[1] === '200d') {
+    const withBaseFe0f = [parts[0], 'fe0f', ...parts.slice(1)].join('-')
+    if (twemojiFileMap.value[withBaseFe0f]) {
+      return withBaseFe0f
+    }
+  }
+  
+  return null
+}
+
+/**
  * Get Twemoji SVG URL from unicode emoji
+ * Uses file map for accurate resolution, with fallback to heuristic normalization
  */
 function getTwemojiUrl(unicode: string): string | null {
-  const codepoint = unicodeToCodepoint(unicode)
+  // First try from lookups
+  let codepoint = unicodeToCodepoint(unicode)
+  
   if (!codepoint) {
     // Fallback: compute codepoint directly from unicode
-    const computed = unicodeToCodepointDirect(unicode)
-    if (computed) {
-      return `${TWEMOJI_BASE_URL}/${computed}.svg`
-    }
-    return null
+    codepoint = unicodeToCodepointDirect(unicode)
   }
-  return `${TWEMOJI_BASE_URL}/${codepoint}.svg`
+  
+  if (!codepoint) return null
+  
+  // Try to find the exact file using the file map
+  if (twemojiFileMap.value) {
+    const found = findTwemojiFile(codepoint)
+    if (found) {
+      return `${TWEMOJI_BASE_URL}/${found}.svg`
+    }
+  }
+  
+  // Fallback: use heuristic normalization (strip most fe0f except after gender symbols)
+  const parts = codepoint.split('-')
+  const normalized: string[] = []
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (part === 'fe0f') {
+      const prev = parts[i - 1]
+      // Keep fe0f after gender/directional symbols
+      if (prev === '2640' || prev === '2642' || prev === '27a1') {
+        normalized.push(part)
+      }
+    } else {
+      normalized.push(part)
+    }
+  }
+  
+  return `${TWEMOJI_BASE_URL}/${normalized.join('-')}.svg`
 }
 
 /**

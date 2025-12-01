@@ -30,6 +30,35 @@ const require = createRequire(import.meta.url);
 const unicodeEmoji = require('unicode-emoji-json');
 
 const OUTPUT_DIR = path.join(__dirname, '../public/assets/emojis');
+const TWEMOJI_DIR = path.join(OUTPUT_DIR, 'twemoji');
+
+/**
+ * Scan Twemoji SVG files and build a set of available filenames
+ * The service will handle fe0f normalization at runtime
+ */
+function buildTwemojiFileMap() {
+  console.log('📁 Scanning Twemoji SVG files...');
+  
+  if (!fs.existsSync(TWEMOJI_DIR)) {
+    console.warn('⚠️ Twemoji directory not found, skipping file map generation');
+    return null;
+  }
+  
+  const files = fs.readdirSync(TWEMOJI_DIR).filter(f => f.endsWith('.svg'));
+  console.log(`   Found ${files.length} SVG files`);
+  
+  // Build a set of available codepoints (without .svg extension)
+  // The service will try multiple fe0f variations to find a match
+  const available = {};
+  
+  for (const file of files) {
+    const codepoint = file.replace('.svg', '');
+    available[codepoint] = true;
+  }
+  
+  console.log(`   Created ${Object.keys(available).length} lookup entries\n`);
+  return available;
+}
 
 /**
  * Category mapping from Unicode standard groups to our simplified categories
@@ -112,6 +141,9 @@ function nameToShortcode(name) {
  */
 function main() {
   console.log('🎨 Building Unicode Emoji Data...\n');
+  
+  // Build Twemoji file map first
+  const twemojiFileMap = buildTwemojiFileMap();
   
   const emojis = [];
   const shortcodeToUnicode = {};
@@ -241,6 +273,13 @@ function main() {
     unicodeToCodepoint
   }, null, 2));
   console.log(`✅ Generated: ${lookupsPath}`);
+  
+  // Write Twemoji file map (for accurate SVG path resolution)
+  if (twemojiFileMap) {
+    const twemojiMapPath = path.join(OUTPUT_DIR, 'twemoji-file-map.json');
+    fs.writeFileSync(twemojiMapPath, JSON.stringify(twemojiFileMap, null, 2));
+    console.log(`✅ Generated: ${twemojiMapPath}`);
+  }
   
   console.log('\n🎉 Done!');
 }

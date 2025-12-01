@@ -378,6 +378,7 @@ export default defineComponent({
   align-items: center;
   /* gap: 4px; */
   padding: 4px 8px;
+  margin-right: 180px;
   background-color: #40444b;
   border: 1px solid #5865f2;
   border-radius: 4px;

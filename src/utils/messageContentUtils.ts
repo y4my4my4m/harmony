@@ -95,8 +95,9 @@ export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
   // Check if single text part is just one emoji (with optional whitespace)
   if (part.type === 'text') {
     const trimmed = (part.text || '').trim();
-    // Unicode emoji regex - must be ONLY an emoji (or a few with zero-width joiners)
-    const singleEmojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+    // Unicode emoji regex - must be ONLY an emoji (flags, ZWJ sequences, or standard emojis)
+    // Includes Regional Indicator Symbol pairs for flags (U+1F1E6-U+1F1FF)
+    const singleEmojiRegex = /^([\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*)$/u;
     return singleEmojiRegex.test(trimmed);
   }
   

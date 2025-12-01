@@ -142,8 +142,9 @@ export function useContentRenderer(
     // Check if single text part is just one emoji (with optional whitespace)
     if (part && part.type === 'text') {
       const trimmed = part.text?.trim() || '';
-      // Unicode emoji regex - must be ONLY an emoji (or a few with zero-width joiners)
-      const singleEmojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+      // Unicode emoji regex - must be ONLY an emoji (flags, ZWJ sequences, or standard emojis)
+      // Includes Regional Indicator Symbol pairs for flags (U+1F1E6-U+1F1FF)
+      const singleEmojiRegex = /^([\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*)$/u;
       return singleEmojiRegex.test(trimmed);
     }
     
@@ -231,10 +232,14 @@ export function useContentRenderer(
         case 'text': {
           let text = part.text || '';
           
-          // For mutant pack: Replace unicode emojis with SVG images
+          // For mutant/twemoji pack: Replace unicode emojis with SVG images
           // For native pack: Leave unicode as-is (browser renders them)
           if (!isNativePack.value && emojiServiceLoaded.value) {
-            const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+            // Emoji regex that captures:
+            // 1. Flag pairs (Regional Indicator Symbols U+1F1E6-U+1F1FF)
+            // 2. ZWJ sequences (emoji + zero-width joiner + emoji)
+            // 3. Standard emojis with presentation selector
+            const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
             text = text.replace(emojiRegex, (match) => {
               const resolved = resolveEmoji(match);
               if (resolved.display.type === 'svg') {
@@ -245,7 +250,8 @@ export function useContentRenderer(
             });
           } else if (isSingleEmoji.value) {
             // Native pack with single emoji - wrap for bigger styling
-            const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+            // Same regex to capture flags properly
+            const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
             text = text.replace(emojiRegex, (match) => {
               return `<span class="native-emoji single">${match}</span>`;
             });

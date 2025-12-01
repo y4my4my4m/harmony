@@ -569,10 +569,11 @@ export default defineComponent({
         return blockId;
       });
       
-      // For mutant pack: Replace unicode emojis with SVG images
+      // For mutant/twemoji pack: Replace unicode emojis with SVG images
       // For native pack: Leave unicode as-is (browser renders them)
       if (!isNativePack.value && emojiServiceLoaded.value) {
-        const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+        // Unicode emoji regex - matches flags (Regional Indicators), ZWJ sequences, and standard emojis
+        const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
         rendered = rendered.replace(emojiRegex, (match) => {
           const resolved = resolveEmoji(match);
           if (resolved.display.type === 'svg') {
@@ -583,7 +584,7 @@ export default defineComponent({
         });
       } else if (props.isSingleEmoji) {
         // Native pack with single emoji - wrap for bigger styling
-        const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+        const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
         rendered = rendered.replace(emojiRegex, (match) => {
           return `<span class="native-emoji single">${match}</span>`;
         });
