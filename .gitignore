@@ -45,3 +45,5 @@ docker
 dev/certs/*.pem
 
 # public/assets/emojis/*
+
+webrtc/livekit.yaml
