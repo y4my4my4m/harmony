@@ -67,7 +67,8 @@ class UserDataService extends EventTarget {
     
     debug.log('🚀 Initializing User Data Service for:', username)
     
-    this.cleanup()
+    // IMPORTANT: Await cleanup to prevent race conditions with subscriptions
+    await this.cleanup()
     this.currentUserId = userId
     
     // Initialize current user
