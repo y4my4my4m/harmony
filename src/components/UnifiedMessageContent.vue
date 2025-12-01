@@ -309,6 +309,7 @@ import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { debug } from '@/utils/debug';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
