@@ -287,10 +287,13 @@ export class MessageTranslator {
             }
           }
           
-          // Fallback: show as plain @username for users not in Discord
-          const displayName = part.displayName || part.username || 'unknown'
-          console.log(`🔔 H→D Mention fallback: @${displayName}`)
-          return `@${displayName}`
+          // Fallback: show as @username@domain for Harmony users not in Discord
+          const username = part.username || 'unknown'
+          // Use the domain from the mention, or default to har.mony.lol for local users
+          const domain = part.domain || process.env.HARMONY_DOMAIN || 'har.mony.lol'
+          const federatedMention = `@${username}@${domain}`
+          console.log(`🔔 H→D Mention (Harmony user): ${federatedMention}`)
+          return federatedMention
         } else if (part.type === 'emoji') {
           // Convert Harmony emoji to Discord format
           const emoji = part.emoji

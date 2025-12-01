@@ -1073,33 +1073,79 @@ discordClient.on('interactionCreate', async (interaction) => {
         return
       }
       
-      // Build the message with mention
-      const mentionText = `@${harmonyUser.username}`
-      const fullMessage = message ? `${mentionText} ${message}` : mentionText
+      // Build content_raw with proper mention MessagePart
+      const contentParts: any[] = [
+        {
+          type: 'mention',
+          userId: harmonyUser.id,
+          username: harmonyUser.username,
+          domain: null, // Local Harmony user
+          isLocal: true,
+          displayName: harmonyUser.displayName
+        }
+      ]
       
-      // Get webhook to send as the Discord user
-      const webhook = await getOrCreateWebhook(command.channelId)
-      if (!webhook) {
-        await command.reply({ 
-          content: '❌ Failed to send message (webhook error).', 
-          ephemeral: true 
-        })
-        return
+      // Add message text if provided
+      if (message) {
+        contentParts.push({ type: 'text', text: ' ' + message })
       }
       
-      // Send via webhook so it appears as the Discord user
-      const member = command.member as GuildMember
-      await webhook.send({
-        content: fullMessage,
-        username: member?.displayName || command.user.username,
-        avatarURL: command.user.displayAvatarURL()
-      })
+      // Build display text for Discord
+      const displayText = message 
+        ? `@${harmonyUser.username}@har.mony.lol ${message}`
+        : `@${harmonyUser.username}@har.mony.lol`
       
-      // Acknowledge the command (ephemeral so it doesn't show)
-      await command.reply({ 
-        content: `✅ Mentioned @${harmonyUser.username} in Harmony`, 
-        ephemeral: true 
-      })
+      // Get Discord user metadata for attribution
+      const member = command.member as GuildMember
+      const discordMetadata = {
+        discord_user: {
+          id: command.user.id,
+          username: command.user.username,
+          discriminator: command.user.discriminator,
+          display_name: member?.displayName || command.user.username,
+          avatar_url: command.user.displayAvatarURL({ size: 256 })
+        },
+        bridge_source: 'discord'
+      }
+      
+      try {
+        // Send directly to Harmony with proper mention parts
+        const harmonyMsg = await harmonyClient.sendMessage(
+          harmonyChannelId,
+          contentParts,
+          discordMetadata
+        )
+        
+        console.log(`✅ Slash command mention sent to Harmony: @${harmonyUser.username}`)
+        
+        // Also send to Discord channel so other Discord users see it
+        const webhook = await getOrCreateWebhook(command.channelId)
+        if (webhook) {
+          const webhookMsg = await webhook.send({
+            content: displayText,
+            username: (member?.displayName || command.user.username) + ' [H]',
+            avatarURL: command.user.displayAvatarURL()
+          })
+          
+          // Store message mapping
+          if (harmonyMsg?.id && webhookMsg?.id) {
+            discordToHarmonyMessages.set(webhookMsg.id, harmonyMsg.id)
+            harmonyToDiscordMessages.set(harmonyMsg.id, webhookMsg.id)
+          }
+        }
+        
+        // Acknowledge the command
+        await command.reply({ 
+          content: `✅ Mentioned @${harmonyUser.username}@har.mony.lol`, 
+          ephemeral: true 
+        })
+      } catch (error: any) {
+        console.error('❌ Failed to send mention:', error)
+        await command.reply({ 
+          content: `❌ Failed to send mention: ${error.message}`, 
+          ephemeral: true 
+        })
+      }
     }
   }
 })
