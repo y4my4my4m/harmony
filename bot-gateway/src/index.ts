@@ -64,6 +64,20 @@ app.get('/api/v1/gateway/status', (req, res) => {
   })
 })
 
+// Bridged users endpoint (for Discord bridge integration)
+// This endpoint is PUBLIC and does not require bot authentication
+// It's used by the Harmony frontend for mention autosuggest
+app.get('/api/v1/channels/:channelId/bridged-users', (req, res) => {
+  const { channelId } = req.params
+  const bridgedUsers = gateway.getBridgedUsers(channelId)
+  
+  res.json({
+    channel_id: channelId,
+    has_bridge: gateway.hasChannelBridge(channelId),
+    users: bridgedUsers
+  })
+})
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', err)

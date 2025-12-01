@@ -9,6 +9,15 @@ import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSugges
 import type { ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
 
+// Bridged user interface (from Discord bridge)
+interface BridgedUser {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  source: 'discord';
+}
+
 export interface AutoSuggestTrigger {
   char: string;
   pattern: RegExp;
@@ -71,6 +80,11 @@ export function useAutoSuggest(
 
   // Dynamic user search results for ActivityPub mode
   const activityPubUsers = ref<any[]>([]);
+  
+  // Bridged users from Discord (fetched from bot-gateway)
+  const bridgedUsers = ref<BridgedUser[]>([]);
+  const bridgedUsersLoaded = ref(false);
+  const bridgedUsersChannelId = ref<string | null>(null);
 
   // Trigger patterns
   const triggers: AutoSuggestTrigger[] = [];
@@ -188,6 +202,12 @@ export function useAutoSuggest(
 
       // Get current server ID to filter users by server membership
       const currentServerId = serverChannelStore.currentServerId;
+      const currentChannelId = serverChannelStore.currentChannelId;
+      
+      // Fetch bridged users for current channel (async, updates ref)
+      if (currentChannelId && !bridgedUsersLoaded.value) {
+        fetchBridgedUsers(currentChannelId);
+      }
       
       if (currentServerId) {
         // Get users only from the current server context
@@ -202,6 +222,7 @@ export function useAutoSuggest(
 
       const seenUsers = new Set<string>(); // Track already processed users
       
+      // Add Harmony users
       for (const userData of usersToSearch) {
         // Skip if we've already seen this user
         if (seenUsers.has(userData.id)) {
@@ -230,6 +251,43 @@ export function useAutoSuggest(
             display_text: displayText, // What user sees in input
             mention_text: mentionText, // What gets stored in DB
             user: userData // Keep reference for easy access
+          });
+        }
+      }
+      
+      // Add bridged Discord users
+      for (const bridgedUser of bridgedUsers.value) {
+        // Skip if we've already seen this user (by Discord ID)
+        const bridgedKey = `discord:${bridgedUser.id}`;
+        if (seenUsers.has(bridgedKey)) {
+          continue;
+        }
+        seenUsers.add(bridgedKey);
+        
+        const displayName = bridgedUser.displayName?.toLowerCase() || '';
+        const usernameStr = bridgedUser.username?.toLowerCase() || '';
+        
+        if (displayName.includes(query) || usernameStr.includes(query)) {
+          // For Discord users, use @username@discord.com format
+          const displayText = `@${bridgedUser.username}@discord.com`;
+          
+          suggestions.push({
+            id: bridgedUser.id,
+            display_name: bridgedUser.displayName,
+            username: bridgedUser.username,
+            avatar: bridgedUser.avatarUrl,
+            display_text: displayText,
+            mention_text: displayText, // Same format for storage
+            isBridged: true,
+            bridgeSource: 'discord',
+            user: {
+              id: bridgedUser.id,
+              username: bridgedUser.username,
+              displayName: bridgedUser.displayName,
+              avatarUrl: bridgedUser.avatarUrl,
+              domain: 'discord.com',
+              isLocal: false
+            }
           });
         }
       }
@@ -312,6 +370,37 @@ export function useAutoSuggest(
   // Track current search to abort stale requests
   let currentSearchAbortController: AbortController | null = null;
   let currentSearchQuery = '';
+  
+  // Fetch bridged users from bot-gateway for current channel
+  const fetchBridgedUsers = async (channelId: string) => {
+    if (!channelId || bridgedUsersChannelId.value === channelId) {
+      return; // Already loaded for this channel
+    }
+    
+    try {
+      const botGatewayUrl = import.meta.env.VITE_BOT_GATEWAY_URL || 'http://localhost:3002';
+      const response = await fetch(`${botGatewayUrl}/api/v1/channels/${channelId}/bridged-users`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.has_bridge && Array.isArray(data.users)) {
+          bridgedUsers.value = data.users;
+          debug.log(`🌉 Loaded ${data.users.length} bridged Discord users for channel ${channelId}`);
+        } else {
+          bridgedUsers.value = [];
+        }
+        bridgedUsersChannelId.value = channelId;
+        bridgedUsersLoaded.value = true;
+      } else {
+        bridgedUsers.value = [];
+        bridgedUsersLoaded.value = true;
+      }
+    } catch (error) {
+      debug.debug('Bridge API not available:', error);
+      bridgedUsers.value = [];
+      bridgedUsersLoaded.value = true;
+    }
+  };
 
   // ActivityPub user search function with timeout
   const searchActivityPubUsers = async (query: string) => {
@@ -657,6 +746,14 @@ export function useAutoSuggest(
       nextTick(() => {
         updatePosition();
       });
+    }
+  });
+  
+  // Reset bridged users when channel changes
+  watch(() => serverChannelStore.currentChannelId, (newChannelId) => {
+    if (newChannelId !== bridgedUsersChannelId.value) {
+      bridgedUsersLoaded.value = false;
+      bridgedUsers.value = [];
     }
   });
 

@@ -21,93 +21,103 @@ export class MessageTranslator {
       content: discordMsg.content
     })
     
-    // Text content
+    // Text content - parse for emojis, mentions, and channel references
     if (discordMsg.content && typeof discordMsg.content === 'string') {
-      let content = discordMsg.content
+      const content = discordMsg.content
       
-      // Parse content for custom emojis and create proper emoji parts
-      // Discord custom emoji format: <:name:id> or <a:name:id> (animated)
-      const emojiRegex = /<(a?):(\w+):(\d+)>/g
+      // Combined regex to match all special tokens in order of appearance:
+      // - Custom emojis: <a:name:id> or <:name:id>
+      // - User mentions: <@id> or <@!id>
+      // - Role mentions: <@&id>
+      // - Channel mentions: <#id>
+      const tokenRegex = /<(a?):(\w+):(\d+)>|<@!?(\d+)>|<@&(\d+)>|<#(\d+)>/g
+      
       let lastIndex = 0
       let match
-      let hasContent = false
       
-      while ((match = emojiRegex.exec(content)) !== null) {
-        hasContent = true
-        
-        // Add text before the emoji
+      while ((match = tokenRegex.exec(content)) !== null) {
+        // Add text before the token
         if (match.index > lastIndex) {
           const textBefore = content.substring(lastIndex, match.index)
-          if (textBefore.trim()) {
+          if (textBefore) {
             parts.push({ type: 'text', text: textBefore })
           }
         }
         
-        // Create emoji part
-        // TODO: Query Harmony database to get actual emoji by name
-        // For now, create a simple emoji representation
-        const isAnimated = match[1] === 'a'
-        const emojiName = match[2]
-        const discordEmojiId = match[3]
-        
-        // Format: https://cdn.discordapp.com/emojis/ID.png (or .gif for animated)
-        const discordEmojiUrl = `https://cdn.discordapp.com/emojis/${discordEmojiId}.${isAnimated ? 'gif' : 'png'}`
-        
-        // Create a pseudo-emoji object (matches Harmony's emoji structure)
-        // TODO: Look up actual emoji in Harmony DB by name or create it
-        parts.push({
-          type: 'emoji',
-          emoji: {
-            name: emojiName,
-            url: discordEmojiUrl,
-            // These fields would come from Harmony DB lookup:
-            id: null,
-            domain: 'discord.com', // Mark as Discord emoji
-            display_name: emojiName,
-            server_id: this.serverId
+        if (match[2] && match[3]) {
+          // Custom emoji: <a:name:id> or <:name:id>
+          const isAnimated = match[1] === 'a'
+          const emojiName = match[2]
+          const discordEmojiId = match[3]
+          const discordEmojiUrl = `https://cdn.discordapp.com/emojis/${discordEmojiId}.${isAnimated ? 'gif' : 'png'}`
+          
+          parts.push({
+            type: 'emoji',
+            emoji: {
+              name: emojiName,
+              url: discordEmojiUrl,
+              id: null,
+              domain: 'discord.com',
+              display_name: emojiName,
+              server_id: this.serverId
+            }
+          })
+        } else if (match[4]) {
+          // User mention: <@id> or <@!id>
+          const discordUserId = match[4]
+          const user = discordMsg.mentions?.users?.get(discordUserId)
+          
+          if (user) {
+            // Create proper mention MessagePart for Discord user
+            parts.push({
+              type: 'mention',
+              userId: discordUserId,
+              username: user.username,
+              domain: 'discord.com',
+              isLocal: false,
+              displayName: user.globalName || user.username
+            })
+          } else {
+            // User not found in mentions cache, keep as text
+            parts.push({ type: 'text', text: match[0] })
           }
-        })
+        } else if (match[5]) {
+          // Role mention: <@&id>
+          const roleId = match[5]
+          const role = discordMsg.mentions?.roles?.get(roleId)
+          
+          // Roles don't have a direct equivalent in Harmony, show as styled text
+          parts.push({ 
+            type: 'text', 
+            text: role ? `@${role.name}` : match[0] 
+          })
+        } else if (match[6]) {
+          // Channel mention: <#id>
+          const channelId = match[6]
+          const channel = discordMsg.mentions?.channels?.get(channelId)
+          
+          // Channel mentions shown as text (could be enhanced later)
+          parts.push({ 
+            type: 'text', 
+            text: channel ? `#${channel.name}` : match[0] 
+          })
+        }
         
-        lastIndex = emojiRegex.lastIndex
+        lastIndex = tokenRegex.lastIndex
       }
       
-      // Add remaining text after last emoji
-      const remainingText = content.substring(lastIndex)
-      
-      // Now handle mentions and other replacements on the remaining text
-      let processedText = remainingText
-      
-      // Translate user mentions: <@123> -> @username
-      processedText = processedText.replace(/<@!?(\d+)>/g, (match: string, id: string) => {
-        const user = discordMsg.mentions?.users?.get(id)
-        return user ? `@${user.username}` : match
-      })
-      
-      // Translate role mentions: <@&123> -> @role
-      processedText = processedText.replace(/<@&(\d+)>/g, (match: string, id: string) => {
-        const role = discordMsg.mentions?.roles?.get(id)
-        return role ? `@${role.name}` : match
-      })
-      
-      // Translate channel mentions: <#123> -> #channel
-      processedText = processedText.replace(/<#(\d+)>/g, (match: string, id: string) => {
-        const channel = discordMsg.mentions?.channels?.get(id)
-        return channel ? `#${channel.name}` : match
-      })
-      
-      // If we found emojis, add the processed remaining text
-      if (hasContent && processedText.trim()) {
-        parts.push({ type: 'text', text: processedText })
-      } else if (!hasContent && processedText.trim()) {
-        // No emojis found, add the whole processed content as text
-        parts.push({ type: 'text', text: processedText })
+      // Add remaining text after last token
+      if (lastIndex < content.length) {
+        const remainingText = content.substring(lastIndex)
+        if (remainingText) {
+          parts.push({ type: 'text', text: remainingText })
+        }
       }
     }
     
     // Attachments as proper file parts (images, videos, files)
     if (discordMsg.attachments && discordMsg.attachments.size > 0) {
       discordMsg.attachments.forEach((attachment: any) => {
-        // Determine if it's an image, video, or other file
         const contentType = attachment.contentType || ''
         const isImage = contentType.startsWith('image/')
         const isVideo = contentType.startsWith('video/')
@@ -185,8 +195,10 @@ export class MessageTranslator {
   
   /**
    * Convert Harmony message to Discord format
+   * @param harmonyMsg - The Harmony message object
+   * @param discordMemberCache - Optional cache of Discord members for username-to-ID lookup
    */
-  harmonyToDiscord(harmonyMsg: any): string {
+  harmonyToDiscord(harmonyMsg: any, discordMemberCache?: Map<string, string>): string {
     let content = ''
     
     // If content_raw exists, use it to properly parse MessageParts
@@ -194,6 +206,24 @@ export class MessageTranslator {
       const parts = harmonyMsg.content_raw.map((part: any) => {
         if (part.type === 'text') {
           return part.text || ''
+        } else if (part.type === 'mention') {
+          // Handle mention parts
+          console.log('🔔 Converting mention to Discord:', JSON.stringify(part, null, 2))
+          
+          if (part.domain === 'discord.com' && part.userId) {
+            // Discord user mention - convert back to Discord format
+            return `<@${part.userId}>`
+          } else if (discordMemberCache) {
+            // Try to find this Harmony user in Discord by username
+            const discordId = discordMemberCache.get(part.username?.toLowerCase())
+            if (discordId) {
+              return `<@${discordId}>`
+            }
+          }
+          
+          // Fallback: show as plain @username for Harmony users
+          const displayName = part.displayName || part.username || 'unknown'
+          return `@${displayName}`
         } else if (part.type === 'emoji') {
           // Convert Harmony emoji to Discord format
           const emoji = part.emoji
@@ -212,11 +242,7 @@ export class MessageTranslator {
             }
             
             // For Harmony native emojis, we can't render them in Discord directly
-            // Option 1: Just show the name (current)
-            // Option 2: Send the image URL (but Discord won't render localhost URLs)
-            // Option 3: Upload as attachment (would require more complex logic)
-            
-            // For now, just use the name
+            // Just show the name
             return `:${emoji.name}:`
           }
           return ''
@@ -226,6 +252,9 @@ export class MessageTranslator {
         } else if (part.type === 'url') {
           // URL parts
           return part.url || ''
+        } else if (part.type === 'hashtag') {
+          // Hashtags - show as plain text
+          return `#${part.name || ''}`
         }
         return ''
       })
@@ -242,7 +271,7 @@ export class MessageTranslator {
     // Extract username if in "username: message" format
     const match = content.match(/^(.+?):\s+(.+)$/)
     if (match) {
-      const [, username, message] = match
+      const [, , message] = match
       // Don't add prefix since we're using puppeting
       content = message
     }
@@ -327,10 +356,7 @@ export class MessageTranslator {
     
     // For custom Discord emojis, we need to find or create it in Harmony
     if (discordEmojiId && discordEmojiName) {
-      // Build the Discord CDN URL
-      const discordEmojiUrl = `https://cdn.discordapp.com/emojis/${discordEmojiId}.${isAnimated ? 'gif' : 'png'}`
-      
-      // For now, return a special format that the bridge can handle
+      // Return a special format that the bridge can handle
       // Format: discord:name:id
       // The bot API will need to handle this format
       return `discord:${discordEmojiName}:${discordEmojiId}`

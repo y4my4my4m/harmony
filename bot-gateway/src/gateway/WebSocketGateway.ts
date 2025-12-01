@@ -10,9 +10,31 @@ export interface BotConnection {
   sessionId: string
 }
 
+// Bridged user info (from Discord bridge)
+export interface BridgedUser {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string
+  source: 'discord'
+}
+
+// Channel bridge data
+export interface ChannelBridgeData {
+  botId: string
+  harmonyChannelId: string
+  discordChannelId: string
+  members: BridgedUser[]
+}
+
 export class WebSocketGateway {
   private connections = new Map<WebSocket, BotConnection>()
   private heartbeatInterval: NodeJS.Timeout | null = null
+  
+  // Bridged users cache: Harmony channel ID -> bridged users
+  private bridgedUsersByChannel = new Map<string, BridgedUser[]>()
+  // Track which bot registered which channels (for cleanup on disconnect)
+  private channelsByBot = new Map<string, Set<string>>()
   
   constructor(private wss: WebSocketServer) {
     this.wss.on('connection', this.handleConnection.bind(this))
@@ -40,6 +62,12 @@ export class WebSocketGateway {
             }
             break
             
+          case 6: // REGISTER_BRIDGE_DATA
+            if (botConnection) {
+              this.handleBridgeDataRegistration(botConnection, payload.d)
+            }
+            break
+            
           default:
             console.warn(`Unknown opcode: ${payload.op}`)
         }
@@ -53,6 +81,9 @@ export class WebSocketGateway {
       if (botConnection) {
         console.log(`🔌 Bot disconnected: ${botConnection.username}`)
         this.connections.delete(ws)
+        
+        // Clean up bridged users registered by this bot
+        this.cleanupBotBridgeData(botConnection.botId)
         
         // Update presence
         supabase
@@ -254,6 +285,66 @@ export class WebSocketGateway {
     return false
   }
   
+  // =====================================================
+  // BRIDGE DATA MANAGEMENT
+  // =====================================================
+  
+  /**
+   * Handle bridge data registration from Discord bridge
+   */
+  private handleBridgeDataRegistration(botConnection: BotConnection, data: any) {
+    if (!data.channels || !Array.isArray(data.channels)) {
+      console.warn('⚠️ Invalid bridge data registration - missing channels array')
+      return
+    }
+    
+    console.log(`🌉 Registering bridge data from ${botConnection.username}`)
+    
+    // Track channels registered by this bot
+    if (!this.channelsByBot.has(botConnection.botId)) {
+      this.channelsByBot.set(botConnection.botId, new Set())
+    }
+    const botChannels = this.channelsByBot.get(botConnection.botId)!
+    
+    for (const channelData of data.channels) {
+      const { harmonyChannelId, members } = channelData
+      
+      if (harmonyChannelId && Array.isArray(members)) {
+        this.bridgedUsersByChannel.set(harmonyChannelId, members)
+        botChannels.add(harmonyChannelId)
+        console.log(`📝 Registered ${members.length} bridged users for channel ${harmonyChannelId}`)
+      }
+    }
+  }
+  
+  /**
+   * Clean up bridge data when a bot disconnects
+   */
+  private cleanupBotBridgeData(botId: string) {
+    const botChannels = this.channelsByBot.get(botId)
+    if (botChannels) {
+      for (const channelId of botChannels) {
+        this.bridgedUsersByChannel.delete(channelId)
+        console.log(`🗑️ Cleaned up bridged users for channel ${channelId}`)
+      }
+      this.channelsByBot.delete(botId)
+    }
+  }
+  
+  /**
+   * Get bridged users for a channel (used by REST API)
+   */
+  getBridgedUsers(channelId: string): BridgedUser[] {
+    return this.bridgedUsersByChannel.get(channelId) || []
+  }
+  
+  /**
+   * Check if a channel has bridged users
+   */
+  hasChannelBridge(channelId: string): boolean {
+    return this.bridgedUsersByChannel.has(channelId)
+  }
+  
   /**
    * Clean up
    */
@@ -268,6 +359,8 @@ export class WebSocketGateway {
     }
     
     this.connections.clear()
+    this.bridgedUsersByChannel.clear()
+    this.channelsByBot.clear()
     console.log('🛑 WebSocket Gateway shut down')
   }
 }

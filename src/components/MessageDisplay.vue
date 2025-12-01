@@ -274,7 +274,12 @@
         size="xs"
         class="tooltip-avatar"
       />
-      <span>{{ user.displayName }}</span>
+      <span :style="{ color: user.userColor }">{{ user.displayName }}</span>
+      <span v-if="user.isBridged" class="bridged-badge" :title="'From ' + user.bridgeSource">
+        <svg v-if="user.bridgeSource === 'discord'" width="12" height="12" viewBox="0 0 24 24" fill="#5865F2">
+          <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"/>
+        </svg>
+      </span>
     </div>
   </div>
 
@@ -899,15 +904,41 @@ onUnmounted(() => {
 // Tooltip Handling
 const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  const userIds = reaction.reactions.map(r => r.user_id);
-  await ensureProfilesAvailable(userIds).catch(error => debug.error("Error ensuring profiles for tooltip:", error));
+  
+  // Filter to only Harmony users (those with user_id) for profile lookup
+  const harmonyUserIds = reaction.reactions
+    .filter(r => r.user_id)
+    .map(r => r.user_id);
+  
+  if (harmonyUserIds.length > 0) {
+    await ensureProfilesAvailable(harmonyUserIds).catch(error => 
+      debug.error("Error ensuring profiles for tooltip:", error)
+    );
+  }
 
-  const usersDetails = reaction.reactions.map(r => ({
-    id: r.user_id,
-    displayName: getUserDisplayName(r.user_id).value,
-    avatarUrl: getUserAvatarUrl(r.user_id).value,
-    userColor: getUserColor(r.user_id).value,
-  }));
+  const usersDetails = reaction.reactions.map(r => {
+    // Check if this is a bridged Discord reaction (has metadata.discord_user)
+    if (r.metadata?.discord_user) {
+      const discordUser = r.metadata.discord_user;
+      return {
+        id: discordUser.id,
+        displayName: discordUser.display_name || discordUser.username,
+        avatarUrl: discordUser.avatar_url || '',
+        userColor: '#5865F2', // Discord brand color
+        isBridged: true,
+        bridgeSource: 'discord'
+      };
+    }
+    
+    // Regular Harmony user
+    return {
+      id: r.user_id,
+      displayName: getUserDisplayName(r.user_id).value,
+      avatarUrl: getUserAvatarUrl(r.user_id).value,
+      userColor: getUserColor(r.user_id).value,
+      isBridged: false
+    };
+  });
   
   tooltipTimer.value = setTimeout(() => {
     tooltip.value = { visible: true, content: usersDetails, x: event.clientX, y: event.clientY, emoji: reaction.emoji };
@@ -1473,7 +1504,7 @@ const closeInviteModal = () => {
 /* Message header with avatar + username + timestamp */
 .message-header {
   display: flex;
-  align-items: center;
+  // align-items: center;
   gap: 16px;
 }
 
@@ -1777,7 +1808,15 @@ const closeInviteModal = () => {
 .tooltip-user {
   display: flex;
   align-items: center;
+  gap: 4px;
 }
+
+.bridged-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+
 .tooltip-header {
   display: flex;
   align-items: center;

@@ -366,6 +366,35 @@ export class HarmonyClient extends EventEmitter {
     return response.json()
   }
   
+  /**
+   * Register bridge data with the gateway
+   * This sends channel mappings and Discord member data to the gateway
+   * so the frontend can query bridged users for autosuggest
+   */
+  registerBridgeData(channels: Array<{
+    harmonyChannelId: string
+    discordChannelId: string
+    members: Array<{
+      id: string
+      username: string
+      displayName: string
+      avatarUrl: string
+      source: 'discord'
+    }>
+  }>) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot register bridge data - not connected')
+      return
+    }
+    
+    console.log(`📡 Registering bridge data for ${channels.length} channels`)
+    
+    this.ws.send(JSON.stringify({
+      op: 6, // REGISTER_BRIDGE_DATA
+      d: { channels }
+    }))
+  }
+  
   disconnect() {
     this.cleanup()
     if (this.ws) {
