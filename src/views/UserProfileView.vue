@@ -480,7 +480,7 @@ const handleOpenSearch = () => {
 
 const handleRefresh = () => {
   const handle = currentHandle.value;
-  const isRemote = handle.includes('@') && !handle.endsWith('@har.mony.lol');
+  const isRemote = handle.includes('@') && !handle.endsWith('@' + import.meta.env.VITE_DOMAIN as string);
   debug.log(`🔄 Refreshing profile data...${isRemote ? ' (force refresh for remote user)' : ''}`);
   loadUserProfile(handle, isRemote); // Force refresh for remote users
 };
@@ -591,8 +591,8 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
             user.value = {
               id: currentUser.id,
               username: profile.username || currentUsername,
-              domain: 'har.mony.lol',
-              handle: `@${profile.username || currentUsername}@har.mony.lol`,
+              domain: import.meta.env.VITE_DOMAIN as string,
+              handle: `@${profile.username || currentUsername}@${import.meta.env.VITE_DOMAIN as string}`,
               display_name: profile.display_name || profile.username || currentUsername,
               avatar_url: profile.avatar_url || currentUser.user_metadata?.avatar_url || '/default_avatar.png',
               bio: profile.bio || 'Monyverse user',
@@ -618,8 +618,8 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
           user.value = {
             id: handle,
             username: handle,
-            domain: 'har.mony.lol',
-            handle: `@${handle}@har.mony.lol`,
+            domain: import.meta.env.VITE_DOMAIN as string,
+            handle: `@${handle}@${import.meta.env.VITE_DOMAIN as string}`,
             display_name: handle,
             avatar_url: '/default_avatar.png',
             bio: 'Monyverse user',
@@ -930,7 +930,7 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
   let handle = clickedUser.handle?.replace(/^@/, '') || clickedUser.username; // Remove leading @
   
   // For routing, we need clean handles without domain for local users
-  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+  const currentDomain = import.meta.env.VITE_DOMAIN as string;
   if (handle.endsWith(`@${currentDomain}`)) {
     handle = handle.replace(`@${currentDomain}`, '');
   }

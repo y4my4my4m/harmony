@@ -419,7 +419,7 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
     if (userId) {
       userProfile = userDataService.getUserProfile(userId);
       isLocal = userProfile?.is_local || false;
-      actualDomain = userProfile?.domain || domain || 'har.mony.lol';
+      actualDomain = userProfile?.domain || domain;
     }
   } catch (error) {
     debug.error('Error looking up user for mention:', error);

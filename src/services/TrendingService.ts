@@ -362,7 +362,7 @@ class TrendingService {
           following_count,
           posts_count
         `)
-        .eq('domain', 'har.mony.lol') // Local users for now
+        .eq('domain', import.meta.env.VITE_DOMAIN as string) // Local users for now
         .eq('is_suspended', false) // Exclude suspended users
         .order('created_at', { ascending: false });
 
@@ -379,12 +379,12 @@ class TrendingService {
         const user: FederatedUser = {
           id: row.id,
           username: row.username,
-          domain: row.domain || 'har.mony.lol',
-          handle: `@${row.username}${row.domain && row.domain !== 'har.mony.lol' ? '@' + row.domain : ''}`,
+          domain: row.domain || import.meta.env.VITE_DOMAIN as string,
+          handle: `@${row.username}${row.domain && row.domain !== import.meta.env.VITE_DOMAIN as string ? '@' + row.domain : ''}`,
           display_name: row.display_name || row.username,
           avatar_url: row.avatar_url || '/default_avatar.png',
           bio: row.bio || '',
-          is_local: row.domain === 'har.mony.lol' || !row.domain,
+          is_local: row.domain === import.meta.env.VITE_DOMAIN as string || !row.domain,
           verified: false, // Default value since column doesn't exist
           followers_count: row.followers_count || 0,
           following_count: row.following_count || 0,
@@ -720,12 +720,12 @@ class TrendingService {
       author: post.author ? {
         id: post.author.id,
         username: post.author.username,
-        domain: post.author.domain || 'har.mony.lol',
-        handle: `@${post.author.username}${post.author.domain && post.author.domain !== 'har.mony.lol' ? '@' + post.author.domain : ''}`,
+        domain: post.author.domain || import.meta.env.VITE_DOMAIN as string,
+        handle: `@${post.author.username}${post.author.domain && post.author.domain !== import.meta.env.VITE_DOMAIN as string ? '@' + post.author.domain : ''}`,
         display_name: post.author.display_name || post.author.username,
         avatar_url: post.author.avatar_url || '/default_avatar.png',
         bio: post.author.bio || '',
-        is_local: !post.author.domain || post.author.domain === 'har.mony.lol',
+        is_local: !post.author.domain || post.author.domain === import.meta.env.VITE_DOMAIN as string,
         verified: post.author.verified || false,
         followers_count: 0, // Would need separate query
         following_count: 0, // Would need separate query  
@@ -735,7 +735,7 @@ class TrendingService {
       } : {
         id: post.author_id,
         username: 'Unknown',
-        domain: 'har.mony.lol',
+        domain: import.meta.env.VITE_DOMAIN as string,
         handle: '@Unknown',
         display_name: 'Unknown User',
         avatar_url: '/default_avatar.png',

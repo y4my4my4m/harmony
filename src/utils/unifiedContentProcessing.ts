@@ -309,7 +309,7 @@ export async function parseContentToMessageParts(
       const userData = usernameToUserDataMap[mentionKey] || usernameToUserDataMap[username];
       
       // Fall back to domain-based logic if user data not available
-      const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+      const currentDomain = import.meta.env.VITE_DOMAIN as string;
       const isLocal = userData?.isLocal ?? (!domain || domain === currentDomain);
       const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
       const displayName = userData?.displayName ?? username;
@@ -507,7 +507,7 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         
       case 'mention': {
         // Build proper ActivityPub mention with h-card structure
-        const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+        const currentDomain = import.meta.env.VITE_DOMAIN as string;
         const domain = part.domain || currentDomain;
         const href = `https://${domain}/users/${part.username}`;  // ✅ FIX: Use /users/ format
         const displayName = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
@@ -520,7 +520,7 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
       case 'hashtag': {
         // Convert hashtag to ActivityPub-compatible format
         // ActivityPub hashtags are usually rendered as clickable links
-        const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+        const currentDomain = import.meta.env.VITE_DOMAIN as string;
         const href = `https://${currentDomain}/tags/${part.name}`;
         return `<a href="${href}" class="mention hashtag" rel="tag">#<span>${part.name}</span></a>`;
       }
@@ -599,7 +599,7 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
   return parts
     .filter((part): part is Extract<MessagePart, { type: 'mention' }> => part.type === 'mention')
     .map(part => {
-      const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+      const currentDomain = import.meta.env.VITE_DOMAIN as string;
       const domain = part.domain || currentDomain;
       const href = `https://${domain}/users/${part.username}`;  // ✅ FIX: Use /users/ format
       const name = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
@@ -657,7 +657,7 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         if (mentionMatch) {
           const username = mentionMatch[1];
           const domain = mentionMatch[2];
-          const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+          const currentDomain = import.meta.env.VITE_DOMAIN as string;
           
           parts.push({
             type: 'mention',
@@ -733,7 +733,7 @@ export function extractActivityPubAttachments(parts: MessagePart[]): any[] {
  * Returns properly formatted emoji tag objects
  */
 export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl?: string): any[] {
-  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+  const currentDomain = import.meta.env.VITE_DOMAIN as string;
   const defaultBaseUrl = `https://${currentDomain}`;
   const finalBaseUrl = baseUrl || defaultBaseUrl;
   

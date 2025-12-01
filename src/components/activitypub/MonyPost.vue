@@ -602,7 +602,7 @@ const authorFallback = computed(() => {
     username: 'Loading...',
     display_name: 'Loading...',
     avatar_url: null,
-    domain: 'har.mony.lol',
+    domain: import.meta.env.VITE_DOMAIN as string,
     is_local: props.post.is_local ?? true
   };
 });
@@ -620,7 +620,7 @@ const viewProfile = (author: { username: string; domain: string, is_local?: bool
 
 const instanceDomain = computed(() => {
   const domain = props.post.author?.domain || displayAuthorSafe.value?.domain;
-  return domain || 'har.mony.lol';
+  return domain || import.meta.env.VITE_DOMAIN as string;
 });
 
 // Remote post detection (for fetching reactions)
@@ -712,7 +712,7 @@ const displayAuthor = computed(() => {
 const originalInstanceDomain = computed(() => {
   if (!isReblog.value || !props.post.reblog_author) return instanceDomain.value;
   const { domain } = props.post.reblog_author;
-  return domain || 'har.mony.lol';
+  return domain || import.meta.env.VITE_DOMAIN as string;
 });
 
 const originalCreatedAt = computed(() => {
@@ -809,7 +809,7 @@ const loadReplyContext = async () => {
             username: author.username,
             display_name: author.display_name || author.username,
             avatar_url: author.avatar_url || '/default_avatar.png',
-            domain: author.domain || 'har.mony.lol'
+            domain: author.domain || import.meta.env.VITE_DOMAIN as string
           },
           created_at: parentPost.created_at,
           visibility: parentPost.visibility

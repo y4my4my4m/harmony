@@ -113,7 +113,7 @@ export function extractMentions(text: string): MentionMatch[] {
  */
 export async function resolveMentions(mentions: MentionMatch[]): Promise<ResolvedMention[]> {
   const resolved: ResolvedMention[] = [];
-  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+  const currentDomain = import.meta.env.VITE_DOMAIN as string;
 
   for (const mention of mentions) {
     try {

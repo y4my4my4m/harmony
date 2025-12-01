@@ -163,7 +163,7 @@ export function useContentRenderer(
     // Build mention display from parts
     const username = mention.username || 'unknown';
     const domain = mention.domain;
-    const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+    const currentDomain = import.meta.env.VITE_DOMAIN as string;
     
     // Determine if user is local
     // A user is local if:

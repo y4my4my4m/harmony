@@ -1,6 +1,6 @@
 import type { EmbedProvider } from '@/types';
 
-const primaryDomain = (import.meta.env.VITE_DOMAIN || 'har.mony.lol').toLowerCase();
+const primaryDomain = (import.meta.env.VITE_DOMAIN as string).toLowerCase();
 const extraDomains = (import.meta.env.VITE_HARMONY_ALT_DOMAINS || '')
   .split(',')
   .map((domain) => domain.trim().toLowerCase())

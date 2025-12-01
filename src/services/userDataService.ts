@@ -325,7 +325,7 @@ class UserDataService extends EventTarget {
           bannerUrl: profile.banner_url,
           bio: profile.bio,
           color: profile.color,
-          domain: profile.domain || 'har.mony.lol',
+          domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
           isLocal: profile.is_local || false,
           status: finalStatus,
           customStatus: undefined, // Will be loaded separately if exists
@@ -615,7 +615,7 @@ class UserDataService extends EventTarget {
       bio: existing?.bio,
       // 🎨 Use color from presence if provided (real-time color sync)
       color: presence.color || existing?.color,
-      domain: existing?.domain || 'har.mony.lol',
+      domain: existing?.domain || import.meta.env.VITE_DOMAIN as string,
       isLocal: existing?.isLocal || false,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
@@ -1099,7 +1099,7 @@ class UserDataService extends EventTarget {
             bannerUrl: profile.banner_url,
             bio: profile.bio,
             color: profile.color,
-            domain: profile.domain || 'har.mony.lol',
+            domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
             isLocal: profile.is_local || false,
             status: profile.status ?? UserStatus.Offline,
             customStatus: undefined, // Would need separate table for custom status

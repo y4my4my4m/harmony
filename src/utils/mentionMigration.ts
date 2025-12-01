@@ -29,7 +29,7 @@ export function migrateLegacyMentions(content: MessagePart[]): MessagePart[] {
             type: 'mention',
             userId,
             username: userProfile.username,
-            domain: userProfile.domain || 'har.mony.lol',
+            domain: userProfile.domain || import.meta.env.VITE_DOMAIN as string,
             isLocal: userProfile.isLocal || false,
             displayName: userProfile.displayName
           };
@@ -73,7 +73,7 @@ export function createMentionFromUser(userId: string, userProfile?: any): Mentio
     type: 'mention',
     userId,
     username: profile.username,
-    domain: profile.domain || 'har.mony.lol',
+    domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
     isLocal: profile.isLocal || false,
     displayName: profile.displayName
   };

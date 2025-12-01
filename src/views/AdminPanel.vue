@@ -829,7 +829,7 @@ const systemHealth = ref({
 // Instance configuration
 const instanceConfig = ref({
   name: 'Harmony Instance',
-  domain: 'har.mony.lol',
+  domain: import.meta.env.VITE_DOMAIN as string,
   description: 'A federated social platform',
   openRegistration: true,
   approvalRequired: false
@@ -1157,7 +1157,7 @@ const moderateUser = async (user: any, action: string) => {
 
 const navigateToUserPosts = (user: any) => {
   // Navigate to user's profile/posts
-  if (user.domain && user.domain !== 'har.mony.lol') {
+  if (user.domain && user.domain !== import.meta.env.VITE_DOMAIN as string) {
     router.push(`/social/profile/${user.username}@${user.domain}`)
   } else {
     router.push(`/social/profile/${user.username}`)

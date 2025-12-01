@@ -89,7 +89,7 @@ const isServerInvite = computed(() => {
     const inviteMatch = url.pathname.match(/^\/invite\/([A-Za-z0-9]+)$/);
     if (inviteMatch) {
       // Check if it's a known harmony instance or current origin
-      const harmonyDomains = ['har.mony.lol', 'harmony.local', 'localhost'];
+      const harmonyDomains = [import.meta.env.VITE_DOMAIN as string, 'har.mony.local', 'localhost'];
       const isHarmonyDomain = harmonyDomains.some(d => url.hostname.includes(d)) || 
                               url.origin === window.location.origin;
       return isHarmonyDomain;

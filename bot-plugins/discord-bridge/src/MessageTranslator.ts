@@ -295,8 +295,8 @@ export class MessageTranslator {
           
           // Fallback: show as @username@domain for Harmony users not in Discord
           const username = part.username || 'unknown'
-          // Use the domain from the mention, or default to har.mony.lol for local users
-          const domain = part.domain || process.env.HARMONY_DOMAIN || 'har.mony.lol'
+          // Use the domain from the mention for local users
+          const domain = part.domain || process.env.HARMONY_DOMAIN
           const federatedMention = `@${username}@${domain}`
           console.log(`🔔 H→D Mention (Harmony user): ${federatedMention}`)
           return federatedMention

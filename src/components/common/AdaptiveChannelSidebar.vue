@@ -168,7 +168,7 @@ const props = withDefaults(defineProps<Props>(), {
   isDM: false,
   followingCount: 0,
   followersCount: 0,
-  instanceDomain: 'har.mony.lol',
+  instanceDomain: import.meta.env.VITE_DOMAIN as string,
   instanceUserCount: 0,
   instancePostCount: 0
 });
@@ -215,7 +215,7 @@ const currentUser = computed(() => {
       display_name: authUser.user_metadata?.display_name || authUser.user_metadata?.username || 'User',
       avatar_url: authUser.user_metadata?.avatar_url || null,
       status: 0, // Default to offline
-      domain: 'har.mony.lol'
+      domain: import.meta.env.VITE_DOMAIN as string
     }
   }
   
@@ -226,12 +226,12 @@ const currentUserHandle = computed(() => {
   if (!currentUser.value) return '';
   
   // Handle case where domain might not be set yet
-  const domain = currentUser.value.domain || 'har.mony.lol';
+  const domain = currentUser.value.domain || import.meta.env.VITE_DOMAIN as string;
   const username = currentUser.value.username;
   
   if (!username) return '';
   
-  return domain === 'har.mony.lol' 
+  return domain === import.meta.env.VITE_DOMAIN as string 
     ? `@${username}`
     : `@${username}@${domain}`;
 });
@@ -239,11 +239,11 @@ const currentUserHandle = computed(() => {
 const getUserProfilePath = () => {
   if (!currentUser.value?.username) return '/social/home';
   
-  const domain = currentUser.value.domain || 'har.mony.lol';
+  const domain = currentUser.value.domain || import.meta.env.VITE_DOMAIN as string;
   const username = currentUser.value.username;
   
   // Generate clean handle without @ symbol for URL
-  const handle = domain === 'har.mony.lol' 
+  const handle = domain === import.meta.env.VITE_DOMAIN as string 
     ? username 
     : `${username}@${domain}`;
     
@@ -321,9 +321,9 @@ const navigateToProfile = () => {
     // For local users, remove domain part if present
     if (!handle.includes('@')) {
       // Already clean handle for local user
-    } else if (handle.endsWith('@har.mony.lol')) {
+    } else if (handle.endsWith(`@${import.meta.env.VITE_DOMAIN as string}`)) {
       // Remove local domain for clean local handle
-      handle = handle.replace('@har.mony.lol', '');
+      handle = handle.replace(`@${import.meta.env.VITE_DOMAIN as string}`, '');
     }
     
     debug.log(`🔗 Navigating to profile with handle: ${handle}`);

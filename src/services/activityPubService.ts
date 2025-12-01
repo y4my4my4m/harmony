@@ -45,7 +45,7 @@ export class ActivityPubService {
   private readonly PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
-    this.currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+    this.currentDomain = import.meta.env.VITE_DOMAIN as string;
     this.instanceUrl = `https://${this.currentDomain}`;
   }
 
@@ -1676,7 +1676,7 @@ export class ActivityPubService {
           domain: existingProfile.domain,
           avatar_url: existingProfile.avatar_url,
           banner_url: existingProfile.banner_url,
-          handle: existingProfile.domain === 'har.mony.lol' 
+          handle: existingProfile.domain === import.meta.env.VITE_DOMAIN as string
             ? `@${existingProfile.username}`
             : `@${existingProfile.username}@${existingProfile.domain}`,
           is_local: existingProfile.is_local,
@@ -1762,7 +1762,7 @@ export class ActivityPubService {
         domain: newProfile.domain,
         avatar_url: newProfile.avatar_url,
         banner_url: newProfile.banner_url,
-        handle: newProfile.domain === 'har.mony.lol' 
+        handle: newProfile.domain === import.meta.env.VITE_DOMAIN as string
           ? `@${newProfile.username}`
           : `@${newProfile.username}@${newProfile.domain}`,
         is_local: newProfile.is_local,
@@ -1811,7 +1811,7 @@ export class ActivityPubService {
         display_name: data.display_name,
         domain: data.domain,
         avatar_url: data.avatar_url,
-        handle: data.domain === 'har.mony.lol' 
+        handle: data.domain === import.meta.env.VITE_DOMAIN as string
           ? `@${data.username}`
           : `@${data.username}@${data.domain}`,
         is_local: data.is_local,
@@ -2424,7 +2424,7 @@ export class ActivityPubService {
           server: {
             id: `${this.instanceUrl}/servers/${serverId}`,
             name: server.name,
-            domain: server.domain || 'har.mony.lol'
+            domain: server.domain || import.meta.env.VITE_DOMAIN as string
           }
         },
         voiceState: voiceState || {},
@@ -2606,7 +2606,7 @@ export class ActivityPubService {
 
     if (!profile) throw new Error('User profile not found');
 
-    const domain = profile.domain === 'har.mony.lol' ? this.instanceUrl.replace('https://', '') : profile.domain;
+    const domain = profile.domain === import.meta.env.VITE_DOMAIN as string ? this.instanceUrl.replace('https://', '') : profile.domain;
     return `https://${domain}/users/${profile.username}`;
   }
 
@@ -2731,7 +2731,7 @@ export class ActivityPubService {
         username: post.author.username,
         display_name: post.author.display_name || post.author.username,
         avatar_url: post.author.avatar_url || '/default_avatar.png',
-        domain: post.author.domain || 'har.mony.lol',
+        domain: post.author.domain || import.meta.env.VITE_DOMAIN as string,
         bio: post.author.bio || '',
         is_local: post.author.is_local !== false,
         followers_count: 0, // Would need separate query
@@ -2744,7 +2744,7 @@ export class ActivityPubService {
         username: 'Unknown',
         display_name: 'Unknown User',
         avatar_url: '/default_avatar.png',
-        domain: 'har.mony.lol',
+        domain: import.meta.env.VITE_DOMAIN as string,
         bio: '',
         is_local: true,
         followers_count: 0,
@@ -2810,15 +2810,15 @@ export class ActivityPubService {
           username: data.author.username,
           display_name: data.author.display_name || data.author.username,
           avatar_url: data.author.avatar_url || '/default_avatar.png',
-          domain: data.author.domain || 'har.mony.lol',
+          domain: data.author.domain || import.meta.env.VITE_DOMAIN as string,
           bio: data.author.bio || '',
-          is_local: !data.author.domain || data.author.domain === 'har.mony.lol',
+          is_local: !data.author.domain || data.author.domain === import.meta.env.VITE_DOMAIN as string,
           followers_count: 0,
           following_count: 0,
           posts_count: 0,
           created_at: data.author.created_at,
           updated_at: data.author.updated_at,
-          handle: data.author.domain && data.author.domain !== 'har.mony.lol' 
+          handle: data.author.domain && data.author.domain !== import.meta.env.VITE_DOMAIN as string 
             ? `@${data.author.username}@${data.author.domain}` 
             : `@${data.author.username}`
         },

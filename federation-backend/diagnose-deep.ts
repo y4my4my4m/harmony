@@ -30,7 +30,7 @@ async function deepDiagnose() {
   if (allProfiles && allProfiles.length > 0) {
     console.log('\nAll profiles:');
     allProfiles.forEach(p => {
-      console.log(`  - ${p.username}@${p.domain || 'har.mony.lol'} (is_local: ${p.is_local})`);
+      console.log(`  - ${p.username}@${p.domain} (is_local: ${p.is_local})`);
       if (!p.is_local) {
         console.log(`    Federated ID: ${p.federated_id || 'MISSING'}`);
         console.log(`    Inbox URL: ${p.inbox_url || 'MISSING'}`);
@@ -63,8 +63,8 @@ async function deepDiagnose() {
         .single();
       
       if (follower && following) {
-        const followerStr = `${follower.username}@${follower.domain || 'har.mony.lol'}`;
-        const followingStr = `${following.username}@${following.domain || 'har.mony.lol'}`;
+        const followerStr = `${follower.username}@${follower.domain}`;
+        const followingStr = `${following.username}@${following.domain}`;
         console.log(`  ${followerStr} → ${followingStr} (status: ${follow.status})`);
       }
     }
@@ -90,7 +90,7 @@ async function deepDiagnose() {
         .eq('id', post.author_id)
         .single();
       
-      const authorStr = author ? `${author.username}@${author.domain || 'har.mony.lol'}` : 'unknown';
+      const authorStr = author ? `${author.username}@${author.domain}` : 'unknown';
       console.log(`  - ${post.created_at.substring(0, 19)} | ${authorStr} | local: ${post.is_local} | vis: ${post.visibility}`);
     }
   } else {

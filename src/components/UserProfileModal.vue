@@ -353,7 +353,7 @@ const fetchedCreatedAt = ref<string | null>(null)
 const isLoadingUserStats = ref(false)
 
 // Get the current instance domain
-const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+const currentDomain = import.meta.env.VITE_DOMAIN as string
 
 /**
  * Fetch user stats and profile data via CoreProfileService
@@ -736,7 +736,7 @@ const navigateToProfile = () => {
   handle = handle.replace(/^@/, '')
   
   // Remove local domain if present
-  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+  const currentDomain = import.meta.env.VITE_DOMAIN as string
   if (handle.endsWith(`@${currentDomain}`)) {
     handle = handle.replace(`@${currentDomain}`, '')
   }

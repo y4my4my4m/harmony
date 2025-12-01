@@ -500,7 +500,7 @@ class AdminService {
         instance: {
           name: 'Harmony Instance',
           description: 'A federated social platform',
-          domain: 'har.mony.lol',
+          domain: import.meta.env.VITE_DOMAIN as string,
           registrationOpen: true,
           requiresApproval: false
         }
@@ -1090,7 +1090,7 @@ class AdminService {
         .from('profiles')
         .select('domain')
         .not('domain', 'is', null)
-        .neq('domain', 'har.mony.lol') // Exclude local domain
+        .neq('domain', import.meta.env.VITE_DOMAIN as string) // Exclude local domain
         
       if (error) throw error;
 

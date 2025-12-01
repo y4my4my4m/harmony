@@ -226,7 +226,7 @@ const props = withDefaults(defineProps<Props>(), {
   hasMoreSpecialData: false,
   followingCount: 0,
   followersCount: 0,
-  instanceDomain: 'har.mony.lol',
+  instanceDomain: import.meta.env.VITE_DOMAIN as string,
   instanceUserCount: 0,
   instancePostCount: 0,
   isDragging: false,
