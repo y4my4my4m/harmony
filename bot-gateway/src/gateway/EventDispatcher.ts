@@ -108,8 +108,14 @@ export class EventDispatcher {
           console.log(`📝 Detected message edit: ${id}`)
           console.log(`   old: "${this.contentPreview(cached.content)}"`)
           console.log(`   new: "${this.contentPreview(current.content)}"`)
+          console.log(`   channel_id: ${current.channel_id}`)
           
-          await this.handleMessageUpdate({ new: current, old: { id } })
+          try {
+            await this.handleMessageUpdate({ new: current, old: { id } })
+            console.log(`✅ handleMessageUpdate completed for ${id}`)
+          } catch (err) {
+            console.error(`❌ handleMessageUpdate failed for ${id}:`, err)
+          }
           
           // Update cache with new content
           this.messageVersions.set(id, {
@@ -268,10 +274,16 @@ export class EventDispatcher {
   private async handleMessageUpdate(payload: any) {
     const message = payload.new
     
-    console.log(`📝 EventDispatcher: Message updated`, {
-      id: message.id,
-      channel_id: message.channel_id
+    console.log(`📝 EventDispatcher.handleMessageUpdate called:`, {
+      id: message?.id,
+      channel_id: message?.channel_id,
+      hasContent: !!message?.content
     });
+    
+    if (!message || !message.id) {
+      console.log('⚠️  No message data in payload');
+      return
+    }
     
     // Skip encrypted messages (bots can't read them)
     if (message.encrypted) {
@@ -283,13 +295,17 @@ export class EventDispatcher {
     let serverId: string | null = null
     
     if (message.channel_id) {
-      const { data: channel } = await supabase
+      const { data: channel, error: channelError } = await supabase
         .from('channels')
         .select('server_id')
         .eq('id', message.channel_id)
         .single()
       
+      if (channelError) {
+        console.log('⚠️  Channel lookup error:', channelError.message);
+      }
       serverId = channel?.server_id
+      console.log(`📍 Channel ${message.channel_id} -> Server ${serverId}`);
     }
     
     if (!serverId) {
@@ -298,28 +314,37 @@ export class EventDispatcher {
     }
     
     // Get bots with permissions in this server
-    const { data: botPermissions } = await supabase
+    const { data: botPermissions, error: permError } = await supabase
       .from('bot_server_permissions')
       .select('bot_id, read_messages')
       .eq('server_id', serverId)
       .eq('read_messages', true)
       .eq('is_active', true)
     
+    if (permError) {
+      console.log('⚠️  Permission lookup error:', permError.message);
+    }
+    
+    console.log(`🔍 Found ${botPermissions?.length || 0} bots with read_messages permission`);
+    
     if (!botPermissions || botPermissions.length === 0) {
+      console.log('⚠️  No bots have permission, skipping dispatch');
       return
     }
     
     // Format and dispatch event
+    const formattedMessage = await this.formatMessage(message)
     const event = {
       op: 0,
       t: 'MESSAGE_UPDATE',
-      d: await this.formatMessage(message)
+      d: formattedMessage
     }
     
     const botIds = botPermissions.map(bp => bp.bot_id)
+    console.log(`📤 Sending MESSAGE_UPDATE to bots:`, botIds);
     this.gateway.sendToMultipleBots(botIds, event)
     
-    console.log(`📨 Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
+    console.log(`✅ Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
   }
   
   private async handleMessageDelete(payload: any) {
