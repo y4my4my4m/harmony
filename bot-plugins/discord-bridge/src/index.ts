@@ -706,7 +706,13 @@ harmonyClient.on('messageCreate', async (msg: any) => {
 
 // Handle Harmony message updates
 harmonyClient.on('messageUpdate', async (msg: any) => {
-  console.log(`📝 Harmony message updated:`, { id: msg.id, channel_id: msg.channel_id });
+  console.log(`📝 Harmony message updated:`, { 
+    id: msg.id, 
+    channel_id: msg.channel_id,
+    metadata: msg.metadata,
+    mappingExists: harmonyToDiscordMessages.has(msg.id),
+    totalMappings: harmonyToDiscordMessages.size
+  });
   
   // Don't bridge messages that came from Discord (prevent loops!)
   if (msg.metadata?.bridge_source === 'discord') {
@@ -717,9 +723,12 @@ harmonyClient.on('messageUpdate', async (msg: any) => {
   // Get Discord message ID from mapping
   const discordMessageId = harmonyToDiscordMessages.get(msg.id)
   if (!discordMessageId) {
-    console.log('⚠️  No message mapping found for Harmony message', msg.id)
+    console.log(`⚠️  No message mapping found for Harmony message ${msg.id}`)
+    console.log(`   Current mappings:`, Array.from(harmonyToDiscordMessages.keys()).slice(0, 5))
     return
   }
+  
+  console.log(`✅ Found mapping: Harmony ${msg.id} -> Discord ${discordMessageId}`)
   
   // Get Discord channel from mapping
   const discordChannelId = mapper.getDiscordChannel(msg.channel_id)
@@ -763,7 +772,13 @@ harmonyClient.on('messageUpdate', async (msg: any) => {
 
 // Handle Harmony message deletes
 harmonyClient.on('messageDelete', async (msg: any) => {
-  console.log(`🗑️ Harmony message deleted:`, { id: msg.id, channel_id: msg.channel_id });
+  console.log(`🗑️ Harmony message deleted:`, { 
+    id: msg.id, 
+    channel_id: msg.channel_id,
+    metadata: msg.metadata,
+    mappingExists: harmonyToDiscordMessages.has(msg.id),
+    totalMappings: harmonyToDiscordMessages.size
+  });
   
   // Don't bridge messages that came from Discord (prevent loops!)
   if (msg.metadata?.bridge_source === 'discord') {
@@ -774,9 +789,12 @@ harmonyClient.on('messageDelete', async (msg: any) => {
   // Get Discord message ID from mapping
   const discordMessageId = harmonyToDiscordMessages.get(msg.id)
   if (!discordMessageId) {
-    console.log('⚠️  No message mapping found for Harmony message', msg.id)
+    console.log(`⚠️  No message mapping found for Harmony message ${msg.id}`)
+    console.log(`   Current mappings:`, Array.from(harmonyToDiscordMessages.keys()).slice(0, 5))
     return
   }
+  
+  console.log(`✅ Found mapping: Harmony ${msg.id} -> Discord ${discordMessageId}`)
   
   // Get Discord channel from mapping
   const discordChannelId = mapper.getDiscordChannel(msg.channel_id)

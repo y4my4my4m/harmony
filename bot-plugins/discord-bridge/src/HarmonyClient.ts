@@ -103,10 +103,12 @@ export class HarmonyClient extends EventEmitter {
         break
         
       case 'MESSAGE_UPDATE':
+        console.log('📡 HarmonyClient received MESSAGE_UPDATE:', data?.id)
         this.emit('messageUpdate', data)
         break
         
       case 'MESSAGE_DELETE':
+        console.log('📡 HarmonyClient received MESSAGE_DELETE:', data?.id)
         this.emit('messageDelete', data)
         break
         
