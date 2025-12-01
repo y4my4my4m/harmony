@@ -65,10 +65,22 @@ export class EventDispatcher {
     }, 2000)
   }
   
+  private pollCount = 0
+  
   private async pollEditsAndDeletes() {
+    this.pollCount++
+    
+    // Log every 10th poll to show it's running
+    if (this.pollCount % 10 === 0) {
+      console.log(`🔄 pollEditsAndDeletes running (poll #${this.pollCount}, tracking ${this.knownMessageIds.size} messages)`)
+    }
+    
     try {
       // Only check if we have known messages to track
-      if (this.knownMessageIds.size === 0) return
+      if (this.knownMessageIds.size === 0) {
+        if (this.pollCount % 10 === 0) console.log('   (no messages to track)')
+        return
+      }
       
       // Check a batch of our cached messages against the database
       const idsToCheck = Array.from(this.knownMessageIds).slice(0, 100)
@@ -81,6 +93,16 @@ export class EventDispatcher {
       if (error) {
         console.error('❌ pollEditsAndDeletes error:', error)
         return
+      }
+      
+      // Log comparison details every 10th poll
+      if (this.pollCount % 10 === 0 && currentMessages && currentMessages.length > 0) {
+        const sample = currentMessages[0]
+        const cached = this.messageVersions.get(sample.id)
+        console.log(`   Sample message ${sample.id.substring(0, 8)}:`)
+        console.log(`     DB content: "${this.contentPreview(sample.content)}"`)
+        console.log(`     Cached content: "${this.contentPreview(cached?.content)}"`)
+        console.log(`     Changed: ${this.contentChanged(cached?.content, sample.content)}`)
       }
       
       const currentById = new Map((currentMessages || []).map(m => [m.id, m]))
