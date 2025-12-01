@@ -47,12 +47,16 @@ eventDispatcher.start().catch(error => {
   process.exit(1)
 })
 
+// Bot API routes (authenticated)
+const botAPI = new BotRestAPI()
+app.use('/api/v1', botAPI.router)
+
 // =====================================================
-// PUBLIC ENDPOINTS (no auth required) - must be BEFORE botAPI router
+// PUBLIC ENDPOINTS (separate from bot API, no auth)
 // =====================================================
 
-// Status endpoint
-app.get('/api/v1/gateway/status', (req, res) => {
+// Gateway status (public)
+app.get('/status', (req, res) => {
   res.json({
     connected_bots: gateway.getConnectedBotCount(),
     total_connections: gateway.getTotalConnectionCount(),
@@ -64,15 +68,14 @@ app.get('/api/v1/gateway/status', (req, res) => {
   })
 })
 
-// Bridged users endpoint (for Discord bridge integration)
-// This endpoint is PUBLIC and does not require bot authentication
-// It's used by the Harmony frontend for mention autosuggest
-app.get('/api/v1/channels/:channelId/bridged-users', (req, res) => {
+// Bridged users for Discord bridge (public)
+// Used by Harmony frontend for mention autosuggest
+app.get('/bridged-users/:channelId', (req, res) => {
   const { channelId } = req.params
   const bridgedUsers = gateway.getBridgedUsers(channelId)
   const hasBridge = gateway.hasChannelBridge(channelId)
   
-  console.log(`🌉 API: GET /bridged-users for ${channelId} → ${bridgedUsers.length} users, hasBridge=${hasBridge}`)
+  console.log(`🌉 GET /bridged-users/${channelId} → ${bridgedUsers.length} users, hasBridge=${hasBridge}`)
   
   res.json({
     channel_id: channelId,
@@ -80,12 +83,6 @@ app.get('/api/v1/channels/:channelId/bridged-users', (req, res) => {
     users: bridgedUsers
   })
 })
-
-// =====================================================
-// AUTHENTICATED BOT API ROUTES - after public endpoints
-// =====================================================
-const botAPI = new BotRestAPI()
-app.use('/api/v1', botAPI.router)
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -381,8 +381,8 @@ export function useAutoSuggest(
     }
     
     try {
-      // Use the nginx proxy path (same as WebSocket gateway)
-      const url = `/bot-gateway/api/v1/channels/${channelId}/bridged-users`;
+      // Use the nginx proxy path (same pattern as /bot-gateway/health)
+      const url = `/bot-gateway/bridged-users/${channelId}`;
       debug.log(`🌉 fetchBridgedUsers: Fetching from ${url}`);
       
       const response = await fetch(url);
