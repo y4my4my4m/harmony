@@ -262,6 +262,10 @@ watch(() => props.selectedIndex, (newIndex) => {
   color: #5865F2;
 }
 
+.selected .bridge-badge {
+  color: #fff;
+}
+
 .suggest-username {
   font-size: 12px;
   color: #b9bbbe;
