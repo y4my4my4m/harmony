@@ -103,11 +103,11 @@ export class EventDispatcher {
           }
           this.knownMessageIds.delete(id)
           this.messageVersions.delete(id)
-        } else if (cached && cached.content !== current.content) {
+        } else if (cached && this.contentChanged(cached.content, current.content)) {
           // Message was EDITED (content changed)
           console.log(`📝 Detected message edit: ${id}`)
-          console.log(`   old: "${cached.content?.substring(0, 40)}..."`)
-          console.log(`   new: "${current.content?.substring(0, 40)}..."`)
+          console.log(`   old: "${this.contentPreview(cached.content)}"`)
+          console.log(`   new: "${this.contentPreview(current.content)}"`)
           
           await this.handleMessageUpdate({ new: current, old: { id } })
           
@@ -125,6 +125,21 @@ export class EventDispatcher {
     }
   }
   
+  // Helper to safely compare content (handles string, object, null)
+  private contentChanged(a: any, b: any): boolean {
+    const strA = typeof a === 'string' ? a : JSON.stringify(a)
+    const strB = typeof b === 'string' ? b : JSON.stringify(b)
+    return strA !== strB
+  }
+  
+  // Helper to get a preview of content for logging
+  private contentPreview(content: any): string {
+    if (content === null || content === undefined) return '(empty)'
+    if (typeof content === 'string') return content.substring(0, 40) + (content.length > 40 ? '...' : '')
+    // It's an object/array - stringify and truncate
+    const str = JSON.stringify(content)
+    return str.substring(0, 40) + (str.length > 40 ? '...' : '')
+  }
   
   private async pollMessages() {
     try {
