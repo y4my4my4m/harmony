@@ -923,7 +923,8 @@ export default defineComponent({
 
 /* Text content styling */
 .text-content {
-  color: #dcddde;
+  /* color: #dcddde; */
+  color: var(--text-primary);
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;

@@ -492,7 +492,8 @@ const formatFileSize = (bytes: number): string => {
 
 /* Text content */
 .text-content {
-  color: #dcddde;
+  /* color: #dcddde; */
+  color: var(--text-primary);
 }
 
 .text-content.selectable {

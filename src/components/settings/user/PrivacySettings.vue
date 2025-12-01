@@ -1178,12 +1178,14 @@ onMounted(() => {
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  /* color: #ffffff; */
+  color: var(--text-primary);
 }
 
 .user-username {
   font-size: 12px;
-  color: #b9bbbe;
+  /* color: #b9bbbe; */
+  color: var(--text-secondary);
 }
 
 .unblock-btn {

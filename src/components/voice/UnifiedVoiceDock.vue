@@ -540,7 +540,8 @@ onMounted(() => {
 }
 
 .user-name {
-  color: #ffffff;
+  /* color: #ffffff; */
+  color: var(--text-primary);
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
@@ -549,7 +550,8 @@ onMounted(() => {
 }
 
 .channel-name {
-  color: #b9bbbe;
+  /* color: #b9bbbe; */
+  color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -568,7 +570,8 @@ onMounted(() => {
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  color: #b9bbbe;
+  /* color: #b9bbbe; */
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;

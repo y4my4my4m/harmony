@@ -355,7 +355,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  color: white;
+  /* color: white; */
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 

@@ -1685,13 +1685,15 @@ const closeInviteModal = () => {
 .date-separator-line {
   flex: 1;
   height: 1px;
-  background-color: #40444b;
+  /* background-color: #40444b; */
+  background-color: var(--border-color);
 }
 
 .date-separator-text {
   padding: 0 16px;
   /* background-color: #36393f; */
-  color: #b9bbbe;
+  /* color: #b9bbbe; */
+  color: var(--text-secondary);
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;

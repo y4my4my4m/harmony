@@ -404,7 +404,8 @@ onBeforeUnmount(() => {
 
 .user-name {
   font-weight: bold;
-  color: white;
+  /* color: white; */
+  color: var(--text-primary);
   margin: 0 0 0 6px;
   font-size: 0.9em;
   max-width: 100px;

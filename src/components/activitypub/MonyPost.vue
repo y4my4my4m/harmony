@@ -1631,7 +1631,8 @@ const closeLightbox = () => {
 
 .author-name {
   font-weight: 600;
-  color: white;
+  /* color: white; */
+  color: var(--text-primary);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -1775,22 +1776,26 @@ const closeLightbox = () => {
 
 .reply-parent-name {
   font-weight: 600;
-  color: white;
+  /* color: white; */
+  color: var(--text-primary);
   font-size: 0.9rem;
 }
 
 .reply-parent-handle {
-  color: #9ca3af;
+  /* color: #9ca3af; */
+  color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
 .reply-parent-time {
-  color: #6b7280;
+  /* color: #6b7280; */
+  color: var(--text-secondary);
   font-size: 0.8rem;
 }
 
 .reply-parent-content {
-  color: #d1d5db;
+  /* color: #d1d5db; */
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -1893,7 +1898,8 @@ const closeLightbox = () => {
 }
 
 .post-text {
-  color: white;
+  /* color: white; */
+  color: var(--text-primary);
   line-height: 1.6;
   word-wrap: break-word;
   margin-bottom: 1rem;
@@ -1943,8 +1949,10 @@ const closeLightbox = () => {
 }
 
 .action-button:hover {
-  background-color: #374151;
-  color: white;
+  /* background-color: #374151; */
+  /* color: white; */
+  background-color: var(--background-quinary);
+  color: var(--text-primary);
 }
 
 .action-button:disabled {
@@ -2081,7 +2089,8 @@ const closeLightbox = () => {
   padding: 0.5rem;
   background: none;
   border: none;
-  color: white;
+  /* color: white; */
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   border-radius: 0.25rem;
@@ -2093,7 +2102,8 @@ const closeLightbox = () => {
 }
 
 .dropdown-item.danger {
-  color: #ef4444;
+  /* color: #ef4444; */
+  color: var(--error);
 }
 
 .dropdown-item.danger:hover {
@@ -2115,7 +2125,8 @@ const closeLightbox = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #9ca3af;
+  /* color: #9ca3af; */
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
