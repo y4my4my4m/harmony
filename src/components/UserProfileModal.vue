@@ -534,15 +534,8 @@ const userStatus = computed(() => {
   
   const fed = props.user as FederatedUser
   
-  // Determine if this is a local user - is_local flag takes priority
-  const isLocalUser = fed.is_local === true || 
-                      !fed.domain || 
-                      fed.domain === currentDomain ||
-                      fed.domain.startsWith('har.mony.') ||
-                      fed.domain.includes('localhost')
-  
-  if (!isLocalUser) {
-    // Remote federated users don't have real-time presence tracking
+  // Remote federated users (is_local explicitly false) don't have real-time presence
+  if (fed.is_local === false) {
     const lastStatus = fed.last_status_at
     if (lastStatus) {
       const lastStatusDate = new Date(lastStatus)
@@ -564,16 +557,8 @@ const userStatusText = computed(() => {
   
   const fed = props.user as FederatedUser
   
-  // Determine if this is a local user - is_local flag takes priority
-  // Also consider users without domain as local, and match local dev domains
-  const isLocalUser = fed.is_local === true || 
-                      !fed.domain || 
-                      fed.domain === currentDomain ||
-                      fed.domain.startsWith('har.mony.') ||  // Match har.mony.local, har.mony.lol, etc.
-                      fed.domain.includes('localhost')
-  
-  if (!isLocalUser) {
-    // Remote federated users - show descriptive text based on last activity
+  // Remote federated users (is_local explicitly false)
+  if (fed.is_local === false) {
     const lastStatus = fed.last_status_at
     if (lastStatus) {
       const lastStatusDate = new Date(lastStatus)
