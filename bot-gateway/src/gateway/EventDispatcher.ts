@@ -66,22 +66,10 @@ export class EventDispatcher {
     }, 2000)
   }
   
-  private pollCount = 0
-  
   private async pollEditsAndDeletes() {
-    this.pollCount++
-    
-    // Log every 10th poll to show it's running
-    if (this.pollCount % 10 === 0) {
-      console.log(`🔄 pollEditsAndDeletes running (poll #${this.pollCount}, tracking ${this.knownMessageIds.size} messages)`)
-    }
-    
     try {
       // Only check if we have known messages to track
-      if (this.knownMessageIds.size === 0) {
-        if (this.pollCount % 10 === 0) console.log('   (no messages to track)')
-        return
-      }
+      if (this.knownMessageIds.size === 0) return
       
       // Check the NEWEST messages first (most likely to be edited)
       const allIds = Array.from(this.knownMessageIds)
@@ -97,23 +85,12 @@ export class EventDispatcher {
         return
       }
       
-      // Log comparison details every 5th poll - check ALL messages for changes
-      if (this.pollCount % 5 === 0) {
-        // Show first few IDs being checked
-        console.log(`   Checking IDs: ${idsToCheck.slice(0, 3).map(id => id.substring(0, 8)).join(', ')}... (${idsToCheck.length} total)`)
-        console.log(`   DB returned ${currentMessages?.length || 0} messages`)
-      }
-      
-      let changesFound = 0
-      let deletesFound = 0
-      
       for (const msg of currentMessages || []) {
         const cached = this.messageVersions.get(msg.id)
         
         // Check for soft-deletes (is_deleted = true)
         if (msg.is_deleted && cached) {
-          deletesFound++
-          console.log(`🗑️ SOFT DELETE detected: ${msg.id} (is_deleted = true)`)
+          console.log(`🗑️ Message deleted: ${msg.id}`)
           await this.handleMessageDelete({ 
             old: { 
               id: msg.id, 
@@ -129,16 +106,8 @@ export class EventDispatcher {
         
         // Check for content changes (edits)
         if (cached && this.contentChanged(cached.content, msg.content)) {
-          changesFound++
-          console.log(`🔍 EDIT DETECTED in ${msg.id}:`)
-          console.log(`   DB type: ${typeof msg.content}, Cache type: ${typeof cached.content}`)
-          console.log(`   DB: "${this.contentPreview(msg.content)}"`)
-          console.log(`   Cache: "${this.contentPreview(cached.content)}"`)
+          console.log(`📝 Message edited: ${msg.id}`)
         }
-      }
-      
-      if (this.pollCount % 5 === 0 && changesFound === 0 && deletesFound === 0) {
-        console.log(`   No changes detected`)
       }
       
       const currentById = new Map((currentMessages || []).map(m => [m.id, m]))
@@ -163,14 +132,8 @@ export class EventDispatcher {
           this.messageVersions.delete(id)
         } else if (cached && this.contentChanged(cached.content, current.content)) {
           // Message was EDITED (content changed)
-          console.log(`📝 Detected message edit: ${id}`)
-          console.log(`   old: "${this.contentPreview(cached.content)}"`)
-          console.log(`   new: "${this.contentPreview(current.content)}"`)
-          console.log(`   channel_id: ${current.channel_id}`)
-          
           try {
             await this.handleMessageUpdate({ new: current, old: { id } })
-            console.log(`✅ handleMessageUpdate completed for ${id}`)
           } catch (err) {
             console.error(`❌ handleMessageUpdate failed for ${id}:`, err)
           }
@@ -194,15 +157,6 @@ export class EventDispatcher {
     const strA = typeof a === 'string' ? a : JSON.stringify(a)
     const strB = typeof b === 'string' ? b : JSON.stringify(b)
     return strA !== strB
-  }
-  
-  // Helper to get a preview of content for logging
-  private contentPreview(content: any): string {
-    if (content === null || content === undefined) return '(empty)'
-    if (typeof content === 'string') return content.substring(0, 40) + (content.length > 40 ? '...' : '')
-    // It's an object/array - stringify and truncate
-    const str = JSON.stringify(content)
-    return str.substring(0, 40) + (str.length > 40 ? '...' : '')
   }
   
   private async pollMessages() {
@@ -240,7 +194,6 @@ export class EventDispatcher {
               channel_id: message.channel_id,
               metadata: message.metadata
             })
-            console.log(`📋 Cached message ${message.id.substring(0, 8)} with content type: ${typeof message.content}`)
             
             // Keep set size reasonable (only keep last 10000 IDs)
             if (this.processedMessageIds.size > 10000) {
@@ -333,63 +286,33 @@ export class EventDispatcher {
   private async handleMessageUpdate(payload: any) {
     const message = payload.new
     
-    console.log(`📝 EventDispatcher.handleMessageUpdate called:`, {
-      id: message?.id,
-      channel_id: message?.channel_id,
-      hasContent: !!message?.content
-    });
-    
-    if (!message || !message.id) {
-      console.log('⚠️  No message data in payload');
-      return
-    }
-    
-    // Skip encrypted messages (bots can't read them)
-    if (message.encrypted) {
-      console.log('⏭️  Skipping encrypted message');
-      return
-    }
+    if (!message || !message.id) return
+    if (message.encrypted) return
     
     // Get server ID from channel
     let serverId: string | null = null
     
     if (message.channel_id) {
-      const { data: channel, error: channelError } = await supabase
+      const { data: channel } = await supabase
         .from('channels')
         .select('server_id')
         .eq('id', message.channel_id)
         .single()
       
-      if (channelError) {
-        console.log('⚠️  Channel lookup error:', channelError.message);
-      }
       serverId = channel?.server_id
-      console.log(`📍 Channel ${message.channel_id} -> Server ${serverId}`);
     }
     
-    if (!serverId) {
-      console.log('⚠️  No server ID found, skipping dispatch');
-      return
-    }
+    if (!serverId) return
     
     // Get bots with permissions in this server
-    const { data: botPermissions, error: permError } = await supabase
+    const { data: botPermissions } = await supabase
       .from('bot_server_permissions')
       .select('bot_id, read_messages')
       .eq('server_id', serverId)
       .eq('read_messages', true)
       .eq('is_active', true)
     
-    if (permError) {
-      console.log('⚠️  Permission lookup error:', permError.message);
-    }
-    
-    console.log(`🔍 Found ${botPermissions?.length || 0} bots with read_messages permission`);
-    
-    if (!botPermissions || botPermissions.length === 0) {
-      console.log('⚠️  No bots have permission, skipping dispatch');
-      return
-    }
+    if (!botPermissions || botPermissions.length === 0) return
     
     // Format and dispatch event
     const formattedMessage = await this.formatMessage(message)
@@ -400,10 +323,9 @@ export class EventDispatcher {
     }
     
     const botIds = botPermissions.map(bp => bp.bot_id)
-    console.log(`📤 Sending MESSAGE_UPDATE to bots:`, botIds);
     this.gateway.sendToMultipleBots(botIds, event)
     
-    console.log(`✅ Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
+    console.log(`📝 Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
   }
   
   private async handleMessageDelete(payload: any) {

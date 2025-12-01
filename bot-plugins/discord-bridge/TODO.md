@@ -67,8 +67,8 @@ Currently using polling for message edits/deletes because Supabase Realtime subs
 - [x] Media/attachment bridging
 - [x] Webhook puppeting (Harmony users appear with their name/avatar in Discord)
 - [x] Discord users in Harmony autosuggest
-- [x] Message edits (Harmony → Discord via polling)
-- [x] Message deletes (Harmony → Discord via polling)
+- [x] Message edits (Harmony → Discord via polling, checks newest 100 messages)
+- [x] Message deletes (Harmony → Discord via polling, detects soft-delete flag)
 - [x] Message edits (Discord → Harmony)
 - [x] Message deletes (Discord → Harmony)
 
