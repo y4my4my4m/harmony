@@ -360,8 +360,8 @@ export default defineComponent({
   justify-content: space-between;
   align-items: center;
   padding: 0 12px;
-  background-color: #36393f;
-  border-bottom: 1px solid #40444b;
+  background-color: var(--background-secondary-alpha);
+  border-bottom: 1px solid var(--border-primary);
   min-height: 28px;
 }
 
@@ -378,6 +378,7 @@ export default defineComponent({
   align-items: center;
   /* gap: 4px; */
   padding: 4px 8px;
+  margin-right: 180px;
   background-color: #40444b;
   border: 1px solid #5865f2;
   border-radius: 4px;
@@ -415,8 +416,10 @@ export default defineComponent({
 .code-block {
   margin: 0;
   padding: 12px;
-  background-color: #2f3136;
-  color: #dcddde;
+  /* background-color: #2f3136; */
+  background-color: var(--background-primary-alpha);
+  /* color: #dcddde; */
+  color: var(--text-primary);
   font-size: 0.875rem;
   line-height: 1.125rem;
   overflow-x: auto;

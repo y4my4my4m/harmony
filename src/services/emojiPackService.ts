@@ -1,12 +1,23 @@
 /**
  * Emoji Pack Service
  * 
- * Manages swappable emoji packs (native Unicode vs custom SVG packs like Mutant Standard).
+ * Manages swappable emoji packs:
+ * - Twemoji (default) - Twitter's open source emojis
+ * - Mutant Standard - Expressive custom emoji set
+ * - Native Unicode - System default emojis
+ * 
  * Allows users to switch between different emoji styles.
  */
 
 import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
+import { 
+  EMOJI_CATEGORIES, 
+  TWEMOJI_BASE_URL, 
+  MUTANT_BASE_URL,
+  DEFAULT_EMOJI_PACK,
+  type EmojiPack as EmojiPackType
+} from '@/utils/emojiConstants'
 
 export interface EmojiPackItem {
   id: string              // Unique identifier (filename without extension)
@@ -21,6 +32,7 @@ export interface EmojiPackCategory {
   id: string
   name: string
   icon: string            // Category icon (emoji or SVG path)
+  order?: number
   subcategories?: string[]
 }
 
@@ -36,30 +48,43 @@ export interface EmojiPack {
 }
 
 const STORAGE_KEY = 'harmony-emoji-pack'
-const DEFAULT_PACK_ID = 'mutant'  // Mutant Standard is the default
+const DEFAULT_PACK_ID: EmojiPackType = DEFAULT_EMOJI_PACK
 
 // Available emoji packs
 const availablePacks = ref<Map<string, EmojiPack>>(new Map())
 const currentPackId = ref<string>(DEFAULT_PACK_ID)
 const isInitialized = ref(false)
 
+// Twemoji pack definition (NEW DEFAULT)
+const twemojiPack: EmojiPack = {
+  id: 'twemoji',
+  name: 'Twemoji',
+  description: 'Twitter\'s open source emoji set',
+  basePath: TWEMOJI_BASE_URL,
+  format: 'svg',
+  categories: EMOJI_CATEGORIES.map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    icon: cat.icon,
+    order: cat.order
+  })),
+  emojis: [], // Loaded from unicode-emoji-data.json
+  isBuiltIn: false
+}
+
 // Native Unicode emoji pack (built-in)
 const nativeUnicodePack: EmojiPack = {
   id: 'native',
-  name: 'Native Unicode',
+  name: 'System',
   description: 'System default Unicode emojis',
   basePath: '',
   format: 'svg',
-  categories: [
-    { id: 'smileys', name: 'Smileys & People', icon: '😀' },
-    { id: 'animals', name: 'Animals & Nature', icon: '🐱' },
-    { id: 'food', name: 'Food & Drink', icon: '🍔' },
-    { id: 'activities', name: 'Activities', icon: '⚽' },
-    { id: 'travel', name: 'Travel & Places', icon: '✈️' },
-    { id: 'objects', name: 'Objects', icon: '💡' },
-    { id: 'symbols', name: 'Symbols', icon: '❤️' },
-    { id: 'flags', name: 'Flags', icon: '🏳️' },
-  ],
+  categories: EMOJI_CATEGORIES.map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    icon: cat.icon,
+    order: cat.order
+  })),
   emojis: [], // Native emojis are handled differently (rendered as text)
   isBuiltIn: true
 }
@@ -69,18 +94,18 @@ const mutantStandardPack: EmojiPack = {
   id: 'mutant',
   name: 'Mutant Standard',
   description: 'Expressive and unique emoji set',
-  basePath: '/assets/emojis/mutant_emojis_svg',
+  basePath: MUTANT_BASE_URL,
   format: 'svg',
   categories: [
-    { id: 'expressions', name: 'Expressions', icon: '😀', subcategories: ['smileys', 'body_parts', 'semi_body'] },
-    { id: 'food_drink_herbs', name: 'Food & Drink', icon: '🍕', subcategories: ['food', 'drink', 'fruit_veg', 'alcohol_herbs'] },
-    { id: 'activities_clothing', name: 'Activities', icon: '🏀', subcategories: ['sports', 'clothing', 'performing_arts', 'roles'] },
-    { id: 'nature_effects', name: 'Nature', icon: '🌿', subcategories: ['plants', 'weather', 'earth', 'effects', 'moon'] },
-    { id: 'objects', name: 'Objects', icon: '🔧', subcategories: ['tech', 'household', 'office_stationery', 'games', 'party'] },
-    { id: 'symbols', name: 'Symbols', icon: '❤️', subcategories: ['hearts', 'arrows', 'shapes', 'misc'] },
-    { id: 'travel_places', name: 'Travel', icon: '✈️', subcategories: ['air', 'road', 'trains', 'buildings', 'scenes'] },
-    { id: 'people_animals', name: 'Creatures', icon: '🐱', subcategories: ['creatures', 'aspects'] },
-    { id: 'extra', name: 'Extra', icon: '✨', subcategories: ['cyber', 'occult_magic', 'weapons', 'symbols'] },
+    { id: 'expressions', name: 'Expressions', icon: '😀', order: 0, subcategories: ['smileys', 'body_parts', 'semi_body'] },
+    { id: 'food_drink_herbs', name: 'Food & Drink', icon: '🍕', order: 1, subcategories: ['food', 'drink', 'fruit_veg', 'alcohol_herbs'] },
+    { id: 'activities_clothing', name: 'Activities', icon: '🏀', order: 2, subcategories: ['sports', 'clothing', 'performing_arts', 'roles'] },
+    { id: 'nature_effects', name: 'Nature', icon: '🌿', order: 3, subcategories: ['plants', 'weather', 'earth', 'effects', 'moon'] },
+    { id: 'objects', name: 'Objects', icon: '🔧', order: 4, subcategories: ['tech', 'household', 'office_stationery', 'games', 'party'] },
+    { id: 'symbols', name: 'Symbols', icon: '❤️', order: 5, subcategories: ['hearts', 'arrows', 'shapes', 'misc'] },
+    { id: 'travel_places', name: 'Travel', icon: '✈️', order: 6, subcategories: ['air', 'road', 'trains', 'buildings', 'scenes'] },
+    { id: 'people_animals', name: 'Creatures', icon: '🐱', order: 7, subcategories: ['creatures', 'aspects'] },
+    { id: 'extra', name: 'Extra', icon: '✨', order: 8, subcategories: ['cyber', 'occult_magic', 'weapons', 'symbols'] },
   ],
   emojis: [], // Will be populated by the index generator
   isBuiltIn: false
@@ -134,9 +159,10 @@ function savePackPreference(): void {
 export function initializeEmojiPacks(): void {
   if (isInitialized.value) return
   
-  // Register built-in packs
-  availablePacks.value.set('native', nativeUnicodePack)
+  // Register built-in packs (order matters for UI display)
+  availablePacks.value.set('twemoji', twemojiPack)
   availablePacks.value.set('mutant', mutantStandardPack)
+  availablePacks.value.set('native', nativeUnicodePack)
   
   // Load user preference
   loadPackPreference()
@@ -150,7 +176,7 @@ export function initializeEmojiPacks(): void {
  */
 export function getCurrentPack(): EmojiPack {
   initializeEmojiPacks()
-  return availablePacks.value.get(currentPackId.value) || nativeUnicodePack
+  return availablePacks.value.get(currentPackId.value) || twemojiPack
 }
 
 /**
@@ -264,6 +290,8 @@ export function useEmojiPacks() {
   const currentPack = computed(() => getCurrentPack())
   const packs = computed(() => getAvailablePacks())
   const isNativePack = computed(() => currentPackId.value === 'native')
+  const isTwemojiPack = computed(() => currentPackId.value === 'twemoji')
+  const isMutantPack = computed(() => currentPackId.value === 'mutant')
   
   return {
     // State
@@ -271,6 +299,8 @@ export function useEmojiPacks() {
     currentPack,
     packs,
     isNativePack,
+    isTwemojiPack,
+    isMutantPack,
     
     // Methods
     setCurrentPack,
@@ -281,4 +311,3 @@ export function useEmojiPacks() {
     registerEmojiPack
   }
 }
-

@@ -254,6 +254,18 @@
           <div class="emoji-pack-options">
             <button
               class="emoji-pack-btn"
+              :class="{ active: settings.emojiPack === 'twemoji' }"
+              @click="settings.emojiPack = 'twemoji'; onEmojiPackChange()"
+            >
+              <img 
+                src="/assets/emojis/twemoji/1f600.svg" 
+                alt="Twemoji" 
+                class="pack-preview"
+              />
+              <span>Twemoji</span>
+            </button>
+            <button
+              class="emoji-pack-btn"
               :class="{ active: settings.emojiPack === 'mutant' }"
               @click="settings.emojiPack = 'mutant'; onEmojiPackChange()"
             >
@@ -270,7 +282,7 @@
               @click="settings.emojiPack = 'native'; onEmojiPackChange()"
             >
               <span class="pack-preview-native">😀</span>
-              <span>System Unicode</span>
+              <span>System</span>
             </button>
           </div>
         </div>
@@ -389,7 +401,7 @@ const settings = ref({
   highContrast: false,
   reduceMotion: false,
   screenReaderSupport: false,
-  emojiPack: currentPackId.value as 'mutant' | 'native',
+  emojiPack: currentPackId.value as 'twemoji' | 'mutant' | 'native',
 })
 
 // Computed preview colors for custom theme
