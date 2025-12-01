@@ -776,7 +776,7 @@ const formatNumber = (num: number): string => {
 
 .trending-tag {
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--harmony-primary);
 }
 
 .trending-count {

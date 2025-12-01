@@ -368,8 +368,10 @@ defineExpose({
 }
 
 .reaction.reacted {
-  background-color: rgba(88, 101, 242, 0.15);
-  border-color: rgba(88, 101, 242, 0.5);
+  /* background-color: rgba(88, 101, 242, 0.15); */
+  background-color: var(--harmony-primary-alpha);
+  /* border-color: rgba(88, 101, 242, 0.5); */
+  border-color: var(--harmony-primary);
 }
 
 .reaction.loading {

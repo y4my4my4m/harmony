@@ -551,9 +551,10 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Setup enhanced realtime subscriptions for ActivityPub
      */
-    setupEnhancedRealtimeSubscriptions() {
-      const user = supabase.auth.getUser();
-      if (!user) return;
+    async setupEnhancedRealtimeSubscriptions() {
+      // Use AuthContextService for consistent auth handling
+      const isAuthenticated = await authContextService.isAuthenticated();
+      if (!isAuthenticated) return;
 
       // Clean up existing subscriptions
       this.cleanupRealtimeSubscriptions();
@@ -2129,39 +2130,13 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post bookmark - clean and professional
+     * Toggle post bookmark - delegates to activityPubService which handles auth properly
      */
     async toggleBookmark(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
-
-        // Check current state
-        const { data: existing, error: existingError } = await supabase
-          .from('post_interactions')
-          .select('id')
-          .eq('user_id', user.data.user.id)
-          .eq('post_id', postId)
-          .eq('interaction_type', 'bookmark')
-          .maybeSingle();
-
-        if (existingError && existingError.code !== 'PGRST116') {
-          throw existingError;
-        }
-
-        const isBookmarked = !!existing;
-
-        if (existing) {
-          // Remove bookmark
-          await activityPubService.unbookmarkPost(postId);
-        } else {
-          // Add bookmark
-          await activityPubService.bookmarkPost(postId);
-        }
-
-        // Don't update UI state here - let realtime handle it to avoid double updates
-        debug.log(`📍 Toggled bookmark for post ${postId}: ${isBookmarked} -> ${!isBookmarked} (realtime will update UI)`);
-
+        // Use the service which properly uses AuthContextService and profile_id
+        const result = await activityPubService.toggleBookmark(postId);
+        debug.log(`📍 Toggled bookmark for post ${postId}: -> ${result.bookmarked} (realtime will update UI)`);
       } catch (error) {
         debug.error('Failed to toggle bookmark:', error);
         throw error;
@@ -2318,13 +2293,13 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async clearAllBookmarks() {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // Use AuthContextService for proper profile_id resolution
+        const profileId = await authContextService.getCurrentProfileId();
 
         const { error } = await supabase
           .from('post_interactions')
           .delete()
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', profileId)
           .eq('interaction_type', 'bookmark');
 
         if (error) throw error;
@@ -2667,13 +2642,13 @@ export const useActivityPubStore = defineStore('activitypub', {
 
      async loadNotifications() {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // Use AuthContextService for proper profile_id resolution
+        const profileId = await authContextService.getCurrentProfileId();
 
         const { data, error } = await supabase
           .from('notifications')
           .select('*')
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', profileId)
           .order('created_at', { ascending: false })
           .limit(20);
 

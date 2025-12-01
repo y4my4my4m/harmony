@@ -239,7 +239,8 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   align-items: center;
   gap: 4px;
   padding: 3px 6px;
-  background-color: #2d2f35;
+  /* background-color: #2d2f35; */
+  background-color: var(--background-quinary);
   border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
@@ -255,8 +256,10 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 }
 
 .reaction.reacted {
-  background-color: hsl(235, 85.6%, 64.7%, 0.15);
-  border-color: hsl(235, 85.6%, 64.7%);
+  /* background-color: hsl(235, 85.6%, 64.7%, 0.15); */
+  /* border-color: hsl(235, 85.6%, 64.7%); */
+  background-color: var(--harmony-primary-alpha);
+  border-color: var(--harmony-primary);
 }
 
 .reaction.loading {

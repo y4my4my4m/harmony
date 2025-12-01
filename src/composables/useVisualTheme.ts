@@ -200,9 +200,12 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--text-tertiary', theme.isLightTheme ? '#6e7178' : '#80848e')
   root.style.setProperty('--text-muted', theme.isLightTheme ? '#5e6168' : '#6d6f78')
   
-  // Border colors
+  // Border colors - different alpha values for light vs dark themes
   root.style.setProperty('--border-primary', theme.borderPrimary)
   root.style.setProperty('--border-secondary', theme.isLightTheme ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)')
+  root.style.setProperty('--border-hover', theme.isLightTheme ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.12)')
+  root.style.setProperty('--border-focus', theme.primary)
+  root.style.setProperty('--border-color', theme.isLightTheme ? 'rgba(0, 0, 0, 0.12)' : '#232529')
   
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
