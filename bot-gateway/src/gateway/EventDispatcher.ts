@@ -82,8 +82,9 @@ export class EventDispatcher {
         return
       }
       
-      // Check a batch of our cached messages against the database
-      const idsToCheck = Array.from(this.knownMessageIds).slice(0, 100)
+      // Check the NEWEST messages first (most likely to be edited)
+      const allIds = Array.from(this.knownMessageIds)
+      const idsToCheck = allIds.slice(-100) // Last 100 = newest
       
       const { data: currentMessages, error } = await supabase
         .from('messages')
@@ -95,14 +96,27 @@ export class EventDispatcher {
         return
       }
       
-      // Log comparison details every 10th poll
-      if (this.pollCount % 10 === 0 && currentMessages && currentMessages.length > 0) {
-        const sample = currentMessages[0]
-        const cached = this.messageVersions.get(sample.id)
-        console.log(`   Sample message ${sample.id.substring(0, 8)}:`)
-        console.log(`     DB content: "${this.contentPreview(sample.content)}"`)
-        console.log(`     Cached content: "${this.contentPreview(cached?.content)}"`)
-        console.log(`     Changed: ${this.contentChanged(cached?.content, sample.content)}`)
+      // Log comparison details every 5th poll - check ALL messages for changes
+      if (this.pollCount % 5 === 0) {
+        // Show first few IDs being checked
+        console.log(`   Checking IDs: ${idsToCheck.slice(0, 3).map(id => id.substring(0, 8)).join(', ')}... (${idsToCheck.length} total)`)
+        console.log(`   DB returned ${currentMessages?.length || 0} messages`)
+      }
+      
+      let changesFound = 0
+      for (const msg of currentMessages || []) {
+        const cached = this.messageVersions.get(msg.id)
+        if (cached && this.contentChanged(cached.content, msg.content)) {
+          changesFound++
+          console.log(`🔍 CHANGE DETECTED in ${msg.id}:`)
+          console.log(`   DB type: ${typeof msg.content}, Cache type: ${typeof cached.content}`)
+          console.log(`   DB: "${this.contentPreview(msg.content)}"`)
+          console.log(`   Cache: "${this.contentPreview(cached.content)}"`)
+        }
+      }
+      
+      if (this.pollCount % 5 === 0 && changesFound === 0) {
+        console.log(`   No content changes detected`)
       }
       
       const currentById = new Map((currentMessages || []).map(m => [m.id, m]))
@@ -204,6 +218,7 @@ export class EventDispatcher {
               channel_id: message.channel_id,
               metadata: message.metadata
             })
+            console.log(`📋 Cached message ${message.id.substring(0, 8)} with content type: ${typeof message.content}`)
             
             // Keep set size reasonable (only keep last 10000 IDs)
             if (this.processedMessageIds.size > 10000) {
