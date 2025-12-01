@@ -99,20 +99,36 @@ const harmonyUserCache = new Map<string, CachedHarmonyUser>()
  * Called on startup and periodically
  */
 async function refreshHarmonyUserCache() {
+  console.log('🔄 Refreshing Harmony user cache...')
+  
+  // Check if serverId is configured
+  if (!config.harmony.serverId) {
+    console.error('❌ harmony.serverId not configured in bridge-config.yml!')
+    console.error('   Add: serverId: "YOUR_HARMONY_SERVER_UUID" under harmony section')
+    return
+  }
+  
+  const url = `${config.harmony.apiUrl}/api/v1/servers/${config.harmony.serverId}/members?limit=1000`
+  console.log(`📡 Fetching from: ${url}`)
+  
   try {
-    // Use the bot-gateway API to fetch server members
-    const response = await fetch(`${config.harmony.apiUrl}/api/v1/servers/${config.harmony.serverId}/members?limit=1000`, {
+    const response = await fetch(url, {
       headers: {
         'Authorization': `Bot ${config.harmony.token}`
       }
     })
     
+    console.log(`📡 Response status: ${response.status}`)
+    
     if (!response.ok) {
-      console.error('❌ Failed to fetch Harmony users:', await response.text())
+      const errorText = await response.text()
+      console.error('❌ Failed to fetch Harmony users:', errorText)
       return
     }
     
     const members = await response.json()
+    console.log(`📡 Received ${members.length} members from API`)
+    
     harmonyUserCache.clear()
     
     for (const member of members) {
@@ -126,7 +142,11 @@ async function refreshHarmonyUserCache() {
       }
     }
     
-    console.log(`🔄 Refreshed Harmony user cache: ${harmonyUserCache.size} users`)
+    console.log(`✅ Harmony user cache: ${harmonyUserCache.size} users`)
+    
+    // Log first few users for debugging
+    const firstUsers = Array.from(harmonyUserCache.values()).slice(0, 3)
+    firstUsers.forEach(u => console.log(`   👤 ${u.displayName} (@${u.username})`))
   } catch (error) {
     console.error('❌ Error fetching Harmony users:', error)
   }
@@ -1010,7 +1030,10 @@ discordClient.on('interactionCreate', async (interaction) => {
     
     if (focusedOption.name === 'user') {
       const query = focusedOption.value
+      console.log(`🔍 Autocomplete query: "${query}", cache size: ${harmonyUserCache.size}`)
+      
       const matches = searchHarmonyUsers(query)
+      console.log(`🔍 Found ${matches.length} matches`)
       
       await autocomplete.respond(
         matches.map(user => ({
