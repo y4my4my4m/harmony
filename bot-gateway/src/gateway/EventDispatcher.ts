@@ -37,18 +37,28 @@ export class EventDispatcher {
       .channel('bot-message-updates')
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload) => this.handleMessageUpdate(payload)
+        (payload) => {
+          console.log('📡 Realtime: MESSAGE UPDATE received')
+          this.handleMessageUpdate(payload)
+        }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log(`📡 Message updates subscription: ${status}`)
+      })
     
     // Subscribe to message deletes
     const deleteChannel = supabase
       .channel('bot-message-deletes')
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'messages' },
-        (payload) => this.handleMessageDelete(payload)
+        (payload) => {
+          console.log('📡 Realtime: MESSAGE DELETE received')
+          this.handleMessageDelete(payload)
+        }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log(`📡 Message deletes subscription: ${status}`)
+      })
     
     this.subscriptions.push(updateChannel, deleteChannel)
   }
