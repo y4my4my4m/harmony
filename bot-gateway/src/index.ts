@@ -28,10 +28,6 @@ app.get('/health', (req, res) => {
   })
 })
 
-// Bot API routes
-const botAPI = new BotRestAPI()
-app.use('/api/v1', botAPI.router)
-
 // Create HTTP server
 const server = createServer(app)
 
@@ -50,6 +46,10 @@ eventDispatcher.start().catch(error => {
   console.error('❌ Failed to start event dispatcher:', error)
   process.exit(1)
 })
+
+// =====================================================
+// PUBLIC ENDPOINTS (no auth required) - must be BEFORE botAPI router
+// =====================================================
 
 // Status endpoint
 app.get('/api/v1/gateway/status', (req, res) => {
@@ -80,6 +80,12 @@ app.get('/api/v1/channels/:channelId/bridged-users', (req, res) => {
     users: bridgedUsers
   })
 })
+
+// =====================================================
+// AUTHENTICATED BOT API ROUTES - after public endpoints
+// =====================================================
+const botAPI = new BotRestAPI()
+app.use('/api/v1', botAPI.router)
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
