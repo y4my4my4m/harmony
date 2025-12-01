@@ -103,10 +103,12 @@ export class HarmonyClient extends EventEmitter {
         break
         
       case 'MESSAGE_UPDATE':
+        console.log('📡 HarmonyClient received MESSAGE_UPDATE:', data?.id)
         this.emit('messageUpdate', data)
         break
         
       case 'MESSAGE_DELETE':
+        console.log('📡 HarmonyClient received MESSAGE_DELETE:', data?.id)
         this.emit('messageDelete', data)
         break
         
@@ -167,8 +169,8 @@ export class HarmonyClient extends EventEmitter {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to send message')
+      const errorData = await response.json() as any
+      throw new Error(errorData.error || 'Failed to send message')
     }
     
     return response.json()
@@ -185,8 +187,8 @@ export class HarmonyClient extends EventEmitter {
     })
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(error.error || 'Failed to edit message')
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any
+      throw new Error(errorData.error || 'Failed to edit message')
     }
     
     return response.json()
@@ -201,8 +203,8 @@ export class HarmonyClient extends EventEmitter {
     })
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(error.error || 'Failed to delete message')
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any
+      throw new Error(errorData.error || 'Failed to delete message')
     }
     
     // DELETE returns 204 No Content on success
@@ -224,8 +226,8 @@ export class HarmonyClient extends EventEmitter {
     })
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(error.error || 'Failed to add reaction')
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any
+      throw new Error(errorData.error || 'Failed to add reaction')
     }
     
     // API returns 204 No Content on success
@@ -264,7 +266,7 @@ export class HarmonyClient extends EventEmitter {
       })
       
       if (checkResponse.ok) {
-        const emojis = await checkResponse.json()
+        const emojis = await checkResponse.json() as any[]
         if (emojis && emojis.length > 0) {
           console.log(`♻️  Using existing Discord emoji: ${cleanName} (${emojis[0].id})`)
           return emojis[0].id
@@ -291,15 +293,15 @@ export class HarmonyClient extends EventEmitter {
       })
       
       if (!createResponse.ok) {
-        const error = await createResponse.json().catch(() => ({}))
-        console.error(`❌ Failed to create Discord emoji: ${error.error || 'Unknown error'}`)
+        const errorData = await createResponse.json().catch(() => ({})) as any
+        console.error(`❌ Failed to create Discord emoji: ${errorData.error || 'Unknown error'}`)
         return null
       }
       
-      const newEmoji = await createResponse.json()
+      const newEmoji = await createResponse.json() as any
       console.log(`✨ Created Discord emoji: ${cleanName} (ID: ${newEmoji.id})`)
       return newEmoji.id
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ Error finding/creating Discord emoji:`, error)
       return null
     }
@@ -319,8 +321,8 @@ export class HarmonyClient extends EventEmitter {
     })
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-      throw new Error(error.error || 'Failed to remove reaction')
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any
+      throw new Error(errorData.error || 'Failed to remove reaction')
     }
     
     // API returns 204 No Content on success
@@ -343,7 +345,7 @@ export class HarmonyClient extends EventEmitter {
       throw new Error('Failed to fetch guild members')
     }
     
-    return response.json()
+    return response.json() as Promise<any[]>
   }
   
   /**
@@ -363,7 +365,43 @@ export class HarmonyClient extends EventEmitter {
       return []
     }
     
-    return response.json()
+    return response.json() as Promise<any[]>
+  }
+  
+  /**
+   * Register bridge data with the gateway
+   * This sends channel mappings and Discord member data to the gateway
+   * so the frontend can query bridged users for autosuggest
+   */
+  registerBridgeData(channels: Array<{
+    harmonyChannelId: string
+    discordChannelId: string
+    members: Array<{
+      id: string
+      username: string
+      displayName: string
+      avatarUrl: string
+      source: 'discord'
+    }>
+  }>) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot register bridge data - WebSocket not connected')
+      console.error(`   WebSocket state: ${this.ws?.readyState}`)
+      return
+    }
+    
+    const totalMembers = channels.reduce((sum, ch) => sum + ch.members.length, 0)
+    console.log(`📡 Sending REGISTER_BRIDGE_DATA to gateway:`)
+    console.log(`   Channels: ${channels.length}`)
+    console.log(`   Total members: ${totalMembers}`)
+    
+    const payload = {
+      op: 6, // REGISTER_BRIDGE_DATA
+      d: { channels }
+    }
+    
+    this.ws.send(JSON.stringify(payload))
+    console.log(`✅ Bridge data sent to gateway`)
   }
   
   disconnect() {

@@ -9,6 +9,57 @@ import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSugges
 import type { ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
 
+// Bridged user interface (from Discord bridge)
+interface BridgedUser {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  source: 'discord';
+}
+
+// SHARED cache for bridged users across all useAutoSuggest instances
+// This prevents duplicate API calls when multiple components use autosuggest
+interface CachedBridgedUsers {
+  users: BridgedUser[];
+  timestamp: number;
+}
+
+const BRIDGED_USERS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const BRIDGED_USERS_CACHE_MAX_SIZE = 50; // Max channels to cache
+
+const sharedBridgedUsersCache = new Map<string, CachedBridgedUsers>();
+const sharedBridgedUsersPending = new Map<string, Promise<BridgedUser[]>>();
+
+// Check if cache entry is still valid
+function isCacheValid(entry: CachedBridgedUsers | undefined): boolean {
+  if (!entry) return false;
+  return Date.now() - entry.timestamp < BRIDGED_USERS_CACHE_TTL;
+}
+
+// Prune old cache entries to prevent memory bloat
+function pruneCache() {
+  if (sharedBridgedUsersCache.size <= BRIDGED_USERS_CACHE_MAX_SIZE) return;
+  
+  // Remove oldest entries first
+  const entries = Array.from(sharedBridgedUsersCache.entries())
+    .sort((a, b) => a[1].timestamp - b[1].timestamp);
+  
+  const toRemove = entries.slice(0, entries.length - BRIDGED_USERS_CACHE_MAX_SIZE);
+  for (const [key] of toRemove) {
+    sharedBridgedUsersCache.delete(key);
+  }
+}
+
+// Clear cache for a specific channel (call when bridge data changes)
+export function clearBridgedUsersCache(channelId?: string) {
+  if (channelId) {
+    sharedBridgedUsersCache.delete(channelId);
+  } else {
+    sharedBridgedUsersCache.clear();
+  }
+}
+
 export interface AutoSuggestTrigger {
   char: string;
   pattern: RegExp;
@@ -71,6 +122,11 @@ export function useAutoSuggest(
 
   // Dynamic user search results for ActivityPub mode
   const activityPubUsers = ref<any[]>([]);
+  
+  // Bridged users from Discord (fetched from bot-gateway)
+  const bridgedUsers = ref<BridgedUser[]>([]);
+  const bridgedUsersLoaded = ref(false);
+  const bridgedUsersChannelId = ref<string | null>(null);
 
   // Trigger patterns
   const triggers: AutoSuggestTrigger[] = [];
@@ -189,6 +245,9 @@ export function useAutoSuggest(
       // Get current server ID to filter users by server membership
       const currentServerId = serverChannelStore.currentServerId;
       
+      // Log bridged users status
+      debug.log(`🎯 AutoSuggest: bridgedUsers count = ${bridgedUsers.value.length}, loaded = ${bridgedUsersLoaded.value}`);
+      
       if (currentServerId) {
         // Get users only from the current server context
         usersToSearch = userDataService.getUsersInContext(currentServerId);
@@ -202,6 +261,7 @@ export function useAutoSuggest(
 
       const seenUsers = new Set<string>(); // Track already processed users
       
+      // Add Harmony users
       for (const userData of usersToSearch) {
         // Skip if we've already seen this user
         if (seenUsers.has(userData.id)) {
@@ -230,6 +290,45 @@ export function useAutoSuggest(
             display_text: displayText, // What user sees in input
             mention_text: mentionText, // What gets stored in DB
             user: userData // Keep reference for easy access
+          });
+        }
+      }
+      
+      // Add bridged Discord users
+      for (const bridgedUser of bridgedUsers.value) {
+        // Skip if we've already seen this user (by Discord ID)
+        const bridgedKey = `discord:${bridgedUser.id}`;
+        if (seenUsers.has(bridgedKey)) {
+          continue;
+        }
+        seenUsers.add(bridgedKey);
+        
+        const displayName = bridgedUser.displayName?.toLowerCase() || '';
+        const usernameStr = bridgedUser.username?.toLowerCase() || '';
+        
+        if (displayName.includes(query) || usernameStr.includes(query)) {
+          // For Discord users, use compact format: @d!ID:username
+          // This preserves the Discord ID for translation while keeping username for display
+          const displayText = `@${bridgedUser.username}`;
+          const mentionText = `@d!${bridgedUser.id}:${bridgedUser.username}`;
+          
+          suggestions.push({
+            id: bridgedUser.id,
+            display_name: bridgedUser.displayName,
+            username: bridgedUser.username,
+            avatar: bridgedUser.avatarUrl,
+            display_text: displayText, // What user sees: @username
+            mention_text: mentionText, // What gets stored: @discord:ID:username
+            isBridged: true,
+            bridgeSource: 'discord',
+            user: {
+              id: bridgedUser.id,
+              username: bridgedUser.username,
+              displayName: bridgedUser.displayName,
+              avatarUrl: bridgedUser.avatarUrl,
+              domain: 'discord.com',
+              isLocal: false
+            }
           });
         }
       }
@@ -312,6 +411,78 @@ export function useAutoSuggest(
   // Track current search to abort stale requests
   let currentSearchAbortController: AbortController | null = null;
   let currentSearchQuery = '';
+  
+  // Fetch bridged users from bot-gateway for current channel
+  const fetchBridgedUsers = async (channelId: string) => {
+    if (!channelId) {
+      debug.log('🌉 fetchBridgedUsers: No channel ID provided');
+      return;
+    }
+    
+    // Check shared cache first (with TTL check)
+    const cached = sharedBridgedUsersCache.get(channelId);
+    if (isCacheValid(cached)) {
+      bridgedUsers.value = cached!.users;
+      bridgedUsersChannelId.value = channelId;
+      bridgedUsersLoaded.value = true;
+      debug.log(`🌉 fetchBridgedUsers: Using cached data for ${channelId}, ${bridgedUsers.value.length} users`);
+      return;
+    }
+    
+    // Check if a request is already pending for this channel
+    if (sharedBridgedUsersPending.has(channelId)) {
+      debug.log(`🌉 fetchBridgedUsers: Request already pending for ${channelId}, waiting...`);
+      try {
+        bridgedUsers.value = await sharedBridgedUsersPending.get(channelId)!;
+        bridgedUsersChannelId.value = channelId;
+        bridgedUsersLoaded.value = true;
+      } catch {
+        bridgedUsers.value = [];
+        bridgedUsersLoaded.value = true;
+      }
+      return;
+    }
+    
+    // Create the fetch promise and store it
+    const fetchPromise = (async (): Promise<BridgedUser[]> => {
+      try {
+        const url = `/bot-gateway/bridged-users/${channelId}`;
+        debug.log(`🌉 fetchBridgedUsers: Fetching from ${url}`);
+        
+        const response = await fetch(url);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.has_bridge && Array.isArray(data.users)) {
+            const users = data.users as BridgedUser[];
+            sharedBridgedUsersCache.set(channelId, { users, timestamp: Date.now() });
+            pruneCache(); // Prevent unbounded growth
+            debug.log(`🌉 ✅ Loaded ${users.length} bridged Discord users for channel ${channelId}`);
+            return users;
+          } else {
+            sharedBridgedUsersCache.set(channelId, { users: [], timestamp: Date.now() });
+            debug.log(`🌉 Channel ${channelId} has no bridge or no users`);
+            return [];
+          }
+        } else {
+          debug.log(`🌉 ❌ Failed to fetch bridged users: ${response.status}`);
+          return [];
+        }
+      } catch (error) {
+        debug.log('🌉 ❌ Bridge API not available:', error);
+        return [];
+      } finally {
+        sharedBridgedUsersPending.delete(channelId);
+      }
+    })();
+    
+    sharedBridgedUsersPending.set(channelId, fetchPromise);
+    
+    bridgedUsers.value = await fetchPromise;
+    bridgedUsersChannelId.value = channelId;
+    bridgedUsersLoaded.value = true;
+  };
 
   // ActivityPub user search function with timeout
   const searchActivityPubUsers = async (query: string) => {
@@ -598,8 +769,11 @@ export function useAutoSuggest(
             insertText
           });
         } else {
-          // Chat mode: use display_text for what user sees
-          if (suggestion.display_text) {
+          // Chat mode: use mention_text for storage (includes Discord ID for bridged users)
+          // Falls back to display_text, then @username
+          if (suggestion.mention_text) {
+            insertText = suggestion.mention_text + ' '; // Use mention_text for proper ID storage
+          } else if (suggestion.display_text) {
             insertText = suggestion.display_text + ' '; // Add space after mention
           } else {
             insertText = `@${suggestion.username} `; // Add space after mention
@@ -659,6 +833,17 @@ export function useAutoSuggest(
       });
     }
   });
+  
+  // Fetch bridged users when channel changes
+  watch(() => serverChannelStore.currentChannelId, (newChannelId) => {
+    if (newChannelId && newChannelId !== bridgedUsersChannelId.value) {
+      debug.log(`🌉 Channel changed to ${newChannelId}, fetching bridged users...`);
+      bridgedUsersLoaded.value = false;
+      bridgedUsers.value = [];
+      // Proactively fetch bridged users for the new channel
+      fetchBridgedUsers(newChannelId);
+    }
+  }, { immediate: true }); // Run immediately to fetch on mount
 
   // Watch window resize to reposition suggestions
   if (typeof window !== 'undefined') {

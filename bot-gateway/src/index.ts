@@ -28,10 +28,6 @@ app.get('/health', (req, res) => {
   })
 })
 
-// Bot API routes
-const botAPI = new BotRestAPI()
-app.use('/api/v1', botAPI.router)
-
 // Create HTTP server
 const server = createServer(app)
 
@@ -51,8 +47,16 @@ eventDispatcher.start().catch(error => {
   process.exit(1)
 })
 
-// Status endpoint
-app.get('/api/v1/gateway/status', (req, res) => {
+// Bot API routes (authenticated)
+const botAPI = new BotRestAPI()
+app.use('/api/v1', botAPI.router)
+
+// =====================================================
+// PUBLIC ENDPOINTS (separate from bot API, no auth)
+// =====================================================
+
+// Gateway status (public)
+app.get('/status', (req, res) => {
   res.json({
     connected_bots: gateway.getConnectedBotCount(),
     total_connections: gateway.getTotalConnectionCount(),
@@ -61,6 +65,22 @@ app.get('/api/v1/gateway/status', (req, res) => {
       username: b.username,
       last_heartbeat: b.lastHeartbeat
     }))
+  })
+})
+
+// Bridged users for Discord bridge (public)
+// Used by Harmony frontend for mention autosuggest
+app.get('/bridged-users/:channelId', (req, res) => {
+  const { channelId } = req.params
+  const bridgedUsers = gateway.getBridgedUsers(channelId)
+  const hasBridge = gateway.hasChannelBridge(channelId)
+  
+  console.log(`🌉 GET /bridged-users/${channelId} → ${bridgedUsers.length} users, hasBridge=${hasBridge}`)
+  
+  res.json({
+    channel_id: channelId,
+    has_bridge: hasBridge,
+    users: bridgedUsers
   })
 })
 

@@ -1,4 +1,17 @@
-import { Client as DiscordClient, GatewayIntentBits, Message as DiscordMessage, Webhook, TextChannel, Partials } from 'discord.js'
+import { 
+  Client as DiscordClient, 
+  GatewayIntentBits, 
+  Message as DiscordMessage, 
+  Webhook, 
+  TextChannel, 
+  Partials, 
+  GuildMember,
+  SlashCommandBuilder,
+  REST,
+  Routes,
+  ChatInputCommandInteraction,
+  AutocompleteInteraction
+} from 'discord.js'
 import { HarmonyClient } from './HarmonyClient.js'
 import { MessageTranslator } from './MessageTranslator.js'
 import { ChannelMapper } from './ChannelMapper.js'
@@ -18,6 +31,186 @@ const webhookCache = new Map<string, Webhook>()
 const discordToHarmonyMessages = new Map<string, string>()
 // Message ID mapping: Harmony message ID -> Discord message ID
 const harmonyToDiscordMessages = new Map<string, string>()
+
+// =====================================================
+// DISCORD MEMBER CACHE
+// =====================================================
+// Cache Discord members for mention lookups: lowercase username -> Discord ID
+const discordMemberCache = new Map<string, string>()
+// Also store full member info for autosuggest API
+interface CachedDiscordMember {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string
+}
+const discordMemberDetails = new Map<string, CachedDiscordMember>()
+
+/**
+ * Get all cached Discord members (for autosuggest API)
+ */
+export function getDiscordMembers(): CachedDiscordMember[] {
+  return Array.from(discordMemberDetails.values())
+}
+
+/**
+ * Get Discord member cache for username -> ID lookups
+ */
+export function getDiscordMemberIdCache(): Map<string, string> {
+  return discordMemberCache
+}
+
+/**
+ * Add or update a member in the cache
+ */
+function cacheMember(member: GuildMember) {
+  const username = member.user.username.toLowerCase()
+  discordMemberCache.set(username, member.id)
+  
+  discordMemberDetails.set(member.id, {
+    id: member.id,
+    username: member.user.username,
+    displayName: member.displayName || member.user.username,
+    avatarUrl: member.user.displayAvatarURL({ size: 128 })
+  })
+}
+
+/**
+ * Remove a member from the cache by ID
+ */
+function uncacheMemberById(memberId: string, username: string) {
+  discordMemberCache.delete(username.toLowerCase())
+  discordMemberDetails.delete(memberId)
+}
+
+// =====================================================
+// HARMONY USER CACHE (for Discord autocomplete)
+// =====================================================
+interface CachedHarmonyUser {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+}
+const harmonyUserCache = new Map<string, CachedHarmonyUser>()
+
+/**
+ * Fetch Harmony users for the bridged server
+ * Called on startup and periodically
+ */
+async function refreshHarmonyUserCache() {
+  console.log('🔄 Refreshing Harmony user cache...')
+  
+  // Check if serverId is configured
+  if (!config.harmony.serverId) {
+    console.error('❌ harmony.serverId not configured in bridge-config.yml!')
+    console.error('   Add: serverId: "YOUR_HARMONY_SERVER_UUID" under harmony section')
+    return
+  }
+  
+  const url = `${config.harmony.apiUrl}/api/v1/servers/${config.harmony.serverId}/members?limit=1000`
+  console.log(`📡 Fetching from: ${url}`)
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bot ${config.harmony.token}`
+      }
+    })
+    
+    console.log(`📡 Response status: ${response.status}`)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Failed to fetch Harmony users:', errorText)
+      return
+    }
+    
+    const members = await response.json() as any[]
+    console.log(`📡 Received ${members.length} members from API`)
+    
+    harmonyUserCache.clear()
+    
+    for (const member of members) {
+      if (member.user) {
+        harmonyUserCache.set(member.user.id, {
+          id: member.user.id,
+          username: member.user.username || 'unknown',
+          displayName: member.user.display_name || member.user.username || 'Unknown',
+          avatarUrl: member.user.avatar || null
+        })
+      }
+    }
+    
+    console.log(`✅ Harmony user cache: ${harmonyUserCache.size} users`)
+    
+    // Log first few users for debugging
+    const firstUsers = Array.from(harmonyUserCache.values()).slice(0, 3)
+    firstUsers.forEach(u => console.log(`   👤 ${u.displayName} (@${u.username})`))
+  } catch (error) {
+    console.error('❌ Error fetching Harmony users:', error)
+  }
+}
+
+/**
+ * Get Harmony users matching a query (for autocomplete)
+ */
+function searchHarmonyUsers(query: string): CachedHarmonyUser[] {
+  const lowerQuery = query.toLowerCase()
+  const results: CachedHarmonyUser[] = []
+  
+  for (const user of harmonyUserCache.values()) {
+    if (
+      user.username.toLowerCase().includes(lowerQuery) ||
+      user.displayName.toLowerCase().includes(lowerQuery)
+    ) {
+      results.push(user)
+      if (results.length >= 25) break // Discord autocomplete limit
+    }
+  }
+  
+  return results
+}
+
+// Track ready states for bridge data registration
+let discordReady = false
+let harmonyReady = false
+
+/**
+ * Register bridge data with the Harmony gateway
+ * Called when both Discord and Harmony are ready
+ */
+function registerBridgeDataWithGateway() {
+  if (!discordReady || !harmonyReady) {
+    console.log(`⏳ Bridge data registration waiting: Discord=${discordReady}, Harmony=${harmonyReady}`)
+    return
+  }
+  
+  // Build channel data with members for each mapping
+  const channels = config.channelMappings.map(mapping => ({
+    harmonyChannelId: mapping.harmony,
+    discordChannelId: mapping.discord,
+    members: Array.from(discordMemberDetails.values()).map(m => ({
+      id: m.id,
+      username: m.username,
+      displayName: m.displayName,
+      avatarUrl: m.avatarUrl,
+      source: 'discord' as const
+    }))
+  }))
+  
+  console.log('╔════════════════════════════════════════╗')
+  console.log('║   🌉 Registering Bridge Data          ║')
+  console.log('╠════════════════════════════════════════╣')
+  console.log(`║   Channels: ${channels.length}`)
+  console.log(`║   Discord Members: ${discordMemberDetails.size}`)
+  channels.forEach(ch => {
+    console.log(`║   📍 ${ch.harmonyChannelId.substring(0, 8)}... <-> Discord ${ch.discordChannelId}`)
+  })
+  console.log('╚════════════════════════════════════════╝')
+  
+  harmonyClient.registerBridgeData(channels)
+}
 
 // Get or create webhook for channel (for puppeting)
 async function getOrCreateWebhook(channelId: string): Promise<Webhook | null> {
@@ -67,7 +260,8 @@ const discordClient = new DiscordClient({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildMembers  // Required for member cache
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 })
@@ -387,6 +581,10 @@ harmonyClient.on('ready', async (data: any) => {
       console.error(`❌ Failed to load recent messages from ${mapping.name || mapping.harmony}:`, error);
     }
   }
+  
+  // Mark Harmony as ready and register bridge data if Discord is also ready
+  harmonyReady = true
+  registerBridgeDataWithGateway()
 });
 
 harmonyClient.on('messageCreate', async (msg: any) => {
@@ -474,8 +672,8 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     // Discord won't be able to fetch localhost URLs, so skip avatar in local dev
     const avatarURL = msg.author?.avatar?.startsWith('http://localhost') ? undefined : msg.author?.avatar
     
-    // Convert Harmony MessageParts to Discord format
-    const contentText = translator.harmonyToDiscord(msg)
+    // Convert Harmony MessageParts to Discord format (with member cache for mention lookups)
+    const contentText = translator.harmonyToDiscord(msg, discordMemberCache)
     if (!contentText || contentText.trim() === '') {
       console.error('❌ Message content is empty after translation, cannot send to Discord')
       return
@@ -508,7 +706,14 @@ harmonyClient.on('messageCreate', async (msg: any) => {
 
 // Handle Harmony message updates
 harmonyClient.on('messageUpdate', async (msg: any) => {
-  console.log(`📝 Harmony message updated:`, { id: msg.id, channel_id: msg.channel_id });
+  console.log(`📝 Harmony message updated:`, { 
+    id: msg.id, 
+    channel_id: msg.channel_id,
+    content: msg.content?.substring?.(0, 50) || JSON.stringify(msg.content_raw)?.substring(0, 50),
+    metadata: msg.metadata,
+    mappingExists: harmonyToDiscordMessages.has(msg.id),
+    totalMappings: harmonyToDiscordMessages.size
+  });
   
   // Don't bridge messages that came from Discord (prevent loops!)
   if (msg.metadata?.bridge_source === 'discord') {
@@ -516,12 +721,26 @@ harmonyClient.on('messageUpdate', async (msg: any) => {
     return
   }
   
+  // Skip "[deleted]" edits - the MESSAGE_DELETE event will handle actual deletion
+  const contentText = msg.content || ''
+  const contentRaw = msg.content_raw || []
+  const isDeleted = contentText === '[deleted]' || 
+    (Array.isArray(contentRaw) && contentRaw.length === 1 && contentRaw[0]?.text === '[deleted]')
+  
+  if (isDeleted) {
+    console.log('⏭️  Skipping [deleted] content - waiting for MESSAGE_DELETE event')
+    return
+  }
+  
   // Get Discord message ID from mapping
   const discordMessageId = harmonyToDiscordMessages.get(msg.id)
   if (!discordMessageId) {
-    console.log('⚠️  No message mapping found for Harmony message', msg.id)
+    console.log(`⚠️  No message mapping found for Harmony message ${msg.id}`)
+    console.log(`   Current mappings:`, Array.from(harmonyToDiscordMessages.keys()).slice(0, 5))
     return
   }
+  
+  console.log(`✅ Found mapping: Harmony ${msg.id} -> Discord ${discordMessageId}`)
   
   // Get Discord channel from mapping
   const discordChannelId = mapper.getDiscordChannel(msg.channel_id)
@@ -549,8 +768,8 @@ harmonyClient.on('messageUpdate', async (msg: any) => {
       return
     }
     
-    // Convert content
-    const contentText = translator.harmonyToDiscord(msg)
+    // Convert content (with member cache for mention lookups)
+    const contentText = translator.harmonyToDiscord(msg, discordMemberCache)
     
     // Edit the webhook message
     await webhook.editMessage(discordMessageId, {
@@ -565,7 +784,13 @@ harmonyClient.on('messageUpdate', async (msg: any) => {
 
 // Handle Harmony message deletes
 harmonyClient.on('messageDelete', async (msg: any) => {
-  console.log(`🗑️ Harmony message deleted:`, { id: msg.id, channel_id: msg.channel_id });
+  console.log(`🗑️ Harmony message deleted:`, { 
+    id: msg.id, 
+    channel_id: msg.channel_id,
+    metadata: msg.metadata,
+    mappingExists: harmonyToDiscordMessages.has(msg.id),
+    totalMappings: harmonyToDiscordMessages.size
+  });
   
   // Don't bridge messages that came from Discord (prevent loops!)
   if (msg.metadata?.bridge_source === 'discord') {
@@ -576,9 +801,12 @@ harmonyClient.on('messageDelete', async (msg: any) => {
   // Get Discord message ID from mapping
   const discordMessageId = harmonyToDiscordMessages.get(msg.id)
   if (!discordMessageId) {
-    console.log('⚠️  No message mapping found for Harmony message', msg.id)
+    console.log(`⚠️  No message mapping found for Harmony message ${msg.id}`)
+    console.log(`   Current mappings:`, Array.from(harmonyToDiscordMessages.keys()).slice(0, 5))
     return
   }
+  
+  console.log(`✅ Found mapping: Harmony ${msg.id} -> Discord ${discordMessageId}`)
   
   // Get Discord channel from mapping
   const discordChannelId = mapper.getDiscordChannel(msg.channel_id)
@@ -607,9 +835,10 @@ harmonyClient.on('messageDelete', async (msg: any) => {
     }
     
     // Delete the webhook message
+    console.log(`🗑️ Attempting to delete Discord message ${discordMessageId} via webhook...`)
     await webhook.deleteMessage(discordMessageId)
     
-    console.log(`✅ Harmony -> Discord delete: Message ${discordMessageId}`)
+    console.log(`✅ Harmony -> Discord delete SUCCESS: Message ${discordMessageId} deleted from Discord`)
     
     // Clean up mapping
     harmonyToDiscordMessages.delete(msg.id)
@@ -695,8 +924,339 @@ discordClient.login(config.discord.token).catch(error => {
   process.exit(1)
 })
 
-discordClient.on('ready', () => {
+discordClient.on('ready', async () => {
   console.log(`✅ Discord bot connected: ${discordClient.user?.tag}`)
+  
+  // Populate member cache from configured guild
+  if (config.discord.guildId) {
+    try {
+      const guild = await discordClient.guilds.fetch(config.discord.guildId)
+      console.log(`📥 Fetching members for guild: ${guild.name}`)
+      
+      // Fetch all members (required for proper cache population)
+      const members = await guild.members.fetch()
+      members.forEach(member => {
+        if (!member.user.bot) {
+          cacheMember(member)
+        }
+      })
+      
+      console.log(`✅ Cached ${discordMemberCache.size} Discord members for mention lookups`)
+      
+      // Register slash commands for this guild
+      await registerSlashCommands(config.discord.guildId)
+    } catch (error) {
+      console.error('❌ Failed to fetch guild members:', error)
+    }
+  }
+  
+  // Fetch Harmony users for autocomplete
+  await refreshHarmonyUserCache()
+  
+  // Refresh Harmony user cache periodically (every 5 minutes)
+  setInterval(refreshHarmonyUserCache, 5 * 60 * 1000)
+  
+  // Mark Discord as ready and register bridge data if Harmony is also ready
+  discordReady = true
+  registerBridgeDataWithGateway()
+})
+
+// Keep member cache updated and re-register with gateway
+discordClient.on('guildMemberAdd', (member) => {
+  if (!member.user.bot) {
+    cacheMember(member)
+    console.log(`👋 Added member to cache: ${member.user.username}`)
+    // Re-register bridge data with updated members
+    registerBridgeDataWithGateway()
+  }
+})
+
+discordClient.on('guildMemberRemove', (member) => {
+  uncacheMemberById(member.id, member.user.username)
+  console.log(`👋 Removed member from cache: ${member.user.username}`)
+  // Re-register bridge data with updated members
+  registerBridgeDataWithGateway()
+})
+
+discordClient.on('guildMemberUpdate', (oldMember, newMember) => {
+  // Update cache if username or display name changed
+  if (oldMember.user.username !== newMember.user.username || 
+      oldMember.displayName !== newMember.displayName) {
+    // Remove old entry
+    uncacheMemberById(oldMember.id, oldMember.user.username)
+    // Add new entry if not a bot
+    if (!newMember.user.bot) {
+      cacheMember(newMember)
+    }
+    // Re-register bridge data with updated members
+    registerBridgeDataWithGateway()
+  }
+})
+
+// =====================================================
+// SLASH COMMANDS
+// =====================================================
+
+/**
+ * Register slash commands with Discord
+ */
+async function registerSlashCommands(guildId: string) {
+  // Helper to add user options to a command
+  const addUserOptions = (builder: SlashCommandBuilder) => {
+    return builder
+      .addStringOption(option =>
+        option
+          .setName('user')
+          .setDescription('Harmony user to mention')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('message')
+          .setDescription('Your message')
+          .setRequired(false)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user2')
+          .setDescription('Additional user to mention')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user3')
+          .setDescription('Additional user to mention')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user4')
+          .setDescription('Additional user to mention')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('user5')
+          .setDescription('Additional user to mention')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+  }
+  
+  const commands = [
+    addUserOptions(
+      new SlashCommandBuilder()
+        .setName('mention')
+        .setDescription('Mention Harmony user(s) with a message')
+    ),
+    addUserOptions(
+      new SlashCommandBuilder()
+        .setName('m')
+        .setDescription('Quick mention Harmony user(s)')
+    )
+  ]
+
+  try {
+    const rest = new REST({ version: '10' }).setToken(config.discord.token)
+    
+    console.log('🔧 Registering slash commands...')
+    
+    await rest.put(
+      Routes.applicationGuildCommands(discordClient.user!.id, guildId),
+      { body: commands.map(cmd => cmd.toJSON()) }
+    )
+    
+    console.log('✅ Slash commands registered: /mention, /m')
+  } catch (error) {
+    console.error('❌ Failed to register slash commands:', error)
+  }
+}
+
+// Handle slash command interactions
+discordClient.on('interactionCreate', async (interaction) => {
+  // Handle autocomplete for user fields
+  if (interaction.isAutocomplete()) {
+    const autocomplete = interaction as AutocompleteInteraction
+    const focusedOption = autocomplete.options.getFocused(true)
+    
+    // Handle user, user2, user3, user4, user5 autocomplete
+    if (focusedOption.name.startsWith('user')) {
+      const query = focusedOption.value
+      console.log(`🔍 Autocomplete: "${query}", cache: ${harmonyUserCache.size}`)
+      
+      const matches = searchHarmonyUsers(query)
+      
+      await autocomplete.respond(
+        matches.map(user => ({
+          name: `${user.displayName} (@${user.username})`,
+          value: user.id
+        }))
+      )
+    }
+    return
+  }
+  
+  // Handle slash command execution
+  if (interaction.isChatInputCommand()) {
+    const command = interaction as ChatInputCommandInteraction
+    
+    if (command.commandName === 'mention' || command.commandName === 'm') {
+      // Get all user IDs from the options
+      const userIds = [
+        command.options.getString('user', true),
+        command.options.getString('user2', false),
+        command.options.getString('user3', false),
+        command.options.getString('user4', false),
+        command.options.getString('user5', false)
+      ].filter(Boolean) as string[]
+      
+      const message = command.options.getString('message', false) || ''
+      
+      console.log(`🔔 Slash command: users=${userIds.length}, message="${message}"`)
+      
+      // Get the Discord channel mapping
+      const harmonyChannelId = mapper.getHarmonyChannel(command.channelId)
+      if (!harmonyChannelId) {
+        await command.reply({ 
+          content: '❌ This channel is not bridged to Harmony.', 
+          ephemeral: true 
+        })
+        return
+      }
+      
+      // Build content parts: mentions first, then message
+      const contentParts: any[] = []
+      const mentionedUsers: CachedHarmonyUser[] = []
+      
+      // Add all user mentions
+      for (const userId of userIds) {
+        const harmonyUser = harmonyUserCache.get(userId)
+        if (harmonyUser) {
+          contentParts.push({
+            type: 'mention',
+            userId: harmonyUser.id,
+            username: harmonyUser.username,
+            domain: null,
+            isLocal: true,
+            displayName: harmonyUser.displayName
+          })
+          mentionedUsers.push(harmonyUser)
+          console.log(`🔔 Adding mention: @${harmonyUser.username}`)
+        }
+      }
+      
+      // Add space between mentions and message if both exist
+      if (mentionedUsers.length > 0 && message) {
+        contentParts.push({ type: 'text', text: ' ' })
+      }
+      
+      // Parse message for Discord emojis
+      if (message) {
+        const emojiRegex = /<(a?):(\w+):(\d+)>/g
+        let lastIndex = 0
+        let match
+        
+        while ((match = emojiRegex.exec(message)) !== null) {
+          // Add text before emoji
+          if (match.index > lastIndex) {
+            contentParts.push({ type: 'text', text: message.substring(lastIndex, match.index) })
+          }
+          
+          // Add emoji part
+          const isAnimated = match[1] === 'a'
+          const emojiName = match[2]
+          const emojiId = match[3]
+          const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${isAnimated ? 'gif' : 'png'}`
+          
+          console.log(`🎨 Emoji: :${emojiName}: → ${emojiUrl}`)
+          
+          contentParts.push({
+            type: 'emoji',
+            emoji: {
+              name: emojiName,
+              url: emojiUrl,
+              id: null,
+              domain: 'discord.com',
+              display_name: emojiName
+            }
+          })
+          
+          lastIndex = emojiRegex.lastIndex
+        }
+        
+        // Add remaining text
+        if (lastIndex < message.length) {
+          contentParts.push({ type: 'text', text: message.substring(lastIndex) })
+        } else if (lastIndex === 0) {
+          // No emojis found, add whole message
+          contentParts.push({ type: 'text', text: message })
+        }
+      }
+      
+      // Build Discord display text
+      const mentionDisplay = mentionedUsers.map(u => `@${u.username}@har.mony.lol`).join(' ')
+      const discordDisplayText = message ? `${mentionDisplay} ${message}` : mentionDisplay
+      
+      console.log(`📤 Sending ${contentParts.length} parts to Harmony`)
+      
+      // Get Discord user metadata for attribution
+      const member = command.member as GuildMember
+      const discordMetadata = {
+        discord_user: {
+          id: command.user.id,
+          username: command.user.username,
+          discriminator: command.user.discriminator,
+          display_name: member?.displayName || command.user.username,
+          avatar_url: command.user.displayAvatarURL({ size: 256 })
+        },
+        bridge_source: 'discord'
+      }
+      
+      try {
+        // Send directly to Harmony with proper mention parts
+        const harmonyMsg = await harmonyClient.sendMessage(
+          harmonyChannelId,
+          contentParts,
+          discordMetadata
+        )
+        
+        console.log(`✅ Slash command sent to Harmony`)
+        
+        // Also send to Discord channel so other Discord users see it
+        const webhook = await getOrCreateWebhook(command.channelId)
+        if (webhook) {
+          const webhookMsg = await webhook.send({
+            content: discordDisplayText,
+            username: (member?.displayName || command.user.username) + ' [H]',
+            avatarURL: command.user.displayAvatarURL()
+          })
+          
+          // Store message mapping
+          if (harmonyMsg?.id && webhookMsg?.id) {
+            discordToHarmonyMessages.set(webhookMsg.id, harmonyMsg.id)
+            harmonyToDiscordMessages.set(harmonyMsg.id, webhookMsg.id)
+          }
+        }
+        
+        // Acknowledge the command
+        const mentionList = mentionedUsers.map(u => `@${u.username}`).join(', ')
+        await command.reply({ 
+          content: `✅ Mentioned ${mentionList} in Harmony`, 
+          ephemeral: true 
+        })
+      } catch (error: any) {
+        console.error('❌ Failed to send message:', error)
+        await command.reply({ 
+          content: `❌ Failed to send: ${error.message}`, 
+          ephemeral: true 
+        })
+      }
+    }
+  }
 })
 
 // Start Harmony client

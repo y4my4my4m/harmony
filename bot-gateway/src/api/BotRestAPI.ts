@@ -54,16 +54,21 @@ export class BotRestAPI {
     this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
     
     // =====================================================
-    // GUILD (SERVER) ENDPOINTS
+    // SERVER ENDPOINTS (Harmony terminology)
     // =====================================================
     
-    // Get guild info
+    // Get server info
+    this.router.get('/servers/:serverId', this.getGuild.bind(this))
+    
+    // Get server members
+    this.router.get('/servers/:serverId/members', this.getGuildMembers.bind(this))
+    
+    // Get server channels
+    this.router.get('/servers/:serverId/channels', this.getGuildChannels.bind(this))
+    
+    // Legacy aliases (Discord terminology - deprecated)
     this.router.get('/guilds/:guildId', this.getGuild.bind(this))
-    
-    // Get guild members
     this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
-    
-    // Get guild channels
     this.router.get('/guilds/:guildId/channels', this.getGuildChannels.bind(this))
     
     // =====================================================
@@ -346,14 +351,29 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
       
+      // Check if emoji is a UUID (custom emoji) or Unicode (native emoji)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
+      
+      const insertData: any = {
+        message_id: messageId,
+        bot_id: botId,
+        metadata: metadata || null
+      }
+      
+      if (isUUID) {
+        // Custom emoji - use emoji_id
+        insertData.emoji_id = emoji
+      } else {
+        // Unicode/native emoji - use custom_emoji_content
+        insertData.custom_emoji_content = emoji
+        insertData.emoji_id = null
+      }
+      
+      console.log(`🎭 Adding reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" to message ${messageId}`)
+      
       const { error } = await supabase
         .from('reactions')
-        .insert({
-          message_id: messageId,
-          bot_id: botId,
-          emoji_id: emoji,
-          metadata: metadata || null
-        })
+        .insert(insertData)
       
       if (error) {
         console.error('❌ Reaction insert error:', error);
@@ -388,13 +408,24 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
       
-      // Delete the bot's reaction for this emoji on this message
-      const { error } = await supabase
+      // Check if emoji is a UUID (custom emoji) or Unicode (native emoji)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
+      
+      let query = supabase
         .from('reactions')
         .delete()
         .eq('message_id', messageId)
         .eq('bot_id', botId)
-        .eq('emoji_id', emoji)
+      
+      if (isUUID) {
+        query = query.eq('emoji_id', emoji)
+      } else {
+        query = query.is('emoji_id', null).eq('custom_emoji_content', emoji)
+      }
+      
+      console.log(`🎭 Removing reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" from message ${messageId}`)
+      
+      const { error } = await query
       
       if (error) {
         console.error('❌ Reaction delete error:', error);
@@ -423,20 +454,20 @@ export class BotRestAPI {
   
   private async getGuild(req: BotRequest, res: Response) {
     try {
-      const { guildId } = req.params
+      const serverId = req.params.serverId || req.params.guildId
       const botId = req.bot!.id
       
-      // Check if bot is in the guild
+      // Check if bot is in the server
       const { data: permission } = await supabase
         .from('bot_server_permissions')
         .select('*')
         .eq('bot_id', botId)
-        .eq('server_id', guildId)
+        .eq('server_id', serverId)
         .eq('is_active', true)
         .single()
       
       if (!permission) {
-        return res.status(403).json({ error: 'Bot not in guild' })
+        return res.status(403).json({ error: 'Bot not in server' })
       }
       
       const { data: guild, error } = await supabase
@@ -445,7 +476,7 @@ export class BotRestAPI {
           *,
           owner:profiles!servers_owner_fkey(id, username, display_name, avatar_url)
         `)
-        .eq('id', guildId)
+        .eq('id', serverId)
         .single()
       
       if (error) {
@@ -460,12 +491,13 @@ export class BotRestAPI {
   
   private async getGuildMembers(req: BotRequest, res: Response) {
     try {
-      const { guildId } = req.params
+      // Support both /servers/:serverId and /guilds/:guildId
+      const serverId = req.params.serverId || req.params.guildId
       const { limit = 100, after } = req.query
       const botId = req.bot!.id
       
-      // Check if bot is in the guild
-      const hasAccess = await this.checkBotInGuild(botId, guildId)
+      // Check if bot is in the server
+      const hasAccess = await this.checkBotInGuild(botId, serverId)
       if (!hasAccess) {
         return res.status(403).json({ error: 'Bot not in guild' })
       }
@@ -476,7 +508,7 @@ export class BotRestAPI {
           *,
           user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status)
         `)
-        .eq('server_id', guildId)
+        .eq('server_id', serverId)
         .limit(Number(limit))
       
       if (after) {
@@ -497,18 +529,18 @@ export class BotRestAPI {
   
   private async getGuildChannels(req: BotRequest, res: Response) {
     try {
-      const { guildId } = req.params
+      const serverId = req.params.serverId || req.params.guildId
       const botId = req.bot!.id
       
-      const hasAccess = await this.checkBotInGuild(botId, guildId)
+      const hasAccess = await this.checkBotInGuild(botId, serverId)
       if (!hasAccess) {
-        return res.status(403).json({ error: 'Bot not in guild' })
+        return res.status(403).json({ error: 'Bot not in server' })
       }
       
       const { data: channels, error } = await supabase
         .from('channels')
         .select('*')
-        .eq('server_id', guildId)
+        .eq('server_id', serverId)
         .order('position')
       
       if (error) {

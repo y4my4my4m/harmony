@@ -269,8 +269,9 @@ export async function parseContentToMessageParts(
 
   // Parse mentions, hashtags, URLs, and emojis in order of appearance
   // Combined regex to match mentions, hashtags in one pass
+  // Includes compact Discord mention format: @d!ID:username
   // Unicode-aware: \p{L} = any letter, \p{N} = any number (includes CJK, etc.)
-  const combinedRegex = /(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
+  const combinedRegex = /(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
   const parts: MessagePart[] = [];
   
   let lastIndex = 0;
@@ -284,9 +285,24 @@ export async function parseContentToMessageParts(
     }
     
     if (match[1]) {
-      // This is a mention (@username or @username@domain)
-      const username = match[2];
-      const domain = match[3];
+      // This is a Discord bridged mention: @d!ID:username (compact format)
+      const discordId = match[2];
+      const discordUsername = match[3];
+      
+      parts.push({
+        type: 'mention',
+        userId: discordId, // Store Discord ID directly for translation to <@ID>
+        username: discordUsername,
+        domain: 'discord.com',
+        isLocal: false,
+        displayName: discordUsername,
+        isBridged: true,
+        bridgeSource: 'discord'
+      } as MessagePart);
+    } else if (match[4]) {
+      // This is a regular mention (@username or @username@domain)
+      const username = match[5];
+      const domain = match[6];
       
       // Look up user data from provided map (efficient batch lookup)
       const mentionKey = domain ? `${username}@${domain}` : username;
@@ -309,9 +325,9 @@ export async function parseContentToMessageParts(
         isLocal: isLocal,
         displayName: displayName
       });
-    } else if (match[4]) {
+    } else if (match[7]) {
       // This is a hashtag (#tagname)
-      const hashtagName = match[4];
+      const hashtagName = match[7];
       const normalizedName = hashtagName.toLowerCase();
       
       // Look up hashtag data from provided map

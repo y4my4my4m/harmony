@@ -7,50 +7,202 @@ export class EventDispatcher {
   private lastProcessedTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
   
+  // Track message versions for edit detection (includes channel_id for delete dispatch)
+  private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
+  // Track known message IDs for delete detection
+  private knownMessageIds: Set<string> = new Set()
+  
   constructor(private gateway: WebSocketGateway) {}
   
   async start() {
     console.log('🎯 Starting Event Dispatcher...')
     
-    // Use polling instead of realtime subscriptions for local development
-    // This is more reliable with local Supabase and service role
-    this.startPolling()
-    this.startRealtimeSubscriptions()
+    // Initialize known messages for a recent window (for delete detection)
+    await this.initializeKnownMessages()
     
-    console.log('✅ Event Dispatcher started with polling mode + realtime for edits/deletes')
+    // Use polling for everything - more reliable than Realtime
+    this.startPolling()
+    
+    console.log('✅ Event Dispatcher started with polling mode (creates, edits, deletes)')
+  }
+  
+  private async initializeKnownMessages() {
+    // Load recent NON-DELETED messages to track for edits and deletes (last 72 hours)
+    const seventyTwoHoursAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
+    
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('id, updated_at, content, channel_id, metadata')
+      .gt('created_at', seventyTwoHoursAgo)
+      .eq('is_deleted', false) // Only track non-deleted messages
+      .order('created_at', { ascending: false })
+      .limit(10000)
+    
+    if (messages) {
+      for (const msg of messages) {
+        this.knownMessageIds.add(msg.id)
+        this.messageVersions.set(msg.id, { 
+          updated_at: msg.updated_at, 
+          content: msg.content,
+          channel_id: msg.channel_id,
+          metadata: msg.metadata
+        })
+      }
+      console.log(`📋 Initialized ${messages.length} known messages for edit/delete tracking (last 72h)`)
+    }
   }
   
   private startPolling() {
-    console.log('🔄 Starting polling mode for message events (every 1 second)...')
+    console.log('🔄 Starting polling mode for all message events...')
     
     // Poll every second for new messages
     this.pollingInterval = setInterval(async () => {
       await this.pollMessages()
     }, 1000)
+    
+    // Poll every 2 seconds for edits/deletes (compares cached content vs DB)
+    setInterval(async () => {
+      await this.pollEditsAndDeletes()
+    }, 2000)
   }
   
-  private startRealtimeSubscriptions() {
-    console.log('🔄 Starting realtime subscriptions for message updates/deletes...')
+  private pollCount = 0
+  
+  private async pollEditsAndDeletes() {
+    this.pollCount++
     
-    // Subscribe to message updates
-    const updateChannel = supabase
-      .channel('bot-message-updates')
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload) => this.handleMessageUpdate(payload)
-      )
-      .subscribe()
+    // Log every 10th poll to show it's running
+    if (this.pollCount % 10 === 0) {
+      console.log(`🔄 pollEditsAndDeletes running (poll #${this.pollCount}, tracking ${this.knownMessageIds.size} messages)`)
+    }
     
-    // Subscribe to message deletes
-    const deleteChannel = supabase
-      .channel('bot-message-deletes')
-      .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'messages' },
-        (payload) => this.handleMessageDelete(payload)
-      )
-      .subscribe()
-    
-    this.subscriptions.push(updateChannel, deleteChannel)
+    try {
+      // Only check if we have known messages to track
+      if (this.knownMessageIds.size === 0) {
+        if (this.pollCount % 10 === 0) console.log('   (no messages to track)')
+        return
+      }
+      
+      // Check the NEWEST messages first (most likely to be edited)
+      const allIds = Array.from(this.knownMessageIds)
+      const idsToCheck = allIds.slice(-100) // Last 100 = newest
+      
+      const { data: currentMessages, error } = await supabase
+        .from('messages')
+        .select('id, content, channel_id, user_id, bot_id, metadata, encrypted, updated_at, is_deleted')
+        .in('id', idsToCheck)
+      
+      if (error) {
+        console.error('❌ pollEditsAndDeletes error:', error)
+        return
+      }
+      
+      // Log comparison details every 5th poll - check ALL messages for changes
+      if (this.pollCount % 5 === 0) {
+        // Show first few IDs being checked
+        console.log(`   Checking IDs: ${idsToCheck.slice(0, 3).map(id => id.substring(0, 8)).join(', ')}... (${idsToCheck.length} total)`)
+        console.log(`   DB returned ${currentMessages?.length || 0} messages`)
+      }
+      
+      let changesFound = 0
+      let deletesFound = 0
+      
+      for (const msg of currentMessages || []) {
+        const cached = this.messageVersions.get(msg.id)
+        
+        // Check for soft-deletes (is_deleted = true)
+        if (msg.is_deleted && cached) {
+          deletesFound++
+          console.log(`🗑️ SOFT DELETE detected: ${msg.id} (is_deleted = true)`)
+          await this.handleMessageDelete({ 
+            old: { 
+              id: msg.id, 
+              channel_id: msg.channel_id,
+              metadata: msg.metadata
+            } 
+          })
+          // Remove from cache
+          this.knownMessageIds.delete(msg.id)
+          this.messageVersions.delete(msg.id)
+          continue
+        }
+        
+        // Check for content changes (edits)
+        if (cached && this.contentChanged(cached.content, msg.content)) {
+          changesFound++
+          console.log(`🔍 EDIT DETECTED in ${msg.id}:`)
+          console.log(`   DB type: ${typeof msg.content}, Cache type: ${typeof cached.content}`)
+          console.log(`   DB: "${this.contentPreview(msg.content)}"`)
+          console.log(`   Cache: "${this.contentPreview(cached.content)}"`)
+        }
+      }
+      
+      if (this.pollCount % 5 === 0 && changesFound === 0 && deletesFound === 0) {
+        console.log(`   No changes detected`)
+      }
+      
+      const currentById = new Map((currentMessages || []).map(m => [m.id, m]))
+      
+      for (const id of idsToCheck) {
+        const cached = this.messageVersions.get(id)
+        const current = currentById.get(id)
+        
+        if (!current) {
+          // Message was DELETED
+          if (cached?.channel_id) {
+            console.log(`🗑️ Detected message delete: ${id}`)
+            await this.handleMessageDelete({ 
+              old: { 
+                id, 
+                channel_id: cached.channel_id,
+                metadata: cached.metadata
+              } 
+            })
+          }
+          this.knownMessageIds.delete(id)
+          this.messageVersions.delete(id)
+        } else if (cached && this.contentChanged(cached.content, current.content)) {
+          // Message was EDITED (content changed)
+          console.log(`📝 Detected message edit: ${id}`)
+          console.log(`   old: "${this.contentPreview(cached.content)}"`)
+          console.log(`   new: "${this.contentPreview(current.content)}"`)
+          console.log(`   channel_id: ${current.channel_id}`)
+          
+          try {
+            await this.handleMessageUpdate({ new: current, old: { id } })
+            console.log(`✅ handleMessageUpdate completed for ${id}`)
+          } catch (err) {
+            console.error(`❌ handleMessageUpdate failed for ${id}:`, err)
+          }
+          
+          // Update cache with new content
+          this.messageVersions.set(id, {
+            updated_at: current.updated_at,
+            content: current.content,
+            channel_id: current.channel_id,
+            metadata: current.metadata
+          })
+        }
+      }
+    } catch (error) {
+      console.error('❌ pollEditsAndDeletes exception:', error)
+    }
+  }
+  
+  // Helper to safely compare content (handles string, object, null)
+  private contentChanged(a: any, b: any): boolean {
+    const strA = typeof a === 'string' ? a : JSON.stringify(a)
+    const strB = typeof b === 'string' ? b : JSON.stringify(b)
+    return strA !== strB
+  }
+  
+  // Helper to get a preview of content for logging
+  private contentPreview(content: any): string {
+    if (content === null || content === undefined) return '(empty)'
+    if (typeof content === 'string') return content.substring(0, 40) + (content.length > 40 ? '...' : '')
+    // It's an object/array - stringify and truncate
+    const str = JSON.stringify(content)
+    return str.substring(0, 40) + (str.length > 40 ? '...' : '')
   }
   
   private async pollMessages() {
@@ -80,10 +232,28 @@ export class EventDispatcher {
             this.processedMessageIds.add(message.id)
             this.lastProcessedTimestamp = new Date(message.created_at)
             
-            // Keep set size reasonable (only keep last 1000 IDs)
-            if (this.processedMessageIds.size > 1000) {
+            // Add to version cache for edit/delete tracking
+            this.knownMessageIds.add(message.id)
+            this.messageVersions.set(message.id, {
+              updated_at: message.updated_at,
+              content: message.content,
+              channel_id: message.channel_id,
+              metadata: message.metadata
+            })
+            console.log(`📋 Cached message ${message.id.substring(0, 8)} with content type: ${typeof message.content}`)
+            
+            // Keep set size reasonable (only keep last 10000 IDs)
+            if (this.processedMessageIds.size > 10000) {
               const idsArray = Array.from(this.processedMessageIds);
-              this.processedMessageIds = new Set(idsArray.slice(-1000));
+              this.processedMessageIds = new Set(idsArray.slice(-10000));
+            }
+            
+            // Also prune version cache
+            if (this.messageVersions.size > 10000) {
+              const entries = Array.from(this.messageVersions.entries());
+              const toKeep = entries.slice(-10000);
+              this.messageVersions = new Map(toKeep);
+              this.knownMessageIds = new Set(toKeep.map(([id]) => id));
             }
           }
         }
@@ -163,10 +333,16 @@ export class EventDispatcher {
   private async handleMessageUpdate(payload: any) {
     const message = payload.new
     
-    console.log(`📝 EventDispatcher: Message updated`, {
-      id: message.id,
-      channel_id: message.channel_id
+    console.log(`📝 EventDispatcher.handleMessageUpdate called:`, {
+      id: message?.id,
+      channel_id: message?.channel_id,
+      hasContent: !!message?.content
     });
+    
+    if (!message || !message.id) {
+      console.log('⚠️  No message data in payload');
+      return
+    }
     
     // Skip encrypted messages (bots can't read them)
     if (message.encrypted) {
@@ -178,13 +354,17 @@ export class EventDispatcher {
     let serverId: string | null = null
     
     if (message.channel_id) {
-      const { data: channel } = await supabase
+      const { data: channel, error: channelError } = await supabase
         .from('channels')
         .select('server_id')
         .eq('id', message.channel_id)
         .single()
       
+      if (channelError) {
+        console.log('⚠️  Channel lookup error:', channelError.message);
+      }
       serverId = channel?.server_id
+      console.log(`📍 Channel ${message.channel_id} -> Server ${serverId}`);
     }
     
     if (!serverId) {
@@ -193,28 +373,37 @@ export class EventDispatcher {
     }
     
     // Get bots with permissions in this server
-    const { data: botPermissions } = await supabase
+    const { data: botPermissions, error: permError } = await supabase
       .from('bot_server_permissions')
       .select('bot_id, read_messages')
       .eq('server_id', serverId)
       .eq('read_messages', true)
       .eq('is_active', true)
     
+    if (permError) {
+      console.log('⚠️  Permission lookup error:', permError.message);
+    }
+    
+    console.log(`🔍 Found ${botPermissions?.length || 0} bots with read_messages permission`);
+    
     if (!botPermissions || botPermissions.length === 0) {
+      console.log('⚠️  No bots have permission, skipping dispatch');
       return
     }
     
     // Format and dispatch event
+    const formattedMessage = await this.formatMessage(message)
     const event = {
       op: 0,
       t: 'MESSAGE_UPDATE',
-      d: await this.formatMessage(message)
+      d: formattedMessage
     }
     
     const botIds = botPermissions.map(bp => bp.bot_id)
+    console.log(`📤 Sending MESSAGE_UPDATE to bots:`, botIds);
     this.gateway.sendToMultipleBots(botIds, event)
     
-    console.log(`📨 Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
+    console.log(`✅ Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
   }
   
   private async handleMessageDelete(payload: any) {
