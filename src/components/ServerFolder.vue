@@ -15,6 +15,8 @@
         @dragleave.prevent="handleDragLeave"
         @dragover.prevent
         @drop.prevent="handleDrop"
+        @mouseenter="showFolderTooltip"
+        @mouseleave="hideFolderTooltip"
       >
         <div class="folder-grid">
           <div 
@@ -155,6 +157,8 @@ interface Emits {
   (e: 'servers-reordered', servers: Server[]): void;
   (e: 'server-dropped', serverId: string, folderId: string): void;
   (e: 'server-removed', serverId: string): void;
+  (e: 'show-folder-tooltip', event: MouseEvent, name: string, serverCount: number): void;
+  (e: 'hide-folder-tooltip'): void;
 }
 
 const props = defineProps<Props>();
@@ -337,6 +341,15 @@ const hideServerTooltip = () => {
     tooltipTimer.value = null;
   }
   serverTooltip.value.visible = false;
+};
+
+// Folder tooltip handlers (emit to parent)
+const showFolderTooltip = (event: MouseEvent) => {
+  emit('show-folder-tooltip', event, props.folder.name || 'Folder', props.servers.length);
+};
+
+const hideFolderTooltip = () => {
+  emit('hide-folder-tooltip');
 };
 
 const openServerContextMenu = (event: MouseEvent, server: Server) => {
@@ -714,7 +727,7 @@ const onIconError = (event: Event) => {
   background: #18191c;
   border-radius: 8px;
   padding: 10px 14px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-small);
   z-index: 1001;
   pointer-events: none;
   white-space: nowrap;
@@ -773,7 +786,7 @@ const onIconError = (event: Event) => {
   background: #18191c;
   border-radius: 8px;
   padding: 10px 14px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-small);
   z-index: 10001;
   pointer-events: none;
   white-space: nowrap;

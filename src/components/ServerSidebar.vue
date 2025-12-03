@@ -62,8 +62,6 @@
           draggable="true"
           @dragstart.stop="handleFolderDragStart($event, item)"
           @dragend="handleItemDragEnd"
-          @mouseenter="showSidebarTooltip($event, item.name || 'Folder', getFolderServers(item.id).length)"
-          @mouseleave="hideSidebarTooltip"
         >
           <ServerFolder
             :folder="item"
@@ -74,6 +72,8 @@
             @servers-reordered="handleFolderServersReorder(item.id, $event)"
             @server-dropped="handleServerDroppedOnFolder"
             @server-removed="handleServerRemovedFromFolder"
+            @show-folder-tooltip="showSidebarTooltip"
+            @hide-folder-tooltip="hideSidebarTooltip"
           />
           <!-- Invisible drop zones for reordering folders -->
           <div 
@@ -1272,8 +1272,8 @@ const removeServerFromFolder = async () => {
   transform: translateY(-50%);
   background: #18191c;
   border-radius: 8px;
-  padding: 10px 14px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  padding: 6px 14px;
+  box-shadow: var(--shadow-small);
   z-index: 1001;
   pointer-events: none;
   white-space: nowrap;
@@ -1342,8 +1342,8 @@ const removeServerFromFolder = async () => {
   transform: translateY(-50%);
   background: #18191c;
   border-radius: 8px;
-  padding: 10px 14px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  padding: 6px 14px;
+  box-shadow: var(--shadow-small);
   z-index: 10001;
   pointer-events: none;
   white-space: nowrap;
