@@ -615,25 +615,38 @@ router.get(
       const authorMap = new Map<string, any>();
       
       // Fetch each author and map them by the URL we used to fetch them
-      await Promise.all(Array.from(uniqueAuthorUrls).map(async (url) => {
+      const fetchResults = await Promise.all(Array.from(uniqueAuthorUrls).map(async (url) => {
         try {
           const profile = await ActivityProcessor['ensureRemoteUser'](url);
           if (profile) {
-            // Map by BOTH the original URL and the canonical federated_id
-            authorMap.set(url, profile);
-            authorMap.set(url.toLowerCase(), profile);
-            if (profile.federated_id && profile.federated_id !== url) {
-              authorMap.set(profile.federated_id, profile);
-              authorMap.set(profile.federated_id.toLowerCase(), profile);
-            }
-            logger.debug(`Mapped author: ${url} -> ${profile.username}`);
+            logger.debug(`✅ Got profile for ${url}: id=${profile.id}, username=${profile.username}`);
+            return { url, profile };
+          } else {
+            logger.warn(`❌ ensureRemoteUser returned null for ${url}`);
+            return null;
           }
         } catch (err) {
-          logger.debug(`Could not fetch author ${url}: ${err}`);
+          logger.warn(`❌ Could not fetch author ${url}: ${err}`);
+          return null;
         }
       }));
       
-      logger.debug(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
+      // Build the author map from successful results
+      for (const result of fetchResults) {
+        if (result && result.profile) {
+          const { url, profile } = result;
+          // Map by BOTH the original URL and the canonical federated_id
+          authorMap.set(url, profile);
+          authorMap.set(url.toLowerCase(), profile);
+          if (profile.federated_id && profile.federated_id !== url) {
+            authorMap.set(profile.federated_id, profile);
+            authorMap.set(profile.federated_id.toLowerCase(), profile);
+          }
+          logger.debug(`Mapped author: ${url} -> ${profile.username}`);
+        }
+      }
+      
+      logger.info(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
 
       // Transform messages using the cached author data
       const messages = await Promise.all(items.map(async (item: any) => {
@@ -1240,8 +1253,13 @@ export class ServerDiscoveryService {
     try {
       logger.info(`👥 Syncing remote server members from: ${membersUrl}`);
 
-      // Fetch members collection
-      const response = await SignatureService.signedFetch(membersUrl + '?page=1');
+      // Fetch members collection (public endpoint, no signature needed)
+      const response = await fetch(membersUrl + '?page=1', {
+        headers: {
+          'Accept': 'application/activity+json, application/json',
+          'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,
+        },
+      });
       
       if (!response.ok) {
         logger.warn(`Failed to fetch members collection: ${response.status}`);

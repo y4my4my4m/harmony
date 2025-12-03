@@ -124,14 +124,13 @@ export async function handleChannelMessageFederation(
         'Create'
       );
 
-      // Deliver to remote server's inbox
-      const deliveryQueue = new DeliveryQueue();
-      await deliveryQueue.enqueue({
+      // Deliver to remote server's inbox (static method)
+      await DeliveryQueue.enqueue(
         activity,
-        targetUrl: server.federation_inbox_url,
-        actorId: author.id,
-        priority: 5,
-      });
+        server.federation_inbox_url,
+        author.id,
+        5 // priority
+      );
 
     // Update federation status
     await supabase
