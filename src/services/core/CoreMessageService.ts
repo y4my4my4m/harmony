@@ -839,16 +839,42 @@ export class CoreMessageService {
         updated_at: msg.updated_at,
         metadata: msg.metadata || {},
         author: msg.author,
-        reactions: [],
+        reactions: msg.reactions || [], // Use reactions from response if available
       }))
 
       // Reverse to get oldest-first for display
       const orderedMessages = messages.reverse()
 
-      // Load reactions for these messages (reactions are stored locally even for remote messages)
-      if (orderedMessages.length > 0) {
-        const messageIds = orderedMessages.map((m: Message) => m.id).filter((id: string) => id)
-        if (messageIds.length > 0) {
+      // Populate reactions store with data from response or local cache
+      const messageIds = orderedMessages.map((m: Message) => m.id).filter((id: string) => id)
+      
+      if (messageIds.length > 0) {
+        // Check if reactions came from the response
+        const hasReactionsFromResponse = orderedMessages.some((m: Message) => m.reactions && m.reactions.length > 0)
+        
+        if (hasReactionsFromResponse) {
+          // Use reactions from response - transform and cache them
+          const reactionsByMessage: Record<string, any[]> = {}
+          orderedMessages.forEach((m: Message) => {
+            if (m.reactions && m.reactions.length > 0) {
+              // Transform reaction format if needed
+              reactionsByMessage[m.id] = m.reactions.map((r: any) => ({
+                emoji_id: r.emoji?.id || r.emoji_id,
+                emoji: {
+                  id: r.emoji?.id || r.emoji_id,
+                  name: r.emoji?.name || r.emoji_name,
+                  url: r.emoji?.url, // Preserve remote emoji URL!
+                  is_native: r.emoji?.is_native ?? !r.emoji?.url,
+                },
+                count: r.count || 1,
+                reactions: r.reactions || [],
+                message_id_of_reactions: m.id,
+              }))
+            }
+          })
+          await this.populateReactionsStoreCache(reactionsByMessage)
+        } else {
+          // Fall back to loading from local cache
           const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
           
           orderedMessages.forEach((message: Message) => {

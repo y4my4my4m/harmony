@@ -683,6 +683,23 @@ router.get(
           }
         }
 
+        // Extract custom emojis from tags (preserve URLs)
+        const customEmojis = (note.tag || [])
+          .filter((t: any) => t.type === 'Emoji')
+          .map((t: any) => ({
+            name: t.name?.replace(/:/g, '') || t.id?.split('/').pop(),
+            url: t.icon?.url,
+          }));
+
+        // Fetch reactions for this message if we have a cached ID
+        let reactions: any[] = [];
+        if (cachedMsgId) {
+          const { data: rxns } = await supabase.rpc('get_message_reactions', { 
+            message_id: cachedMsgId 
+          });
+          reactions = rxns || [];
+        }
+
         // Return the message regardless of caching success
         return {
           id: cachedMsgId || messageUuid || note.id,
@@ -692,8 +709,10 @@ router.get(
           metadata: { 
             ap_id: note.id,
             is_bridge: author?.is_bridge || false,
+            customEmojis: customEmojis.length > 0 ? customEmojis : undefined,
           },
           author,
+          reactions, // Include reactions with emoji URLs
         };
       }));
 

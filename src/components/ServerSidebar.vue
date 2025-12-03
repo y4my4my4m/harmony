@@ -248,7 +248,7 @@ const goToMonyverse = () => {
 }
 
 .monyverse-icon {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   color: #ffffff;
   font-family: 'Inter', sans-serif;
