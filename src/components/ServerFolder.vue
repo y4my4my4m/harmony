@@ -57,7 +57,12 @@
         @drop.prevent="handleDrop"
       >
         <!-- Folder top cap with folder icon -->
-        <div class="folder-cap folder-cap-top" @click="toggleExpanded">
+        <div 
+          class="folder-cap folder-cap-top" 
+          @click="toggleExpanded"
+          @mouseenter="showFolderTooltip"
+          @mouseleave="hideFolderTooltip"
+        >
           <svg class="folder-cap-icon" viewBox="0 0 24 24">
             <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
           </svg>
@@ -72,7 +77,8 @@
             :class="{
               'is-dragging': draggingServerIdInFolder === server.id,
               'drop-target-before': dropTargetServerId === server.id && dropPosition === 'before',
-              'drop-target-after': dropTargetServerId === server.id && dropPosition === 'after'
+              'drop-target-after': dropTargetServerId === server.id && dropPosition === 'after',
+              'external-drop-target': dropTargetServerId === server.id && isExternalDragOver
             }"
             draggable="true"
             @dragstart="handleServerDragStart($event, server)"
@@ -176,6 +182,7 @@ const selectedServerForMenu = ref<Server | null>(null);
 const draggingServerIdInFolder = ref<string | null>(null);
 const dropTargetServerId = ref<string | null>(null);
 const dropPosition = ref<'before' | 'after'>('after');
+const isExternalDragOver = ref(false); // Track when external server is being dragged over
 
 // Tooltip state
 const serverTooltip = ref<{
@@ -240,8 +247,14 @@ const handleServerDragEnd = () => {
 };
 
 const handleServerDragEnterItem = (event: DragEvent, server: Server) => {
-  if (draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id) {
+  // Check if it's an internal drag or external drag
+  const isInternalDrag = draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id;
+  const hasExternalData = event.dataTransfer?.types.includes('text/plain') ?? false;
+  const isExternal = !draggingServerIdInFolder.value && hasExternalData;
+  
+  if (isInternalDrag || isExternal) {
     dropTargetServerId.value = server.id;
+    isExternalDragOver.value = !!isExternal;
     // Determine if drop should be before or after based on mouse position
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const midY = rect.top + rect.height / 2;
@@ -251,7 +264,14 @@ const handleServerDragEnterItem = (event: DragEvent, server: Server) => {
 
 const handleServerDragOverItem = (event: DragEvent, server: Server) => {
   event.preventDefault();
-  if (draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id) {
+  // Check if it's an internal drag or external drag
+  const isInternalDrag = draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id;
+  const hasExternalData = event.dataTransfer?.types.includes('text/plain') ?? false;
+  const isExternal = !draggingServerIdInFolder.value && hasExternalData;
+  
+  if (isInternalDrag || isExternal) {
+    dropTargetServerId.value = server.id;
+    isExternalDragOver.value = !!isExternal;
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const midY = rect.top + rect.height / 2;
     dropPosition.value = event.clientY < midY ? 'before' : 'after';
@@ -262,6 +282,7 @@ const handleServerDragLeaveItem = (event: DragEvent) => {
   const relatedTarget = event.relatedTarget as HTMLElement;
   if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
     dropTargetServerId.value = null;
+    isExternalDragOver.value = false;
   }
 };
 
@@ -276,6 +297,8 @@ const handleServerDropOnItem = (event: DragEvent, targetServer: Server) => {
   if (isFromOutside) {
     // Server from outside - add to folder
     isDraggingOver.value = false;
+    isExternalDragOver.value = false;
+    dropTargetServerId.value = null;
     emit('server-dropped', externalServerId, props.folder.id);
     return;
   }
