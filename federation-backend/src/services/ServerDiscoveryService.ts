@@ -52,11 +52,24 @@ router.get(
         description: serverData.summary || '',
         icon: serverData.icon?.url,
         memberCount: serverData.memberCount || 0,
-        channels: (serverData['harmony:channels'] || []).map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          type: c.type === 'harmony:VoiceChannel' ? 'voice' : 'text',
-        })),
+        channels: (serverData['harmony:channels'] || []).map((c: any) => {
+          // Map type to simple 'text', 'voice', or 'category'
+          let type = 'text';
+          if (c.type === 'harmony:VoiceChannel' || c.type === 1 || c.channelType === 'voice') {
+            type = 'voice';
+          } else if (c.type === 'harmony:Category' || c.type === 2 || c.channelType === 'category') {
+            type = 'category';
+          }
+          return {
+            id: c.id,
+            localId: c.localId,
+            name: c.name,
+            type,
+            category: c.category,
+            categoryId: c.categoryId,
+            order: c.order || c.position || 0,
+          };
+        }),
         inbox: serverData.inbox,
         discoverable: serverData.discoverable !== false,
       },
@@ -178,11 +191,22 @@ router.get(
 
     const server = invite.server;
     const hostDomain = config.INSTANCE_DOMAIN;
+    const supabaseUrl = config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL;
 
     // Helper to convert relative URLs to absolute
-    const makeAbsolute = (url: string | null | undefined): string | null => {
+    // Handles both regular paths and Supabase storage paths
+    const makeAbsolute = (url: string | null | undefined, bucket?: string): string | null => {
       if (!url) return null;
       if (url.startsWith('http://') || url.startsWith('https://')) return url;
+      if (url.startsWith('blob:')) return null;
+      
+      // If bucket is specified, it's a Supabase storage path
+      if (bucket) {
+        // Format: uuid/uuid.webp -> full storage URL
+        return `${supabaseUrl}/storage/v1/render/image/public/${bucket}/${url}?width=96&height=96&resize=contain&quality=80`;
+      }
+      
+      // Regular path - use instance domain
       return `https://${hostDomain}${url.startsWith('/') ? '' : '/'}${url}`;
     };
 
@@ -222,14 +246,14 @@ router.get(
       createdBy: invite.creator ? {
         username: invite.creator.username,
         displayName: invite.creator.display_name,
-        avatar: makeAbsolute(invite.creator.avatar_url),
+        avatar: makeAbsolute(invite.creator.avatar_url, 'avatars'),
       } : null,
       server: {
         id: serverApId,
         serverId: server.id,
         name: server.name,
         description: server.description || '',
-        icon: makeAbsolute(server.icon),
+        icon: makeAbsolute(server.icon, 'server_icons'),
         memberCount: memberCount || 0,
         channels: channelList,
         inbox: `${serverApId}/inbox`,
@@ -770,8 +794,12 @@ export class ServerDiscoveryService {
       const categoryMap = new Map<string, string>();
 
       // First pass: Create categories (type = 2)
+      // Handles multiple type formats: 'category', 2, 'harmony:Category', or channelType: 'category'
       const categories = channels.filter((c: any) => 
-        c.type === 'category' || c.type === 2
+        c.type === 'category' || 
+        c.type === 2 || 
+        c.type === 'harmony:Category' ||
+        c.channelType === 'category'
       );
       
       for (const cat of categories) {
@@ -796,7 +824,10 @@ export class ServerDiscoveryService {
           .select('id')
           .single();
 
-        if (catRef) {
+        if (catError) {
+          logger.error(`Failed to create category ${cat.name}:`, catError);
+        } else if (catRef) {
+          logger.info(`📁 Created category: ${cat.name} (id: ${catRef.id})`);
           categoryMap.set(cat.id, catRef.id);
           if (cat.localId) {
             categoryMap.set(cat.localId, catRef.id);
@@ -805,13 +836,24 @@ export class ServerDiscoveryService {
       }
 
       // Second pass: Create regular channels (text/voice)
-      const regularChannels = channels.filter((c: any) => 
-        c.type !== 'category' && c.type !== 2
-      );
+      // Excludes categories in all format variations
+      const isCategory = (c: any) => 
+        c.type === 'category' || 
+        c.type === 2 || 
+        c.type === 'harmony:Category' ||
+        c.channelType === 'category';
+      
+      const regularChannels = channels.filter((c: any) => !isCategory(c));
 
       for (const channelData of regularChannels) {
         const channelUuid = channelData.localId || extractUuid(channelData.id);
-        const channelType = (channelData.type === 'voice' || channelData.type === 1) ? 1 : 0;
+        // Detect voice channels from multiple format variations
+        const isVoice = 
+          channelData.type === 'voice' || 
+          channelData.type === 1 || 
+          channelData.type === 'harmony:VoiceChannel' ||
+          channelData.channelType === 'voice';
+        const channelType = isVoice ? 1 : 0;
 
         // Resolve category reference
         let categoryId = null;
@@ -836,7 +878,12 @@ export class ServerDiscoveryService {
           insertData.id = channelUuid;
         }
 
-        await supabase.from('channels').insert(insertData);
+        const { error: channelError } = await supabase.from('channels').insert(insertData);
+        if (channelError) {
+          logger.error(`Failed to create channel ${channelData.name}:`, channelError);
+        } else {
+          logger.info(`📝 Created channel: ${channelData.name} (type: ${channelType}, category: ${categoryId})`);
+        }
       }
 
       logger.info(`✅ Created ${channels.length} channel references (${categories.length} categories)`);
@@ -967,9 +1014,20 @@ export class ServerDiscoveryService {
 
       // Sync channels
       const remoteChannels = remoteServer['harmony:channels'] || [];
+      
+      // Helper to determine channel type
+      const getChannelType = (c: any): number => {
+        if (c.type === 'harmony:Category' || c.type === 2 || c.channelType === 'category') {
+          return 2; // category
+        }
+        if (c.type === 'harmony:VoiceChannel' || c.type === 1 || c.channelType === 'voice') {
+          return 1; // voice
+        }
+        return 0; // text
+      };
+
       for (const channelData of remoteChannels) {
-        const channelType = channelData.type === 'harmony:VoiceChannel' || 
-                           channelData.type === 'VoiceChannel' ? 1 : 0;
+        const channelType = getChannelType(channelData);
 
         // Upsert channel
         await supabase
@@ -978,9 +1036,10 @@ export class ServerDiscoveryService {
             server_id: serverId,
             name: channelData.name,
             type: channelType,
-            order: channelData.position || 0,
+            order: channelData.position || channelData.order || 0,
             ap_id: channelData.id,
             is_remote: true,
+            category: channelData.categoryId || null,
           }, {
             onConflict: 'ap_id',
           });

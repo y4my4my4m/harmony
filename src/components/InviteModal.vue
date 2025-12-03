@@ -320,7 +320,6 @@ const generateInvite = async () => {
     if (result.success && result.url) {
       inviteUrl.value = result.url
       await loadInviteHistory()
-      toast.success('Invite link generated successfully!')
     } else {
       permissionError.value = result.error || 'Failed to generate invite link'
       toast.error(result.error || 'Failed to generate invite link')
