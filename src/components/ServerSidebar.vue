@@ -43,40 +43,76 @@
     <!-- Scrollable servers section -->
     <div 
       class="servers-scroll-area"
-      @dragover.prevent
+      :class="{ 'drag-over-bottom': isDraggingOverBottom }"
+      @dragover.prevent="handleScrollAreaDragOver"
+      @dragleave.prevent="handleScrollAreaDragLeave"
       @drop.prevent="handleDropOnScrollArea"
     >
       <!-- Combined folders and servers, sorted by position -->
       <template v-for="item in sortedSidebarItems" :key="item.id">
         <!-- Folder -->
-        <ServerFolder
+        <div
           v-if="isFolder(item)"
-          :folder="item"
-          :servers="getFolderServers(item.id)"
-          :selected-server-id="serverChannelStore.currentServerId"
-          @select-server="selectServer"
-          @open-context-menu="openFolderContextMenu"
-          @servers-reordered="handleFolderServersReorder(item.id, $event)"
-          @server-dropped="handleServerDroppedOnFolder"
-          @server-removed="handleServerRemovedFromFolder"
-        />
+          class="sidebar-item-wrapper folder-wrapper"
+          :class="{
+            'is-dragging': draggingItemId === item.id,
+            'drop-target-before': dragOverItemId === item.id && dropPosition === 'before',
+            'drop-target-after': dragOverItemId === item.id && dropPosition === 'after'
+          }"
+          draggable="true"
+          @dragstart.stop="handleFolderDragStart($event, item)"
+          @dragend="handleItemDragEnd"
+          @mouseenter="showSidebarTooltip($event, item.name || 'Folder', getFolderServers(item.id).length)"
+          @mouseleave="hideSidebarTooltip"
+        >
+          <ServerFolder
+            :folder="item"
+            :servers="getFolderServers(item.id)"
+            :selected-server-id="serverChannelStore.currentServerId"
+            @select-server="selectServer"
+            @open-context-menu="openFolderContextMenu"
+            @servers-reordered="handleFolderServersReorder(item.id, $event)"
+            @server-dropped="handleServerDroppedOnFolder"
+            @server-removed="handleServerRemovedFromFolder"
+          />
+          <!-- Invisible drop zones for reordering folders -->
+          <div 
+            class="folder-drop-zone folder-drop-zone-top"
+            @dragenter.prevent="handleItemDragEnter($event, item)"
+            @dragover.prevent="handleFolderDropZoneOver($event, item, 'before')"
+            @dragleave.prevent="handleItemDragLeave"
+            @drop.prevent="handleItemDrop($event, item)"
+          ></div>
+          <div 
+            class="folder-drop-zone folder-drop-zone-bottom"
+            @dragenter.prevent="handleItemDragEnter($event, item)"
+            @dragover.prevent="handleFolderDropZoneOver($event, item, 'after')"
+            @dragleave.prevent="handleItemDragLeave"
+            @drop.prevent="handleItemDrop($event, item)"
+          ></div>
+        </div>
 
         <!-- Root-level server -->
         <div
           v-else
-          class="server-item-wrapper"
+          class="sidebar-item-wrapper server-item-wrapper"
           :class="{ 
-            'drop-target': dragOverServerId === item.id && draggingServerId !== item.id,
-            'is-dragging': draggingServerId === item.id
+            'drop-target-into': dragOverItemId === item.id && dropPosition === 'into' && draggingItemType === 'server',
+            'drop-target-before': dragOverItemId === item.id && dropPosition === 'before',
+            'drop-target-after': dragOverItemId === item.id && dropPosition === 'after',
+            'is-dragging': draggingItemId === item.id
           }"
           draggable="true"
           @dragstart="handleServerDragStart($event, item)"
-          @dragend="handleServerDragEnd"
-          @dragenter.prevent="handleServerDragEnter(item.id)"
-          @dragleave.prevent="handleServerDragLeave"
-          @dragover.prevent
-          @drop.prevent="handleServerDrop($event, item)"
+          @dragend="handleItemDragEnd"
+          @dragenter.prevent="handleItemDragEnter($event, item)"
+          @dragover.prevent="handleItemDragOver($event, item)"
+          @dragleave.prevent="handleItemDragLeave"
+          @drop.prevent="handleItemDrop($event, item)"
+          @click.stop="selectServer(item.id)"
           @contextmenu.prevent="openServerContextMenu($event, item)"
+          @mouseenter="showSidebarTooltip($event, item.name)"
+          @mouseleave="hideSidebarTooltip"
         >
           <ServerIcon
             :id="item.id"
@@ -87,19 +123,22 @@
             :class="{ selected: isSelected(item.id) }"
             shape="round"
             :interactive="true"
-            @click="selectServer(item.id)"
+            :show-title="false"
           />
           <div v-if="getServerUnreadMentions(item.id) > 0" class="unread-badge">
             {{ getServerUnreadMentions(item.id) > 99 ? '99+' : getServerUnreadMentions(item.id) }}
           </div>
           <!-- Folder creation indicator -->
-          <div v-if="dragOverServerId === item.id && draggingServerId !== item.id" class="folder-create-indicator">
+          <div v-if="dragOverItemId === item.id && dropPosition === 'into' && draggingItemType === 'server'" class="folder-create-indicator">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
             </svg>
           </div>
         </div>
       </template>
+      
+      <!-- Bottom drop indicator -->
+      <div v-if="isDraggingOverBottom" class="bottom-drop-indicator"></div>
     </div>
 
     <!-- Folder Context Menu -->
@@ -161,6 +200,25 @@
       @saved="handleFolderSaved"
     />
   </div>
+  
+  <!-- Sidebar Tooltip - Teleported to body to avoid overflow clipping -->
+  <Teleport to="body">
+    <Transition name="tooltip-fade">
+      <div 
+        v-if="sidebarTooltip.visible"
+        class="sidebar-tooltip"
+        :style="{ top: sidebarTooltip.y + 'px' }"
+      >
+        <div class="sidebar-tooltip-content">
+          <span class="sidebar-tooltip-name">{{ sidebarTooltip.name }}</span>
+          <span v-if="sidebarTooltip.serverCount" class="sidebar-tooltip-count">
+            {{ sidebarTooltip.serverCount }} server{{ sidebarTooltip.serverCount !== 1 ? 's' : '' }}
+          </span>
+        </div>
+        <div class="sidebar-tooltip-arrow"></div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -191,9 +249,26 @@ const emit = defineEmits<{
 // Reactive state
 const showPublicServers = ref(false);
 
-// Drag state for creating folders
-const draggingServerId = ref<string | null>(null);
-const dragOverServerId = ref<string | null>(null);
+// Drag state for reordering and creating folders
+const draggingItemId = ref<string | null>(null);
+const draggingItemType = ref<'server' | 'folder' | null>(null);
+const dragOverItemId = ref<string | null>(null);
+const dropPosition = ref<'before' | 'after' | 'into'>('after');
+const folderWasExpanded = ref<boolean>(false); // Track if folder was expanded before drag
+const isDraggingOverBottom = ref(false); // Track when dragging over empty bottom area
+
+// Tooltip state
+const sidebarTooltip = ref<{
+  visible: boolean;
+  name: string;
+  y: number;
+  serverCount?: number;
+}>({ visible: false, name: '', y: 0 });
+const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+
+// Legacy refs for backwards compatibility
+const draggingServerId = computed(() => draggingItemType.value === 'server' ? draggingItemId.value : null);
+const dragOverServerId = computed(() => dropPosition.value === 'into' ? dragOverItemId.value : null);
 
 // Context menu state
 const showFolderContextMenu = ref(false);
@@ -308,59 +383,321 @@ const goToMonyverse = () => {
   router.push({ name: 'SocialHome' });
 };
 
-// Drag and drop handlers for creating folders
+// Drag and drop handlers for reordering and creating folders
 const handleServerDragStart = (event: DragEvent, server: Server) => {
-  draggingServerId.value = server.id;
+  draggingItemId.value = server.id;
+  draggingItemType.value = 'server';
   event.dataTransfer?.setData('text/plain', server.id);
+  event.dataTransfer?.setData('application/x-item-type', 'server');
   event.dataTransfer!.effectAllowed = 'move';
 };
 
-const handleServerDragEnd = () => {
-  draggingServerId.value = null;
-  dragOverServerId.value = null;
-};
-
-const handleServerDragEnter = (serverId: string) => {
-  if (draggingServerId.value && draggingServerId.value !== serverId) {
-    dragOverServerId.value = serverId;
+const handleFolderDragStart = (event: DragEvent, folder: ServerFolderType) => {
+  const target = event.target as HTMLElement;
+  
+  // Only handle if drag started on folder UI elements, not on servers inside
+  // Check if drag started on a server item inside the folder
+  if (target.closest('.folder-server-item') || target.closest('.server-item')) {
+    // Let the server handle its own drag
+    return;
   }
+  
+  draggingItemId.value = folder.id;
+  draggingItemType.value = 'folder';
+  folderWasExpanded.value = folder.is_expanded;
+  
+  // Collapse folder while dragging
+  if (folder.is_expanded) {
+    serverChannelStore.toggleFolderExpanded(folder.id);
+  }
+  
+  event.dataTransfer?.setData('text/plain', folder.id);
+  event.dataTransfer?.setData('application/x-item-type', 'folder');
+  event.dataTransfer!.effectAllowed = 'move';
 };
 
-const handleServerDragLeave = () => {
-  // Small delay to prevent flickering when moving between elements
-  setTimeout(() => {
-    if (dragOverServerId.value) {
-      dragOverServerId.value = null;
+const handleItemDragEnd = () => {
+  // Only handle if we were dragging something from this sidebar (not from inside a folder)
+  if (!draggingItemId.value) {
+    return;
+  }
+  
+  // Re-expand folder if it was expanded before drag
+  if (draggingItemType.value === 'folder' && folderWasExpanded.value) {
+    const folder = serverChannelStore.folders.find(f => f.id === draggingItemId.value);
+    if (folder && !folder.is_expanded) {
+      serverChannelStore.toggleFolderExpanded(folder.id);
     }
-  }, 50);
+  }
+  
+  draggingItemId.value = null;
+  draggingItemType.value = null;
+  dragOverItemId.value = null;
+  folderWasExpanded.value = false;
 };
 
-const handleServerDrop = async (event: DragEvent, targetServer: Server) => {
-  const draggedServerId = event.dataTransfer?.getData('text/plain');
+const handleItemDragEnter = (event: DragEvent, item: Server | ServerFolderType) => {
+  // Handle both root-level drags and drags from inside folders
+  const isDraggingFromFolder = event.dataTransfer?.types.includes('application/x-from-folder');
+  const isDragging = draggingItemId.value || isDraggingFromFolder;
   
-  if (!draggedServerId || draggedServerId === targetServer.id) {
-    dragOverServerId.value = null;
+  if (isDragging && draggingItemId.value !== item.id) {
+    dragOverItemId.value = item.id;
+    isDraggingOverBottom.value = false; // Clear bottom indicator when over an item
+    updateDropPosition(event, item, isDraggingFromFolder);
+  }
+};
+
+const handleItemDragOver = (event: DragEvent, item: Server | ServerFolderType) => {
+  // Handle both root-level drags and drags from inside folders
+  const isDraggingFromFolder = event.dataTransfer?.types.includes('application/x-from-folder');
+  const isDragging = draggingItemId.value || isDraggingFromFolder;
+  
+  if (isDragging && draggingItemId.value !== item.id) {
+    isDraggingOverBottom.value = false; // Clear bottom indicator when over an item
+    updateDropPosition(event, item, isDraggingFromFolder);
+  }
+};
+
+const handleFolderDropZoneOver = (event: DragEvent, item: ServerFolderType, position: 'before' | 'after') => {
+  event.preventDefault();
+  if (draggingItemId.value && draggingItemId.value !== item.id) {
+    dragOverItemId.value = item.id;
+    dropPosition.value = position;
+  }
+};
+
+const updateDropPosition = (event: DragEvent, item: Server | ServerFolderType, isDraggingFromFolder: boolean = false) => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const relativeY = event.clientY - rect.top;
+  const height = rect.height;
+  
+  // Servers from folders or root servers being dragged over servers can create folders
+  const canCreateFolder = (draggingItemType.value === 'server' || isDraggingFromFolder) && !isFolder(item);
+  
+  if (canCreateFolder) {
+    if (relativeY < height * 0.25) {
+      dropPosition.value = 'before';
+    } else if (relativeY > height * 0.75) {
+      dropPosition.value = 'after';
+    } else {
+      dropPosition.value = 'into'; // Create folder
+    }
+  } else {
+    // For folders or folder being dragged, just before/after
+    dropPosition.value = relativeY < height / 2 ? 'before' : 'after';
+  }
+};
+
+const handleItemDragLeave = (event: DragEvent) => {
+  const relatedTarget = event.relatedTarget as HTMLElement;
+  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
+    dragOverItemId.value = null;
+  }
+};
+
+const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolderType) => {
+  event.stopPropagation();
+  
+  // Get dragged item info from either state or dataTransfer
+  const draggedId = draggingItemId.value || event.dataTransfer?.getData('text/plain');
+  const fromFolderId = event.dataTransfer?.getData('application/x-from-folder');
+  const isDraggingFromFolder = !!fromFolderId;
+  
+  if (!draggedId || draggedId === targetItem.id) {
+    resetDragState();
     return;
   }
 
-  const draggedServer = props.servers.find(s => s.id === draggedServerId);
-  if (!draggedServer) {
-    dragOverServerId.value = null;
+  const targetIsFolder = isFolder(targetItem);
+  
+  // Handle server from folder being dropped
+  if (isDraggingFromFolder) {
+    const serversInFolder = props.servers.filter(s => s.folder_id === fromFolderId);
+    
+    // If dropping into center of a server, create folder
+    if (!targetIsFolder && dropPosition.value === 'into') {
+      // First move to root, then create folder
+      await serverChannelStore.moveServerToFolder(draggedId, null);
+      if (serversInFolder.length <= 1) {
+        await serverChannelStore.deleteFolder(fromFolderId);
+      }
+      const targetServer = targetItem as Server;
+      await createFolderFromServers(draggedId, targetServer.id, targetServer.position || 0);
+      resetDragState();
+      return;
+    }
+    
+    // Calculate target position first
+    const items = sortedSidebarItems.value;
+    let targetPosition: number;
+    
+    if (dropPosition.value === 'before') {
+      targetPosition = targetItem.position || 0;
+    } else {
+      targetPosition = (targetItem.position || 0) + 1;
+    }
+    
+    // Shift existing items to make room
+    const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
+    const folderUpdates: { folderId: string; position: number }[] = [];
+    
+    items.forEach((item) => {
+      const itemPosition = item.position || 0;
+      if (itemPosition >= targetPosition) {
+        if (isFolder(item)) {
+          folderUpdates.push({ folderId: item.id, position: itemPosition + 1 });
+        } else {
+          serverUpdates.push({ serverId: (item as Server).id, folderId: null, position: itemPosition + 1 });
+        }
+      }
+    });
+    
+    // Add the dragged server at the target position
+    serverUpdates.push({ serverId: draggedId, folderId: null, position: targetPosition });
+    
+    // Apply all updates
+    if (serverUpdates.length > 0) {
+      await serverChannelStore.updateServerPositions(serverUpdates);
+    }
+    if (folderUpdates.length > 0) {
+      await serverChannelStore.updateFolderPositions(folderUpdates);
+    }
+    
+    // Delete empty folder
+    if (serversInFolder.length <= 1) {
+      await serverChannelStore.deleteFolder(fromFolderId);
+    }
+    
+    resetDragState();
     return;
   }
-
-  // Create a new folder at the target server's position (empty name by default)
-  const folderPosition = targetServer.position || 0;
-  const folder = await serverChannelStore.createFolder('', '#5865f2', folderPosition);
   
+  // Handle creating a folder when dropping server onto server (center zone)
+  if (draggingItemType.value === 'server' && !targetIsFolder && dropPosition.value === 'into') {
+    const targetServer = targetItem as Server;
+    await createFolderFromServers(draggingItemId.value!, targetServer.id, targetServer.position || 0);
+    resetDragState();
+    return;
+  }
+  
+  // Handle reordering root-level items
+  await reorderItems(draggingItemId.value!, draggingItemType.value!, targetItem.id, targetIsFolder, dropPosition.value);
+  resetDragState();
+};
+
+const createFolderFromServers = async (draggedServerId: string, targetServerId: string, position: number) => {
+  const folder = await serverChannelStore.createFolder('', '#5865f2', position);
   if (folder) {
-    // Move both servers to the new folder
     await serverChannelStore.moveServerToFolder(draggedServerId, folder.id);
-    await serverChannelStore.moveServerToFolder(targetServer.id, folder.id);
+    await serverChannelStore.moveServerToFolder(targetServerId, folder.id);
   }
+};
 
-  dragOverServerId.value = null;
-  draggingServerId.value = null;
+const reorderItems = async (
+  draggedId: string, 
+  draggedType: 'server' | 'folder', 
+  targetId: string, 
+  targetIsFolder: boolean,
+  position: 'before' | 'after' | 'into'
+) => {
+  // Get current list
+  const items = sortedSidebarItems.value;
+  const draggedIndex = items.findIndex(i => i.id === draggedId);
+  const targetIndex = items.findIndex(i => i.id === targetId);
+  
+  if (draggedIndex === -1 || targetIndex === -1) return;
+  
+  // Calculate new position
+  let newPosition: number;
+  if (position === 'before') {
+    newPosition = targetIndex <= draggedIndex ? targetIndex : targetIndex - 1;
+  } else {
+    newPosition = targetIndex >= draggedIndex ? targetIndex : targetIndex + 1;
+  }
+  
+  // Create new order
+  const newItems = [...items];
+  const [draggedItem] = newItems.splice(draggedIndex, 1);
+  newItems.splice(newPosition, 0, draggedItem);
+  
+  // Update positions in database
+  const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
+  const folderUpdates: { folderId: string; position: number }[] = [];
+  
+  newItems.forEach((item, index) => {
+    if (isFolder(item)) {
+      folderUpdates.push({ folderId: item.id, position: index });
+    } else {
+      serverUpdates.push({ serverId: (item as Server).id, folderId: null, position: index });
+    }
+  });
+  
+  if (serverUpdates.length > 0) {
+    await serverChannelStore.updateServerPositions(serverUpdates);
+  }
+  if (folderUpdates.length > 0) {
+    await serverChannelStore.updateFolderPositions(folderUpdates);
+  }
+};
+
+const resetDragState = () => {
+  draggingItemId.value = null;
+  draggingItemType.value = null;
+  dragOverItemId.value = null;
+  folderWasExpanded.value = false;
+  isDraggingOverBottom.value = false;
+};
+
+// Tooltip handlers
+const showSidebarTooltip = (event: MouseEvent, name: string, serverCount?: number) => {
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  
+  tooltipTimer.value = setTimeout(() => {
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    
+    sidebarTooltip.value = {
+      visible: true,
+      name: name || 'Unnamed',
+      y: rect.top + rect.height / 2,
+      serverCount
+    };
+  }, 400);
+};
+
+const hideSidebarTooltip = () => {
+  if (tooltipTimer.value) {
+    clearTimeout(tooltipTimer.value);
+    tooltipTimer.value = null;
+  }
+  sidebarTooltip.value.visible = false;
+};
+
+const handleScrollAreaDragOver = (event: DragEvent) => {
+  // Check if we're over an item, folder content, or the empty bottom area
+  const target = event.target as HTMLElement;
+  const isOverItem = target.closest('.sidebar-item-wrapper') || 
+                     target.closest('.folder-expanded') || 
+                     target.closest('.folder-collapsed') ||
+                     target.closest('.server-folder');
+  
+  // Check if something is being dragged (either from root or from a folder)
+  const isDragging = draggingItemId.value || event.dataTransfer?.types.includes('text/plain');
+  
+  if (!isOverItem && isDragging) {
+    isDraggingOverBottom.value = true;
+    dragOverItemId.value = null; // Clear item hover
+  } else {
+    isDraggingOverBottom.value = false;
+  }
+};
+
+const handleScrollAreaDragLeave = (event: DragEvent) => {
+  const relatedTarget = event.relatedTarget as HTMLElement;
+  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
+    isDraggingOverBottom.value = false;
+  }
 };
 
 const handleFolderServersReorder = (folderId: string, servers: Server[]) => {
@@ -381,25 +718,63 @@ const handleServerRemovedFromFolder = (serverId: string) => {
 };
 
 const handleDropOnScrollArea = async (event: DragEvent) => {
-  // Check if this server was dragged from a folder
-  const serverId = event.dataTransfer?.getData('text/plain');
+  // If we dropped on an item or folder, don't handle here
+  const target = event.target as HTMLElement;
+  const isOverItem = target.closest('.sidebar-item-wrapper') || 
+                     target.closest('.folder-expanded') || 
+                     target.closest('.folder-collapsed') ||
+                     target.closest('.server-folder');
+  if (isOverItem) {
+    return;
+  }
+  
+  const itemId = event.dataTransfer?.getData('text/plain');
   const fromFolderId = event.dataTransfer?.getData('application/x-from-folder');
   
-  if (serverId && fromFolderId) {
-    // Count servers in the folder before removing
+  if (!itemId) {
+    resetDragState();
+    return;
+  }
+  
+  // Get the highest position to place item at the end
+  const maxPosition = Math.max(
+    ...sortedSidebarItems.value.map(i => i.position || 0),
+    0
+  ) + 1;
+  
+  // Handle server dragged from a folder
+  if (fromFolderId) {
     const serversInFolder = props.servers.filter(s => s.folder_id === fromFolderId);
     
-    // Server was dragged from a folder to the scroll area - remove from folder
-    await serverChannelStore.moveServerToFolder(serverId, null);
+    // Remove from folder and place at end
+    await serverChannelStore.moveServerToFolder(itemId, null);
+    await serverChannelStore.updateServerPositions([{
+      serverId: itemId,
+      folderId: null,
+      position: maxPosition
+    }]);
     
-    // If folder is now empty (had only this server), delete it
+    // If folder is now empty, delete it
     if (serversInFolder.length <= 1) {
       await serverChannelStore.deleteFolder(fromFolderId);
     }
+  } else if (draggingItemId.value) {
+    // Move existing item to the end
+    if (draggingItemType.value === 'folder') {
+      await serverChannelStore.updateFolderPositions([{
+        folderId: itemId,
+        position: maxPosition
+      }]);
+    } else {
+      await serverChannelStore.updateServerPositions([{
+        serverId: itemId,
+        folderId: null,
+        position: maxPosition
+      }]);
+    }
   }
   
-  dragOverServerId.value = null;
-  draggingServerId.value = null;
+  resetDragState();
 };
 
 // Context menu handlers
@@ -512,12 +887,33 @@ const removeServerFromFolder = async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: 100px; /* Extra space for user status bar at bottom */
+  min-height: 0; /* Allow flex item to shrink below content size */
   
   /* Hide scrollbar */
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
+/* Large drop zone at the bottom */
+.servers-scroll-area::after {
+  content: '';
+  display: block;
+  width: 100%;
+  min-height: 200px;
+  flex-shrink: 0;
+}
+
+/* Bottom drop indicator - green bar */
+.bottom-drop-indicator {
+  width: calc(100% - 16px);
+  height: 4px;
+  background: #3ba55d;
+  border-radius: 2px;
+  margin: 8px auto;
+  box-shadow: 0 0 8px rgba(59, 165, 93, 0.8), 0 0 16px rgba(59, 165, 93, 0.4);
+  flex-shrink: 0;
+}
+
 
 .servers-scroll-area::-webkit-scrollbar {
   display: none;
@@ -638,6 +1034,38 @@ const removeServerFromFolder = async () => {
 }
 
 /* Server item */
+.sidebar-item-wrapper {
+  position: relative;
+  margin: 4px 0;
+  padding: 2px 0;
+}
+
+.sidebar-item-wrapper.is-dragging {
+  opacity: 0.3;
+}
+
+/* Drop position indicators - green bar */
+.sidebar-item-wrapper.drop-target-before::before,
+.sidebar-item-wrapper.drop-target-after::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  height: 4px;
+  background: #3ba55d;
+  border-radius: 2px;
+  z-index: 10;
+  box-shadow: 0 0 3px rgba(59, 165, 93, 0.8), 0 0 8px rgba(59, 165, 93, 0.4);
+}
+
+.sidebar-item-wrapper.drop-target-before::before {
+  top: -4px;
+}
+
+.sidebar-item-wrapper.drop-target-after::after {
+  bottom: -4px;
+}
+
 .server-item-wrapper {
   position: relative;
   margin: 10px;
@@ -718,17 +1146,50 @@ const removeServerFromFolder = async () => {
 }
 
 /* Drag to create folder */
-.server-item-wrapper.drop-target {
+/* Drop into center - create folder indicator */
+.server-item-wrapper.drop-target-into {
   transform: scale(1.1);
 }
 
-.server-item-wrapper.drop-target .server-item {
+.server-item-wrapper.drop-target-into .server-item {
   border: 2px dashed var(--harmony-primary, #5865f2);
   border-radius: 16px;
 }
 
 .server-item-wrapper.is-dragging {
-  opacity: 0.5;
+  opacity: 0.3;
+}
+
+.server-item-wrapper.is-dragging .server-item {
+  outline: 2px dashed rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+/* Folder wrapper dragging state */
+.folder-wrapper.is-dragging {
+  opacity: 0.3;
+}
+
+/* Folder wrapper positioning for drop zones */
+.folder-wrapper {
+  position: relative;
+}
+
+/* Invisible drop zones for folder reordering */
+.folder-drop-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  z-index: 5;
+}
+
+.folder-drop-zone-top {
+  top: -10px;
+}
+
+.folder-drop-zone-bottom {
+  bottom: -10px;
 }
 
 .folder-create-indicator {
@@ -799,5 +1260,118 @@ const removeServerFromFolder = async () => {
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* Sidebar Tooltip */
+.sidebar-tooltip {
+  position: fixed;
+  left: 80px;
+  transform: translateY(-50%);
+  background: #18191c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  z-index: 1001;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sidebar-tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-tooltip-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.sidebar-tooltip-count {
+  font-size: 12px;
+  color: #b9bbbe;
+}
+
+.sidebar-tooltip-arrow {
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid #18191c;
+}
+
+/* Tooltip animation */
+.tooltip-fade-enter-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.tooltip-fade-leave-active {
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.tooltip-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-50%) translateX(-5px);
+}
+
+.tooltip-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-50%) translateX(-5px);
+}
+
+.tooltip-fade-enter-to,
+.tooltip-fade-leave-from {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+</style>
+
+<!-- Non-scoped styles for teleported tooltip -->
+<style>
+.sidebar-tooltip {
+  position: fixed;
+  left: 80px;
+  transform: translateY(-50%);
+  background: #18191c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  z-index: 10001;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sidebar-tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-tooltip-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.sidebar-tooltip-count {
+  font-size: 12px;
+  color: #b9bbbe;
+}
+
+.sidebar-tooltip-arrow {
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid #18191c;
 }
 </style>

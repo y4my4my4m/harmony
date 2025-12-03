@@ -5,77 +5,103 @@
     @contextmenu.prevent="openContextMenu"
   >
     <!-- Collapsed folder view - shows 2x2 grid of server icons -->
-    <div 
-      v-if="!folder.is_expanded"
-      class="folder-collapsed"
-      :style="{ '--folder-color': folder.color }"
-      @click="toggleExpanded"
-      @dragenter.prevent="handleDragEnter"
-      @dragleave.prevent="handleDragLeave"
-      @dragover.prevent
-      @drop.prevent="handleDrop"
-    >
-      <div class="folder-grid">
-        <div 
-          v-for="server in previewServers" 
-          :key="server.id"
-          class="folder-grid-item"
-        >
-          <img 
-            :src="getServerIconUrl(server.icon)" 
-            :alt="server.name"
-            class="folder-grid-icon"
-            draggable="false"
-            @error="onIconError($event)"
-          />
+    <Transition name="folder-collapse">
+      <div 
+        v-if="!folder.is_expanded"
+        class="folder-collapsed"
+        :style="{ '--folder-color': folder.color }"
+        @click="toggleExpanded"
+        @dragenter.prevent="handleDragEnter"
+        @dragleave.prevent="handleDragLeave"
+        @dragover.prevent
+        @drop.prevent="handleDrop"
+      >
+        <div class="folder-grid">
+          <div 
+            v-for="server in previewServers" 
+            :key="server.id"
+            class="folder-grid-item"
+          >
+            <img 
+              :src="getServerIconUrl(server.icon)" 
+              :alt="server.name"
+              class="folder-grid-icon"
+              draggable="false"
+              @error="onIconError($event)"
+            />
+          </div>
+          <!-- Empty slots -->
+          <div 
+            v-for="n in (4 - previewServers.length)" 
+            :key="'empty-' + n"
+            class="folder-grid-item folder-grid-empty"
+          ></div>
         </div>
-        <!-- Empty slots -->
-        <div 
-          v-for="n in (4 - previewServers.length)" 
-          :key="'empty-' + n"
-          class="folder-grid-item folder-grid-empty"
-        ></div>
+        <!-- Folder indicator bar -->
+        <div class="folder-indicator"></div>
       </div>
-      <!-- Folder indicator bar -->
-      <div class="folder-indicator"></div>
-    </div>
+    </Transition>
 
     <!-- Expanded folder view -->
-    <div v-else class="folder-expanded" :style="{ '--folder-color': folder.color }">
-      <!-- Folder top cap with folder icon -->
-      <div class="folder-cap folder-cap-top" @click="toggleExpanded">
-        <svg class="folder-cap-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
-        </svg>
-      </div>
+    <Transition name="folder-expand">
+      <div 
+        v-if="folder.is_expanded" 
+        class="folder-expanded" 
+        :class="{ 'is-drag-target': isDraggingOver }"
+        :style="{ '--folder-color': folder.color }"
+        @dragenter.prevent="handleDragEnter"
+        @dragleave.prevent="handleDragLeave"
+        @dragover.prevent
+        @drop.prevent="handleDrop"
+      >
+        <!-- Folder top cap with folder icon -->
+        <div class="folder-cap folder-cap-top" @click="toggleExpanded">
+          <svg class="folder-cap-icon" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
+          </svg>
+        </div>
 
-      <!-- Servers in folder with colored border -->
-      <div class="folder-content">
-        <div 
-          v-for="server in servers"
-          :key="server.id"
-          class="folder-server-item"
-          draggable="true"
-          @dragstart="handleServerDragStart($event, server)"
-          @contextmenu.prevent.stop="openServerContextMenu($event, server)"
-        >
-          <ServerIcon
-            :id="server.id"
-            :src="server.icon"
-            :alt="server.name"
-            size="md"
-            class="server-item"
-            :class="{ selected: isSelected(server.id) }"
-            shape="round"
-            :interactive="true"
-            @click="$emit('select-server', server.id)"
-          />
-          <div v-if="getServerUnreadMentions(server.id) > 0" class="unread-badge">
-            {{ getServerUnreadMentions(server.id) > 99 ? '99+' : getServerUnreadMentions(server.id) }}
+        <!-- Servers in folder with colored border -->
+        <div class="folder-content">
+          <div 
+            v-for="server in servers"
+            :key="server.id"
+            class="folder-server-item"
+            :class="{
+              'is-dragging': draggingServerIdInFolder === server.id,
+              'drop-target-before': dropTargetServerId === server.id && dropPosition === 'before',
+              'drop-target-after': dropTargetServerId === server.id && dropPosition === 'after'
+            }"
+            draggable="true"
+            @dragstart="handleServerDragStart($event, server)"
+            @dragend="handleServerDragEnd"
+            @dragenter.prevent="handleServerDragEnterItem($event, server)"
+            @dragover="handleServerDragOverItem($event, server)"
+            @dragleave="handleServerDragLeaveItem($event)"
+            @drop="handleServerDropOnItem($event, server)"
+            @click.stop="handleServerClick(server.id)"
+            @contextmenu.prevent.stop="openServerContextMenu($event, server)"
+            @mouseenter="showServerTooltip($event, server.name)"
+            @mouseleave="hideServerTooltip"
+          >
+            <ServerIcon
+              :id="server.id"
+              :src="server.icon"
+              :alt="server.name"
+              size="md"
+              class="server-item"
+              :class="{ selected: isSelected(server.id) }"
+              shape="round"
+              :interactive="true"
+              :show-title="false"
+            />
+            <div v-if="getServerUnreadMentions(server.id) > 0" class="unread-badge">
+              {{ getServerUnreadMentions(server.id) > 99 ? '99+' : getServerUnreadMentions(server.id) }}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </Transition>
 
     <!-- Server context menu within folder -->
     <div 
@@ -93,6 +119,20 @@
       </div>
     </div>
   </div>
+  
+  <!-- Server Tooltip - Teleported to body -->
+  <Teleport to="body">
+    <Transition name="tooltip-fade">
+      <div 
+        v-if="serverTooltip.visible"
+        class="server-tooltip"
+        :style="{ top: serverTooltip.y + 'px' }"
+      >
+        <span class="server-tooltip-name">{{ serverTooltip.name }}</span>
+        <div class="server-tooltip-arrow"></div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -127,6 +167,19 @@ const isDraggingOver = ref(false);
 const showServerMenu = ref(false);
 const menuPosition = ref({ x: 0, y: 0 });
 const selectedServerForMenu = ref<Server | null>(null);
+
+// Drag reordering state within folder
+const draggingServerIdInFolder = ref<string | null>(null);
+const dropTargetServerId = ref<string | null>(null);
+const dropPosition = ref<'before' | 'after'>('after');
+
+// Tooltip state
+const serverTooltip = ref<{
+  visible: boolean;
+  name: string;
+  y: number;
+}>({ visible: false, name: '', y: 0 });
+const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
 // First 4 servers for the grid preview
 const previewServers = computed(() => {
@@ -174,6 +227,113 @@ const handleServerDragStart = (event: DragEvent, server: Server) => {
   event.dataTransfer?.setData('text/plain', server.id);
   event.dataTransfer?.setData('application/x-from-folder', props.folder.id);
   event.dataTransfer!.effectAllowed = 'move';
+  draggingServerIdInFolder.value = server.id;
+};
+
+const handleServerDragEnd = () => {
+  draggingServerIdInFolder.value = null;
+  dropTargetServerId.value = null;
+};
+
+const handleServerDragEnterItem = (event: DragEvent, server: Server) => {
+  if (draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id) {
+    dropTargetServerId.value = server.id;
+    // Determine if drop should be before or after based on mouse position
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    dropPosition.value = event.clientY < midY ? 'before' : 'after';
+  }
+};
+
+const handleServerDragOverItem = (event: DragEvent, server: Server) => {
+  event.preventDefault();
+  if (draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id) {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    dropPosition.value = event.clientY < midY ? 'before' : 'after';
+  }
+};
+
+const handleServerDragLeaveItem = (event: DragEvent) => {
+  const relatedTarget = event.relatedTarget as HTMLElement;
+  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
+    dropTargetServerId.value = null;
+  }
+};
+
+const handleServerDropOnItem = (event: DragEvent, targetServer: Server) => {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  // Check if server is being dragged from outside the folder
+  const externalServerId = event.dataTransfer?.getData('text/plain');
+  const isFromOutside = externalServerId && !draggingServerIdInFolder.value;
+  
+  if (isFromOutside) {
+    // Server from outside - add to folder
+    isDraggingOver.value = false;
+    emit('server-dropped', externalServerId, props.folder.id);
+    return;
+  }
+  
+  if (!draggingServerIdInFolder.value || draggingServerIdInFolder.value === targetServer.id) {
+    dropTargetServerId.value = null;
+    return;
+  }
+  
+  // Reorder servers within the folder
+  const draggedIndex = props.servers.findIndex(s => s.id === draggingServerIdInFolder.value);
+  const targetIndex = props.servers.findIndex(s => s.id === targetServer.id);
+  
+  if (draggedIndex === -1 || targetIndex === -1) {
+    dropTargetServerId.value = null;
+    return;
+  }
+  
+  const newServers = [...props.servers];
+  const [draggedServer] = newServers.splice(draggedIndex, 1);
+  
+  // Calculate new index based on drop position
+  let newIndex = targetIndex;
+  if (dropPosition.value === 'after') {
+    newIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1;
+  } else {
+    newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+  }
+  
+  newServers.splice(newIndex, 0, draggedServer);
+  emit('servers-reordered', newServers);
+  
+  dropTargetServerId.value = null;
+  draggingServerIdInFolder.value = null;
+};
+
+const handleServerClick = (serverId: string) => {
+  emit('select-server', serverId);
+};
+
+// Tooltip handlers
+const showServerTooltip = (event: MouseEvent, name: string) => {
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  
+  tooltipTimer.value = setTimeout(() => {
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    
+    serverTooltip.value = {
+      visible: true,
+      name: name || 'Unnamed Server',
+      y: rect.top + rect.height / 2
+    };
+  }, 400);
+};
+
+const hideServerTooltip = () => {
+  if (tooltipTimer.value) {
+    clearTimeout(tooltipTimer.value);
+    tooltipTimer.value = null;
+  }
+  serverTooltip.value.visible = false;
 };
 
 const openServerContextMenu = (event: MouseEvent, server: Server) => {
@@ -214,13 +374,14 @@ const onIconError = (event: Event) => {
   align-items: center;
   margin: 4px 0;
   --folder-color: #5865f2;
+  position: relative;
 }
 
 /* Collapsed folder - 2x2 grid */
 .folder-collapsed {
   width: 48px;
   height: 48px;
-  background: var(--h-black-light, #2f3136);
+  background: color-mix(in srgb, var(--folder-color) 40%, var(--h-black-light, #2f3136));
   border-radius: 16px;
   cursor: pointer;
   position: relative;
@@ -292,7 +453,7 @@ const onIconError = (event: Event) => {
 }
 
 .folder-grid-empty {
-  background: var(--h-chat-light, #40444b);
+  background: transparent;
 }
 
 .folder-indicator {
@@ -367,6 +528,40 @@ const onIconError = (event: Event) => {
 
 .folder-server-item {
   position: relative;
+  transition: opacity 0.15s ease;
+  padding: 2px 0;
+}
+
+/* Dragging state - ghost/transparent appearance */
+.folder-server-item.is-dragging {
+  opacity: 0.3;
+}
+
+.folder-server-item.is-dragging .server-item {
+  outline: 2px dashed rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+/* Drop indicator - green bar */
+.folder-server-item.drop-target-before::before,
+.folder-server-item.drop-target-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #3ba55d;
+  border-radius: 2px;
+  z-index: 10;
+  box-shadow: 0 0 8px rgba(59, 165, 93, 0.8), 0 0 16px rgba(59, 165, 93, 0.4);
+}
+
+.folder-server-item.drop-target-before::before {
+  top: -3px;
+}
+
+.folder-server-item.drop-target-after::after {
+  bottom: -3px;
 }
 
 /* Server item styles */
@@ -457,5 +652,145 @@ const onIconError = (event: Event) => {
 .context-menu-item:hover {
   background-color: var(--harmony-primary, #5865f2);
   color: #ffffff;
+}
+
+/* Drag over expanded folder */
+.folder-expanded.is-drag-target {
+  outline: 2px solid var(--folder-color);
+  filter: brightness(1.2);
+}
+
+/* Expand/Collapse animations - simple and clean */
+.folder-expand-enter-active {
+  transition: all 0.2s ease-out;
+  overflow: hidden;
+}
+
+.folder-expand-leave-active {
+  transition: all 0.15s ease-in;
+  overflow: hidden;
+  position: absolute;
+}
+
+.folder-expand-enter-from,
+.folder-expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.folder-expand-enter-to,
+.folder-expand-leave-from {
+  opacity: 1;
+  max-height: 500px;
+}
+
+.folder-collapse-enter-active {
+  transition: all 0.15s ease-out;
+}
+
+.folder-collapse-leave-active {
+  transition: all 0.1s ease-in;
+  position: absolute;
+}
+
+.folder-collapse-enter-from,
+.folder-collapse-leave-to {
+  opacity: 0;
+}
+
+.folder-collapse-enter-to,
+.folder-collapse-leave-from {
+  opacity: 1;
+}
+
+/* Server Tooltip */
+.server-tooltip {
+  position: fixed;
+  left: 80px;
+  transform: translateY(-50%);
+  background: #18191c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  z-index: 1001;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.server-tooltip-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.server-tooltip-arrow {
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid #18191c;
+}
+
+/* Tooltip animation */
+.tooltip-fade-enter-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.tooltip-fade-leave-active {
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.tooltip-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-50%) translateX(-5px);
+}
+
+.tooltip-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-50%) translateX(-5px);
+}
+
+.tooltip-fade-enter-to,
+.tooltip-fade-leave-from {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+</style>
+
+<!-- Non-scoped styles for teleported tooltip -->
+<style>
+.server-tooltip {
+  position: fixed;
+  left: 80px;
+  transform: translateY(-50%);
+  background: #18191c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  z-index: 10001;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.server-tooltip-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.server-tooltip-arrow {
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid #18191c;
 }
 </style>

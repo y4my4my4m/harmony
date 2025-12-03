@@ -30,33 +30,65 @@
             <div class="form-group">
               <label class="form-label">Folder Color</label>
               <div class="color-picker">
-                <!-- Preset colors - first row -->
+                <!-- Main color options row -->
                 <div class="color-row">
-                  <button
-                    v-for="color in presetColors.slice(0, 2)"
-                    :key="color"
-                    class="color-swatch large"
-                    :class="{ selected: selectedColor === color }"
-                    :style="{ backgroundColor: color }"
-                    @click="selectColor(color)"
-                  >
-                    <svg v-if="selectedColor === color" class="check-icon" viewBox="0 0 24 24">
-                      <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
-                    </svg>
-                  </button>
+                  <!-- Default color -->
+                  <div class="color-option-wrapper">
+                    <button
+                      class="color-swatch large"
+                      :class="{ selected: isDefaultColor }"
+                      :style="{ backgroundColor: DEFAULT_COLOR }"
+                      @click="selectDefaultColor"
+                      @mouseenter="showTooltip($event, 'Default')"
+                      @mouseleave="hideTooltip"
+                    >
+                      <svg v-if="isDefaultColor" class="check-icon" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <!-- Custom color -->
+                  <div class="color-option-wrapper">
+                    <button
+                      class="color-swatch large custom-color-swatch"
+                      :class="{ selected: !isDefaultColor }"
+                      :style="{ backgroundColor: customColor }"
+                      @click="toggleColorPicker"
+                      @mouseenter="showTooltip($event, 'Custom')"
+                      @mouseleave="hideTooltip"
+                    >
+                      <svg v-if="!isDefaultColor" class="check-icon" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                      </svg>
+                      <!-- Pencil icon when not selected -->
+                      <svg v-else class="pencil-icon" viewBox="0 0 24 24" width="16" height="16">
+                        <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+                      </svg>
+                    </button>
+                    
+                    <!-- Color picker popup -->
+                    <div v-if="showColorPickerPopup" class="color-picker-popup" v-click-outside="closeColorPicker">
+                      <ColorPicker
+                        theme="dark"
+                        :color="customColor"
+                        @changeColor="onColorPickerChange"
+                      />
+                    </div>
+                  </div>
                 </div>
                 
-                <!-- More colors grid -->
+                <!-- Quick select colors grid -->
                 <div class="color-grid">
                   <button
-                    v-for="color in presetColors.slice(2)"
+                    v-for="color in quickColors"
                     :key="color"
                     class="color-swatch"
-                    :class="{ selected: selectedColor === color }"
+                    :class="{ selected: selectedColor === color && !isDefaultColor }"
                     :style="{ backgroundColor: color }"
-                    @click="selectColor(color)"
+                    @click="selectQuickColor(color)"
                   >
-                    <svg v-if="selectedColor === color" class="check-icon" viewBox="0 0 24 24">
+                    <svg v-if="selectedColor === color && !isDefaultColor" class="check-icon" viewBox="0 0 24 24">
                       <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
                     </svg>
                   </button>
@@ -71,6 +103,15 @@
             </button>
           </div>
         </div>
+        
+        <!-- Tooltip -->
+        <div 
+          v-if="tooltip.visible"
+          class="color-tooltip"
+          :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
+        >
+          {{ tooltip.text }}
+        </div>
       </div>
     </Transition>
   </Teleport>
@@ -78,6 +119,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { ColorPicker } from 'vue-color-kit';
+import 'vue-color-kit/dist/vue-color-kit.css';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import type { ServerFolder } from '@/types';
 
@@ -96,38 +139,37 @@ const emit = defineEmits<Emits>();
 
 const serverChannelStore = useServerChannelStore();
 
-const folderName = ref('');
-const selectedColor = ref('#5865f2');
-const isSaving = ref(false);
+// Constants
+const DEFAULT_COLOR = '#5865f2';
 
-// Preset colors matching Discord's folder colors (from screenshot)
-const presetColors = [
-  '#5865f2', // Discord blurple (default)
-  '#3ba55c', // Green
-  '#43b581', // Light green (with checkmark in screenshot)
-  '#faa61a', // Yellow/Gold
-  '#ed4245', // Red
-  '#eb459e', // Pink/Magenta
-  '#9b59b6', // Purple
-  '#e67e22', // Orange
-  '#f47b67', // Coral
-  '#99aab5', // Gray
-  '#607d8b', // Blue gray
-  '#57f287', // Bright green
-  '#fee75c', // Bright yellow
-  '#5dadec', // Light blue
-  '#71368a', // Dark purple
-  '#1abc9c', // Teal
-  '#e74c3c', // Bright red
-  '#f1c40f', // Gold
-  '#2ecc71', // Emerald
-  '#e91e63', // Pink
+// State
+const folderName = ref('');
+const selectedColor = ref(DEFAULT_COLOR);
+const customColor = ref('#3ba55c');
+const isSaving = ref(false);
+const showColorPickerPopup = ref(false);
+
+// Tooltip state
+const tooltip = ref<{ visible: boolean; text: string; x: number; y: number }>({
+  visible: false,
+  text: '',
+  x: 0,
+  y: 0
+});
+
+// Quick select colors (excluding default)
+const quickColors = [
+  '#43b581', '#3ba55c', '#faa61a', '#ed4245',
+  '#eb459e', '#9b59b6', '#e67e22', '#f47b67',
+  '#99aab5', '#607d8b', '#57f287', '#fee75c',
+  '#5dadec', '#71368a', '#1abc9c', '#e74c3c',
+  '#f1c40f', '#2ecc71', '#e91e63', '#00bcd4'
 ];
 
-const isValid = computed(() => {
-  // Allow empty names - folder can be unnamed
-  return true;
-});
+// Computed
+const isDefaultColor = computed(() => selectedColor.value === DEFAULT_COLOR);
+
+const isValid = computed(() => true);
 
 const isEditMode = computed(() => {
   return props.folder !== null && props.folder !== undefined;
@@ -136,18 +178,58 @@ const isEditMode = computed(() => {
 // Reset form when modal opens
 watch(() => props.isOpen, (open) => {
   if (open) {
+    showColorPickerPopup.value = false;
     if (props.folder) {
       folderName.value = props.folder.name;
-      selectedColor.value = props.folder.color || '#5865f2';
+      selectedColor.value = props.folder.color || DEFAULT_COLOR;
+      if (props.folder.color && props.folder.color !== DEFAULT_COLOR) {
+        customColor.value = props.folder.color;
+      }
     } else {
       folderName.value = '';
-      selectedColor.value = '#5865f2';
+      selectedColor.value = DEFAULT_COLOR;
     }
   }
 });
 
-const selectColor = (color: string) => {
+// Color selection methods
+const selectDefaultColor = () => {
+  selectedColor.value = DEFAULT_COLOR;
+};
+
+const selectQuickColor = (color: string) => {
+  customColor.value = color;
   selectedColor.value = color;
+};
+
+const toggleColorPicker = () => {
+  showColorPickerPopup.value = !showColorPickerPopup.value;
+};
+
+const closeColorPicker = () => {
+  showColorPickerPopup.value = false;
+};
+
+const onColorPickerChange = (color: any) => {
+  const hex = color.hex || color;
+  customColor.value = hex;
+  selectedColor.value = hex;
+};
+
+// Tooltip methods
+const showTooltip = (event: MouseEvent, text: string) => {
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  tooltip.value = {
+    visible: true,
+    text,
+    x: rect.left + rect.width / 2,
+    y: rect.bottom + 8
+  };
+};
+
+const hideTooltip = () => {
+  tooltip.value.visible = false;
 };
 
 const close = () => {
@@ -408,6 +490,58 @@ const save = async () => {
 .modal-enter-from .modal-container,
 .modal-leave-to .modal-container {
   transform: scale(0.95);
+}
+
+/* Color option wrapper */
+.color-option-wrapper {
+  position: relative;
+}
+
+/* Custom color swatch - pencil icon */
+.pencil-icon {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.custom-color-swatch:hover .pencil-icon {
+  color: #ffffff;
+}
+
+/* Color picker popup */
+.color-picker-popup {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  z-index: 100;
+  background: #1e1f22;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+}
+
+/* Color tooltip */
+.color-tooltip {
+  position: fixed;
+  background: #18191c;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translateX(-50%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.color-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #18191c;
 }
 </style>
 
