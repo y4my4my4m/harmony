@@ -260,9 +260,9 @@ const goToMonyverse = () => {
   transform: scale(1.05);
 }
 
-.monyverse-button:hover .monyverse-icon {
+/* .monyverse-button:hover .monyverse-icon {
   transform: scale(1.1);
-}
+} */
 
 .monyverse-button.selected {
   background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
