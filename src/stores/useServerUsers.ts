@@ -376,31 +376,49 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
     /**
      * Fetch current voice channel state from database
+     * Checks both user_presence (for local servers) and voice_channel_participants (for federated)
      */
     async fetchVoiceChannelState(serverId: string) {
       try {
         debug.log('📞 Fetching voice channel state for server:', serverId);
         
-        const { data, error } = await supabase
+        const channelUsers: Record<string, string[]> = {};
+        
+        // Fetch from user_presence (local server tracking)
+        const { data: presenceData, error: presenceError } = await supabase
           .from('user_presence')
           .select('user_id, voice_channel_id')
           .eq('server_id', serverId)
           .not('voice_channel_id', 'is', null);
 
-        if (error) {
-          debug.error('Failed to fetch voice channel state:', error);
-          return;
-        }
-
-        // Group users by channel
-        const channelUsers: Record<string, string[]> = {};
-        if (data) {
-          for (const presence of data) {
+        if (!presenceError && presenceData) {
+          for (const presence of presenceData) {
             if (presence.voice_channel_id) {
               if (!channelUsers[presence.voice_channel_id]) {
                 channelUsers[presence.voice_channel_id] = [];
               }
-              channelUsers[presence.voice_channel_id].push(presence.user_id);
+              if (!channelUsers[presence.voice_channel_id].includes(presence.user_id)) {
+                channelUsers[presence.voice_channel_id].push(presence.user_id);
+              }
+            }
+          }
+        }
+        
+        // Also fetch from voice_channel_participants (federated tracking)
+        const { data: participantsData, error: participantsError } = await supabase
+          .from('voice_channel_participants')
+          .select('user_id, channel_id')
+          .eq('server_id', serverId);
+
+        if (!participantsError && participantsData) {
+          for (const participant of participantsData) {
+            if (participant.channel_id) {
+              if (!channelUsers[participant.channel_id]) {
+                channelUsers[participant.channel_id] = [];
+              }
+              if (!channelUsers[participant.channel_id].includes(participant.user_id)) {
+                channelUsers[participant.channel_id].push(participant.user_id);
+              }
             }
           }
         }

@@ -51,22 +51,110 @@ const uuidToIdentityCache = new Map<string, string>();
  * Resolve a LiveKit identity to a profile UUID
  * For local users, identity is already the UUID
  * For federated users, identity is `federated:{federatedId}` and we need to look up the UUID
+ * @param identity - The LiveKit participant identity
+ * @param remoteServerDomain - Optional domain of the remote server (for resolving non-federated identities from remote servers)
  */
-async function resolveIdentityToUuid(identity: string): Promise<string | null> {
-  // If it doesn't start with 'federated:', it's already a UUID
-  if (!identity.startsWith('federated:')) {
-    // It's a local user - UUID is the identity
+async function resolveIdentityToUuid(identity: string, remoteServerDomain?: string | null): Promise<string | null> {
+  // If it starts with 'federated:', extract and resolve the federated ID
+  if (identity.startsWith('federated:')) {
+    const federatedId = identity.substring('federated:'.length);
+    return resolveFederatedId(federatedId, identity);
+  }
+  
+  // It's a plain UUID - could be local or from a remote server
+  // First check if this UUID exists in our local database
+  const { data: localUser } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', identity)
+    .maybeSingle();
+  
+  if (localUser?.id) {
+    // UUID exists locally
     uuidToIdentityCache.set(identity, identity);
     return identity;
   }
   
-  // Extract the federated ID (the actor URL)
-  const federatedId = identity.substring('federated:'.length);
+  // UUID doesn't exist locally - if we're connected to a remote server,
+  // this user is local to THAT server, not ours. We need to fetch their profile.
+  if (remoteServerDomain) {
+    debug.log(`🌐 [LiveKit] UUID ${identity} not found locally, user is from ${remoteServerDomain}`);
+    
+    // We need to look up this user by username on the remote server
+    // First, try to get their username from the LiveKit participant metadata
+    // If we can't, we'll need to query the remote server's API
+    
+    // For now, try to fetch by constructing a likely federated ID pattern
+    // Most instances have users at https://domain/users/username, but we only have the UUID
+    // We need to ask the remote server for user info
+    
+    // Try querying the remote instance's user endpoint
+    try {
+      const { activityPubService } = await import('./activityPubService');
+      
+      // Try to find by querying the remote server
+      // First check if we have any user with a federated_id from this domain
+      const { data: existingRemoteUser } = await supabase
+        .from('profiles')
+        .select('id, federated_id')
+        .ilike('federated_id', `%${remoteServerDomain}%`)
+        .limit(1);
+      
+      if (existingRemoteUser && existingRemoteUser.length > 0) {
+        // We have synced users from this domain, try WebFinger or user lookup
+        // For now, let's try a direct actor fetch if we can construct the URL
+        // This is a heuristic - the remote server might use a different URL pattern
+        
+        // Try common patterns
+        const potentialUrls = [
+          `https://${remoteServerDomain}/users/${identity}`, // Some systems use UUID in URL
+        ];
+        
+        for (const url of potentialUrls) {
+          try {
+            const response = await fetch(url, {
+              headers: { 'Accept': 'application/activity+json' },
+            });
+            
+            if (response.ok) {
+              const actor = await response.json();
+              if (actor.id) {
+                const federatedUser = await activityPubService.fetchRemoteActor(actor.id);
+                if (federatedUser?.id) {
+                  federatedIdToUuidCache.set(actor.id, federatedUser.id);
+                  uuidToIdentityCache.set(federatedUser.id, identity);
+                  debug.log(`🌐 [LiveKit] Resolved remote UUID ${identity} to local UUID ${federatedUser.id}`);
+                  return federatedUser.id;
+                }
+              }
+            }
+          } catch {
+            // Try next pattern
+          }
+        }
+      }
+    } catch (error) {
+      debug.warn(`🌐 [LiveKit] Failed to resolve remote UUID ${identity}:`, error);
+    }
+    
+    // Couldn't resolve - skip this user for now
+    debug.warn(`🌐 [LiveKit] Could not resolve UUID ${identity} from ${remoteServerDomain}`);
+    return null;
+  }
   
+  // No remote server domain - assume it's a local user that should exist
+  uuidToIdentityCache.set(identity, identity);
+  return identity;
+}
+
+/**
+ * Resolve a federated ID (actor URL) to a local profile UUID
+ */
+async function resolveFederatedId(federatedId: string, originalIdentity: string): Promise<string | null> {
   // Check cache first
   if (federatedIdToUuidCache.has(federatedId)) {
     const cachedUuid = federatedIdToUuidCache.get(federatedId)!;
-    uuidToIdentityCache.set(cachedUuid, identity);
+    uuidToIdentityCache.set(cachedUuid, originalIdentity);
     return cachedUuid;
   }
   
@@ -80,26 +168,22 @@ async function resolveIdentityToUuid(identity: string): Promise<string | null> {
     
     if (user?.id) {
       federatedIdToUuidCache.set(federatedId, user.id);
-      uuidToIdentityCache.set(user.id, identity);
+      uuidToIdentityCache.set(user.id, originalIdentity);
       debug.log(`🌐 [LiveKit] Resolved federated identity ${federatedId} to UUID ${user.id}`);
       return user.id;
     }
     
     // Profile not found locally - need to fetch it from the remote instance
-    // This happens when a user from another instance joins a federated voice channel
     debug.log(`🌐 [LiveKit] Profile not found for ${federatedId}, fetching from remote instance...`);
     
-    // Dynamically import to avoid circular dependency
     const { activityPubService } = await import('./activityPubService');
     
     try {
-      // Fetch and sync the federated user's profile
       const federatedUser = await activityPubService.fetchRemoteActor(federatedId);
       
       if (federatedUser?.id) {
-        // Profile was fetched/created successfully
         federatedIdToUuidCache.set(federatedId, federatedUser.id);
-        uuidToIdentityCache.set(federatedUser.id, identity);
+        uuidToIdentityCache.set(federatedUser.id, originalIdentity);
         debug.log(`🌐 [LiveKit] Fetched and resolved federated identity ${federatedId} to UUID ${federatedUser.id}`);
         return federatedUser.id;
       }
@@ -111,8 +195,7 @@ async function resolveIdentityToUuid(identity: string): Promise<string | null> {
     debug.warn(`🌐 [LiveKit] Failed to resolve federated identity:`, error);
   }
   
-  // Still couldn't resolve - return null to indicate we should skip this user
-  debug.warn(`🌐 [LiveKit] Could not resolve federated identity: ${federatedId} - user profile may not be synced yet`);
+  debug.warn(`🌐 [LiveKit] Could not resolve federated identity: ${federatedId}`);
   return null;
 }
 
@@ -157,6 +240,7 @@ export class LiveKitWebRTCService {
   private channelId: string | null = null;
   private currentUserId: string | null = null;
   private roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel';
+  private remoteServerDomain: string | null = null; // For federated voice channels
   
   // Local media state
   private localMediaState: UserMediaState = {
@@ -339,6 +423,7 @@ export class LiveKitWebRTCService {
       this.currentUserId = userId;
       this.roomType = roomType;
       this.localMediaState.userId = userId;
+      this.remoteServerDomain = null; // Local server, no remote domain
       
       // Get room name based on type
       const roomName = roomType === 'dm_call' ? channelId : `channel-${channelId}`;
@@ -407,6 +492,17 @@ export class LiveKitWebRTCService {
       this.roomType = 'voice_channel';
       this.localMediaState.userId = userId;
       
+      // Extract the remote server domain from the WebSocket URL
+      // wsUrl is like "wss://livekit.har.mony.lol" or "wss://har.mony.lol:7880"
+      try {
+        const wsUrlParsed = new URL(wsUrl);
+        // Remove 'livekit.' prefix if present, or use the main domain
+        this.remoteServerDomain = wsUrlParsed.hostname.replace(/^livekit\./, '');
+        debug.log('🌐 [LiveKit] Remote server domain:', this.remoteServerDomain);
+      } catch {
+        this.remoteServerDomain = null;
+      }
+      
       // Create room with options
       this.room = new Room({
         adaptiveStream: true,
@@ -459,6 +555,7 @@ export class LiveKitWebRTCService {
     const oldChannelId = this.channelId;
     this.channelId = null;
     this.currentUserId = null;
+    this.remoteServerDomain = null;
     
     // Reset local state
     this.localMediaState = {
@@ -911,7 +1008,7 @@ export class LiveKitWebRTCService {
       debug.log(`👤 [LiveKit] Found existing participant: ${participant.identity}, sid: ${participant.sid}`);
       
       // Resolve federated identity to profile UUID
-      const userId = await resolveIdentityToUuid(participant.identity);
+      const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       
       if (!userId) {
         debug.warn(`⚠️ [LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);
@@ -969,7 +1066,7 @@ export class LiveKitWebRTCService {
       debug.log('👋 [LiveKit] Participant connected:', participant.identity);
       
       // Resolve federated identity to profile UUID
-      const userId = await resolveIdentityToUuid(participant.identity);
+      const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       if (!userId) {
         debug.warn(`⚠️ [LiveKit] Could not resolve identity for connected participant: ${participant.identity}`);
         return; // Skip unresolvable participants
@@ -994,7 +1091,7 @@ export class LiveKitWebRTCService {
       debug.log('👋 [LiveKit] Participant disconnected:', participant.identity);
       
       // Resolve federated identity to profile UUID
-      const userId = await resolveIdentityToUuid(participant.identity);
+      const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       
       // Always clean up by identity at minimum
       this.allUserStates.delete(participant.identity);
@@ -1013,7 +1110,7 @@ export class LiveKitWebRTCService {
       debug.log('📺 [LiveKit] Track subscribed:', track.kind, 'source:', source, 'from', participant.identity);
       
       // Resolve federated identity to profile UUID
-      const userId = await resolveIdentityToUuid(participant.identity);
+      const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       // Use identity as fallback for internal lookups only
       const lookupId = userId || participant.identity;
       
@@ -1059,7 +1156,7 @@ export class LiveKitWebRTCService {
       debug.log('📺 [LiveKit] Track unsubscribed:', track.kind, 'source:', source, 'from', participant.identity);
       
       // Resolve federated identity to profile UUID
-      const userId = await resolveIdentityToUuid(participant.identity);
+      const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       const lookupId = userId || participant.identity;
       
       // Detach audio track
