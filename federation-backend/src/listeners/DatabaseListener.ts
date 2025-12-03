@@ -1245,7 +1245,7 @@ async function handleNewReport(report: any): Promise<void> {
 /**
  * Handle channel creation - federate to remote server members
  */
-async function handleChannelCreated(channel: any): Promise<void> {
+export async function handleChannelCreated(channel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -1311,7 +1311,7 @@ async function handleChannelCreated(channel: any): Promise<void> {
 /**
  * Handle channel update - federate to remote server members
  */
-async function handleChannelUpdated(channel: any, oldChannel: any): Promise<void> {
+export async function handleChannelUpdated(channel: any, oldChannel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -1373,7 +1373,7 @@ async function handleChannelUpdated(channel: any, oldChannel: any): Promise<void
 /**
  * Handle channel deletion - federate to remote server members
  */
-async function handleChannelDeleted(channel: any): Promise<void> {
+export async function handleChannelDeleted(channel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -1428,7 +1428,7 @@ async function handleChannelDeleted(channel: any): Promise<void> {
 /**
  * Handle server update - federate to remote members
  */
-async function handleServerUpdated(server: any, oldServer: any): Promise<void> {
+export async function handleServerUpdated(server: any, oldServer: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;

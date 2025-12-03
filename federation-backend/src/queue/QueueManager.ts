@@ -20,7 +20,9 @@ import { handlePostJob } from './handlers/postHandler.js';
 import { handleReactionJob } from './handlers/reactionHandler.js';
 import { handleFollowJob } from './handlers/followHandler.js';
 import { handleDMJob } from './handlers/dmHandler.js';
-import { handleChannelMessageJob } from './handlers/channelMessageHandler.js';
+import { handleChannelMessageJob, handleChannelMessageEditJob, handleChannelMessageDeleteJob } from './handlers/channelMessageHandler.js';
+import { handleChannelReactionJob } from './handlers/channelReactionHandler.js';
+import { handleChannelCrudJob, handleCategoryCrudJob, handleServerUpdateJob } from './handlers/serverStructureHandler.js';
 import { handleMessageReactionJob } from './handlers/messageReactionHandler.js';
 import { handleBlockJob } from './handlers/blockHandler.js';
 import { handleReportJob } from './handlers/reportHandler.js';
@@ -33,8 +35,14 @@ export type JobType =
   | 'federate-reaction'
   | 'federate-follow'
   | 'federate-dm'
-  | 'federate-channel-message'  // Channel messages (servers)
-  | 'federate-message-reaction'
+  | 'federate-channel-message'       // Channel message create
+  | 'federate-channel-message-edit'  // Channel message edit
+  | 'federate-channel-message-delete'// Channel message delete
+  | 'federate-channel-reaction'      // Channel message reaction
+  | 'federate-message-reaction'      // DM reaction
+  | 'federate-channel-crud'          // Channel create/update/delete
+  | 'federate-category-crud'         // Category create/update/delete
+  | 'federate-server-update'         // Server update (name, icon, etc.)
   | 'federate-block'
   | 'federate-report'
   | 'federate-profile'
@@ -158,7 +166,13 @@ class QueueManagerService {
       'federate-follow',
       'federate-dm',
       'federate-channel-message',
+      'federate-channel-message-edit',
+      'federate-channel-message-delete',
+      'federate-channel-reaction',
       'federate-message-reaction',
+      'federate-channel-crud',
+      'federate-category-crud',
+      'federate-server-update',
       'federate-block',
       'federate-report',
       'federate-profile',
@@ -252,7 +266,13 @@ class QueueManagerService {
     await registerWithConcurrency('federate-follow', createHandler('federate-follow', '👥', handleFollowJob));
     await registerWithConcurrency('federate-dm', createHandler('federate-dm', '💬', handleDMJob));
     await registerWithConcurrency('federate-channel-message', createHandler('federate-channel-message', '📨', handleChannelMessageJob));
+    await registerWithConcurrency('federate-channel-message-edit', createHandler('federate-channel-message-edit', '✏️', handleChannelMessageEditJob));
+    await registerWithConcurrency('federate-channel-message-delete', createHandler('federate-channel-message-delete', '🗑️', handleChannelMessageDeleteJob));
+    await registerWithConcurrency('federate-channel-reaction', createHandler('federate-channel-reaction', '💬⭐', handleChannelReactionJob));
     await registerWithConcurrency('federate-message-reaction', createHandler('federate-message-reaction', '💬❤️', handleMessageReactionJob));
+    await registerWithConcurrency('federate-channel-crud', createHandler('federate-channel-crud', '📢', handleChannelCrudJob));
+    await registerWithConcurrency('federate-category-crud', createHandler('federate-category-crud', '📁', handleCategoryCrudJob));
+    await registerWithConcurrency('federate-server-update', createHandler('federate-server-update', '🏠', handleServerUpdateJob));
     await registerWithConcurrency('federate-block', createHandler('federate-block', '🚫', handleBlockJob));
     await registerWithConcurrency('federate-report', createHandler('federate-report', '🚩', handleReportJob));
     await registerWithConcurrency('federate-profile', createHandler('federate-profile', '👤', handleProfileJob));
@@ -374,11 +394,12 @@ class QueueManagerService {
       }
     }
 
-    // Sweep channel messages (server messages)
+    // Sweep channel messages (server messages) - NEW messages only
     const { data: pendingChannelMessages } = await supabase
       .from('messages')
       .select('id, channel_id, user_id')
       .eq('federation_status', 'pending')
+      .eq('is_deleted', false)
       .not('channel_id', 'is', null)
       .is('conversation_id', null)  // Not a DM
       .lt('created_at', twoSecondsAgo)
@@ -400,6 +421,115 @@ class QueueManagerService {
           .eq('id', msg.id);
       }
     }
+
+    // Sweep DELETED channel messages
+    const { data: deletedChannelMessages } = await supabase
+      .from('messages')
+      .select('id, channel_id, user_id, metadata')
+      .eq('federation_status', 'pending')
+      .eq('is_deleted', true)
+      .not('channel_id', 'is', null)
+      .is('conversation_id', null)
+      .limit(100);
+
+    if (deletedChannelMessages && deletedChannelMessages.length > 0) {
+      logger.info(`🔄 Sweep found ${deletedChannelMessages.length} deleted channel messages`);
+      for (const msg of deletedChannelMessages) {
+        await this.boss.send('federate-channel-message-delete', {
+          type: 'delete',
+          message_id: msg.id,
+          channel_id: msg.channel_id,
+          user_id: msg.user_id,
+          ap_id: msg.metadata?.ap_id,
+        });
+        
+        await supabase
+          .from('messages')
+          .update({ federation_status: 'queued' })
+          .eq('id', msg.id);
+      }
+    }
+
+    // Sweep channel reactions
+    const { data: pendingReactions } = await supabase
+      .from('reactions')
+      .select(`
+        id, message_id, user_id, emoji_id, custom_emoji_content,
+        message:messages!reactions_message_id_fkey(channel_id, conversation_id)
+      `)
+      .eq('federation_status', 'pending')
+      .lt('created_at', twoSecondsAgo)
+      .limit(100);
+
+    if (pendingReactions && pendingReactions.length > 0) {
+      // Filter to only channel reactions (not DM reactions which have different handling)
+      const channelReactions = pendingReactions.filter(
+        (r: any) => r.message?.channel_id && !r.message?.conversation_id
+      );
+      
+      if (channelReactions.length > 0) {
+        logger.info(`🔄 Sweep found ${channelReactions.length} pending channel reactions`);
+        for (const reaction of channelReactions) {
+          await this.boss.send('federate-channel-reaction', {
+            type: 'create',
+            reaction_id: reaction.id,
+            message_id: reaction.message_id,
+            user_id: reaction.user_id,
+            emoji_id: reaction.emoji_id,
+            custom_emoji_content: reaction.custom_emoji_content,
+          });
+          
+          await supabase
+            .from('reactions')
+            .update({ federation_status: 'queued' })
+            .eq('id', reaction.id);
+        }
+      }
+    }
+
+    // Sweep EDITED channel messages (updated_at > created_at means it was edited)
+    // We use a 5-second buffer to avoid race conditions during initial save
+    const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+    const { data: editedChannelMessages } = await supabase
+      .from('messages')
+      .select('id, channel_id, user_id, created_at, updated_at')
+      .eq('federation_status', 'pending')
+      .eq('is_deleted', false)
+      .not('channel_id', 'is', null)
+      .is('conversation_id', null)
+      .lt('updated_at', fiveSecondsAgo)
+      .limit(100);
+
+    // Filter to only actually edited messages (updated_at significantly after created_at)
+    const trulyEditedMessages = (editedChannelMessages || []).filter((msg: any) => {
+      const created = new Date(msg.created_at).getTime();
+      const updated = new Date(msg.updated_at).getTime();
+      // More than 2 seconds difference means it was edited, not just initial creation jitter
+      return (updated - created) > 2000;
+    });
+
+    if (trulyEditedMessages.length > 0) {
+      logger.info(`🔄 Sweep found ${trulyEditedMessages.length} edited channel messages`);
+      for (const msg of trulyEditedMessages) {
+        await this.boss.send('federate-channel-message-edit', {
+          type: 'update',
+          message_id: msg.id,
+          channel_id: msg.channel_id,
+          user_id: msg.user_id
+        });
+        
+        await supabase
+          .from('messages')
+          .update({ federation_status: 'queued' })
+          .eq('id', msg.id);
+      }
+    }
+
+    // NOTE: Channels, categories, and servers don't have federation_status columns.
+    // They are federated via DatabaseListener when Supabase Realtime works, or
+    // via the handleServerUpdated/handleChannelCreated/etc functions.
+    // TODO: Add federation_status to channels/channel_categories/servers tables
+    // for reliable pg-boss sweep-based federation.
   }
 
   /**
