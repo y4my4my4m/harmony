@@ -44,23 +44,30 @@ import { debug } from '@/utils/debug';
 // Cache for federated ID to profile UUID mappings
 const federatedIdToUuidCache = new Map<string, string>();
 
+// Reverse cache: UUID to LiveKit identity (for looking up participants by UUID)
+const uuidToIdentityCache = new Map<string, string>();
+
 /**
  * Resolve a LiveKit identity to a profile UUID
  * For local users, identity is already the UUID
  * For federated users, identity is `federated:{federatedId}` and we need to look up the UUID
  */
-async function resolveIdentityToUuid(identity: string): Promise<string> {
+async function resolveIdentityToUuid(identity: string): Promise<string | null> {
   // If it doesn't start with 'federated:', it's already a UUID
   if (!identity.startsWith('federated:')) {
+    // It's a local user - UUID is the identity
+    uuidToIdentityCache.set(identity, identity);
     return identity;
   }
   
-  // Extract the federated ID
+  // Extract the federated ID (the actor URL)
   const federatedId = identity.substring('federated:'.length);
   
   // Check cache first
   if (federatedIdToUuidCache.has(federatedId)) {
-    return federatedIdToUuidCache.get(federatedId)!;
+    const cachedUuid = federatedIdToUuidCache.get(federatedId)!;
+    uuidToIdentityCache.set(cachedUuid, identity);
+    return cachedUuid;
   }
   
   // Look up the user by federated_id
@@ -73,16 +80,35 @@ async function resolveIdentityToUuid(identity: string): Promise<string> {
     
     if (user?.id) {
       federatedIdToUuidCache.set(federatedId, user.id);
+      uuidToIdentityCache.set(user.id, identity);
       debug.log(`🌐 [LiveKit] Resolved federated identity ${federatedId} to UUID ${user.id}`);
       return user.id;
+    }
+    
+    // Profile not found - this is expected for newly joined federated users
+    // The backend should have created the profile, but there might be a race condition
+    // Try once more after a short delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const { data: retryUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', federatedId)
+      .maybeSingle();
+    
+    if (retryUser?.id) {
+      federatedIdToUuidCache.set(federatedId, retryUser.id);
+      uuidToIdentityCache.set(retryUser.id, identity);
+      debug.log(`🌐 [LiveKit] Resolved federated identity on retry: ${federatedId} to UUID ${retryUser.id}`);
+      return retryUser.id;
     }
   } catch (error) {
     debug.warn(`🌐 [LiveKit] Failed to resolve federated identity:`, error);
   }
   
-  // Fallback: return the original identity (will show as Unknown User but won't crash)
-  debug.warn(`🌐 [LiveKit] Could not resolve federated identity: ${federatedId}`);
-  return identity;
+  // Still couldn't resolve - return null to indicate we should skip this user
+  debug.warn(`🌐 [LiveKit] Could not resolve federated identity: ${federatedId} - user profile may not be synced yet`);
+  return null;
 }
 
 // Set LiveKit log level based on environment
@@ -700,8 +726,15 @@ export class LiveKitWebRTCService {
       return this.getLocalStream();
     }
     
-    // Handle remote participant
-    const participant = this.room.remoteParticipants.get(userId);
+    // Handle remote participant - try by userId first, then by mapped identity
+    let participant = this.room.remoteParticipants.get(userId);
+    if (!participant) {
+      // Try looking up by identity (for federated users where userId is a UUID but identity is federated:...)
+      const identity = uuidToIdentityCache.get(userId);
+      if (identity) {
+        participant = this.room.remoteParticipants.get(identity);
+      }
+    }
     if (!participant) return null;
     
     const stream = new MediaStream();
@@ -752,8 +785,14 @@ export class LiveKitWebRTCService {
       return false;
     }
     
-    // For remote participant
-    const participant = this.room.remoteParticipants.get(userId);
+    // For remote participant - try by userId first, then by mapped identity
+    let participant = this.room.remoteParticipants.get(userId);
+    if (!participant) {
+      const identity = uuidToIdentityCache.get(userId);
+      if (identity) {
+        participant = this.room.remoteParticipants.get(identity);
+      }
+    }
     if (!participant) {
       debug.warn('📺 [LiveKit] attachVideoToElement: Participant not found:', userId);
       return false;
@@ -796,8 +835,14 @@ export class LiveKitWebRTCService {
       return;
     }
     
-    // For remote participant
-    const participant = this.room.remoteParticipants.get(userId);
+    // For remote participant - try by userId first, then by mapped identity
+    let participant = this.room.remoteParticipants.get(userId);
+    if (!participant) {
+      const identity = uuidToIdentityCache.get(userId);
+      if (identity) {
+        participant = this.room.remoteParticipants.get(identity);
+      }
+    }
     if (!participant) return;
     
     for (const publication of participant.videoTrackPublications.values()) {
@@ -816,9 +861,21 @@ export class LiveKitWebRTCService {
   
   /**
    * Get all remote user states
+   * Note: We store states by both UUID and identity (for federated users),
+   * so we need to deduplicate by userId
    */
   getAllUsers(): UserMediaState[] {
-    return Array.from(this.allUserStates.values());
+    const seen = new Set<string>();
+    const result: UserMediaState[] = [];
+    
+    for (const state of this.allUserStates.values()) {
+      if (!seen.has(state.userId)) {
+        seen.add(state.userId);
+        result.push(state);
+      }
+    }
+    
+    return result;
   }
   
   // =============================================================================
@@ -851,7 +908,16 @@ export class LiveKitWebRTCService {
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity);
       
-      const mediaState = this.createMediaState(participant);
+      if (!userId) {
+        debug.warn(`⚠️ [LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);
+        // Store by identity for internal use but skip emitting events
+        const mediaState = this.createMediaState(participant, participant.identity);
+        this.allUserStates.set(participant.identity, mediaState);
+        this.setupParticipantListeners(participant);
+        continue;
+      }
+      
+      const mediaState = this.createMediaState(participant, userId);
       this.allUserStates.set(userId, mediaState);
       if (userId !== participant.identity) {
         this.allUserStates.set(participant.identity, mediaState);
@@ -899,8 +965,12 @@ export class LiveKitWebRTCService {
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity);
+      if (!userId) {
+        debug.warn(`⚠️ [LiveKit] Could not resolve identity for connected participant: ${participant.identity}`);
+        return; // Skip unresolvable participants
+      }
       
-      const mediaState = this.createMediaState(participant);
+      const mediaState = this.createMediaState(participant, userId);
       // Store by resolved UUID, but keep identity mapping for internal lookups
       this.allUserStates.set(userId, mediaState);
       // Also store by identity for internal LiveKit operations
@@ -921,10 +991,14 @@ export class LiveKitWebRTCService {
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity);
       
-      this.allUserStates.delete(userId);
+      // Always clean up by identity at minimum
       this.allUserStates.delete(participant.identity);
       
-      this.emit('user-left', { userId });
+      if (userId) {
+        this.allUserStates.delete(userId);
+        this.emit('user-left', { userId });
+      }
+      
       this.emit('channel-state-synced', { users: this.getAllUsers() });
     });
     
@@ -935,9 +1009,11 @@ export class LiveKitWebRTCService {
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity);
+      // Use identity as fallback for internal lookups only
+      const lookupId = userId || participant.identity;
       
       // Update user state - check both possible keys
-      let state = this.allUserStates.get(userId) || this.allUserStates.get(participant.identity);
+      let state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (state) {
         if (track.kind === Track.Kind.Audio) {
           state.isAudioEnabled = true;
@@ -947,11 +1023,11 @@ export class LiveKitWebRTCService {
           if (track instanceof RemoteAudioTrack) {
             const audioElement = track.attach();
             audioElement.volume = 1.0; // Default volume
-            debug.log('🔊 [LiveKit] Audio track attached for:', userId, 'source:', source);
+            debug.log('🔊 [LiveKit] Audio track attached for:', lookupId, 'source:', source);
             
             // Store reference for volume control later
             if (source === Track.Source.ScreenShareAudio) {
-              debug.log('🔊 [LiveKit] Screenshare audio attached for:', userId);
+              debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId);
             }
           }
         } else if (track.kind === Track.Kind.Video) {
@@ -961,13 +1037,15 @@ export class LiveKitWebRTCService {
             state.isScreenSharing = true;
           }
         }
-        this.allUserStates.set(userId, state);
+        this.allUserStates.set(lookupId, state);
       }
       
-      // Emit stream change
-      const stream = this.getUserStream(userId);
-      this.emit('user-stream-changed', { userId, stream });
-      this.emit('user-state-changed', { userId, mediaState: state });
+      // Only emit events if we have a valid UUID
+      if (userId) {
+        const stream = this.getUserStream(userId);
+        this.emit('user-stream-changed', { userId, stream });
+        this.emit('user-state-changed', { userId, mediaState: state });
+      }
     });
     
     // Track unsubscribed
@@ -977,15 +1055,16 @@ export class LiveKitWebRTCService {
       
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity);
+      const lookupId = userId || participant.identity;
       
       // Detach audio track
       if (track.kind === Track.Kind.Audio && track instanceof RemoteAudioTrack) {
         track.detach();
-        debug.log('🔊 [LiveKit] Audio track detached for:', userId);
+        debug.log('🔊 [LiveKit] Audio track detached for:', lookupId);
       }
       
       // Update user state - check both possible keys
-      let state = this.allUserStates.get(userId) || this.allUserStates.get(participant.identity);
+      let state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (state) {
         if (track.kind === Track.Kind.Audio) {
           // Only set audio disabled if it's the microphone, not screenshare audio
@@ -1000,25 +1079,43 @@ export class LiveKitWebRTCService {
             state.isVideoEnabled = false;
           }
         }
-        this.allUserStates.set(userId, state);
+        this.allUserStates.set(lookupId, state);
       }
       
-      // Emit stream change
-      const stream = this.getUserStream(userId);
-      this.emit('user-stream-changed', { userId, stream });
-      this.emit('user-state-changed', { userId, mediaState: state });
+      // Only emit events if we have a valid UUID
+      if (userId) {
+        const stream = this.getUserStream(userId);
+        this.emit('user-stream-changed', { userId, stream });
+        this.emit('user-state-changed', { userId, mediaState: state });
+      }
     });
     
     // Active speaker changes
     this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: RemoteParticipant[]) => {
+      // Get a set of speaker identities for fast lookup
+      const speakerIdentities = new Set(speakers.map(s => s.identity));
+      
+      // Track which resolved userIds we've already processed to avoid duplicates
+      const processedUserIds = new Set<string>();
+      
       // Update speaking state for all users
-      for (const [userId, state] of this.allUserStates) {
-        const isSpeaking = speakers.some(s => s.identity === userId);
+      for (const [key, state] of this.allUserStates) {
+        // Skip if we've already processed this userId (we store by both UUID and identity)
+        if (processedUserIds.has(state.userId)) {
+          continue;
+        }
+        processedUserIds.add(state.userId);
+        
+        // Check if this user is speaking - compare against both the key and any mapped identity
+        const identity = uuidToIdentityCache.get(state.userId) || state.userId;
+        const isSpeaking = speakerIdentities.has(identity) || speakerIdentities.has(key);
+        
         if (state.isSpeaking !== isSpeaking) {
           state.isSpeaking = isSpeaking;
           state.audioLevel = isSpeaking ? 50 : 0; // Approximate level
-          this.allUserStates.set(userId, state);
-          this.emit('audio-level', { userId, level: state.audioLevel });
+          this.allUserStates.set(key, state);
+          // Use state.userId (resolved UUID) for events
+          this.emit('audio-level', { userId: state.userId, level: state.audioLevel });
         }
       }
     });
@@ -1045,7 +1142,8 @@ export class LiveKitWebRTCService {
           if (state) {
             Object.assign(state, message.data);
             this.allUserStates.set(participant.identity, state);
-            this.emit('user-state-changed', { userId: participant.identity, mediaState: state });
+            // Use state.userId (resolved UUID) instead of identity for events
+            this.emit('user-state-changed', { userId: state.userId, mediaState: state });
           }
         }
       } catch (error) {
@@ -1053,14 +1151,8 @@ export class LiveKitWebRTCService {
       }
     });
     
-    // Initial sync of existing participants
-    for (const participant of this.room.remoteParticipants.values()) {
-      const mediaState = this.createMediaState(participant);
-      this.allUserStates.set(participant.identity, mediaState);
-      this.setupParticipantListeners(participant);
-    }
-    
-    this.emit('channel-state-synced', { users: this.getAllUsers() });
+    // Note: Initial sync is handled by syncExistingParticipants() which properly resolves identities
+    // Don't emit here - let the caller handle it after connecting
   }
   
   /**
@@ -1073,7 +1165,8 @@ export class LiveKitWebRTCService {
       if (state && publication.kind === Track.Kind.Audio) {
         state.isMuted = true;
         this.allUserStates.set(participant.identity, state);
-        this.emit('user-state-changed', { userId: participant.identity, mediaState: state });
+        // Use state.userId (resolved UUID) instead of identity for events
+        this.emit('user-state-changed', { userId: state.userId, mediaState: state });
       }
     });
     
@@ -1083,7 +1176,8 @@ export class LiveKitWebRTCService {
       if (state && publication.kind === Track.Kind.Audio) {
         state.isMuted = false;
         this.allUserStates.set(participant.identity, state);
-        this.emit('user-state-changed', { userId: participant.identity, mediaState: state });
+        // Use state.userId (resolved UUID) instead of identity for events
+        this.emit('user-state-changed', { userId: state.userId, mediaState: state });
       }
     });
     
@@ -1094,17 +1188,20 @@ export class LiveKitWebRTCService {
         state.isSpeaking = speaking;
         state.audioLevel = speaking ? 50 : 0;
         this.allUserStates.set(participant.identity, state);
-        this.emit('audio-level', { userId: participant.identity, level: state.audioLevel });
+        // Use state.userId (resolved UUID) instead of identity for events
+        this.emit('audio-level', { userId: state.userId, level: state.audioLevel });
       }
     });
   }
   
   /**
    * Create initial media state for a participant
+   * @param participant - The remote participant
+   * @param resolvedUserId - Optional resolved UUID (for federated users). If not provided, uses participant.identity
    */
-  private createMediaState(participant: RemoteParticipant): UserMediaState {
+  private createMediaState(participant: RemoteParticipant, resolvedUserId?: string): UserMediaState {
     return {
-      userId: participant.identity,
+      userId: resolvedUserId || participant.identity,
       isAudioEnabled: participant.audioTrackPublications.size > 0,
       isVideoEnabled: participant.videoTrackPublications.size > 0,
       isScreenSharing: false, // LiveKit tracks this separately
