@@ -210,15 +210,6 @@ async function joinServer() {
   padding: 20px;
 }
 
-.modal-content {
-  background: #2f3136;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 500px;
-  padding: 32px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
 
 .modal-header {
   text-align: center;

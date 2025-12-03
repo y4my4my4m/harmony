@@ -32,7 +32,10 @@
       />
 
       <!-- Footer -->
-      <PublicServersFooter @create-server="showCreateServerForm = true" />
+      <PublicServersFooter 
+        @create-server="showCreateServerForm = true" 
+        @join-by-url="showJoinFederatedServer = true"
+      />
     </div>
 
     <!-- Create Server Modal -->
@@ -40,6 +43,13 @@
       v-if="showCreateServerForm" 
       @close="showCreateServerForm = false" 
       @created="handleServerCreated"
+    />
+
+    <!-- Join Federated Server Modal -->
+    <JoinFederatedServer
+      v-if="showJoinFederatedServer"
+      @close="showJoinFederatedServer = false"
+      @joined="handleFederatedServerJoined"
     />
 
     <!-- User Profile Modal -->
@@ -72,6 +82,7 @@ import PublicServersSearch from '@/components/PublicServers/PublicServersSearch.
 import PublicServersContent from '@/components/PublicServers/PublicServersContent.vue'
 import PublicServersFooter from '@/components/PublicServers/PublicServersFooter.vue'
 import CreateServerForm from '@/components/CreateServer.vue'
+import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
 
 interface Emits {
@@ -104,6 +115,7 @@ const { handleEscapeKey } = useKeyboardEvents()
 const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const showCreateServerForm = ref(false)
+const showJoinFederatedServer = ref(false)
 const loadingServerIds = ref<Set<string>>(new Set())
 const showUserProfile = ref(false)
 const selectedUser = ref<any>(null)
@@ -202,6 +214,13 @@ const handleServerCreated = (server: any) => {
   showCreateServerForm.value = false
   toast.success('Server created successfully!')
   router.push({ name: 'Chat', params: { serverId: server.id } })
+  closeModal()
+}
+
+const handleFederatedServerJoined = (serverId: string) => {
+  showJoinFederatedServer.value = false
+  toast.success('Joined federated server!')
+  router.push({ name: 'Chat', params: { serverId } })
   closeModal()
 }
 
