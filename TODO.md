@@ -222,6 +222,43 @@ Consider merging into a unified approach:
 
 ---
 
+## Federation: Server Actor for Signing (Future)
+
+**Current state:** Server-level ActivityPub activities (accepts, re-broadcasts, voice tokens) are signed using the **server owner's** keypair.
+
+**Why this works but isn't ideal:**
+- When Bob joins a voice channel on Alice's server, the `VoiceChannelJoinAccept` is signed by Alice
+- This is semantically odd: the *server* is accepting, not Alice personally
+- Same pattern for message re-broadcasts, membership accepts, etc.
+
+**Better approach - Dedicated Server Actor:**
+Like Mastodon's "instance actor", each server would have its own AP identity:
+- `https://example.com/servers/{uuid}` as the actor URL
+- Own public/private keypair stored in `servers` table
+- Server-level activities signed by the server itself, not the owner
+
+**Implementation:**
+1. Add `public_key`, `private_key` columns to `servers` table
+2. Generate keypair on server creation
+3. Create `ServerActorService.ts` to handle server-level signing
+4. Update `DeliveryQueue` to accept server ID and use server keys when appropriate
+5. Modify all server-level activity creation to use server actor as `actor`
+
+**Benefits:**
+- Semantically correct: server actions come from the server
+- Owner can transfer without breaking signatures
+- Clearer audit trail (user actions vs server actions)
+- Matches ActivityPub Group semantics better
+
+**Files to modify:**
+- `db_schema/` - Add keypair columns to servers table
+- `federation-backend/src/services/ServerActorService.ts` (new)
+- `federation-backend/src/activitypub/DeliveryQueue.ts` - Support server signing
+- `federation-backend/src/activitypub/VoiceActivityHandler.ts` - Use server actor
+- `federation-backend/src/activitypub/ServerInboxHandler.ts` - Use server actor
+
+---
+
 ## Server Ownership Transfer (Future)
 
 **Current state:** Server owners cannot leave their own servers. There's no way to transfer ownership.
