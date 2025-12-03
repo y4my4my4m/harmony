@@ -251,6 +251,7 @@ const hasChanges = computed(() => {
     server.value.icon !== originalServer.value.icon ||
     server.value.allow_cross_server_emojis !== originalServer.value.allow_cross_server_emojis ||
     server.value.public !== originalServer.value.public ||
+    server.value.federation_enabled !== originalServer.value.federation_enabled ||
     selectedFile.value !== null
   )
 })

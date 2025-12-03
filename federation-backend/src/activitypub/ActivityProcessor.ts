@@ -1893,6 +1893,27 @@ export class ActivityProcessor {
       const plainText = content.replace(/<[^>]*>/g, '').trim();
       content = [{ type: 'text', content: plainText }];
     }
+    
+    // Convert remote emojis to URL-based format (like Discord bridge)
+    // Remote emoji UUIDs won't exist locally, so we need their URLs instead
+    const instanceDomain = new URL(actorUrl).hostname;
+    if (Array.isArray(content)) {
+      content = content.map((item: any) => {
+        if (item.type === 'emoji' && item.emoji) {
+          // Convert to URL-based emoji (like Discord bridge format)
+          return {
+            type: 'emoji',
+            emoji: {
+              name: item.emoji.name || 'emoji',
+              url: item.emoji.url, // Keep the original URL
+              domain: instanceDomain, // Mark as remote
+              is_remote: true,
+            }
+          };
+        }
+        return item;
+      });
+    }
 
     // Check if message already exists
     const { data: existingMessage } = await supabase
@@ -1917,7 +1938,6 @@ export class ActivityProcessor {
         created_at: object.published || new Date().toISOString(),
         updated_at: object.updated || null,
         reply_to: object.inReplyTo ? extractMessageId(object.inReplyTo) : null,
-        is_pinned: false,
         is_deleted: false,
         federation_status: 'completed',
         metadata: {

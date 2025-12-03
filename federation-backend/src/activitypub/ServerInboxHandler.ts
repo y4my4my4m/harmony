@@ -444,31 +444,67 @@ async function processCreateActivity(
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
 
   // Ensure author exists
-  await ActivityProcessor['ensureRemoteUser'](actorUrl);
+  const remoteAuthor = await ActivityProcessor['ensureRemoteUser'](actorUrl);
+  logger.debug(`ensureRemoteUser returned: ${remoteAuthor ? `id=${remoteAuthor.id}, username=${remoteAuthor.username}` : 'null'}`);
 
   // Get author
-  const { data: author } = await supabase
+  const { data: author, error: authorError } = await supabase
     .from('profiles')
-    .select('id, username')
+    .select('id, username, federated_id')
     .eq('federated_id', actorUrl)
-    .single();
+    .maybeSingle();
 
-  if (!author) {
-    logger.error('Failed to find author for server message');
+  if (authorError) {
+    logger.error(`Failed to query author profile: ${authorError.message}`);
     return;
   }
 
+  if (!author) {
+    logger.error(`Failed to find author for server message. actorUrl=${actorUrl}`);
+    // Try to list all profiles with this username for debugging
+    const username = actorUrl.split('/').pop();
+    const { data: similarProfiles } = await supabase
+      .from('profiles')
+      .select('id, username, federated_id')
+      .eq('username', username)
+      .limit(5);
+    if (similarProfiles?.length) {
+      logger.debug(`Similar profiles found: ${JSON.stringify(similarProfiles)}`);
+    }
+    return;
+  }
+
+  logger.debug(`Found author: id=${author.id}, username=${author.username}, federated_id=${author.federated_id}`);
+
   // Verify author is a member of this server
-  const { data: membership } = await supabase
+  const { data: membership, error: memberError } = await supabase
     .from('user_servers')
-    .select('id, status')
+    .select('id, status, member_instance')
     .eq('server_id', serverId)
     .eq('user_id', author.id)
-    .eq('status', 'accepted')
     .maybeSingle();
 
+  if (memberError) {
+    logger.error(`Failed to query membership: ${memberError.message}`);
+    return;
+  }
+
+  logger.debug(`Membership query: server=${serverId}, user=${author.id}, result=${JSON.stringify(membership)}`);
+
   if (!membership) {
-    logger.warn(`Author ${author.username} is not a member of server ${serverId}`);
+    logger.warn(`Author ${author.username} (id=${author.id}) is not a member of server ${serverId}`);
+    // List all memberships for this server for debugging
+    const { data: serverMembers } = await supabase
+      .from('user_servers')
+      .select('user_id, status, member_instance')
+      .eq('server_id', serverId)
+      .limit(10);
+    logger.debug(`Server ${serverId} has ${serverMembers?.length || 0} members: ${JSON.stringify(serverMembers)}`);
+    return;
+  }
+
+  if (membership.status !== 'accepted') {
+    logger.warn(`Author ${author.username} membership status is '${membership.status}', not 'accepted'`);
     return;
   }
 

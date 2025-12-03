@@ -151,6 +151,7 @@
 import { ref } from 'vue'
 import { federationServerService, type RemoteServer, type InviteInfo } from '@/services/federation'
 import { useAuthStore } from '@/stores/auth'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useRouter } from 'vue-router'
 
 const emit = defineEmits<{
@@ -160,6 +161,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const authStore = useAuthStore()
+const serverChannelStore = useServerChannelStore()
 
 const serverUrl = ref('')
 const isLoading = ref(false)
@@ -214,9 +216,17 @@ async function joinServer() {
     if (result.success && result.serverId) {
       emit('joined', result.serverId)
       
+      // Force refresh the server list to include the newly joined server
+      await serverChannelStore.fetchServersForUser(userId, true)
+      
+      // Set the current server and fetch its channels/categories
+      serverChannelStore.setCurrentServer(result.serverId)
+      await serverChannelStore.fetchCategoriesAndChannels(result.serverId)
+      
       // Navigate to the server's default channel (or server overview if no channel)
       // NOTE: Use /chat/ route for actual chat, not /server/ (which is for settings)
       if (result.defaultChannelId) {
+        serverChannelStore.setCurrentChannel(result.defaultChannelId)
         console.log('🎯 Navigating to default channel:', result.defaultChannelId)
         router.push(`/chat/${result.serverId}/${result.defaultChannelId}`)
       } else {
