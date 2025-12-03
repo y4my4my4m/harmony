@@ -393,7 +393,7 @@ export class LiveKitWebRTCService {
       debug.log('✅ [LiveKit] Connected to federated room');
       
       // Sync existing participants
-      this.syncExistingParticipants();
+      await this.syncExistingParticipants();
       
       // Publish local audio track
       await this.publishLocalAudio();
