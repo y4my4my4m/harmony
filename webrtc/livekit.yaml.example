@@ -56,8 +56,9 @@ turn:
   # Production: your public domain (e.g., live.yourdomain.com)
   domain: live.yourdomain.com
   udp_port: 3478
-  # TLS port for TURN over TLS (production) - more reliable through firewalls
-  tls_port: 5349
+  # TLS port - only enable if providing certs directly to LiveKit
+  # If using nginx/caddy for SSL termination, leave this commented
+  # tls_port: 5349
 
 # =============================================================================
 # Room Settings

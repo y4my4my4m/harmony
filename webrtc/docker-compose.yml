@@ -41,14 +41,15 @@ services:
     image: redis:7-alpine
     container_name: harmony-livekit-redis
     restart: unless-stopped
+    command: redis-server --requirepass XyZ3923fc_De_eE-32a
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379" # Only bind to localhost for security
     volumes:
       - redis-data:/data
     networks:
       - harmony-webrtc
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "XyZ3923fc_De_eE-32a", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
