@@ -82,7 +82,8 @@ router.post(
 
     try {
       // Fetch invite info from the remote instance
-      const remoteResponse = await fetch(`https://${instance}/api/invites/${code}`, {
+      // Use /api/federation/invites/:code since remote instance also proxies through nginx
+      const remoteResponse = await fetch(`https://${instance}/api/federation/invites/${code}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -114,12 +115,13 @@ router.post(
 );
 
 /**
- * GET /api/invites/:code
+ * GET /invites/:code
  * Resolve an invite code and return server info
  * This endpoint is called by remote instances to validate invite links
+ * Route is at /invites/:code so it works when nginx proxies /api/federation -> backend
  */
 router.get(
-  '/api/invites/:code',
+  '/invites/:code',
   asyncHandler(async (req: Request, res: Response) => {
     const { code } = req.params;
     const supabase = getSupabaseClient();
