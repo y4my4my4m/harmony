@@ -352,13 +352,56 @@ export class VoiceActivityHandler {
     // Get server info separately (Supabase foreign key joins can be unreliable)
     const { data: server } = await supabase
       .from('servers')
-      .select('id, owner')
+      .select('id, owner, is_local_server')
       .eq('id', channel.server_id)
       .single();
     
     logger.debug(`Server query result:`, JSON.stringify(server));
-    logger.debug(`Server owner ID: ${server?.owner}`);
+    logger.debug(`Server owner ID: ${server?.owner}, is_local: ${server?.is_local_server}`);
     
+    // If this server is a federated COPY (not local), this is just a presence notification
+    // from the hosting instance. We should just update presence, not generate tokens.
+    if (!server?.is_local_server) {
+      logger.info(`📡 Voice presence notification for federated server, updating local presence`);
+      
+      // Track in voice_channel_participants for presence display
+      try {
+        await supabase
+          .from('voice_channel_participants')
+          .upsert({
+            channel_id: channel.id,
+            server_id: channel.server_id,
+            user_id: user.id,
+            joined_at: new Date().toISOString(),
+            is_federated: true,
+          }, {
+            onConflict: 'channel_id,user_id',
+          });
+      } catch (error) {
+        logger.debug('voice_channel_participants update failed, continuing anyway');
+      }
+      
+      // Broadcast to local subscribers for UI update
+      await supabase
+        .channel(`voice:${channel.id}`)
+        .send({
+          type: 'broadcast',
+          event: 'user-joined',
+          payload: {
+            userId: user.id,
+            username: user.username,
+            displayName: user.display_name,
+            avatar: user.avatar_url,
+            federated: true,
+            federatedId: actorUrl,
+          },
+        });
+      
+      logger.info(`✅ Updated presence for federated user ${user.username} in voice channel`);
+      return; // Don't generate token - the user already has one from the hosting instance
+    }
+    
+    // Server IS local - this is an actual join request, we need to generate a token
     if (!server?.owner) {
       logger.error(`Server owner not found for channel ${channel.id}, server_id: ${channel.server_id}`);
       await this.sendVoiceChannelJoinReject(activity, 'Server configuration error');
