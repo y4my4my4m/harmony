@@ -831,7 +831,23 @@ export class CoreMessageService {
       }))
 
       // Reverse to get oldest-first for display
-      return messages.reverse()
+      const orderedMessages = messages.reverse()
+
+      // Load reactions for these messages (reactions are stored locally even for remote messages)
+      if (orderedMessages.length > 0) {
+        const messageIds = orderedMessages.map((m: Message) => m.id).filter((id: string) => id)
+        if (messageIds.length > 0) {
+          const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
+          
+          orderedMessages.forEach((message: Message) => {
+            message.reactions = reactionsByMessage[message.id] || []
+          })
+          
+          await this.populateReactionsStoreCache(reactionsByMessage)
+        }
+      }
+
+      return orderedMessages
     } catch (error) {
       debug.error('❌ Failed to fetch remote channel messages:', error)
       // Fall back to cached messages

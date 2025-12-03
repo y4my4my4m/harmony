@@ -578,8 +578,55 @@ router.get(
           .eq('federated_id', note.attributedTo)
           .single();
 
+        // Extract message UUID from ap_id if possible
+        let messageUuid: string | undefined;
+        const uuidMatch = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i);
+        if (uuidMatch) {
+          messageUuid = uuidMatch[1];
+        }
+
+        // Cache message locally for reactions and offline access
+        if (author) {
+          const messageData: any = {
+            channel_id: channelId,
+            user_id: author.id,
+            content: note.content ? [{ type: 'text', text: note.content.replace(/<[^>]*>/g, '').trim() }] : [],
+            created_at: note.published || new Date().toISOString(),
+            updated_at: note.updated,
+            metadata: { ap_id: note.id, is_remote: true },
+            is_remote: true,
+          };
+
+          if (messageUuid) {
+            messageData.id = messageUuid;
+          }
+
+          // Upsert to avoid duplicates
+          const { data: cachedMsg, error: cacheError } = await supabase
+            .from('messages')
+            .upsert(messageData, {
+              onConflict: messageUuid ? 'id' : undefined,
+              ignoreDuplicates: true,
+            })
+            .select('id')
+            .maybeSingle();
+
+          if (cacheError) {
+            logger.debug(`Could not cache message: ${cacheError.message}`);
+          }
+
+          return {
+            id: cachedMsg?.id || messageUuid || note.id,
+            content: note.content,
+            created_at: note.published,
+            updated_at: note.updated,
+            metadata: { ap_id: note.id },
+            author,
+          };
+        }
+
         return {
-          id: note.id,
+          id: messageUuid || note.id,
           content: note.content,
           created_at: note.published,
           updated_at: note.updated,
