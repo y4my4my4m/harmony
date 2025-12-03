@@ -312,14 +312,19 @@ async function processLeaveServer(
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
 
   // Get user
-  const { data: user } = await supabase
+  const { data: user, error: userError } = await supabase
     .from('profiles')
     .select('id, username')
     .eq('federated_id', actorUrl)
-    .single();
+    .maybeSingle();
+
+  if (userError) {
+    logger.error(`Failed to query user for Leave activity: ${userError.message}`);
+    return;
+  }
 
   if (!user) {
-    logger.warn('User not found for Leave activity');
+    logger.warn(`User not found for Leave activity: ${actorUrl}`);
     return;
   }
 
