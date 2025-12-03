@@ -19,9 +19,7 @@
       <div class="welcome-section">
         <div class="logo-container">
           <div class="logo-glow"></div>
-          <svg viewBox="0 0 24 24" class="harmony-logo">
-            <path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5z" fill="currentColor"/>
-          </svg>
+          <img src="/img/app_icon_square.png" alt="Harmony Logo" class="harmony-logo" />
         </div>
         
         <div class="welcome-text">
@@ -291,11 +289,10 @@ const getParticleStyle = (index: number) => {
 
 .harmony-logo {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   color: #ffffff;
-  background: linear-gradient(135deg, #5865f2, #7289da);
-  padding: 16px;
+  overflow: visible;
   border-radius: 50%;
   z-index: 1;
 }
