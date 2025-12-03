@@ -294,3 +294,7 @@ node_modules/@protobufjs/inquire/index.js (12:18): Use of eval in "node_modules/
 ---
 
 Federated reactions in chat (just like everywhere else) as ephemeral, we should find a proper solution to make them permanent.
+
+---
+
+RLS permission for select and stuff, we can't allow users to fetch more than they should be able to (could be kind of DDoS attacked that way)
