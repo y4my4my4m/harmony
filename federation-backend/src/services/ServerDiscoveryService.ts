@@ -604,25 +604,30 @@ router.get(
       }
 
       // Fetch all unique authors in parallel (deduplicated)
+      // ensureRemoteUser now returns the profile directly
       const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
-      const authorFetchPromises = Array.from(uniqueAuthorUrls).map(url => 
-        ActivityProcessor['ensureRemoteUser'](url).catch(err => {
-          logger.debug(`Could not fetch author ${url}: ${err}`);
-        })
-      );
-      await Promise.all(authorFetchPromises);
-
-      // Now get all authors from DB in one query
-      const { data: allAuthors } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, federated_id, color')
-        .in('federated_id', Array.from(uniqueAuthorUrls));
-
-      // Create a lookup map for quick author access
       const authorMap = new Map<string, any>();
-      for (const author of (allAuthors || [])) {
-        authorMap.set(author.federated_id, author);
-      }
+      
+      // Fetch each author and map them by the URL we used to fetch them
+      await Promise.all(Array.from(uniqueAuthorUrls).map(async (url) => {
+        try {
+          const profile = await ActivityProcessor['ensureRemoteUser'](url);
+          if (profile) {
+            // Map by BOTH the original URL and the canonical federated_id
+            authorMap.set(url, profile);
+            authorMap.set(url.toLowerCase(), profile);
+            if (profile.federated_id && profile.federated_id !== url) {
+              authorMap.set(profile.federated_id, profile);
+              authorMap.set(profile.federated_id.toLowerCase(), profile);
+            }
+            logger.debug(`Mapped author: ${url} -> ${profile.username}`);
+          }
+        } catch (err) {
+          logger.debug(`Could not fetch author ${url}: ${err}`);
+        }
+      }));
+      
+      logger.debug(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
 
       // Transform messages using the cached author data
       const messages = await Promise.all(items.map(async (item: any) => {
@@ -634,27 +639,40 @@ router.get(
         // Get author URL - can be from attributedTo or actor
         const authorUrl = note.attributedTo || activity.actor;
         
-        // Get author from our pre-fetched map
-        let author = authorMap.get(authorUrl) || null;
+        // Get author from our pre-fetched map (try multiple variations)
+        let author = authorMap.get(authorUrl) || 
+                     authorMap.get(authorUrl?.toLowerCase()) || 
+                     null;
 
-        // For bridge messages (Discord, Matrix, etc.) without a valid author,
+        // For bridge messages (Discord, Matrix, etc.) or messages without a valid author,
         // try to extract info from the note itself
         if (!author) {
           // Check if the note has author name in the content or signature
-          const bridgeMatch = note.content?.match(/<strong>([^<]+)<\/strong>:/);
+          // Common bridge patterns:
+          // - <strong>Username</strong>: message
+          // - **Username**: message
+          // - [Username]: message
+          const bridgeMatch = note.content?.match(/<strong>([^<]+)<\/strong>:/) ||
+                              note.content?.match(/\*\*([^*]+)\*\*:/) ||
+                              note.content?.match(/^\[([^\]]+)\]:?/);
           const bridgeName = bridgeMatch?.[1] || note.name || 'External User';
           
-          // Create a placeholder author for bridge messages
+          // Create a placeholder author for bridge/external messages
           author = {
             id: null,
-            username: bridgeName.toLowerCase().replace(/\s+/g, '_'),
+            username: bridgeName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').substring(0, 30),
             display_name: bridgeName,
             avatar_url: null,
             federated_id: authorUrl || `bridge:${note.id}`,
             is_bridge: true,
           };
           
-          logger.debug(`Using bridge author for message ${note.id}: ${bridgeName}`);
+          // Only log as debug if we have an authorUrl (expected case for bridges)
+          if (!authorUrl || authorUrl.includes('/undefined')) {
+            logger.debug(`Bridge message ${note.id}: ${bridgeName}`);
+          } else {
+            logger.warn(`Author not found for ${authorUrl}, using bridge fallback: ${bridgeName}`);
+          }
         }
 
         // Extract message UUID from ap_id if possible

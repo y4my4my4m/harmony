@@ -932,15 +932,18 @@ export class CoreMessageService {
 
     // If null/undefined, return empty
     if (!content) {
+      debug.log('⚠️ parseRemoteContent received null/undefined content')
       return [{ type: 'text', text: '' }]
     }
 
     // If HTML string, convert to our format while preserving important elements
     if (typeof content === 'string') {
+      // Debug log if content has emojis
+      if (content.includes('<img') || content.includes('emoji')) {
+        debug.log('🔍 parseRemoteContent input (first 300 chars):', content.substring(0, 300))
+      }
       const result: any[] = []
       
-      // First, extract custom emojis (img tags with emoji class or custom emoji pattern)
-      // Pattern matches :emoji_name: and emoji images
       let processedContent = content
       
       // Replace <br> with newlines
@@ -950,39 +953,65 @@ export class CoreMessageService {
       processedContent = processedContent.replace(/<\/p>\s*<p>/gi, '\n\n')
       processedContent = processedContent.replace(/<\/?p>/gi, '')
       
-      // Extract emoji images and convert to inline format
-      // Matches: <img class="emoji" src="URL" alt=":name:" ...> or similar
-      const emojiImgRegex = /<img[^>]*(?:class="[^"]*emoji[^"]*"[^>]*src="([^"]+)"[^>]*alt="([^"]+)"|src="([^"]+)"[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]+)"|alt="(:[^:]+:)"[^>]*src="([^"]+)")[^>]*\/?>/gi
+      // Extract ALL img tags that look like emojis (any img with src and reasonable attributes)
+      // More permissive pattern to catch various emoji formats:
+      // - <img class="emoji" src="..." alt=":name:" />
+      // - <img src="..." title=":name:" />
+      // - <img alt=":name:" src="..." />
+      // - <img data-emoji="name" src="..." />
+      const imgRegex = /<img\s+([^>]*)>/gi
       
-      processedContent = processedContent.replace(emojiImgRegex, (match, src1, alt1, src2, alt2, alt3, src3) => {
-        const src = src1 || src2 || src3
-        const alt = alt1 || alt2 || alt3 || ':emoji:'
-        // Return a placeholder that we'll process below
-        return `[REMOTE_EMOJI:${alt}:${src}]`
+      processedContent = processedContent.replace(imgRegex, (match, attrs) => {
+        // Extract src
+        const srcMatch = attrs.match(/src=["']([^"']+)["']/i)
+        if (!srcMatch) return match // Not a valid image, keep as-is
+        
+        const src = srcMatch[1]
+        
+        // Check if it's likely an emoji (has emoji class, or emoji in URL, or custom-emoji in URL)
+        const isEmoji = /class=["'][^"']*emoji/i.test(attrs) ||
+                       /emoji|custom[-_]?emoji/i.test(src) ||
+                       /\/emojis?\//i.test(src) ||
+                       /alt=["']:?[a-zA-Z0-9_-]+:?["']/i.test(attrs)
+        
+        if (!isEmoji) return match // Not an emoji, keep as-is
+        
+        // Extract name from alt, title, or data attributes
+        const altMatch = attrs.match(/alt=["']:?([^"':]+):?["']/i)
+        const titleMatch = attrs.match(/title=["']:?([^"':]+):?["']/i)
+        const dataMatch = attrs.match(/data-(?:emoji|shortcode)=["']([^"']+)["']/i)
+        
+        const emojiName = (altMatch?.[1] || titleMatch?.[1] || dataMatch?.[1] || 'emoji').trim()
+        
+        // Return a placeholder
+        return `[REMOTE_EMOJI:${emojiName}:${src}]`
       })
       
-      // Also handle Misskey-style emoji: <span class="emoji">:name:</span>
+      // Also handle Misskey/Mastodon style emoji: <span class="emoji">:name:</span>
       processedContent = processedContent.replace(/<span[^>]*class="[^"]*emoji[^"]*"[^>]*>([^<]+)<\/span>/gi, (match, emojiCode) => {
-        return emojiCode // Keep the :emoji_name: text
+        return emojiCode // Keep the :emoji_name: text for now
       })
       
       // Strip remaining HTML tags
       const text = processedContent.replace(/<[^>]*>/g, '').trim()
       
-      // If the text contains remote emoji placeholders, parse them
+      // Parse the text for remote emoji placeholders
       if (text.includes('[REMOTE_EMOJI:')) {
+        // Split while keeping the delimiter
         const parts = text.split(/(\[REMOTE_EMOJI:[^\]]+\])/g)
         for (const part of parts) {
+          // Match: [REMOTE_EMOJI:name:url]
           const emojiMatch = part.match(/\[REMOTE_EMOJI:([^:]+):(.+)\]/)
           if (emojiMatch) {
-            // Add as emoji with URL - format matches UnifiedMessageContent expectations
-            const emojiName = emojiMatch[1].replace(/:/g, '')
+            const emojiName = emojiMatch[1].replace(/:/g, '').trim()
+            const emojiUrl = emojiMatch[2].trim()
+            
             result.push({
               type: 'emoji',
               emoji: {
                 id: `remote:${emojiName}`,
                 name: emojiName,
-                url: emojiMatch[2],
+                url: emojiUrl,
               }
             })
           } else if (part.trim()) {

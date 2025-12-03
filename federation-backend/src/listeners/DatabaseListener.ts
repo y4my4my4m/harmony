@@ -8,6 +8,7 @@
  * 4. Process and federate
  */
 
+import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
@@ -376,6 +377,34 @@ export async function startDatabaseListener(): Promise<void> {
       async (payload) => {
         logger.info('💬💔 Message reaction removed:', payload.old?.id);
         await handleMessageReactionRemoval(payload.old);
+      }
+    )
+    // Listen for server updates - federate to remote members
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'servers',
+      },
+      async (payload) => {
+        // Only federate local servers with federation enabled and meaningful changes
+        if (payload.new.is_local_server && 
+            payload.new.federation_enabled &&
+            (payload.old.name !== payload.new.name || 
+             payload.old.description !== payload.new.description ||
+             payload.old.icon !== payload.new.icon)) {
+          logger.info('🏠 Server updated:', {
+            id: payload.new.id,
+            name: payload.new.name,
+            changed: {
+              name: payload.old.name !== payload.new.name,
+              description: payload.old.description !== payload.new.description,
+              icon: payload.old.icon !== payload.new.icon,
+            }
+          });
+          await handleServerUpdated(payload.new, payload.old);
+        }
       }
     )
     .subscribe((status, err) => {
@@ -1377,6 +1406,61 @@ async function handleChannelDeleted(channel: any): Promise<void> {
     logger.info(`🗑️ Channel deletion federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
     logger.error('Failed to federate channel deletion:', error);
+  }
+}
+
+/**
+ * Handle server update - federate to remote members
+ */
+async function handleServerUpdated(server: any, oldServer: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const hostDomain = config.INSTANCE_DOMAIN;
+    
+    // Get remote member groups
+    const remoteMemberGroups = await getRemoteMemberGroups(server.id);
+    if (remoteMemberGroups.length === 0) {
+      logger.info('No remote members to notify of server update');
+      return;
+    }
+    
+    const serverUrl = `https://${hostDomain}/servers/${server.id}`;
+    
+    // Build Update activity with changed properties
+    const activity = {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        { 'harmony': 'https://harmonyapp.dev/ns#' },
+      ],
+      id: `${serverUrl}/activities/${crypto.randomUUID()}`,
+      type: 'Update',
+      actor: serverUrl,
+      object: {
+        id: serverUrl,
+        type: 'Group',
+        name: server.name,
+        summary: server.description,
+        icon: server.icon ? {
+          type: 'Image',
+          url: server.icon.startsWith('http') ? server.icon : 
+               `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_icons/${server.icon}`,
+        } : undefined,
+        'harmony:ChatServer': true,
+        updated: new Date().toISOString(),
+      },
+      published: new Date().toISOString(),
+    };
+    
+    // Send to remote instances
+    const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
+    for (const group of remoteMemberGroups) {
+      const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+      await DeliveryQueue.enqueue(activity, inbox, server.id);
+    }
+    
+    logger.info(`🏠 Server update federated to ${remoteMemberGroups.length} instances`);
+  } catch (error) {
+    logger.error('Failed to federate server update:', error);
   }
 }
 
