@@ -8,6 +8,8 @@ export interface Server {
   icon: string;
   allow_cross_server_emojis: boolean;
   public: boolean;
+  federation_enabled?: boolean;
+  is_local_server?: boolean;
   created_at?: string;
 }
 

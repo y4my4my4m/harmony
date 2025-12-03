@@ -48,12 +48,6 @@ export async function processServerInboxActivity(
     return;
   }
 
-  // Check if federation is enabled for this server
-  if (!server.federation_enabled) {
-    logger.warn(`Federation not enabled for server ${serverId}`);
-    return;
-  }
-
   // Check if sender instance is blocked
   try {
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
@@ -70,6 +64,8 @@ export async function processServerInboxActivity(
   }
 
   // Route activity to appropriate handler
+  // NOTE: Join/Leave/Accept/Reject always allowed - users should be able to join/leave
+  // Create/Update/Delete only work if federation is enabled (for privacy)
   switch (activity.type) {
     case 'Join':
       await processJoinServer(serverId, server, activity);
@@ -88,31 +84,54 @@ export async function processServerInboxActivity(
       break;
 
     case 'Create':
+      // Check federation for content activities
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting Create`);
+        return;
+      }
       await processCreateActivity(serverId, server, activity);
       break;
 
     case 'Update':
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting Update`);
+        return;
+      }
       await processUpdateActivity(serverId, server, activity);
       break;
 
     case 'Delete':
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting Delete`);
+        return;
+      }
       await processDeleteActivity(serverId, server, activity);
       break;
 
     case 'Like':
     case 'EmojiReaction':
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting reaction`);
+        return;
+      }
       await processReactionActivity(serverId, server, activity);
       break;
 
     case 'Add':
+      // Add is for channel CRUD - allow even without federation for consistency
       await processAddActivity(serverId, server, activity);
       break;
 
     case 'Remove':
+      // Remove is for channel CRUD - allow even without federation
       await processRemoveActivity(serverId, server, activity);
       break;
 
     case 'Undo':
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting Undo`);
+        return;
+      }
       await processUndoActivity(serverId, server, activity);
       break;
 

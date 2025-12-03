@@ -975,12 +975,15 @@ export class CoreMessageService {
         for (const part of parts) {
           const emojiMatch = part.match(/\[REMOTE_EMOJI:([^:]+):(.+)\]/)
           if (emojiMatch) {
-            // Add as emoji with URL
+            // Add as emoji with URL - format matches UnifiedMessageContent expectations
+            const emojiName = emojiMatch[1].replace(/:/g, '')
             result.push({
               type: 'emoji',
-              shortcode: emojiMatch[1].replace(/:/g, ''),
-              url: emojiMatch[2],
-              name: emojiMatch[1],
+              emoji: {
+                id: `remote:${emojiName}`,
+                name: emojiName,
+                url: emojiMatch[2],
+              }
             })
           } else if (part.trim()) {
             result.push({ type: 'text', text: part })

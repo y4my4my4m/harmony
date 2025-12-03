@@ -124,6 +124,8 @@
           <template v-if="activeSection === 'privacy'">
             <ServerPrivacySettings
               v-model:isPublic="server.public"
+              :federationEnabled="server.federation_enabled ?? false"
+              @update:federationEnabled="server.federation_enabled = $event"
               :loading="loading"
               :permissions="permissions"
             />
