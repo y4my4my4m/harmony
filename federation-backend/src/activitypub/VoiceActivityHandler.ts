@@ -339,7 +339,10 @@ export class VoiceActivityHandler {
     // Find the channel by AP ID - use maybeSingle() to avoid throwing on 0 rows
     const { data: channel } = await supabase
       .from('channels')
-      .select('id, name, server_id')
+      .select(`
+        id, name, server_id,
+        server:servers!channels_server_id_fkey(id, owner)
+      `)
       .eq('ap_id', channelInfo.id)
       .maybeSingle();
 
@@ -348,6 +351,8 @@ export class VoiceActivityHandler {
       await this.sendVoiceChannelJoinReject(activity, 'Channel not found');
       return;
     }
+    
+    const server = (channel as any).server;
 
     // Verify user has permission to join (must be a server member)
     const { data: membership } = await supabase
@@ -426,12 +431,12 @@ export class VoiceActivityHandler {
       `channel-${channel.id}`
     );
 
-    // Deliver to the user's instance
+    // Deliver to the user's instance (use server owner for signing)
     const userDomain = new URL(actorUrl).hostname;
     const inbox = `https://${userDomain}/inbox`;
     
     const { DeliveryQueue } = await import('./DeliveryQueue.js');
-    await DeliveryQueue.enqueue(acceptActivity, inbox, channel.server_id);
+    await DeliveryQueue.enqueue(acceptActivity, inbox, server.owner);
 
     logger.info(`✅ Federated user ${user.username} joined voice channel ${channelInfo.name}, token sent`);
   }
