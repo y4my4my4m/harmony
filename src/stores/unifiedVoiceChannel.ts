@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
+import { livekitWebRTC } from '@/services/livekitWebRTC';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
@@ -9,7 +10,9 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { useUserData } from '@/composables/useUserData';
+import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Module-level variable for cross-tab heartbeat (not reactive)
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
@@ -31,6 +34,15 @@ interface VoiceChannelState {
   isConnected: boolean;
   sessionStartTime: Date | null; // Track when the user joined the channel
   callStartTime: Date | null; // Track when the call started (first user joined)
+  
+  // Federation state
+  isFederatedChannel: boolean;
+  federatedTokenSubscription: RealtimeChannel | null;
+  pendingFederatedJoin: {
+    channelId: string;
+    serverId: string;
+    timeout: ReturnType<typeof setTimeout> | null;
+  } | null;
   
   // Users and their states
   allUsers: UserMediaState[];
@@ -79,6 +91,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     currentChannelName: null,
     sessionStartTime: null,
     callStartTime: null,
+    
+    // Federation state
+    isFederatedChannel: false,
+    federatedTokenSubscription: null,
+    pendingFederatedJoin: null,
     
     allUsers: [],
     localState: {
@@ -255,89 +272,229 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         debug.log('🎯 Joining voice channel:', channelId, 'on server:', serverId);
         
-        // Update server presence first
-        const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId);
-        if (!presenceSuccess) {
-          throw new Error('Failed to update server presence');
+        // Check if this is a federated (remote) server
+        const isRemoteServer = serverChannelStore.currentServer?.is_local_server === false;
+        this.isFederatedChannel = isRemoteServer;
+        
+        if (isRemoteServer) {
+          debug.log('🌐 Joining federated voice channel, waiting for token exchange...');
+          return await this.joinFederatedVoiceChannel(channelId, serverId, userId);
         }
         
-        // Setup WebRTC event listeners before joining
-        this.setupWebRTCListeners();
-        
-        // Determine room type: DM calls use 'dm_call', server channels use 'voice_channel'
-        const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
-        
-        // Join WebRTC channel (uses LiveKit SFU or P2P based on config)
-        const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType);
-        if (!webrtcSuccess) {
-          // Rollback server presence
-          await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
-          throw new Error('Failed to join WebRTC channel');
-        }
-        
-        debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
-        
-        // Update store state
-        this.currentChannelId = channelId;
-        this.currentServerId = serverId;
-        // FIXME: highly inefficient way to get channel name
-        // This should be optimized to avoid fetching all channels every time
-        const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
-        this.currentChannelName = channel ? channel.name : 'Voice Channel';
-        this.isConnected = true;
-        this.sessionStartTime = new Date(); // Track when user joined
-        
-        // Get call start time from serverUsersStore (synced across all users)
-        const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
-        if (existingCallStartTime) {
-          this.callStartTime = existingCallStartTime;
-          debug.log('🕐 Using existing call start time from serverUsersStore:', this.callStartTime);
-        } else {
-          // We're the first user - set it now
-          this.callStartTime = new Date();
-          debug.log('🕐 First user - setting call start time:', this.callStartTime);
-        }
-        
-        // Save voice channel state to localStorage for auto-reconnect
-        this.saveVoiceChannelState();
-        
-        // Start cross-tab session heartbeat
-        this.startVoiceSessionHeartbeat();
-        
-        // Check if anyone else is in the channel to determine if we're starting the call
-        // We'll set call start time after channel state sync
-        
-        // Get fresh state from WebRTC service
-        const newLocalState = webrtcManager.getLocalState();
-        
-        // Apply any preemptive mute/deafen state
-        if (this.localState.isMuted && !newLocalState.isMuted) {
-          debug.log('Applying preemptive mute state');
-          webrtcManager.toggleMute();
-        }
-        if (this.localState.isDeafened && !newLocalState.isDeafened) {
-          debug.log('Applying preemptive deafen state');
-          webrtcManager.toggleDeafen();
-        }
-        
-        // Update state after applying preemptive settings
-        this.localState = webrtcManager.getLocalState();
-        this.localStream = webrtcManager.getLocalStream();
-        
-        // Initialize spatial audio
-        await this.initializeSpatialAudio(userId);
-        
-        // Don't reset isOverlayVisible here - it may have been set to true
-        // by event handlers (user-joined, user-state-changed) that detected
-        // existing video/screenshare. Let the event handlers control this.
-        
-        // Play join sound
-        themeStore.testAudio('voice_connect');
-        
-        return true;
+        // Local server join flow
+        return await this.joinLocalVoiceChannel(channelId, serverId, userId);
       } catch (error) {
         debug.error('❌ Failed to join voice channel:', error);
         return false;
+      }
+    },
+    
+    /**
+     * Join a local (non-federated) voice channel
+     */
+    async joinLocalVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
+      const serverUsersStore = useServerUsersStore();
+      const serverChannelStore = useServerChannelStore();
+      const themeStore = useThemeStore();
+      
+      // Update server presence first
+      const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId);
+      if (!presenceSuccess) {
+        throw new Error('Failed to update server presence');
+      }
+      
+      // Setup WebRTC event listeners before joining
+      this.setupWebRTCListeners();
+      
+      // Determine room type: DM calls use 'dm_call', server channels use 'voice_channel'
+      const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
+      
+      // Join WebRTC channel (uses LiveKit SFU or P2P based on config)
+      const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType);
+      if (!webrtcSuccess) {
+        // Rollback server presence
+        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        throw new Error('Failed to join WebRTC channel');
+      }
+      
+      debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
+      
+      // Update store state
+      this.currentChannelId = channelId;
+      this.currentServerId = serverId;
+      // FIXME: highly inefficient way to get channel name
+      // This should be optimized to avoid fetching all channels every time
+      const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+      this.currentChannelName = channel ? channel.name : 'Voice Channel';
+      this.isConnected = true;
+      this.sessionStartTime = new Date(); // Track when user joined
+      
+      // Get call start time from serverUsersStore (synced across all users)
+      const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
+      if (existingCallStartTime) {
+        this.callStartTime = existingCallStartTime;
+        debug.log('🕐 Using existing call start time from serverUsersStore:', this.callStartTime);
+      } else {
+        // We're the first user - set it now
+        this.callStartTime = new Date();
+        debug.log('🕐 First user - setting call start time:', this.callStartTime);
+      }
+      
+      // Save voice channel state to localStorage for auto-reconnect
+      this.saveVoiceChannelState();
+      
+      // Start cross-tab session heartbeat
+      this.startVoiceSessionHeartbeat();
+      
+      // Check if anyone else is in the channel to determine if we're starting the call
+      // We'll set call start time after channel state sync
+      
+      // Get fresh state from WebRTC service
+      const newLocalState = webrtcManager.getLocalState();
+      
+      // Apply any preemptive mute/deafen state
+      if (this.localState.isMuted && !newLocalState.isMuted) {
+        debug.log('Applying preemptive mute state');
+        webrtcManager.toggleMute();
+      }
+      if (this.localState.isDeafened && !newLocalState.isDeafened) {
+        debug.log('Applying preemptive deafen state');
+        webrtcManager.toggleDeafen();
+      }
+      
+      // Update state after applying preemptive settings
+      this.localState = webrtcManager.getLocalState();
+      this.localStream = webrtcManager.getLocalStream();
+      
+      // Initialize spatial audio
+      await this.initializeSpatialAudio(userId);
+      
+      // Don't reset isOverlayVisible here - it may have been set to true
+      // by event handlers (user-joined, user-state-changed) that detected
+      // existing video/screenshare. Let the event handlers control this.
+      
+      // Play join sound
+      themeStore.testAudio('voice_connect');
+      
+      return true;
+    },
+    
+    /**
+     * Join a federated (remote server) voice channel
+     * This triggers a VoiceChannelJoin activity to be sent via ActivityPub,
+     * and waits for the VoiceChannelJoinAccept response with the LiveKit token.
+     */
+    async joinFederatedVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
+      const serverUsersStore = useServerUsersStore();
+      const serverChannelStore = useServerChannelStore();
+      const themeStore = useThemeStore();
+      
+      return new Promise((resolve, reject) => {
+        // Set up listener for federated voice token
+        const channelName = `federated-voice:${userId}`;
+        
+        debug.log('🔔 Subscribing to federated voice token channel:', channelName);
+        
+        this.federatedTokenSubscription = supabase
+          .channel(channelName)
+          .on('broadcast', { event: 'voice-token-received' }, async (payload) => {
+            debug.log('✅ Received federated voice token:', payload);
+            
+            // Clear pending state and timeout
+            if (this.pendingFederatedJoin?.timeout) {
+              clearTimeout(this.pendingFederatedJoin.timeout);
+            }
+            this.pendingFederatedJoin = null;
+            
+            // Extract token data
+            const { livekitUrl, token, roomName } = payload.payload;
+            
+            try {
+              // Setup WebRTC event listeners before joining
+              this.setupWebRTCListeners();
+              
+              // Connect directly to remote LiveKit using the provided token
+              const success = await livekitWebRTC.joinWithToken(livekitUrl, token, channelId, userId);
+              
+              if (!success) {
+                throw new Error('Failed to connect to remote LiveKit server');
+              }
+              
+              debug.log('🔌 [VoiceChannel] Connected to federated voice channel via LiveKit');
+              
+              // Update store state
+              this.currentChannelId = channelId;
+              this.currentServerId = serverId;
+              const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+              this.currentChannelName = channel ? channel.name : 'Voice Channel';
+              this.isConnected = true;
+              this.sessionStartTime = new Date();
+              this.callStartTime = new Date();
+              
+              // Save voice channel state
+              this.saveVoiceChannelState();
+              this.startVoiceSessionHeartbeat();
+              
+              // Update state
+              this.localState = webrtcManager.getLocalState();
+              this.localStream = webrtcManager.getLocalStream();
+              
+              // Play join sound
+              themeStore.testAudio('voice_connect');
+              
+              resolve(true);
+            } catch (error) {
+              debug.error('Failed to connect with federated token:', error);
+              this.cleanupFederatedSubscription();
+              reject(error);
+            }
+          })
+          .on('broadcast', { event: 'voice-join-rejected' }, (payload) => {
+            debug.error('❌ Voice join rejected:', payload.payload);
+            
+            // Clear pending state
+            if (this.pendingFederatedJoin?.timeout) {
+              clearTimeout(this.pendingFederatedJoin.timeout);
+            }
+            this.pendingFederatedJoin = null;
+            this.cleanupFederatedSubscription();
+            
+            reject(new Error(payload.payload.reason || 'Voice join rejected by remote server'));
+          })
+          .subscribe((status) => {
+            debug.log(`📡 Federated voice subscription status: ${status}`);
+          });
+        
+        // Update server presence to trigger the federation job
+        // This will cause the database trigger to queue a VoiceChannelJoin federation job
+        serverUsersStore.joinVoiceChannel(serverId, channelId, userId)
+          .then((success) => {
+            if (!success) {
+              this.cleanupFederatedSubscription();
+              reject(new Error('Failed to update server presence'));
+            }
+          });
+        
+        // Set timeout for token response (30 seconds)
+        const timeout = setTimeout(() => {
+          debug.error('❌ Timeout waiting for federated voice token');
+          this.pendingFederatedJoin = null;
+          this.cleanupFederatedSubscription();
+          serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+          reject(new Error('Timeout waiting for voice connection to remote server'));
+        }, 30000);
+        
+        this.pendingFederatedJoin = { channelId, serverId, timeout };
+      });
+    },
+    
+    /**
+     * Clean up federated voice subscription
+     */
+    cleanupFederatedSubscription() {
+      if (this.federatedTokenSubscription) {
+        this.federatedTokenSubscription.unsubscribe();
+        this.federatedTokenSubscription = null;
       }
     },
 
@@ -355,8 +512,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         const userId = authStore.session.user.id;
+        const wasFederated = this.isFederatedChannel;
         
-        debug.log('👋 Leaving voice channel');
+        debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
+        
+        // Clean up federated subscription if active
+        this.cleanupFederatedSubscription();
+        if (this.pendingFederatedJoin?.timeout) {
+          clearTimeout(this.pendingFederatedJoin.timeout);
+          this.pendingFederatedJoin = null;
+        }
         
         // Clear saved voice channel state (user manually left)
         this.clearVoiceChannelState();
@@ -367,12 +532,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Clean up spatial audio
         this.cleanupSpatialAudio();
         
-        // Update server presence
+        // Update server presence (this triggers the leave federation job for remote servers)
         if (this.currentServerId) {
           await serverUsersStore.leaveVoiceChannel(this.currentServerId, this.currentChannelId, userId);
         }
         
         // Reset state
+        this.isFederatedChannel = false;
         this.resetState();
         
         // Play leave sound

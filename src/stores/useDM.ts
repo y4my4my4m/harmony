@@ -1718,6 +1718,13 @@ export const useDMStore = defineStore('dm', () => {
         debug.log('🔄 DM message updated:', payload.new)
         const message = payload.new as any
         
+        // Handle soft delete (federated message deletions use UPDATE with is_deleted = true)
+        if (message.is_deleted) {
+          removeMessageFromCache(message.id)
+          debug.log('🗑️ DM message soft-deleted via real-time:', message.id)
+          return
+        }
+        
         // Fetch reactions if the message has any
         let formattedReactions: any[] = []
         if (message.reactions && message.reactions.length > 0) {

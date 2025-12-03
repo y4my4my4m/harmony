@@ -311,6 +311,58 @@ export class LiveKitWebRTCService {
   }
   
   /**
+   * Join a voice channel with a pre-obtained token (for federated voice)
+   * Used when connecting to a remote instance's LiveKit server
+   */
+  async joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean> {
+    debug.log('🌐 [LiveKit] Joining federated voice channel:', channelId, 'with remote token');
+    
+    try {
+      // Clean previous connection
+      if (this.room) {
+        await this.leaveChannel();
+      }
+      
+      this.channelId = channelId;
+      this.currentUserId = userId;
+      this.roomType = 'voice_channel';
+      this.localMediaState.userId = userId;
+      
+      // Create room with options
+      this.room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      });
+      
+      // Setup room event listeners
+      this.setupRoomListeners();
+      
+      // Connect to remote LiveKit server with provided token
+      await this.room.connect(wsUrl, token, {
+        autoSubscribe: true,
+      });
+      
+      debug.log('✅ [LiveKit] Connected to federated room');
+      
+      // Sync existing participants
+      this.syncExistingParticipants();
+      
+      // Publish local audio track
+      await this.publishLocalAudio();
+      
+      this.emit('channel-joined', { channelId, userId });
+      this.emit('local-state-changed', this.localMediaState);
+      this.emit('channel-state-synced', { users: this.getAllUsers() });
+      
+      return true;
+    } catch (error) {
+      debug.error('❌ [LiveKit] Failed to join federated channel:', error);
+      this.emit('error', error);
+      return false;
+    }
+  }
+  
+  /**
    * Leave current voice channel
    */
   async leaveChannel(): Promise<void> {
