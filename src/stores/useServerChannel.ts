@@ -256,7 +256,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
             icon,
             owner,
             allow_cross_server_emojis,
-            public
+            public,
+            federation_enabled,
+            is_local_server,
+            federation_domain,
+            federation_inbox_url
           )
         `)
         .eq('user_id', userId)
@@ -289,7 +293,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
             icon,
             owner,
             allow_cross_server_emojis,
-            public
+            public,
+            federation_enabled,
+            is_local_server,
+            federation_domain,
+            federation_inbox_url
           )
         `)
         .eq('user_id', userId)
