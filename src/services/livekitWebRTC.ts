@@ -339,7 +339,7 @@ export class LiveKitWebRTCService {
       debug.log('✅ [LiveKit] Connected to room:', roomName);
       
       // Sync existing participants (they don't trigger ParticipantConnected event)
-      this.syncExistingParticipants();
+      await this.syncExistingParticipants();
       
       // Publish local audio track
       await this.publishLocalAudio();
@@ -829,7 +829,7 @@ export class LiveKitWebRTCService {
    * Sync existing participants in the room (called after connecting)
    * This handles participants who were already in the room before we joined
    */
-  private syncExistingParticipants(): void {
+  private async syncExistingParticipants(): Promise<void> {
     if (!this.room) {
       debug.warn('⚠️ [LiveKit] syncExistingParticipants called but no room');
       return;
