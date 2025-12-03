@@ -105,7 +105,29 @@ router.post(
 
       const data = await remoteResponse.json();
       
-      // Pass through the response from the remote instance
+      // Convert relative URLs to absolute URLs using the remote instance
+      const makeAbsolute = (url: string | null | undefined): string | null => {
+        if (!url) return null;
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        // Handle relative URLs - prefix with remote instance
+        return `https://${instance}${url.startsWith('/') ? '' : '/'}${url}`;
+      };
+
+      // Fix server icon
+      if (data.server?.icon) {
+        data.server.icon = makeAbsolute(data.server.icon);
+      }
+
+      // Fix creator avatar if present
+      if (data.createdBy?.avatar) {
+        data.createdBy.avatar = makeAbsolute(data.createdBy.avatar);
+      }
+
+      // Fix server owner avatar if present
+      if (data.server?.owner?.avatar_url) {
+        data.server.owner.avatar_url = makeAbsolute(data.server.owner.avatar_url);
+      }
+
       res.json(data);
     } catch (error: any) {
       logger.error(`Failed to resolve remote invite: ${error.message}`);
@@ -157,6 +179,13 @@ router.get(
     const server = invite.server;
     const hostDomain = config.INSTANCE_DOMAIN;
 
+    // Helper to convert relative URLs to absolute
+    const makeAbsolute = (url: string | null | undefined): string | null => {
+      if (!url) return null;
+      if (url.startsWith('http://') || url.startsWith('https://')) return url;
+      return `https://${hostDomain}${url.startsWith('/') ? '' : '/'}${url}`;
+    };
+
     // Get member count
     const { count: memberCount } = await supabase
       .from('user_servers')
@@ -180,14 +209,14 @@ router.get(
       createdBy: invite.creator ? {
         username: invite.creator.username,
         displayName: invite.creator.display_name,
-        avatar: invite.creator.avatar_url,
+        avatar: makeAbsolute(invite.creator.avatar_url),
       } : null,
       server: {
         id: `https://${hostDomain}/servers/${server.id}`,
         serverId: server.id,
         name: server.name,
         description: server.description || '',
-        icon: server.icon,
+        icon: makeAbsolute(server.icon),
         memberCount: memberCount || 0,
         channels: (channels || []).map(c => ({
           id: c.id,
