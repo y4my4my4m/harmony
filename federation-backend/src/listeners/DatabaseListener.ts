@@ -1546,7 +1546,7 @@ async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
 /**
  * Handle new channel message - federate to remote server members
  */
-async function handleNewChannelMessage(message: any): Promise<void> {
+export async function handleNewChannelMessage(message: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     

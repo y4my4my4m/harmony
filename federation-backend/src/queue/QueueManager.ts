@@ -20,6 +20,7 @@ import { handlePostJob } from './handlers/postHandler.js';
 import { handleReactionJob } from './handlers/reactionHandler.js';
 import { handleFollowJob } from './handlers/followHandler.js';
 import { handleDMJob } from './handlers/dmHandler.js';
+import { handleChannelMessageJob } from './handlers/channelMessageHandler.js';
 import { handleMessageReactionJob } from './handlers/messageReactionHandler.js';
 import { handleBlockJob } from './handlers/blockHandler.js';
 import { handleReportJob } from './handlers/reportHandler.js';
@@ -32,6 +33,7 @@ export type JobType =
   | 'federate-reaction'
   | 'federate-follow'
   | 'federate-dm'
+  | 'federate-channel-message'  // Channel messages (servers)
   | 'federate-message-reaction'
   | 'federate-block'
   | 'federate-report'
@@ -155,6 +157,7 @@ class QueueManagerService {
       'federate-reaction',
       'federate-follow',
       'federate-dm',
+      'federate-channel-message',
       'federate-message-reaction',
       'federate-block',
       'federate-report',
@@ -248,6 +251,7 @@ class QueueManagerService {
     await registerWithConcurrency('federate-reaction', createHandler('federate-reaction', '❤️', handleReactionJob));
     await registerWithConcurrency('federate-follow', createHandler('federate-follow', '👥', handleFollowJob));
     await registerWithConcurrency('federate-dm', createHandler('federate-dm', '💬', handleDMJob));
+    await registerWithConcurrency('federate-channel-message', createHandler('federate-channel-message', '📨', handleChannelMessageJob));
     await registerWithConcurrency('federate-message-reaction', createHandler('federate-message-reaction', '💬❤️', handleMessageReactionJob));
     await registerWithConcurrency('federate-block', createHandler('federate-block', '🚫', handleBlockJob));
     await registerWithConcurrency('federate-report', createHandler('federate-report', '🚩', handleReportJob));
@@ -258,12 +262,15 @@ class QueueManagerService {
   }
 
   /**
-   * Start periodic sweep for missed events
-   * This catches any items that were inserted but didn't trigger jobs
+   * Start periodic sweep for pending federation items
+   * 
+   * For real-time performance, messages with federation_status='pending'
+   * will be picked up by this sweep. The sweep runs frequently to catch
+   * new items quickly.
    */
   private startPeriodicSweep(): void {
-    // Run sweep every 5 minutes (300 seconds)
-    const SWEEP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+    // Run sweep every 10 seconds for responsive federation
+    const SWEEP_INTERVAL_MS = 10 * 1000; // 10 seconds
     
     this.sweepIntervalId = setInterval(async () => {
       try {
@@ -273,18 +280,19 @@ class QueueManagerService {
       }
     }, SWEEP_INTERVAL_MS);
 
-    logger.info('🔄 Periodic sweep started (5 minute interval)');
+    logger.info('🔄 Periodic sweep started (10 second interval)');
   }
 
   /**
-   * Sweep for items with pending federation status older than 30 seconds
+   * Sweep for items with pending federation status older than 2 seconds
+   * Short delay ensures the database transaction is committed
    */
   async sweepPendingItems(): Promise<void> {
     if (!this.boss) return;
 
     const { getSupabaseClient } = await import('../config/supabase.js');
     const supabase = getSupabaseClient();
-    const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+    const twoSecondsAgo = new Date(Date.now() - 2000).toISOString();
 
     // Sweep posts
     const { data: pendingPosts } = await supabase
@@ -293,7 +301,7 @@ class QueueManagerService {
       .eq('is_local', true)
       .eq('federation_status', 'pending')
       .in('visibility', ['public', 'unlisted'])
-      .lt('created_at', thirtySecondsAgo)
+      .lt('created_at', twoSecondsAgo)
       .limit(100);
 
     if (pendingPosts && pendingPosts.length > 0) {
@@ -319,7 +327,7 @@ class QueueManagerService {
       .from('follows')
       .select('id, follower_id, following_id, status')
       .eq('federation_status', 'pending')
-      .lt('created_at', thirtySecondsAgo)
+      .lt('created_at', twoSecondsAgo)
       .limit(100);
 
     if (pendingFollows && pendingFollows.length > 0) {
@@ -346,7 +354,7 @@ class QueueManagerService {
       .select('id, conversation_id, user_id')
       .eq('federation_status', 'pending')
       .not('conversation_id', 'is', null)
-      .lt('created_at', thirtySecondsAgo)
+      .lt('created_at', twoSecondsAgo)
       .limit(100);
 
     if (pendingDMs && pendingDMs.length > 0) {
@@ -363,6 +371,33 @@ class QueueManagerService {
           .from('messages')
           .update({ federation_status: 'queued' })
           .eq('id', dm.id);
+      }
+    }
+
+    // Sweep channel messages (server messages)
+    const { data: pendingChannelMessages } = await supabase
+      .from('messages')
+      .select('id, channel_id, user_id')
+      .eq('federation_status', 'pending')
+      .not('channel_id', 'is', null)
+      .is('conversation_id', null)  // Not a DM
+      .lt('created_at', twoSecondsAgo)
+      .limit(100);
+
+    if (pendingChannelMessages && pendingChannelMessages.length > 0) {
+      logger.info(`🔄 Sweep found ${pendingChannelMessages.length} pending channel messages`);
+      for (const msg of pendingChannelMessages) {
+        await this.boss.send('federate-channel-message', {
+          type: 'create',
+          message_id: msg.id,
+          channel_id: msg.channel_id,
+          user_id: msg.user_id
+        });
+        
+        await supabase
+          .from('messages')
+          .update({ federation_status: 'queued' })
+          .eq('id', msg.id);
       }
     }
   }

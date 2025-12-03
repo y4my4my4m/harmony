@@ -102,6 +102,42 @@ After these changes, verify:
 
 ---
 
+## Federation: Docker Supabase Realtime Issue (Priority)
+
+**Current state:** When running in Docker, Supabase Realtime WebSocket connection times out:
+```
+📡 Realtime subscription status: TIMED_OUT
+❌ Database listener timed out
+```
+
+**Workaround (Dec 2025):** Using pg-boss with 10-second sweep interval as fallback. This adds ~10 seconds latency to federated message delivery.
+
+**Environment:**
+```
+SUPABASE_URL=http://supabase-kong:8000
+SUPABASE_REALTIME_URL=ws://realtime-dev.supabase-realtime:4000/socket/websocket
+DATABASE_URL=postgresql://supabase_admin:...@supabase-db:5432/postgres
+```
+
+**Root cause investigation needed:**
+1. Is `supabase-realtime` container healthy and accepting WebSocket connections?
+2. Does the WebSocket URL require authentication headers?
+3. Is there a network/DNS issue between federation-backend and supabase-realtime containers?
+4. Does the federation-backend need to be on the same Docker network?
+
+**For truly real-time federation:**
+1. Fix the Supabase Realtime connection in Docker
+2. OR: Add database triggers that insert pg-boss jobs immediately (bypasses sweep delay)
+   - Trigger on `messages` INSERT → insert into `pgboss.job` with type `federate-channel-message`
+   - Similar to how we might handle DMs
+
+**Files involved:**
+- `federation-backend/src/listeners/DatabaseListener.ts` - Realtime subscription
+- `federation-backend/src/config/supabase.ts` - Supabase client setup
+- `federation-backend/src/queue/QueueManager.ts` - pg-boss sweep (current fallback)
+
+---
+
 ## Federation Backend URL Configuration (Future)
 
 **Current state:** Federation backend is accessed via relative path `/api/federation`, proxied by nginx.

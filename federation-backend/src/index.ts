@@ -107,24 +107,26 @@ app.listen(PORT, () => {
   });
   
   // Start federation event processing
-  // DatabaseListener: handles real-time events (channel messages, server updates)
-  // QueueManager (pg-boss): handles DMs, reactions, posts, follows, blocks with reliable delivery
+  // Both systems can run together:
+  // - DatabaseListener: Real-time via Supabase Realtime (if it connects)
+  // - QueueManager (pg-boss): Reliable sweep-based processing (always works)
   
-  // Always start DatabaseListener for real-time channel federation
+  // Always try to start DatabaseListener for real-time events
+  // Note: In Docker, Supabase Realtime often times out - pg-boss sweep is the fallback
   logger.info('🔊 Starting DatabaseListener for real-time federation events...');
   startDatabaseListener().catch((error) => {
     logger.error('Failed to start database listener:', error);
+    logger.info('⚠️  Real-time federation unavailable - relying on pg-boss sweep');
   });
   
   if (config.USE_PGBOSS_QUEUE) {
-    // ALSO start pg-boss for job-based federation (DMs, reactions, posts, follows, etc.)
-    logger.info('🚀 Starting pg-boss QueueManager for federation jobs...');
+    // Also start pg-boss for reliable, sweep-based federation
+    logger.info('🚀 Starting pg-boss QueueManager for reliable federation...');
     queueManager.start().catch((error) => {
       logger.error('❌ Failed to start QueueManager:', error);
-      logger.info('⚠️  Continuing with DatabaseListener only...');
     });
   } else {
-    logger.info('📡 Using DatabaseListener only (set USE_PGBOSS_QUEUE=true for job queues)');
+    logger.info('📡 Using DatabaseListener only (set USE_PGBOSS_QUEUE=true for reliable federation)');
   }
   
   // Initialize push notification service
