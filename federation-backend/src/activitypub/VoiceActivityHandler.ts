@@ -336,12 +336,37 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Find the channel by AP ID - use maybeSingle() to avoid throwing on 0 rows
-    const { data: channel } = await supabase
+    // Find the channel - try by AP ID first, then by UUID from URL
+    let channel: { id: string; name: string; server_id: string } | null = null;
+    
+    // Try by ap_id first
+    const { data: channelByApId } = await supabase
       .from('channels')
       .select('id, name, server_id')
       .eq('ap_id', channelInfo.id)
       .maybeSingle();
+    
+    if (channelByApId) {
+      channel = channelByApId;
+    } else {
+      // Fallback: parse channel UUID from the URL
+      // Format: https://domain/servers/{serverId}/channels/{channelId}
+      const uuidMatch = channelInfo.id.match(/\/channels\/([a-f0-9-]{36})$/i);
+      if (uuidMatch) {
+        const channelId = uuidMatch[1];
+        logger.debug(`Trying channel lookup by UUID: ${channelId}`);
+        
+        const { data: channelById } = await supabase
+          .from('channels')
+          .select('id, name, server_id')
+          .eq('id', channelId)
+          .maybeSingle();
+        
+        if (channelById) {
+          channel = channelById;
+        }
+      }
+    }
 
     if (!channel) {
       logger.warn(`Channel not found: ${channelInfo.id}`);
@@ -576,33 +601,19 @@ export class VoiceActivityHandler {
 
   /**
    * Helper to send a VoiceChannelJoinReject response
+   * Note: Currently just logs the rejection. Full delivery requires server actor implementation.
    */
   private static async sendVoiceChannelJoinReject(
     originalActivity: VoiceChannelJoin,
     reason: string
   ): Promise<void> {
-    const hostDomain = config.INSTANCE_DOMAIN;
-    const serverUrl = `https://${hostDomain}/servers/${originalActivity.object.serverId}`;
+    // For now, just log the rejection
+    // TODO: Implement proper reject delivery once we have server actor signing
+    logger.warn(`🚫 Voice join rejected for ${originalActivity.actor}: ${reason}`);
     
-    const rejectActivity: VoiceChannelJoinReject = {
-      '@context': [
-        'https://www.w3.org/ns/activitystreams',
-        HARMONY_VOICE_CONTEXT,
-      ],
-      id: `${serverUrl}/activities/${crypto.randomUUID()}`,
-      type: HARMONY_VOICE_TYPES.VoiceChannelJoinReject,
-      actor: serverUrl,
-      to: [originalActivity.actor],
-      object: originalActivity.id,
-      reason,
-      published: new Date().toISOString(),
-    };
-
-    const userDomain = new URL(originalActivity.actor).hostname;
-    const inbox = `https://${userDomain}/inbox`;
-    
-    const { DeliveryQueue } = await import('./DeliveryQueue.js');
-    await DeliveryQueue.enqueue(rejectActivity, inbox, originalActivity.object.serverId);
+    // Note: We don't send the reject activity because we don't have a proper
+    // signing key for server-level activities. The remote client will timeout
+    // and handle the failure gracefully.
   }
 
   /**
