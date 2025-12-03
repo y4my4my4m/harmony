@@ -127,17 +127,24 @@ export function useServerPermissions() {
     return hasPermission(currentServer.value.id, currentProfileId.value, permission)
   }
 
-  // Server settings permissions
+  // Check if server is local (not federated)
+  const isLocalServer = computed(() => {
+    if (!currentServer.value) return false
+    // If is_local_server is explicitly false, it's a remote server
+    return currentServer.value.is_local_server !== false
+  })
+
+  // Server settings permissions (only for local servers)
   const canManageServer = computed(() => 
-    hasCurrentUserPermission(ServerPermission.MANAGE_SERVER)
+    isLocalServer.value && hasCurrentUserPermission(ServerPermission.MANAGE_SERVER)
   )
 
   const canManageChannels = computed(() => 
-    hasCurrentUserPermission(ServerPermission.MANAGE_CHANNELS)
+    isLocalServer.value && hasCurrentUserPermission(ServerPermission.MANAGE_CHANNELS)
   )
 
   const canManageEmojis = computed(() => 
-    hasCurrentUserPermission(ServerPermission.MANAGE_EMOJIS)
+    isLocalServer.value && hasCurrentUserPermission(ServerPermission.MANAGE_EMOJIS)
   )
 
   const canViewServerSettings = computed(() => {

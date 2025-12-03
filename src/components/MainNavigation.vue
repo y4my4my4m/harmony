@@ -42,6 +42,16 @@
           <div v-else class="server-acronym">
             {{ getServerAcronym(server.name) }}
           </div>
+          <!-- Federation badge for remote servers -->
+          <div 
+            v-if="server.is_local_server === false" 
+            class="federation-badge"
+            :title="`Federated server from ${server.federation_domain || 'remote instance'}`"
+          >
+            <svg viewBox="0 0 24 24" class="federation-icon">
+              <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
+            </svg>
+          </div>
         </div>
         <div class="server-pill" :class="{ 'visible': isServerActive(server.id) }"></div>
       </div>
@@ -288,6 +298,28 @@ const getServerAcronym = (serverName: string): string => {
   justify-content: center;
   border-radius: inherit;
   overflow: hidden;
+  position: relative;
+}
+
+.federation-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  background: var(--h-surface-secondary, #2b2d31);
+  border: 2px solid var(--h-surface-primary, #1e1f22);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.federation-icon {
+  width: 10px;
+  height: 10px;
+  color: var(--h-brand, #5865f2);
 }
 
 .server-image {

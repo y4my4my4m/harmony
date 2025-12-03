@@ -132,11 +132,12 @@ export async function handleChannelMessageFederation(
         5 // priority
       );
 
-    // Update federation status
+    // Update federation status (preserve updated_at to avoid showing as edited)
     await supabase
       .from('messages')
       .update({ 
         federation_status: 'completed',
+        updated_at: message.updated_at || message.created_at, // Preserve original timestamp
         metadata: {
           ...(message.metadata || {}),
           federated_at: new Date().toISOString(),
@@ -162,10 +163,13 @@ export async function handleChannelMessageFederation(
     if (remoteMemberGroups.length === 0) {
       logger.info('No remote members, skipping federation');
       
-      // Mark as skipped
+      // Mark as skipped (preserve updated_at)
       await supabase
         .from('messages')
-        .update({ federation_status: 'skipped' })
+        .update({ 
+          federation_status: 'skipped',
+          updated_at: message.updated_at || message.created_at
+        })
         .eq('id', message_id);
       
       return;
@@ -191,11 +195,12 @@ export async function handleChannelMessageFederation(
     // Send to each remote instance
     await deliverToRemoteInstances(remoteMemberGroups, activity, message.author.id);
 
-    // Update federation status
+    // Update federation status (preserve updated_at to avoid showing as edited)
     await supabase
       .from('messages')
       .update({ 
         federation_status: 'completed',
+        updated_at: message.updated_at || message.created_at, // Preserve original timestamp
         metadata: {
           ...(message.metadata || {}),
           federated_at: new Date().toISOString(),
@@ -435,6 +440,29 @@ function createMessageActivity(
   const tags = extractActivityPubTags(message.content);
   const attachments = extractAttachments(message.content);
 
+  // Transform emoji URLs to absolute URLs for federation
+  const federatedContent = Array.isArray(message.content) 
+    ? message.content.map((item: any) => {
+        if (item.type === 'emoji' && item.emoji?.url) {
+          // Make emoji URL absolute if it's relative
+          let emojiUrl = item.emoji.url;
+          if (!emojiUrl.startsWith('http://') && !emojiUrl.startsWith('https://')) {
+            // Relative URL - make it absolute using PUBLIC_SUPABASE_URL or SUPABASE_URL
+            const baseUrl = config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL;
+            emojiUrl = emojiUrl.startsWith('/') ? `${baseUrl}${emojiUrl}` : `${baseUrl}/${emojiUrl}`;
+          }
+          return {
+            ...item,
+            emoji: {
+              ...item.emoji,
+              url: emojiUrl
+            }
+          };
+        }
+        return item;
+      })
+    : message.content;
+
   // Handle reply threading
   let inReplyTo: string | undefined;
   if (message.reply_to) {
@@ -464,7 +492,7 @@ function createMessageActivity(
       id: messageUrl,
       attributedTo: authorApId,
       content: contentHtml,
-      'harmony:rawContent': message.content, // Preserve original structure
+      'harmony:rawContent': federatedContent, // Send transformed content with absolute emoji URLs
       
       // Channel context
       context: channelUrl,

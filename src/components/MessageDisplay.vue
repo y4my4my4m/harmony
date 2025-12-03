@@ -1104,6 +1104,9 @@ const canEditMessage = (message: Message) => {
   // Can't edit messages that are still sending
   if (message.sending) return false;
   
+  // Can't edit messages in remote servers (federated servers)
+  if (serverChannelStore.currentServer?.is_local_server === false) return false;
+  
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
   return messageUserId === currentUserId || isCurrentUserServerOwner.value;
@@ -1111,6 +1114,10 @@ const canEditMessage = (message: Message) => {
 
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
+  
+  // Can't delete messages in remote servers (federated servers)
+  if (serverChannelStore.currentServer?.is_local_server === false) return false;
+  
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
   return messageUserId === currentUserId || isCurrentUserServerOwner.value;
