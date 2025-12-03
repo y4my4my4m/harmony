@@ -433,7 +433,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     // Voice channel connection methods
-    async joinVoiceChannel(serverId: string, channelId: string, userId: string) {
+    async joinVoiceChannel(serverId: string, channelId: string, userId: string, isLocalServer: boolean = true) {
       try {
         // Check if this is the first user (start new call)
         const isFirstUser = !this.usersInVoiceChannels[channelId] || this.usersInVoiceChannels[channelId].length === 0;
@@ -457,24 +457,28 @@ export const useServerUsersStore = defineStore('serverUsers', {
           callStartTime = this.voiceChannelCallStartTimes[channelId]?.toISOString();
         }
 
-        // Write to voice_channel_participants table (triggers federation if needed)
-        // This is done async - don't block the UI
-        supabase
-          .from('voice_channel_participants')
-          .upsert({
-            channel_id: channelId,
-            server_id: serverId,
-            user_id: userId,
-            joined_at: new Date().toISOString(),
-            is_federated: false,
-          }, { onConflict: 'channel_id,user_id' })
-          .then(({ error }) => {
-            if (error) {
-              debug.warn('Failed to write to voice_channel_participants:', error.message);
-            } else {
-              debug.log('✅ Wrote to voice_channel_participants');
-            }
-          });
+        // Only write to voice_channel_participants for LOCAL servers
+        // For federated servers, the hosting instance handles this via VoiceChannelJoin activity
+        if (isLocalServer) {
+          supabase
+            .from('voice_channel_participants')
+            .upsert({
+              channel_id: channelId,
+              server_id: serverId,
+              user_id: userId,
+              joined_at: new Date().toISOString(),
+              is_federated: false,
+            }, { onConflict: 'channel_id,user_id' })
+            .then(({ error }) => {
+              if (error) {
+                debug.warn('Failed to write to voice_channel_participants:', error.message);
+              } else {
+                debug.log('✅ Wrote to voice_channel_participants');
+              }
+            });
+        } else {
+          debug.log('📡 Federated voice channel - skipping local DB write');
+        }
 
         // Broadcast to other users with call start time
         this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId, callStartTime);
@@ -487,7 +491,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
-    async leaveVoiceChannel(serverId: string, channelId: string, userId: string) {
+    async leaveVoiceChannel(serverId: string, channelId: string, userId: string, isLocalServer: boolean = true) {
       try {
         // Remove user from local state immediately
         if (this.usersInVoiceChannels[channelId]) {
@@ -500,19 +504,24 @@ export const useServerUsersStore = defineStore('serverUsers', {
           }
         }
 
-        // Remove from voice_channel_participants table (triggers federation if needed)
-        supabase
-          .from('voice_channel_participants')
-          .delete()
-          .eq('channel_id', channelId)
-          .eq('user_id', userId)
-          .then(({ error }) => {
-            if (error) {
-              debug.warn('Failed to delete from voice_channel_participants:', error.message);
-            } else {
-              debug.log('✅ Removed from voice_channel_participants');
-            }
-          });
+        // Only write to voice_channel_participants for LOCAL servers
+        // For federated servers, the hosting instance handles this via VoiceChannelLeave activity
+        if (isLocalServer) {
+          supabase
+            .from('voice_channel_participants')
+            .delete()
+            .eq('channel_id', channelId)
+            .eq('user_id', userId)
+            .then(({ error }) => {
+              if (error) {
+                debug.warn('Failed to delete from voice_channel_participants:', error.message);
+              } else {
+                debug.log('✅ Removed from voice_channel_participants');
+              }
+            });
+        } else {
+          debug.log('📡 Federated voice channel - skipping local DB delete');
+        }
 
         // Broadcast to other users
         this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);

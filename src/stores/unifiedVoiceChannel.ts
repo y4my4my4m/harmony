@@ -297,8 +297,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const serverChannelStore = useServerChannelStore();
       const themeStore = useThemeStore();
       
-      // Update server presence first
-      const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId);
+      // Update server presence first (isLocalServer = true for local channels)
+      const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId, true);
       if (!presenceSuccess) {
         throw new Error('Failed to update server presence');
       }
@@ -465,14 +465,36 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             debug.log(`📡 Federated voice subscription status: ${status}`);
           });
         
-        // Update server presence to trigger the federation job
-        // This will cause the database trigger to queue a VoiceChannelJoin federation job
-        serverUsersStore.joinVoiceChannel(serverId, channelId, userId)
-          .then((success) => {
-            if (!success) {
-              this.cleanupFederatedSubscription();
-              reject(new Error('Failed to update server presence'));
+        // Call federation-backend to send VoiceChannelJoin activity
+        // For remote servers, we don't write to local DB - the remote instance handles that
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) {
+          this.cleanupFederatedSubscription();
+          reject(new Error('Not authenticated'));
+          return;
+        }
+        
+        fetch('/api/federation/voice/join', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.data.session.access_token}`,
+          },
+          body: JSON.stringify({ channelId, serverId }),
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+              throw new Error(error.error || 'Failed to send voice join request');
             }
+            debug.log('📡 Voice join request sent to federation backend');
+            
+            // Update local presence state (but don't write to DB)
+            serverUsersStore.joinVoiceChannel(serverId, channelId, userId, false);
+          })
+          .catch((error) => {
+            this.cleanupFederatedSubscription();
+            reject(error);
           });
         
         // Set timeout for token response (30 seconds)
@@ -513,6 +535,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         const userId = authStore.session.user.id;
         const wasFederated = this.isFederatedChannel;
+        const channelId = this.currentChannelId;
+        const serverId = this.currentServerId;
         
         debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
         
@@ -532,9 +556,27 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Clean up spatial audio
         this.cleanupSpatialAudio();
         
-        // Update server presence (this triggers the leave federation job for remote servers)
-        if (this.currentServerId) {
-          await serverUsersStore.leaveVoiceChannel(this.currentServerId, this.currentChannelId, userId);
+        // Update server presence
+        if (serverId && channelId) {
+          // For federated channels, also notify the remote server
+          if (wasFederated) {
+            const session = await supabase.auth.getSession();
+            if (session.data.session) {
+              fetch('/api/federation/voice/leave', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ channelId, serverId }),
+              }).catch((error) => {
+                debug.warn('Failed to send federated voice leave:', error);
+              });
+            }
+          }
+          
+          // Update local state (isLocalServer = !wasFederated)
+          await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId, !wasFederated);
         }
         
         // Reset state

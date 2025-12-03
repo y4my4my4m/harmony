@@ -12,6 +12,7 @@ import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
 import pushRouter from './routes/push.js';
 import livekitRouter from './routes/livekit.js';
+import voiceRouter from './routes/voice.js';
 
 // Import ActivityPub routes (FEDERATION ONLY!)
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -86,6 +87,9 @@ app.use('/push', apiLimiter, pushRouter);
 
 // LiveKit WebRTC routes
 app.use('/api/livekit', livekitRouter);
+
+// Voice federation routes
+app.use('/', voiceRouter);
 
 // 404 handler
 app.use(notFound);

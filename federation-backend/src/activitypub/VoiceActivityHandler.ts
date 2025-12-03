@@ -353,6 +353,15 @@ export class VoiceActivityHandler {
     }
     
     const server = (channel as any).server;
+    
+    logger.debug(`Channel query result - server:`, JSON.stringify(server));
+    logger.debug(`Server owner ID: ${server?.owner}`);
+    
+    if (!server?.owner) {
+      logger.error(`Server owner not found for channel ${channel.id}`);
+      await this.sendVoiceChannelJoinReject(activity, 'Server configuration error');
+      return;
+    }
 
     // Verify user has permission to join (must be a server member)
     const { data: membership } = await supabase
