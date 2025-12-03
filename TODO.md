@@ -117,3 +117,27 @@ After these changes, verify:
 
 **Note:** The `link_preview_backend_url` in `federation_settings` is still needed! Database functions like `fetch_remote_link_preview()` use it for server-to-server HTTP calls (pg_http can't use relative paths). Only the frontend code was simplified to use relative paths.
 
+---
+
+## Server Ownership Transfer (Future)
+
+**Current state:** Server owners cannot leave their own servers. There's no way to transfer ownership.
+
+**Implementation needed:**
+1. **Transfer Ownership UI**: In Server Settings, add "Transfer Ownership" option (dangerous action with confirmation)
+2. **Transfer Process**:
+   - Owner selects a new owner from server members
+   - Confirmation dialog explaining the consequences
+   - Atomic transfer of `servers.owner` field
+   - New owner gets admin role automatically
+   - Old owner gets demoted to member (or admin if they had that role)
+3. **Federation Considerations**:
+   - If server is federated, broadcast ownership change to remote members
+   - New owner's federated ID becomes the server's `attributedTo`
+
+**Files to modify:**
+- `src/components/settings/ServerAdvancedSettings.vue` - Add transfer UI
+- `src/stores/server.ts` - Add `transferOwnership` action
+- Database: `servers.owner` field update RPC
+- Federation: Update `GroupService.ts` to reflect new owner in AP responses
+

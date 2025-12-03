@@ -214,8 +214,21 @@ async function joinServer() {
     if (result.success && result.serverId) {
       emit('joined', result.serverId)
       
-      // Navigate to the server
-      router.push(`/server/${result.serverId}`)
+      // Navigate to the server's default channel (or server overview if no channel)
+      if (result.defaultChannelId) {
+        router.push(`/server/${result.serverId}/${result.defaultChannelId}`)
+      } else {
+        // Fallback - try to get the first channel from discovered server
+        const firstChannel = discoveredServer.value?.channels?.find(c => c.type === 'text' || c.type === 'voice')
+        if (firstChannel) {
+          const channelId = (firstChannel as any).localId || firstChannel.id?.split('/').pop()
+          if (channelId) {
+            router.push(`/server/${result.serverId}/${channelId}`)
+            return
+          }
+        }
+        router.push(`/server/${result.serverId}`)
+      }
     } else {
       error.value = result.error || 'Failed to join server'
     }

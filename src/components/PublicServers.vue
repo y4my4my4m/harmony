@@ -218,10 +218,10 @@ const handleServerCreated = (server: any) => {
   closeModal()
 }
 
-const handleFederatedServerJoined = (serverId: string) => {
+const handleFederatedServerJoined = (_serverId: string) => {
   showJoinFederatedServer.value = false
   toast.success('Joined federated server!')
-  router.push({ name: 'Chat', params: { serverId } })
+  // Navigation is handled by JoinFederatedServer component with the correct channel
   closeModal()
 }
 

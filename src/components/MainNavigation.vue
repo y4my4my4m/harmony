@@ -35,7 +35,7 @@
         <div class="server-icon">
           <img 
             v-if="server.icon" 
-            :src="server.icon" 
+            :src="getServerIconUrl(server.icon)" 
             :alt="server.name"
             class="server-image"
           />
@@ -95,6 +95,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDMStore } from '@/stores/useDM'
+import { getServerIconUrl } from '@/utils/serverUtils'
 import type { Server } from '@/types'
 
 interface Props {

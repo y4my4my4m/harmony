@@ -71,11 +71,13 @@ function serverToGroup(
     // Member count for discovery
     'harmony:memberCount': memberCount,
     
-    // Icon
+    // Icon - use full Supabase storage URL for federation
     icon: server.icon && !server.icon.includes('default') ? {
       type: 'Image',
-      url: server.icon.startsWith('http') ? server.icon : `https://${hostDomain}${server.icon}`,
-      mediaType: 'image/png',
+      url: server.icon.startsWith('http') 
+        ? server.icon 
+        : `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/render/image/public/server_icons/${server.icon}?width=96&height=96&resize=contain&quality=80`,
+      mediaType: 'image/webp',
     } : undefined,
     
     // Harmony extension: Channel structure

@@ -351,10 +351,21 @@ router.post(
         userId
       );
 
+      // Get default channel (first text channel, not a category)
+      const { data: defaultChannel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('server_id', localServer.id)
+        .eq('type', 0) // text channel
+        .order('order', { ascending: true })
+        .limit(1)
+        .single();
+
       res.json({
         success: true,
         message: 'Join request sent',
         serverId: localServer.id,
+        defaultChannelId: defaultChannel?.id || null,
         status: 'pending',
       });
     } catch (error) {

@@ -47,6 +47,7 @@ export interface InviteInfo {
 export interface JoinServerResult {
   success: boolean
   serverId?: string
+  defaultChannelId?: string
   status?: 'pending' | 'accepted' | 'rejected'
   error?: string
 }
@@ -302,6 +303,7 @@ export class FederationServerService {
       return {
         success: true,
         serverId: data.serverId,
+        defaultChannelId: data.defaultChannelId,
         status: data.status,
       }
 
