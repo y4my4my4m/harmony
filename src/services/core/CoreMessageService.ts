@@ -682,11 +682,14 @@ export class CoreMessageService {
   // =====================================================
 
   /**
-   * Load channel messages with pagination (pure local)
+   * Load channel messages with pagination
+   * 
+   * Supports both local and federated (remote) channels:
+   * - Local channels: Query local database directly
+   * - Remote channels: Fetch from federation backend which proxies to remote server
    * 
    * NOTE: We trust Supabase to handle its own connection management.
    * No artificial timeouts - queries complete when they complete.
-   * Supabase's websocket stays alive across tab changes.
    */
   async loadChannelMessages(
     channelId: string,
@@ -702,6 +705,21 @@ export class CoreMessageService {
 
       debug.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
+      // Check if this is a remote channel
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('id, is_remote, server_id, servers!channels_server_id_fkey(is_local_server)')
+        .eq('id', channelId)
+        .single()
+
+      const isRemoteChannel = channel?.is_remote || !(channel?.servers as any)?.is_local_server
+
+      if (isRemoteChannel) {
+        debug.log(`🌐 Channel ${channelId} is remote, fetching via federation backend`)
+        return await this.loadRemoteChannelMessages(channelId, options)
+      }
+
+      // Local channel - use existing query
       let query = supabase
         .from('messages')
         .select('*')
@@ -761,6 +779,110 @@ export class CoreMessageService {
       debug.error('❌ Core: Failed to load channel messages:', error)
       throw error
     }
+  }
+
+  /**
+   * Load messages from a remote (federated) channel via federation backend
+   */
+  private async loadRemoteChannelMessages(
+    channelId: string,
+    options: {
+      limit?: number
+      before?: string
+      after?: string
+      signal?: AbortSignal
+    } = {}
+  ): Promise<Message[]> {
+    const { limit = 50, before } = options
+
+    try {
+      const params = new URLSearchParams()
+      params.append('limit', String(limit))
+      if (before) params.append('before', before)
+
+      const response = await fetch(`/api/federation/channels/${channelId}/messages?${params}`, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        debug.warn(`Failed to fetch remote messages: ${response.status}`)
+        // Fall back to local cache
+        return this.loadCachedRemoteMessages(channelId, options)
+      }
+
+      const data = await response.json()
+      const remoteMessages = data.messages || []
+
+      debug.log(`📨 Fetched ${remoteMessages.length} messages from remote channel (source: ${data.source})`)
+
+      // Transform to our message format
+      const messages = remoteMessages.map((msg: any) => ({
+        id: msg.id,
+        channel_id: channelId,
+        user_id: msg.author?.id,
+        content: this.parseRemoteContent(msg.content),
+        created_at: msg.created_at,
+        updated_at: msg.updated_at,
+        metadata: msg.metadata || {},
+        author: msg.author,
+        reactions: [],
+      }))
+
+      // Reverse to get oldest-first for display
+      return messages.reverse()
+    } catch (error) {
+      debug.error('❌ Failed to fetch remote channel messages:', error)
+      // Fall back to cached messages
+      return this.loadCachedRemoteMessages(channelId, options)
+    }
+  }
+
+  /**
+   * Load cached messages for a remote channel (fallback)
+   */
+  private async loadCachedRemoteMessages(
+    channelId: string,
+    options: { limit?: number; before?: string } = {}
+  ): Promise<Message[]> {
+    const { limit = 50, before } = options
+
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .eq('channel_id', channelId)
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (before) {
+      query = query.lt('created_at', before)
+    }
+
+    const { data: messages } = await query
+    debug.log(`📦 Loaded ${(messages || []).length} cached messages for remote channel`)
+    
+    return (messages || []).reverse()
+  }
+
+  /**
+   * Parse remote message content (ActivityPub HTML to our format)
+   */
+  private parseRemoteContent(content: string | any[]): any[] {
+    // If already in our format, return as-is
+    if (Array.isArray(content)) {
+      return content
+    }
+
+    // If HTML string, convert to our format
+    if (typeof content === 'string') {
+      // Strip HTML tags for simple text extraction
+      const text = content.replace(/<[^>]*>/g, '').trim()
+      return [{ type: 'text', text }]
+    }
+
+    return [{ type: 'text', text: '' }]
   }
 
   /**

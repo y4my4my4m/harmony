@@ -861,7 +861,7 @@ const typeIcon = computed(() => {
 }
 
 .message-preview {
-  background: rgba(79, 84, 92, 0.3);
+  background: var(--background-quaternary, rgba(79, 84, 92, 0.3));
   border-radius: 6px;
   padding: 8px 10px;
   border-left: 3px solid rgba(88, 101, 242, 0.5);
