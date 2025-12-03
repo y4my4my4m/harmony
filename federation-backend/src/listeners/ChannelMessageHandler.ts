@@ -133,18 +133,18 @@ export async function handleChannelMessageFederation(
         priority: 5,
       });
 
-      // Update federation status
-      await supabase
-        .from('messages')
-        .update({ 
-          federation_status: 'completed',
-          metadata: {
-            ...message.metadata,
-            federated_at: new Date().toISOString(),
-            federated_to: [new URL(server.federation_inbox_url).hostname],
-          }
-        })
-        .eq('id', message_id);
+    // Update federation status
+    await supabase
+      .from('messages')
+      .update({ 
+        federation_status: 'completed',
+        metadata: {
+          ...(message.metadata || {}),
+          federated_at: new Date().toISOString(),
+          federated_to: [new URL(server.federation_inbox_url).hostname],
+        }
+      })
+      .eq('id', message_id);
 
       logger.info(`🎉 Message sent to remote server inbox: ${server.federation_inbox_url}`);
       return;
@@ -174,6 +174,12 @@ export async function handleChannelMessageFederation(
 
     logger.info(`📊 Server has members on ${remoteMemberGroups.length} remote instances`);
 
+    // Ensure author exists for federation
+    if (!message.author?.id) {
+      logger.error(`Message ${message_id} has no valid author, skipping federation`);
+      return;
+    }
+
     // Create ActivityPub activity
     const activity = createMessageActivity(
       message,
@@ -192,7 +198,7 @@ export async function handleChannelMessageFederation(
       .update({ 
         federation_status: 'completed',
         metadata: {
-          ...message.metadata,
+          ...(message.metadata || {}),
           federated_at: new Date().toISOString(),
           federated_to: remoteMemberGroups.map(g => g.instance),
         }
@@ -252,6 +258,12 @@ export async function handleChannelMessageUpdate(
     const remoteMemberGroups = await getRemoteMemberGroups(server_id);
 
     if (remoteMemberGroups.length === 0) {
+      return;
+    }
+
+    // Ensure author exists for federation
+    if (!message.author?.id) {
+      logger.error(`Message ${message_id} has no valid author, skipping update federation`);
       return;
     }
 
@@ -412,9 +424,12 @@ function createMessageActivity(
   const messageUrl = `https://${hostDomain}/messages/${message.id}`;
   const activityId = `${serverUrl}/activities/${message.id}`;
 
-  // Get author AP ID
-  const authorApId = message.author?.federated_id || 
-    `https://${hostDomain}/users/${message.author?.username}`;
+  // Get author AP ID - require valid author with username
+  if (!message.author?.username) {
+    throw new Error(`Cannot create activity: message ${message.id} has no valid author`);
+  }
+  const authorApId = message.author.federated_id || 
+    `https://${hostDomain}/users/${message.author.username}`;
 
   // Convert content
   const contentHtml = convertContentToHTML(message.content);
