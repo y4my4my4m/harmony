@@ -625,7 +625,7 @@ export class VoiceActivityHandler {
   // =============================================================================
 
   /**
-   * Create a VoiceChannelJoin activity
+   * Create a VoiceChannelJoin activity (legacy - constructs URLs from local domain)
    */
   static createVoiceChannelJoin(
     userFederatedId: string,
@@ -659,7 +659,36 @@ export class VoiceActivityHandler {
   }
 
   /**
-   * Create a VoiceChannelLeave activity
+   * Create a VoiceChannelJoin activity with explicit AP IDs
+   * Used for federated joins where the channel/server AP IDs point to the remote instance
+   */
+  static createVoiceChannelJoinWithApIds(
+    userFederatedId: string,
+    channelApId: string,
+    channelName: string,
+    serverApId: string,
+    serverName: string
+  ): VoiceChannelJoin {
+    return {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        HARMONY_VOICE_CONTEXT,
+      ],
+      id: `${userFederatedId}/activities/${crypto.randomUUID()}`,
+      type: HARMONY_VOICE_TYPES.VoiceChannelJoin,
+      actor: userFederatedId,
+      object: {
+        type: 'harmony:VoiceChannel',
+        id: channelApId,
+        name: channelName,
+      },
+      target: serverApId,
+      published: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Create a VoiceChannelLeave activity (legacy - constructs URLs from local domain)
    */
   static createVoiceChannelLeave(
     userFederatedId: string,
@@ -681,6 +710,30 @@ export class VoiceActivityHandler {
       object: {
         type: 'harmony:VoiceChannel',
         id: channelUrl,
+      },
+      published: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Create a VoiceChannelLeave activity with explicit AP ID
+   * Used for federated leaves where the channel AP ID points to the remote instance
+   */
+  static createVoiceChannelLeaveWithApId(
+    userFederatedId: string,
+    channelApId: string
+  ): VoiceChannelLeave {
+    return {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        HARMONY_VOICE_CONTEXT,
+      ],
+      id: `${userFederatedId}/activities/${crypto.randomUUID()}`,
+      type: HARMONY_VOICE_TYPES.VoiceChannelLeave,
+      actor: userFederatedId,
+      object: {
+        type: 'harmony:VoiceChannel',
+        id: channelApId,
       },
       published: new Date().toISOString(),
     };
@@ -749,7 +802,8 @@ export class VoiceActivityHandler {
       .select(`
         id,
         name,
-        server:servers!channels_server_id_fkey(id, name, federation_inbox_url, is_local_server)
+        ap_id,
+        server:servers!channels_server_id_fkey(id, name, ap_id, federation_inbox_url, is_local_server)
       `)
       .eq('id', channelId)
       .maybeSingle();
@@ -767,11 +821,15 @@ export class VoiceActivityHandler {
 
     const userApId = user.federated_id || `https://${hostDomain}/users/${user.username}`;
     
-    const joinActivity = this.createVoiceChannelJoin(
+    // Use the actual AP IDs from the database (pointing to the remote server)
+    const channelApId = channel.ap_id || `https://${hostDomain}/servers/${server.id}/channels/${channelId}`;
+    const serverApId = server.ap_id || `https://${hostDomain}/servers/${server.id}`;
+    
+    const joinActivity = this.createVoiceChannelJoinWithApIds(
       userApId,
-      channelId,
+      channelApId,
       channel.name,
-      server.id,
+      serverApId,
       server.name
     );
 
@@ -805,20 +863,31 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Get server - use maybeSingle() to avoid throwing on 0 rows
-    const { data: server } = await supabase
-      .from('servers')
-      .select('id, federation_inbox_url, is_local_server')
-      .eq('id', serverId)
+    // Get channel with server info - use maybeSingle() to avoid throwing on 0 rows
+    const { data: channel } = await supabase
+      .from('channels')
+      .select(`
+        id,
+        ap_id,
+        server:servers!channels_server_id_fkey(id, ap_id, federation_inbox_url, is_local_server)
+      `)
+      .eq('id', channelId)
       .maybeSingle();
 
+    if (!channel) {
+      return;
+    }
+
+    const server = (channel as any).server;
+    
     if (!server || server.is_local_server) {
       return;
     }
 
     const userApId = user.federated_id || `https://${hostDomain}/users/${user.username}`;
+    const channelApId = channel.ap_id || `https://${hostDomain}/servers/${server.id}/channels/${channelId}`;
     
-    const leaveActivity = this.createVoiceChannelLeave(userApId, channelId, serverId);
+    const leaveActivity = this.createVoiceChannelLeaveWithApId(userApId, channelApId);
 
     if (server.federation_inbox_url) {
       const { DeliveryQueue } = await import('./DeliveryQueue.js');

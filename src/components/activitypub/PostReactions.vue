@@ -363,8 +363,8 @@ defineExpose({
 }
 
 .reaction:hover {
-  background-color: var(--background-quaternary);
-  border-color: var(--border-color);
+  background-color: var(--harmony-primary-alpha);
+  border-color: var(--harmony-primary-alpha-strong);
 }
 
 .reaction.reacted {
