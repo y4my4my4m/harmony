@@ -339,10 +339,7 @@ export class VoiceActivityHandler {
     // Find the channel by AP ID - use maybeSingle() to avoid throwing on 0 rows
     const { data: channel } = await supabase
       .from('channels')
-      .select(`
-        id, name, server_id,
-        server:servers!channels_server_id_fkey(id, owner)
-      `)
+      .select('id, name, server_id')
       .eq('ap_id', channelInfo.id)
       .maybeSingle();
 
@@ -352,13 +349,18 @@ export class VoiceActivityHandler {
       return;
     }
     
-    const server = (channel as any).server;
+    // Get server info separately (Supabase foreign key joins can be unreliable)
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, owner')
+      .eq('id', channel.server_id)
+      .single();
     
-    logger.debug(`Channel query result - server:`, JSON.stringify(server));
+    logger.debug(`Server query result:`, JSON.stringify(server));
     logger.debug(`Server owner ID: ${server?.owner}`);
     
     if (!server?.owner) {
-      logger.error(`Server owner not found for channel ${channel.id}`);
+      logger.error(`Server owner not found for channel ${channel.id}, server_id: ${channel.server_id}`);
       await this.sendVoiceChannelJoinReject(activity, 'Server configuration error');
       return;
     }
