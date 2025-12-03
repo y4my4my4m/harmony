@@ -526,7 +526,9 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
         await serverChannelStore.deleteFolder(fromFolderId);
       }
       const targetServer = targetItem as Server;
-      await createFolderFromServers(draggedId, targetServer.id, targetServer.position || 0);
+      // Use the actual index in the sorted list to get proper position
+      const targetIndex = sortedSidebarItems.value.findIndex(i => i.id === targetServer.id);
+      await createFolderFromServers(draggedId, targetServer.id, targetIndex >= 0 ? targetIndex : 0);
       resetDragState();
       return;
     }
@@ -579,7 +581,9 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
   // Handle creating a folder when dropping server onto server (center zone)
   if (draggingItemType.value === 'server' && !targetIsFolder && dropPosition.value === 'into') {
     const targetServer = targetItem as Server;
-    await createFolderFromServers(draggingItemId.value!, targetServer.id, targetServer.position || 0);
+    // Use the actual index in the sorted list to get proper position
+    const targetIndex = sortedSidebarItems.value.findIndex(i => i.id === targetServer.id);
+    await createFolderFromServers(draggingItemId.value!, targetServer.id, targetIndex >= 0 ? targetIndex : 0);
     resetDragState();
     return;
   }
@@ -590,6 +594,30 @@ const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolde
 };
 
 const createFolderFromServers = async (draggedServerId: string, targetServerId: string, position: number) => {
+  // First, shift all items at or after this position to make room
+  const items = sortedSidebarItems.value;
+  const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
+  const folderUpdates: { folderId: string; position: number }[] = [];
+  
+  items.forEach((item, index) => {
+    if (index >= position && item.id !== draggedServerId && item.id !== targetServerId) {
+      if (isFolder(item)) {
+        folderUpdates.push({ folderId: item.id, position: index + 1 });
+      } else {
+        serverUpdates.push({ serverId: (item as Server).id, folderId: null, position: index + 1 });
+      }
+    }
+  });
+  
+  // Apply position updates
+  if (serverUpdates.length > 0 || folderUpdates.length > 0) {
+    await serverChannelStore.updateServerPositions(serverUpdates);
+    if (folderUpdates.length > 0) {
+      await serverChannelStore.updateFolderPositions(folderUpdates);
+    }
+  }
+  
+  // Create the folder at the desired position
   const folder = await serverChannelStore.createFolder('', '#5865f2', position);
   if (folder) {
     await serverChannelStore.moveServerToFolder(draggedServerId, folder.id);
