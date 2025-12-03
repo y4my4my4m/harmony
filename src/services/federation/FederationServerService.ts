@@ -185,6 +185,7 @@ export class FederationServerService {
 
   /**
    * Resolve an invite link from a remote instance
+   * Routes through local backend to avoid CORS issues
    * 
    * @param fullUrl - The full invite URL
    * @param instance - The instance domain
@@ -198,23 +199,29 @@ export class FederationServerService {
     try {
       debug.log(`🎟️ Resolving invite: ${code} from ${instance}`)
 
-      // Try to fetch invite info from the remote instance
-      // Remote instance should expose: GET /api/invites/:code
+      // Route through local backend to avoid CORS issues
+      // Backend will proxy the request to the remote instance
       const response = await fetch(
-        `https://${instance}/api/invites/${code}`,
+        `${this.baseUrl}/api/federation/invites/resolve`,
         {
-          method: 'GET',
+          method: 'POST',
           headers: {
+            'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
+          body: JSON.stringify({
+            instance,
+            code,
+          }),
         }
       )
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
         if (response.status === 404) {
           return { success: false, error: 'Invite not found or expired' }
         }
-        return { success: false, error: `Failed to resolve invite (${response.status})` }
+        return { success: false, error: errorData.error || `Failed to resolve invite (${response.status})` }
       }
 
       const data = await response.json()

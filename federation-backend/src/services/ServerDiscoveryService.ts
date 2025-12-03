@@ -65,6 +65,55 @@ router.get(
 );
 
 /**
+ * POST /api/federation/invites/resolve
+ * Proxy invite resolution to a remote instance (avoids CORS)
+ * Called by frontend when user pastes a remote invite link
+ */
+router.post(
+  '/api/federation/invites/resolve',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { instance, code } = req.body;
+
+    if (!instance || !code) {
+      return res.status(400).json({ error: 'instance and code are required' });
+    }
+
+    logger.info(`🎟️ Proxying invite resolution: ${code} from ${instance}`);
+
+    try {
+      // Fetch invite info from the remote instance
+      const remoteResponse = await fetch(`https://${instance}/api/invites/${code}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,
+        },
+      });
+
+      if (!remoteResponse.ok) {
+        if (remoteResponse.status === 404) {
+          return res.status(404).json({ error: 'Invite not found or expired' });
+        }
+        if (remoteResponse.status === 410) {
+          return res.status(410).json({ error: 'Invite has expired or reached max uses' });
+        }
+        return res.status(remoteResponse.status).json({ 
+          error: `Remote instance returned ${remoteResponse.status}` 
+        });
+      }
+
+      const data = await remoteResponse.json();
+      
+      // Pass through the response from the remote instance
+      res.json(data);
+    } catch (error: any) {
+      logger.error(`Failed to resolve remote invite: ${error.message}`);
+      return res.status(502).json({ error: 'Failed to connect to remote instance' });
+    }
+  })
+);
+
+/**
  * GET /api/invites/:code
  * Resolve an invite code and return server info
  * This endpoint is called by remote instances to validate invite links
