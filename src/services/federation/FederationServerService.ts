@@ -2,7 +2,8 @@
  * FederationServerService - Remote server federation operations
  * 
  * Handles:
- * - Discovering remote Harmony servers
+ * - Discovering remote Harmony servers (by URL or handle)
+ * - Resolving invite links from remote instances
  * - Joining/leaving remote servers
  * - Syncing remote server metadata
  * 
@@ -30,6 +31,19 @@ export interface RemoteChannel {
   type: 'text' | 'voice'
 }
 
+export interface InviteInfo {
+  code: string
+  server: RemoteServer
+  expiresAt?: string
+  maxUses?: number
+  uses?: number
+  createdBy?: {
+    username: string
+    displayName?: string
+    avatar?: string
+  }
+}
+
 export interface JoinServerResult {
   success: boolean
   serverId?: string
@@ -45,6 +59,8 @@ export interface LeaveServerResult {
 export interface DiscoverServerResult {
   success: boolean
   server?: RemoteServer
+  invite?: InviteInfo
+  isInvite?: boolean
   error?: string
 }
 
@@ -80,21 +96,33 @@ export class FederationServerService {
   // =====================================================
 
   /**
-   * Discover a remote server by URL or handle
+   * Discover a remote server by URL, handle, or invite link
    * 
-   * @param serverUrl - Full URL (https://instance.com/servers/uuid) or handle (servername@instance.com)
+   * Supported formats:
+   * - Direct server URL: https://instance.com/servers/uuid
+   * - Server handle: servername{'@'}instance.com
+   * - Invite link: https://instance.com/invite/CODE
+   * 
+   * @param input - Server URL, handle, or invite link
    */
-  async discoverServer(serverUrl: string): Promise<DiscoverServerResult> {
+  async discoverServer(input: string): Promise<DiscoverServerResult> {
     try {
-      debug.log(`🔍 Discovering remote server: ${serverUrl}`)
+      debug.log(`🔍 Discovering: ${input}`)
 
+      // Check if this is an invite link
+      const inviteMatch = input.match(/^https?:\/\/([^/]+)\/invite\/([A-Za-z0-9]+)$/i)
+      if (inviteMatch) {
+        return await this.resolveInviteLink(input, inviteMatch[1], inviteMatch[2])
+      }
+
+      // Regular server discovery
       const params = new URLSearchParams()
       
       // Determine if it's a URL or handle
-      if (serverUrl.startsWith('http://') || serverUrl.startsWith('https://')) {
-        params.set('url', serverUrl)
+      if (input.startsWith('http://') || input.startsWith('https://')) {
+        params.set('url', input)
       } else {
-        params.set('handle', serverUrl)
+        params.set('handle', input)
       }
 
       const response = await fetch(
@@ -140,7 +168,7 @@ export class FederationServerService {
       }
 
       debug.log(`✅ Found remote server: ${server.name} on ${server.instance}`)
-      return { success: true, server }
+      return { success: true, server, isInvite: false }
 
     } catch (error: any) {
       debug.error('❌ Error discovering remote server:', error)
@@ -152,18 +180,100 @@ export class FederationServerService {
   }
 
   // =====================================================
+  // RESOLVE INVITE LINK
+  // =====================================================
+
+  /**
+   * Resolve an invite link from a remote instance
+   * 
+   * @param fullUrl - The full invite URL
+   * @param instance - The instance domain
+   * @param code - The invite code
+   */
+  private async resolveInviteLink(
+    fullUrl: string, 
+    instance: string, 
+    code: string
+  ): Promise<DiscoverServerResult> {
+    try {
+      debug.log(`🎟️ Resolving invite: ${code} from ${instance}`)
+
+      // Try to fetch invite info from the remote instance
+      // Remote instance should expose: GET /api/invites/:code
+      const response = await fetch(
+        `https://${instance}/api/invites/${code}`,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        }
+      )
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return { success: false, error: 'Invite not found or expired' }
+        }
+        return { success: false, error: `Failed to resolve invite (${response.status})` }
+      }
+
+      const data = await response.json()
+
+      if (!data.server) {
+        return { success: false, error: 'Invalid invite response' }
+      }
+
+      const server: RemoteServer = {
+        id: data.server.id || `https://${instance}/servers/${data.server.serverId}`,
+        name: data.server.name,
+        description: data.server.description || '',
+        icon: data.server.icon,
+        memberCount: data.server.memberCount || 0,
+        channels: data.server.channels || [],
+        inbox: data.server.inbox || `https://${instance}/servers/${data.server.serverId}/inbox`,
+        discoverable: false, // Private server accessed via invite
+        instance,
+      }
+
+      const invite: InviteInfo = {
+        code,
+        server,
+        expiresAt: data.expiresAt,
+        maxUses: data.maxUses,
+        uses: data.uses,
+        createdBy: data.createdBy,
+      }
+
+      debug.log(`✅ Resolved invite to: ${server.name} on ${instance}`)
+      return { success: true, server, invite, isInvite: true }
+
+    } catch (error: any) {
+      debug.error('❌ Error resolving invite:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to resolve invite link',
+      }
+    }
+  }
+
+  // =====================================================
   // JOIN REMOTE SERVER
   // =====================================================
 
   /**
-   * Join a remote server
+   * Join a remote server (via direct URL or invite)
    * 
    * @param serverUrl - The ActivityPub URL of the server (Group actor)
    * @param userId - The local user's ID
+   * @param inviteCode - Optional invite code for private servers
    */
-  async joinServer(serverUrl: string, userId: string): Promise<JoinServerResult> {
+  async joinServer(
+    serverUrl: string, 
+    userId: string, 
+    inviteCode?: string
+  ): Promise<JoinServerResult> {
     try {
-      debug.log(`👋 Joining remote server: ${serverUrl}`)
+      debug.log(`👋 Joining remote server: ${serverUrl}${inviteCode ? ` with invite ${inviteCode}` : ''}`)
 
       const response = await fetch(
         `${this.baseUrl}/api/federation/servers/join`,
@@ -176,6 +286,7 @@ export class FederationServerService {
           body: JSON.stringify({
             serverUrl,
             userId,
+            inviteCode,
           }),
         }
       )

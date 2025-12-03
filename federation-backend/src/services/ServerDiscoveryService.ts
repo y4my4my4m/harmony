@@ -65,13 +65,98 @@ router.get(
 );
 
 /**
+ * GET /api/invites/:code
+ * Resolve an invite code and return server info
+ * This endpoint is called by remote instances to validate invite links
+ */
+router.get(
+  '/api/invites/:code',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { code } = req.params;
+    const supabase = getSupabaseClient();
+
+    // Find the invite
+    const { data: invite, error: inviteError } = await supabase
+      .from('invites')
+      .select(`
+        *,
+        server:servers!invites_server_id_fkey(
+          id, name, description, icon, public,
+          owner:profiles!servers_owner_fkey(username, display_name, avatar_url)
+        ),
+        creator:profiles!invites_created_by_fkey(username, display_name, avatar_url)
+      `)
+      .eq('code', code)
+      .single();
+
+    if (inviteError || !invite) {
+      return res.status(404).json({ error: 'Invite not found' });
+    }
+
+    // Check if expired
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Invite has expired' });
+    }
+
+    // Check if fully used
+    if (invite.uses !== null && invite.max_uses !== null && invite.uses >= invite.max_uses) {
+      return res.status(410).json({ error: 'Invite has reached maximum uses' });
+    }
+
+    const server = invite.server;
+    const hostDomain = config.INSTANCE_DOMAIN;
+
+    // Get member count
+    const { count: memberCount } = await supabase
+      .from('user_servers')
+      .select('*', { count: 'exact', head: true })
+      .eq('server_id', server.id)
+      .eq('status', 'accepted');
+
+    // Get channels
+    const { data: channels } = await supabase
+      .from('channels')
+      .select('id, name, type')
+      .eq('server_id', server.id)
+      .eq('is_remote', false)
+      .order('order', { ascending: true });
+
+    res.json({
+      code: invite.code,
+      expiresAt: invite.expires_at,
+      maxUses: invite.max_uses,
+      uses: invite.uses || 0,
+      createdBy: invite.creator ? {
+        username: invite.creator.username,
+        displayName: invite.creator.display_name,
+        avatar: invite.creator.avatar_url,
+      } : null,
+      server: {
+        id: `https://${hostDomain}/servers/${server.id}`,
+        serverId: server.id,
+        name: server.name,
+        description: server.description || '',
+        icon: server.icon,
+        memberCount: memberCount || 0,
+        channels: (channels || []).map(c => ({
+          id: c.id,
+          name: c.name,
+          type: c.type === 1 ? 'voice' : 'text',
+        })),
+        inbox: `https://${hostDomain}/servers/${server.id}/inbox`,
+      },
+    });
+  })
+);
+
+/**
  * POST /api/federation/servers/join
  * Join a remote server
  */
 router.post(
   '/api/federation/servers/join',
   asyncHandler(async (req: Request, res: Response) => {
-    const { serverUrl, userId } = req.body;
+    const { serverUrl, userId, inviteCode } = req.body;
 
     if (!serverUrl || !userId) {
       return res.status(400).json({ error: 'serverUrl and userId are required' });
@@ -142,7 +227,8 @@ router.post(
     // Send Join activity to remote server
     const joinActivity = ServerDiscoveryService.createJoinActivity(
       user.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${user.username}`,
-      remoteServer.id
+      remoteServer.id,
+      inviteCode as string | undefined
     );
 
     try {
@@ -449,8 +535,8 @@ export class ServerDiscoveryService {
   /**
    * Create a Join activity
    */
-  static createJoinActivity(actorId: string, serverId: string): any {
-    return {
+  static createJoinActivity(actorId: string, serverId: string, inviteCode?: string): any {
+    const activity: any = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         {
@@ -463,6 +549,13 @@ export class ServerDiscoveryService {
       object: serverId,
       published: new Date().toISOString(),
     };
+
+    // Include invite code if provided (for private servers)
+    if (inviteCode) {
+      activity['harmony:inviteCode'] = inviteCode;
+    }
+
+    return activity;
   }
 
   /**

@@ -84,6 +84,26 @@
             </span>
           </div>
 
+          <!-- Invite Info Badge -->
+          <div v-if="isInvite && inviteInfo" class="invite-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" class="invite-icon">
+              <path d="M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z" fill="currentColor"/>
+            </svg>
+            <span>{{ $t('federation.inviteLink') }}</span>
+          </div>
+
+          <!-- Invite Details -->
+          <div v-if="isInvite && inviteInfo" class="invite-details">
+            <div v-if="inviteInfo.createdBy" class="invite-creator">
+              <span class="detail-label">{{ $t('federation.invitedBy') }}:</span>
+              <span class="detail-value">{{ inviteInfo.createdBy.displayName || inviteInfo.createdBy.username }}</span>
+            </div>
+            <div v-if="inviteInfo.expiresAt" class="invite-expiry">
+              <span class="detail-label">{{ $t('federation.expires') }}:</span>
+              <span class="detail-value">{{ formatExpiry(inviteInfo.expiresAt) }}</span>
+            </div>
+          </div>
+
           <!-- Channel Preview -->
           <div v-if="discoveredServer.channels.length > 0" class="channels-preview">
             <span 
@@ -129,7 +149,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { federationServerService, type RemoteServer } from '@/services/federation'
+import { federationServerService, type RemoteServer, type InviteInfo } from '@/services/federation'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 
@@ -146,12 +166,16 @@ const isLoading = ref(false)
 const isJoining = ref(false)
 const error = ref('')
 const discoveredServer = ref<RemoteServer | null>(null)
+const inviteInfo = ref<InviteInfo | null>(null)
+const isInvite = ref(false)
 
 async function discoverServer() {
   if (!serverUrl.value) return
 
   error.value = ''
   discoveredServer.value = null
+  inviteInfo.value = null
+  isInvite.value = false
   isLoading.value = true
 
   try {
@@ -159,6 +183,10 @@ async function discoverServer() {
 
     if (result.success && result.server) {
       discoveredServer.value = result.server
+      isInvite.value = result.isInvite || false
+      if (result.invite) {
+        inviteInfo.value = result.invite
+      }
     } else {
       error.value = result.error || 'Could not find server'
     }
@@ -170,7 +198,8 @@ async function discoverServer() {
 }
 
 async function joinServer() {
-  if (!discoveredServer.value || !authStore.user?.id) return
+  const userId = authStore.session?.user?.id
+  if (!discoveredServer.value || !userId) return
 
   error.value = ''
   isJoining.value = true
@@ -178,7 +207,8 @@ async function joinServer() {
   try {
     const result = await federationServerService.joinServer(
       discoveredServer.value.id,
-      authStore.user.id
+      userId,
+      inviteInfo.value?.code // Pass invite code if present
     )
 
     if (result.success && result.serverId) {
@@ -194,6 +224,23 @@ async function joinServer() {
   } finally {
     isJoining.value = false
   }
+}
+
+function formatExpiry(expiresAt: string): string {
+  const date = new Date(expiresAt)
+  const now = new Date()
+  const diff = date.getTime() - now.getTime()
+  
+  if (diff < 0) return 'Expired'
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const days = Math.floor(hours / 24)
+  
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''}`
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''}`
+  
+  const minutes = Math.floor(diff / (1000 * 60))
+  return `${minutes} minute${minutes > 1 ? 's' : ''}`
 }
 </script>
 
@@ -416,6 +463,51 @@ async function joinServer() {
 .stat-icon {
   width: 16px;
   height: 16px;
+}
+
+.invite-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(87, 242, 135, 0.15);
+  border: 1px solid rgba(87, 242, 135, 0.3);
+  border-radius: 12px;
+  color: #57f287;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.invite-icon {
+  opacity: 0.9;
+}
+
+.invite-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.invite-creator,
+.invite-expiry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-label {
+  color: #72767d;
+}
+
+.detail-value {
+  color: #ffffff;
+  font-weight: 500;
 }
 
 .channels-preview {

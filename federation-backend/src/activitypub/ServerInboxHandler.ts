@@ -177,6 +177,53 @@ async function processJoinServer(
     return;
   }
 
+  // Check if server is private and requires an invite
+  if (!server.public) {
+    const inviteCode = activity['harmony:inviteCode'];
+    
+    if (!inviteCode) {
+      logger.warn(`Rejecting join to private server without invite code: ${actorUrl}`);
+      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Private server requires invite code');
+      return;
+    }
+
+    // Validate the invite code
+    const { data: invite, error: inviteError } = await supabase
+      .from('invites')
+      .select('id, expires_at, uses, max_uses, used')
+      .eq('server_id', serverId)
+      .eq('code', inviteCode)
+      .single();
+
+    if (inviteError || !invite) {
+      logger.warn(`Invalid invite code for private server: ${inviteCode}`);
+      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invalid invite code');
+      return;
+    }
+
+    // Check if invite is expired
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+      logger.warn(`Expired invite code: ${inviteCode}`);
+      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invite code has expired');
+      return;
+    }
+
+    // Check if invite has reached max uses
+    if (invite.max_uses !== null && (invite.uses || 0) >= invite.max_uses) {
+      logger.warn(`Invite code at max uses: ${inviteCode}`);
+      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Invite code has reached maximum uses');
+      return;
+    }
+
+    // Increment invite usage
+    await supabase
+      .from('invites')
+      .update({ uses: (invite.uses || 0) + 1 })
+      .eq('id', invite.id);
+
+    logger.info(`✅ Valid invite code used: ${inviteCode}`);
+  }
+
   // Get the domain for member_instance tracking
   const memberDomain = new URL(actorUrl).hostname;
 

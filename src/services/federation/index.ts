@@ -38,6 +38,7 @@ export { FederationServerService, federationServerService } from './FederationSe
 export type { 
   RemoteServer, 
   RemoteChannel,
+  InviteInfo,
   JoinServerResult,
   LeaveServerResult,
   DiscoverServerResult 
