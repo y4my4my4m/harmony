@@ -100,3 +100,20 @@ After these changes, verify:
 - New: `src/components/voice/ScreensharePicker.vue` - Quality/source selection
 - New: `src/components/voice/ViewerList.vue` - Who's watching panel
 
+---
+
+## Federation Backend URL Configuration (Future)
+
+**Current state:** Federation backend is accessed via relative path `/api/federation`, proxied by nginx.
+
+**Simplified approach (Dec 2025):** Removed `VITE_FEDERATION_BACKEND_URL` and `VITE_FEDERATION_URL` env vars. All federation API calls now use `/api/federation/...` which nginx routes to the backend.
+
+**If split-domain hosting is needed later:**
+1. Option A: Just configure nginx to proxy `/api/federation` to a different server
+2. Option B: Re-add configurable URL via:
+   - Instance config in DB (`instance_config` table)
+   - Load config on app init, store in a composable/store
+   - Use that URL as base for federation calls
+
+**Note:** The `link_preview_backend_url` in `federation_settings` is still needed! Database functions like `fetch_remote_link_preview()` use it for server-to-server HTTP calls (pg_http can't use relative paths). Only the frontend code was simplified to use relative paths.
+

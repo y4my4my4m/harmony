@@ -64,25 +64,16 @@ export interface DiscoverServerResult {
   error?: string
 }
 
-// Get federation backend URL from environment or default
-function getFederationBackendUrl(): string {
-  // Try multiple sources for the federation backend URL
-  const url = import.meta.env.VITE_FEDERATION_BACKEND_URL || 
-              import.meta.env.VITE_FEDERATION_URL ||
-              'http://localhost:3001'
-  return url.replace(/\/$/, '') // Remove trailing slash
-}
+// Federation backend base path (proxied via nginx)
+const FEDERATION_API = '/api/federation'
 
 /**
  * FederationServerService - Singleton for remote server operations
  */
 export class FederationServerService {
   private static instance: FederationServerService
-  private baseUrl: string
 
-  private constructor() {
-    this.baseUrl = getFederationBackendUrl()
-  }
+  private constructor() {}
 
   static getInstance(): FederationServerService {
     if (!this.instance) {
@@ -126,7 +117,7 @@ export class FederationServerService {
       }
 
       const response = await fetch(
-        `${this.baseUrl}/api/federation/servers/discover?${params}`,
+        `${FEDERATION_API}/servers/discover?${params}`,
         {
           method: 'GET',
           headers: {
@@ -202,7 +193,7 @@ export class FederationServerService {
       // Route through local backend to avoid CORS issues
       // Backend will proxy the request to the remote instance
       const response = await fetch(
-        `${this.baseUrl}/api/federation/invites/resolve`,
+        `${FEDERATION_API}/invites/resolve`,
         {
           method: 'POST',
           headers: {
@@ -283,7 +274,7 @@ export class FederationServerService {
       debug.log(`👋 Joining remote server: ${serverUrl}${inviteCode ? ` with invite ${inviteCode}` : ''}`)
 
       const response = await fetch(
-        `${this.baseUrl}/api/federation/servers/join`,
+        `${FEDERATION_API}/servers/join`,
         {
           method: 'POST',
           headers: {
@@ -338,7 +329,7 @@ export class FederationServerService {
       debug.log(`👋 Leaving server: ${serverId}`)
 
       const response = await fetch(
-        `${this.baseUrl}/api/federation/servers/leave`,
+        `${FEDERATION_API}/servers/leave`,
         {
           method: 'POST',
           headers: {
@@ -387,7 +378,7 @@ export class FederationServerService {
       debug.log(`🔄 Syncing server: ${serverId}`)
 
       const response = await fetch(
-        `${this.baseUrl}/api/federation/servers/${serverId}/sync`,
+        `${FEDERATION_API}/servers/${serverId}/sync`,
         {
           method: 'GET',
           headers: {

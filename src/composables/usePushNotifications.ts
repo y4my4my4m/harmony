@@ -9,8 +9,8 @@ import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
-// Get federation backend URL from environment
-const FEDERATION_BACKEND_URL = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation'
+// Federation backend base path (proxied via nginx)
+const FEDERATION_BACKEND_URL = '/api/federation'
 
 // Push notification state (shared across all composable instances)
 const isSupported = ref(false)
