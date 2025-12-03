@@ -35,8 +35,9 @@ import { queueManager } from './queue/QueueManager.js';
 // Import blocked instances cache
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 
-// Feature flag: Set to true to use pg-boss instead of Supabase Realtime
-const USE_PGBOSS_QUEUE = process.env.USE_PGBOSS_QUEUE === 'true';
+// Feature flag: Use config.USE_PGBOSS_QUEUE for pg-boss job queue
+// When true: pg-boss handles DMs/reactions, DatabaseListener handles channels
+// When false: DatabaseListener handles everything
 
 const app: Application = express();
 
@@ -106,26 +107,28 @@ app.listen(PORT, () => {
   });
   
   // Start federation event processing
-  if (USE_PGBOSS_QUEUE) {
-    // NEW: pg-boss queue-based federation (professional approach)
-    logger.info('🚀 Starting pg-boss QueueManager for federation...');
-    queueManager.start().catch((error) => {
-      logger.error('❌ Failed to start QueueManager:', error);
-      logger.info('⚠️  Falling back to DatabaseListener...');
-      startDatabaseListener().catch((err) => {
-        logger.error('Failed to start database listener:', err);
-      });
-    });
-  } else {
-    // LEGACY: Supabase Realtime-based federation
-    logger.info('📡 Using legacy DatabaseListener (set USE_PGBOSS_QUEUE=true to switch)');
+  // DatabaseListener: handles real-time events (channel messages, server updates)
+  // QueueManager (pg-boss): handles DMs, reactions, posts, follows, blocks with reliable delivery
+  
+  // Always start DatabaseListener for real-time channel federation
+  logger.info('🔊 Starting DatabaseListener for real-time federation events...');
   startDatabaseListener().catch((error) => {
     logger.error('Failed to start database listener:', error);
   });
+  
+  if (config.USE_PGBOSS_QUEUE) {
+    // ALSO start pg-boss for job-based federation (DMs, reactions, posts, follows, etc.)
+    logger.info('🚀 Starting pg-boss QueueManager for federation jobs...');
+    queueManager.start().catch((error) => {
+      logger.error('❌ Failed to start QueueManager:', error);
+      logger.info('⚠️  Continuing with DatabaseListener only...');
+    });
+  } else {
+    logger.info('📡 Using DatabaseListener only (set USE_PGBOSS_QUEUE=true for job queues)');
   }
   
   // Initialize push notification service
-  if (USE_PGBOSS_QUEUE) {
+  if (config.USE_PGBOSS_QUEUE) {
     // pg-boss handles push notifications via 'send-push-notification' queue
     import('./services/PushNotificationService.js').then(({ PushNotificationService }) => {
       if (PushNotificationService.initialize()) {
@@ -138,9 +141,9 @@ app.listen(PORT, () => {
     });
   } else {
     // Legacy: Use Realtime listener
-  startPushNotificationListener().catch((error) => {
-    logger.error('Failed to start push notification listener:', error);
-  });
+    startPushNotificationListener().catch((error) => {
+      logger.error('Failed to start push notification listener:', error);
+    });
   }
   
   // Process delivery queue for retries every 30 seconds
@@ -160,7 +163,7 @@ app.listen(PORT, () => {
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully...`);
   
-  if (USE_PGBOSS_QUEUE) {
+  if (config.USE_PGBOSS_QUEUE) {
     try {
       await queueManager.stop();
     } catch (error) {

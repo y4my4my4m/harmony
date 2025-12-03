@@ -1695,12 +1695,11 @@ export class ActivityProcessor {
   private static async ensureRemoteUser(actorUrl: string, forceRefresh: boolean = false): Promise<any | null> {
     const supabase = getSupabaseClient();
 
-    // Check if user already exists - also check by the URL as an alias
-    // (the canonical federated_id might differ from the URL we were given)
+    // Check if user already exists by federated_id
     const { data: existing } = await supabase
       .from('profiles')
       .select('id, updated_at, federated_id, username, display_name, avatar_url, color')
-      .or(`federated_id.eq.${actorUrl}`)
+      .eq('federated_id', actorUrl)
       .maybeSingle();
 
     if (existing && !forceRefresh) {
@@ -1758,18 +1757,24 @@ export class ActivityProcessor {
         profileRecord.color = profileData.color;
       }
 
-      const { data: upserted } = await supabase
+      // Upsert the profile
+      await supabase
         .from('profiles')
         .upsert(profileRecord, {
           onConflict: 'federated_id',
-        })
+        });
+
+      // Query the profile after upsert (upsert().select() doesn't reliably return data)
+      const { data: savedProfile } = await supabase
+        .from('profiles')
         .select('id, username, display_name, avatar_url, federated_id, color')
-        .single();
+        .eq('federated_id', profileData.federated_id)
+        .maybeSingle();
 
       const action = existing ? 'Refreshed' : 'Created';
       logger.info(`${action} remote user: ${actorUrl}${profileData.banner ? ' (with banner)' : ''}`);
       
-      return upserted || null;
+      return savedProfile || null;
     } catch (error) {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
       return existing || null;

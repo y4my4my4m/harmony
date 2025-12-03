@@ -236,14 +236,21 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         // Handle DM messages (conversation_id set)
+        // When pg-boss is enabled, DMs are handled by the job queue for reliable delivery
         if (payload.new.conversation_id && !payload.new.metadata?.federated) {
-          logger.info('💬 DM message detected:', {
-            id: payload.new.id,
-            conversation_id: payload.new.conversation_id
-          });
-          await handleNewDM(payload.new);
+          if (config.USE_PGBOSS_QUEUE) {
+            logger.debug('💬 DM detected - handled by pg-boss queue:', payload.new.id);
+            // pg-boss sweep will pick this up via federation_status
+          } else {
+            logger.info('💬 DM message detected:', {
+              id: payload.new.id,
+              conversation_id: payload.new.conversation_id
+            });
+            await handleNewDM(payload.new);
+          }
         }
         // Handle channel messages (channel_id set)
+        // Channel messages are always handled by DatabaseListener for real-time delivery
         else if (payload.new.channel_id && !payload.new.metadata?.federated) {
           logger.info('📨 Channel message detected:', {
             id: payload.new.id,
@@ -354,6 +361,7 @@ export async function startDatabaseListener(): Promise<void> {
       }
     )
     // Listen for new message reactions (DMs)
+    // When pg-boss is enabled, DM reactions are handled by job queue
     .on(
       'postgres_changes',
       {
@@ -362,8 +370,12 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'reactions',
       },
       async (payload) => {
-        logger.info('💬❤️ New message reaction detected:', payload.new.id);
-        await handleNewMessageReaction(payload.new);
+        if (config.USE_PGBOSS_QUEUE) {
+          logger.debug('💬❤️ Message reaction detected - handled by pg-boss:', payload.new.id);
+        } else {
+          logger.info('💬❤️ New message reaction detected:', payload.new.id);
+          await handleNewMessageReaction(payload.new);
+        }
       }
     )
     // Listen for message reaction removals (DMs)
@@ -375,8 +387,12 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'reactions',
       },
       async (payload) => {
-        logger.info('💬💔 Message reaction removed:', payload.old?.id);
-        await handleMessageReactionRemoval(payload.old);
+        if (config.USE_PGBOSS_QUEUE) {
+          logger.debug('💬💔 Message reaction removed - handled by pg-boss:', payload.old?.id);
+        } else {
+          logger.info('💬💔 Message reaction removed:', payload.old?.id);
+          await handleMessageReactionRemoval(payload.old);
+        }
       }
     )
     // Listen for server updates - federate to remote members
