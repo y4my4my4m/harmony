@@ -85,23 +85,28 @@ async function resolveIdentityToUuid(identity: string): Promise<string | null> {
       return user.id;
     }
     
-    // Profile not found - this is expected for newly joined federated users
-    // The backend should have created the profile, but there might be a race condition
-    // Try once more after a short delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Profile not found locally - need to fetch it from the remote instance
+    // This happens when a user from another instance joins a federated voice channel
+    debug.log(`🌐 [LiveKit] Profile not found for ${federatedId}, fetching from remote instance...`);
     
-    const { data: retryUser } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', federatedId)
-      .maybeSingle();
+    // Dynamically import to avoid circular dependency
+    const { activityPubService } = await import('./activityPubService');
     
-    if (retryUser?.id) {
-      federatedIdToUuidCache.set(federatedId, retryUser.id);
-      uuidToIdentityCache.set(retryUser.id, identity);
-      debug.log(`🌐 [LiveKit] Resolved federated identity on retry: ${federatedId} to UUID ${retryUser.id}`);
-      return retryUser.id;
+    try {
+      // Fetch and sync the federated user's profile
+      const federatedUser = await activityPubService.fetchRemoteActor(federatedId);
+      
+      if (federatedUser?.id) {
+        // Profile was fetched/created successfully
+        federatedIdToUuidCache.set(federatedId, federatedUser.id);
+        uuidToIdentityCache.set(federatedUser.id, identity);
+        debug.log(`🌐 [LiveKit] Fetched and resolved federated identity ${federatedId} to UUID ${federatedUser.id}`);
+        return federatedUser.id;
+      }
+    } catch (fetchError) {
+      debug.warn(`🌐 [LiveKit] Failed to fetch federated actor ${federatedId}:`, fetchError);
     }
+    
   } catch (error) {
     debug.warn(`🌐 [LiveKit] Failed to resolve federated identity:`, error);
   }
