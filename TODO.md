@@ -191,17 +191,27 @@ User sends message → DB Trigger → pgboss.job (immediate)
 ## Federation: Remaining Work (Future)
 
 ### Voice Channel Federation
-**Status:** Stubs exist but not fully implemented
+**Status:** Core implementation done (Dec 2025), needs testing and refinement
 
-**What's needed:**
-- `harmony:VoiceChannelJoin` - Notify when user joins voice channel
-- `harmony:VoiceChannelLeave` - Notify when user leaves
-- LiveKit token generation for federated users
-- Remote user display in voice channel UI
+**What's implemented:**
+- ✅ `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` activities
+- ✅ `harmony:VoiceChannelJoinAccept` with LiveKit token exchange
+- ✅ `voice_channel_participants` table for tracking federated users
+- ✅ pg-boss triggers: `federate-voice-join`, `federate-voice-leave`
+- ✅ Frontend handling for federated voice (token subscription via Realtime)
+
+**Future optimization - Merge voice presence tracking:**
+Currently we have both `user_presence` (with `voice_channel_id`) and `voice_channel_participants`.
+Consider merging into a unified approach:
+- Add federation columns to `user_presence` instead of separate table
+- Federation triggers only fire when server has `federation_enabled = true`
+- Non-federated instances stay pure realtime/in-memory for speed
 
 **Files:**
-- `federation-backend/src/activitypub/VoiceActivityHandler.ts` - Has stubs
-- `src/stores/unifiedVoiceChannel.ts` - Needs remote user handling
+- `federation-backend/src/activitypub/VoiceActivityHandler.ts` - Full handler
+- `federation-backend/src/queue/handlers/voiceHandler.ts` - pg-boss job handler
+- `src/stores/unifiedVoiceChannel.ts` - Federated voice join flow
+- `db_schema/20251204_add_voice_federation_tables.sql` - Voice federation schema
 
 ### DM Federation
 **Status:** Partially working via standard ActivityPub private visibility
@@ -234,3 +244,12 @@ User sends message → DB Trigger → pgboss.job (immediate)
 - Database: `servers.owner` field update RPC
 - Federation: Update `GroupService.ts` to reflect new owner in AP responses
 
+
+
+
+--- 
+
+Uncategorized:
+
+✓ 1318 modules transformed.
+node_modules/@protobufjs/inquire/index.js (12:18): Use of eval in "node_modules/@protobufjs/inquire/index.js" is strongly discouraged as it poses security risks and may cause issues with minification.
