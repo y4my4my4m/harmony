@@ -5,8 +5,9 @@
       <div
         :style="{ backgroundImage: 'url(/icon16.png)', margin: '8px' }"
         class="portal"
-        title="Harmony Portal"
         @click="togglePublicServers"
+        @mouseenter="showSidebarTooltip($event, 'Harmony Portal')"
+        @mouseleave="hideSidebarTooltip"
       >
       </div>
       <!-- DM Button at the top -->
@@ -14,7 +15,8 @@
         class="dm-button"
         :class="{ 'selected': isDMSelected }"
         @click="goToDMs"
-        title="Direct Messages"
+        @mouseenter="showSidebarTooltip($event, 'Direct Messages')"
+        @mouseleave="hideSidebarTooltip"
       >
         <svg viewBox="0 0 24 24" class="dm-icon">
           <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
@@ -29,7 +31,8 @@
         class="monyverse-button"
         :class="{ 'selected': isMonyverseSelected }"
         @click="goToMonyverse"
-        title="Monyverse - Federated Social"
+        @mouseenter="showSidebarTooltip($event, 'Monyverse')"
+        @mouseleave="hideSidebarTooltip"
       >
         <div class="monyverse-icon">#</div>
         <div v-if="unreadCount > 0" class="unread-badge">
