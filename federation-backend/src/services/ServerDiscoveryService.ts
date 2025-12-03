@@ -352,6 +352,7 @@ router.post(
       );
 
       // Get default channel (first text channel, not a category)
+      // Use maybeSingle() since there might be no channels yet
       const { data: defaultChannel } = await supabase
         .from('channels')
         .select('id')
@@ -359,7 +360,9 @@ router.post(
         .eq('type', 0) // text channel
         .order('order', { ascending: true })
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      logger.info(`🎯 Join complete: server=${localServer.id}, defaultChannel=${defaultChannel?.id || 'none'}`);
 
       res.json({
         success: true,

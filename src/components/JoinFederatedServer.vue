@@ -216,17 +216,25 @@ async function joinServer() {
       
       // Navigate to the server's default channel (or server overview if no channel)
       if (result.defaultChannelId) {
+        console.log('🎯 Navigating to default channel:', result.defaultChannelId)
         router.push(`/server/${result.serverId}/${result.defaultChannelId}`)
       } else {
         // Fallback - try to get the first channel from discovered server
-        const firstChannel = discoveredServer.value?.channels?.find(c => c.type === 'text' || c.type === 'voice')
+        // channelType is used in ActivityPub responses ('text', 'voice', 'category')
+        // type might be used in invite responses (same format)
+        const firstChannel = discoveredServer.value?.channels?.find((c: any) => 
+          c.channelType === 'text' || c.channelType === 'voice' ||
+          c.type === 'text' || c.type === 'voice'
+        )
         if (firstChannel) {
           const channelId = (firstChannel as any).localId || firstChannel.id?.split('/').pop()
           if (channelId) {
+            console.log('🎯 Navigating to fallback channel:', channelId)
             router.push(`/server/${result.serverId}/${channelId}`)
             return
           }
         }
+        console.log('⚠️ No default channel found, navigating to server overview')
         router.push(`/server/${result.serverId}`)
       }
     } else {
