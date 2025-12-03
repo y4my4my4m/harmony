@@ -195,7 +195,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 
 .section-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -228,7 +228,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 .notice-text p {
   margin: 0;
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -251,7 +251,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -379,7 +379,7 @@ input:checked + .toggle-slider:before {
 .warning-list {
   margin: 0;
   padding-left: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -390,7 +390,7 @@ input:checked + .toggle-slider:before {
 }
 
 .info-text {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
   margin: 0;

@@ -1632,7 +1632,7 @@ const closeInviteModal = () => {
   width: 32px;
   height: 32px;
   cursor: pointer;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   transition: all 0.15s ease-out;
   border-radius: 4px;
   margin: 2px;
@@ -1692,7 +1692,7 @@ const closeInviteModal = () => {
 .date-separator-text {
   padding: 0 16px;
   /* background-color: #36393f; */
-  /* color: #b9bbbe; */
+  /* color: var(--text-secondary); */
   color: var(--text-secondary);
   font-size: 0.75rem;
   font-weight: 600;
@@ -1743,7 +1743,7 @@ const closeInviteModal = () => {
 
 .beginning-subtitle {
   font-size: 0.875rem;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
   opacity: 0.8;
 }
@@ -1988,7 +1988,7 @@ const closeInviteModal = () => {
   margin-left: 4px;
   font-size: 0.875rem;
   width: 100%;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 

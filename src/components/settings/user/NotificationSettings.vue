@@ -1144,7 +1144,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .settings-description {
   font-size: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
 }
@@ -1173,7 +1173,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .section-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 20px 0;
   line-height: 1.5;
 }
@@ -1267,7 +1267,7 @@ font-size: 12px;
 
 .setting-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -1300,7 +1300,7 @@ font-size: 12px;
 }
 
 .time-separator {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -1332,7 +1332,7 @@ font-size: 12px;
 
 .volume-value {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   min-width: 40px;
 }
 
@@ -1445,7 +1445,7 @@ font-size: 12px;
 
 .category-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1503,7 +1503,7 @@ font-size: 12px;
 
 .type-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   display: block;
 }
 
@@ -1521,7 +1521,7 @@ font-size: 12px;
 
 .control-icon {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .test-btn {
@@ -1529,7 +1529,7 @@ font-size: 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
   padding: 6px 8px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -1577,7 +1577,7 @@ font-size: 12px;
 .reset-btn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .reset-btn:hover {
@@ -1666,7 +1666,7 @@ font-size: 12px;
 }
 
 .push-warning p {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   margin: 0;
   line-height: 1.4;

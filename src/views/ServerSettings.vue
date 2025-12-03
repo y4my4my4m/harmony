@@ -446,7 +446,7 @@ watch(hasChanges, (newValue) => {
   display: block;
   height: 2px;
   width: 100%;
-  background-color: #b9bbbe;
+  background-color: var(--text-secondary);
   border-radius: 1px;
   transition: all 0.3s ease;
 }
@@ -478,7 +478,7 @@ watch(hasChanges, (newValue) => {
   padding: 8px;
   cursor: pointer;
   border-radius: 4px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -509,7 +509,7 @@ watch(hasChanges, (newValue) => {
   height: 32px;
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.15s ease;
@@ -562,8 +562,8 @@ watch(hasChanges, (newValue) => {
 
 .btn-secondary {
   background-color: transparent;
-  color: #b9bbbe;
-  border: 1px solid #4f545c;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -613,7 +613,7 @@ watch(hasChanges, (newValue) => {
   padding: 12px 24px;
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   text-align: left;

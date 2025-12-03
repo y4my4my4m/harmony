@@ -50,7 +50,7 @@ const handleSettingsUpdate = (settings: any) => {
 
 .settings-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 </style>

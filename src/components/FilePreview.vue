@@ -142,7 +142,7 @@ const hasUploading = computed(() => {
 }
 
 .file-count {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   text-transform: uppercase;

@@ -210,7 +210,7 @@ const goToMonyverse = () => {
 .dm-icon {
   width: 24px;
   height: 24px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   transition: color 0.2s ease;
 }
 

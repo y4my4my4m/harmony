@@ -173,7 +173,7 @@ watch(() => props.show, (isVisible) => {
 .modal-close {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -201,7 +201,7 @@ watch(() => props.show, (isVisible) => {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -258,7 +258,7 @@ watch(() => props.show, (isVisible) => {
 
 .btn-secondary {
   background: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .btn-secondary:hover:not(:disabled) {

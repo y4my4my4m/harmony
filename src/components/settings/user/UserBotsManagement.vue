@@ -517,7 +517,7 @@ onMounted(() => {
 
 .settings-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -575,7 +575,7 @@ onMounted(() => {
 }
 
 .empty-state p {
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   margin: 0 0 24px 0;
 }
 
@@ -683,7 +683,7 @@ onMounted(() => {
 
 .bot-bio {
   font-size: 14px;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   margin: 0 0 8px 0;
 }
 
@@ -715,7 +715,7 @@ onMounted(() => {
 
 .stat-label {
   font-size: 12px;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
 }
 
 .bot-actions {
@@ -754,7 +754,7 @@ onMounted(() => {
 
 .btn-secondary {
   background: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid var(--h-chat-light);
 }
 
@@ -836,7 +836,7 @@ onMounted(() => {
 .close-btn {
   background: none;
   border: none;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   font-size: 28px;
   line-height: 1;
   cursor: pointer;
@@ -908,7 +908,7 @@ onMounted(() => {
 
 .hint {
   display: block;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   font-size: 12px;
   margin-top: 4px;
 }
@@ -935,7 +935,7 @@ onMounted(() => {
 }
 
 .token-warning p {
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   font-size: 13px;
   margin: 0;
 }
@@ -964,7 +964,7 @@ onMounted(() => {
 
 .regenerate-warning {
   font-size: 12px;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   margin: 8px 0 0 0;
 }
 

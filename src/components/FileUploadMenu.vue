@@ -89,7 +89,7 @@ export default defineComponent({
   position: absolute;
   bottom: 100%;
   left: 0;
-  background-color: var(--vt-c-black-soft);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   padding: 8px;

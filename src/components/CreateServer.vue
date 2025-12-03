@@ -422,7 +422,7 @@ const createServer = async () => {
 
 .modal-subtitle {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -447,7 +447,7 @@ const createServer = async () => {
 .close-icon {
   width: 16px;
   height: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .modal-content {
@@ -476,7 +476,7 @@ const createServer = async () => {
 
 .optional {
   font-weight: 400;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -517,7 +517,7 @@ const createServer = async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .default-icon-svg {
@@ -703,7 +703,7 @@ const createServer = async () => {
 .privacy-icon {
   width: 16px;
   height: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .privacy-option.active .privacy-icon {
@@ -723,7 +723,7 @@ const createServer = async () => {
 
 .option-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -760,7 +760,7 @@ const createServer = async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .default-preview-icon svg {
@@ -827,7 +827,7 @@ const createServer = async () => {
 
 .action-btn.secondary {
   background: rgba(255, 255, 255, 0.05);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 

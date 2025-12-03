@@ -628,7 +628,7 @@ const getEmojiAnalytics = () => {
 
 .section-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -661,7 +661,7 @@ const getEmojiAnalytics = () => {
 .notice-text p {
   margin: 0;
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -684,7 +684,7 @@ const getEmojiAnalytics = () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -844,7 +844,7 @@ input:checked + .toggle-slider:before {
 
 .progress-text {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .progress-count {
@@ -875,7 +875,7 @@ input:checked + .toggle-slider:before {
 
 .selection-count {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .selection-actions {
@@ -904,7 +904,7 @@ input:checked + .toggle-slider:before {
 
 .btn-secondary {
   background-color: var(--h-chat-darker);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid var(--h-chat-light);
 }
 
@@ -934,7 +934,7 @@ input:checked + .toggle-slider:before {
 
 .empty-text {
   font-size: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 4px 0;
 }
 
@@ -1057,7 +1057,7 @@ input:checked + .toggle-slider:before {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .action-btn:hover {

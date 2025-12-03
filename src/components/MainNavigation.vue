@@ -218,7 +218,7 @@ const getServerAcronym = (serverName: string): string => {
 .nav-icon {
   width: 24px;
   height: 24px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   transition: color 0.15s ease;
 }
 

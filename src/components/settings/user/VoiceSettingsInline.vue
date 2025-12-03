@@ -637,7 +637,7 @@ onUnmounted(() => {
 }
 
 .checkbox-content small {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -707,6 +707,6 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 </style>

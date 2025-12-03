@@ -1136,7 +1136,7 @@ export default defineComponent({
 }
 
 .file-size {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   white-space: nowrap;
 }
@@ -1208,7 +1208,7 @@ export default defineComponent({
 
 /* System message specific styling */
 .system-message-text {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-style: italic;
   font-size: 14px;
   user-select: text;

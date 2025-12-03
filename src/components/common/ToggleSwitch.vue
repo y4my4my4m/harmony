@@ -44,7 +44,7 @@ const toggle = () => {
 .toggle-switch {
   width: 44px;
   height: 24px;
-  background-color: #4f545c;
+  background-color: var(--background-quaternary);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -53,7 +53,7 @@ const toggle = () => {
 }
 
 .toggle-switch:hover:not(.disabled) {
-  background-color: #5d6269;
+  background-color: var(--background-quinary);
 }
 
 .toggle-switch.active {
@@ -61,7 +61,7 @@ const toggle = () => {
 }
 
 .toggle-switch.active:hover:not(.disabled) {
-  background-color: #4752c4;
+  background-color: var(--harmony-primary-hover);
 }
 
 .toggle-switch.disabled {

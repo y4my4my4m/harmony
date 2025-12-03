@@ -301,7 +301,7 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .subtitle {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   font-size: 14px;
 }
@@ -314,7 +314,7 @@ function formatExpiry(expiresAt: string): string {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 8px;
 }
@@ -454,7 +454,7 @@ function formatExpiry(expiresAt: string): string {
 
 .server-description {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 12px;
   line-height: 1.4;
 }
@@ -470,7 +470,7 @@ function formatExpiry(expiresAt: string): string {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .stat-icon {
@@ -537,7 +537,7 @@ function formatExpiry(expiresAt: string): string {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .channel-icon {
@@ -560,7 +560,7 @@ function formatExpiry(expiresAt: string): string {
 .cancel-btn {
   padding: 12px 24px;
   background: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   font-weight: 500;

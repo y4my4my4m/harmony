@@ -652,7 +652,7 @@ onUnmounted(() => {
   display: block;
   height: 2px;
   width: 100%;
-  background-color: #b9bbbe;
+  background-color: var(--text-secondary);
   border-radius: 1px;
   transition: all 0.3s ease;
 }
@@ -684,7 +684,7 @@ onUnmounted(() => {
   padding: 8px;
   cursor: pointer;
   border-radius: 4px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -747,7 +747,7 @@ onUnmounted(() => {
   padding: 12px 16px;
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
@@ -807,7 +807,7 @@ onUnmounted(() => {
   border-radius: 50%;
   border: none;
   background-color: rgba(79, 84, 92, 0.12);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;

@@ -367,7 +367,7 @@ export default defineComponent({
 
 .language-label {
   font-size: 0.75rem;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;

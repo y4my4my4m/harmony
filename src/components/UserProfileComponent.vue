@@ -444,7 +444,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .icon-button:hover {
@@ -502,7 +502,7 @@ onBeforeUnmount(() => {
 .custom-status-label {
   font-size: 0.7rem;
   text-transform: uppercase;
-  color: #8e9297;
+  color: var(--text-muted);
   font-weight: 600;
   margin-bottom: 6px;
   letter-spacing: 0.02em;
@@ -567,7 +567,7 @@ onBeforeUnmount(() => {
 .current-custom-status {
   margin-top: 6px;
   font-size: 0.75rem;
-  color: #8e9297;
+  color: var(--text-muted);
   font-style: italic;
   white-space: nowrap;
   overflow: hidden;

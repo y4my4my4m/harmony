@@ -448,7 +448,7 @@ onMounted(() => {
 
 .section-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -511,7 +511,7 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 32px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .bots-grid {
@@ -564,7 +564,7 @@ onMounted(() => {
 
 .bot-bio {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -642,7 +642,7 @@ onMounted(() => {
 
 .btn-secondary {
   background-color: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid var(--h-chat-light);
 }
 

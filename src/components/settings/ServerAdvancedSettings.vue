@@ -273,7 +273,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .section-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -310,7 +310,7 @@ const formatDate = (dateString: string | undefined): string => {
 .notice-text p {
   margin: 0;
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -338,7 +338,7 @@ const formatDate = (dateString: string | undefined): string => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -395,7 +395,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .danger-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -433,7 +433,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .btn-secondary {
   background-color: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid #4f545c;
 }
 
@@ -481,7 +481,7 @@ const formatDate = (dateString: string | undefined): string => {
 .modal-close {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -515,13 +515,13 @@ const formatDate = (dateString: string | undefined): string => {
 
 .warning-text {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 12px 0;
 }
 
 .warning-list {
   text-align: left;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   margin: 0;
   padding-left: 20px;

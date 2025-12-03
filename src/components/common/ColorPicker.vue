@@ -151,7 +151,7 @@ onMounted(() => {
 .section-title {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin: 0;

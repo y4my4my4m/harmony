@@ -509,7 +509,7 @@ watch(
 .section-title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   text-transform: uppercase;
   margin: 12px 0 6px 0;
   letter-spacing: 0.02em;
@@ -588,7 +588,7 @@ watch(
 
 .emoji-shortcode {
   font-size: 10px;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   word-break: break-all;
 }
 
@@ -599,7 +599,7 @@ watch(
   justify-content: center;
   gap: 8px;
   padding: 24px;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: var(--color-text-secondary, var(--text-secondary));
   font-size: 13px;
 }
 

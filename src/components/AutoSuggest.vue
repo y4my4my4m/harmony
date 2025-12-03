@@ -158,7 +158,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   background: #36393f;
   border-bottom: 1px solid #40444b;
 }
@@ -268,7 +268,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-username {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

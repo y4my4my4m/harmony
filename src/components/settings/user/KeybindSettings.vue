@@ -118,7 +118,7 @@ const emit = defineEmits<{
 
 .settings-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -166,7 +166,7 @@ const emit = defineEmits<{
 
 .keybind-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }

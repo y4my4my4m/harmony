@@ -321,7 +321,7 @@ const getTypeIcon = (type: NotificationType) => {
 
 .toast-action-btn.secondary {
   background: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid var(--h-chat-light);
 }
 

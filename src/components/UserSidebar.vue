@@ -639,7 +639,7 @@ const closeInviteModal = () => {
 .control-btn {
   background: transparent;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px;
   border-radius: 4px;
@@ -670,7 +670,7 @@ const closeInviteModal = () => {
 
 /* Member Count */
 .member-count {
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -752,7 +752,7 @@ const closeInviteModal = () => {
 .group-header {
   background: none;
   border: none;
-  color: #8e9297;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 6px 8px;
   font-size: 12px;
@@ -768,7 +768,7 @@ const closeInviteModal = () => {
 }
 
 .group-header:hover {
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .group-title {
@@ -863,7 +863,7 @@ const closeInviteModal = () => {
 }
 
 .user-activity {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 400;
   white-space: nowrap;

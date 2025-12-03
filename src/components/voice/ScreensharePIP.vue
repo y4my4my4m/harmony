@@ -314,7 +314,7 @@ onUnmounted(() => {
 .pip-btn {
   background: transparent;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;

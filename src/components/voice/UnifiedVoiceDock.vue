@@ -550,7 +550,7 @@ onMounted(() => {
 }
 
 .channel-name {
-  /* color: #b9bbbe; */
+  /* color: var(--text-secondary); */
   color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
@@ -570,7 +570,7 @@ onMounted(() => {
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  /* color: #b9bbbe; */
+  /* color: var(--text-secondary); */
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -804,7 +804,7 @@ onMounted(() => {
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;

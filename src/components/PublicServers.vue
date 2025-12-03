@@ -471,7 +471,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .modal-subtitle {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -496,7 +496,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .close-icon {
   width: 16px;
   height: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .search-section {
@@ -611,7 +611,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .empty-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -710,7 +710,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .server-description {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
   margin: 0 0 16px;
   display: -webkit-box;
@@ -744,7 +744,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .owner-name {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -831,7 +831,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 

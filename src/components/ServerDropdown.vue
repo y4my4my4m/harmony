@@ -151,7 +151,7 @@ const leaveServer = async () => {
     right: 0;
     z-index: 100;
     width: 226px;
-    background-color: var(--vt-c-black-soft);
+    background-color: var(--background-secondary);
     color: white;
     border-radius: 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);

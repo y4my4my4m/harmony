@@ -549,7 +549,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .participant-count {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -572,7 +572,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -773,7 +773,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;

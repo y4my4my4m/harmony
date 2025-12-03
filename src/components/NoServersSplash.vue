@@ -313,7 +313,7 @@ const getParticleStyle = (index: number) => {
   font-weight: 700;
   color: #ffffff;
   margin: 0 0 12px;
-  background: linear-gradient(135deg, #ffffff, #b9bbbe);
+  background: linear-gradient(135deg, #ffffff, var(--text-secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -321,7 +321,7 @@ const getParticleStyle = (index: number) => {
 
 .welcome-subtitle {
   font-size: 18px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   font-weight: 500;
 }
@@ -436,7 +436,7 @@ const getParticleStyle = (index: number) => {
 
 .card-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 0 0 16px;
 }
@@ -460,7 +460,7 @@ const getParticleStyle = (index: number) => {
   align-self: flex-end;
   width: 24px;
   height: 24px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   transition: all 0.3s ease;
 }
 
@@ -572,7 +572,7 @@ const getParticleStyle = (index: number) => {
 
 .info-text p {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 0;
 }

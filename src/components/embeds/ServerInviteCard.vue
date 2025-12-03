@@ -372,7 +372,7 @@ watch(() => props.inviteCode, () => {
 .server-description {
   margin-top: 6px;
   font-size: 13px;
-  color: #8e9297;
+  color: var(--text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;

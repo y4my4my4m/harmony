@@ -680,7 +680,7 @@ onUpdated(() => {
 .connection-bars span:nth-child(4) { height: 12px; }
 
 .connection-bars span.active {
-  background: #b9bbbe;
+  background: var(--text-secondary);
 }
 
 .connection-indicator.good .connection-bars span.active {
@@ -871,7 +871,7 @@ onUpdated(() => {
 
 .harmony-voice-card-user-status {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   opacity: 0.8;
 }
 

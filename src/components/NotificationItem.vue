@@ -768,7 +768,7 @@ const typeIcon = computed(() => {
 
 .username {
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .separator {
@@ -869,7 +869,7 @@ const typeIcon = computed(() => {
 
 .preview-content {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.3;
 }
 
@@ -916,7 +916,7 @@ const typeIcon = computed(() => {
 }
 
 .reaction-text {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-weight: 500;
   display: flex;
   gap: 4px;

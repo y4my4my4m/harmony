@@ -354,7 +354,7 @@ onUnmounted(() => {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   outline: none;
 }
 
@@ -566,7 +566,7 @@ onUnmounted(() => {
 
 .settings-btn, .close-btn {
   background: rgba(79, 84, 92, 0.3);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 8px;
   min-width: 32px;
@@ -614,7 +614,7 @@ onUnmounted(() => {
 .notification-state {
   padding: 40px 20px;
   text-align: center;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .state-animation {
@@ -728,7 +728,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 20px;
   background: rgba(79, 84, 92, 0.3);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -786,7 +786,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 8px;
   background: rgba(79, 84, 92, 0.3);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;

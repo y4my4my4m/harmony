@@ -655,7 +655,7 @@ export default defineComponent({
 .close-btn {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 8px;
   border-radius: 8px;
@@ -830,7 +830,7 @@ export default defineComponent({
 }
 
 .checkbox-content small {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -900,7 +900,7 @@ export default defineComponent({
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .keybind-hint {
@@ -955,7 +955,7 @@ kbd {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 8px 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
