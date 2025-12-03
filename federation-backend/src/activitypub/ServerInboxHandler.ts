@@ -164,14 +164,21 @@ async function processJoinServer(
   logger.info(`👋 Processing Join request from ${actorUrl}`);
 
   // Ensure remote user exists locally
-  await ActivityProcessor['ensureRemoteUser'](actorUrl);
+  const remoteUser = await ActivityProcessor['ensureRemoteUser'](actorUrl);
 
-  // Get user by federated_id (correct column name)
-  const { data: user } = await supabase
-    .from('profiles')
-    .select('id, username, inbox_url, federated_id, is_suspended')
-    .eq('federated_id', actorUrl)
-    .single();
+  // Try to get the full user record (ensureRemoteUser returns partial data)
+  let user = remoteUser;
+  if (remoteUser) {
+    const { data: fullUser } = await supabase
+      .from('profiles')
+      .select('id, username, inbox_url, federated_id, is_suspended')
+      .eq('id', remoteUser.id)
+      .maybeSingle();
+    
+    if (fullUser) {
+      user = fullUser;
+    }
+  }
 
   if (!user) {
     logger.error('Failed to find/create remote user for Join activity');

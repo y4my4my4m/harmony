@@ -1758,23 +1758,38 @@ export class ActivityProcessor {
       }
 
       // Upsert the profile
-      await supabase
+      const { error: upsertError } = await supabase
         .from('profiles')
         .upsert(profileRecord, {
           onConflict: 'federated_id',
         });
 
+      if (upsertError) {
+        logger.error(`Failed to upsert profile for ${actorUrl}:`, upsertError);
+        return existing || null;
+      }
+
       // Query the profile after upsert (upsert().select() doesn't reliably return data)
-      const { data: savedProfile } = await supabase
+      const { data: savedProfile, error: queryError } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, federated_id, color')
         .eq('federated_id', profileData.federated_id)
         .maybeSingle();
 
+      if (queryError) {
+        logger.error(`Failed to query profile after upsert for ${actorUrl}:`, queryError);
+        return existing || null;
+      }
+
+      if (!savedProfile) {
+        logger.error(`Profile not found after upsert for ${actorUrl} (federated_id: ${profileData.federated_id})`);
+        return existing || null;
+      }
+
       const action = existing ? 'Refreshed' : 'Created';
       logger.info(`${action} remote user: ${actorUrl}${profileData.banner ? ' (with banner)' : ''}`);
       
-      return savedProfile || null;
+      return savedProfile;
     } catch (error) {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
       return existing || null;
