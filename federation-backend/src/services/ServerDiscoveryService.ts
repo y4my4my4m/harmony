@@ -590,7 +590,41 @@ router.get(
       // Parse ActivityPub collection response
       const items = data.orderedItems || data.items || [];
       
-      // Transform to our message format and cache locally
+      // OPTIMIZATION: Deduplicate author URLs to avoid fetching the same user multiple times
+      const uniqueAuthorUrls = new Set<string>();
+      for (const item of items) {
+        const activity = item.type === 'Create' ? item : { object: item };
+        const note = activity.object;
+        if (!note) continue;
+        
+        const authorUrl = note.attributedTo || activity.actor;
+        if (authorUrl && authorUrl !== 'undefined' && !authorUrl.endsWith('/undefined')) {
+          uniqueAuthorUrls.add(authorUrl);
+        }
+      }
+
+      // Fetch all unique authors in parallel (deduplicated)
+      const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+      const authorFetchPromises = Array.from(uniqueAuthorUrls).map(url => 
+        ActivityProcessor['ensureRemoteUser'](url).catch(err => {
+          logger.debug(`Could not fetch author ${url}: ${err}`);
+        })
+      );
+      await Promise.all(authorFetchPromises);
+
+      // Now get all authors from DB in one query
+      const { data: allAuthors } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, federated_id, color')
+        .in('federated_id', Array.from(uniqueAuthorUrls));
+
+      // Create a lookup map for quick author access
+      const authorMap = new Map<string, any>();
+      for (const author of (allAuthors || [])) {
+        authorMap.set(author.federated_id, author);
+      }
+
+      // Transform messages using the cached author data
       const messages = await Promise.all(items.map(async (item: any) => {
         const activity = item.type === 'Create' ? item : { object: item };
         const note = activity.object;
@@ -600,27 +634,8 @@ router.get(
         // Get author URL - can be from attributedTo or actor
         const authorUrl = note.attributedTo || activity.actor;
         
-        let author: any = null;
-
-        // Check if this is a valid author URL
-        if (authorUrl && authorUrl !== 'undefined' && !authorUrl.endsWith('/undefined')) {
-          // Ensure the author exists locally
-          try {
-            const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
-            await ActivityProcessor['ensureRemoteUser'](authorUrl);
-
-            // Get author from local DB
-            const { data: authorData } = await supabase
-              .from('profiles')
-              .select('id, username, display_name, avatar_url, federated_id, color')
-              .eq('federated_id', authorUrl)
-              .maybeSingle();
-            
-            author = authorData;
-          } catch (err) {
-            logger.debug(`Could not fetch author ${authorUrl}: ${err}`);
-          }
-        }
+        // Get author from our pre-fetched map
+        let author = authorMap.get(authorUrl) || null;
 
         // For bridge messages (Discord, Matrix, etc.) without a valid author,
         // try to extract info from the note itself

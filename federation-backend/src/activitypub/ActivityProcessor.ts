@@ -1748,6 +1748,8 @@ export class ActivityProcessor {
         followers_url: profileData.followers_url,
         following_url: profileData.following_url,
         is_local: false,
+        updated_at: new Date().toISOString(), // Track when we last synced
+        last_synced_at: new Date().toISOString(), // Also update last_synced_at
       };
 
       // Include Harmony extension: profile color

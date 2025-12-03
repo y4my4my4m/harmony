@@ -922,6 +922,7 @@ export class CoreMessageService {
 
   /**
    * Parse remote message content (ActivityPub HTML to our format)
+   * Preserves custom emojis as images and converts common HTML to our format
    */
   private parseRemoteContent(content: string | any[]): any[] {
     // If already in our format, return as-is
@@ -929,11 +930,67 @@ export class CoreMessageService {
       return content
     }
 
-    // If HTML string, convert to our format
+    // If null/undefined, return empty
+    if (!content) {
+      return [{ type: 'text', text: '' }]
+    }
+
+    // If HTML string, convert to our format while preserving important elements
     if (typeof content === 'string') {
-      // Strip HTML tags for simple text extraction
-      const text = content.replace(/<[^>]*>/g, '').trim()
-      return [{ type: 'text', text }]
+      const result: any[] = []
+      
+      // First, extract custom emojis (img tags with emoji class or custom emoji pattern)
+      // Pattern matches :emoji_name: and emoji images
+      let processedContent = content
+      
+      // Replace <br> with newlines
+      processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n')
+      
+      // Replace <p> tags with newlines
+      processedContent = processedContent.replace(/<\/p>\s*<p>/gi, '\n\n')
+      processedContent = processedContent.replace(/<\/?p>/gi, '')
+      
+      // Extract emoji images and convert to inline format
+      // Matches: <img class="emoji" src="URL" alt=":name:" ...> or similar
+      const emojiImgRegex = /<img[^>]*(?:class="[^"]*emoji[^"]*"[^>]*src="([^"]+)"[^>]*alt="([^"]+)"|src="([^"]+)"[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]+)"|alt="(:[^:]+:)"[^>]*src="([^"]+)")[^>]*\/?>/gi
+      
+      processedContent = processedContent.replace(emojiImgRegex, (match, src1, alt1, src2, alt2, alt3, src3) => {
+        const src = src1 || src2 || src3
+        const alt = alt1 || alt2 || alt3 || ':emoji:'
+        // Return a placeholder that we'll process below
+        return `[REMOTE_EMOJI:${alt}:${src}]`
+      })
+      
+      // Also handle Misskey-style emoji: <span class="emoji">:name:</span>
+      processedContent = processedContent.replace(/<span[^>]*class="[^"]*emoji[^"]*"[^>]*>([^<]+)<\/span>/gi, (match, emojiCode) => {
+        return emojiCode // Keep the :emoji_name: text
+      })
+      
+      // Strip remaining HTML tags
+      const text = processedContent.replace(/<[^>]*>/g, '').trim()
+      
+      // If the text contains remote emoji placeholders, parse them
+      if (text.includes('[REMOTE_EMOJI:')) {
+        const parts = text.split(/(\[REMOTE_EMOJI:[^\]]+\])/g)
+        for (const part of parts) {
+          const emojiMatch = part.match(/\[REMOTE_EMOJI:([^:]+):(.+)\]/)
+          if (emojiMatch) {
+            // Add as emoji with URL
+            result.push({
+              type: 'emoji',
+              shortcode: emojiMatch[1].replace(/:/g, ''),
+              url: emojiMatch[2],
+              name: emojiMatch[1],
+            })
+          } else if (part.trim()) {
+            result.push({ type: 'text', text: part })
+          }
+        }
+      } else if (text) {
+        result.push({ type: 'text', text })
+      }
+      
+      return result.length > 0 ? result : [{ type: 'text', text: '' }]
     }
 
     return [{ type: 'text', text: '' }]

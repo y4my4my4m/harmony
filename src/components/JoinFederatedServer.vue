@@ -215,9 +215,10 @@ async function joinServer() {
       emit('joined', result.serverId)
       
       // Navigate to the server's default channel (or server overview if no channel)
+      // NOTE: Use /chat/ route for actual chat, not /server/ (which is for settings)
       if (result.defaultChannelId) {
         console.log('🎯 Navigating to default channel:', result.defaultChannelId)
-        router.push(`/server/${result.serverId}/${result.defaultChannelId}`)
+        router.push(`/chat/${result.serverId}/${result.defaultChannelId}`)
       } else {
         // Fallback - try to get the first channel from discovered server
         // channelType is used in ActivityPub responses ('text', 'voice', 'category')
@@ -230,12 +231,12 @@ async function joinServer() {
           const channelId = (firstChannel as any).localId || firstChannel.id?.split('/').pop()
           if (channelId) {
             console.log('🎯 Navigating to fallback channel:', channelId)
-            router.push(`/server/${result.serverId}/${channelId}`)
+            router.push(`/chat/${result.serverId}/${channelId}`)
             return
           }
         }
-        console.log('⚠️ No default channel found, navigating to server overview')
-        router.push(`/server/${result.serverId}`)
+        console.log('⚠️ No default channel found, navigating to DM page')
+        router.push('/dm')
       }
     } else {
       error.value = result.error || 'Failed to join server'
