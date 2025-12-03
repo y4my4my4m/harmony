@@ -568,5 +568,4 @@ async function joinServer() {
   }
 }
 </style>
-</template>
 
