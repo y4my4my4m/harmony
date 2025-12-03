@@ -191,7 +191,7 @@ defineExpose({
 }
 
 .modern-input:disabled {
-  background-color: #2b2d31;
+  background-color:  var(--background-quinary);
   border-color: #3c3f44;
   color: #6d6f78;
   cursor: not-allowed;

@@ -980,7 +980,7 @@ onMounted(() => {
   position: absolute;
   top: 56px;
   right: 16px;
-  background: #2b2d31;
+  background:  var(--background-quinary);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -1036,7 +1036,7 @@ onMounted(() => {
 
 .profile-content {
   padding: 24px 32px 32px;
-  background: #2b2d31;
+  background:  var(--background-quinary);
 }
 
 .profile-header {
@@ -1061,7 +1061,7 @@ onMounted(() => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  border: 6px solid #2b2d31;
+  border: 6px solid  var(--background-quinary);
   background: #36393f;
   object-fit: cover;
 }
@@ -1073,7 +1073,7 @@ onMounted(() => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 3px solid #2b2d31;
+  border: 3px solid  var(--background-quinary);
   background: #23a55a; /* Default online status */
 }
 

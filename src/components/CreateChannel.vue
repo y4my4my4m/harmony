@@ -297,7 +297,7 @@ const closeForm = () => {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: #2b2d31;
+  background:  var(--background-quinary);
   border: 2px solid transparent;
   border-radius: 8px;
   cursor: pointer;

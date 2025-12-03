@@ -29,7 +29,7 @@
       @click="goToMonyverse"
       title="Monyverse - Federated Social"
     >
-      <div class="monyverse-icon">M</div>
+      <div class="monyverse-icon">#</div>
       <div v-if="unreadCount > 0" class="unread-badge">
         {{ unreadCount > 99 ? '99+' : unreadCount }}
       </div>
@@ -189,7 +189,7 @@ const goToMonyverse = () => {
 .dm-button {
   width: 48px;
   height: 48px;
-  background-color: var(--h-black-light);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   margin: 10px;
   padding: 4px;
   border-radius: 50%;
@@ -210,7 +210,6 @@ const goToMonyverse = () => {
 .dm-icon {
   width: 24px;
   height: 24px;
-  color: var(--text-secondary);
   transition: color 0.2s ease;
 }
 
@@ -219,7 +218,7 @@ const goToMonyverse = () => {
 }
 
 .dm-button.selected {
-  background: var(--h-brand, #5865f2);
+  background: var(--harmony-primary, --harmony-primary-hover);
   border-radius: 50%;
 }
 
@@ -231,7 +230,7 @@ const goToMonyverse = () => {
 .monyverse-button {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   margin: 10px;
   padding: 4px;
   border-radius: 12px;
@@ -266,7 +265,7 @@ const goToMonyverse = () => {
 }
 
 .monyverse-button.selected {
-  background: linear-gradient(135deg, #5865f2 0%, #7289da 100%);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   border: 3px solid var(--h-primary);
   border-radius: 50%;
 }
@@ -362,12 +361,12 @@ const goToMonyverse = () => {
 .monyverse-button.selected,
 .portal.selected,
 .server-item.selected {
-  border: 2px solid var(--h-primary);
+  border: 2px solid var(--h-secondary);
   border-radius: 50%;
 }
 
 .server-item.selected {
-  border: 2px solid var(--h-primary);
+  border: 2px solid var(--h-secondary);
   border-radius: 50%;
 }
 </style>
