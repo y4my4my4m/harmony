@@ -12,6 +12,7 @@
         :categories="publicServersStore.categories"
         :total-servers="publicServersStore.totalServers"
         :filtered-count="publicServersStore.filteredServers.length"
+        @join-by-url="showJoinFederatedServer = true"
       />
 
       <!-- Content -->

@@ -8,6 +8,17 @@
         :is-loading="isSearching"
         @clear="handleClearSearch"
       />
+      
+      <!-- Join by URL prompt -->
+      <button class="join-url-prompt" @click="$emit('joinByUrl')">
+        <svg width="16" height="16" viewBox="0 0 24 24" class="prompt-icon">
+          <path d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z" fill="currentColor"/>
+        </svg>
+        <span>{{ $t('federation.haveInviteLink') }}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" class="arrow-icon">
+          <path d="M4,11V13H16L10.5,18.5L11.92,19.92L19.84,12L11.92,4.08L10.5,5.5L16,11H4Z" fill="currentColor"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Category Filter -->
@@ -113,6 +124,7 @@ interface Props {
 interface Emits {
   (e: 'update:searchQuery', value: string): void
   (e: 'update:selectedCategory', value: string | null): void
+  (e: 'joinByUrl'): void
 }
 
 const props = defineProps<Props>()
@@ -184,6 +196,43 @@ const formatStats = (filtered: number, total: number): string => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.join-url-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px dashed rgba(0, 212, 255, 0.3);
+  border-radius: 10px;
+  color: #00d4ff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.join-url-prompt:hover {
+  background: rgba(0, 212, 255, 0.15);
+  border-style: solid;
+  border-color: rgba(0, 212, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.join-url-prompt .prompt-icon {
+  opacity: 0.8;
+}
+
+.join-url-prompt .arrow-icon {
+  opacity: 0.6;
+  transition: transform 0.2s ease;
+}
+
+.join-url-prompt:hover .arrow-icon {
+  transform: translateX(3px);
+  opacity: 1;
 }
 
 .category-section {
