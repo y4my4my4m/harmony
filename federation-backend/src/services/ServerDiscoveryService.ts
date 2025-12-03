@@ -388,6 +388,12 @@ router.post(
 
       logger.info(`🎯 Join complete: server=${localServer.id}, defaultChannel=${defaultChannel?.id || 'none'}`);
 
+      // Sync remote server members in the background
+      if (remoteServer.members) {
+        ServerDiscoveryService.syncRemoteServerMembers(localServer.id, remoteServer.members)
+          .catch(err => logger.error('Failed to sync remote members:', err));
+      }
+
       res.json({
         success: true,
         message: 'Join request sent',
@@ -1221,6 +1227,74 @@ export class ServerDiscoveryService {
       logger.info(`✅ Synced remote server: ${remoteServer.name}`);
     } catch (error) {
       logger.error('Error syncing remote server:', error);
+    }
+  }
+
+  /**
+   * Sync remote server members
+   * Fetches the members collection and creates local profiles for remote users
+   */
+  static async syncRemoteServerMembers(serverId: string, membersUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+
+    try {
+      logger.info(`👥 Syncing remote server members from: ${membersUrl}`);
+
+      // Fetch members collection
+      const response = await SignatureService.signedFetch(membersUrl + '?page=1');
+      
+      if (!response.ok) {
+        logger.warn(`Failed to fetch members collection: ${response.status}`);
+        return;
+      }
+
+      const membersPage = await response.json();
+      const members = membersPage.orderedItems || [];
+
+      logger.info(`👥 Found ${members.length} remote members`);
+
+      // Import ActivityProcessor for ensureRemoteUser
+      const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+
+      // Process each member
+      for (const member of members) {
+        try {
+          // Member can be a URL string or an object with id
+          const memberUrl = typeof member === 'string' ? member : (member.id || member.actor);
+          
+          if (!memberUrl || typeof memberUrl !== 'string') {
+            continue;
+          }
+
+          // Create/update remote user profile
+          const profile = await ActivityProcessor['ensureRemoteUser'](memberUrl);
+          
+          if (profile) {
+            // Add to user_servers if not already there
+            const { error } = await supabase
+              .from('user_servers')
+              .upsert({
+                server_id: serverId,
+                user_id: profile.id,
+                status: 'accepted',
+                member_instance: new URL(memberUrl).host,
+              }, {
+                onConflict: 'server_id,user_id',
+                ignoreDuplicates: true,
+              });
+
+            if (!error) {
+              logger.debug(`✅ Added remote member: ${profile.username}`);
+            }
+          }
+        } catch (memberError) {
+          logger.debug(`Failed to process member:`, memberError);
+        }
+      }
+
+      logger.info(`✅ Synced remote server members for server: ${serverId}`);
+    } catch (error) {
+      logger.error('Error syncing remote server members:', error);
     }
   }
 
