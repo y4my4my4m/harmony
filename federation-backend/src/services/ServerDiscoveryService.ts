@@ -217,7 +217,14 @@ router.get(
       .eq('server_id', server.id)
       .eq('status', 'accepted');
 
-    // Get channels with category structure
+    // Get categories from channel_categories table
+    const { data: categories } = await supabase
+      .from('channel_categories')
+      .select('id, name, order')
+      .eq('server_id', server.id)
+      .order('order', { ascending: true });
+
+    // Get channels
     const { data: channels } = await supabase
       .from('channels')
       .select('id, name, type, category, order, description')
@@ -227,16 +234,33 @@ router.get(
 
     // Build channel structure with full AP IDs
     const serverApId = `https://${hostDomain}/servers/${server.id}`;
+    
+    // Convert categories to channel format (type = 'category')
+    const categoryList = (categories || []).map(cat => ({
+      id: `${serverApId}/channels/${cat.id}`,
+      localId: cat.id,
+      name: cat.name,
+      type: 'category',
+      category: null,
+      categoryId: null,
+      order: cat.order || 0,
+      description: null,
+    }));
+
+    // Convert regular channels
     const channelList = (channels || []).map(c => ({
       id: `${serverApId}/channels/${c.id}`,
       localId: c.id,
       name: c.name,
-      type: c.type === 2 ? 'category' : (c.type === 1 ? 'voice' : 'text'),
+      type: c.type === 1 ? 'voice' : 'text',
       category: c.category ? `${serverApId}/channels/${c.category}` : null,
       categoryId: c.category,
       order: c.order || 0,
       description: c.description,
     }));
+
+    // Merge categories and channels
+    const allChannels = [...categoryList, ...channelList];
 
     res.json({
       code: invite.code,
@@ -255,7 +279,7 @@ router.get(
         description: server.description || '',
         icon: makeAbsolute(server.icon, 'server_icons'),
         memberCount: memberCount || 0,
-        channels: channelList,
+        channels: allChannels,
         inbox: `${serverApId}/inbox`,
       },
     });
@@ -597,35 +621,34 @@ router.get(
             created_at: note.published || new Date().toISOString(),
             updated_at: note.updated,
             metadata: { ap_id: note.id, is_remote: true },
-            is_remote: true,
           };
 
           if (messageUuid) {
             messageData.id = messageUuid;
           }
 
-          // Upsert to avoid duplicates
-          const { data: cachedMsg, error: cacheError } = await supabase
-            .from('messages')
-            .upsert(messageData, {
-              onConflict: messageUuid ? 'id' : undefined,
-              ignoreDuplicates: true,
-            })
-            .select('id')
-            .maybeSingle();
+          // Upsert to avoid duplicates - use onConflict with id if we have UUID
+          try {
+            const { data: cachedMsg } = await supabase
+              .from('messages')
+              .upsert(messageData, {
+                onConflict: 'id',
+                ignoreDuplicates: true,
+              })
+              .select('id')
+              .maybeSingle();
 
-          if (cacheError) {
+            return {
+              id: cachedMsg?.id || messageUuid || note.id,
+              content: note.content,
+              created_at: note.published,
+              updated_at: note.updated,
+              metadata: { ap_id: note.id },
+              author,
+            };
+          } catch (cacheError: any) {
             logger.debug(`Could not cache message: ${cacheError.message}`);
           }
-
-          return {
-            id: cachedMsg?.id || messageUuid || note.id,
-            content: note.content,
-            created_at: note.published,
-            updated_at: note.updated,
-            metadata: { ap_id: note.id },
-            author,
-          };
         }
 
         return {

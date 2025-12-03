@@ -88,12 +88,12 @@ export class VoiceActivityHandler {
   private static async handleVoiceCallInvite(activity: VoiceCallInvite): Promise<void> {
     const supabase = getSupabaseClient();
     
-    // Get the caller's profile
+    // Get the caller's profile - use maybeSingle() to avoid throwing on 0 rows
     const { data: caller } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url')
       .eq('federated_id', activity.actor)
-      .single();
+      .maybeSingle();
 
     if (!caller) {
       logger.warn(`Caller not found for voice invite: ${activity.actor}`);
@@ -108,7 +108,7 @@ export class VoiceActivityHandler {
         .from('profiles')
         .select('id, is_local')
         .eq('federated_id', recipientUrl)
-        .single();
+        .maybeSingle();
 
       if (!recipient?.is_local) {
         continue; // Skip non-local users
@@ -184,12 +184,12 @@ export class VoiceActivityHandler {
     logger.info(`📞 Voice call accepted: ${activity.object}`);
 
     // Notify the original caller that the call was accepted
-    // Get the original call to find the caller
+    // Get the original call to find the caller - use maybeSingle() to avoid throwing
     const { data: call } = await supabase
       .from('federated_voice_calls')
       .select('caller_id, livekit_url, room_name')
       .eq('ap_id', activity.object)
-      .single();
+      .maybeSingle();
 
     if (call) {
       await supabase
@@ -229,12 +229,12 @@ export class VoiceActivityHandler {
 
     logger.info(`📞 Voice call rejected: ${activity.object}`);
 
-    // Notify the original caller
+    // Notify the original caller - use maybeSingle() to avoid throwing
     const { data: call } = await supabase
       .from('federated_voice_calls')
       .select('caller_id')
       .eq('ap_id', activity.object)
-      .single();
+      .maybeSingle();
 
     if (call) {
       await supabase
@@ -272,12 +272,12 @@ export class VoiceActivityHandler {
 
     logger.info(`📞 Voice call ended: ${activity.object}`);
 
-    // Notify all participants
+    // Notify all participants - use maybeSingle() to avoid throwing
     const { data: call } = await supabase
       .from('federated_voice_calls')
       .select('caller_id, recipient_id')
       .eq('ap_id', activity.object)
-      .single();
+      .maybeSingle();
 
     if (call) {
       // Notify both caller and recipient
@@ -311,24 +311,24 @@ export class VoiceActivityHandler {
     const { ActivityProcessor } = await import('./ActivityProcessor.js');
     await ActivityProcessor['ensureRemoteUser'](actorUrl);
 
-    // Get the user
+    // Get the user - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url')
       .eq('federated_id', actorUrl)
-      .single();
+      .maybeSingle();
 
     if (!user) {
       logger.warn('User not found for voice channel join');
       return;
     }
 
-    // Find the channel by AP ID
+    // Find the channel by AP ID - use maybeSingle() to avoid throwing on 0 rows
     const { data: channel } = await supabase
       .from('channels')
       .select('id, server_id')
       .eq('ap_id', channelInfo.id)
-      .single();
+      .maybeSingle();
 
     if (!channel) {
       logger.warn(`Channel not found: ${channelInfo.id}`);
@@ -383,23 +383,23 @@ export class VoiceActivityHandler {
 
     logger.info(`📞 Voice channel leave: ${actorUrl} leaving ${channelInfo.id}`);
 
-    // Get the user
+    // Get the user - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username')
       .eq('federated_id', actorUrl)
-      .single();
+      .maybeSingle();
 
     if (!user) {
       return;
     }
 
-    // Find the channel
+    // Find the channel - use maybeSingle() to avoid throwing on 0 rows
     const { data: channel } = await supabase
       .from('channels')
       .select('id')
       .eq('ap_id', channelInfo.id)
-      .single();
+      .maybeSingle();
 
     if (!channel) {
       return;
@@ -509,18 +509,18 @@ export class VoiceActivityHandler {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    // Get user
+    // Get user - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (!user?.is_local) {
       return;
     }
 
-    // Get server and channel
+    // Get server and channel - use maybeSingle() to avoid throwing on 0 rows
     const { data: channel } = await supabase
       .from('channels')
       .select(`
@@ -529,7 +529,7 @@ export class VoiceActivityHandler {
         server:servers!channels_server_id_fkey(id, name, federation_inbox_url, is_local_server)
       `)
       .eq('id', channelId)
-      .single();
+      .maybeSingle();
 
     if (!channel) {
       return;
@@ -571,23 +571,23 @@ export class VoiceActivityHandler {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    // Get user
+    // Get user - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (!user?.is_local) {
       return;
     }
 
-    // Get server
+    // Get server - use maybeSingle() to avoid throwing on 0 rows
     const { data: server } = await supabase
       .from('servers')
       .select('id, federation_inbox_url, is_local_server')
       .eq('id', serverId)
-      .single();
+      .maybeSingle();
 
     if (!server || server.is_local_server) {
       return;

@@ -157,14 +157,37 @@ router.get(
       ownerProfile = owner;
     }
 
+    // Get categories from channel_categories table
+    const { data: categories } = await supabase
+      .from('channel_categories')
+      .select('*')
+      .eq('server_id', serverId)
+      .order('order', { ascending: true });
+
     // Get channels ordered by category and position
-    const { data: channels } = await supabase
+    const { data: channelsData } = await supabase
       .from('channels')
       .select('*')
       .eq('server_id', serverId)
       .eq('is_remote', false)
       .order('category', { ascending: true, nullsFirst: true })
       .order('order', { ascending: true });
+
+    // Merge categories (as type=2) with channels for ActivityPub export
+    const channels = [
+      // Add categories as type=2 channels
+      ...(categories || []).map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        type: CHANNEL_TYPE_CATEGORY, // 2
+        order: cat.order || 0,
+        category: null,
+        description: null,
+        server_id: serverId,
+      })),
+      // Add regular channels
+      ...(channelsData || []),
+    ];
 
     // Get member count
     const { count: memberCount } = await supabase

@@ -229,6 +229,7 @@ export function actorToProfile(actor: any): {
   bio?: string;
   avatar?: string;
   banner?: string;
+  color?: string;
   public_key?: string;
   federated_id: string;
   inbox_url: string;
@@ -277,6 +278,11 @@ export function actorToProfile(actor: any): {
 
   if (actor.image?.url) {
     profile.banner = actor.image.url;
+  }
+
+  // Harmony extension: profile color
+  if (actor['harmony:profileColor']) {
+    profile.color = actor['harmony:profileColor'];
   }
 
   if (actor.publicKey?.publicKeyPem) {

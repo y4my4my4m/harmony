@@ -1734,7 +1734,7 @@ export class ActivityProcessor {
 
       // Upsert remote user - map field names to database columns
       // This handles both initial creation and refreshing stale profiles
-      const profileRecord = {
+      const profileRecord: any = {
         username: profileData.username,
         domain: profileData.domain,
         display_name: profileData.display_name,
@@ -1749,6 +1749,11 @@ export class ActivityProcessor {
         following_url: profileData.following_url,
         is_local: false,
       };
+
+      // Include Harmony extension: profile color
+      if (profileData.color) {
+        profileRecord.color = profileData.color;
+      }
 
       await supabase.from('profiles').upsert(profileRecord, {
         onConflict: 'federated_id',
