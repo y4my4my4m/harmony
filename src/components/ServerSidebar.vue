@@ -653,14 +653,17 @@ const resetDragState = () => {
 const showSidebarTooltip = (event: MouseEvent, name: string, serverCount?: number) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
+  // Capture rect immediately before it becomes null in the timeout
+  const target = event.currentTarget as HTMLElement;
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  const y = rect.top + rect.height / 2;
+  
   tooltipTimer.value = setTimeout(() => {
-    const target = event.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    
     sidebarTooltip.value = {
       visible: true,
       name: name || 'Unnamed',
-      y: rect.top + rect.height / 2,
+      y,
       serverCount
     };
   }, 400);

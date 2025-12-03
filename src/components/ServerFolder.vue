@@ -316,14 +316,17 @@ const handleServerClick = (serverId: string) => {
 const showServerTooltip = (event: MouseEvent, name: string) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
+  // Capture rect immediately before it becomes null in the timeout
+  const target = event.currentTarget as HTMLElement;
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  const y = rect.top + rect.height / 2;
+  
   tooltipTimer.value = setTimeout(() => {
-    const target = event.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    
     serverTooltip.value = {
       visible: true,
       name: name || 'Unnamed Server',
-      y: rect.top + rect.height / 2
+      y
     };
   }, 400);
 };
