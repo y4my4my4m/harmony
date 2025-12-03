@@ -624,8 +624,66 @@ async function processCreateActivity(
 
   if (error) {
     logger.error('Failed to insert server message:', error);
-  } else {
-    logger.info(`✅ Inserted federated message in #${channel.name} from ${author.username}`);
+    return;
+  }
+  
+  logger.info(`✅ Inserted federated message in #${channel.name} from ${author.username}`);
+
+  // ==========================================================================
+  // RE-BROADCAST: If this is the authoritative server, relay to other remotes
+  // ==========================================================================
+  // When Instance B sends a message to Instance A (the server host),
+  // Instance A should re-broadcast to Instance C, D, etc.
+  
+  if (server.is_local_server) {
+    const senderDomain = new URL(actorUrl).hostname;
+    
+    // Find all remote members EXCEPT the sender's instance
+    const { data: remoteMemberGroups } = await supabase
+      .from('user_servers')
+      .select(`
+        member_instance,
+        profiles!inner(id, federated_id, domain)
+      `)
+      .eq('server_id', serverId)
+      .eq('status', 'accepted')
+      .not('member_instance', 'is', null)
+      .neq('member_instance', senderDomain)
+      .neq('member_instance', config.INSTANCE_DOMAIN);
+
+    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
+      // Group by instance for shared inbox delivery
+      const instanceMap = new Map<string, string[]>();
+      for (const member of remoteMemberGroups) {
+        const instance = member.member_instance;
+        if (!instanceMap.has(instance)) {
+          instanceMap.set(instance, []);
+        }
+        if (member.profiles?.federated_id) {
+          instanceMap.get(instance)!.push(member.profiles.federated_id);
+        }
+      }
+
+      // Forward the activity to each instance (excluding sender)
+      for (const [instance, memberApIds] of instanceMap) {
+        const inbox = `https://${instance}/inbox`;
+        
+        // Modify activity to address specific members
+        const forwardedActivity = {
+          ...activity,
+          to: memberApIds,
+        };
+
+        try {
+          await DeliveryQueue.enqueue(forwardedActivity, inbox, server.owner);
+          logger.info(`📤 Re-broadcast message to ${instance} (${memberApIds.length} members)`);
+        } catch (deliveryError) {
+          logger.error(`Failed to re-broadcast to ${instance}:`, deliveryError);
+        }
+      }
+      
+      logger.info(`🔄 Re-broadcast complete: relayed to ${instanceMap.size} other instances`);
+    }
   }
 }
 
@@ -752,8 +810,37 @@ async function processUpdateActivity(
 
   if (error) {
     logger.error('Failed to update message:', error);
-  } else {
-    logger.info(`✏️ Updated federated message: ${object.id}`);
+    return;
+  }
+  
+  logger.info(`✏️ Updated federated message: ${object.id}`);
+
+  // Re-broadcast edit to other remote instances
+  if (server.is_local_server) {
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
+    const senderDomain = new URL(actorUrl).hostname;
+    
+    const { data: remoteMemberGroups } = await supabase
+      .from('user_servers')
+      .select('member_instance')
+      .eq('server_id', serverId)
+      .eq('status', 'accepted')
+      .not('member_instance', 'is', null)
+      .neq('member_instance', senderDomain)
+      .neq('member_instance', config.INSTANCE_DOMAIN);
+
+    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
+      const instances = [...new Set(remoteMemberGroups.map(m => m.member_instance))];
+      for (const instance of instances) {
+        const inbox = `https://${instance}/inbox`;
+        try {
+          await DeliveryQueue.enqueue(activity, inbox, server.owner);
+          logger.info(`📤 Re-broadcast edit to ${instance}`);
+        } catch (e) {
+          logger.error(`Failed to re-broadcast edit to ${instance}:`, e);
+        }
+      }
+    }
   }
 }
 
@@ -776,13 +863,51 @@ async function processDeleteActivity(
   }
 
   // Find and soft-delete the message
-  const { error } = await supabase
+  const { data: deletedMsg, error } = await supabase
     .from('messages')
     .update({ is_deleted: true })
-    .eq('metadata->>ap_id', objectUrl);
+    .eq('metadata->>ap_id', objectUrl)
+    .select('id')
+    .maybeSingle();
 
-  if (!error) {
-    logger.info(`🗑️ Deleted federated message: ${objectUrl}`);
+  if (error) {
+    logger.error('Failed to delete message:', error);
+    return;
+  }
+  
+  if (!deletedMsg) {
+    logger.warn(`Message not found for delete: ${objectUrl}`);
+    return;
+  }
+  
+  logger.info(`🗑️ Deleted federated message: ${objectUrl}`);
+
+  // Re-broadcast delete to other remote instances
+  if (server.is_local_server) {
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
+    const senderDomain = new URL(actorUrl).hostname;
+    
+    const { data: remoteMemberGroups } = await supabase
+      .from('user_servers')
+      .select('member_instance')
+      .eq('server_id', serverId)
+      .eq('status', 'accepted')
+      .not('member_instance', 'is', null)
+      .neq('member_instance', senderDomain)
+      .neq('member_instance', config.INSTANCE_DOMAIN);
+
+    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
+      const instances = [...new Set(remoteMemberGroups.map(m => m.member_instance))];
+      for (const instance of instances) {
+        const inbox = `https://${instance}/inbox`;
+        try {
+          await DeliveryQueue.enqueue(activity, inbox, server.owner);
+          logger.info(`📤 Re-broadcast delete to ${instance}`);
+        } catch (e) {
+          logger.error(`Failed to re-broadcast delete to ${instance}:`, e);
+        }
+      }
+    }
   }
 }
 
@@ -925,8 +1050,38 @@ async function processReactionActivity(
       onConflict: 'message_id,user_id,emoji_id',
     });
 
-  if (!error) {
-    logger.info(`👍 Added reaction to message ${message.id}`);
+  if (error) {
+    logger.error('Failed to add reaction:', error);
+    return;
+  }
+  
+  logger.info(`👍 Added reaction to message ${message.id}`);
+
+  // Re-broadcast reaction to other remote instances
+  if (server.is_local_server) {
+    const senderDomain = new URL(actorUrl).hostname;
+    
+    const { data: remoteMemberGroups } = await supabase
+      .from('user_servers')
+      .select('member_instance')
+      .eq('server_id', serverId)
+      .eq('status', 'accepted')
+      .not('member_instance', 'is', null)
+      .neq('member_instance', senderDomain)
+      .neq('member_instance', config.INSTANCE_DOMAIN);
+
+    if (remoteMemberGroups && remoteMemberGroups.length > 0) {
+      const instances = [...new Set(remoteMemberGroups.map(m => m.member_instance))];
+      for (const instance of instances) {
+        const inbox = `https://${instance}/inbox`;
+        try {
+          await DeliveryQueue.enqueue(activity, inbox, server.owner);
+          logger.info(`📤 Re-broadcast reaction to ${instance}`);
+        } catch (e) {
+          logger.error(`Failed to re-broadcast reaction to ${instance}:`, e);
+        }
+      }
+    }
   }
 }
 
