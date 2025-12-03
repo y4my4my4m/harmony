@@ -597,7 +597,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -768,7 +768,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   color: white;

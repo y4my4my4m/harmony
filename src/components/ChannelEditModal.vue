@@ -214,7 +214,7 @@ watch(() => props.show, (isVisible) => {
 
 .modal-close:hover {
   background: #40444b;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .modal-body {
@@ -245,7 +245,7 @@ watch(() => props.show, (isVisible) => {
   border: 1px solid #40444b;
   border-radius: 4px;
   padding: 12px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 1rem;
   transition: border-color 0.15s ease;
 }
@@ -261,7 +261,7 @@ watch(() => props.show, (isVisible) => {
   border: 1px solid #40444b;
   border-radius: 4px;
   padding: 12px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 1rem;
   resize: vertical;
   min-height: 80px;
@@ -337,11 +337,11 @@ watch(() => props.show, (isVisible) => {
 
 .btn-secondary:hover:not(:disabled) {
   background: #40444b;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .btn-primary {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: #ffffff;
 }
 

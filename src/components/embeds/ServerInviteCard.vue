@@ -412,7 +412,7 @@ watch(() => props.inviteCode, () => {
 .joined-button {
   padding: 10px 20px;
   background: rgba(255, 255, 255, 0.1);
-  color: #dcddde;
+  color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   font-size: 14px;

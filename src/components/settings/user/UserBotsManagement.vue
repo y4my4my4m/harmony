@@ -739,7 +739,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
 }
 

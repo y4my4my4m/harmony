@@ -281,7 +281,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   background: #4f545c;
-  color: #dcddde;
+  color: var(--text-secondary);
   border: none;
   border-radius: 6px;
   padding: 8px 12px;
@@ -292,7 +292,7 @@ onUnmounted(() => {
 }
 
 .share-btn:hover {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
 }
 

@@ -1163,7 +1163,7 @@ onMounted(async () => {
 }
 
 .checkbox-container input[type="checkbox"]:checked {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
 }
 
@@ -1258,7 +1258,7 @@ onMounted(async () => {
 }
 
 .switch-mode-btn:hover {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
   transform: translateY(-1px);
 }

@@ -784,7 +784,7 @@ onUnmounted(() => {
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
 }
@@ -834,7 +834,7 @@ onUnmounted(() => {
 }
 
 .checkbox-input:checked + .checkbox-custom {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
 }
 
@@ -964,7 +964,7 @@ onUnmounted(() => {
   right: -2px;
   width: 18px;
   height: 18px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: 2px solid #1e1f22;
   border-radius: 50%;
   display: flex;

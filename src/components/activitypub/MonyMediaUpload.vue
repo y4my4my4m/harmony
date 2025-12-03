@@ -206,7 +206,7 @@ const formatFileSize = (bytes?: number): string => {
 }
 
 .media-name {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -301,7 +301,7 @@ const formatFileSize = (bytes?: number): string => {
 
 .progress-fill {
   height: 100%;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   transition: width 0.3s ease;
 }
 

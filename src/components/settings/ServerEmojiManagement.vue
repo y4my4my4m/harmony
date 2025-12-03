@@ -748,7 +748,7 @@ const getEmojiAnalytics = () => {
 }
 
 input:checked + .toggle-slider {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
 }
 
 input:checked + .toggle-slider:before {
@@ -862,7 +862,7 @@ input:checked + .toggle-slider:before {
 
 .progress-fill {
   height: 100%;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   transition: width 0.3s ease;
 }
 

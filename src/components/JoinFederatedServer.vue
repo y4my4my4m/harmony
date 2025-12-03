@@ -346,7 +346,7 @@ function formatExpiry(expiresAt: string): string {
 
 .discover-btn {
   padding: 12px 20px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
   border: none;
   border-radius: 8px;

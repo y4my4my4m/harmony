@@ -580,7 +580,7 @@ const closeInviteModal = () => {
   background: transparent;
   border: none;
   padding: 8px 12px 8px 32px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 400;
   outline: none;
@@ -621,7 +621,7 @@ const closeInviteModal = () => {
 }
 
 .clear-search:hover {
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .clear-search svg {
@@ -652,7 +652,7 @@ const closeInviteModal = () => {
 
 .control-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .control-btn:active {
@@ -853,7 +853,7 @@ const closeInviteModal = () => {
 }
 
 .user-name {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;

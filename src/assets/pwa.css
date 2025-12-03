@@ -124,7 +124,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
   }
   
   *::-webkit-scrollbar-thumb:hover {
-    background: #5865f2;
+    background: var(--harmony-primary);
   }
 }
 

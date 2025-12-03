@@ -750,7 +750,7 @@ const typeIcon = computed(() => {
 
 .notification-title-emoji-fallback {
   font-size: 14px;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .notification-item--unread .notification-title {
@@ -814,7 +814,7 @@ const typeIcon = computed(() => {
 
 .action-btn:hover {
   background: rgba(79, 84, 92, 0.32);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .read-toggle.active {
@@ -844,7 +844,7 @@ const typeIcon = computed(() => {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
-  color: #dcddde;
+  color: var(--text-secondary);
   word-wrap: break-word;
 }
 

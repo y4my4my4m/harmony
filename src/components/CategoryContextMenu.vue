@@ -96,14 +96,14 @@ const deleteCategory = () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  color: #dcddde;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.1s ease;
 }
 
 .context-menu-item:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
 }
 

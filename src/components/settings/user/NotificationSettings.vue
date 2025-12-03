@@ -1363,11 +1363,11 @@ font-size: 12px;
 
 .permission-text {
   font-size: 14px;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .permission-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   padding: 8px 16px;
@@ -1556,7 +1556,7 @@ font-size: 12px;
 }
 
 .test-all-btn, .reset-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   padding: 12px 24px;

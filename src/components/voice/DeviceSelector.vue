@@ -436,7 +436,7 @@ watch(isOpen, (newVal) => {
   padding: 10px 16px;
   background: transparent;
   border: none;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;

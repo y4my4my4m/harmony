@@ -107,13 +107,13 @@ export default defineComponent({
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
 }
 
 .menu-item:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: white;
 }
 

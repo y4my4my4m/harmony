@@ -1485,7 +1485,7 @@ const closeInviteModal = () => {
 }
 
 .reply-preview {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1541,7 +1541,7 @@ const closeInviteModal = () => {
 
 .bot-badge {
   display: inline-block;
-  background: #5865F2;
+  background: var(--harmony-primary);
   color: white;
   font-size: 0.625rem;
   font-weight: 600;
@@ -1640,7 +1640,7 @@ const closeInviteModal = () => {
 
 .action-btn:hover {
   background-color: #40444b;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .action-btn:active {
@@ -1834,7 +1834,7 @@ const closeInviteModal = () => {
 }
 .tooltip-emoji-name {
   font-size: 0.875rem;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 /* Loading skeletons */
@@ -1999,7 +1999,7 @@ const closeInviteModal = () => {
 
 .system-text {
   flex: 1;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .system-text :deep(.system-message-content) {

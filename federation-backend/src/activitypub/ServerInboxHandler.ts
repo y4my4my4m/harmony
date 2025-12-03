@@ -580,8 +580,34 @@ async function processUpdateActivity(
     return;
   }
 
-  // Handle channel updates
-  if (['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
+  // Handle CATEGORY updates - stored in channel_categories table
+  if (object.type === 'harmony:Category') {
+    // Extract UUID from ap_id
+    const catUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
+    if (!catUuidMatch) {
+      logger.warn(`Cannot extract UUID from category ap_id: ${object.id}`);
+      return;
+    }
+    const catUuid = catUuidMatch[1];
+
+    const { error: catError } = await supabase
+      .from('channel_categories')
+      .update({
+        name: object.name,
+        order: object.position || object.order,
+      })
+      .eq('id', catUuid);
+
+    if (catError) {
+      logger.warn(`Category not found for Update: ${object.id}`);
+    } else {
+      logger.info(`✏️ Updated remote category: ${object.name}`);
+    }
+    return;
+  }
+
+  // Handle CHANNEL updates (text/voice) - stored in channels table
+  if (['harmony:TextChannel', 'harmony:VoiceChannel'].includes(object.type)) {
     // Find channel by ap_id
     const { data: channel } = await supabase
       .from('channels')
@@ -594,12 +620,19 @@ async function processUpdateActivity(
       return;
     }
 
-    // Resolve category reference
+    // Resolve category reference - look up in channel_categories by UUID
     let categoryId = null;
     if (object.category) {
       const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
       if (catMatch) {
-        categoryId = catMatch[1];
+        // Look up the category in channel_categories table by UUID
+        const { data: cat } = await supabase
+          .from('channel_categories')
+          .select('id')
+          .eq('id', catMatch[1])
+          .maybeSingle();
+        
+        categoryId = cat?.id || null;
       }
     }
 
@@ -834,7 +867,7 @@ async function processReactionActivity(
 }
 
 /**
- * Process Add activity (channel creation)
+ * Process Add activity (channel or category creation)
  */
 async function processAddActivity(
   serverId: string,
@@ -848,41 +881,69 @@ async function processAddActivity(
     return;
   }
 
-  // Check if this is a channel addition
   const objectType = object.type;
-  if (['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(objectType)) {
-    const channelType = objectType === 'harmony:Category' ? 2 : 
-                        (objectType === 'harmony:VoiceChannel' ? 1 : 0);
+  
+  // Extract UUID from ap_id if possible
+  let entityUuid: string | undefined;
+  const match = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
+  if (match) {
+    entityUuid = match[1];
+  }
 
-    // Extract channel UUID from ap_id if possible
-    let channelUuid: string | undefined;
-    const match = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
-    if (match) {
-      channelUuid = match[1];
+  // Handle CATEGORY creation - goes into channel_categories table
+  if (objectType === 'harmony:Category') {
+    // Check if category already exists (by name and server, since no ap_id column)
+    const { data: existingCat } = await supabase
+      .from('channel_categories')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('name', object.name)
+      .maybeSingle();
+
+    if (existingCat) {
+      logger.info(`Category already exists: ${object.name}`);
+      return;
     }
 
-    // Resolve category reference
+    const catInsertData: any = {
+      server_id: serverId,
+      name: object.name,
+      order: object.position || object.order || 0,
+    };
+
+    // Use remote UUID for consistency
+    if (entityUuid) {
+      catInsertData.id = entityUuid;
+    }
+
+    const { error: catError } = await supabase.from('channel_categories').insert(catInsertData);
+    if (catError) {
+      logger.error(`Failed to create category ${object.name}:`, catError);
+    } else {
+      logger.info(`📁 Created remote category: ${object.name}`);
+    }
+    return;
+  }
+
+  // Handle CHANNEL creation (text/voice) - goes into channels table
+  if (['harmony:TextChannel', 'harmony:VoiceChannel'].includes(objectType)) {
+    const channelType = objectType === 'harmony:VoiceChannel' ? 1 : 0;
+
+    // Resolve category reference - look up in channel_categories by UUID
     let categoryId = null;
     if (object.category) {
       const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
       if (catMatch) {
-        categoryId = catMatch[1];
+        // Look up the category in channel_categories table by UUID
+        const { data: cat } = await supabase
+          .from('channel_categories')
+          .select('id')
+          .eq('id', catMatch[1])
+          .eq('server_id', serverId)
+          .maybeSingle();
+        
+        categoryId = cat?.id || null;
       }
-    }
-
-    const insertData: any = {
-      server_id: serverId,
-      name: object.name,
-      description: object.description,
-      type: channelType,
-      order: object.position || object.order || 0,
-      ap_id: object.id,
-      is_remote: true,
-      category: categoryId,
-    };
-
-    if (channelUuid) {
-      insertData.id = channelUuid;
     }
 
     // Check if channel already exists
@@ -897,8 +958,28 @@ async function processAddActivity(
       return;
     }
 
-    await supabase.from('channels').insert(insertData);
-    logger.info(`📢 Created remote channel: ${object.name} (${objectType})`);
+    const insertData: any = {
+      server_id: serverId,
+      name: object.name,
+      description: object.description,
+      type: channelType,
+      order: object.position || object.order || 0,
+      ap_id: object.id,
+      is_remote: true,
+      category: categoryId,
+    };
+
+    // Use remote UUID for consistency
+    if (entityUuid) {
+      insertData.id = entityUuid;
+    }
+
+    const { error: channelError } = await supabase.from('channels').insert(insertData);
+    if (channelError) {
+      logger.error(`Failed to create channel ${object.name}:`, channelError);
+    } else {
+      logger.info(`📢 Created remote channel: ${object.name} (${objectType}, category: ${categoryId})`);
+    }
   }
 }
 
@@ -919,16 +1000,43 @@ async function processRemoveActivity(
     return;
   }
 
-  // Check if this is a channel removal
+  // Check if this is a channel/category removal
   if (objectUrl.includes('/channels/')) {
-    // Remove channel by ap_id
-    await supabase
+    // Extract UUID from the URL
+    const uuidMatch = objectUrl.match(/\/channels\/([a-f0-9-]{36})$/i);
+    const entityUuid = uuidMatch ? uuidMatch[1] : null;
+
+    // Try to remove from channels table first
+    const { data: deletedChannel } = await supabase
       .from('channels')
       .delete()
       .eq('ap_id', objectUrl)
-      .eq('server_id', serverId);
+      .eq('server_id', serverId)
+      .select('id')
+      .maybeSingle();
     
-    logger.info(`🗑️ Removed remote channel: ${objectUrl}`);
+    if (deletedChannel) {
+      logger.info(`🗑️ Removed remote channel: ${objectUrl}`);
+      return;
+    }
+
+    // If not found in channels, try channel_categories (by UUID since no ap_id column)
+    if (entityUuid) {
+      const { data: deletedCategory } = await supabase
+        .from('channel_categories')
+        .delete()
+        .eq('id', entityUuid)
+        .eq('server_id', serverId)
+        .select('id')
+        .maybeSingle();
+      
+      if (deletedCategory) {
+        logger.info(`🗑️ Removed remote category: ${objectUrl}`);
+        return;
+      }
+    }
+
+    logger.warn(`Could not find channel or category to remove: ${objectUrl}`);
     return;
   }
 

@@ -644,7 +644,7 @@ onUpdated(() => {
 }
 
 .pip-toggle-btn.active {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
   color: #fff;
 }
@@ -833,7 +833,7 @@ onUpdated(() => {
 }
 
 .status-badge.locally-muted {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .status-badge.connection-poor {
@@ -858,7 +858,7 @@ onUpdated(() => {
 .username {
   font-weight: 600;
   font-size: 14px;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 4px;
   transition: color 0.3s ease;
   line-height: 1.2;

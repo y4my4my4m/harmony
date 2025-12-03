@@ -703,7 +703,7 @@ export default defineComponent({
   align-items: center;
   font-size: 14px;
   font-weight: 500;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -718,7 +718,7 @@ export default defineComponent({
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 12px 16px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   transition: all 0.2s ease;
 }
@@ -749,7 +749,7 @@ export default defineComponent({
   appearance: none;
   width: 18px;
   height: 18px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
@@ -803,7 +803,7 @@ export default defineComponent({
 }
 
 .setting-checkbox:checked + .checkbox-custom {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
 }
 
@@ -824,7 +824,7 @@ export default defineComponent({
 
 .checkbox-content span {
   display: block;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-bottom: 4px;
 }
@@ -841,7 +841,7 @@ export default defineComponent({
 }
 
 .test-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -923,7 +923,7 @@ export default defineComponent({
   padding: 12px;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 8px;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .keybind-combo {
@@ -938,7 +938,7 @@ kbd {
   padding: 4px 8px;
   font-size: 12px;
   font-family: monospace;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .settings-footer {
@@ -975,7 +975,7 @@ kbd {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 8px 16px;
-  color: #dcddde;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -985,7 +985,7 @@ kbd {
 }
 
 .save-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   padding: 8px 20px;

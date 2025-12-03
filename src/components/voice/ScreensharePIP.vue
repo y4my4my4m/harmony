@@ -302,7 +302,7 @@ onUnmounted(() => {
 .pip-title {
   font-size: 14px;
   font-weight: 600;
-  color: #dcddde;
+  color: var(--text-secondary);
   user-select: none;
 }
 

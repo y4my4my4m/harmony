@@ -654,7 +654,7 @@ watch(() => props.show, async (newValue) => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   color: #ffffff;
@@ -770,7 +770,7 @@ watch(() => props.show, async (newValue) => {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {

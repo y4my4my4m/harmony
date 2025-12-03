@@ -322,7 +322,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 }
 
 input:checked + .toggle-slider {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
 }
 
 input:checked + .toggle-slider:before {
@@ -464,7 +464,7 @@ input:checked + .toggle-slider:before {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   opacity: 0;
   transition: opacity 0.15s ease;
 }

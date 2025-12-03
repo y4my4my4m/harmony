@@ -213,7 +213,7 @@ const copyLinkURL = async () => {
   border-radius: 6px;
   cursor: pointer;
   font-size: 18px;
-  color: #dcddde;
+  color: var(--text-secondary);
   transition: all 0.15s ease;
 }
 
@@ -228,7 +228,7 @@ const copyLinkURL = async () => {
 }
 
 .quick-reaction-btn.more-btn:hover {
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .context-menu-item {
@@ -236,14 +236,14 @@ const copyLinkURL = async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  color: #dcddde;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.1s ease;
 }
 
 .context-menu-item:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
 }
 

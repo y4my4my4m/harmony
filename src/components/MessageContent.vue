@@ -258,7 +258,7 @@ export default defineComponent({
   font-weight:500;
 }
 .mention:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color:rgba(255,255,255,0.9);
 }
 .file-container {
@@ -302,7 +302,7 @@ export default defineComponent({
   border: 1px solid #40444b;
   border-radius: 8px;
   background-color: #40444b;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 14px;
   line-height: 1.375;

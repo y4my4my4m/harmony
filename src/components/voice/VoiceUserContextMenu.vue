@@ -549,7 +549,7 @@ watch(
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(88, 101, 242, 0.4);
@@ -596,7 +596,7 @@ watch(
 }
 
 .preset-btn.active {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
   border-color: #5865f2;
 }
@@ -662,7 +662,7 @@ watch(
 }
 
 .quality-btn.active {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
   border-color: #5865f2;
 }
@@ -681,7 +681,7 @@ watch(
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.15s ease;

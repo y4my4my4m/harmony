@@ -547,7 +547,7 @@ onMounted(() => {
 .bot-badge {
   display: inline-block;
   padding: 2px 6px;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -632,7 +632,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
 }
 

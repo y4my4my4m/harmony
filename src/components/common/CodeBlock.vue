@@ -393,7 +393,7 @@ export default defineComponent({
 }
 
 .copy-button:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
   transform: translateY(0);
 }
@@ -418,7 +418,7 @@ export default defineComponent({
   padding: 12px;
   /* background-color: #2f3136; */
   background-color: var(--background-primary-alpha);
-  /* color: #dcddde; */
+  /* color: var(--text-secondary); */
   color: var(--text-primary);
   font-size: 0.875rem;
   line-height: 1.125rem;

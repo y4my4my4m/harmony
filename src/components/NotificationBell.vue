@@ -360,7 +360,7 @@ onUnmounted(() => {
 
 .notification-bell:hover {
   background: rgba(79, 84, 92, 0.32);
-  color: #dcddde;
+  color: var(--text-secondary);
   transform: translateY(-1px);
 }
 
@@ -575,7 +575,7 @@ onUnmounted(() => {
 
 .settings-btn:hover, .close-btn:hover {
   background: rgba(79, 84, 92, 0.5);
-  color: #dcddde;
+  color: var(--text-secondary);
   transform: translateY(-1px);
 }
 
@@ -739,7 +739,7 @@ onUnmounted(() => {
 
 .filter-tab:hover {
   background: rgba(79, 84, 92, 0.5);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .filter-tab.active {
@@ -795,7 +795,7 @@ onUnmounted(() => {
 
 .load-more-btn:hover:not(:disabled) {
   background: rgba(79, 84, 92, 0.5);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .load-more-btn:disabled {

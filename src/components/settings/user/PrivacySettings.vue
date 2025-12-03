@@ -1127,7 +1127,7 @@ onMounted(() => {
 
 .radio-option input[type="radio"]:checked {
   border-color: #5865f2;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
 }
 
 .radio-label {
@@ -1230,7 +1230,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
 }
 

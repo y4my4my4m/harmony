@@ -759,7 +759,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 12px;
   font-size: 12px;
 }
@@ -813,7 +813,7 @@ onMounted(() => {
 }
 
 .filter-badge {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: #ffffff;
   padding: 2px 6px;
   border-radius: 10px;
@@ -871,7 +871,7 @@ onMounted(() => {
 
 .retry-btn {
   padding: 8px 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 4px;
   color: #ffffff;
@@ -989,7 +989,7 @@ onMounted(() => {
 }
 
 .result-content {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -1005,7 +1005,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 4px;
   color: #ffffff;

@@ -510,7 +510,7 @@ onUnmounted(() => {
   align-items: center;
   font-size: 14px;
   font-weight: 500;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -525,7 +525,7 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 12px 16px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   transition: all 0.2s ease;
 }
@@ -556,7 +556,7 @@ onUnmounted(() => {
   appearance: none;
   width: 18px;
   height: 18px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
@@ -610,7 +610,7 @@ onUnmounted(() => {
 }
 
 .setting-checkbox:checked + .checkbox-custom {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
 }
 
@@ -631,7 +631,7 @@ onUnmounted(() => {
 
 .checkbox-content span {
   display: block;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-bottom: 4px;
 }
@@ -648,7 +648,7 @@ onUnmounted(() => {
 }
 
 .test-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   padding: 8px 16px;

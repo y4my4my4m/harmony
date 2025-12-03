@@ -804,7 +804,8 @@ export class ServerDiscoveryService {
       // Map to track category AP IDs to local UUIDs
       const categoryMap = new Map<string, string>();
 
-      // First pass: Create categories (type = 2)
+      // First pass: Create categories in channel_categories table (NOT channels table!)
+      // Local servers use channel_categories table, so federated servers must too
       // Handles multiple type formats: 'category', 2, 'harmony:Category', or channelType: 'category'
       const categories = channels.filter((c: any) => 
         c.type === 'category' || 
@@ -818,19 +819,18 @@ export class ServerDiscoveryService {
         const insertData: any = {
           server_id: serverRef.id,
           name: cat.name,
-          type: 2, // category type
           order: cat.order || cat.position || 0,
-          ap_id: cat.id,
-          is_remote: true,
-          description: cat.description,
+          // Note: channel_categories table doesn't have ap_id or is_remote columns
+          // We track the mapping in memory during this transaction
         };
         
+        // Use remote UUID if available for consistency
         if (catUuid) {
           insertData.id = catUuid;
         }
 
         const { data: catRef, error: catError } = await supabase
-          .from('channels')
+          .from('channel_categories')
           .insert(insertData)
           .select('id')
           .single();
@@ -846,7 +846,7 @@ export class ServerDiscoveryService {
         }
       }
 
-      // Second pass: Create regular channels (text/voice)
+      // Second pass: Create regular channels (text/voice) in channels table
       // Excludes categories in all format variations
       const isCategory = (c: any) => 
         c.type === 'category' || 
@@ -866,7 +866,7 @@ export class ServerDiscoveryService {
           channelData.channelType === 'voice';
         const channelType = isVoice ? 1 : 0;
 
-        // Resolve category reference
+        // Resolve category reference - look up in our categoryMap
         let categoryId = null;
         if (channelData.category) {
           categoryId = categoryMap.get(channelData.category);
@@ -885,6 +885,7 @@ export class ServerDiscoveryService {
           description: channelData.description,
         };
 
+        // Use remote UUID for consistency - this ensures messages can be linked
         if (channelUuid) {
           insertData.id = channelUuid;
         }
@@ -897,7 +898,7 @@ export class ServerDiscoveryService {
         }
       }
 
-      logger.info(`✅ Created ${channels.length} channel references (${categories.length} categories)`);
+      logger.info(`✅ Created ${regularChannels.length} channels and ${categories.length} categories for remote server`);
 
       return serverRef;
     } catch (error) {

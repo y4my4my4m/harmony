@@ -1138,7 +1138,7 @@ const getDefaultGroupName = (): string => {
   right: -2px;
   width: 16px;
   height: 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: 2px solid var(--background-primary);
   border-radius: 50%;
   display: flex;

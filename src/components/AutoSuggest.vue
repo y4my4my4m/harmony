@@ -176,7 +176,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-item.selected {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .suggest-item.selected .suggest-server {
@@ -184,7 +184,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-item:hover .suggest-server {
-  color: #dcddde; /* Better contrast on hover background */
+  color: var(--text-secondary); /* Better contrast on hover background */
 }
 
 .suggest-item-default {
