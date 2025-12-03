@@ -711,9 +711,11 @@ router.get(
             content: note.content ? [{ type: 'text', text: note.content.replace(/<[^>]*>/g, '').trim() }] : [],
             created_at: note.published || new Date().toISOString(),
             updated_at: note.updated,
-            metadata: { ap_id: note.id, is_remote: true },
-            // IMPORTANT: Mark as completed to prevent pg-boss from trying to federate cached messages
-            federation_status: 'completed',
+            // IMPORTANT: 'federated: true' tells the BEFORE INSERT trigger to skip this message
+            // The trigger checks for this key and sets federation_status = 'skipped'
+            metadata: { ap_id: note.id, is_remote: true, federated: true },
+            // This gets set by the trigger anyway when 'federated' key is present
+            federation_status: 'skipped',
           };
 
           if (messageUuid) {
