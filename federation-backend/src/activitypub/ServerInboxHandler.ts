@@ -152,7 +152,9 @@ async function processJoinServer(
 
   if (!user) {
     logger.error('Failed to find/create remote user for Join activity');
-    await sendRejectActivity(serverId, server, activity, actorUrl, 'User not found');
+    // Derive inbox URL from actor URL (standard ActivityPub pattern: {actorUrl}/inbox)
+    const derivedInbox = `${actorUrl}/inbox`;
+    await sendRejectActivity(serverId, server, activity, derivedInbox, 'User not found');
     return;
   }
 

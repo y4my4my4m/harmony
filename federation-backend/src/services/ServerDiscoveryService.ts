@@ -18,11 +18,11 @@ const router = Router();
 // =============================================================================
 
 /**
- * GET /api/federation/servers/discover
+ * GET /servers/discover
  * Discover a remote server by URL or handle
  */
 router.get(
-  '/api/federation/servers/discover',
+  '/servers/discover',
   asyncHandler(async (req: Request, res: Response) => {
     const { url, handle } = req.query;
 
@@ -65,12 +65,12 @@ router.get(
 );
 
 /**
- * POST /api/federation/invites/resolve
+ * POST /invites/resolve
  * Proxy invite resolution to a remote instance (avoids CORS)
  * Called by frontend when user pastes a remote invite link
  */
 router.post(
-  '/api/federation/invites/resolve',
+  '/invites/resolve',
   asyncHandler(async (req: Request, res: Response) => {
     const { instance, code } = req.body;
 
@@ -199,11 +199,11 @@ router.get(
 );
 
 /**
- * POST /api/federation/servers/join
+ * POST /servers/join
  * Join a remote server
  */
 router.post(
-  '/api/federation/servers/join',
+  '/servers/join',
   asyncHandler(async (req: Request, res: Response) => {
     const { serverUrl, userId, inviteCode } = req.body;
 
@@ -308,11 +308,11 @@ router.post(
 );
 
 /**
- * POST /api/federation/servers/leave
+ * POST /servers/leave
  * Leave a remote server
  */
 router.post(
-  '/api/federation/servers/leave',
+  '/servers/leave',
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId, userId } = req.body;
 
@@ -378,11 +378,11 @@ router.post(
 );
 
 /**
- * GET /api/federation/servers/:serverId/sync
+ * GET /servers/:serverId/sync
  * Sync server metadata from remote
  */
 router.get(
-  '/api/federation/servers/:serverId/sync',
+  '/servers/:serverId/sync',
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
 
