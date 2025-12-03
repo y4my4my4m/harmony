@@ -597,23 +597,50 @@ router.get(
         
         if (!note) return null;
 
-        // Skip messages without a valid author
+        // Get author URL - can be from attributedTo or actor
         const authorUrl = note.attributedTo || activity.actor;
-        if (!authorUrl || authorUrl === 'undefined' || authorUrl.endsWith('/undefined')) {
-          logger.warn(`Skipping message with invalid author: ${note.id}`);
-          return null;
+        
+        let author: any = null;
+
+        // Check if this is a valid author URL
+        if (authorUrl && authorUrl !== 'undefined' && !authorUrl.endsWith('/undefined')) {
+          // Ensure the author exists locally
+          try {
+            const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+            await ActivityProcessor['ensureRemoteUser'](authorUrl);
+
+            // Get author from local DB
+            const { data: authorData } = await supabase
+              .from('profiles')
+              .select('id, username, display_name, avatar_url, federated_id, color')
+              .eq('federated_id', authorUrl)
+              .maybeSingle();
+            
+            author = authorData;
+          } catch (err) {
+            logger.debug(`Could not fetch author ${authorUrl}: ${err}`);
+          }
         }
 
-        // Ensure the author exists locally
-        const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
-        await ActivityProcessor['ensureRemoteUser'](authorUrl);
-
-        // Get author from local DB
-        const { data: author } = await supabase
-          .from('profiles')
-          .select('id, username, display_name, avatar_url, federated_id, color')
-          .eq('federated_id', authorUrl)
-          .maybeSingle();
+        // For bridge messages (Discord, Matrix, etc.) without a valid author,
+        // try to extract info from the note itself
+        if (!author) {
+          // Check if the note has author name in the content or signature
+          const bridgeMatch = note.content?.match(/<strong>([^<]+)<\/strong>:/);
+          const bridgeName = bridgeMatch?.[1] || note.name || 'External User';
+          
+          // Create a placeholder author for bridge messages
+          author = {
+            id: null,
+            username: bridgeName.toLowerCase().replace(/\s+/g, '_'),
+            display_name: bridgeName,
+            avatar_url: null,
+            federated_id: authorUrl || `bridge:${note.id}`,
+            is_bridge: true,
+          };
+          
+          logger.debug(`Using bridge author for message ${note.id}: ${bridgeName}`);
+        }
 
         // Extract message UUID from ap_id if possible
         let messageUuid: string | undefined;
@@ -622,8 +649,10 @@ router.get(
           messageUuid = uuidMatch[1];
         }
 
-        // Cache message locally for reactions and offline access
-        if (author) {
+        // Cache message locally for reactions and offline access (only if we have a valid author ID)
+        let cachedMsgId: string | null = null;
+        
+        if (author?.id && !author.is_bridge) {
           const messageData: any = {
             channel_id: channelId,
             user_id: author.id,
@@ -647,26 +676,23 @@ router.get(
               })
               .select('id')
               .maybeSingle();
-
-            return {
-              id: cachedMsg?.id || messageUuid || note.id,
-              content: note.content,
-              created_at: note.published,
-              updated_at: note.updated,
-              metadata: { ap_id: note.id },
-              author,
-            };
+            
+            cachedMsgId = cachedMsg?.id;
           } catch (cacheError: any) {
             logger.debug(`Could not cache message: ${cacheError.message}`);
           }
         }
 
+        // Return the message regardless of caching success
         return {
-          id: messageUuid || note.id,
+          id: cachedMsgId || messageUuid || note.id,
           content: note.content,
           created_at: note.published,
           updated_at: note.updated,
-          metadata: { ap_id: note.id },
+          metadata: { 
+            ap_id: note.id,
+            is_bridge: author?.is_bridge || false,
+          },
           author,
         };
       }));
