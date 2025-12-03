@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -10,6 +11,15 @@ import {
   normalizeActor,
 } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
+
+/**
+ * Extract message UUID from a URL like https://domain/messages/{uuid}
+ */
+function extractMessageId(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/\/messages\/([a-f0-9-]{36})/);
+  return match ? match[1] : null;
+}
 
 export class ActivityProcessor {
   /**
@@ -211,6 +221,17 @@ export class ActivityProcessor {
     }
 
     if (object.type === 'Note' || object.type === 'Article') {
+      // Check if this is a Harmony channel message (not a regular ActivityPub post)
+      const harmonyServerId = object['harmony:serverId'];
+      const harmonyChannelName = object['harmony:channelName'];
+      
+      if (harmonyServerId) {
+        // This is a channel message - route to ServerInboxHandler
+        logger.info(`📨 Detected channel message for server ${harmonyServerId}, channel: ${harmonyChannelName}`);
+        await this.processChannelMessage(activity, object);
+        return;
+      }
+
       // Ensure author exists
       await this.ensureRemoteUser(normalizeActor(activity.actor));
 
@@ -1794,6 +1815,124 @@ export class ActivityProcessor {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
       return existing || null;
     }
+  }
+
+  /**
+   * Process channel message (Harmony server channel message, not regular post)
+   */
+  private static async processChannelMessage(activity: any, object: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
+    
+    // Get server and channel info from the activity
+    const serverId = object['harmony:serverId'];
+    const channelName = object['harmony:channelName'];
+    
+    // Extract channel ID from context URL (format: https://domain/servers/{serverId}/channels/{channelId})
+    let channelId: string | null = null;
+    if (object.context && typeof object.context === 'string') {
+      const channelMatch = object.context.match(/\/channels\/([a-f0-9-]{36})/);
+      if (channelMatch) {
+        channelId = channelMatch[1];
+      }
+    }
+
+    if (!channelId) {
+      logger.error(`Could not extract channel ID from context: ${object.context}`);
+      return;
+    }
+
+    // Verify the server exists locally (we should have a local reference)
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, name, is_local_server')
+      .eq('id', serverId)
+      .maybeSingle();
+
+    if (!server) {
+      logger.warn(`Server ${serverId} not found locally, cannot process channel message`);
+      return;
+    }
+
+    // Ensure author exists
+    const author = await this.ensureRemoteUser(actorUrl);
+    if (!author) {
+      logger.error(`Could not ensure remote user for channel message: ${actorUrl}`);
+      return;
+    }
+
+    // Check if author is a member of the server
+    const { data: membership } = await supabase
+      .from('user_servers')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('user_id', author.id)
+      .maybeSingle();
+
+    if (!membership) {
+      logger.warn(`Author ${author.username} is not a member of server ${serverId}`);
+      return;
+    }
+
+    // Extract message UUID from ap_id if it's a Harmony message URL
+    let messageId: string | null = null;
+    const messageMatch = object.id?.match(/\/messages\/([a-f0-9-]{36})/);
+    if (messageMatch) {
+      messageId = messageMatch[1];
+    } else {
+      // Generate a new UUID
+      messageId = randomUUID();
+    }
+
+    // Parse content - prefer harmony:rawContent for structured content
+    let content = object['harmony:rawContent'] || object.content || '';
+    
+    // If content is HTML string, convert to basic structure
+    if (typeof content === 'string') {
+      // Strip HTML tags for plain text
+      const plainText = content.replace(/<[^>]*>/g, '').trim();
+      content = [{ type: 'text', content: plainText }];
+    }
+
+    // Check if message already exists
+    const { data: existingMessage } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('id', messageId)
+      .maybeSingle();
+
+    if (existingMessage) {
+      logger.debug(`Channel message ${messageId} already exists, skipping`);
+      return;
+    }
+
+    // Create the message
+    const { error: insertError } = await supabase
+      .from('messages')
+      .insert({
+        id: messageId,
+        channel_id: channelId,
+        user_id: author.id,
+        content: content,
+        created_at: object.published || new Date().toISOString(),
+        updated_at: object.updated || null,
+        reply_to: object.inReplyTo ? extractMessageId(object.inReplyTo) : null,
+        is_pinned: false,
+        is_deleted: false,
+        federation_status: 'completed',
+        metadata: {
+          federated: true,
+          ap_id: object.id,
+          from_instance: new URL(actorUrl).hostname,
+        },
+      });
+
+    if (insertError) {
+      logger.error(`Failed to create channel message:`, insertError);
+      return;
+    }
+
+    logger.info(`✅ Created channel message ${messageId} in #${channelName} from ${author.username}`);
   }
 
   /**

@@ -1284,6 +1284,17 @@ export class ServerDiscoveryService {
             continue;
           }
 
+          // Skip members from our own instance - they're local users, not remote
+          try {
+            const memberHost = new URL(memberUrl).host;
+            if (memberHost === config.INSTANCE_DOMAIN) {
+              logger.debug(`Skipping local user in member sync: ${memberUrl}`);
+              continue;
+            }
+          } catch {
+            continue; // Invalid URL
+          }
+
           // Create/update remote user profile
           const profile = await ActivityProcessor['ensureRemoteUser'](memberUrl);
           
