@@ -19,9 +19,10 @@ import config from '../config/index.js';
 
 const router = Router();
 
-// Channel type constants (matches DB schema: 0 = text, 1 = voice)
+// Channel type constants (matches DB schema: 0 = text, 1 = voice, 2 = category)
 const CHANNEL_TYPE_TEXT = 0;
 const CHANNEL_TYPE_VOICE = 1;
+const CHANNEL_TYPE_CATEGORY = 2;
 
 /**
  * Convert server to ActivityPub Group
@@ -78,14 +79,30 @@ function serverToGroup(
     } : undefined,
     
     // Harmony extension: Channel structure
-    'harmony:channels': channels.map(c => ({
-      type: c.type === CHANNEL_TYPE_VOICE ? 'harmony:VoiceChannel' : 'harmony:TextChannel',
-      id: `${serverUrl}/channels/${c.id}`,
-      name: c.name,
-      position: c.order || c.position || 0,
-      category: c.category,
-      description: c.description || undefined,
-    })),
+    'harmony:channels': channels.map(c => {
+      let channelType: string;
+      if (c.type === CHANNEL_TYPE_CATEGORY) {
+        channelType = 'category';
+      } else if (c.type === CHANNEL_TYPE_VOICE) {
+        channelType = 'voice';
+      } else {
+        channelType = 'text';
+      }
+      
+      return {
+        type: channelType === 'category' ? 'harmony:Category' : 
+              (channelType === 'voice' ? 'harmony:VoiceChannel' : 'harmony:TextChannel'),
+        id: `${serverUrl}/channels/${c.id}`,
+        localId: c.id,
+        name: c.name,
+        position: c.order || c.position || 0,
+        order: c.order || c.position || 0,
+        category: c.category ? `${serverUrl}/channels/${c.category}` : null,
+        categoryId: c.category,
+        description: c.description || undefined,
+        channelType, // 'text', 'voice', or 'category'
+      };
+    }),
     
     // Discoverability and federation settings
     discoverable: server.public === true,
@@ -321,6 +338,23 @@ router.get(
       next: items.length === limit ? `${messagesUrl}?page=${page + 1}` : undefined,
       prev: page > 1 ? `${messagesUrl}?page=${page - 1}` : undefined,
     });
+  })
+);
+
+/**
+ * GET /servers/:serverId/channels/:channelId/outbox - Channel outbox (alias for messages)
+ * Standard ActivityPub endpoint for fetching channel content
+ */
+router.get(
+  '/servers/:serverId/channels/:channelId/outbox',
+  asyncHandler(async (req: Request, res: Response) => {
+    // Redirect to messages endpoint
+    const { serverId, channelId } = req.params;
+    const page = req.query.page;
+    const hostDomain = config.INSTANCE_DOMAIN;
+    const messagesUrl = `https://${hostDomain}/servers/${serverId}/channels/${channelId}/messages`;
+    
+    res.redirect(301, page ? `${messagesUrl}?page=${page}` : messagesUrl);
   })
 );
 

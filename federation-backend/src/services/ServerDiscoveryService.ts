@@ -193,13 +193,26 @@ router.get(
       .eq('server_id', server.id)
       .eq('status', 'accepted');
 
-    // Get channels
+    // Get channels with category structure
     const { data: channels } = await supabase
       .from('channels')
-      .select('id, name, type')
+      .select('id, name, type, category, order, description')
       .eq('server_id', server.id)
       .eq('is_remote', false)
       .order('order', { ascending: true });
+
+    // Build channel structure with full AP IDs
+    const serverApId = `https://${hostDomain}/servers/${server.id}`;
+    const channelList = (channels || []).map(c => ({
+      id: `${serverApId}/channels/${c.id}`,
+      localId: c.id,
+      name: c.name,
+      type: c.type === 2 ? 'category' : (c.type === 1 ? 'voice' : 'text'),
+      category: c.category ? `${serverApId}/channels/${c.category}` : null,
+      categoryId: c.category,
+      order: c.order || 0,
+      description: c.description,
+    }));
 
     res.json({
       code: invite.code,
@@ -212,18 +225,14 @@ router.get(
         avatar: makeAbsolute(invite.creator.avatar_url),
       } : null,
       server: {
-        id: `https://${hostDomain}/servers/${server.id}`,
+        id: serverApId,
         serverId: server.id,
         name: server.name,
         description: server.description || '',
         icon: makeAbsolute(server.icon),
         memberCount: memberCount || 0,
-        channels: (channels || []).map(c => ({
-          id: c.id,
-          name: c.name,
-          type: c.type === 1 ? 'voice' : 'text',
-        })),
-        inbox: `https://${hostDomain}/servers/${server.id}/inbox`,
+        channels: channelList,
+        inbox: `${serverApId}/inbox`,
       },
     });
   })
@@ -423,6 +432,154 @@ router.get(
   })
 );
 
+/**
+ * GET /channels/:channelId/messages
+ * Fetch messages from a remote channel
+ */
+router.get(
+  '/channels/:channelId/messages',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { channelId } = req.params;
+    const { before, limit = 50 } = req.query;
+    const supabase = getSupabaseClient();
+
+    // Get channel info
+    const { data: channel, error: channelError } = await supabase
+      .from('channels')
+      .select(`
+        id, name, ap_id, is_remote,
+        server:servers!channels_server_id_fkey(
+          id, ap_id, is_local_server, federation_domain
+        )
+      `)
+      .eq('id', channelId)
+      .single();
+
+    if (channelError || !channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // For local channels, just return local messages
+    if (!channel.is_remote) {
+      let query = supabase
+        .from('messages')
+        .select(`
+          id, content, created_at, updated_at, metadata,
+          author:profiles!messages_author_id_fkey(id, username, display_name, avatar_url, federated_id)
+        `)
+        .eq('channel_id', channelId)
+        .order('created_at', { ascending: false })
+        .limit(Number(limit));
+
+      if (before) {
+        query = query.lt('created_at', before);
+      }
+
+      const { data: messages } = await query;
+      return res.json({ messages: messages || [], source: 'local' });
+    }
+
+    // For remote channels, fetch from the remote server
+    const server = (channel as any).server;
+    if (!server?.ap_id) {
+      return res.status(400).json({ error: 'Remote server not properly configured' });
+    }
+
+    try {
+      // Fetch from remote channel messages endpoint
+      // Use /messages?page=1 format as that's what GroupService returns
+      const channelMessagesUrl = `${channel.ap_id}/messages`;
+      let fetchUrl = `${channelMessagesUrl}?page=1`;
+
+      logger.info(`📨 Fetching messages from remote channel: ${fetchUrl}`);
+
+      const response = await fetch(fetchUrl, {
+        headers: {
+          'Accept': 'application/activity+json, application/json',
+          'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn(`Failed to fetch remote messages: ${response.status}`);
+        // Fall back to local cached messages
+        const { data: cachedMessages } = await supabase
+          .from('messages')
+          .select(`
+            id, content, created_at, updated_at, metadata,
+            author:profiles!messages_author_id_fkey(id, username, display_name, avatar_url, federated_id)
+          `)
+          .eq('channel_id', channelId)
+          .order('created_at', { ascending: false })
+          .limit(Number(limit));
+
+        return res.json({ 
+          messages: cachedMessages || [], 
+          source: 'cache',
+          error: 'Could not fetch from remote, showing cached messages'
+        });
+      }
+
+      const data = await response.json();
+      
+      // Parse ActivityPub collection response
+      const items = data.orderedItems || data.items || [];
+      
+      // Transform to our message format and cache locally
+      const messages = await Promise.all(items.map(async (item: any) => {
+        const activity = item.type === 'Create' ? item : { object: item };
+        const note = activity.object;
+        
+        if (!note) return null;
+
+        // Ensure the author exists locally
+        const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+        await ActivityProcessor['ensureRemoteUser'](note.attributedTo);
+
+        // Get author from local DB
+        const { data: author } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, federated_id')
+          .eq('federated_id', note.attributedTo)
+          .single();
+
+        return {
+          id: note.id,
+          content: note.content,
+          created_at: note.published,
+          updated_at: note.updated,
+          metadata: { ap_id: note.id },
+          author,
+        };
+      }));
+
+      res.json({ 
+        messages: messages.filter(Boolean), 
+        source: 'remote' 
+      });
+    } catch (error: any) {
+      logger.error('Error fetching remote messages:', error);
+      
+      // Fall back to local cached messages
+      const { data: cachedMessages } = await supabase
+        .from('messages')
+        .select(`
+          id, content, created_at, updated_at, metadata,
+          author:profiles!messages_author_id_fkey(id, username, display_name, avatar_url, federated_id)
+        `)
+        .eq('channel_id', channelId)
+        .order('created_at', { ascending: false })
+        .limit(Number(limit));
+
+      res.json({ 
+        messages: cachedMessages || [], 
+        source: 'cache',
+        error: error.message 
+      });
+    }
+  })
+);
+
 // =============================================================================
 // SERVICE CLASS
 // =============================================================================
@@ -556,28 +713,43 @@ export class ServerDiscoveryService {
         return existing;
       }
 
-      // Create server reference
+      // Extract server UUID from AP ID if possible
+      // Format: https://instance.com/servers/{uuid}
+      let serverUuid: string | undefined;
+      const serverIdMatch = remoteServer.id.match(/\/servers\/([a-f0-9-]{36})$/i);
+      if (serverIdMatch) {
+        serverUuid = serverIdMatch[1];
+      }
+
+      // Create server reference (use remote UUID if available to maintain consistency)
+      const serverInsertData: any = {
+        name: remoteServer.name,
+        description: remoteServer.summary || '',
+        icon: remoteServer.icon?.url,
+        federation_enabled: true,
+        federation_domain: hostDomain,
+        ap_id: remoteServer.id,
+        federation_inbox_url: remoteServer.inbox,
+        is_local_server: false,
+        host_domain: hostDomain,
+        public: remoteServer.discoverable !== false,
+        federation_metadata: {
+          outbox: remoteServer.outbox,
+          members: remoteServer.members,
+          followers: remoteServer.followers,
+          attributedTo: remoteServer.attributedTo,
+          fetched_at: new Date().toISOString(),
+        },
+      };
+
+      // Use remote server UUID if extracted (for consistency)
+      if (serverUuid) {
+        serverInsertData.id = serverUuid;
+      }
+
       const { data: serverRef, error: serverError } = await supabase
         .from('servers')
-        .insert({
-          name: remoteServer.name,
-          description: remoteServer.summary || '',
-          icon: remoteServer.icon?.url,
-          federation_enabled: true,
-          federation_domain: hostDomain,
-          ap_id: remoteServer.id,
-          federation_inbox_url: remoteServer.inbox,
-          is_local_server: false,
-          host_domain: hostDomain,
-          public: remoteServer.discoverable !== false,
-          federation_metadata: {
-            outbox: remoteServer.outbox,
-            members: remoteServer.members,
-            followers: remoteServer.followers,
-            attributedTo: remoteServer.attributedTo,
-            fetched_at: new Date().toISOString(),
-          },
-        })
+        .insert(serverInsertData)
         .select()
         .single();
 
@@ -586,24 +758,88 @@ export class ServerDiscoveryService {
         throw serverError;
       }
 
-      logger.info(`✅ Created local reference for remote server: ${remoteServer.name}`);
+      logger.info(`✅ Created local reference for remote server: ${remoteServer.name} (id: ${serverRef.id})`);
 
-      // Create channel references
-      for (const channelData of channels) {
-        const channelType = channelData.type === 'harmony:VoiceChannel' || 
-                           channelData.type === 'VoiceChannel' ? 1 : 0; // 0 = text, 1 = voice
+      // Helper to extract UUID from AP ID
+      const extractUuid = (apId: string): string | null => {
+        const match = apId.match(/\/channels\/([a-f0-9-]{36})$/i);
+        return match ? match[1] : null;
+      };
 
-        await supabase.from('channels').insert({
+      // Map to track category AP IDs to local UUIDs
+      const categoryMap = new Map<string, string>();
+
+      // First pass: Create categories (type = 2)
+      const categories = channels.filter((c: any) => 
+        c.type === 'category' || c.type === 2
+      );
+      
+      for (const cat of categories) {
+        const catUuid = cat.localId || extractUuid(cat.id);
+        const insertData: any = {
+          server_id: serverRef.id,
+          name: cat.name,
+          type: 2, // category type
+          order: cat.order || cat.position || 0,
+          ap_id: cat.id,
+          is_remote: true,
+          description: cat.description,
+        };
+        
+        if (catUuid) {
+          insertData.id = catUuid;
+        }
+
+        const { data: catRef, error: catError } = await supabase
+          .from('channels')
+          .insert(insertData)
+          .select('id')
+          .single();
+
+        if (catRef) {
+          categoryMap.set(cat.id, catRef.id);
+          if (cat.localId) {
+            categoryMap.set(cat.localId, catRef.id);
+          }
+        }
+      }
+
+      // Second pass: Create regular channels (text/voice)
+      const regularChannels = channels.filter((c: any) => 
+        c.type !== 'category' && c.type !== 2
+      );
+
+      for (const channelData of regularChannels) {
+        const channelUuid = channelData.localId || extractUuid(channelData.id);
+        const channelType = (channelData.type === 'voice' || channelData.type === 1) ? 1 : 0;
+
+        // Resolve category reference
+        let categoryId = null;
+        if (channelData.category) {
+          categoryId = categoryMap.get(channelData.category);
+        } else if (channelData.categoryId) {
+          categoryId = categoryMap.get(channelData.categoryId) || channelData.categoryId;
+        }
+
+        const insertData: any = {
           server_id: serverRef.id,
           name: channelData.name,
           type: channelType,
-          order: channelData.position || 0,
+          order: channelData.order || channelData.position || 0,
           ap_id: channelData.id,
           is_remote: true,
-        });
+          category: categoryId,
+          description: channelData.description,
+        };
+
+        if (channelUuid) {
+          insertData.id = channelUuid;
+        }
+
+        await supabase.from('channels').insert(insertData);
       }
 
-      logger.info(`✅ Created ${channels.length} channel references`);
+      logger.info(`✅ Created ${channels.length} channel references (${categories.length} categories)`);
 
       return serverRef;
     } catch (error) {

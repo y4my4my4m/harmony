@@ -104,6 +104,10 @@ export async function processServerInboxActivity(
       await processReactionActivity(serverId, server, activity);
       break;
 
+    case 'Add':
+      await processAddActivity(serverId, server, activity);
+      break;
+
     case 'Remove':
       await processRemoveActivity(serverId, server, activity);
       break;
@@ -562,7 +566,7 @@ async function processCreateActivity(
 }
 
 /**
- * Process Update activity (message edit)
+ * Process Update activity (message edit OR channel update)
  */
 async function processUpdateActivity(
   serverId: string,
@@ -572,7 +576,49 @@ async function processUpdateActivity(
   const supabase = getSupabaseClient();
   const object = activity.object;
 
-  if (!object || object.type !== 'Note') {
+  if (!object) {
+    return;
+  }
+
+  // Handle channel updates
+  if (['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
+    // Find channel by ap_id
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('ap_id', object.id)
+      .maybeSingle();
+
+    if (!channel) {
+      logger.warn(`Channel not found for Update: ${object.id}`);
+      return;
+    }
+
+    // Resolve category reference
+    let categoryId = null;
+    if (object.category) {
+      const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
+      if (catMatch) {
+        categoryId = catMatch[1];
+      }
+    }
+
+    await supabase
+      .from('channels')
+      .update({
+        name: object.name,
+        description: object.description,
+        order: object.position || object.order,
+        category: categoryId,
+      })
+      .eq('id', channel.id);
+
+    logger.info(`✏️ Updated remote channel: ${object.name}`);
+    return;
+  }
+
+  // Handle message updates (Note type)
+  if (object.type !== 'Note') {
     return;
   }
 
@@ -788,7 +834,76 @@ async function processReactionActivity(
 }
 
 /**
- * Process Remove activity (kick from server)
+ * Process Add activity (channel creation)
+ */
+async function processAddActivity(
+  serverId: string,
+  server: any,
+  activity: any
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const object = activity.object;
+
+  if (!object) {
+    return;
+  }
+
+  // Check if this is a channel addition
+  const objectType = object.type;
+  if (['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(objectType)) {
+    const channelType = objectType === 'harmony:Category' ? 2 : 
+                        (objectType === 'harmony:VoiceChannel' ? 1 : 0);
+
+    // Extract channel UUID from ap_id if possible
+    let channelUuid: string | undefined;
+    const match = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
+    if (match) {
+      channelUuid = match[1];
+    }
+
+    // Resolve category reference
+    let categoryId = null;
+    if (object.category) {
+      const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
+      if (catMatch) {
+        categoryId = catMatch[1];
+      }
+    }
+
+    const insertData: any = {
+      server_id: serverId,
+      name: object.name,
+      description: object.description,
+      type: channelType,
+      order: object.position || object.order || 0,
+      ap_id: object.id,
+      is_remote: true,
+      category: categoryId,
+    };
+
+    if (channelUuid) {
+      insertData.id = channelUuid;
+    }
+
+    // Check if channel already exists
+    const { data: existing } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('ap_id', object.id)
+      .maybeSingle();
+
+    if (existing) {
+      logger.info(`Channel already exists: ${object.name}`);
+      return;
+    }
+
+    await supabase.from('channels').insert(insertData);
+    logger.info(`📢 Created remote channel: ${object.name} (${objectType})`);
+  }
+}
+
+/**
+ * Process Remove activity (kick from server OR channel deletion)
  */
 async function processRemoveActivity(
   serverId: string,
@@ -804,7 +919,20 @@ async function processRemoveActivity(
     return;
   }
 
-  // Get the user being removed
+  // Check if this is a channel removal
+  if (objectUrl.includes('/channels/')) {
+    // Remove channel by ap_id
+    await supabase
+      .from('channels')
+      .delete()
+      .eq('ap_id', objectUrl)
+      .eq('server_id', serverId);
+    
+    logger.info(`🗑️ Removed remote channel: ${objectUrl}`);
+    return;
+  }
+
+  // Otherwise, it's a user removal (kick)
   const { data: user } = await supabase
     .from('profiles')
     .select('id, username')

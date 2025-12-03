@@ -234,13 +234,121 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'messages',
       },
       async (payload) => {
-        // Only process messages in conversations (DMs), not channel messages
+        // Handle DM messages (conversation_id set)
         if (payload.new.conversation_id && !payload.new.metadata?.federated) {
           logger.info('💬 DM message detected:', {
             id: payload.new.id,
             conversation_id: payload.new.conversation_id
           });
           await handleNewDM(payload.new);
+        }
+        // Handle channel messages (channel_id set)
+        else if (payload.new.channel_id && !payload.new.metadata?.federated) {
+          logger.info('📨 Channel message detected:', {
+            id: payload.new.id,
+            channel_id: payload.new.channel_id
+          });
+          await handleNewChannelMessage(payload.new);
+        }
+      }
+    )
+    // Listen for message updates (edits) - federate to remote
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+      },
+      async (payload) => {
+        // Only process if content changed
+        if (payload.new.channel_id && 
+            JSON.stringify(payload.old.content) !== JSON.stringify(payload.new.content)) {
+          logger.info('✏️ Channel message update detected:', {
+            id: payload.new.id,
+            channel_id: payload.new.channel_id
+          });
+          await handleChannelMessageUpdate(payload.new);
+        }
+      }
+    )
+    // Listen for message deletions - federate to remote
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'messages',
+      },
+      async (payload) => {
+        if (payload.old.channel_id) {
+          logger.info('🗑️ Channel message deletion detected:', {
+            id: payload.old.id,
+            channel_id: payload.old.channel_id
+          });
+          await handleChannelMessageDeletion(payload.old);
+        }
+      }
+    )
+    // Listen for channel creation - federate to remote server members
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'channels',
+      },
+      async (payload) => {
+        // Only federate local channels (not remote mirrors)
+        if (!payload.new.is_remote) {
+          logger.info('📢 Channel created:', {
+            id: payload.new.id,
+            name: payload.new.name,
+            server_id: payload.new.server_id
+          });
+          await handleChannelCreated(payload.new);
+        }
+      }
+    )
+    // Listen for channel updates - federate to remote server members
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'channels',
+      },
+      async (payload) => {
+        // Only federate local channels and meaningful changes
+        if (!payload.new.is_remote && 
+            (payload.old.name !== payload.new.name || 
+             payload.old.description !== payload.new.description ||
+             payload.old.category !== payload.new.category ||
+             payload.old.order !== payload.new.order)) {
+          logger.info('✏️ Channel updated:', {
+            id: payload.new.id,
+            name: payload.new.name
+          });
+          await handleChannelUpdated(payload.new, payload.old);
+        }
+      }
+    )
+    // Listen for channel deletion - federate to remote server members
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'channels',
+      },
+      async (payload) => {
+        // Only federate local channels
+        if (!payload.old.is_remote) {
+          logger.info('🗑️ Channel deleted:', {
+            id: payload.old.id,
+            name: payload.old.name
+          });
+          await handleChannelDeleted(payload.old);
         }
       }
     )
@@ -1084,6 +1192,354 @@ async function handleNewReport(report: any): Promise<void> {
     logger.error('Failed to handle new report:', error);
   }
 }
+
+// =============================================================================
+// CHANNEL CRUD FEDERATION HANDLERS
+// =============================================================================
+
+/**
+ * Handle channel creation - federate to remote server members
+ */
+async function handleChannelCreated(channel: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const hostDomain = config.INSTANCE_DOMAIN;
+    
+    // Get server info
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, federation_enabled, is_local_server')
+      .eq('id', channel.server_id)
+      .single();
+    
+    if (!server?.federation_enabled || !server.is_local_server) {
+      return;
+    }
+    
+    // Get remote member groups
+    const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
+    if (remoteMemberGroups.length === 0) {
+      return;
+    }
+    
+    const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
+    const channelUrl = `${serverUrl}/channels/${channel.id}`;
+    
+    // Determine channel type
+    const channelType = channel.type === 2 ? 'harmony:Category' : 
+                        (channel.type === 1 ? 'harmony:VoiceChannel' : 'harmony:TextChannel');
+    
+    // Create Add activity
+    const activity = {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        { 'harmony': 'https://harmonyapp.dev/ns#' },
+      ],
+      id: `${serverUrl}/activities/${crypto.randomUUID()}`,
+      type: 'Add',
+      actor: serverUrl,
+      target: serverUrl,
+      object: {
+        type: channelType,
+        id: channelUrl,
+        name: channel.name,
+        description: channel.description,
+        position: channel.order || 0,
+        category: channel.category ? `${serverUrl}/channels/${channel.category}` : null,
+      },
+      published: new Date().toISOString(),
+    };
+    
+    // Send to remote instances
+    const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
+    for (const group of remoteMemberGroups) {
+      const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+      await DeliveryQueue.enqueue(activity, inbox, server.id);
+    }
+    
+    logger.info(`📢 Channel creation federated to ${remoteMemberGroups.length} instances`);
+  } catch (error) {
+    logger.error('Failed to federate channel creation:', error);
+  }
+}
+
+/**
+ * Handle channel update - federate to remote server members
+ */
+async function handleChannelUpdated(channel: any, oldChannel: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const hostDomain = config.INSTANCE_DOMAIN;
+    
+    // Get server info
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, federation_enabled, is_local_server')
+      .eq('id', channel.server_id)
+      .single();
+    
+    if (!server?.federation_enabled || !server.is_local_server) {
+      return;
+    }
+    
+    // Get remote member groups
+    const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
+    if (remoteMemberGroups.length === 0) {
+      return;
+    }
+    
+    const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
+    const channelUrl = `${serverUrl}/channels/${channel.id}`;
+    
+    // Create Update activity
+    const activity = {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        { 'harmony': 'https://harmonyapp.dev/ns#' },
+      ],
+      id: `${serverUrl}/activities/${crypto.randomUUID()}`,
+      type: 'Update',
+      actor: serverUrl,
+      object: {
+        type: channel.type === 2 ? 'harmony:Category' : 
+              (channel.type === 1 ? 'harmony:VoiceChannel' : 'harmony:TextChannel'),
+        id: channelUrl,
+        name: channel.name,
+        description: channel.description,
+        position: channel.order || 0,
+        category: channel.category ? `${serverUrl}/channels/${channel.category}` : null,
+      },
+      published: new Date().toISOString(),
+    };
+    
+    // Send to remote instances
+    const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
+    for (const group of remoteMemberGroups) {
+      const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+      await DeliveryQueue.enqueue(activity, inbox, server.id);
+    }
+    
+    logger.info(`✏️ Channel update federated to ${remoteMemberGroups.length} instances`);
+  } catch (error) {
+    logger.error('Failed to federate channel update:', error);
+  }
+}
+
+/**
+ * Handle channel deletion - federate to remote server members
+ */
+async function handleChannelDeleted(channel: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const hostDomain = config.INSTANCE_DOMAIN;
+    
+    // Get server info
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, federation_enabled, is_local_server')
+      .eq('id', channel.server_id)
+      .single();
+    
+    if (!server?.federation_enabled || !server.is_local_server) {
+      return;
+    }
+    
+    // Get remote member groups
+    const remoteMemberGroups = await getRemoteMemberGroups(channel.server_id);
+    if (remoteMemberGroups.length === 0) {
+      return;
+    }
+    
+    const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
+    const channelUrl = channel.ap_id || `${serverUrl}/channels/${channel.id}`;
+    
+    // Create Remove activity (opposite of Add)
+    const activity = {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        { 'harmony': 'https://harmonyapp.dev/ns#' },
+      ],
+      id: `${serverUrl}/activities/${crypto.randomUUID()}`,
+      type: 'Remove',
+      actor: serverUrl,
+      target: serverUrl,
+      object: channelUrl,
+      published: new Date().toISOString(),
+    };
+    
+    // Send to remote instances
+    const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
+    for (const group of remoteMemberGroups) {
+      const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+      await DeliveryQueue.enqueue(activity, inbox, server.id);
+    }
+    
+    logger.info(`🗑️ Channel deletion federated to ${remoteMemberGroups.length} instances`);
+  } catch (error) {
+    logger.error('Failed to federate channel deletion:', error);
+  }
+}
+
+/**
+ * Get remote member groups for a server (helper function)
+ */
+async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  const hostDomain = config.INSTANCE_DOMAIN;
+
+  // Try the RPC function first
+  const { data: memberGroups, error: rpcError } = await supabase
+    .rpc('get_server_members_by_instance', { p_server_id: serverId });
+
+  if (!rpcError && memberGroups) {
+    return memberGroups.filter(
+      (group: any) => group.instance !== 'local' && group.instance !== hostDomain
+    );
+  }
+
+  // Fallback: manual query
+  const { data: members } = await supabase
+    .from('user_servers')
+    .select(`
+      member_instance,
+      profile:profiles!user_servers_user_id_fkey(federated_id, shared_inbox_url)
+    `)
+    .eq('server_id', serverId)
+    .eq('status', 'accepted')
+    .not('member_instance', 'is', null);
+
+  if (!members) {
+    return [];
+  }
+
+  // Group by instance
+  const instanceMap = new Map<string, any>();
+
+  for (const member of members) {
+    const instance = member.member_instance;
+    if (!instance || instance === hostDomain) continue;
+
+    const profile = (member as any).profile;
+    if (!profile?.federated_id) continue;
+
+    if (!instanceMap.has(instance)) {
+      instanceMap.set(instance, {
+        instance,
+        member_ap_ids: [],
+        member_count: 0,
+        shared_inbox: profile.shared_inbox_url || `https://${instance}/inbox`,
+      });
+    }
+
+    const group = instanceMap.get(instance)!;
+    group.member_ap_ids.push(profile.federated_id);
+    group.member_count++;
+  }
+
+  return Array.from(instanceMap.values());
+}
+
+// =============================================================================
+// CHANNEL MESSAGE FEDERATION HANDLERS
+// =============================================================================
+
+/**
+ * Handle new channel message - federate to remote server members
+ */
+async function handleNewChannelMessage(message: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Get channel info
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id, name, server_id')
+      .eq('id', message.channel_id)
+      .single();
+    
+    if (!channel) {
+      logger.warn(`Channel ${message.channel_id} not found for message federation`);
+      return;
+    }
+    
+    // Import and call the handler
+    const { handleChannelMessageFederation } = await import('./ChannelMessageHandler.js');
+    await handleChannelMessageFederation({
+      message_id: message.id,
+      channel_id: channel.id,
+      server_id: channel.server_id,
+      channel_name: channel.name,
+      author_id: message.user_id,
+    });
+  } catch (error) {
+    logger.error('Failed to handle new channel message:', error);
+  }
+}
+
+/**
+ * Handle channel message update - federate edit to remote server members
+ */
+async function handleChannelMessageUpdate(message: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Get channel info
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id, server_id')
+      .eq('id', message.channel_id)
+      .single();
+    
+    if (!channel) {
+      return;
+    }
+    
+    // Import and call the handler
+    const { handleChannelMessageUpdate: federateUpdate } = await import('./ChannelMessageHandler.js');
+    await federateUpdate({
+      message_id: message.id,
+      channel_id: channel.id,
+      server_id: channel.server_id,
+    });
+  } catch (error) {
+    logger.error('Failed to handle channel message update:', error);
+  }
+}
+
+/**
+ * Handle channel message deletion - federate delete to remote server members
+ */
+async function handleChannelMessageDeletion(message: any): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Get channel info
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id, server_id')
+      .eq('id', message.channel_id)
+      .single();
+    
+    if (!channel) {
+      return;
+    }
+    
+    // Import and call the handler
+    const { handleChannelMessageDelete: federateDelete } = await import('./ChannelMessageHandler.js');
+    await federateDelete({
+      message_id: message.id,
+      channel_id: channel.id,
+      server_id: channel.server_id,
+      ap_id: message.metadata?.ap_id,
+    });
+  } catch (error) {
+    logger.error('Failed to handle channel message deletion:', error);
+  }
+}
+
+// =============================================================================
+// DM MESSAGE FEDERATION HANDLERS
+// =============================================================================
 
 /**
  * Handle new DM messages - federate to remote recipients
