@@ -712,6 +712,8 @@ router.get(
             created_at: note.published || new Date().toISOString(),
             updated_at: note.updated,
             metadata: { ap_id: note.id, is_remote: true },
+            // IMPORTANT: Mark as completed to prevent pg-boss from trying to federate cached messages
+            federation_status: 'completed',
           };
 
           if (messageUuid) {

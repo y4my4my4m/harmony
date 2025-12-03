@@ -250,13 +250,17 @@ export async function startDatabaseListener(): Promise<void> {
           }
         }
         // Handle channel messages (channel_id set)
-        // Channel messages are always handled by DatabaseListener for real-time delivery
+        // When pg-boss is enabled, channel messages are handled by pg-boss sweep for reliability
         else if (payload.new.channel_id && !payload.new.metadata?.federated) {
-          logger.info('📨 Channel message detected:', {
-            id: payload.new.id,
-            channel_id: payload.new.channel_id
-          });
-          await handleNewChannelMessage(payload.new);
+          if (config.USE_PGBOSS_QUEUE) {
+            logger.debug('📨 Channel message detected - handled by pg-boss:', payload.new.id);
+          } else {
+            logger.info('📨 Channel message detected:', {
+              id: payload.new.id,
+              channel_id: payload.new.channel_id
+            });
+            await handleNewChannelMessage(payload.new);
+          }
         }
       }
     )
@@ -272,11 +276,15 @@ export async function startDatabaseListener(): Promise<void> {
         // Only process if content changed
         if (payload.new.channel_id && 
             JSON.stringify(payload.old.content) !== JSON.stringify(payload.new.content)) {
-          logger.info('✏️ Channel message update detected:', {
-            id: payload.new.id,
-            channel_id: payload.new.channel_id
-          });
-          await handleChannelMessageUpdate(payload.new);
+          if (config.USE_PGBOSS_QUEUE) {
+            logger.debug('✏️ Channel message update detected - handled by pg-boss:', payload.new.id);
+          } else {
+            logger.info('✏️ Channel message update detected:', {
+              id: payload.new.id,
+              channel_id: payload.new.channel_id
+            });
+            await handleChannelMessageUpdate(payload.new);
+          }
         }
       }
     )
@@ -290,11 +298,15 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         if (payload.old.channel_id) {
-          logger.info('🗑️ Channel message deletion detected:', {
-            id: payload.old.id,
-            channel_id: payload.old.channel_id
-          });
-          await handleChannelMessageDeletion(payload.old);
+          if (config.USE_PGBOSS_QUEUE) {
+            logger.debug('🗑️ Channel message deletion detected - handled by pg-boss:', payload.old.id);
+          } else {
+            logger.info('🗑️ Channel message deletion detected:', {
+              id: payload.old.id,
+              channel_id: payload.old.channel_id
+            });
+            await handleChannelMessageDeletion(payload.old);
+          }
         }
       }
     )

@@ -37,6 +37,11 @@ export async function handleChannelCrudJob(data: FederationJobData): Promise<voi
       
       if (channel && !channel.is_remote) {
         await handleChannelCreated(channel);
+        // Mark as completed
+        await supabase
+          .from('channels')
+          .update({ federation_status: 'completed' })
+          .eq('id', channel_id);
         logger.info(`✅ Channel create ${channel_id} federated successfully`);
       }
     } else if (type === 'update') {
@@ -49,16 +54,27 @@ export async function handleChannelCrudJob(data: FederationJobData): Promise<voi
       if (channel && !channel.is_remote) {
         // For update, we pass new and old (old is same as new for sweep-based)
         await handleChannelUpdated(channel, channel);
+        // Mark as completed
+        await supabase
+          .from('channels')
+          .update({ federation_status: 'completed' })
+          .eq('id', channel_id);
         logger.info(`✅ Channel update ${channel_id} federated successfully`);
       }
     } else if (type === 'delete') {
       // For delete, we just need the channel info
       await handleChannelDeleted({ id: channel_id, server_id });
+      // No need to update status - channel is deleted
       logger.info(`✅ Channel delete ${channel_id} federated successfully`);
     }
 
   } catch (error) {
     logger.error(`Failed to federate channel ${type} ${channel_id}:`, error);
+    // Mark as failed
+    await supabase
+      .from('channels')
+      .update({ federation_status: 'failed' })
+      .eq('id', channel_id);
     throw error;
   }
 }
@@ -99,6 +115,11 @@ export async function handleCategoryCrudJob(data: FederationJobData): Promise<vo
           is_remote: false,
         };
         await handleChannelCreated(categoryAsChannel);
+        // Mark as completed
+        await supabase
+          .from('channel_categories')
+          .update({ federation_status: 'completed' })
+          .eq('id', category_id);
         logger.info(`✅ Category create ${category_id} federated successfully`);
       }
     } else if (type === 'update') {
@@ -118,6 +139,11 @@ export async function handleCategoryCrudJob(data: FederationJobData): Promise<vo
           is_remote: false,
         };
         await handleChannelUpdated(categoryAsChannel, categoryAsChannel);
+        // Mark as completed
+        await supabase
+          .from('channel_categories')
+          .update({ federation_status: 'completed' })
+          .eq('id', category_id);
         logger.info(`✅ Category update ${category_id} federated successfully`);
       }
     } else if (type === 'delete') {
@@ -128,11 +154,17 @@ export async function handleCategoryCrudJob(data: FederationJobData): Promise<vo
         type: 2,
         is_remote: false,
       });
+      // No need to update status - category is deleted
       logger.info(`✅ Category delete ${category_id} federated successfully`);
     }
 
   } catch (error) {
     logger.error(`Failed to federate category ${type} ${category_id}:`, error);
+    // Mark as failed
+    await supabase
+      .from('channel_categories')
+      .update({ federation_status: 'failed' })
+      .eq('id', category_id);
     throw error;
   }
 }

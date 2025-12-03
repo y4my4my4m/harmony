@@ -107,19 +107,18 @@ app.listen(PORT, () => {
   });
   
   // Start federation event processing
-  // Choose ONE system based on config:
-  // - USE_PGBOSS_QUEUE=true: pg-boss handles all federation (reliable, sweep-based)
-  // - USE_PGBOSS_QUEUE=false: DatabaseListener (Supabase Realtime, but unreliable in Docker)
+  // USE_PGBOSS_QUEUE=true: pg-boss handles ALL federation (reliable, sweep-based)
+  // USE_PGBOSS_QUEUE=false: DatabaseListener handles everything (Supabase Realtime, unreliable in Docker)
   
   if (config.USE_PGBOSS_QUEUE) {
-    // pg-boss for reliable, sweep-based federation
+    // pg-boss for reliable, sweep-based federation of ALL events
     logger.info('🚀 Starting pg-boss QueueManager for ALL federation events...');
     logger.info('📡 DatabaseListener DISABLED - pg-boss handles everything');
     queueManager.start().catch((error) => {
       logger.error('❌ Failed to start QueueManager:', error);
     });
   } else {
-    // Legacy: Supabase Realtime via DatabaseListener
+    // Legacy: Supabase Realtime via DatabaseListener for everything
     logger.info('🔊 Starting DatabaseListener for real-time federation events...');
     logger.info('⚠️  Note: In Docker, Supabase Realtime often times out');
     startDatabaseListener().catch((error) => {

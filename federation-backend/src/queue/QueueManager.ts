@@ -525,11 +525,54 @@ class QueueManagerService {
       }
     }
 
-    // NOTE: Channels, categories, and servers don't have federation_status columns.
-    // They are federated via DatabaseListener when Supabase Realtime works, or
-    // via the handleServerUpdated/handleChannelCreated/etc functions.
-    // TODO: Add federation_status to channels/channel_categories/servers tables
-    // for reliable pg-boss sweep-based federation.
+    // Sweep pending channels (created/updated)
+    const { data: pendingChannels } = await supabase
+      .from('channels')
+      .select('id, server_id, name, is_remote')
+      .eq('federation_status', 'pending')
+      .eq('is_remote', false)  // Only federate local channels
+      .lt('created_at', twoSecondsAgo)
+      .limit(50);
+
+    if (pendingChannels && pendingChannels.length > 0) {
+      logger.info(`🔄 Sweep found ${pendingChannels.length} pending channels`);
+      for (const channel of pendingChannels) {
+        await this.boss.send('federate-channel-crud', {
+          type: 'create',
+          channel_id: channel.id,
+          server_id: channel.server_id,
+        });
+        
+        await supabase
+          .from('channels')
+          .update({ federation_status: 'queued' })
+          .eq('id', channel.id);
+      }
+    }
+
+    // Sweep pending categories
+    const { data: pendingCategories } = await supabase
+      .from('channel_categories')
+      .select('id, server_id, name')
+      .eq('federation_status', 'pending')
+      .lt('created_at', twoSecondsAgo)
+      .limit(50);
+
+    if (pendingCategories && pendingCategories.length > 0) {
+      logger.info(`🔄 Sweep found ${pendingCategories.length} pending categories`);
+      for (const category of pendingCategories) {
+        await this.boss.send('federate-category-crud', {
+          type: 'create',
+          category_id: category.id,
+          server_id: category.server_id,
+        });
+        
+        await supabase
+          .from('channel_categories')
+          .update({ federation_status: 'queued' })
+          .eq('id', category.id);
+      }
+    }
   }
 
   /**
