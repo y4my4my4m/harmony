@@ -467,35 +467,38 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Call federation-backend to send VoiceChannelJoin activity
         // For remote servers, we don't write to local DB - the remote instance handles that
-        const session = await supabase.auth.getSession();
-        if (!session.data.session) {
-          this.cleanupFederatedSubscription();
-          reject(new Error('Not authenticated'));
-          return;
-        }
-        
-        fetch('/api/federation/voice/join', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.data.session.access_token}`,
-          },
-          body: JSON.stringify({ channelId, serverId }),
-        })
-          .then(async (response) => {
+        (async () => {
+          try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) {
+              this.cleanupFederatedSubscription();
+              reject(new Error('Not authenticated'));
+              return;
+            }
+            
+            const response = await fetch('/api/federation/voice/join', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session.access_token}`,
+              },
+              body: JSON.stringify({ channelId, serverId }),
+            });
+            
             if (!response.ok) {
               const error = await response.json().catch(() => ({ error: 'Unknown error' }));
               throw new Error(error.error || 'Failed to send voice join request');
             }
+            
             debug.log('📡 Voice join request sent to federation backend');
             
             // Update local presence state (but don't write to DB)
             serverUsersStore.joinVoiceChannel(serverId, channelId, userId, false);
-          })
-          .catch((error) => {
+          } catch (error) {
             this.cleanupFederatedSubscription();
             reject(error);
-          });
+          }
+        })();
         
         // Set timeout for token response (30 seconds)
         const timeout = setTimeout(() => {
