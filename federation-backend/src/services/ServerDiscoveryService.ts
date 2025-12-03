@@ -503,6 +503,9 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const { channelId } = req.params;
     const { before, limit = 50 } = req.query;
+    
+    logger.info(`📥 GET /channels/${channelId}/messages (limit: ${limit}, before: ${before || 'none'})`);
+    
     const supabase = getSupabaseClient();
 
     // Get channel info
@@ -594,16 +597,23 @@ router.get(
         
         if (!note) return null;
 
+        // Skip messages without a valid author
+        const authorUrl = note.attributedTo || activity.actor;
+        if (!authorUrl || authorUrl === 'undefined' || authorUrl.endsWith('/undefined')) {
+          logger.warn(`Skipping message with invalid author: ${note.id}`);
+          return null;
+        }
+
         // Ensure the author exists locally
         const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
-        await ActivityProcessor['ensureRemoteUser'](note.attributedTo);
+        await ActivityProcessor['ensureRemoteUser'](authorUrl);
 
         // Get author from local DB
         const { data: author } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, federated_id')
-          .eq('federated_id', note.attributedTo)
-          .single();
+          .select('id, username, display_name, avatar_url, federated_id, color')
+          .eq('federated_id', authorUrl)
+          .maybeSingle();
 
         // Extract message UUID from ap_id if possible
         let messageUuid: string | undefined;

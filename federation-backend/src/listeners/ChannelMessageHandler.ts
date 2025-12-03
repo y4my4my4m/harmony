@@ -86,10 +86,10 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    // Get server
+    // Get server with federation info
     const { data: server } = await supabase
       .from('servers')
-      .select('*')
+      .select('*, federation_inbox_url, ap_id, is_local_server')
       .eq('id', server_id)
       .single();
 
@@ -98,6 +98,59 @@ export async function handleChannelMessageFederation(
       return;
     }
 
+    // CASE 1: User is sending message to a REMOTE server
+    // We need to forward the message to the remote server's inbox
+    if (server.is_local_server === false && server.federation_inbox_url) {
+      logger.info(`📤 User sending message to REMOTE server: ${server.name}`);
+      
+      // Check if the author is local
+      const { data: author } = await supabase
+        .from('profiles')
+        .select('id, username, federated_id, is_local')
+        .eq('id', message.author?.id || payload.author_id)
+        .single();
+
+      if (!author?.is_local) {
+        logger.info('Author is not local, skipping federation to remote server');
+        return;
+      }
+
+      // Create activity to send to remote server
+      const activity = createMessageActivity(
+        message,
+        server,
+        channel_id,
+        channel_name,
+        'Create'
+      );
+
+      // Deliver to remote server's inbox
+      const deliveryQueue = new DeliveryQueue();
+      await deliveryQueue.enqueue({
+        activity,
+        targetUrl: server.federation_inbox_url,
+        actorId: author.id,
+        priority: 5,
+      });
+
+      // Update federation status
+      await supabase
+        .from('messages')
+        .update({ 
+          federation_status: 'completed',
+          metadata: {
+            ...message.metadata,
+            federated_at: new Date().toISOString(),
+            federated_to: [new URL(server.federation_inbox_url).hostname],
+          }
+        })
+        .eq('id', message_id);
+
+      logger.info(`🎉 Message sent to remote server inbox: ${server.federation_inbox_url}`);
+      return;
+    }
+
+    // CASE 2: Local server with remote members - federate to those members
     // Check if server has federation enabled
     if (!server.federation_enabled) {
       logger.info(`Federation not enabled for server ${server_id}`);

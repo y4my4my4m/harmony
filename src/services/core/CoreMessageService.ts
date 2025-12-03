@@ -705,14 +705,26 @@ export class CoreMessageService {
 
       debug.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
-      // Check if this is a remote channel
+      // Check if this is a remote channel by looking up the server
       const { data: channel } = await supabase
         .from('channels')
-        .select('id, is_remote, server_id, servers!channels_server_id_fkey(is_local_server)')
+        .select('id, is_remote, server_id')
         .eq('id', channelId)
-        .single()
+        .maybeSingle()
 
-      const isRemoteChannel = channel?.is_remote || !(channel?.servers as any)?.is_local_server
+      // If channel has is_remote flag or we need to check the server
+      let isRemoteChannel = channel?.is_remote === true
+
+      // Also check if the server is remote
+      if (!isRemoteChannel && channel?.server_id) {
+        const { data: server } = await supabase
+          .from('servers')
+          .select('is_local_server')
+          .eq('id', channel.server_id)
+          .maybeSingle()
+        
+        isRemoteChannel = server?.is_local_server === false
+      }
 
       if (isRemoteChannel) {
         debug.log(`🌐 Channel ${channelId} is remote, fetching via federation backend`)
