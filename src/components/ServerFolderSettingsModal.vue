@@ -51,10 +51,11 @@
                   <!-- Custom color -->
                   <div class="color-option-wrapper">
                     <button
+                      ref="customSwatchRef"
                       class="color-swatch large custom-color-swatch"
                       :class="{ selected: !isDefaultColor }"
                       :style="{ backgroundColor: customColor }"
-                      @click="toggleColorPicker"
+                      @click="openColorPicker"
                       @mouseenter="showTooltip($event, 'Custom')"
                       @mouseleave="hideTooltip"
                     >
@@ -67,14 +68,14 @@
                       </svg>
                     </button>
                     
-                    <!-- Color picker popup -->
-                    <div v-if="showColorPickerPopup" class="color-picker-popup" v-click-outside="closeColorPicker">
-                      <ColorPicker
-                        theme="dark"
-                        :color="customColor"
-                        @changeColor="onColorPickerChange"
-                      />
-                    </div>
+                    <!-- Hidden native color input for the color wheel -->
+                    <input
+                      ref="colorInputRef"
+                      type="color"
+                      class="hidden-color-input"
+                      :value="customColor"
+                      @input="onColorPickerChange"
+                    />
                   </div>
                 </div>
                 
@@ -119,8 +120,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ColorPicker } from 'vue-color-kit';
-import 'vue-color-kit/dist/vue-color-kit.css';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import type { ServerFolder } from '@/types';
 
@@ -147,7 +146,8 @@ const folderName = ref('');
 const selectedColor = ref(DEFAULT_COLOR);
 const customColor = ref('#3ba55c');
 const isSaving = ref(false);
-const showColorPickerPopup = ref(false);
+const colorInputRef = ref<HTMLInputElement | null>(null);
+const customSwatchRef = ref<HTMLElement | null>(null);
 
 // Tooltip state
 const tooltip = ref<{ visible: boolean; text: string; x: number; y: number }>({
@@ -178,7 +178,6 @@ const isEditMode = computed(() => {
 // Reset form when modal opens
 watch(() => props.isOpen, (open) => {
   if (open) {
-    showColorPickerPopup.value = false;
     if (props.folder) {
       folderName.value = props.folder.name;
       selectedColor.value = props.folder.color || DEFAULT_COLOR;
@@ -202,18 +201,15 @@ const selectQuickColor = (color: string) => {
   selectedColor.value = color;
 };
 
-const toggleColorPicker = () => {
-  showColorPickerPopup.value = !showColorPickerPopup.value;
+const openColorPicker = () => {
+  // Trigger the native color input
+  colorInputRef.value?.click();
 };
 
-const closeColorPicker = () => {
-  showColorPickerPopup.value = false;
-};
-
-const onColorPickerChange = (color: any) => {
-  const hex = color.hex || color;
-  customColor.value = hex;
-  selectedColor.value = hex;
+const onColorPickerChange = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  customColor.value = input.value;
+  selectedColor.value = input.value;
 };
 
 // Tooltip methods
@@ -506,16 +502,13 @@ const save = async () => {
   color: #ffffff;
 }
 
-/* Color picker popup */
-.color-picker-popup {
+/* Hidden native color input - the browser opens its own color picker dialog */
+.hidden-color-input {
   position: absolute;
-  top: 56px;
-  left: 0;
-  z-index: 100;
-  background: #1e1f22;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  padding: 8px;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
 /* Color tooltip */
