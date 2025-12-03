@@ -840,6 +840,24 @@
     "removeFriend": "Remove Friend",
     "removeFriendConfirm": "Are you sure you want to remove this friend?"
   },
+  "federation": {
+    "joinRemoteServer": "Join Remote Server",
+    "joinRemoteServerDesc": "Connect with communities on other Harmony instances",
+    "serverUrl": "Server URL or Handle",
+    "serverUrlPlaceholder": "https://instance.com/servers/id or server@instance.com",
+    "urlFormatHint": "Enter a full server URL or a handle like server@instance.com",
+    "discover": "Discover",
+    "members": "members",
+    "channels": "channels",
+    "more": "more",
+    "joinServer": "Join Server",
+    "federatedNotice": "This is a federated server hosted on another Harmony instance. Your messages will be sent across the network.",
+    "joinByUrl": "Connect to servers on other instances by URL",
+    "remoteServer": "Remote Server",
+    "hosted": "Hosted on",
+    "federatedUser": "Federated user",
+    "federatedBadge": "Federated"
+  },
   "languages": {
     "en": "English",
     "es": "Español",

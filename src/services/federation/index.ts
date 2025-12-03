@@ -32,6 +32,17 @@ export type {
   FederationActivityServiceError 
 } from './FederationActivityService'
 
-// Phase 2C: Unified Federation Service (COMING IN FUTURE)
+// Phase 2C: Federation Server Service ✅ COMPLETED
+// Handles remote server discovery, join/leave, and sync
+export { FederationServerService, federationServerService } from './FederationServerService'
+export type { 
+  RemoteServer, 
+  RemoteChannel,
+  JoinServerResult,
+  LeaveServerResult,
+  DiscoverServerResult 
+} from './FederationServerService'
+
+// Phase 2D: Unified Federation Service (COMING IN FUTURE)
 // Will orchestrate decision + activity services together
 // export { FederationService, federationService } from './FederationService'

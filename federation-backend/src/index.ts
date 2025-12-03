@@ -21,6 +21,9 @@ import inboxRouter from './activitypub/InboxHandler.js';
 import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
 
+// Import Federation API routes
+import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
+
 // Import database listener (legacy - will be replaced by QueueManager)
 import { startDatabaseListener } from './listeners/DatabaseListener.js';
 import { startPushNotificationListener } from './listeners/PushNotificationHandler.js';
@@ -71,6 +74,9 @@ app.use('/', actorRouter);
 app.use('/', inboxRouter);
 app.use('/', outboxRouter);
 app.use('/', groupRouter); // Servers as Groups
+
+// Federation API routes (for frontend to call)
+app.use('/', serverDiscoveryRouter);
 
 app.use('/link-preview', linkPreviewRouter);
 

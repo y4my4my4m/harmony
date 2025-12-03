@@ -298,19 +298,310 @@ export class VoiceActivityHandler {
 
   /**
    * Handle voice channel join (for federated server voice channels)
+   * Tracks federated users in voice channels and notifies local users
    */
   private static async handleVoiceChannelJoin(activity: VoiceChannelJoin): Promise<void> {
-    // For now, just log it
-    // Future: Track federated users in voice channels
-    logger.info(`📞 Voice channel join: ${activity.actor} joined ${activity.object.name}`);
+    const supabase = getSupabaseClient();
+    const actorUrl = activity.actor;
+    const channelInfo = activity.object;
+
+    logger.info(`📞 Voice channel join: ${actorUrl} joining ${channelInfo.name}`);
+
+    // Ensure user exists locally
+    const { ActivityProcessor } = await import('./ActivityProcessor.js');
+    await ActivityProcessor['ensureRemoteUser'](actorUrl);
+
+    // Get the user
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url')
+      .eq('federated_id', actorUrl)
+      .single();
+
+    if (!user) {
+      logger.warn('User not found for voice channel join');
+      return;
+    }
+
+    // Find the channel by AP ID
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id, server_id')
+      .eq('ap_id', channelInfo.id)
+      .single();
+
+    if (!channel) {
+      logger.warn(`Channel not found: ${channelInfo.id}`);
+      return;
+    }
+
+    // Track in voice_channel_participants (if table exists)
+    // Otherwise broadcast via Supabase Realtime
+    try {
+      await supabase
+        .from('voice_channel_participants')
+        .upsert({
+          channel_id: channel.id,
+          user_id: user.id,
+          joined_at: new Date().toISOString(),
+          is_federated: true,
+        }, {
+          onConflict: 'channel_id,user_id',
+        });
+    } catch (error) {
+      // Table might not exist, fall through to realtime broadcast
+      logger.debug('voice_channel_participants table not found, using realtime only');
+    }
+
+    // Broadcast to channel subscribers
+    await supabase
+      .channel(`voice:${channel.id}`)
+      .send({
+        type: 'broadcast',
+        event: 'user-joined',
+        payload: {
+          userId: user.id,
+          username: user.username,
+          displayName: user.display_name,
+          avatar: user.avatar_url,
+          federated: true,
+          federatedId: actorUrl,
+        },
+      });
+
+    logger.info(`📞 Federated user ${user.username} joined voice channel ${channelInfo.name}`);
   }
 
   /**
    * Handle voice channel leave
+   * Removes federated user from voice channel tracking
    */
   private static async handleVoiceChannelLeave(activity: VoiceChannelLeave): Promise<void> {
-    // For now, just log it
-    logger.info(`📞 Voice channel leave: ${activity.actor} left ${activity.object.id}`);
+    const supabase = getSupabaseClient();
+    const actorUrl = activity.actor;
+    const channelInfo = activity.object;
+
+    logger.info(`📞 Voice channel leave: ${actorUrl} leaving ${channelInfo.id}`);
+
+    // Get the user
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .eq('federated_id', actorUrl)
+      .single();
+
+    if (!user) {
+      return;
+    }
+
+    // Find the channel
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('ap_id', channelInfo.id)
+      .single();
+
+    if (!channel) {
+      return;
+    }
+
+    // Remove from tracking
+    try {
+      await supabase
+        .from('voice_channel_participants')
+        .delete()
+        .eq('channel_id', channel.id)
+        .eq('user_id', user.id);
+    } catch (error) {
+      logger.debug('voice_channel_participants table not found');
+    }
+
+    // Broadcast leave event
+    await supabase
+      .channel(`voice:${channel.id}`)
+      .send({
+        type: 'broadcast',
+        event: 'user-left',
+        payload: {
+          userId: user.id,
+          username: user.username,
+          federated: true,
+        },
+      });
+
+    logger.info(`📞 Federated user ${user.username} left voice channel`);
+  }
+
+  // =============================================================================
+  // VOICE CHANNEL ACTIVITY CREATION
+  // =============================================================================
+
+  /**
+   * Create a VoiceChannelJoin activity
+   */
+  static createVoiceChannelJoin(
+    userFederatedId: string,
+    channelId: string,
+    channelName: string,
+    serverId: string,
+    serverName: string
+  ): VoiceChannelJoin {
+    const hostDomain = config.INSTANCE_DOMAIN;
+    const serverUrl = `https://${hostDomain}/servers/${serverId}`;
+    const channelUrl = `${serverUrl}/channels/${channelId}`;
+
+    return {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        HARMONY_VOICE_CONTEXT,
+      ],
+      id: `${userFederatedId}/activities/${crypto.randomUUID()}`,
+      type: HARMONY_VOICE_TYPES.VoiceChannelJoin,
+      actor: userFederatedId,
+      object: {
+        type: 'harmony:VoiceChannel',
+        id: channelUrl,
+        name: channelName,
+        serverId,
+        serverName,
+      },
+      target: serverUrl,
+      published: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Create a VoiceChannelLeave activity
+   */
+  static createVoiceChannelLeave(
+    userFederatedId: string,
+    channelId: string,
+    serverId: string
+  ): VoiceChannelLeave {
+    const hostDomain = config.INSTANCE_DOMAIN;
+    const serverUrl = `https://${hostDomain}/servers/${serverId}`;
+    const channelUrl = `${serverUrl}/channels/${channelId}`;
+
+    return {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        HARMONY_VOICE_CONTEXT,
+      ],
+      id: `${userFederatedId}/activities/${crypto.randomUUID()}`,
+      type: HARMONY_VOICE_TYPES.VoiceChannelLeave,
+      actor: userFederatedId,
+      object: {
+        type: 'harmony:VoiceChannel',
+        id: channelUrl,
+      },
+      published: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Federate voice channel join to remote server
+   */
+  static async federateVoiceChannelJoin(
+    userId: string,
+    channelId: string,
+    serverId: string
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    const hostDomain = config.INSTANCE_DOMAIN;
+
+    // Get user
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id, username, federated_id, is_local')
+      .eq('id', userId)
+      .single();
+
+    if (!user?.is_local) {
+      return;
+    }
+
+    // Get server and channel
+    const { data: channel } = await supabase
+      .from('channels')
+      .select(`
+        id,
+        name,
+        server:servers!channels_server_id_fkey(id, name, federation_inbox_url, is_local_server)
+      `)
+      .eq('id', channelId)
+      .single();
+
+    if (!channel) {
+      return;
+    }
+
+    const server = (channel as any).server;
+    
+    // Only federate if it's a remote server
+    if (server.is_local_server) {
+      return;
+    }
+
+    const userApId = user.federated_id || `https://${hostDomain}/users/${user.username}`;
+    
+    const joinActivity = this.createVoiceChannelJoin(
+      userApId,
+      channelId,
+      channel.name,
+      server.id,
+      server.name
+    );
+
+    // Send to server inbox
+    if (server.federation_inbox_url) {
+      const { DeliveryQueue } = await import('./DeliveryQueue.js');
+      await DeliveryQueue.sendToInbox(server.federation_inbox_url, joinActivity, userId);
+      logger.info(`📞 Federated voice channel join to ${server.federation_inbox_url}`);
+    }
+  }
+
+  /**
+   * Federate voice channel leave to remote server
+   */
+  static async federateVoiceChannelLeave(
+    userId: string,
+    channelId: string,
+    serverId: string
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    const hostDomain = config.INSTANCE_DOMAIN;
+
+    // Get user
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id, username, federated_id, is_local')
+      .eq('id', userId)
+      .single();
+
+    if (!user?.is_local) {
+      return;
+    }
+
+    // Get server
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, federation_inbox_url, is_local_server')
+      .eq('id', serverId)
+      .single();
+
+    if (!server || server.is_local_server) {
+      return;
+    }
+
+    const userApId = user.federated_id || `https://${hostDomain}/users/${user.username}`;
+    
+    const leaveActivity = this.createVoiceChannelLeave(userApId, channelId, serverId);
+
+    if (server.federation_inbox_url) {
+      const { DeliveryQueue } = await import('./DeliveryQueue.js');
+      await DeliveryQueue.sendToInbox(server.federation_inbox_url, leaveActivity, userId);
+      logger.info(`📞 Federated voice channel leave to ${server.federation_inbox_url}`);
+    }
   }
 
   // =============================================================================
