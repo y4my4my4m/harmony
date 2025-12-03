@@ -102,7 +102,48 @@ After these changes, verify:
 
 ---
 
-## Federation: Docker Supabase Realtime Issue (Priority)
+## Federation: Channel Messages (Dec 2025) ✅
+
+**Status: WORKING** - Channel message federation between Harmony instances is functional!
+
+### What's Implemented:
+- ✅ **Server Join/Leave** - Users can join remote servers via invite links
+- ✅ **Channel Messages** - Create, Edit, Delete federated in real-time
+- ✅ **Reactions** - Emoji reactions federated to all server members
+- ✅ **Multi-Instance Relay** - When Instance B sends to Instance A (server host), A re-broadcasts to Instance C, D, etc.
+- ✅ **Immediate Delivery** - Database triggers queue pg-boss jobs instantly (no sweep delay for new messages)
+- ✅ **Sweep Fallback** - pg-boss sweep catches any missed items every 10 seconds
+
+### Required SQL Migrations (run on ALL instances):
+
+```bash
+# Run these in order on each Harmony instance's database:
+psql -f db_schema/20251203_add_federation_status_to_channels.sql
+psql -f db_schema/20251203_fix_remote_server_channels_trigger.sql
+psql -f db_schema/20251203_add_channel_message_federation_trigger.sql
+psql -f db_schema/20251203_fix_channel_message_federation_trigger.sql
+psql -f db_schema/20251203_fix_messages_updated_at_default.sql
+psql -f db_schema/20251203_add_channel_message_edit_delete_triggers.sql
+```
+
+### Architecture:
+```
+User sends message → DB Trigger → pgboss.job (immediate)
+                          ↓
+                    pg-boss worker → DeliveryQueue → Remote instance inbox
+                          ↓
+                    federation_status = 'completed'
+```
+
+### Key Files:
+- `federation-backend/src/listeners/ChannelMessageHandler.ts` - Outbound message federation
+- `federation-backend/src/activitypub/ServerInboxHandler.ts` - Inbound processing + re-broadcast
+- `federation-backend/src/queue/QueueManager.ts` - pg-boss job handling
+- `db_schema/20251203_*.sql` - Database triggers for immediate queueing
+
+---
+
+## Federation: Docker Supabase Realtime Issue (Lower Priority Now)
 
 **Current state:** When running in Docker, Supabase Realtime WebSocket connection times out:
 ```
@@ -110,31 +151,23 @@ After these changes, verify:
 ❌ Database listener timed out
 ```
 
-**Workaround (Dec 2025):** Using pg-boss with 10-second sweep interval as fallback. This adds ~10 seconds latency to federated message delivery.
+**Status (Dec 2025):** This is now a **lower priority** because we added database triggers that immediately queue pg-boss jobs. Federation works WITHOUT Realtime!
 
-**Environment:**
-```
-SUPABASE_URL=http://supabase-kong:8000
-SUPABASE_REALTIME_URL=ws://realtime-dev.supabase-realtime:4000/socket/websocket
-DATABASE_URL=postgresql://supabase_admin:...@supabase-db:5432/postgres
-```
+**If you want truly hybrid mode (Realtime + pg-boss fallback):**
+1. Run `db_schema/20251204_hybrid_federation_triggers.sql` - Changes triggers to NOT queue immediately
+2. Fix Supabase Realtime connection in Docker
+3. Modify `federation-backend/src/index.ts` to start BOTH DatabaseListener AND QueueManager
+4. DatabaseListener handles immediate delivery, pg-boss sweep catches any missed
 
-**Root cause investigation needed:**
+**Root cause investigation (if desired):**
 1. Is `supabase-realtime` container healthy and accepting WebSocket connections?
 2. Does the WebSocket URL require authentication headers?
 3. Is there a network/DNS issue between federation-backend and supabase-realtime containers?
-4. Does the federation-backend need to be on the same Docker network?
-
-**For truly real-time federation:**
-1. Fix the Supabase Realtime connection in Docker
-2. OR: Add database triggers that insert pg-boss jobs immediately (bypasses sweep delay)
-   - Trigger on `messages` INSERT → insert into `pgboss.job` with type `federate-channel-message`
-   - Similar to how we might handle DMs
 
 **Files involved:**
 - `federation-backend/src/listeners/DatabaseListener.ts` - Realtime subscription
 - `federation-backend/src/config/supabase.ts` - Supabase client setup
-- `federation-backend/src/queue/QueueManager.ts` - pg-boss sweep (current fallback)
+- `federation-backend/src/queue/QueueManager.ts` - pg-boss sweep
 
 ---
 
@@ -152,6 +185,30 @@ DATABASE_URL=postgresql://supabase_admin:...@supabase-db:5432/postgres
    - Use that URL as base for federation calls
 
 **Note:** The `link_preview_backend_url` in `federation_settings` is still needed! Database functions like `fetch_remote_link_preview()` use it for server-to-server HTTP calls (pg_http can't use relative paths). Only the frontend code was simplified to use relative paths.
+
+---
+
+## Federation: Remaining Work (Future)
+
+### Voice Channel Federation
+**Status:** Stubs exist but not fully implemented
+
+**What's needed:**
+- `harmony:VoiceChannelJoin` - Notify when user joins voice channel
+- `harmony:VoiceChannelLeave` - Notify when user leaves
+- LiveKit token generation for federated users
+- Remote user display in voice channel UI
+
+**Files:**
+- `federation-backend/src/activitypub/VoiceActivityHandler.ts` - Has stubs
+- `src/stores/unifiedVoiceChannel.ts` - Needs remote user handling
+
+### DM Federation
+**Status:** Partially working via standard ActivityPub private visibility
+
+**What's needed:**
+- Test DMs between users on different instances
+- Ensure E2E encryption works across federation (if enabled)
 
 ---
 
