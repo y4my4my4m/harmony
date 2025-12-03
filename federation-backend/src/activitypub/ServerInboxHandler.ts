@@ -606,6 +606,7 @@ async function processCreateActivity(
   }
 
   // Insert message
+  const messageTimestamp = object.published || new Date().toISOString();
   const { error } = await supabase.from('messages').insert({
     channel_id: channel.id,
     user_id: author.id,
@@ -616,7 +617,8 @@ async function processCreateActivity(
       from_domain: new URL(actorUrl).hostname,
       federated: true,
     },
-    created_at: object.published || new Date().toISOString(),
+    created_at: messageTimestamp,
+    updated_at: object.updated || messageTimestamp, // Required field
     federation_status: 'completed',
   });
 

@@ -705,12 +705,13 @@ router.get(
         let cachedMsgId: string | null = null;
         
         if (author?.id && !author.is_bridge) {
+          const messageTimestamp = note.published || new Date().toISOString();
           const messageData: any = {
             channel_id: channelId,
             user_id: author.id,
             content: note.content ? [{ type: 'text', text: note.content.replace(/<[^>]*>/g, '').trim() }] : [],
-            created_at: note.published || new Date().toISOString(),
-            updated_at: note.updated,
+            created_at: messageTimestamp,
+            updated_at: note.updated || messageTimestamp, // Required field - fallback to created_at
             // IMPORTANT: 'federated: true' tells the BEFORE INSERT trigger to skip this message
             // The trigger checks for this key and sets federation_status = 'skipped'
             metadata: { ap_id: note.id, is_remote: true, federated: true },
