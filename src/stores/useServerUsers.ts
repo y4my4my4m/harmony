@@ -304,9 +304,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
         },
       });
 
-      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
+      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, async (payload) => {
         debug.log('🎙️ Received voice channel event:', payload);
-        const { event, userId, channelId, callStartTime } = payload.payload;
+        const { event, userId, channelId, callStartTime, federated } = payload.payload;
 
         if (event === 'user-joined') {
           if (!this.usersInVoiceChannels[channelId]) {
@@ -320,6 +320,14 @@ export const useServerUsersStore = defineStore('serverUsers', {
           if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
             this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
             debug.log(`🕐 Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+          }
+          
+          // For federated users, ensure their profile is loaded
+          if (federated && userId) {
+            debug.log(`🌐 Loading profile for federated voice user: ${userId}`);
+            userDataService.ensureUsersLoaded([userId]).catch((err) => {
+              debug.warn('Failed to load federated user profile:', err);
+            });
           }
           
           debug.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);

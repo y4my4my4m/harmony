@@ -290,3 +290,7 @@ Uncategorized:
 
 ✓ 1318 modules transformed.
 node_modules/@protobufjs/inquire/index.js (12:18): Use of eval in "node_modules/@protobufjs/inquire/index.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+
+---
+
+Federated reactions in chat (just like everywhere else) as ephemeral, we should find a proper solution to make them permanent.

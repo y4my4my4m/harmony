@@ -407,22 +407,24 @@ export class VoiceActivityHandler {
       }
       
       // Broadcast to local subscribers for UI update
+      // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
       await supabase
-        .channel(`voice:${channel.id}`)
+        .channel(`voice-channels:${channel.server_id}`)
         .send({
           type: 'broadcast',
-          event: 'user-joined',
+          event: 'voice-channel-event',
           payload: {
+            event: 'user-joined',
             userId: user.id,
+            channelId: channel.id,
             username: user.username,
             displayName: user.display_name,
             avatar: user.avatar_url,
             federated: true,
-            federatedId: actorUrl,
           },
         });
       
-      logger.info(`✅ Updated presence for federated user ${user.username} in voice channel`);
+      logger.info(`✅ Updated presence for federated user ${user.username} in voice channel ${channel.id}`);
       return; // Don't generate token - the user already has one from the hosting instance
     }
     
@@ -485,18 +487,20 @@ export class VoiceActivityHandler {
     }
 
     // Broadcast to channel subscribers
+    // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
     await supabase
-      .channel(`voice:${channel.id}`)
+      .channel(`voice-channels:${channel.server_id}`)
       .send({
         type: 'broadcast',
-        event: 'user-joined',
+        event: 'voice-channel-event',
         payload: {
+          event: 'user-joined',
           userId: user.id,
+          channelId: channel.id,
           username: user.username,
           displayName: user.display_name,
           avatar: user.avatar_url,
           federated: true,
-          federatedId: actorUrl,
         },
       });
 
@@ -638,12 +642,31 @@ export class VoiceActivityHandler {
       return;
     }
 
-    // Find the channel - use maybeSingle() to avoid throwing on 0 rows
-    const { data: channel } = await supabase
+    // Find the channel - try by AP ID first, then by UUID
+    let channel: { id: string; server_id: string } | null = null;
+    
+    const { data: channelByApId } = await supabase
       .from('channels')
-      .select('id')
+      .select('id, server_id')
       .eq('ap_id', channelInfo.id)
       .maybeSingle();
+    
+    if (channelByApId) {
+      channel = channelByApId;
+    } else {
+      // Fallback: parse channel UUID from the URL
+      const uuidMatch = channelInfo.id.match(/\/channels\/([a-f0-9-]{36})$/i);
+      if (uuidMatch) {
+        const { data: channelById } = await supabase
+          .from('channels')
+          .select('id, server_id')
+          .eq('id', uuidMatch[1])
+          .maybeSingle();
+        if (channelById) {
+          channel = channelById;
+        }
+      }
+    }
 
     if (!channel) {
       return;
@@ -661,19 +684,22 @@ export class VoiceActivityHandler {
     }
 
     // Broadcast leave event
+    // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
     await supabase
-      .channel(`voice:${channel.id}`)
+      .channel(`voice-channels:${channel.server_id}`)
       .send({
         type: 'broadcast',
-        event: 'user-left',
+        event: 'voice-channel-event',
         payload: {
+          event: 'user-left',
           userId: user.id,
+          channelId: channel.id,
           username: user.username,
           federated: true,
         },
       });
 
-    logger.info(`📞 Federated user ${user.username} left voice channel`);
+    logger.info(`📞 Federated user ${user.username} left voice channel ${channel.id}`);
   }
 
   // =============================================================================
