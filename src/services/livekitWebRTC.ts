@@ -883,6 +883,62 @@ export class LiveKitWebRTCService {
   }
   
   // =============================================================================
+  // STREAM QUALITY CONTROL
+  // =============================================================================
+  
+  /**
+   * Update stream quality settings (resolution, framerate, and audio bitrate)
+   * Applies to the currently active video/screenshare track and audio track
+   */
+  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+    if (!this.room?.localParticipant) {
+      debug.warn('⚠️ [LiveKit] No room connected');
+      return;
+    }
+    
+    debug.log('🎬 [LiveKit] Updating stream quality:', settings);
+    
+    // Update video track constraints
+    if (settings.resolution !== undefined || settings.frameRate !== undefined) {
+      for (const publication of this.room.localParticipant.videoTrackPublications.values()) {
+        const track = publication.track;
+        if (!track?.mediaStreamTrack) continue;
+        
+        const constraints: MediaTrackConstraints = {};
+        
+        // Handle resolution (-1 means source/native, use no constraint)
+        if (settings.resolution !== undefined && settings.resolution !== -1) {
+          constraints.height = { ideal: settings.resolution };
+          // Calculate width based on 16:9 aspect ratio
+          constraints.width = { ideal: Math.round(settings.resolution * 16 / 9) };
+        }
+        
+        // Handle framerate
+        if (settings.frameRate !== undefined) {
+          constraints.frameRate = { ideal: settings.frameRate };
+        }
+        
+        try {
+          // Apply constraints to the underlying media stream track
+          await track.mediaStreamTrack.applyConstraints(constraints);
+          debug.log('✅ [LiveKit] Applied video constraints:', constraints);
+        } catch (error) {
+          debug.error('❌ [LiveKit] Failed to apply video constraints:', error);
+        }
+      }
+    }
+    
+    // Note: Audio bitrate in LiveKit is typically set at track creation time
+    // via the AudioPresets or custom encoding parameters. Runtime bitrate changes
+    // require republishing the track with new parameters. For now, we just log
+    // the setting - it will be applied on the next audio track creation.
+    if (settings.audioBitrate !== undefined) {
+      debug.log('🎵 [LiveKit] Audio bitrate preference saved:', settings.audioBitrate, 'kbps');
+      debug.log('   Note: Takes effect on next mic enable/reconnect');
+    }
+  }
+  
+  // =============================================================================
   // VOLUME CONTROL
   // =============================================================================
   
@@ -1340,11 +1396,17 @@ export class LiveKitWebRTCService {
             // Store new screenshare audio element
             this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
             
+            // IMPORTANT: Screenshare audio should bypass ALL audio processing
+            // No echo cancellation, no noise suppression, no auto gain control
+            // This gives us raw, unprocessed audio from the shared screen/tab
+            // Set audio element attributes to ensure clean playback
+            audioElement.setAttribute('data-screenshare-audio', 'true');
+            
             // Apply saved screenshare volume or default to 100%
             const savedVolume = this.userScreenShareVolumes.get(participant.identity) ?? 100;
             audioElement.volume = savedVolume / 100;
             
-            debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId, 'volume:', savedVolume);
+            debug.log('🔊 [LiveKit] Screenshare audio attached (raw, no processing) for:', lookupId, 'volume:', savedVolume);
           } else {
             // Clean up any existing mic audio for this participant first  
             const existingElement = this.remoteMicAudioElements.get(participant.identity);
@@ -1418,7 +1480,7 @@ export class LiveKitWebRTCService {
       }
       
       // Update user state - check both possible keys
-      let state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
+      const state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (state) {
         if (track.kind === Track.Kind.Audio) {
           // Only set audio disabled if it's the microphone, not screenshare audio

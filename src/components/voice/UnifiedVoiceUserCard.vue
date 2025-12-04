@@ -614,6 +614,22 @@ watch(videoElement, (newEl) => {
   font-weight: 600;
   align-self: flex-start;
   pointer-events: auto;
+  /* Auto-hide animation - fades out after 3 seconds */
+  animation: indicator-fade-out 3s ease-in-out forwards;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* Show indicator on hover over the video container */
+.video-container:hover .screen-share-indicator {
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes indicator-fade-out {
+  0% { opacity: 1; }
+  66% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .pip-toggle-btn {

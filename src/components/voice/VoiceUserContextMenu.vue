@@ -224,6 +224,23 @@
               </button>
             </div>
           </div>
+          
+          <!-- Audio Bitrate -->
+          <div class="quality-row">
+            <span class="quality-label">Audio Quality</span>
+            <div class="quality-options">
+              <button
+                v-for="bitrate in audioBitrateOptions"
+                :key="bitrate.value"
+                class="quality-btn"
+                :class="{ active: currentAudioBitrate === bitrate.value }"
+                @click="setAudioBitrate(bitrate.value)"
+                :title="bitrate.label"
+              >
+                {{ bitrate.short }}
+              </button>
+            </div>
+          </div>
         </div>
         
         <div class="menu-divider" />
@@ -358,6 +375,13 @@ const frameRateOptions = [
   { value: 60, label: '60 FPS' },
 ];
 
+// Audio bitrate options (kbps)
+const audioBitrateOptions = [
+  { value: 64, label: '64 kbps (Voice)', short: '64k' },
+  { value: 128, label: '128 kbps (Standard)', short: '128k' },
+  { value: 256, label: '256 kbps (High)', short: '256k' },
+];
+
 // Current quality settings (from store or defaults)
 // Handle -1 (source) as a valid value, default to 720 only if undefined/null
 const currentResolution = computed(() => {
@@ -365,6 +389,7 @@ const currentResolution = computed(() => {
   return res !== undefined && res !== null ? res : 720;
 });
 const currentFrameRate = computed(() => voiceStore.streamSettings?.frameRate || 30);
+const currentAudioBitrate = computed(() => voiceStore.streamSettings?.audioBitrate || 128);
 
 const setResolution = async (resolution: number) => {
   await voiceStore.updateStreamQuality({ resolution });
@@ -372,6 +397,10 @@ const setResolution = async (resolution: number) => {
 
 const setFrameRate = async (frameRate: number) => {
   await voiceStore.updateStreamQuality({ frameRate });
+};
+
+const setAudioBitrate = async (audioBitrate: number) => {
+  await voiceStore.updateStreamQuality({ audioBitrate });
 };
 
 // Methods

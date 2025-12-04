@@ -338,7 +338,16 @@ const handleOverlayClosed = () => {
 
 const activatePIPForActiveVideo = () => {
   if (activeVideoUser.value) {
-    voiceStore.togglePIP(activeVideoUser.value.userId, 'fixed');
+    // If we're in minimized mode, expand to dock first for better UX
+    if (currentMode.value === 'minimized') {
+      currentMode.value = 'dock';
+    }
+    // Small delay to let the dock mode render, then activate PIP
+    setTimeout(() => {
+      if (activeVideoUser.value) {
+        voiceStore.togglePIP(activeVideoUser.value.userId, 'fixed');
+      }
+    }, 100);
   }
 };
 

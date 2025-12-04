@@ -74,8 +74,9 @@ interface VoiceChannelState {
   
   // Stream quality settings
   streamSettings: {
-    resolution: number; // 720, 1080, 0 (source)
+    resolution: number; // 720, 1080, -1 (source)
     frameRate: number; // 15, 30, 60
+    audioBitrate: number; // 64, 128, 256 (kbps)
   };
   
   // Counter to force reactivity when streams update (Map doesn't trigger Vue reactivity well)
@@ -134,7 +135,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     streamSettings: {
       resolution: 720,
-      frameRate: 30
+      frameRate: 30,
+      audioBitrate: 128
     },
     
     streamUpdateCounter: 0
@@ -838,7 +840,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // Handle -1 (source/native) as valid, only default if truly undefined
           this.streamSettings = {
             resolution: settings.resolution !== undefined ? settings.resolution : 720,
-            frameRate: settings.frameRate || 30
+            frameRate: settings.frameRate || 30,
+            audioBitrate: settings.audioBitrate || 128
           };
         }
       } catch (error) {

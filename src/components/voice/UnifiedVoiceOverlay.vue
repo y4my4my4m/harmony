@@ -90,8 +90,8 @@
           </div>
         </div>
 
-        <!-- Featured Speaker (Speaker mode) -->
-        <div v-if="voiceStore.layoutMode === 'speaker' && featuredSpeaker" class="featured-speaker">
+        <!-- Featured Speaker (Speaker mode) - Hidden when in fullscreen to avoid doubled video -->
+        <div v-if="voiceStore.layoutMode === 'speaker' && featuredSpeaker && voiceStore.viewMode !== 'fullscreen'" class="featured-speaker">
           <UnifiedVoiceUserCard
             :user-state="featuredSpeaker"
             @toggle-video="voiceStore.toggleVideo"
@@ -121,25 +121,40 @@
         </div>
 
         <!-- Fullscreen View -->
-        <div v-else-if="voiceStore.viewMode === 'fullscreen' && fullscreenParticipant" class="fullscreen-container">
+        <div 
+          v-else-if="voiceStore.viewMode === 'fullscreen' && fullscreenParticipant" 
+          class="fullscreen-container"
+          :class="{ 'full-window-mode': isFullWindowMode }"
+          @click="isFullWindowMode && (isFullWindowMode = false)"
+        >
           <UnifiedVoiceUserCard
             :key="fullscreenParticipant.userId"
             :user-state="fullscreenParticipant"
             @toggle-video="voiceStore.toggleVideo"
             @toggle-screen-share="voiceStore.toggleScreenShare"
             class="fullscreen-card"
+            @contextmenu.prevent="showFullWindowContextMenu"
           />
           
-          <!-- Thumbnail strip at bottom -->
-          <div class="thumbnail-strip">
-            <UnifiedVoiceUserCard
-              v-for="participant in nonFullscreenParticipants"
-              :key="participant.userId"
-              :user-state="participant"
-              @toggle-video="voiceStore.toggleVideo"
-              @toggle-screen-share="voiceStore.toggleScreenShare"
-              class="thumbnail-card"
-            />
+          <!-- Thumbnail strip at bottom with collapse button -->
+          <div class="thumbnail-strip-container">
+            <button 
+              class="thumbnail-collapse-btn"
+              @click="isThumbnailStripCollapsed = !isThumbnailStripCollapsed"
+              :title="isThumbnailStripCollapsed ? 'Show participants' : 'Hide participants'"
+            >
+              <Icon :name="isThumbnailStripCollapsed ? 'chevron-up' : 'chevron-down'" />
+            </button>
+            <div v-if="!isThumbnailStripCollapsed" class="thumbnail-strip">
+              <UnifiedVoiceUserCard
+                v-for="participant in nonFullscreenParticipants"
+                :key="participant.userId"
+                :user-state="participant"
+                @toggle-video="voiceStore.toggleVideo"
+                @toggle-screen-share="voiceStore.toggleScreenShare"
+                class="thumbnail-card"
+              />
+            </div>
           </div>
         </div>
 
@@ -239,6 +254,26 @@
 
     <!-- Screenshare PIP -->
     <ScreensharePIP />
+    
+    <!-- Full Window Context Menu -->
+    <div 
+      v-if="fullWindowMenuVisible"
+      class="full-window-context-menu"
+      :style="{ left: fullWindowMenuPosition.x + 'px', top: fullWindowMenuPosition.y + 'px' }"
+      @click.stop
+    >
+      <div class="context-menu-backdrop" @click="closeFullWindowMenu"></div>
+      <div class="context-menu-content">
+        <button class="context-menu-item" @click="toggleFullWindowMode">
+          <Icon :name="isFullWindowMode ? 'minimize-2' : 'maximize-2'" />
+          <span>{{ isFullWindowMode ? 'Exit Full Window' : 'Full Window Mode' }}</span>
+        </button>
+        <button class="context-menu-item" @click="closeFullWindowMenu">
+          <Icon name="x" />
+          <span>Cancel</span>
+        </button>
+      </div>
+    </div>
   </Teleport>
 </template>
 
@@ -274,6 +309,8 @@ const spatialStore = useSpatialAudioStore();
 const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
+const isThumbnailStripCollapsed = ref(false);
+const isFullWindowMode = ref(false);
 
 // =============================================================================
 // ADAPTIVE GRID
@@ -383,6 +420,27 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         voiceStore.setViewMode('maximized');
       }
     };
+    
+    // Full window mode context menu
+    const fullWindowMenuVisible = ref(false);
+    const fullWindowMenuPosition = ref({ x: 0, y: 0 });
+    
+    const showFullWindowContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      fullWindowMenuPosition.value = { x: event.clientX, y: event.clientY };
+      fullWindowMenuVisible.value = true;
+    };
+    
+    const toggleFullWindowMode = () => {
+      isFullWindowMode.value = !isFullWindowMode.value;
+      fullWindowMenuVisible.value = false;
+    };
+    
+    // Close context menu when clicking elsewhere
+    const closeFullWindowMenu = () => {
+      fullWindowMenuVisible.value = false;
+    };
+    
     // =============================================================================
     // LIFECYCLE
     // =============================================================================
@@ -418,7 +476,10 @@ const connectionStats = computed(() => voiceStore.connectionStats);
             toggleSettings();
             break;
           case 'escape':
-            if (voiceStore.viewMode === 'fullscreen') {
+            // Priority order: full-window mode > fullscreen > settings > minimize
+            if (isFullWindowMode.value) {
+              isFullWindowMode.value = false;
+            } else if (voiceStore.viewMode === 'fullscreen') {
               voiceStore.exitFullscreen();
             } else if (showSettings.value) {
               showSettings.value = false;
@@ -976,6 +1037,34 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: none; /* Hide avatar when video is showing */
 }
 
+/* Thumbnail strip container with collapse button */
+.thumbnail-strip-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.thumbnail-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px 4px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: -1px;
+}
+
+.thumbnail-collapse-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
 /* Compact thumbnail strip at bottom - Discord style */
 .thumbnail-strip {
   display: flex;
@@ -1116,5 +1205,85 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: transparent;
   backdrop-filter: none;
   z-index: auto;
+}
+
+/* Full Window Mode - Stream fills entire viewport */
+.fullscreen-container.full-window-mode {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 10002;
+  background: #000;
+  cursor: pointer;
+}
+
+.fullscreen-container.full-window-mode .fullscreen-card {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+}
+
+.fullscreen-container.full-window-mode .fullscreen-card :deep(.video-container) {
+  height: 100% !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+}
+
+.fullscreen-container.full-window-mode .fullscreen-card :deep(.user-info) {
+  display: none !important;
+}
+
+.fullscreen-container.full-window-mode .thumbnail-strip-container {
+  display: none !important;
+}
+
+/* Full Window Context Menu */
+.full-window-context-menu {
+  position: fixed;
+  z-index: 10003;
+}
+
+.full-window-context-menu .context-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+}
+
+.full-window-context-menu .context-menu-content {
+  background: rgba(30, 31, 34, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.full-window-context-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #dcddde;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.full-window-context-menu .context-menu-item:hover {
+  background: rgba(88, 101, 242, 0.4);
 }
 </style>
