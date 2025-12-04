@@ -96,6 +96,13 @@ export class UnifiedWebRTCService {
     sampleRate: 48000
   };
 
+  // Stream quality settings (shared format with LiveKit)
+  private streamQualitySettings = {
+    resolution: 720,    // Default 720p
+    frameRate: 30,      // Default 30fps
+    audioBitrate: 128,  // Default 128kbps
+  };
+
   // Device selection
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
@@ -107,7 +114,102 @@ export class UnifiedWebRTCService {
   constructor() {
     this.setupCleanup();
     this.loadAudioSettings();
+    this.loadStreamQualitySettings();
     this.setupSettingsListener();
+  }
+
+  /**
+   * Load stream quality settings from localStorage
+   */
+  private loadStreamQualitySettings(): void {
+    try {
+      const saved = localStorage.getItem('harmony-stream-quality');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        this.streamQualitySettings = {
+          resolution: settings.resolution ?? 720,
+          frameRate: settings.frameRate ?? 30,
+          audioBitrate: settings.audioBitrate ?? 128,
+        };
+        debug.log('📊 [P2P] Loaded stream quality settings:', this.streamQualitySettings);
+      }
+    } catch (error) {
+      debug.warn('⚠️ [P2P] Failed to load stream quality settings:', error);
+    }
+  }
+
+  /**
+   * Save stream quality settings to localStorage
+   */
+  private saveStreamQualitySettings(): void {
+    try {
+      localStorage.setItem('harmony-stream-quality', JSON.stringify(this.streamQualitySettings));
+    } catch (error) {
+      debug.warn('⚠️ [P2P] Failed to save stream quality settings:', error);
+    }
+  }
+
+  /**
+   * Get MediaTrackConstraints for video based on resolution setting
+   * @param resolution - Resolution in pixels (360, 480, 720, 1080, or -1 for source)
+   */
+  private getVideoConstraints(resolution: number = this.streamQualitySettings.resolution): MediaTrackConstraints {
+    const frameRate = this.streamQualitySettings.frameRate;
+    
+    switch (resolution) {
+      case 360:
+        return { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: frameRate } };
+      case 480:
+        return { width: { ideal: 854 }, height: { ideal: 480 }, frameRate: { ideal: frameRate } };
+      case 720:
+        return { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: frameRate } };
+      case 1080:
+        return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: frameRate } };
+      case -1: // Source/Native - use max available
+        return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: frameRate } };
+      default:
+        // For any other value, calculate 16:9 dimensions
+        const width = Math.round(resolution * 16 / 9);
+        return { width: { ideal: width }, height: { ideal: resolution }, frameRate: { ideal: frameRate } };
+    }
+  }
+
+  /**
+   * Update stream quality settings
+   * Applies to currently active video/screenshare tracks
+   */
+  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+    debug.log('📊 [P2P] Updating stream quality:', settings);
+    
+    // Update settings
+    if (settings.resolution !== undefined) {
+      this.streamQualitySettings.resolution = settings.resolution;
+    }
+    if (settings.frameRate !== undefined) {
+      this.streamQualitySettings.frameRate = settings.frameRate;
+    }
+    if (settings.audioBitrate !== undefined) {
+      this.streamQualitySettings.audioBitrate = settings.audioBitrate;
+    }
+    
+    // Save to localStorage
+    this.saveStreamQualitySettings();
+    
+    // Apply to active video tracks using applyConstraints
+    if (this.localStream) {
+      const videoTracks = this.localStream.getVideoTracks();
+      for (const track of videoTracks) {
+        try {
+          const constraints = this.getVideoConstraints();
+          await track.applyConstraints(constraints);
+          debug.log('📊 [P2P] Applied video constraints:', constraints);
+        } catch (error) {
+          debug.warn('⚠️ [P2P] Failed to apply video constraints:', error);
+        }
+      }
+    }
+    
+    debug.log('📊 [P2P] Stream quality updated:', this.streamQualitySettings);
   }
 
   // =============================================================================
@@ -227,13 +329,12 @@ export class UnifiedWebRTCService {
           this.localStream!.removeTrack(track);
         });
         
-        // Get new video stream with selected device
+        // Get new video stream with selected device using quality settings
+        const baseVideoConstraints = this.getVideoConstraints();
         const videoConstraints: any = {
           video: {
             deviceId: { exact: deviceId },
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            frameRate: { ideal: 30, max: 60 }
+            ...baseVideoConstraints
           },
           audio: false
         };
@@ -384,12 +485,10 @@ export class UnifiedWebRTCService {
         
         const { videoDevice } = this.getSelectedDevices();
         
+        // Use stream quality settings
+        const baseVideoConstraints = this.getVideoConstraints();
         const videoConstraints: any = {
-          video: {
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            frameRate: { ideal: 30, max: 60 }
-          },
+          video: { ...baseVideoConstraints },
           audio: false
         };
         
@@ -573,8 +672,14 @@ export class UnifiedWebRTCService {
     try {
       if (!this.localMediaState.isScreenSharing) {
         // Start screen sharing with audio (like Discord)
+        // Use stream quality settings for resolution and framerate
+        const screenVideoConstraints = this.getVideoConstraints();
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: { ideal: 30 } },
+          video: {
+            width: screenVideoConstraints.width,
+            height: screenVideoConstraints.height,
+            frameRate: screenVideoConstraints.frameRate
+          },
           audio: true // Include system audio for app streaming
         });
         

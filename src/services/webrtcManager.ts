@@ -427,9 +427,7 @@ class WebRTCManagerService implements WebRTCManager {
     if (this.activeService === 'livekit') {
       await livekitWebRTC.updateStreamQuality(settings);
     } else if (this.activeService === 'p2p') {
-      // P2P mode would need its own implementation
-      // For now, just log that it's not supported
-      debug.warn('⚠️ Stream quality settings not yet implemented for P2P mode');
+      await unifiedWebRTC.updateStreamQuality(settings);
     } else {
       debug.warn('⚠️ No active WebRTC service to update stream quality');
     }
