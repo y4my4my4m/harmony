@@ -485,24 +485,34 @@ const attachVideo = () => {
 
 // Update video element when stream OR state changes
 // Uses LiveKit's proper track.attach() method for adaptive streaming to work correctly
-// Also watch streamUpdateCounter to catch stream changes in P2P mode
+// Also watch streamUpdateCounter to catch stream changes
 watch(
   [
     () => userStream.value, 
     () => storeUserState.value.isVideoEnabled, 
     () => storeUserState.value.isScreenSharing,
-    () => voiceStore.streamUpdateCounter
+    () => voiceStore.streamUpdateCounter,
+    // Also watch the entire storeUserState to catch any state changes
+    storeUserState
   ],
-  () => {
+  ([stream, videoEnabled, screenSharing, counter, state]) => {
+    debug.log(`📹 [Card] State watcher triggered for ${props.userState.userId}:`, {
+      hasStream: !!stream,
+      videoEnabled,
+      screenSharing,
+      counter,
+      stateScreenSharing: state?.isScreenSharing
+    });
     // Use nextTick to ensure DOM is updated before attaching
     nextTick(() => attachVideo());
   },
-  { immediate: true }
+  { immediate: true, deep: false }
 );
 
 // Watch for when video element becomes available (v-if renders it)
 watch(videoElement, (newEl) => {
   if (newEl) {
+    debug.log(`📹 [Card] Video element available for ${props.userState.userId}, attaching...`);
     attachVideo();
   }
 });

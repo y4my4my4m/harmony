@@ -1114,8 +1114,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         );
         
         if (userIndex !== -1) {
-          // Direct assignment - Vue 3/Pinia should handle reactivity
-          this.allUsers[userIndex] = data.mediaState;
+          // Use splice to ensure Vue detects the change (more reliable than direct assignment)
+          // This creates a new array reference for computed properties that depend on allUsers
+          this.allUsers.splice(userIndex, 1, data.mediaState);
         } else if (data.mediaState && data.mediaState.userId) {
           // User not in list yet - add them
           debug.log('➕ User not in list, adding:', data.userId);
@@ -1126,7 +1127,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // NOT for audio level changes (which happen 20+ times per second)
         if (videoStateChanged || !oldState) {
           this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
-          debug.log('📹 Video state changed, counter:', this.streamUpdateCounter);
+          debug.log('📹 Video state changed for', data.userId, '- counter:', this.streamUpdateCounter, 
+            'video:', data.mediaState.isVideoEnabled, 'screen:', data.mediaState.isScreenSharing);
           
           // Handle screenshare state change for spatial audio
           // When user starts screensharing: disable spatial audio, enable traditional

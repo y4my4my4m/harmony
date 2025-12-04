@@ -1254,8 +1254,9 @@ export class LiveKitWebRTCService {
    * This handles the race condition where tracks exist but aren't subscribed yet
    */
   private scheduleDelayedStreamSync(userId: string, participant: RemoteParticipant): void {
-    // Try multiple times with increasing delays to catch late subscriptions
-    const delays = [100, 300, 800];
+    // Try multiple times with short delays to catch late subscriptions
+    // Keep delays short to minimize perceived latency
+    const delays = [50, 150, 400];
     
     delays.forEach((delay, index) => {
       setTimeout(() => {

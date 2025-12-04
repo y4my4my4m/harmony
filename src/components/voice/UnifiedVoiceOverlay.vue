@@ -955,15 +955,20 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   object-fit: contain !important;
 }
 
-/* Hide user info in fullscreen main view - space is precious */
+/* User info label overlay in fullscreen - positioned at bottom left corner */
 .fullscreen-card :deep(.user-info) {
   position: absolute;
   bottom: 8px;
   left: 8px;
+  width: auto !important; /* Override default width: 100% */
   background: rgba(0, 0, 0, 0.7);
-  padding: 4px 8px;
+  padding: 4px 12px;
   border-radius: 4px;
   backdrop-filter: blur(4px);
+  z-index: 5;
+  text-align: left;
+  margin: 0;
+  top: auto; /* Reset top positioning */
 }
 
 .fullscreen-card :deep(.avatar-container) {
