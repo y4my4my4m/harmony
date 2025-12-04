@@ -777,6 +777,56 @@ async function processUpdateActivity(
     return;
   }
 
+  // Handle SERVER updates (Group type) - name, icon, description changes
+  if (object.type === 'Group' || object['harmony:ChatServer']) {
+    // Extract server ID from the ap_id
+    const serverIdMatch = object.id?.match(/\/servers\/([a-f0-9-]{36})$/i);
+    if (!serverIdMatch) {
+      logger.warn(`Cannot extract server ID from ap_id: ${object.id}`);
+      return;
+    }
+    
+    // Find the server by ID (it should already exist as a federated copy)
+    const { data: existingServer } = await supabase
+      .from('servers')
+      .select('id')
+      .eq('id', serverIdMatch[1])
+      .eq('is_local_server', false)
+      .maybeSingle();
+    
+    if (!existingServer) {
+      logger.warn(`Remote server not found for Update: ${object.id}`);
+      return;
+    }
+    
+    // Build update object
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+    
+    if (object.name) {
+      updateData.name = object.name;
+    }
+    if (object.summary !== undefined) {
+      updateData.description = object.summary;
+    }
+    if (object.icon?.url) {
+      updateData.icon = object.icon.url;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('servers')
+      .update(updateData)
+      .eq('id', existingServer.id);
+    
+    if (updateError) {
+      logger.error(`Failed to update server ${existingServer.id}:`, updateError);
+    } else {
+      logger.info(`🏠 Updated remote server: ${object.name || existingServer.id}`);
+    }
+    return;
+  }
+
   // Handle message updates (Note type)
   if (object.type !== 'Note') {
     return;

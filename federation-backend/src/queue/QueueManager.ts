@@ -580,6 +580,97 @@ class QueueManagerService {
           .eq('id', category.id);
       }
     }
+
+    // Sweep updated channels (where updated_at differs from federation timestamp)
+    // This catches channel renames, reorders, and description changes
+    const { data: updatedChannels } = await supabase
+      .from('channels')
+      .select('id, server_id, name, updated_at, servers!inner(is_local_server, federation_enabled)')
+      .eq('is_remote', false)
+      .eq('servers.is_local_server', true)
+      .eq('servers.federation_enabled', true)
+      .not('federation_status', 'eq', 'pending')
+      .gt('updated_at', twoSecondsAgo) // Only recently updated
+      .lt('updated_at', new Date(Date.now() - 1000).toISOString()) // But not in last second
+      .limit(50);
+
+    if (updatedChannels && updatedChannels.length > 0) {
+      // Filter to only those that have changed since last federation
+      const channelsToFederate = updatedChannels.filter((ch: any) => 
+        ch.federation_status !== 'queued' || 
+        new Date(ch.updated_at) > new Date(Date.now() - 60000)
+      );
+      
+      if (channelsToFederate.length > 0) {
+        logger.info(`🔄 Sweep found ${channelsToFederate.length} updated channels`);
+        for (const channel of channelsToFederate) {
+          await this.boss.send('federate-channel-crud', {
+            type: 'update',
+            channel_id: channel.id,
+            server_id: channel.server_id,
+          });
+          
+          await supabase
+            .from('channels')
+            .update({ federation_status: 'queued' })
+            .eq('id', channel.id);
+        }
+      }
+    }
+
+    // Sweep updated categories
+    const { data: updatedCategories } = await supabase
+      .from('channel_categories')
+      .select('id, server_id, name, updated_at, servers!inner(is_local_server, federation_enabled)')
+      .eq('servers.is_local_server', true)
+      .eq('servers.federation_enabled', true)
+      .not('federation_status', 'eq', 'pending')
+      .gt('updated_at', twoSecondsAgo)
+      .lt('updated_at', new Date(Date.now() - 1000).toISOString())
+      .limit(50);
+
+    if (updatedCategories && updatedCategories.length > 0) {
+      const categoriesToFederate = updatedCategories.filter((cat: any) => 
+        cat.federation_status !== 'queued' || 
+        new Date(cat.updated_at) > new Date(Date.now() - 60000)
+      );
+      
+      if (categoriesToFederate.length > 0) {
+        logger.info(`🔄 Sweep found ${categoriesToFederate.length} updated categories`);
+        for (const category of categoriesToFederate) {
+          await this.boss.send('federate-category-crud', {
+            type: 'update',
+            category_id: category.id,
+            server_id: category.server_id,
+          });
+          
+          await supabase
+            .from('channel_categories')
+            .update({ federation_status: 'queued' })
+            .eq('id', category.id);
+        }
+      }
+    }
+
+    // Sweep updated servers (name, icon, description changes)
+    const { data: updatedServers } = await supabase
+      .from('servers')
+      .select('id, name, updated_at')
+      .eq('is_local_server', true)
+      .eq('federation_enabled', true)
+      .gt('updated_at', twoSecondsAgo)
+      .lt('updated_at', new Date(Date.now() - 1000).toISOString())
+      .limit(20);
+
+    if (updatedServers && updatedServers.length > 0) {
+      logger.info(`🔄 Sweep found ${updatedServers.length} updated servers`);
+      for (const server of updatedServers) {
+        await this.boss.send('federate-server-update', {
+          type: 'update',
+          server_id: server.id,
+        });
+      }
+    }
   }
 
   /**
