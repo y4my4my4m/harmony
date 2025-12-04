@@ -43,6 +43,9 @@ interface VoiceChannelState {
     timeout: ReturnType<typeof setTimeout> | null;
   } | null;
   
+  // Connection state to prevent double-joining
+  isConnecting: boolean;
+  
   // Users and their states
   allUsers: UserMediaState[];
   localState: UserMediaState;
@@ -88,6 +91,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     currentChannelId: null,
     currentServerId: null,
     isConnected: false,
+    isConnecting: false,
     currentChannelName: null,
     sessionStartTime: null,
     callStartTime: null,
@@ -259,6 +263,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         const userId = authStore.session.user.id;
         
+        // Prevent double-joining while connecting
+        if (this.isConnecting) {
+          debug.log('⚠️ Already attempting to connect, please wait...');
+          return false;
+        }
+        
         // Check if already in the same channel
         if (this.isConnected && this.currentChannelId === channelId) {
           debug.log('⚠️ Already connected to this voice channel');
@@ -281,6 +291,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           }
         }
         
+        // Mark as connecting to prevent double-join
+        this.isConnecting = true;
+        
         debug.log('🎯 Joining voice channel:', channelId, 'on server:', serverId);
         
         // Check if this is a federated (remote) server
@@ -296,6 +309,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         return await this.joinLocalVoiceChannel(channelId, serverId, userId);
       } catch (error) {
         debug.error('❌ Failed to join voice channel:', error);
+        this.isConnecting = false; // Reset on failure
         return false;
       }
     },
@@ -338,6 +352,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
       this.currentChannelName = channel ? channel.name : 'Voice Channel';
       this.isConnected = true;
+      this.isConnecting = false; // Connection attempt complete
       this.sessionStartTime = new Date(); // Track when user joined
       
       // Get call start time from serverUsersStore (synced across all users)
@@ -439,6 +454,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
               this.currentChannelName = channel ? channel.name : 'Voice Channel';
               this.isConnected = true;
+              this.isConnecting = false; // Connection attempt complete
               this.sessionStartTime = new Date();
               this.callStartTime = new Date();
               
@@ -506,6 +522,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             // Update local presence state (but don't write to DB)
             serverUsersStore.joinVoiceChannel(serverId, channelId, userId, false);
           } catch (error) {
+            this.isConnecting = false; // Reset on error
             this.cleanupFederatedSubscription();
             reject(error);
           }
@@ -515,6 +532,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const timeout = setTimeout(() => {
           debug.error('❌ Timeout waiting for federated voice token');
           this.pendingFederatedJoin = null;
+          this.isConnecting = false; // Reset on timeout
           this.cleanupFederatedSubscription();
           serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
           reject(new Error('Timeout waiting for voice connection to remote server'));
@@ -1537,6 +1555,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.currentChannelId = null;
       this.currentServerId = null;
       this.isConnected = false;
+      this.isConnecting = false;
       this.sessionStartTime = null;
       this.callStartTime = null;
       this.allUsers = [];
