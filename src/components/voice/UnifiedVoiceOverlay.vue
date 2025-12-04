@@ -504,12 +504,23 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   align-items: unset;
 }
 
-/* Fullscreen mode */
+/* Fullscreen mode - maximize video space like Discord */
 .voice-container.fullscreen-mode {
-  max-width: 98vw;
-  max-height: 98vh;
-  height: 98vh;
-  width: 98vw;
+  max-width: 100vw;
+  max-height: 100vh;
+  height: 100vh;
+  width: 100vw;
+  border-radius: 0;
+}
+
+/* Compact header in fullscreen */
+.voice-container.fullscreen-mode .voice-header {
+  padding: 12px 16px;
+}
+
+/* Compact controls in fullscreen */
+.voice-container.fullscreen-mode .voice-controls {
+  padding: 12px 16px;
 }
 
 /* Header */
@@ -638,16 +649,33 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   border-color: #ed4245;
 }
 
-/* Featured Speaker */
+/* Featured Speaker - larger when screensharing */
 .featured-speaker {
-  padding: 20px 24px;
+  padding: 16px;
   display: flex;
   justify-content: center;
+  flex: 1;
+  min-height: 0;
 }
 
 .featured-card {
   width: 100%;
-  max-width: 600px;
+  max-width: 900px;
+  min-height: 300px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* When featured speaker is screensharing, maximize video */
+.featured-card :deep(.harmony-voice-card.screen-sharing) {
+  flex: 1;
+}
+
+.featured-card :deep(.harmony-voice-card.screen-sharing .video-container) {
+  flex: 1;
+  max-height: none;
+  height: auto;
   min-height: 300px;
 }
 
@@ -665,7 +693,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 
 .voice-container.maximized .participants-container {
-  padding: 12px 24px;
+  padding: 12px 16px;
   min-height: 0;
 }
 
@@ -675,11 +703,12 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .voice-container.maximized .participant-card :deep(.harmony-voice-card) {
-  min-height: 400px;
+  min-height: 350px;
 }
 
 .voice-container.maximized .participant-card :deep(.video-container) {
-  height: 340px;
+  height: 300px;
+  max-height: none; /* Allow video to be larger */
 }
 
 .participants-grid {
@@ -883,25 +912,41 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
 }
 
-/* Fullscreen Container */
+/* Fullscreen Container - Discord-like layout where screenshare dominates */
 .fullscreen-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px 24px;
+  padding: 12px 16px;
   overflow: hidden;
   height: 100%;
+  min-height: 0; /* Allow flex shrinking */
 }
 
 .fullscreen-card {
   flex: 1;
   min-height: 0;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Remove card constraints in fullscreen - let video fill the space */
+.fullscreen-card :deep(.harmony-voice-card) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px;
 }
 
 .fullscreen-card :deep(.video-container) {
-  height: 100% !important;
-  min-height: 400px;
+  flex: 1;
+  height: auto !important;
+  min-height: 200px;
+  max-height: none !important; /* Override the 400px limit */
+  aspect-ratio: unset; /* Let it stretch to fill */
+  margin-bottom: 0;
 }
 
 .fullscreen-card :deep(.video-stream) {
@@ -910,36 +955,65 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   object-fit: contain !important;
 }
 
+/* Hide user info in fullscreen main view - space is precious */
+.fullscreen-card :deep(.user-info) {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 4px 8px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+
+.fullscreen-card :deep(.avatar-container) {
+  display: none; /* Hide avatar when video is showing */
+}
+
+/* Compact thumbnail strip at bottom - Discord style */
 .thumbnail-strip {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   overflow-x: auto;
-  padding: 8px 0;
-  max-height: 140px;
+  padding: 4px 0;
+  max-height: 100px;
+  flex-shrink: 0;
 }
 
 .thumbnail-card {
   flex-shrink: 0;
-  width: 160px;
+  width: 120px;
 }
 
 .thumbnail-card :deep(.harmony-voice-card) {
-  min-height: 120px;
-  padding: 8px;
+  min-height: 80px;
+  padding: 4px;
 }
 
 .thumbnail-card :deep(.video-container) {
-  height: 90px !important;
-  margin-bottom: 4px;
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  margin-bottom: 2px;
+  aspect-ratio: 16 / 9;
 }
 
 .thumbnail-card :deep(.username) {
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .thumbnail-card :deep(.user-info) {
   padding-bottom: 0;
-  top: 10px;
+  top: auto;
+  bottom: 2px;
+}
+
+.thumbnail-card :deep(.avatar-container) {
+  transform: scale(0.7);
+}
+
+.thumbnail-card :deep(.status-indicators) {
+  transform: scale(0.8);
 }
 
 @media (max-width: 1024px) {

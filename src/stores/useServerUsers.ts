@@ -575,5 +575,41 @@ export const useServerUsersStore = defineStore('serverUsers', {
         await this.leaveVoiceChannel(serverId, channelId, userId);
       }
     },
+
+    /**
+     * Clean up a disconnected user from voice channel state
+     * Called when LiveKit detects a user has disconnected (crash, network loss, etc.)
+     * This ensures the sidebar participant list stays in sync
+     */
+    cleanupDisconnectedUser(serverId: string, channelId: string, userId: string) {
+      debug.log(`🧹 Cleaning up disconnected user ${userId} from channel ${channelId}`);
+      
+      // Remove from local state
+      if (this.usersInVoiceChannels[channelId]) {
+        this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+        
+        // Clear call start time if last user left
+        if (this.usersInVoiceChannels[channelId].length === 0) {
+          delete this.voiceChannelCallStartTimes[channelId];
+        }
+      }
+
+      // Clean up database entry (fire-and-forget, don't block on this)
+      supabase
+        .from('voice_channel_participants')
+        .delete()
+        .eq('channel_id', channelId)
+        .eq('user_id', userId)
+        .then(({ error }) => {
+          if (error) {
+            debug.warn('Failed to cleanup voice_channel_participants:', error.message);
+          } else {
+            debug.log('✅ Cleaned up disconnected user from voice_channel_participants');
+          }
+        });
+
+      // Broadcast the leave event so other clients update their UI
+      this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);
+    },
   }
 });

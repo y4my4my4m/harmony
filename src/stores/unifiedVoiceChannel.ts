@@ -1082,6 +1082,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Remove from spatial audio
         this.removeUserFromSpatialAudio(data.userId);
 
+        // Clean up database state for the disconnected user
+        // This handles the case where a user crashes/disconnects without graceful leave
+        if (this.currentChannelId && this.currentServerId && !this.isFederatedChannel) {
+          // Only cleanup local server participants - federated cleanup is handled by the host
+          serverUsersStore.cleanupDisconnectedUser(
+            this.currentServerId, 
+            this.currentChannelId, 
+            data.userId
+          );
+        }
+
         // Reset call start time if everyone left
         const totalUsers = this.allUsers.length + 1; // +1 for local user
         if (totalUsers === 1) {

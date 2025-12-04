@@ -1209,19 +1209,90 @@ export class LiveKitWebRTCService {
       
       // CRITICAL: Also emit stream change for existing tracks (video/screenshare)
       // This ensures late-joiners can see video that was already streaming
-      const hasExistingTracks = participant.videoTrackPublications.size > 0 || 
-                                 participant.audioTrackPublications.size > 0;
-      if (hasExistingTracks) {
+      const hasVideoTracks = participant.videoTrackPublications.size > 0;
+      const hasAudioTracks = participant.audioTrackPublications.size > 0;
+      
+      if (hasVideoTracks || hasAudioTracks) {
         debug.log(`📺 [LiveKit] Syncing existing tracks for ${userId}: ` +
           `video=${participant.videoTrackPublications.size}, audio=${participant.audioTrackPublications.size}`);
         
-        const stream = this.getUserStream(userId);
-        this.emit('user-stream-changed', { userId, stream });
-        this.emit('user-state-changed', { userId, mediaState });
+        // Check if tracks are subscribed - if not, wait for subscription
+        const hasUnsubscribedTracks = this.hasUnsubscribedTracks(participant);
+        
+        if (hasUnsubscribedTracks) {
+          debug.log(`⏳ [LiveKit] Waiting for track subscriptions for ${userId}...`);
+          // Schedule a delayed sync after subscriptions should be complete
+          // The TrackSubscribed event will also trigger updates, but this ensures we don't miss anything
+          this.scheduleDelayedStreamSync(userId, participant);
+        } else {
+          // Tracks are already subscribed - emit immediately
+          const stream = this.getUserStream(userId);
+          this.emit('user-stream-changed', { userId, stream });
+          this.emit('user-state-changed', { userId, mediaState });
+        }
       }
     }
     
     debug.log(`✅ [LiveKit] Sync complete. Total users tracked: ${this.allUserStates.size}`);
+  }
+  
+  /**
+   * Check if a participant has any unsubscribed tracks
+   */
+  private hasUnsubscribedTracks(participant: RemoteParticipant): boolean {
+    for (const pub of participant.videoTrackPublications.values()) {
+      if (!pub.isSubscribed) return true;
+    }
+    for (const pub of participant.audioTrackPublications.values()) {
+      if (!pub.isSubscribed) return true;
+    }
+    return false;
+  }
+  
+  /**
+   * Schedule a delayed stream sync for participants with pending subscriptions
+   * This handles the race condition where tracks exist but aren't subscribed yet
+   */
+  private scheduleDelayedStreamSync(userId: string, participant: RemoteParticipant): void {
+    // Try multiple times with increasing delays to catch late subscriptions
+    const delays = [100, 300, 800];
+    
+    delays.forEach((delay, index) => {
+      setTimeout(() => {
+        if (!this.room) return; // Room was disconnected
+        
+        // Check if there are now subscribed tracks (video OR audio)
+        let hasSubscribedVideo = false;
+        let hasSubscribedAudio = false;
+        
+        for (const pub of participant.videoTrackPublications.values()) {
+          if (pub.isSubscribed && pub.track) {
+            hasSubscribedVideo = true;
+            break;
+          }
+        }
+        
+        for (const pub of participant.audioTrackPublications.values()) {
+          if (pub.isSubscribed && pub.track) {
+            hasSubscribedAudio = true;
+            break;
+          }
+        }
+        
+        // Emit events if ANY track (video or audio) is now subscribed
+        // This handles audio-only participants who have no video tracks
+        if (hasSubscribedVideo || hasSubscribedAudio) {
+          debug.log(`📺 [LiveKit] Delayed sync (${delay}ms): emitting stream for ${userId} (video: ${hasSubscribedVideo}, audio: ${hasSubscribedAudio})`);
+          const updatedMediaState = this.createMediaState(participant, userId);
+          this.allUserStates.set(userId, updatedMediaState);
+          const stream = this.getUserStream(userId);
+          this.emit('user-stream-changed', { userId, stream });
+          this.emit('user-state-changed', { userId, mediaState: updatedMediaState });
+        } else if (index === delays.length - 1) {
+          debug.warn(`⚠️ [LiveKit] Track subscription timeout for ${userId} - tracks may not be available`);
+        }
+      }, delay);
+    });
   }
   
   /**
