@@ -174,11 +174,16 @@
                 class="control-button"
                 :class="{ 
                   active: !voiceStore.localState.isMuted,
-                  muted: voiceStore.localState.isMuted 
+                  muted: voiceStore.localState.isMuted,
+                  'ptt-mode': isPTTMode,
+                  'ptt-active': isPTTActive
                 }"
-                :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
+                :title="isPTTMode 
+                  ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`) 
+                  : (voiceStore.localState.isMuted ? 'Unmute (M)' : 'Mute (M)')"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
+                <span v-if="isPTTMode" class="ptt-badge" :class="{ active: isPTTActive }">PTT</span>
               </button>
               <DeviceSelector type="input" @open-settings="showSettings = true" />
             </div>
@@ -264,11 +269,15 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
+import { usePushToTalk } from '@/composables/usePushToTalk';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
 import Icon from '@/components/common/Icon.vue';
+
+// PTT composable
+const { isPTTMode, isPTTActive, pttKeyDisplay } = usePushToTalk();
 
 interface Props {
   channelName?: string;
@@ -892,6 +901,47 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   color: white;
   border-color: rgba(237, 66, 69, 0.6);
   box-shadow: 0 4px 16px rgba(237, 66, 69, 0.3);
+}
+
+/* PTT Mode Styles */
+.control-button.ptt-mode {
+  position: relative;
+}
+
+.control-button.ptt-active {
+  background: linear-gradient(145deg, #00d4aa, #00b894) !important;
+  color: white !important;
+  border-color: rgba(0, 212, 170, 0.6) !important;
+  box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
+  animation: ptt-transmit 0.5s ease-in-out infinite;
+}
+
+@keyframes ptt-transmit {
+  0%, 100% {
+    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(0, 212, 170, 0.6), 0 0 30px rgba(0, 212, 170, 0.4);
+  }
+}
+
+.ptt-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #888;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ptt-badge.active {
+  background: #00d4aa;
+  color: white;
 }
 
 .control-button.deafened {

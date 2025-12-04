@@ -855,6 +855,29 @@ export class LiveKitWebRTCService {
   }
   
   /**
+   * Set mute state directly (for Push-to-Talk)
+   */
+  setMuted(muted: boolean): void {
+    if (this.localMediaState.isMuted === muted) return; // No change
+    
+    this.localMediaState.isMuted = muted;
+    
+    if (this.room?.localParticipant) {
+      const audioPublication = this.room.localParticipant.audioTrackPublications.values().next().value;
+      if (audioPublication?.track) {
+        if (muted) {
+          (audioPublication.track as LocalAudioTrack).mute();
+        } else {
+          (audioPublication.track as LocalAudioTrack).unmute();
+        }
+      }
+    }
+    
+    this.broadcastMediaState();
+    this.emit('local-state-changed', this.localMediaState);
+  }
+  
+  /**
    * Toggle deafen on/off
    */
   toggleDeafen(): boolean {

@@ -338,6 +338,17 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   /**
+   * Set mute state directly (for Push-to-Talk)
+   */
+  setMuted(muted: boolean): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.setMuted(muted);
+    } else if (this.activeService === 'p2p') {
+      unifiedWebRTC.setMuted(muted);
+    }
+  }
+  
+  /**
    * Toggle deafen
    */
   toggleDeafen(): boolean {

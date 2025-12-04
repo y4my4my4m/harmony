@@ -812,6 +812,27 @@ export class UnifiedWebRTCService {
     
     return this.localMediaState.isMuted;
   }
+  
+  /**
+   * Set mute state directly (for Push-to-Talk)
+   */
+  setMuted(muted: boolean): void {
+    if (this.localMediaState.isMuted === muted) return; // No change
+    
+    this.localMediaState.isMuted = muted;
+    
+    if (this.localStream) {
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !muted;
+      }
+    }
+    
+    this.localMediaState.isSpeaking = this.calculateSpeakingState(this.localMediaState.audioLevel, muted);
+    
+    this.broadcastMediaState();
+    this.emit('local-state-changed', this.localMediaState);
+  }
 
   /**
    * Toggle deafen on/off

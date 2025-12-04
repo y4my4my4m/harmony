@@ -9,12 +9,16 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { useUserData } from '@/composables/useUserData';
+import { usePushToTalk } from '@/composables/usePushToTalk';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Module-level variable for cross-tab heartbeat (not reactive)
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
+
+// Module-level PTT state management
+let pttListenersSetup = false;
 
 // =============================================================================
 // TYPES
@@ -404,6 +408,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Initialize spatial audio
       await this.initializeSpatialAudio(userId);
       
+      // Initialize Push-to-Talk
+      this.setupPushToTalk();
+      
       // Don't reset isOverlayVisible here - it may have been set to true
       // by event handlers (user-joined, user-state-changed) that detected
       // existing video/screenshare. Let the event handlers control this.
@@ -474,6 +481,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               // Update state from webrtcManager (now properly set to livekit)
               this.localState = webrtcManager.getLocalState();
               this.localStream = webrtcManager.getLocalStream();
+              
+              // Initialize Push-to-Talk
+              this.setupPushToTalk();
               
               // Play join sound
               themeStore.testAudio('voice_connect');
@@ -597,6 +607,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Clean up spatial audio
         this.cleanupSpatialAudio();
         
+        // Clean up Push-to-Talk
+        this.cleanupPushToTalk();
+        
         // Update server presence
         if (serverId && channelId) {
           // For federated channels, also notify the remote server
@@ -709,6 +722,38 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         debug.log('Setting preemptive mute state:', this.localState.isMuted);
         themeStore.testAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
         return this.localState.isMuted;
+      }
+    },
+
+    /**
+     * Set mute state directly (for Push-to-Talk)
+     * Unlike toggleMute, this doesn't play sound effects (to avoid spam during PTT)
+     * @param muted - Whether to mute (true) or unmute (false)
+     * @param playSound - Whether to play the mute/unmute sound effect (default: false)
+     */
+    setMuted(muted: boolean, playSound: boolean = false): void {
+      const themeStore = useThemeStore();
+      
+      if (this.isConnected) {
+        // Only call webrtcManager if state is actually different
+        const currentMuted = this.localState.isMuted;
+        if (currentMuted !== muted) {
+          webrtcManager.setMuted(muted);
+          this.localState = webrtcManager.getLocalState();
+          if (playSound) {
+            themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
+          }
+          debug.log('🎤 [PTT] Set muted state:', muted);
+        }
+      } else {
+        // Update local state when not connected
+        if (this.localState.isMuted !== muted) {
+          this.localState.isMuted = muted;
+          if (playSound) {
+            themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
+          }
+          debug.log('🎤 [PTT] Set preemptive muted state:', muted);
+        }
       }
     },
 
@@ -1584,6 +1629,46 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     cleanupSpatialAudio(): void {
       spatialAudioService.destroy();
+    },
+
+    /**
+     * Setup Push-to-Talk integration
+     * Registers the mute callback so PTT can control mic state
+     */
+    setupPushToTalk(): void {
+      if (pttListenersSetup) return;
+      
+      const ptt = usePushToTalk();
+      
+      // Register callback for PTT mute state changes
+      ptt.registerMuteCallback((muted: boolean) => {
+        this.setMuted(muted, false); // false = no sound effect for PTT
+      });
+      
+      // Setup global key listeners
+      ptt.setupListeners();
+      
+      // If PTT mode is active, start muted
+      if (ptt.isPTTMode.value) {
+        this.setMuted(true, false);
+      }
+      
+      pttListenersSetup = true;
+      debug.log('🎤 [PTT] Push-to-Talk integrated with voice channel');
+    },
+
+    /**
+     * Cleanup Push-to-Talk integration
+     */
+    cleanupPushToTalk(): void {
+      if (!pttListenersSetup) return;
+      
+      const ptt = usePushToTalk();
+      ptt.unregisterMuteCallback();
+      ptt.cleanupListeners();
+      
+      pttListenersSetup = false;
+      debug.log('🎤 [PTT] Push-to-Talk cleanup complete');
     },
 
     /**

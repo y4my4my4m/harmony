@@ -1,11 +1,33 @@
 export class MessageTranslator {
   private serverId: string | null = null
+  private harmonyDomain: string | null = null
   
   /**
    * Set the server ID for emoji lookups
    */
   setServerId(serverId: string) {
     this.serverId = serverId
+  }
+  
+  /**
+   * Set the Harmony instance domain for federation mentions
+   * Must be called before using the translator
+   */
+  setHarmonyDomain(domain: string) {
+    if (!domain) {
+      throw new Error('Harmony domain is required')
+    }
+    this.harmonyDomain = domain
+  }
+  
+  /**
+   * Get the configured Harmony domain (throws if not configured)
+   */
+  private getHarmonyDomain(): string {
+    if (!this.harmonyDomain) {
+      throw new Error('MessageTranslator: harmonyDomain not configured. Call setHarmonyDomain() first.')
+    }
+    return this.harmonyDomain
   }
   
   /**
@@ -295,8 +317,8 @@ export class MessageTranslator {
           
           // Fallback: show as @username@domain for Harmony users not in Discord
           const username = part.username || 'unknown'
-          // Use the domain from the mention for local users
-          const domain = part.domain || process.env.HARMONY_DOMAIN
+          // Use the domain from the mention, fall back to configured Harmony domain
+          const domain = part.domain || this.getHarmonyDomain()
           const federatedMention = `@${username}@${domain}`
           console.log(`🔔 H→D Mention (Harmony user): ${federatedMention}`)
           return federatedMention

@@ -1,3 +1,5 @@
+import { config } from '../../config';
+
 /**
  * Convert ActivityPub Note to internal MessagePart[] format
  * Uses the same logic as the SQL convert_ap_to_jsonb function
@@ -131,7 +133,7 @@ export function noteToContent(note: any): any[] {
       const usernameParts = username.split('@');
       const actualUsername = usernameParts[0];
       const domain = usernameParts[1] || null;
-      const currentDomain = 'har.mony.lol';
+      const currentDomain = config.INSTANCE_DOMAIN;
       
       parts.push({
         type: 'mention',

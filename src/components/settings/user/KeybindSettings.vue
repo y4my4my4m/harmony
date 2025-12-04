@@ -13,10 +13,21 @@
       <div class="keybind-item">
         <div class="keybind-info">
           <h4 class="keybind-label">Push to Talk</h4>
-          <p class="keybind-description">Hold to talk in voice channels (coming soon).</p>
+          <p class="keybind-description">
+            Hold to talk in voice channels.
+            <span v-if="!isPTTMode" class="mode-note">(Currently using Voice Activity mode)</span>
+          </p>
         </div>
         <div class="keybind-control">
-          <div class="keybind-display not-implemented">Not configured</div>
+          <button 
+            class="keybind-button" 
+            :class="{ recording: isRecordingKeybind, disabled: !isPTTMode }"
+            @click="handleKeybindClick"
+            :disabled="!isPTTMode"
+          >
+            <span v-if="isRecordingKeybind">Press any key...</span>
+            <span v-else>{{ pttKeyDisplay }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -89,6 +100,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, onUnmounted } from 'vue'
+import { usePushToTalk } from '@/composables/usePushToTalk'
+
 interface Props {
   loading: boolean
 }
@@ -98,6 +112,52 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update-keybinds': [settings: any]
 }>()
+
+// Push-to-Talk composable
+const {
+  pttKeyDisplay: pttKeyDisplayRef,
+  isRecordingKeybind: pttIsRecordingKeybind,
+  isPTTMode: pttIsPTTMode,
+  startRecordingKeybind,
+  cancelRecordingKeybind,
+  recordKeybind,
+} = usePushToTalk()
+
+// Computed refs
+const pttKeyDisplay = computed(() => pttKeyDisplayRef.value)
+const isRecordingKeybind = computed(() => pttIsRecordingKeybind.value)
+const isPTTMode = computed(() => pttIsPTTMode.value)
+
+// Keybind functions
+const handleKeybindClick = () => {
+  if (!isPTTMode.value) return
+  
+  if (isRecordingKeybind.value) {
+    cancelRecordingKeybind()
+  } else {
+    startRecordingKeybind()
+  }
+}
+
+const handleKeybindKeydown = (event: KeyboardEvent) => {
+  if (isRecordingKeybind.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    recordKeybind(event)
+  }
+}
+
+// Lifecycle
+onMounted(() => {
+  window.addEventListener('keydown', handleKeybindKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeybindKeydown)
+  if (isRecordingKeybind.value) {
+    cancelRecordingKeybind()
+  }
+})
 </script>
 
 <style scoped>
@@ -189,5 +249,53 @@ const emit = defineEmits<{
   color: #72767d;
   font-style: italic;
   font-family: inherit;
+}
+
+.keybind-button {
+  padding: 6px 16px;
+  background-color: var(--h-chat-darker);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 12px;
+  font-family: monospace;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+  text-align: center;
+}
+
+.keybind-button:hover:not(.disabled) {
+  background-color: rgba(88, 101, 242, 0.2);
+  border-color: #5865f2;
+}
+
+.keybind-button.recording {
+  background-color: rgba(88, 101, 242, 0.3);
+  border-color: #5865f2;
+  color: #5865f2;
+  animation: pulse-keybind 1.5s ease-in-out infinite;
+}
+
+.keybind-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes pulse-keybind {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.mode-note {
+  display: block;
+  font-size: 11px;
+  color: #72767d;
+  font-style: italic;
+  margin-top: 4px;
 }
 </style>

@@ -507,7 +507,17 @@
       "videoQuality": "Video Quality",
       "low": "Low",
       "medium": "Medium",
-      "high": "High"
+      "high": "High",
+      "inputMode": "Input Mode",
+      "voiceActivity": "Voice Activity",
+      "voiceActivityDesc": "Automatically transmit when you speak",
+      "pushToTalk": "Push to Talk",
+      "pushToTalkDesc": "Hold a key to transmit",
+      "pttShortcut": "Push to Talk Shortcut",
+      "pttShortcutHint": "Click to change the keybind",
+      "releaseDelay": "Release Delay",
+      "releaseDelayHint": "Delay before muting after releasing the key (prevents cutting off words)",
+      "pressAnyKey": "Press any key..."
     },
     "notifications": {
       "title": "Notifications",

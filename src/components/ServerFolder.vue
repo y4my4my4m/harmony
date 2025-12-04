@@ -608,7 +608,7 @@ const onIconError = (event: Event) => {
 /* Server item styles */
 .server-item {
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  transition: transform 0.2s ease-in-out;
   user-select: none;
 }
 

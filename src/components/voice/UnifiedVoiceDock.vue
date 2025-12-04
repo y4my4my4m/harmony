@@ -28,11 +28,16 @@
           :class="['control-btn', 'mic-btn', { 
             active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened,
             muted: voiceStore.localState.isMuted,
-            deafened: voiceStore.localState.isDeafened 
+            deafened: voiceStore.localState.isDeafened,
+            'ptt-mode': isPTTMode,
+            'ptt-active': isPTTActive
           }]"
-          :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
+          :title="isPTTMode 
+            ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`) 
+            : (voiceStore.localState.isMuted ? 'Unmute' : 'Mute')"
         >
           <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
+          <span v-if="isPTTMode" class="ptt-indicator" :class="{ active: isPTTActive }">PTT</span>
         </button>
 
         <button
@@ -212,11 +217,15 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
+import { usePushToTalk } from '@/composables/usePushToTalk';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
+
+// PTT composable
+const { isPTTMode, isPTTActive, pttKeyDisplay } = usePushToTalk();
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
@@ -641,6 +650,47 @@ onMounted(() => {
   color: white;
   border-color: rgba(237, 66, 69, 0.6);
   box-shadow: 0 4px 12px rgba(237, 66, 69, 0.3);
+}
+
+/* PTT Mode Styles */
+.control-btn.ptt-mode {
+  position: relative;
+}
+
+.control-btn.ptt-active {
+  background: linear-gradient(145deg, #00d4aa, #00b894) !important;
+  color: white !important;
+  border-color: rgba(0, 212, 170, 0.6) !important;
+  box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
+  animation: ptt-pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes ptt-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.6), 0 0 30px rgba(0, 212, 170, 0.4);
+  }
+}
+
+.ptt-indicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #888;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ptt-indicator.active {
+  background: #00d4aa;
+  color: white;
 }
 
 .control-btn.deafened {
