@@ -669,11 +669,16 @@ export class LiveKitWebRTCService {
         deviceId: this.selectedInputDevice || undefined,
       });
       
+      // Convert kbps to bps for LiveKit (settings stored in kbps, LiveKit expects bps)
+      const audioBitrateBps = (this.streamQualitySettings.audioBitrate || 128) * 1000;
+      
       await this.room.localParticipant.publishTrack(audioTrack, {
-        audioBitrate: AudioPresets.music.maxBitrate,
+        audioBitrate: audioBitrateBps,
         dtx: true, // Discontinuous transmission for bandwidth saving
         red: true, // Redundant encoding for packet loss resilience
       });
+      
+      debug.log('🎵 [LiveKit] Published audio with bitrate:', audioBitrateBps, 'bps');
       
       this.localMediaState.isAudioEnabled = true;
       
@@ -850,9 +855,26 @@ export class LiveKitWebRTCService {
           if (pub.source === Track.Source.ScreenShare && pub.track?.mediaStreamTrack) {
             try {
               await pub.track.mediaStreamTrack.applyConstraints({
-                frameRate: { ideal: targetFrameRate, max: targetFrameRate }
+                frameRate: { min: 15, ideal: targetFrameRate, max: targetFrameRate }
               });
               debug.log('✅ [LiveKit] Applied frameRate constraint to screenshare:', targetFrameRate);
+              
+              // Log actual track settings - Chrome may impose limits (e.g., 15fps for tab capture)
+              const actualSettings = pub.track.mediaStreamTrack.getSettings();
+              debug.log('📊 [LiveKit] Actual screenshare track settings:', {
+                width: actualSettings.width,
+                height: actualSettings.height,
+                frameRate: actualSettings.frameRate,
+                displaySurface: actualSettings.displaySurface, // 'browser'=tab, 'window', 'monitor'
+              });
+              
+              // Warn if Chrome is limiting FPS (common for tab capture)
+              if (actualSettings.frameRate && actualSettings.frameRate < targetFrameRate) {
+                debug.warn(`⚠️ [LiveKit] Chrome limited framerate to ${actualSettings.frameRate}fps ` +
+                  `(requested ${targetFrameRate}fps). ` +
+                  `Note: Tab capture is often capped at ~15fps by Chrome. ` +
+                  `Try sharing entire screen or window for higher framerates.`);
+              }
             } catch (e) {
               debug.warn('⚠️ [LiveKit] Could not apply additional frameRate constraint:', e);
             }
