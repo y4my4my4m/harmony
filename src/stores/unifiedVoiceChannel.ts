@@ -240,6 +240,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
       return speaking;
+    },
+    
+    // Get the active WebRTC service mode (livekit or p2p)
+    connectionMode: () => {
+      return webrtcManager.getActiveService();
     }
   },
 
@@ -992,6 +997,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     setupWebRTCListeners(): void {
       const themeStore = useThemeStore();
+      const serverUsersStore = useServerUsersStore();
       // Channel events
       webrtcManager.on('channel-joined', (data) => {
         debug.log('✅ Channel joined:', data);

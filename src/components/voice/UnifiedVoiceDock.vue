@@ -1,7 +1,7 @@
 <template>
   <!-- Unified Voice Dock - Combines best of both old and new systems -->
   <div v-if="voiceStore.isConnected" class="unified-voice-dock" :class="dockMode">
-    <!-- Dock Mode (default) -->
+    <!-- Compact Mode (floating bar at bottom) -->
     <div v-if="currentMode === 'dock'" class="dock-container">
       <!-- User Info -->
       <div class="user-section">
@@ -115,10 +115,10 @@
       </div>
     </div>
 
-    <!-- Minimized Mode -->
+    <!-- Minimized Mode (tiny dock in channel sidebar) -->
     <div v-else-if="currentMode === 'minimized'" class="minimized-container" @click="expandToDock">
-      <!-- Mini Video Preview (when someone is sharing video/screen) -->
-      <div v-if="activeVideoUser" class="minimized-video-preview" @click.stop="expandToOverlay">
+      <!-- Mini Video Preview (when someone is sharing video/screen) - hide if PIP is active -->
+      <div v-if="activeVideoUser && !voiceStore.pipActive" class="minimized-video-preview" @click.stop="expandToOverlay">
         <video
           ref="minimizedVideoRef"
           autoplay
@@ -199,6 +199,10 @@
       @close="handleOverlayClosed"
       @minimize="collapseToMinimized"
     />
+    
+    <!-- Screenshare PIP - Always rendered when connected, regardless of dock mode -->
+    <!-- This allows PIP to work even when dock is minimized -->
+    <ScreensharePIP />
   </div>
 </template>
 <script setup lang="ts">
@@ -215,6 +219,7 @@ const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOve
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
+const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
 
 // =============================================================================
 // STORE INSTANCES
@@ -338,16 +343,10 @@ const handleOverlayClosed = () => {
 
 const activatePIPForActiveVideo = () => {
   if (activeVideoUser.value) {
-    // If we're in minimized mode, expand to dock first for better UX
-    if (currentMode.value === 'minimized') {
-      currentMode.value = 'dock';
-    }
-    // Small delay to let the dock mode render, then activate PIP
-    setTimeout(() => {
-      if (activeVideoUser.value) {
-        voiceStore.togglePIP(activeVideoUser.value.userId, 'fixed');
-      }
-    }, 100);
+    // Activate PIP directly - works from any mode (minimized, dock, or overlay)
+    // The floating video will appear while keeping current dock state
+    // Use 'draggable' mode so users can move and resize it
+    voiceStore.togglePIP(activeVideoUser.value.userId, 'draggable');
   }
 };
 
@@ -475,14 +474,14 @@ onMounted(() => {
   z-index: 1000;
 }
 
-/* Normal dock mode - centered */
+/* Compact Mode - floating bar centered at bottom */
 .unified-voice-dock.dock-mode {
   bottom: 0px;
   left: 50%;
   transform: translateX(-50%);
 }
 
-/* Minimized dock mode - above UserProfileComponent in left sidebar */
+/* Minimized Mode - tiny dock in channel sidebar */
 .unified-voice-dock.minimized-mode {
   bottom: 72px; /* Height of UserProfileComponent */
   left: 72px;   /* Offset from ServerSidebar (72px width) */
@@ -491,7 +490,7 @@ onMounted(() => {
   z-index: 10;  /* Above UserProfileComponent but below global overlays */
 }
 
-/* Overlay mode - full screen */
+/* Overlay Mode - full screen view with all participants */
 .unified-voice-dock.overlay-mode {
   top: 0;
   left: 0;
@@ -501,7 +500,7 @@ onMounted(() => {
 }
 
 /* =============================================================================
-   DOCK MODE (Default expanded view)
+   COMPACT MODE (Floating bar at bottom)
    ============================================================================= */
 
 .dock-container {
@@ -708,7 +707,7 @@ onMounted(() => {
 }
 
 /* =============================================================================
-   MINIMIZED MODE
+   MINIMIZED MODE (Tiny dock in channel sidebar)
    ============================================================================= */
 
 .minimized-container {

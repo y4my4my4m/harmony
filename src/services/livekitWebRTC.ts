@@ -753,7 +753,13 @@ export class LiveKitWebRTCService {
         }
         
         await this.room.localParticipant.setScreenShareEnabled(true, {
-          audio: true, // Include system audio if available
+          audio: {
+            // IMPORTANT: Disable all audio processing for screenshare audio
+            // We want RAW audio from the shared tab/window - no normalization
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false, // This is what causes "auto-volume" behavior
+          },
           resolution: VideoPresets.h1080.resolution,
           contentHint: 'detail',
           systemAudio: 'include', // Explicitly request system audio
@@ -1343,6 +1349,8 @@ export class LiveKitWebRTCService {
       
       if (userId) {
         this.allUserStates.delete(userId);
+        // Also clean up screenshare audio by userId key
+        this.remoteScreenShareAudioElements.delete(userId);
         this.emit('user-left', { userId });
       }
       
@@ -1393,17 +1401,24 @@ export class LiveKitWebRTCService {
               } catch (e) { /* ignore cleanup errors */ }
             }
             
-            // Store new screenshare audio element
+            // Store new screenshare audio element by BOTH identity AND resolved userId
+            // This ensures hasScreenShareAudio() works with either lookup key
             this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
+            if (userId && userId !== participant.identity) {
+              this.remoteScreenShareAudioElements.set(userId, audioElement);
+              debug.log('🔊 [LiveKit] Also storing screenshare audio by userId:', userId);
+            }
             
             // IMPORTANT: Screenshare audio should bypass ALL audio processing
             // No echo cancellation, no noise suppression, no auto gain control
             // This gives us raw, unprocessed audio from the shared screen/tab
-            // Set audio element attributes to ensure clean playback
             audioElement.setAttribute('data-screenshare-audio', 'true');
             
             // Apply saved screenshare volume or default to 100%
-            const savedVolume = this.userScreenShareVolumes.get(participant.identity) ?? 100;
+            // Check both identity and userId for saved volume
+            const savedVolume = this.userScreenShareVolumes.get(participant.identity) 
+              ?? (userId ? this.userScreenShareVolumes.get(userId) : null)
+              ?? 100;
             audioElement.volume = savedVolume / 100;
             
             debug.log('🔊 [LiveKit] Screenshare audio attached (raw, no processing) for:', lookupId, 'volume:', savedVolume);
@@ -1469,9 +1484,12 @@ export class LiveKitWebRTCService {
         // Let LiveKit handle the detach
         track.detach();
         
-        // Clean up our map reference
+        // Clean up our map reference (both identity and userId keys)
         if (isScreenShareAudio) {
           this.remoteScreenShareAudioElements.delete(participant.identity);
+          if (userId && userId !== participant.identity) {
+            this.remoteScreenShareAudioElements.delete(userId);
+          }
           debug.log('🔊 [LiveKit] Screenshare audio detached for:', lookupId);
         } else {
           this.remoteMicAudioElements.delete(participant.identity);

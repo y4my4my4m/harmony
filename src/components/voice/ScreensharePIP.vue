@@ -166,8 +166,8 @@ const onResize = (event: MouseEvent) => {
   const deltaY = event.clientY - resizeStart.value.y;
   
   size.value = {
-    width: Math.max(300, Math.min(800, resizeStart.value.width + deltaX)),
-    height: Math.max(200, Math.min(600, resizeStart.value.height + deltaY)),
+    width: Math.max(300, Math.min(1920, resizeStart.value.width + deltaX)),
+    height: Math.max(200, Math.min(1080, resizeStart.value.height + deltaY)),
   };
 };
 

@@ -13,6 +13,12 @@
       <div class="voice-container" :class="[voiceStore.layoutMode, { 'maximized': voiceStore.viewMode === 'maximized', 'fullscreen-mode': voiceStore.viewMode === 'fullscreen' }]">
         <!-- Header -->
         <div class="voice-header">
+          <!-- Connection Mode Indicator -->
+          <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
+            <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
+            <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
+          </div>
+          
           <div class="channel-info">
             <div class="channel-icon">
               <Icon name="volume" />
@@ -252,9 +258,6 @@
       :is-under-overlay="true"
     />
 
-    <!-- Screenshare PIP -->
-    <ScreensharePIP />
-    
     <!-- Full Window Context Menu -->
     <div 
       v-if="fullWindowMenuVisible"
@@ -285,7 +288,6 @@ import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
-import ScreensharePIP from './ScreensharePIP.vue';
 import DeviceSelector from './DeviceSelector.vue';
 import Icon from '@/components/common/Icon.vue';
 
@@ -592,6 +594,44 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(145deg, #36393f, #2f3136);
+  gap: 12px;
+}
+
+/* Connection Mode Indicator */
+.connection-mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.connection-mode-indicator.livekit {
+  background: rgba(87, 242, 135, 0.15);
+  color: #57f287;
+  border: 1px solid rgba(87, 242, 135, 0.3);
+}
+
+.connection-mode-indicator.p2p {
+  background: rgba(88, 101, 242, 0.15);
+  color: #5865f2;
+  border: 1px solid rgba(88, 101, 242, 0.3);
+}
+
+.connection-mode-indicator.unknown {
+  background: rgba(255, 255, 255, 0.1);
+  color: #b9bbbe;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.connection-mode-indicator :deep(svg) {
+  width: 12px;
+  height: 12px;
 }
 
 .channel-info {
