@@ -8,6 +8,8 @@
         :isDM="isDM"
         :channelId="channelId"
         :conversationId="conversationId"
+        :channelName="channelName"
+        :dmUsername="dmUsername"
         :loadMoreMessages="() => $emit('load-more-messages')"
         @update:isAtBottom="$emit('update:is-at-bottom', $event)" 
         @sendMessage="(messageParts, replyId) => $emit('send-message', messageParts, replyId)"
@@ -105,6 +107,8 @@ interface Props {
   isDM?: boolean;
   channelId?: string;
   conversationId?: string;
+  channelName?: string;
+  dmUsername?: string;
   
   // ActivityPub mode props
   viewType?: ViewType;

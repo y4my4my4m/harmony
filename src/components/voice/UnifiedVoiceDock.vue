@@ -1,6 +1,6 @@
 <template>
   <!-- Unified Voice Dock - Combines best of both old and new systems -->
-  <div v-if="voiceStore.isConnected" class="unified-voice-dock" :class="dockMode">
+  <div v-if="voiceStore.isConnectedOrJoining" class="unified-voice-dock" :class="[dockMode, { 'is-connecting': voiceStore.isConnecting }]">
     <!-- Compact Mode (floating bar at bottom) -->
     <div v-if="currentMode === 'dock'" class="dock-container">
       <!-- User Info -->
@@ -274,7 +274,8 @@ const dockVideoRef = ref<HTMLVideoElement | null>(null);
 // COMPUTED PROPERTIES
 // =============================================================================
 const channelName = computed(() => {
-  return voiceStore.currentChannelName || 'Voice Channel';
+  // Use effective channel name which includes optimistic state
+  return voiceStore.effectiveChannelName || 'Voice Channel';
 });
 
 const currentUserId = computed(() => authStore.session?.user?.id);
@@ -630,6 +631,7 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 65px;
 }
 
 /* Voice Controls */
@@ -1062,5 +1064,26 @@ onMounted(() => {
   .action-controls {
     justify-content: center;
   }
+}
+
+/* Connecting state - subtle pulse animation */
+.unified-voice-dock.is-connecting {
+  animation: connecting-pulse 1.5s ease-in-out infinite;
+}
+
+.unified-voice-dock.is-connecting .channel-name::after {
+  content: '...';
+  animation: connecting-dots 1.5s ease-in-out infinite;
+}
+
+@keyframes connecting-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes connecting-dots {
+  0% { content: '.'; }
+  33% { content: '..'; }
+  66% { content: '...'; }
 }
 </style>

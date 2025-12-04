@@ -338,7 +338,7 @@
     }
   },
   "message": {
-    "typeMessage": "メッセージを入力...",
+    "typeMessage": "{to}にメッセージを送信",
     "addComment": "コメントを追加...",
     "editMessage": "メッセージを編集",
     "deleteMessage": "メッセージを削除",

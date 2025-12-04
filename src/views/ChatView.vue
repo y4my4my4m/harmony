@@ -7,6 +7,7 @@
     :is-d-m="isDM"
     :channel-id="props.isDM ? undefined : (route.params.channelId as string)"
     :conversation-id="props.isDM ? (route.params.conversationId as string) : undefined"
+    :channel-name="currentChannelName"
     view-type="chat"
     current-view="chat"
     @load-more-messages="fetchMoreMessages"
@@ -60,6 +61,12 @@ const isLoading = ref(false)
 // Computed
 const chatMessages = computed(() => {
   return props.isDM ? dmStore.currentDMMessages : chatStore.messages
+})
+
+// Channel name for placeholder - use the prop passed from ChatLayout
+const currentChannelName = computed(() => {
+  if (props.isDM) return undefined
+  return props.currentChannel?.name
 })
 
 // Load messages when route changes

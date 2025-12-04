@@ -521,6 +521,7 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   padding: 8px 10px;
   font-size: 0.85rem;
+  width: 100%;
   color: var(--text-secondary);
   outline: none;
 }

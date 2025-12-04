@@ -29,7 +29,7 @@
         <RichTextEditor
           ref="richEditorRef"
           :model-value="modelValue"
-          :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage')"
+          :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget })"
           @update:model-value="(value: string) => $emit('update:modelValue', value)"
           @input="handleEditorInput"
           @keydown="handleKeyDown"
@@ -97,6 +97,8 @@ interface Props {
   modelValue?: string;
   replyMessageId?: string;
   replyUserDisplayName?: string;
+  channelName?: string;
+  username?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -105,6 +107,13 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   replyMessageId: '',
   replyUserDisplayName: '',
+});
+
+// Dynamic placeholder target (channel or DM user)
+const placeholderTarget = computed(() => {
+  if (props.username) return `@${props.username}`;
+  if (props.channelName) return `#${props.channelName}`;
+  return '';
 });
 
 interface Emits {

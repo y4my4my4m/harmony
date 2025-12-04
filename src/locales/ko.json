@@ -338,7 +338,7 @@
     }
   },
   "message": {
-    "typeMessage": "메시지 입력...",
+    "typeMessage": "메시지 {to}",
     "addComment": "댓글 추가...",
     "editMessage": "메시지 편집",
     "deleteMessage": "메시지 삭제",

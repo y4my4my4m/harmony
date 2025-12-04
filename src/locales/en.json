@@ -293,7 +293,7 @@
     }
   },
   "message": {
-    "typeMessage": "Type a message...",
+    "typeMessage": "Message {to}",
     "addComment": "Add a comment...",
     "editMessage": "Edit message",
     "deleteMessage": "Delete Message",

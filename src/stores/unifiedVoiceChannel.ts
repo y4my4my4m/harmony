@@ -50,6 +50,11 @@ interface VoiceChannelState {
   // Connection state to prevent double-joining
   isConnecting: boolean;
   
+  // Optimistic UI state - show UI immediately while connecting
+  optimisticChannelId: string | null;
+  optimisticServerId: string | null;
+  optimisticChannelName: string | null;
+  
   // Users and their states
   allUsers: UserMediaState[];
   localState: UserMediaState;
@@ -101,6 +106,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     currentChannelName: null,
     sessionStartTime: null,
     callStartTime: null,
+    
+    // Optimistic UI state
+    optimisticChannelId: null,
+    optimisticServerId: null,
+    optimisticChannelName: null,
     
     // Federation state
     isFederatedChannel: false,
@@ -203,6 +213,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return loudest.audioLevel > 20 ? loudest : null;
     },
 
+    // Optimistic connection state - true if connected or optimistically joining
+    isConnectedOrJoining: (state) => {
+      return state.isConnected || state.optimisticChannelId !== null;
+    },
+    
+    // Effective channel ID (optimistic or real)
+    effectiveChannelId: (state) => {
+      return state.currentChannelId || state.optimisticChannelId;
+    },
+    
+    // Effective server ID (optimistic or real)
+    effectiveServerId: (state) => {
+      return state.currentServerId || state.optimisticServerId;
+    },
+    
+    // Effective channel name (optimistic or real)
+    effectiveChannelName: (state) => {
+      return state.currentChannelName || state.optimisticChannelName;
+    },
+
     // Connection stats
     connectionStats: (state) => {
       const total = state.allUsers.length + 1; // +1 for self
@@ -266,9 +296,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async joinVoiceChannel(channelId: string, serverId: string): Promise<boolean> {
       try {
         const authStore = useAuthStore();
-        const serverUsersStore = useServerUsersStore();
         const serverChannelStore = useServerChannelStore();
-        const themeStore = useThemeStore();
 
         if (!authStore.session?.user) {
           throw new Error('User not authenticated');
@@ -288,6 +316,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return true;
         }
         
+        // Set optimistic state IMMEDIATELY for instant UI feedback
+        // This happens before any async operations
+        const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+        this.optimisticChannelId = channelId;
+        this.optimisticServerId = serverId;
+        this.optimisticChannelName = channel?.name || 'Voice Channel';
+        this.isConnecting = true;
+        
+        debug.log('🎯 [Optimistic] Voice dock should be visible now for:', channelId);
+        
         // If already in a different voice channel, leave it first
         if (this.isConnected && this.currentChannelId) {
           debug.log('⚠️ Already in a voice channel, leaving first...');
@@ -303,9 +341,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             throw new Error('You are already in a voice channel in another tab');
           }
         }
-        
-        // Mark as connecting to prevent double-join
-        this.isConnecting = true;
         
         debug.log('🎯 Joining voice channel:', channelId, 'on server:', serverId);
         
@@ -323,6 +358,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       } catch (error) {
         debug.error('❌ Failed to join voice channel:', error);
         this.isConnecting = false; // Reset on failure
+        // Clear optimistic state on failure
+        this.optimisticChannelId = null;
+        this.optimisticServerId = null;
+        this.optimisticChannelName = null;
         return false;
       }
     },
@@ -333,7 +372,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async joinLocalVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
-      const themeStore = useThemeStore();
       
       // Update server presence first (isLocalServer = true for local channels)
       const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId, true);
@@ -367,6 +405,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.isConnected = true;
       this.isConnecting = false; // Connection attempt complete
       this.sessionStartTime = new Date(); // Track when user joined
+      
+      // Clear optimistic state - real connection is established
+      this.optimisticChannelId = null;
+      this.optimisticServerId = null;
+      this.optimisticChannelName = null;
       
       // Get call start time from serverUsersStore (synced across all users)
       const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
@@ -415,8 +458,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // by event handlers (user-joined, user-state-changed) that detected
       // existing video/screenshare. Let the event handlers control this.
       
-      // Play join sound
-      themeStore.testAudio('voice_connect');
+      // Note: Join sound is now played immediately in ChannelSidebar for optimistic UX
+      // Don't play it again here to avoid duplicate sounds
       
       return true;
     },
@@ -429,7 +472,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async joinFederatedVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
-      const themeStore = useThemeStore();
       
       return new Promise((resolve, reject) => {
         // Set up listener for federated voice token
@@ -474,6 +516,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               this.sessionStartTime = new Date();
               this.callStartTime = new Date();
               
+              // Clear optimistic state - real connection is established
+              this.optimisticChannelId = null;
+              this.optimisticServerId = null;
+              this.optimisticChannelName = null;
+              
               // Save voice channel state
               this.saveVoiceChannelState();
               this.startVoiceSessionHeartbeat();
@@ -485,8 +532,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               // Initialize Push-to-Talk
               this.setupPushToTalk();
               
-              // Play join sound
-              themeStore.testAudio('voice_connect');
+              // Note: Join sound is now played immediately in ChannelSidebar for optimistic UX
+              // Don't play it again here to avoid duplicate sounds
               
               resolve(true);
             } catch (error) {
@@ -542,6 +589,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             serverUsersStore.joinVoiceChannel(serverId, channelId, userId, false);
           } catch (error) {
             this.isConnecting = false; // Reset on error
+            // Clear optimistic state on failure
+            this.optimisticChannelId = null;
+            this.optimisticServerId = null;
+            this.optimisticChannelName = null;
             this.cleanupFederatedSubscription();
             reject(error);
           }
@@ -552,6 +603,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           debug.error('❌ Timeout waiting for federated voice token');
           this.pendingFederatedJoin = null;
           this.isConnecting = false; // Reset on timeout
+          // Clear optimistic state on timeout
+          this.optimisticChannelId = null;
+          this.optimisticServerId = null;
+          this.optimisticChannelName = null;
           this.cleanupFederatedSubscription();
           serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
           reject(new Error('Timeout waiting for voice connection to remote server'));

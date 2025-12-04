@@ -30,6 +30,8 @@
       :emojiListOpen="emojiListOpen"
       :reply-message-id="replyToMessageId"
       :reply-user-display-name="replyToUserDisplayName"
+      :channel-name="effectiveChannelName"
+      :username="effectiveDMUsername"
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
@@ -89,6 +91,8 @@
     isDM?: boolean;
     channelId?: string;
     conversationId?: string;
+    channelName?: string;
+    dmUsername?: string;
   }
 
   const props = withDefaults(defineProps<Props>(), {
@@ -132,6 +136,30 @@
   
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
+      
+      // Computed channel name - use prop or fallback to store lookup
+      const effectiveChannelName = computed(() => {
+        if (props.channelName) return props.channelName;
+        // Fallback: try to get from store
+        if (!props.isDM && props.channelId) {
+          const channel = serverChannelStore.channels.find(ch => ch.id === props.channelId);
+          return channel?.name;
+        }
+        return undefined;
+      });
+      
+      // Computed DM username - use prop or fallback to store lookup
+      const effectiveDMUsername = computed(() => {
+        if (props.dmUsername) return props.dmUsername;
+        // Fallback: try to get from store
+        if (props.isDM) {
+          const conversation = dmStore.getCurrentConversation;
+          const otherParticipant = conversation?.other_participants?.[0];
+          return otherParticipant?.display_name || otherParticipant?.username;
+        }
+        return undefined;
+      });
+      
       
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {

@@ -588,11 +588,12 @@ const selectChannel = (channelId: string) => {
 
 // Handler for voice channel clicks - Discord-like behavior
 const handleVoiceChannelClick = async (channelId: string) => {
+  // If already in this voice channel, do nothing (clicking again doesn't disconnect)
   if (isUserInVoiceChannel(channelId)) {
-    await leaveVoiceChannel(channelId);
-  } else {
-    await joinVoiceChannel(channelId);
+    return;
   }
+  // Join the voice channel (if in another channel, joinVoiceChannel handles leaving first)
+  await joinVoiceChannel(channelId);
 };
 
 // Open voice channel text chat
@@ -619,7 +620,18 @@ const handleChannelCreated = (channel: Channel) => {
   serverChannelStore.fetchChannels(props.currentServer.id);
 };
 
-const isUserInVoiceChannel = (channelId: string): boolean => voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
+// Check if user is in voice channel (or optimistically joining it)
+const isUserInVoiceChannel = (channelId: string): boolean => {
+  // Check real connection
+  if (voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId) {
+    return true;
+  }
+  // Check optimistic state (joining in progress)
+  if (voiceChannelStore.optimisticChannelId === channelId) {
+    return true;
+  }
+  return false;
+};
 const getUsersInVoiceChannel = (channelId: string): string[] => serverUsersStore.getUsersInVoiceChannel(channelId);
 const getChannelCallStartTime = (channelId: string): Date | null => serverUsersStore.getCallStartTime(channelId);
 
@@ -640,10 +652,17 @@ const getVoiceSessionStartTime = (channelId: string) => {
 };
 
 const joinVoiceChannel = async (channelId: string) => {
-  if (await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id)) {
-    themeStore.testAudio('voice_connect');
-    // Haptic feedback for voice connect
-    triggerVoice('success');
+  // Play sound and haptic immediately for optimistic UX (don't wait for connection)
+  themeStore.testAudio('voice_connect');
+  triggerVoice('success');
+  
+  // Then attempt the actual connection
+  const success = await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id);
+  
+  if (!success) {
+    // Connection failed - play disconnect sound to indicate failure
+    themeStore.testAudio('voice_disconnect');
+    triggerVoice('warning');
   }
 };
 

@@ -1,8 +1,9 @@
 <template>
   <div class="persistent-voice">
     <!-- Unified Voice Dock - handles all modes (dock, minimized, overlay) -->
+    <!-- Uses isConnectedOrJoining for optimistic UI - shows dock immediately on click -->
     <UnifiedVoiceDock 
-      v-if="isConnected"
+      v-if="isConnectedOrJoining"
     />
     
   </div>
@@ -20,9 +21,10 @@ export default defineComponent({
   },
   setup() {
     const voiceChannelStore = useUnifiedVoiceChannelStore();
-    const isConnected = computed(() => voiceChannelStore.isConnected);
+    // Use isConnectedOrJoining for optimistic UI - shows dock immediately when joining
+    const isConnectedOrJoining = computed(() => voiceChannelStore.isConnectedOrJoining);
     return {
-      isConnected,
+      isConnectedOrJoining,
     };
   }
 });
