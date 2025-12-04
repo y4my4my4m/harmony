@@ -144,3 +144,4 @@ $$;
 COMMENT ON FUNCTION public.trigger_queue_channel_message_federation() IS 
 'Marks channel messages for federation without immediately queueing. Allows hybrid approach where DatabaseListener handles immediate delivery and pg-boss sweep catches missed items.';
 
+
