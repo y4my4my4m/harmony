@@ -265,8 +265,10 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
-import { usePushToTalk, type InputMode } from '@/composables/usePushToTalk';
+import { useKeybinds, type KeybindModifiers } from '@/composables/useKeybinds';
 import Icon from '@/components/common/Icon.vue';
+
+type InputMode = 'voice_activity' | 'push_to_talk';
 
 interface Props {
   loading?: boolean;
@@ -278,25 +280,17 @@ const emit = defineEmits<{
   'update-voice-settings': [settings: any];
 }>();
 
-// Push-to-Talk composable
-const { 
-  inputMode: pttInputMode,
-  pttKeyDisplay: pttKeyDisplayRef,
-  releaseDelay: pttReleaseDelay,
-  isRecordingKeybind: pttIsRecordingKeybind,
-  setInputMode: pttSetInputMode,
-  startRecordingKeybind,
-  cancelRecordingKeybind,
-  recordKeybind,
-  setReleaseDelay: pttSetReleaseDelay,
-} = usePushToTalk();
+// Centralized keybind system
+const keybinds = useKeybinds();
 
-// Local refs for PTT settings
-const inputMode = computed(() => pttInputMode.value);
-const pttKeyDisplay = computed(() => pttKeyDisplayRef.value);
-const releaseDelay = computed(() => pttReleaseDelay.value);
-const isRecordingKeybind = computed(() => pttIsRecordingKeybind.value);
-const localReleaseDelay = ref(pttReleaseDelay.value);
+// Local state for keybind recording
+const isRecordingKeybind = ref(false);
+
+// Computed refs for PTT settings
+const inputMode = keybinds.inputMode;
+const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
+const releaseDelay = keybinds.releaseDelay;
+const localReleaseDelay = ref(keybinds.releaseDelay.value);
 
 // Device lists
 const inputDevices = ref<MediaDeviceInfo[]>([]);
@@ -327,32 +321,81 @@ const previewVideo = ref<HTMLVideoElement | null>(null);
 
 // PTT Functions
 const setInputMode = (mode: InputMode) => {
-  pttSetInputMode(mode);
+  keybinds.setInputMode(mode);
   emit('update-voice-settings', { type: 'inputMode', value: mode });
 };
 
 const handleKeybindClick = () => {
   if (isRecordingKeybind.value) {
-    cancelRecordingKeybind();
+    isRecordingKeybind.value = false;
   } else {
-    startRecordingKeybind();
+    isRecordingKeybind.value = true;
   }
 };
 
 const handleKeybindKeydown = (event: KeyboardEvent) => {
   if (isRecordingKeybind.value) {
     event.preventDefault();
+    
+    // Ignore modifier-only keys
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
+      return;
+    }
+    
+    // Escape cancels
+    if (event.code === 'Escape') {
+      isRecordingKeybind.value = false;
+      return;
+    }
+    
+    // Record the keybind
+    recordKey(event.code, {
+      ctrl: event.ctrlKey,
+      alt: event.altKey,
+      shift: event.shiftKey,
+      meta: event.metaKey,
+    });
     event.stopPropagation();
-    recordKeybind(event);
   }
 };
 
+// Handle mouse button recording (for PTT on mouse buttons)
+const handleKeybindMousedown = (event: MouseEvent) => {
+  if (!isRecordingKeybind.value) return;
+  
+  // Only capture extra mouse buttons (3, 4, 5+) by default
+  // Left (0), Middle (1), Right (2) are used for UI interaction
+  if (event.button < 3) {
+    // Allow capturing if user holds a modifier key
+    if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
+      return;
+    }
+  }
+  
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const mouseKey = `Mouse${event.button}`;
+  recordKey(mouseKey, {
+    ctrl: event.ctrlKey,
+    alt: event.altKey,
+    shift: event.shiftKey,
+    meta: event.metaKey,
+  });
+};
+
+// Common function to record a key/mouse button
+const recordKey = (key: string, modifiers: KeybindModifiers) => {
+  keybinds.setKeybind('push-to-talk', key, modifiers);
+  isRecordingKeybind.value = false;
+};
+
 const updateReleaseDelay = () => {
-  pttSetReleaseDelay(localReleaseDelay.value);
+  keybinds.setReleaseDelay(localReleaseDelay.value);
 };
 
 // Sync local release delay with store
-watch(pttReleaseDelay, (newValue) => {
+watch(releaseDelay, (newValue) => {
   localReleaseDelay.value = newValue;
 }, { immediate: true });
 
@@ -591,13 +634,15 @@ onMounted(() => {
   getDevices();
   loadStoredSettings();
   navigator.mediaDevices.addEventListener('devicechange', getDevices);
-  // Add keybind recording listener
+  // Add keybind recording listeners (keyboard + mouse)
   window.addEventListener('keydown', handleKeybindKeydown);
+  window.addEventListener('mousedown', handleKeybindMousedown, { capture: true });
 });
 
 onUnmounted(() => {
   navigator.mediaDevices.removeEventListener('devicechange', getDevices);
   window.removeEventListener('keydown', handleKeybindKeydown);
+  window.removeEventListener('mousedown', handleKeybindMousedown, { capture: true });
   if (previewStream.value) {
     previewStream.value.getTracks().forEach(track => track.stop());
   }

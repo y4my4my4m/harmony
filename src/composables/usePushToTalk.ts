@@ -1,20 +1,17 @@
 /**
  * Push-to-Talk Composable
  * 
- * Manages global Push-to-Talk state and keybindings.
- * Works with both P2P and SFU voice connections.
+ * This is a backward-compatible wrapper around the unified useKeybinds system.
+ * New code should use useKeybinds directly.
  * 
- * Usage:
- * - When PTT mode is enabled, user must hold the configured key to talk
- * - When Voice Activity mode is enabled (default), audio is always transmitted
- * - The PTT key can be customized in settings
+ * @deprecated Use useKeybinds for new implementations
  */
 
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { debug } from '@/utils/debug'
+import { computed, ref } from 'vue'
+import { useKeybinds, type KeybindModifiers } from './useKeybinds'
 
 // =============================================================================
-// TYPES
+// TYPES (Re-exported for backward compatibility)
 // =============================================================================
 
 export type InputMode = 'voice_activity' | 'push_to_talk'
@@ -24,7 +21,7 @@ export interface PTTSettings {
   pttKey: string
   pttKeyDisplay: string
   pttModifiers: PTTModifiers
-  releaseDelay: number // ms to wait before muting after key release
+  releaseDelay: number
 }
 
 export interface PTTModifiers {
@@ -35,276 +32,51 @@ export interface PTTModifiers {
 }
 
 // =============================================================================
-// CONSTANTS
-// =============================================================================
-
-const DEFAULT_PTT_KEY = 'KeyV'
-const DEFAULT_PTT_KEY_DISPLAY = 'V'
-const DEFAULT_RELEASE_DELAY = 200 // 200ms delay to avoid cutting off words
-const STORAGE_KEY = 'harmony-ptt-settings'
-
-// =============================================================================
-// SHARED STATE (singleton pattern)
-// =============================================================================
-
-const inputMode = ref<InputMode>('voice_activity')
-const pttKey = ref<string>(DEFAULT_PTT_KEY)
-const pttKeyDisplay = ref<string>(DEFAULT_PTT_KEY_DISPLAY)
-const pttModifiers = ref<PTTModifiers>({ ctrl: false, alt: false, shift: false, meta: false })
-const releaseDelay = ref<number>(DEFAULT_RELEASE_DELAY)
-const isPTTActive = ref<boolean>(false) // Is PTT key currently held?
-const isRecordingKeybind = ref<boolean>(false) // Is user recording a new keybind?
-const isInitialized = ref<boolean>(false)
-
-// Internal state for debouncing
-let releaseTimer: ReturnType<typeof setTimeout> | null = null
-let onMuteCallback: ((muted: boolean) => void) | null = null
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-/**
- * Convert a KeyboardEvent to a display-friendly string
- */
-function keyEventToDisplay(event: KeyboardEvent): string {
-  const parts: string[] = []
-  
-  if (event.ctrlKey && event.code !== 'ControlLeft' && event.code !== 'ControlRight') {
-    parts.push('Ctrl')
-  }
-  if (event.altKey && event.code !== 'AltLeft' && event.code !== 'AltRight') {
-    parts.push('Alt')
-  }
-  if (event.shiftKey && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') {
-    parts.push('Shift')
-  }
-  if (event.metaKey && event.code !== 'MetaLeft' && event.code !== 'MetaRight') {
-    parts.push('Meta')
-  }
-  
-  // Get the key name
-  let keyName = event.code
-  
-  // Make common keys more readable
-  const keyMappings: Record<string, string> = {
-    'Space': 'Space',
-    'Backquote': '`',
-    'Minus': '-',
-    'Equal': '=',
-    'BracketLeft': '[',
-    'BracketRight': ']',
-    'Backslash': '\\',
-    'Semicolon': ';',
-    'Quote': "'",
-    'Comma': ',',
-    'Period': '.',
-    'Slash': '/',
-  }
-  
-  if (keyMappings[keyName]) {
-    keyName = keyMappings[keyName]
-  } else if (keyName.startsWith('Key')) {
-    keyName = keyName.slice(3) // Remove "Key" prefix
-  } else if (keyName.startsWith('Digit')) {
-    keyName = keyName.slice(5) // Remove "Digit" prefix
-  } else if (keyName.startsWith('Numpad')) {
-    keyName = 'Num' + keyName.slice(6) // Replace "Numpad" with "Num"
-  } else if (keyName.includes('Left') || keyName.includes('Right')) {
-    // For modifier keys like ControlLeft, just use the base name
-    keyName = keyName.replace('Left', '').replace('Right', '')
-  }
-  
-  parts.push(keyName)
-  
-  return parts.join(' + ')
-}
-
-/**
- * Load PTT settings from localStorage
- */
-function loadSettings(): void {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const settings: PTTSettings = JSON.parse(stored)
-      inputMode.value = settings.inputMode || 'voice_activity'
-      pttKey.value = settings.pttKey || DEFAULT_PTT_KEY
-      pttKeyDisplay.value = settings.pttKeyDisplay || DEFAULT_PTT_KEY_DISPLAY
-      pttModifiers.value = settings.pttModifiers || { ctrl: false, alt: false, shift: false, meta: false }
-      releaseDelay.value = settings.releaseDelay ?? DEFAULT_RELEASE_DELAY
-      debug.log('🎤 [PTT] Loaded settings:', settings)
-    }
-    isInitialized.value = true
-  } catch (error) {
-    debug.warn('⚠️ [PTT] Failed to load settings:', error)
-    isInitialized.value = true
-  }
-}
-
-/**
- * Save PTT settings to localStorage
- */
-function saveSettings(): void {
-  try {
-    const settings: PTTSettings = {
-      inputMode: inputMode.value,
-      pttKey: pttKey.value,
-      pttKeyDisplay: pttKeyDisplay.value,
-      pttModifiers: pttModifiers.value,
-      releaseDelay: releaseDelay.value,
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-    debug.log('💾 [PTT] Saved settings:', settings)
-  } catch (error) {
-    debug.warn('⚠️ [PTT] Failed to save settings:', error)
-  }
-}
-
-// =============================================================================
-// KEY EVENT HANDLERS
-// =============================================================================
-
-/**
- * Check if a keyboard event matches the PTT keybind (including modifiers)
- */
-function matchesPTTKey(event: KeyboardEvent): boolean {
-  if (event.code !== pttKey.value) return false
-  
-  const mods = pttModifiers.value
-  return (
-    event.ctrlKey === mods.ctrl &&
-    event.altKey === mods.alt &&
-    event.shiftKey === mods.shift &&
-    event.metaKey === mods.meta
-  )
-}
-
-/**
- * Check if the base key (without modifiers) is part of the PTT keybind
- * Used by other components to know if they should skip their shortcuts
- */
-function isPTTKeyCode(code: string): boolean {
-  return pttKey.value === code
-}
-
-function handleKeyDown(event: KeyboardEvent): void {
-  // If recording a new keybind, don't process as PTT
-  if (isRecordingKeybind.value) {
-    return
-  }
-  
-  // Only process in PTT mode
-  if (inputMode.value !== 'push_to_talk') {
-    return
-  }
-  
-  // Ignore if typing in an input field
-  const target = event.target as HTMLElement
-  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-    return
-  }
-  
-  // Check if it's our PTT key (with correct modifiers)
-  if (matchesPTTKey(event)) {
-    event.preventDefault()
-    event.stopPropagation()
-    
-    // Clear any pending release timer
-    if (releaseTimer) {
-      clearTimeout(releaseTimer)
-      releaseTimer = null
-    }
-    
-    // Activate PTT (unmute)
-    if (!isPTTActive.value) {
-      isPTTActive.value = true
-      debug.log('🎤 [PTT] Key pressed - unmuting')
-      onMuteCallback?.(false) // false = unmuted
-    }
-  }
-}
-
-function handleKeyUp(event: KeyboardEvent): void {
-  // If recording a new keybind, don't process as PTT
-  if (isRecordingKeybind.value) {
-    return
-  }
-  
-  // Only process in PTT mode
-  if (inputMode.value !== 'push_to_talk') {
-    return
-  }
-  
-  // Check if it's our PTT key (we check just the base key on release, 
-  // in case user releases modifier before the main key)
-  if (event.code === pttKey.value && isPTTActive.value) {
-    event.preventDefault()
-    event.stopPropagation()
-    
-    // Add a small delay before muting to avoid cutting off words
-    releaseTimer = setTimeout(() => {
-      isPTTActive.value = false
-      debug.log('🎤 [PTT] Key released - muting')
-      onMuteCallback?.(true) // true = muted
-      releaseTimer = null
-    }, releaseDelay.value)
-  }
-}
-
-// Handle window blur (user switches tabs/windows while holding PTT)
-function handleWindowBlur(): void {
-  if (isPTTActive.value && inputMode.value === 'push_to_talk') {
-    isPTTActive.value = false
-    debug.log('🎤 [PTT] Window lost focus - muting')
-    onMuteCallback?.(true)
-  }
-}
-
-// =============================================================================
 // COMPOSABLE
 // =============================================================================
 
+/**
+ * Push-to-Talk composable - wraps the unified keybind system
+ * @deprecated Use useKeybinds directly for new code
+ */
 export function usePushToTalk() {
-  // Initialize settings on first use
-  if (!isInitialized.value) {
-    loadSettings()
-  }
+  const keybinds = useKeybinds()
   
-  // Computed
-  const isPTTMode = computed(() => inputMode.value === 'push_to_talk')
-  const isVoiceActivityMode = computed(() => inputMode.value === 'voice_activity')
+  // Local state for keybind recording (not part of useKeybinds)
+  const isRecordingKeybind = ref(false)
   
-  // Should the mic be muted? (for voice store to check)
+  // Get the PTT keybind
+  const pttKeybind = computed(() => keybinds.getKeybind('push-to-talk'))
+  
+  // Computed values that map to the old API
+  const inputMode = keybinds.inputMode
+  const pttKey = computed(() => pttKeybind.value?.key ?? 'KeyV')
+  const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'))
+  const pttModifiers = computed<PTTModifiers>(() => pttKeybind.value?.modifiers ?? { ctrl: false, alt: false, shift: false, meta: false })
+  const releaseDelay = keybinds.releaseDelay
+  const isPTTActive = keybinds.isPTTActive
+  const isPTTMode = keybinds.isPTTMode
+  const isVoiceActivityMode = keybinds.isVoiceActivityMode
+  
+  // Should be muted when in PTT mode and key is not held
   const shouldBeMuted = computed(() => {
-    if (inputMode.value === 'voice_activity') {
-      return false // Voice activity mode: never auto-mute based on PTT
+    if (keybinds.inputMode.value === 'voice_activity') {
+      return false
     }
-    return !isPTTActive.value // PTT mode: muted unless key is held
+    return !keybinds.isPTTActive.value
   })
   
   // Actions
   const setInputMode = (mode: InputMode): void => {
-    inputMode.value = mode
-    saveSettings()
-    
-    // If switching to PTT mode, start muted
-    if (mode === 'push_to_talk') {
-      isPTTActive.value = false
-      onMuteCallback?.(true)
-    }
-    
-    debug.log('🎤 [PTT] Input mode changed to:', mode)
+    keybinds.setInputMode(mode)
   }
   
   const startRecordingKeybind = (): void => {
     isRecordingKeybind.value = true
-    debug.log('🎤 [PTT] Recording keybind...')
   }
   
   const cancelRecordingKeybind = (): void => {
     isRecordingKeybind.value = false
-    debug.log('🎤 [PTT] Cancelled keybind recording')
   }
   
   const recordKeybind = (event: KeyboardEvent): boolean => {
@@ -321,59 +93,33 @@ export function usePushToTalk() {
       return true
     }
     
-    // Record the key with modifiers
-    pttKey.value = event.code
-    pttKeyDisplay.value = keyEventToDisplay(event)
-    pttModifiers.value = {
+    // Record the keybind using the new system
+    const modifiers: KeybindModifiers = {
       ctrl: event.ctrlKey,
       alt: event.altKey,
       shift: event.shiftKey,
       meta: event.metaKey,
     }
-    isRecordingKeybind.value = false
-    saveSettings()
     
-    debug.log('🎤 [PTT] Recorded keybind:', pttKey.value, pttKeyDisplay.value, 'modifiers:', pttModifiers.value)
+    keybinds.setKeybind('push-to-talk', event.code, modifiers)
+    isRecordingKeybind.value = false
+    
     return true
   }
   
   const setReleaseDelay = (delay: number): void => {
-    releaseDelay.value = Math.max(0, Math.min(1000, delay)) // Clamp to 0-1000ms
-    saveSettings()
+    keybinds.setReleaseDelay(delay)
   }
   
   const resetToDefaults = (): void => {
-    pttKey.value = DEFAULT_PTT_KEY
-    pttKeyDisplay.value = DEFAULT_PTT_KEY_DISPLAY
-    pttModifiers.value = { ctrl: false, alt: false, shift: false, meta: false }
-    releaseDelay.value = DEFAULT_RELEASE_DELAY
-    saveSettings()
+    keybinds.resetKeybind('push-to-talk')
   }
   
   /**
    * Check if a keyboard event should be blocked because it conflicts with PTT
-   * Other components should call this to avoid handling shortcuts that are the PTT key
    */
   const shouldBlockShortcut = (event: KeyboardEvent): boolean => {
-    // Only block if PTT mode is enabled
-    if (inputMode.value !== 'push_to_talk') return false
-    
-    // Check if the key matches the PTT base key
-    if (event.code !== pttKey.value) return false
-    
-    // If PTT has modifiers, only block when those exact modifiers are pressed
-    const mods = pttModifiers.value
-    const hasModifiers = mods.ctrl || mods.alt || mods.shift || mods.meta
-    
-    if (hasModifiers) {
-      // Block only if exact modifier combination matches
-      return matchesPTTKey(event)
-    } else {
-      // PTT has no modifiers - block the base key regardless of modifiers pressed
-      // Actually, we should ONLY block if NO modifiers are pressed
-      // If user presses Alt+V and PTT is just V, we should let Alt+V through
-      return !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey
-    }
+    return keybinds.shouldBlockShortcut(event, [])
   }
   
   /**
@@ -381,50 +127,35 @@ export function usePushToTalk() {
    * This is called by the voice store to respond to PTT state changes
    */
   const registerMuteCallback = (callback: (muted: boolean) => void): void => {
-    onMuteCallback = callback
+    keybinds.registerHandler('push-to-talk', (isPressed: boolean) => {
+      callback(!isPressed) // isPressed=true means unmuted, so muted=false
+    })
   }
   
   /**
    * Unregister the mute callback
    */
   const unregisterMuteCallback = (): void => {
-    onMuteCallback = null
+    keybinds.unregisterHandler('push-to-talk')
   }
   
-  // Setup global key listeners
+  // Lifecycle - delegate to useKeybinds
   const setupListeners = (): void => {
-    if (typeof window === 'undefined') return
-    
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', handleWindowBlur)
-    
-    debug.log('🎤 [PTT] Global listeners registered')
+    keybinds.setupListeners()
   }
   
   const cleanupListeners = (): void => {
-    if (typeof window === 'undefined') return
-    
-    window.removeEventListener('keydown', handleKeyDown)
-    window.removeEventListener('keyup', handleKeyUp)
-    window.removeEventListener('blur', handleWindowBlur)
-    
-    if (releaseTimer) {
-      clearTimeout(releaseTimer)
-      releaseTimer = null
-    }
-    
-    debug.log('🎤 [PTT] Global listeners removed')
+    keybinds.cleanupListeners()
   }
   
   return {
     // State (readonly)
-    inputMode: computed(() => inputMode.value),
-    pttKey: computed(() => pttKey.value),
-    pttKeyDisplay: computed(() => pttKeyDisplay.value),
-    pttModifiers: computed(() => pttModifiers.value),
-    releaseDelay: computed(() => releaseDelay.value),
-    isPTTActive: computed(() => isPTTActive.value),
+    inputMode,
+    pttKey,
+    pttKeyDisplay,
+    pttModifiers,
+    releaseDelay,
+    isPTTActive,
     isRecordingKeybind: computed(() => isRecordingKeybind.value),
     
     // Computed
@@ -452,4 +183,3 @@ export function usePushToTalk() {
     cleanupListeners,
   }
 }
-

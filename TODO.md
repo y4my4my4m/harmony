@@ -222,6 +222,76 @@ Consider merging into a unified approach:
 
 ---
 
+## Voice/Video Chat E2EE (End-to-End Encryption)
+
+**Status:** ❌ NOT ACTIVE - Infrastructure exists but E2EE is not enabled
+
+### Current Situation
+
+Both P2P and LiveKit modes have E2EE infrastructure code, but it's **not actually enabled**:
+
+**P2P Mode (`unifiedWebRTC.ts`):**
+- ✅ `WebRTCEncryptionService` exists with AES-GCM frame encryption
+- ✅ Insertable Streams support (`encodedInsertableStreams` option)
+- ✅ Participant encryption add/remove hooks
+- ❌ `encryptionEnabled` flag is always `false`
+- ❌ No key exchange mechanism implemented
+- ❌ Uses "temporary keys" fallback (not real E2EE)
+
+**LiveKit Mode (`livekitWebRTC.ts`):**
+- ✅ `ExternalE2EEKeyProvider` imported from livekit-client
+- ✅ `enableE2EE()` / `disableE2EE()` methods exist
+- ❌ E2EE options commented out in Room creation
+- ❌ `enableE2EE()` is never called anywhere
+- ❌ No shared key generation/exchange
+
+### Current Security Level
+
+| Mode | Transport Security | Server Visibility | True E2EE |
+|------|-------------------|-------------------|-----------|
+| **P2P** | ✅ DTLS-SRTP | N/A (no server) | ❌ Not active |
+| **LiveKit SFU** | ✅ DTLS-SRTP | ⚠️ Server can decode | ❌ Not active |
+
+**Note:** WebRTC always encrypts media in transit (DTLS-SRTP). The issue is that without E2EE, the LiveKit SFU server can technically access the media.
+
+### Implementation Tasks
+
+**Phase 1: P2P E2EE (simpler, no server trust issue)**
+- [ ] Add `enableEncryption()` method to `UnifiedWebRTCService`
+- [ ] Implement proper key derivation using existing Signal Protocol infrastructure
+- [ ] Exchange encryption keys via signaling channel (encrypted with Signal session)
+- [ ] Actually call encryption setup when `encryptionEnabled = true`
+- [ ] Add UI toggle in Voice Settings panel
+
+**Phase 2: LiveKit E2EE (requires all clients to support it)**
+- [ ] Uncomment and configure E2EE in Room creation
+- [ ] Generate shared room key (could use room ID + server secret as seed)
+- [ ] Distribute room key to participants via secure channel
+- [ ] Call `enableE2EE(sharedKey)` when joining room
+- [ ] Handle key renegotiation when participants join/leave
+- [ ] Add E2EE indicator in voice overlay (lock icon)
+
+**Phase 3: Federation-aware E2EE**
+- [ ] Key exchange across instances for federated voice
+- [ ] Consider how to handle mixed E2EE/non-E2EE participants
+
+### Key Files
+
+- `src/services/unifiedWebRTC.ts` - P2P WebRTC service
+- `src/services/livekitWebRTC.ts` - LiveKit SFU service  
+- `src/services/encryption/WebRTCEncryptionService.ts` - Frame encryption (exists but unused)
+- `src/services/encryption/SignalProtocolService.ts` - Could be used for key exchange
+- `src/components/voice/VoiceSettingsPanel.vue` - Needs E2EE toggle
+- `src/stores/unifiedVoiceChannel.ts` - Voice state management
+
+### References
+
+- [LiveKit E2EE Documentation](https://docs.livekit.io/realtime/client/e2ee/)
+- [WebRTC Insertable Streams](https://developer.mozilla.org/en-US/docs/Web/API/RTCRtpScriptTransform)
+- Existing `WebRTCEncryptionService.ts` uses AES-256-GCM with counter-based IV
+
+---
+
 ## Federation: Server Actor for Signing (Future)
 
 **Current state:** Server-level ActivityPub activities (accepts, re-broadcasts, voice tokens) are signed using the **server owner's** keypair.

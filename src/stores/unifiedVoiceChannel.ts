@@ -9,7 +9,7 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { useUserData } from '@/composables/useUserData';
-import { usePushToTalk } from '@/composables/usePushToTalk';
+import { useKeybinds } from '@/composables/useKeybinds';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -17,8 +17,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 // Module-level variable for cross-tab heartbeat (not reactive)
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
-// Module-level PTT state management
-let pttListenersSetup = false;
+// Module-level keybind state management
+let keybindListenersSetup = false;
 
 // =============================================================================
 // TYPES
@@ -1632,43 +1632,68 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Setup Push-to-Talk integration
-     * Registers the mute callback so PTT can control mic state
+     * Setup keybind integration for voice controls
+     * Registers handlers for all voice-related keybinds (PTT, mute, etc.)
      */
     setupPushToTalk(): void {
-      if (pttListenersSetup) return;
+      if (keybindListenersSetup) return;
       
-      const ptt = usePushToTalk();
+      const keybinds = useKeybinds();
       
-      // Register callback for PTT mute state changes
-      ptt.registerMuteCallback((muted: boolean) => {
-        this.setMuted(muted, false); // false = no sound effect for PTT
+      // Activate the voice-connected context
+      keybinds.activateContext('voice-connected');
+      
+      // Register PTT handler (hold mode - callback receives isPressed)
+      keybinds.registerHandler('push-to-talk', (isPressed: boolean) => {
+        this.setMuted(!isPressed, false); // When pressed, unmute; when released, mute
       });
       
+      // Register voice toggle handlers (these work when overlay is NOT open)
+      // When overlay IS open, it registers its own handlers that take priority
+      keybinds.registerHandler('toggle-mute', () => {
+        // Only handle if not in PTT mode (PTT mode handles mute differently)
+        if (!keybinds.isPTTMode.value) {
+          this.toggleMute();
+        }
+      });
+      keybinds.registerHandler('toggle-deafen', () => this.toggleDeafen());
+      keybinds.registerHandler('toggle-camera', () => this.toggleVideo());
+      keybinds.registerHandler('toggle-screenshare', () => this.toggleScreenShare());
+      
       // Setup global key listeners
-      ptt.setupListeners();
+      keybinds.setupListeners();
       
       // If PTT mode is active, start muted
-      if (ptt.isPTTMode.value) {
+      if (keybinds.isPTTMode.value) {
         this.setMuted(true, false);
       }
       
-      pttListenersSetup = true;
-      debug.log('🎤 [PTT] Push-to-Talk integrated with voice channel');
+      keybindListenersSetup = true;
+      debug.log('⌨️ [Keybinds] Voice keybinds integrated with voice channel');
     },
 
     /**
-     * Cleanup Push-to-Talk integration
+     * Cleanup keybind integration
      */
     cleanupPushToTalk(): void {
-      if (!pttListenersSetup) return;
+      if (!keybindListenersSetup) return;
       
-      const ptt = usePushToTalk();
-      ptt.unregisterMuteCallback();
-      ptt.cleanupListeners();
+      const keybinds = useKeybinds();
       
-      pttListenersSetup = false;
-      debug.log('🎤 [PTT] Push-to-Talk cleanup complete');
+      // Deactivate the voice-connected context
+      keybinds.deactivateContext('voice-connected');
+      
+      // Unregister all voice handlers
+      keybinds.unregisterHandler('push-to-talk');
+      keybinds.unregisterHandler('toggle-mute');
+      keybinds.unregisterHandler('toggle-deafen');
+      keybinds.unregisterHandler('toggle-camera');
+      keybinds.unregisterHandler('toggle-screenshare');
+      
+      keybinds.cleanupListeners();
+      
+      keybindListenersSetup = false;
+      debug.log('⌨️ [Keybinds] Voice keybinds cleanup complete');
     },
 
     /**

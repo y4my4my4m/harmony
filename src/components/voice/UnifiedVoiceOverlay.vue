@@ -269,15 +269,18 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
-import { usePushToTalk } from '@/composables/usePushToTalk';
+import { useKeybinds } from '@/composables/useKeybinds';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
 import Icon from '@/components/common/Icon.vue';
 
-// PTT composable
-const { isPTTMode, isPTTActive, pttKeyDisplay, shouldBlockShortcut } = usePushToTalk();
+// Centralized keybind system
+const keybinds = useKeybinds();
+const isPTTMode = keybinds.isPTTMode;
+const isPTTActive = keybinds.isPTTActive;
+const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
 
 interface Props {
   channelName?: string;
@@ -423,55 +426,38 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         isEntering.value = false;
       }, 300);
       
-      // Keyboard shortcuts
-      const handleKeyPress = (event: KeyboardEvent) => {
-        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-          return; // Don't trigger shortcuts when typing
-        }
-        
-        // Don't handle shortcuts that conflict with PTT keybind
-        if (shouldBlockShortcut(event)) {
-          return;
-        }
-        
-        switch (event.key.toLowerCase()) {
-          case 'm':
-            voiceStore.toggleMute();
-            break;
-          case 'v':
-            voiceStore.toggleVideo();
-            break;
-          case 's':
-            if (event.ctrlKey || event.metaKey) return; // Don't interfere with save
-            voiceStore.toggleScreenShare();
-            break;
-          case 'd':
-            voiceStore.toggleDeafen();
-            break;
-          case ',':
-            // Settings shortcut (comma key, like Discord)
-            toggleSettings();
-            break;
-          case 'escape':
-            // Priority order: full-window mode > fullscreen > settings > minimize
-            if (voiceStore.isFullWindowMode) {
-              voiceStore.toggleFullWindowMode();
-            } else if (voiceStore.viewMode === 'fullscreen') {
-              voiceStore.exitFullscreen();
-            } else if (showSettings.value) {
-              showSettings.value = false;
-            } else {
-              minimizeOverlay();
-            }
-            break;
-        }
-      };
+      // Activate voice-overlay context for keybinds
+      keybinds.activateContext('voice-overlay');
       
-      document.addEventListener('keydown', handleKeyPress);
-      
-      onUnmounted(() => {
-        document.removeEventListener('keydown', handleKeyPress);
+      // Register keybind handlers
+      keybinds.registerHandler('toggle-mute', () => voiceStore.toggleMute());
+      keybinds.registerHandler('toggle-deafen', () => voiceStore.toggleDeafen());
+      keybinds.registerHandler('toggle-camera', () => voiceStore.toggleVideo());
+      keybinds.registerHandler('toggle-screenshare', () => voiceStore.toggleScreenShare());
+      keybinds.registerHandler('toggle-voice-settings', () => toggleSettings());
+      keybinds.registerHandler('exit-fullscreen', () => {
+        // Priority order: full-window mode > fullscreen > settings > minimize
+        if (voiceStore.isFullWindowMode) {
+          voiceStore.toggleFullWindowMode();
+        } else if (voiceStore.viewMode === 'fullscreen') {
+          voiceStore.exitFullscreen();
+        } else if (showSettings.value) {
+          showSettings.value = false;
+        } else {
+          minimizeOverlay();
+        }
       });
+    });
+    
+    onUnmounted(() => {
+      // Deactivate context and unregister handlers
+      keybinds.deactivateContext('voice-overlay');
+      keybinds.unregisterHandler('toggle-mute');
+      keybinds.unregisterHandler('toggle-deafen');
+      keybinds.unregisterHandler('toggle-camera');
+      keybinds.unregisterHandler('toggle-screenshare');
+      keybinds.unregisterHandler('toggle-voice-settings');
+      keybinds.unregisterHandler('exit-fullscreen');
     });
 </script>
 

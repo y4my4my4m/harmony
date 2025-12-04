@@ -217,15 +217,19 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
-import { usePushToTalk } from '@/composables/usePushToTalk';
+import { useKeybinds } from '@/composables/useKeybinds';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
 
-// PTT composable
-const { isPTTMode, isPTTActive, pttKeyDisplay, shouldBlockShortcut } = usePushToTalk();
+// Centralized keybind system
+const keybinds = useKeybinds();
+const isPTTMode = keybinds.isPTTMode;
+const isPTTActive = keybinds.isPTTActive;
+const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
+
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
@@ -440,44 +444,12 @@ onMounted(() => {
     currentMode.value = 'overlay';
   }
   
-  // Keyboard shortcuts
-  const handleKeyPress = (event: KeyboardEvent) => {
-    // Ignore keypresses in input fields
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-      return;
-    }
-    
-    // Don't handle shortcuts that conflict with PTT keybind
-    if (shouldBlockShortcut(event)) {
-      return;
-    }
-    
-    // Only handle shortcuts when not in overlay mode
-    if (currentMode.value !== 'overlay') {
-      switch (event.key.toLowerCase()) {
-        case 'm':
-          voiceStore.toggleMute();
-          break;
-        case 'd':
-          voiceStore.toggleDeafen();
-          break;
-        case 'v':
-          voiceStore.toggleVideo();
-          break;
-        case 's':
-          if (event.ctrlKey || event.metaKey) return; // Don't interfere with save shortcut
-          voiceStore.toggleScreenShare();
-          break;
-      }
-    }
-  };
+  // Keybind handlers are registered in UnifiedVoiceOverlay when overlay is open
+  // When in dock mode (not overlay), we still want these shortcuts to work
+  // The keybind system handles this through context - 'voice-connected' is active here
   
-  document.addEventListener('keydown', handleKeyPress);
-  
-  // Clean up the event listener when the component is unmounted
-  onUnmounted(() => {
-    document.removeEventListener('keydown', handleKeyPress);
-  });
+  // Note: Keybind handlers are registered once globally in the voice store when connected.
+  // The dock doesn't need its own handlers - the centralized system handles everything.
 });
 </script>
 
