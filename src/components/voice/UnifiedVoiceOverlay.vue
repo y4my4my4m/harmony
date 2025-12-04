@@ -686,7 +686,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   overflow-y: auto;
   min-height: 300px;
   align-content: flex-start;
-  justify-content: flex-start;
+  justify-content: center;
   display: flex;
   flex-direction: column;
 }
@@ -929,6 +929,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   margin-bottom: 8px;
   display: flex;
   flex-direction: column;
+  padding: 0!important;
 }
 
 /* Remove card constraints in fullscreen - let video fill the space */
@@ -980,14 +981,16 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 4px 0;
-  max-height: 100px;
+  padding: 4px;
+  max-height: 128px;
   flex-shrink: 0;
 }
 
 .thumbnail-card {
   flex-shrink: 0;
   width: 120px;
+  min-height: 120px!important;
+  max-height: 120px!important;
 }
 
 .thumbnail-card :deep(.harmony-voice-card) {

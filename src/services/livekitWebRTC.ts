@@ -1161,7 +1161,11 @@ export class LiveKitWebRTCService {
   
   /**
    * Sync existing participants in the room (called after connecting)
-   * This handles participants who were already in the room before we joined
+   * This handles participants who were already in the room before we joined.
+   * 
+   * NOTE: We only setup the participants here. Track handling is done via
+   * TrackSubscribed events which fire for each track as they become available.
+   * This is cleaner and faster than polling/delayed syncs.
    */
   private async syncExistingParticipants(): Promise<void> {
     if (!this.room) {
@@ -1171,7 +1175,6 @@ export class LiveKitWebRTCService {
     
     const existingParticipants = this.room.remoteParticipants;
     debug.log(`🔄 [LiveKit] Syncing ${existingParticipants.size} existing participants`);
-    debug.log(`🔄 [LiveKit] Room state: ${this.room.state}, local participant: ${this.room.localParticipant?.identity}`);
     
     if (existingParticipants.size === 0) {
       debug.log('📭 [LiveKit] No existing participants to sync');
@@ -1187,7 +1190,6 @@ export class LiveKitWebRTCService {
       
       if (!userId) {
         debug.warn(`⚠️ [LiveKit] Could not resolve identity for existing participant: ${participant.identity}`);
-        // Store by identity for internal use but skip emitting events
         const mediaState = this.createMediaState(participant, participant.identity);
         this.allUserStates.set(participant.identity, mediaState);
         this.setupParticipantListeners(participant);
@@ -1207,29 +1209,14 @@ export class LiveKitWebRTCService {
       // Emit user-joined event so the store knows about them
       this.emit('user-joined', { userId, mediaState });
       
-      // CRITICAL: Also emit stream change for existing tracks (video/screenshare)
-      // This ensures late-joiners can see video that was already streaming
-      const hasVideoTracks = participant.videoTrackPublications.size > 0;
-      const hasAudioTracks = participant.audioTrackPublications.size > 0;
-      
-      if (hasVideoTracks || hasAudioTracks) {
-        debug.log(`📺 [LiveKit] Syncing existing tracks for ${userId}: ` +
-          `video=${participant.videoTrackPublications.size}, audio=${participant.audioTrackPublications.size}`);
-        
-        // Check if tracks are subscribed - if not, wait for subscription
-        const hasUnsubscribedTracks = this.hasUnsubscribedTracks(participant);
-        
-        if (hasUnsubscribedTracks) {
-          debug.log(`⏳ [LiveKit] Waiting for track subscriptions for ${userId}...`);
-          // Schedule a delayed sync after subscriptions should be complete
-          // The TrackSubscribed event will also trigger updates, but this ensures we don't miss anything
-          this.scheduleDelayedStreamSync(userId, participant);
-        } else {
-          // Tracks are already subscribed - emit immediately
-          const stream = this.getUserStream(userId);
-          this.emit('user-stream-changed', { userId, stream });
-          this.emit('user-state-changed', { userId, mediaState });
-        }
+      // For tracks that are ALREADY subscribed, emit state immediately
+      // TrackSubscribed events will handle any tracks that subscribe later
+      const hasSubscribedTracks = this.hasSubscribedTracks(participant);
+      if (hasSubscribedTracks) {
+        debug.log(`📺 [LiveKit] Participant ${userId} has already-subscribed tracks, emitting state`);
+        const stream = this.getUserStream(userId);
+        this.emit('user-stream-changed', { userId, stream });
+        this.emit('user-state-changed', { userId, mediaState });
       }
     }
     
@@ -1237,63 +1224,16 @@ export class LiveKitWebRTCService {
   }
   
   /**
-   * Check if a participant has any unsubscribed tracks
+   * Check if a participant has any subscribed tracks
    */
-  private hasUnsubscribedTracks(participant: RemoteParticipant): boolean {
+  private hasSubscribedTracks(participant: RemoteParticipant): boolean {
     for (const pub of participant.videoTrackPublications.values()) {
-      if (!pub.isSubscribed) return true;
+      if (pub.isSubscribed && pub.track) return true;
     }
     for (const pub of participant.audioTrackPublications.values()) {
-      if (!pub.isSubscribed) return true;
+      if (pub.isSubscribed && pub.track) return true;
     }
     return false;
-  }
-  
-  /**
-   * Schedule a delayed stream sync for participants with pending subscriptions
-   * This handles the race condition where tracks exist but aren't subscribed yet
-   */
-  private scheduleDelayedStreamSync(userId: string, participant: RemoteParticipant): void {
-    // Try multiple times with short delays to catch late subscriptions
-    // Keep delays short to minimize perceived latency
-    const delays = [50, 150, 400];
-    
-    delays.forEach((delay, index) => {
-      setTimeout(() => {
-        if (!this.room) return; // Room was disconnected
-        
-        // Check if there are now subscribed tracks (video OR audio)
-        let hasSubscribedVideo = false;
-        let hasSubscribedAudio = false;
-        
-        for (const pub of participant.videoTrackPublications.values()) {
-          if (pub.isSubscribed && pub.track) {
-            hasSubscribedVideo = true;
-            break;
-          }
-        }
-        
-        for (const pub of participant.audioTrackPublications.values()) {
-          if (pub.isSubscribed && pub.track) {
-            hasSubscribedAudio = true;
-            break;
-          }
-        }
-        
-        // Emit events if ANY track (video or audio) is now subscribed
-        // This handles audio-only participants who have no video tracks
-        if (hasSubscribedVideo || hasSubscribedAudio) {
-          debug.log(`📺 [LiveKit] Delayed sync (${delay}ms): emitting stream for ${userId} (video: ${hasSubscribedVideo}, audio: ${hasSubscribedAudio})`);
-          const updatedMediaState = this.createMediaState(participant, userId);
-          this.allUserStates.set(userId, updatedMediaState);
-          const stream = this.getUserStream(userId);
-          this.emit('user-stream-changed', { userId, stream });
-          this.emit('user-state-changed', { userId, mediaState: updatedMediaState });
-        } else if (index === delays.length - 1) {
-          debug.warn(`⚠️ [LiveKit] Track subscription timeout for ${userId} - tracks may not be available`);
-        }
-      }, delay);
-    });
   }
   
   /**
@@ -1353,7 +1293,7 @@ export class LiveKitWebRTCService {
       this.emit('channel-state-synced', { users: this.getAllUsers() });
     });
     
-    // Track subscribed
+    // Track subscribed - this is the PRIMARY mechanism for receiving remote tracks
     this.room.on(RoomEvent.TrackSubscribed, async (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
       const source = publication.source;
       debug.log('📺 [LiveKit] Track subscribed:', track.kind, 'source:', source, 'from', participant.identity);
@@ -1363,74 +1303,88 @@ export class LiveKitWebRTCService {
       // Use identity as fallback for internal lookups only
       const lookupId = userId || participant.identity;
       
-      // Update user state - check both possible keys
+      // Get or create user state
       let state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
-      if (state) {
-        if (track.kind === Track.Kind.Audio) {
-          state.isAudioEnabled = true;
-          
-          // Auto-attach audio tracks to play them
-          if (track instanceof RemoteAudioTrack) {
-            const audioElement = track.attach();
-            
-            // Apply deafen state if active
-            if (this.localMediaState.isDeafened) {
-              audioElement.muted = true;
-            }
-            
-            const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
-            
-            if (isScreenShareAudio) {
-              // Clean up any existing screenshare audio for this participant first
-              const existingElement = this.remoteScreenShareAudioElements.get(participant.identity);
-              if (existingElement && existingElement !== audioElement) {
-                debug.log('🔊 [LiveKit] Cleaning up old screenshare audio element');
-                try {
-                  existingElement.pause();
-                  existingElement.srcObject = null;
-                } catch (e) { /* ignore cleanup errors */ }
-              }
-              
-              // Store new screenshare audio element
-              this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
-              
-              // Apply saved screenshare volume or default to 100%
-              const savedVolume = this.userScreenShareVolumes.get(participant.identity) ?? 100;
-              audioElement.volume = savedVolume / 100;
-              
-              debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId, 'volume:', savedVolume, 'element:', audioElement.id || 'no-id');
-            } else {
-              // Clean up any existing mic audio for this participant first  
-              const existingElement = this.remoteMicAudioElements.get(participant.identity);
-              if (existingElement && existingElement !== audioElement) {
-                try {
-                  existingElement.pause();
-                  existingElement.srcObject = null;
-                } catch (e) { /* ignore cleanup errors */ }
-              }
-              
-              // Store mic audio element
-              this.remoteMicAudioElements.set(participant.identity, audioElement);
-              
-              // Apply saved mic volume or default to 100%
-              const savedVolume = this.userMicVolumes.get(participant.identity) ?? 100;
-              audioElement.volume = savedVolume / 100;
-              
-              debug.log('🔊 [LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume);
-            }
-          }
-        } else if (track.kind === Track.Kind.Video) {
-          state.isVideoEnabled = true;
-          // Check if it's screenshare video
-          if (source === Track.Source.ScreenShare) {
-            state.isScreenSharing = true;
-          }
-        }
-        this.allUserStates.set(lookupId, state);
+      if (!state) {
+        // Create state if it doesn't exist (edge case - track subscribed before participant fully registered)
+        debug.log('📺 [LiveKit] Creating state for participant during TrackSubscribed:', lookupId);
+        state = this.createMediaState(participant, userId || participant.identity);
       }
       
-      // Only emit events if we have a valid UUID
+      // Update state based on track type
+      if (track.kind === Track.Kind.Audio) {
+        state.isAudioEnabled = true;
+        
+        // Auto-attach REMOTE audio tracks to play them (not our own!)
+        if (track instanceof RemoteAudioTrack) {
+          const audioElement = track.attach();
+          
+          // Apply deafen state if active
+          if (this.localMediaState.isDeafened) {
+            audioElement.muted = true;
+          }
+          
+          const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
+          
+          if (isScreenShareAudio) {
+            // Clean up any existing screenshare audio for this participant first
+            const existingElement = this.remoteScreenShareAudioElements.get(participant.identity);
+            if (existingElement && existingElement !== audioElement) {
+              debug.log('🔊 [LiveKit] Cleaning up old screenshare audio element');
+              try {
+                existingElement.pause();
+                existingElement.srcObject = null;
+              } catch (e) { /* ignore cleanup errors */ }
+            }
+            
+            // Store new screenshare audio element
+            this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
+            
+            // Apply saved screenshare volume or default to 100%
+            const savedVolume = this.userScreenShareVolumes.get(participant.identity) ?? 100;
+            audioElement.volume = savedVolume / 100;
+            
+            debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId, 'volume:', savedVolume);
+          } else {
+            // Clean up any existing mic audio for this participant first  
+            const existingElement = this.remoteMicAudioElements.get(participant.identity);
+            if (existingElement && existingElement !== audioElement) {
+              try {
+                existingElement.pause();
+                existingElement.srcObject = null;
+              } catch (e) { /* ignore cleanup errors */ }
+            }
+            
+            // Store mic audio element
+            this.remoteMicAudioElements.set(participant.identity, audioElement);
+            
+            // Apply saved mic volume or default to 100%
+            const savedVolume = this.userMicVolumes.get(participant.identity) ?? 100;
+            audioElement.volume = savedVolume / 100;
+            
+            debug.log('🔊 [LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume);
+          }
+        }
+      } else if (track.kind === Track.Kind.Video) {
+        // Check if it's screenshare or camera
+        if (source === Track.Source.ScreenShare) {
+          state.isScreenSharing = true;
+          debug.log('📺 [LiveKit] ScreenShare track subscribed for:', lookupId);
+        } else {
+          state.isVideoEnabled = true;
+          debug.log('📺 [LiveKit] Camera track subscribed for:', lookupId);
+        }
+      }
+      
+      // Always save the updated state
+      this.allUserStates.set(lookupId, state);
+      if (userId && userId !== participant.identity) {
+        this.allUserStates.set(participant.identity, state);
+      }
+      
+      // Emit events to update UI - ALWAYS emit when we have a valid UUID
       if (userId) {
+        debug.log('📺 [LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
         this.emit('user-state-changed', { userId, mediaState: state });
