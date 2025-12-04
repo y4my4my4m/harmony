@@ -1149,6 +1149,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     setupWebRTCListeners(): void {
       const themeStore = useThemeStore();
       const serverUsersStore = useServerUsersStore();
+      const authStore = useAuthStore();
+      
+      // Get the current user's ID reliably from auth store
+      // (localState.userId might be empty at this point)
+      const currentUserId = authStore.session?.user?.id;
+      
       // Channel events
       webrtcManager.on('channel-joined', (data) => {
         debug.log('✅ Channel joined:', data);
@@ -1231,7 +1237,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
         // Only play sound for OTHER users joining, not for self
         // (self sound is played immediately in ChannelSidebar for optimistic UX)
-        if (data.userId !== this.localState.userId) {
+        // Use currentUserId from authStore since localState.userId might be empty
+        if (currentUserId && data.userId !== currentUserId) {
           themeStore.testAudio('voice_connect');
         }
       });
@@ -1266,7 +1273,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
         // Only play sound for OTHER users leaving, not for self
         // (self disconnect sound is handled in leaveVoiceChannel/ChannelSidebar)
-        if (data.userId !== this.localState.userId) {
+        // Use currentUserId from authStore since localState.userId might be empty
+        if (currentUserId && data.userId !== currentUserId) {
           themeStore.testAudio('voice_disconnect');
         }
       });
