@@ -302,12 +302,8 @@ const storeUserState = computed(() => {
 
 const hasVideo = computed(() => {
   // Read directly from store state for better reactivity
-  // Also trigger on streamUpdateCounter changes
-  const _counter = voiceStore.streamUpdateCounter;
   const state = storeUserState.value;
-  const result = state.isVideoEnabled || state.isScreenSharing;
-  debug.log(`🎥 hasVideo for ${state.userId}: ${result} (isVideoEnabled: ${state.isVideoEnabled}, isScreenSharing: ${state.isScreenSharing}, counter: ${_counter})`);
-  return result;
+  return state.isVideoEnabled || state.isScreenSharing;
 });
 
 const connectionQuality = computed(() => {
@@ -417,60 +413,68 @@ const handleContextMenu = (event: MouseEvent) => {
 // =============================================================================
 
 // Function to attach video to element
+// Track last attached state to prevent unnecessary re-attachments
+let lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+let isVideoAttached = false;
+
 const attachVideo = () => {
   const userId = props.userState.userId;
   const state = storeUserState.value;
   
   if (!videoElement.value) {
-    debug.log(`📹 attachVideo: No video element for ${userId}`);
     return;
   }
   
   const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
-  debug.log(`📹 attachVideo called for ${userId}:`, {
-    shouldShowVideo,
-    isVideoEnabled: state.isVideoEnabled,
-    isScreenSharing: state.isScreenSharing,
-    hasStream: !!userStream.value,
-    videoTracks: userStream.value?.getVideoTracks?.()?.length ?? 0
-  });
+  
+  // Check if we actually need to do anything
+  const stateChanged = 
+    lastAttachedVideoState.isVideoEnabled !== state.isVideoEnabled ||
+    lastAttachedVideoState.isScreenSharing !== state.isScreenSharing;
+  
+  // Skip if video is already attached and state hasn't changed
+  if (isVideoAttached && shouldShowVideo && !stateChanged) {
+    return;
+  }
   
   if (shouldShowVideo) {
     // Use LiveKit's proper attach method - this is CRITICAL for adaptive streaming
     // Using srcObject directly causes LiveKit to disable all simulcast layers (frozen video)
     const attached = voiceStore.attachVideoToElement(userId, videoElement.value);
     if (attached) {
-      debug.log(`📹 ✅ Attached video for user ${userId} using LiveKit attach()`);
+      isVideoAttached = true;
+      lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
+      debug.log(`📹 ✅ Attached video for user ${userId}`);
     } else {
       // Fallback to srcObject for P2P mode or if attach fails
       const stream = userStream.value;
       if (stream && stream.getVideoTracks().length > 0) {
         videoElement.value.srcObject = stream;
-        debug.log(`📹 ⚠️ Fallback: Setting srcObject for user ${userId}`);
-      } else {
-        debug.log(`📹 ⏳ No video track yet for ${userId}, will retry on next update`);
+        isVideoAttached = true;
+        lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
+        debug.log(`📹 ⚠️ Fallback: srcObject for user ${userId}`);
       }
     }
-  } else {
+  } else if (isVideoAttached) {
     // Detach video properly when turning off
     voiceStore.detachVideoFromElement(userId, videoElement.value);
     // Clear the video element completely
     videoElement.value.srcObject = null;
     videoElement.value.src = '';
     videoElement.value.load(); // Force reload to clear any cached frames
-    debug.log(`📹 Detached and cleared video for user ${userId} (camera/screen off)`);
+    isVideoAttached = false;
+    lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+    debug.log(`📹 Detached video for user ${userId}`);
   }
 };
 
 // Update video element when stream OR state changes
 // Uses LiveKit's proper track.attach() method for adaptive streaming to work correctly
-// Also watches streamUpdateCounter to re-trigger when remote streams update (Map reactivity workaround)
 watch(
   [
     () => userStream.value, 
     () => storeUserState.value.isVideoEnabled, 
-    () => storeUserState.value.isScreenSharing,
-    () => voiceStore.streamUpdateCounter // Force re-run when any stream updates
+    () => storeUserState.value.isScreenSharing
   ],
   () => {
     // Use nextTick to ensure DOM is updated before attaching
@@ -482,18 +486,7 @@ watch(
 // Watch for when video element becomes available (v-if renders it)
 watch(videoElement, (newEl) => {
   if (newEl) {
-    debug.log(`📹 Video element now available for ${props.userState.userId}`);
     attachVideo();
-  }
-});
-
-// Retry attachment on component updates (catches edge cases)
-onUpdated(() => {
-  if (videoElement.value && (props.userState.isVideoEnabled || props.userState.isScreenSharing)) {
-    // Only retry if video element has no source
-    if (!videoElement.value.srcObject) {
-      attachVideo();
-    }
   }
 });
 </script>

@@ -1075,10 +1075,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       webrtcManager.on('user-state-changed', (data) => {
-        debug.log('🎛️ User state changed:', data, 'isVideoEnabled:', data.mediaState?.isVideoEnabled);
-        
         // Update user state
         const userIndex = this.allUsers.findIndex(u => u.userId === data.userId);
+        // Check if video/screenshare state changed (not just audio level)
+        const oldState = userIndex !== -1 ? this.allUsers[userIndex] : null;
+        const videoStateChanged = oldState && (
+          oldState.isVideoEnabled !== data.mediaState.isVideoEnabled ||
+          oldState.isScreenSharing !== data.mediaState.isScreenSharing
+        );
+        
         if (userIndex !== -1) {
           // Direct assignment - Vue 3/Pinia should handle reactivity
           this.allUsers[userIndex] = data.mediaState;
@@ -1088,8 +1093,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.allUsers.push(data.mediaState);
         }
         
-        // Force reactivity by incrementing counter
-        this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
+        // Only increment counter when video/screenshare state actually changes
+        // NOT for audio level changes (which happen 20+ times per second)
+        if (videoStateChanged || !oldState) {
+          this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
+          debug.log('📹 Video state changed, counter:', this.streamUpdateCounter);
+        }
         
         // NOTE: Don't auto-open overlay here - this fires on every state change
         // Auto-open only happens in user-joined for initial sync when joining
