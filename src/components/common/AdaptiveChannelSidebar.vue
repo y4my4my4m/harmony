@@ -24,13 +24,6 @@
           <Icon name="message-circle" />
           <h2>Direct Messages</h2>
         </div>
-        <button 
-          @click="$emit('switch-mode', 'activitypub')"
-          class="mode-toggle-btn"
-          title="Switch to Social"
-        >
-          <Icon name="globe" />
-        </button>
       </div>
       
       <div class="dm-content">
@@ -48,13 +41,6 @@
           <Icon name="globe" />
           <h2>{{ $t('activitypub.social') }}</h2>
         </div>
-        <button 
-          @click="$emit('switch-mode', 'chat')"
-          class="mode-toggle-btn"
-          :title="$t('activitypub.switchToChat')"
-        >
-          <Icon name="message-circle" />
-        </button>
       </div>
 
       <div class="social-sidebar-content">

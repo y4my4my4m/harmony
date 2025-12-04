@@ -447,8 +447,10 @@ onMounted(() => {
 
 .filter-group select {
   padding: 0.5rem 1rem;
-  background: #2a2d32;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* background: #2a2d32; */
+  background: var(--background-secondary);
+  /* border: 1px solid rgba(255, 255, 255, 0.1); */
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   color: white;
   font-size: 0.875rem;
@@ -522,20 +524,24 @@ onMounted(() => {
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: #2a2d32;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* background: #2a2d32; */
+  /* border: 1px solid rgba(255, 255, 255, 0.08); */
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   transition: all 0.2s;
 }
 
 .emoji-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  /* border-color: rgba(255, 255, 255, 0.16); */
+  border-color: var(--border-secondary);
   transform: translateY(-1px);
 }
 
 .emoji-card.imported {
   opacity: 0.7;
-  background: rgba(88, 166, 88, 0.1);
+  /* background: rgba(88, 166, 88, 0.1); */
+  background: var(--background-tertiary);
 }
 
 .emoji-preview {
@@ -544,7 +550,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.3);
+  /* background: rgba(0, 0, 0, 0.3); */
+  background: var(--background-primary-alpha);
   border-radius: 8px;
   flex-shrink: 0;
 }

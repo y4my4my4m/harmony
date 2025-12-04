@@ -18,7 +18,6 @@ import {
   LocalParticipant,
   Track,
   TrackPublication,
-  TrackSource,
   ConnectionState,
   ParticipantEvent,
   LocalTrack,
@@ -292,8 +291,14 @@ export class LiveKitWebRTCService {
   // Remote user states
   private allUserStates = new Map<string, UserMediaState>();
   
-  // Remote audio elements (for deafen functionality)
-  private remoteAudioElements = new Map<string, HTMLAudioElement[]>();
+  // Remote audio elements (for deafen/volume control)
+  // Separated by type for independent volume control
+  private remoteMicAudioElements = new Map<string, HTMLAudioElement>();
+  private remoteScreenShareAudioElements = new Map<string, HTMLAudioElement>();
+  
+  // Volume settings (0-200, 100 = normal)
+  private userMicVolumes = new Map<string, number>();
+  private userScreenShareVolumes = new Map<string, number>();
   
   // Event listeners
   private eventListeners = new Map<string, Function[]>();
@@ -589,7 +594,10 @@ export class LiveKitWebRTCService {
     
     // Clear state
     this.allUserStates.clear();
-    this.remoteAudioElements.clear();
+    this.remoteMicAudioElements.clear();
+    this.remoteScreenShareAudioElements.clear();
+    this.userMicVolumes.clear();
+    this.userScreenShareVolumes.clear();
     
     const oldChannelId = this.channelId;
     this.channelId = null;
@@ -813,16 +821,98 @@ export class LiveKitWebRTCService {
     // Mute/unmute all remote audio ELEMENTS based on deafen state
     // We use audio element muting instead of track.setMuted() to avoid
     // incorrectly changing the remote user's isMuted state
-    for (const elements of this.remoteAudioElements.values()) {
-      for (const audioElement of elements) {
-        audioElement.muted = this.localMediaState.isDeafened;
-      }
+    for (const audioElement of this.remoteMicAudioElements.values()) {
+      audioElement.muted = this.localMediaState.isDeafened;
+    }
+    for (const audioElement of this.remoteScreenShareAudioElements.values()) {
+      audioElement.muted = this.localMediaState.isDeafened;
     }
     
     this.broadcastMediaState();
     this.emit('local-state-changed', this.localMediaState);
     
     return this.localMediaState.isDeafened;
+  }
+  
+  // =============================================================================
+  // VOLUME CONTROL
+  // =============================================================================
+  
+  /**
+   * Set volume for a user's microphone audio (0-200, 100 = normal)
+   */
+  setUserMicVolume(participantId: string, volume: number): void {
+    const clampedVolume = Math.max(0, Math.min(200, volume));
+    this.userMicVolumes.set(participantId, clampedVolume);
+    
+    // Apply to audio element if it exists
+    // Check both by participantId (UUID) and by identity
+    const audioElement = this.remoteMicAudioElements.get(participantId) || 
+                         this.findAudioElementByResolvedId(participantId, 'mic');
+    
+    if (audioElement) {
+      audioElement.volume = clampedVolume / 100;
+      debug.log(`🔊 [LiveKit] Set mic volume for ${participantId} to ${clampedVolume}%`);
+    }
+  }
+  
+  /**
+   * Set volume for a user's screenshare audio (0-200, 100 = normal)
+   */
+  setUserScreenShareVolume(participantId: string, volume: number): void {
+    const clampedVolume = Math.max(0, Math.min(200, volume));
+    this.userScreenShareVolumes.set(participantId, clampedVolume);
+    
+    // Apply to audio element if it exists
+    const audioElement = this.remoteScreenShareAudioElements.get(participantId) ||
+                         this.findAudioElementByResolvedId(participantId, 'screenshare');
+    
+    if (audioElement) {
+      audioElement.volume = clampedVolume / 100;
+      debug.log(`🔊 [LiveKit] Set screenshare volume for ${participantId} to ${clampedVolume}%`);
+    }
+  }
+  
+  /**
+   * Get the current mic volume setting for a user (0-200)
+   */
+  getUserMicVolume(participantId: string): number {
+    return this.userMicVolumes.get(participantId) ?? 100;
+  }
+  
+  /**
+   * Get the current screenshare volume setting for a user (0-200)
+   */
+  getUserScreenShareVolume(participantId: string): number {
+    return this.userScreenShareVolumes.get(participantId) ?? 100;
+  }
+  
+  /**
+   * Helper to find audio element by resolved UUID (since we store by identity)
+   */
+  private findAudioElementByResolvedId(
+    userId: string, 
+    type: 'mic' | 'screenshare'
+  ): HTMLAudioElement | undefined {
+    const map = type === 'mic' ? this.remoteMicAudioElements : this.remoteScreenShareAudioElements;
+    
+    // Check if userId is stored in the identity-to-UUID cache
+    for (const [identity, element] of map.entries()) {
+      // Check if this identity resolves to the given userId
+      if (uuidToIdentityCache.get(userId) === identity) {
+        return element;
+      }
+    }
+    
+    return undefined;
+  }
+  
+  /**
+   * Check if a user is currently screen sharing (has screenshare audio)
+   */
+  hasScreenShareAudio(participantId: string): boolean {
+    return this.remoteScreenShareAudioElements.has(participantId) ||
+           !!this.findAudioElementByResolvedId(participantId, 'screenshare');
   }
   
   // =============================================================================
@@ -1132,7 +1222,8 @@ export class LiveKitWebRTCService {
       
       // Always clean up by identity at minimum
       this.allUserStates.delete(participant.identity);
-      this.remoteAudioElements.delete(participant.identity);
+      this.remoteMicAudioElements.delete(participant.identity);
+      this.remoteScreenShareAudioElements.delete(participant.identity);
       
       if (userId) {
         this.allUserStates.delete(userId);
@@ -1159,25 +1250,34 @@ export class LiveKitWebRTCService {
           state.isAudioEnabled = true;
           
           // Auto-attach audio tracks to play them
-          // This is crucial for screenshare audio!
           if (track instanceof RemoteAudioTrack) {
             const audioElement = track.attach();
-            audioElement.volume = 1.0; // Default volume
             
             // Apply deafen state if active
             if (this.localMediaState.isDeafened) {
               audioElement.muted = true;
             }
             
-            // Store reference for deafen/volume control
-            const elements = this.remoteAudioElements.get(participant.identity) || [];
-            elements.push(audioElement);
-            this.remoteAudioElements.set(participant.identity, elements);
+            const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
             
-            debug.log('🔊 [LiveKit] Audio track attached for:', lookupId, 'source:', source);
-            
-            if (source === Track.Source.ScreenShareAudio) {
-              debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId);
+            if (isScreenShareAudio) {
+              // Store screenshare audio element separately
+              this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
+              
+              // Apply saved screenshare volume or default to 100%
+              const savedVolume = this.userScreenShareVolumes.get(participant.identity) ?? 100;
+              audioElement.volume = savedVolume / 100;
+              
+              debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId, 'volume:', savedVolume);
+            } else {
+              // Store mic audio element
+              this.remoteMicAudioElements.set(participant.identity, audioElement);
+              
+              // Apply saved mic volume or default to 100%
+              const savedVolume = this.userMicVolumes.get(participant.identity) ?? 100;
+              audioElement.volume = savedVolume / 100;
+              
+              debug.log('🔊 [LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume);
             }
           }
         } else if (track.kind === Track.Kind.Video) {
@@ -1209,20 +1309,16 @@ export class LiveKitWebRTCService {
       
       // Detach audio track and clean up references
       if (track.kind === Track.Kind.Audio && track instanceof RemoteAudioTrack) {
-        const detachedElements = track.detach();
+        track.detach();
         
-        // Remove detached elements from our map
-        const elements = this.remoteAudioElements.get(participant.identity);
-        if (elements) {
-          const remaining = elements.filter(el => !detachedElements.includes(el));
-          if (remaining.length > 0) {
-            this.remoteAudioElements.set(participant.identity, remaining);
-          } else {
-            this.remoteAudioElements.delete(participant.identity);
-          }
+        // Clean up the correct map based on source
+        if (source === Track.Source.ScreenShareAudio) {
+          this.remoteScreenShareAudioElements.delete(participant.identity);
+          debug.log('🔊 [LiveKit] Screenshare audio detached for:', lookupId);
+        } else {
+          this.remoteMicAudioElements.delete(participant.identity);
+          debug.log('🔊 [LiveKit] Mic audio detached for:', lookupId);
         }
-        
-        debug.log('🔊 [LiveKit] Audio track detached for:', lookupId);
       }
       
       // Update user state - check both possible keys
@@ -1370,7 +1466,7 @@ export class LiveKitWebRTCService {
     // Check for screen share (source type is ScreenShare)
     let isScreenSharing = false;
     for (const pub of participant.videoTrackPublications.values()) {
-      if (pub.source === TrackSource.ScreenShare) {
+      if (pub.source === Track.Source.ScreenShare) {
         isScreenSharing = true;
         break;
       }

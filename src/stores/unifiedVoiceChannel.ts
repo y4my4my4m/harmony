@@ -53,6 +53,7 @@ interface VoiceChannelState {
   
   // Per-user volume settings (0-200, 100 = normal)
   userVolumes: Map<string, number>;
+  userScreenShareVolumes: Map<string, number>;
   
   // Recent speakers (last 5 users who spoke)
   recentSpeakers: RecentSpeaker[];
@@ -113,6 +114,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     // Per-user volume (loaded from localStorage)
     userVolumes: new Map(),
+    userScreenShareVolumes: new Map(),
     
     // Recent speakers (last 5 users who spoke)
     recentSpeakers: [],
@@ -198,9 +200,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return { total, withVideo, speaking };
     },
 
-    // Get user volume (0-200, 100 = normal)
+    // Get user mic volume (0-200, 100 = normal)
     getUserVolume: (state) => (userId: string): number => {
       return state.userVolumes.get(userId) ?? 100;
+    },
+    
+    // Get user screenshare volume (0-200, 100 = normal)
+    getUserScreenShareVolume: (state) => (userId: string): number => {
+      return state.userScreenShareVolumes.get(userId) ?? 100;
+    },
+    
+    // Check if user has screenshare audio
+    hasScreenShareAudio: () => (userId: string): boolean => {
+      return webrtcManager.hasScreenShareAudio(userId);
     },
 
     // Get recent speakers (sorted by most recent, max 5)
@@ -817,7 +829,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Set per-user volume (0-200, 100 = normal)
+     * Set per-user mic volume (0-200, 100 = normal)
      * Persisted to localStorage and applied to audio
      */
     setUserVolume(userId: string, volume: number): void {
@@ -825,17 +837,35 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const clampedVolume = Math.max(0, Math.min(200, volume));
       this.userVolumes.set(userId, clampedVolume);
       
-      // Apply volume to the user's audio stream
-      webrtcManager.setUserVolume?.(userId, clampedVolume / 100);
+      // Apply volume to the user's mic audio stream
+      webrtcManager.setUserMicVolume(userId, clampedVolume);
       
       // Persist to localStorage
       this.saveUserVolumes();
       
-      debug.log(`🔊 Set volume for user ${userId}: ${clampedVolume}%`);
+      debug.log(`🔊 Set mic volume for user ${userId}: ${clampedVolume}%`);
+    },
+    
+    /**
+     * Set per-user screenshare volume (0-200, 100 = normal)
+     * Persisted to localStorage and applied to screenshare audio
+     */
+    setUserScreenShareVolume(userId: string, volume: number): void {
+      // Clamp volume to valid range
+      const clampedVolume = Math.max(0, Math.min(200, volume));
+      this.userScreenShareVolumes.set(userId, clampedVolume);
+      
+      // Apply volume to the user's screenshare audio stream
+      webrtcManager.setUserScreenShareVolume(userId, clampedVolume);
+      
+      // Persist to localStorage
+      this.saveScreenShareVolumes();
+      
+      debug.log(`🔊 Set screenshare volume for user ${userId}: ${clampedVolume}%`);
     },
 
     /**
-     * Save user volumes to localStorage
+     * Save user mic volumes to localStorage
      */
     saveUserVolumes(): void {
       try {
@@ -846,6 +876,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         localStorage.setItem('harmony-user-volumes', JSON.stringify(volumeObj));
       } catch (error) {
         debug.warn('Failed to save user volumes:', error);
+      }
+    },
+    
+    /**
+     * Save user screenshare volumes to localStorage
+     */
+    saveScreenShareVolumes(): void {
+      try {
+        const volumeObj: Record<string, number> = {};
+        this.userScreenShareVolumes.forEach((volume, odUserId) => {
+          volumeObj[odUserId] = volume;
+        });
+        localStorage.setItem('harmony-user-screenshare-volumes', JSON.stringify(volumeObj));
+      } catch (error) {
+        debug.warn('Failed to save screenshare volumes:', error);
       }
     },
 
@@ -864,6 +909,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       } catch (error) {
         debug.warn('Failed to load user volumes:', error);
+      }
+    },
+    
+    /**
+     * Load screenshare volumes from localStorage
+     */
+    loadScreenShareVolumes(): void {
+      try {
+        const saved = localStorage.getItem('harmony-user-screenshare-volumes');
+        if (saved) {
+          const volumeObj = JSON.parse(saved) as Record<string, number>;
+          Object.entries(volumeObj).forEach(([odUserId, volume]) => {
+            this.userScreenShareVolumes.set(odUserId, volume);
+          });
+          debug.log('🔊 Loaded screenshare volumes from localStorage');
+        }
+      } catch (error) {
+        debug.warn('Failed to load screenshare volumes:', error);
       }
     },
 

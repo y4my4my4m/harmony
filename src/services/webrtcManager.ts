@@ -36,6 +36,13 @@ export interface WebRTCManager {
   toggleMute(): boolean;
   toggleDeafen(): boolean;
   
+  // Volume control
+  setUserMicVolume(userId: string, volume: number): void;
+  setUserScreenShareVolume(userId: string, volume: number): void;
+  getUserMicVolume(userId: string): number;
+  getUserScreenShareVolume(userId: string): number;
+  hasScreenShareAudio(userId: string): boolean;
+  
   // Stream access
   getLocalStream(): MediaStream | null;
   getUserStream(userId: string): MediaStream | null;
@@ -519,15 +526,54 @@ class WebRTCManagerService implements WebRTCManager {
   }
 
   /**
-   * Set volume for a specific user (0-2, where 1 = normal)
-   * Used for per-user volume control
+   * Set volume for a user's microphone audio (0-200, 100 = normal)
    */
-  setUserVolume(userId: string, volume: number): void {
+  setUserMicVolume(userId: string, volume: number): void {
     if (this.activeService === 'livekit') {
-      livekitWebRTC.setUserVolume?.(userId, volume);
+      livekitWebRTC.setUserMicVolume(userId, volume);
     } else if (this.activeService === 'p2p') {
-      unifiedWebRTC.setUserVolume?.(userId, volume);
+      unifiedWebRTC.setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
     }
+  }
+  
+  /**
+   * Set volume for a user's screenshare audio (0-200, 100 = normal)
+   */
+  setUserScreenShareVolume(userId: string, volume: number): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.setUserScreenShareVolume(userId, volume);
+    }
+    // P2P doesn't support screenshare audio separately yet
+  }
+  
+  /**
+   * Get mic volume for a user (0-200)
+   */
+  getUserMicVolume(userId: string): number {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.getUserMicVolume(userId);
+    }
+    return 100;
+  }
+  
+  /**
+   * Get screenshare volume for a user (0-200)
+   */
+  getUserScreenShareVolume(userId: string): number {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.getUserScreenShareVolume(userId);
+    }
+    return 100;
+  }
+  
+  /**
+   * Check if a user has screenshare audio available
+   */
+  hasScreenShareAudio(userId: string): boolean {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.hasScreenShareAudio(userId);
+    }
+    return false;
   }
   
   // =============================================================================
