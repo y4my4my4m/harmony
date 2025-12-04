@@ -27,6 +27,7 @@ export type WebRTCMode = 'sfu' | 'p2p' | 'hybrid';
 export interface WebRTCManager {
   // Connection
   joinChannel(channelId: string, userId: string, roomType?: 'voice_channel' | 'dm_call' | 'stage'): Promise<boolean>;
+  joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean>;
   leaveChannel(): Promise<void>;
   
   // Media controls
@@ -233,6 +234,45 @@ class WebRTCManagerService implements WebRTCManager {
     }
     
     return false;
+  }
+  
+  /**
+   * Join a voice channel with a pre-obtained token (for federated voice)
+   * Used when connecting to a remote instance's LiveKit server
+   */
+  async joinWithToken(
+    wsUrl: string,
+    token: string,
+    channelId: string,
+    userId: string
+  ): Promise<boolean> {
+    debug.log(`🌐 [WebRTCManager] Joining federated channel: ${channelId} with remote token`);
+    
+    // Leave any existing connection
+    if (this.activeService) {
+      await this.leaveChannel();
+    }
+    
+    // Set activeService BEFORE joining so events are forwarded during connection
+    this.activeService = 'livekit';
+    
+    try {
+      const success = await livekitWebRTC.joinWithToken(wsUrl, token, channelId, userId);
+      
+      if (success) {
+        debug.log('✅ [WebRTCManager] Connected to federated LiveKit server');
+        return true;
+      }
+      
+      // Connection failed, reset activeService
+      this.activeService = null;
+      return false;
+    } catch (error) {
+      debug.error('❌ [WebRTCManager] Federated connection failed:', error);
+      this.activeService = null;
+      this.emit('error', error);
+      return false;
+    }
   }
   
   /**
