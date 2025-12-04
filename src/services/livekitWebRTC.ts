@@ -804,12 +804,17 @@ export class LiveKitWebRTCService {
           ? VideoPresets.h1080.resolution 
           : this.getResolutionPreset(this.streamQualitySettings.resolution);
         
+        const targetFrameRate = this.streamQualitySettings.frameRate;
+        const audioBitrateKbps = this.streamQualitySettings.audioBitrate;
+        
         debug.log('📺 [LiveKit] Starting screenshare with settings:', {
           resolution: screenResolution,
-          frameRate: this.streamQualitySettings.frameRate
+          frameRate: targetFrameRate,
+          audioBitrate: audioBitrateKbps
         });
         
-        await this.room.localParticipant.setScreenShareEnabled(true, {
+        // Capture options for screenshare
+        const captureOptions = {
           audio: {
             // IMPORTANT: Disable all audio processing for screenshare audio
             // We want RAW audio from the shared tab/window - no normalization
@@ -817,23 +822,39 @@ export class LiveKitWebRTCService {
             noiseSuppression: false,
             autoGainControl: false, // This is what causes "auto-volume" behavior
           },
+          // Request specific framerate during capture
+          video: {
+            frameRate: targetFrameRate,
+          },
           resolution: screenResolution,
           contentHint: 'detail',
           systemAudio: 'include', // Explicitly request system audio
-        });
+        };
         
-        // Apply frame rate constraint to screenshare track
-        if (this.streamQualitySettings.frameRate) {
-          for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
-            if (pub.source === Track.Source.ScreenShare && pub.track?.mediaStreamTrack) {
-              try {
-                await pub.track.mediaStreamTrack.applyConstraints({
-                  frameRate: { ideal: this.streamQualitySettings.frameRate }
-                });
-                debug.log('✅ [LiveKit] Applied frameRate constraint to screenshare:', this.streamQualitySettings.frameRate);
-              } catch (e) {
-                debug.warn('⚠️ [LiveKit] Could not apply frameRate to screenshare:', e);
-              }
+        // Publish options with bitrate settings
+        const publishOptions = {
+          // Video encoding settings
+          videoEncoding: {
+            maxBitrate: screenResolution.height >= 1080 ? 3_000_000 : 
+                        screenResolution.height >= 720 ? 1_500_000 : 800_000,
+            maxFramerate: targetFrameRate,
+          },
+          // Audio bitrate in bits per second
+          screenShareAudioBitrate: audioBitrateKbps * 1000,
+        };
+        
+        await this.room.localParticipant.setScreenShareEnabled(true, captureOptions, publishOptions);
+        
+        // Also try to apply constraints directly to the track for browsers that support it
+        for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
+          if (pub.source === Track.Source.ScreenShare && pub.track?.mediaStreamTrack) {
+            try {
+              await pub.track.mediaStreamTrack.applyConstraints({
+                frameRate: { ideal: targetFrameRate, max: targetFrameRate }
+              });
+              debug.log('✅ [LiveKit] Applied frameRate constraint to screenshare:', targetFrameRate);
+            } catch (e) {
+              debug.warn('⚠️ [LiveKit] Could not apply additional frameRate constraint:', e);
             }
           }
         }

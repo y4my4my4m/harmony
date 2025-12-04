@@ -396,8 +396,18 @@ const onVideoLoaded = () => {
  * Handle card click - toggle fullscreen for videos
  */
 const handleCardClick = () => {
-  // Only enable fullscreen if user has video or is screen sharing
-  if (!hasVideo.value) return;
+  // Check both sources to match the v-if condition on video container
+  // hasVideo uses store state, props.userState uses props - they might be momentarily out of sync
+  const canShowVideo = hasVideo.value || props.userState.isVideoEnabled || props.userState.isScreenSharing;
+  
+  if (!canShowVideo) {
+    debug.log('📺 [FullScreen] No video to fullscreen', {
+      hasVideo: hasVideo.value,
+      propsVideoEnabled: props.userState.isVideoEnabled,
+      propsScreenSharing: props.userState.isScreenSharing
+    });
+    return;
+  }
   
   // Toggle fullscreen mode
   if (isFullscreenActive.value) {
