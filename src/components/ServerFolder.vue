@@ -512,24 +512,26 @@ const onIconError = (event: Event) => {
   border-radius: 16px;
   padding: 0 0 4px 0;
   transition: all 0.2s ease;
-  outline: 2px solid  color-mix(in srgb, var(--folder-color) 30%, transparent);
+  /* outline: 2px solid  color-mix(in srgb, var(--folder-color) 30%, transparent); */
+  outline: 2px solid transparent;
   outline-offset: -2px;
 }
 
 .folder-expanded:hover {
   outline: 2px solid var(--folder-color);
 }
+.folder-expanded:hover .folder-cap {
+  background: var(--folder-color);
+  filter: brightness(1.1);
+}
 
 .folder-cap {
   width: 56px;
-  background: var(--folder-color);
+  /* background: var(--folder-color); */
+  background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
-}
-
-.folder-cap:hover {
-  filter: brightness(1.1);
 }
 
 .folder-cap-top {

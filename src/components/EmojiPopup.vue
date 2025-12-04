@@ -25,10 +25,10 @@
             :title="`:${emoji.name}:`"
             @click="selectFrequentEmoji(emoji)"
           >
-            <!-- Custom server emoji with URL -->
+            <!-- Custom server emoji with URL (not a local asset path) -->
             <img 
-              v-if="emoji.url && !emoji.url.includes('/twemoji/') && !emoji.url.includes('/mutant_emojis_svg/')"
-              :src="emoji.url"
+              v-if="getFrequentEmojiDisplayUrl(emoji)"
+              :src="getFrequentEmojiDisplayUrl(emoji)"
               :alt="emoji.name"
               class="frequent-emoji-img"
             />
@@ -316,10 +316,73 @@ function getEmojiSvgUrl(emoji: EmojiEntry): string {
 }
 
 /**
+ * Check if a URL is a local emoji pack asset (not a custom/remote emoji)
+ */
+function isLocalAssetUrl(url: string): boolean {
+  return url.startsWith('/assets/') || 
+         url.includes('/twemoji/') || 
+         url.includes('/mutant_emojis_svg/');
+}
+
+/**
+ * Check if an emoji is a custom server emoji (not a unified pack emoji)
+ */
+function isCustomServerEmoji(emoji: { id: string; native?: string; name: string; url?: string }): boolean {
+  // Has a URL that's not from our local emoji packs
+  if (emoji.url && !isLocalAssetUrl(emoji.url)) {
+    return true;
+  }
+  
+  // Has no native unicode character and ID looks like a UUID or custom ID
+  if (!emoji.native && emoji.id) {
+    // UUIDs have hyphens, unicode emojis don't
+    if (emoji.id.includes('-')) return true;
+    // If the ID is the same as the name and not a unicode character, it's likely custom
+    if (emoji.id === emoji.name && !/[\u{1F300}-\u{1F9FF}]/u.test(emoji.id)) return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Get the display URL for a frequently used emoji
+ * Handles custom server emojis by checking stored URL or looking up in emoji cache
+ */
+function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {
+  // If it has a custom URL (not a local asset), use it
+  if (emoji.url && !isLocalAssetUrl(emoji.url)) {
+    return emoji.url;
+  }
+  
+  // If it's not identified as a custom emoji, return null (let other handlers deal with it)
+  if (!isCustomServerEmoji(emoji)) {
+    return null;
+  }
+  
+  // Try to look up the emoji in the cache by name
+  const allServerIds = Array.from(emojiCacheStore.serverCaches.keys());
+  for (const serverId of allServerIds) {
+    const serverEmojis = emojiCacheStore.getServerEmojis(serverId);
+    if (serverEmojis && serverEmojis.length > 0) {
+      const cachedEmoji = serverEmojis.find(e => e.name === emoji.name);
+      if (cachedEmoji && cachedEmoji.url) {
+        return cachedEmoji.url;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Get SVG URL for a frequent emoji
+ * Only works for unified pack emojis (twemoji/mutant), not custom server emojis
  */
 function getFrequentEmojiSvgUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {
   if (isNativePack.value) return null;
+  
+  // Don't try to resolve custom server emojis as unified pack emojis
+  if (isCustomServerEmoji(emoji)) return null;
   
   const unicode = emoji.native || emoji.id;
   if (!unicode) return null;
@@ -376,6 +439,14 @@ const selectUnifiedEmoji = (emoji: EmojiEntry): void => {
 
 const selectEmoji = (emoji: Emoji): void => {
   triggerReaction();
+  
+  // Record usage for frequently used list (with URL for custom emojis)
+  recordEmojiUsage({
+    id: emoji.id,
+    name: emoji.name,
+    url: emoji.url
+  });
+  
   emit('sendEmoji', emoji);
 };
 
@@ -391,12 +462,13 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
     unicode = resolved.unicode;
   }
   
-  // Custom server emoji with URL
-  if (emoji.url && !emoji.url.includes('/twemoji/') && !emoji.url.includes('/mutant_emojis_svg/')) {
+  // Custom server emoji - check stored URL or look up from cache
+  const emojiUrl = getFrequentEmojiDisplayUrl(emoji);
+  if (emojiUrl) {
     const emojiObj = {
       id: emoji.id,
       name: emoji.name,
-      url: emoji.url,
+      url: emojiUrl,
       created_at: new Date(),
       uploader: '',
       server_id: ''
