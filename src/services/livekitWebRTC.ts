@@ -746,6 +746,12 @@ export class LiveKitWebRTCService {
         // Enable screen share
         debug.log('📺 [LiveKit] Enabling screen share...');
         
+        // Log existing tracks before starting new screenshare
+        debug.log('📺 [LiveKit] Current audio tracks before screenshare:');
+        for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
+          debug.log(`  - ${pub.source}: ${pub.trackSid}, muted: ${pub.isMuted}`);
+        }
+        
         await this.room.localParticipant.setScreenShareEnabled(true, {
           audio: true, // Include system audio if available
           resolution: VideoPresets.h1080.resolution,
@@ -755,17 +761,26 @@ export class LiveKitWebRTCService {
         
         this.localMediaState.isScreenSharing = true;
         
-        // Log if screenshare audio was captured
+        // Log all tracks for debugging
+        debug.log('📺 [LiveKit] Screen share tracks published:');
+        for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
+          debug.log(`  - Video: ${pub.source}, trackSid: ${pub.trackSid}`);
+        }
+        
+        // Check if screenshare audio was captured
         let hasScreenShareAudio = false;
         for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
+          debug.log(`  - Audio: ${pub.source}, trackSid: ${pub.trackSid}`);
           if (pub.source === Track.Source.ScreenShareAudio) {
             hasScreenShareAudio = true;
-            debug.log('🔊 [LiveKit] Screenshare audio track published successfully');
-            break;
+            debug.log('🔊 [LiveKit] ✅ Screenshare audio track published!');
           }
         }
         if (!hasScreenShareAudio) {
-          debug.warn('⚠️ [LiveKit] No screenshare audio - user may need to enable "Share audio" or browser may not support it');
+          debug.warn('⚠️ [LiveKit] No screenshare audio - possible reasons:');
+          debug.warn('   1. "Share audio" checkbox not enabled in browser picker');
+          debug.warn('   2. Sharing a window (not a tab) - no audio available');
+          debug.warn('   3. Browser doesn\'t support system audio capture');
         }
         
         debug.log('✅ [LiveKit] Screen share enabled');
@@ -773,7 +788,25 @@ export class LiveKitWebRTCService {
         // Disable screen share
         debug.log('📺 [LiveKit] Disabling screen share...');
         
+        // Log tracks before disabling
+        debug.log('📺 [LiveKit] Tracks before disabling screenshare:');
+        for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
+          debug.log(`  - Audio ${pub.source}: ${pub.trackSid}`);
+        }
+        for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
+          debug.log(`  - Video ${pub.source}: ${pub.trackSid}`);
+        }
+        
         await this.room.localParticipant.setScreenShareEnabled(false);
+        
+        // Log tracks after disabling
+        debug.log('📺 [LiveKit] Tracks after disabling screenshare:');
+        for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
+          debug.log(`  - Audio ${pub.source}: ${pub.trackSid}`);
+        }
+        for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
+          debug.log(`  - Video ${pub.source}: ${pub.trackSid}`);
+        }
         
         this.localMediaState.isScreenSharing = false;
         debug.log('✅ [LiveKit] Screen share disabled');
@@ -1276,15 +1309,34 @@ export class LiveKitWebRTCService {
             const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
             
             if (isScreenShareAudio) {
-              // Store screenshare audio element separately
+              // Clean up any existing screenshare audio for this participant first
+              const existingElement = this.remoteScreenShareAudioElements.get(participant.identity);
+              if (existingElement && existingElement !== audioElement) {
+                debug.log('🔊 [LiveKit] Cleaning up old screenshare audio element');
+                try {
+                  existingElement.pause();
+                  existingElement.srcObject = null;
+                } catch (e) { /* ignore cleanup errors */ }
+              }
+              
+              // Store new screenshare audio element
               this.remoteScreenShareAudioElements.set(participant.identity, audioElement);
               
               // Apply saved screenshare volume or default to 100%
               const savedVolume = this.userScreenShareVolumes.get(participant.identity) ?? 100;
               audioElement.volume = savedVolume / 100;
               
-              debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId, 'volume:', savedVolume);
+              debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId, 'volume:', savedVolume, 'element:', audioElement.id || 'no-id');
             } else {
+              // Clean up any existing mic audio for this participant first  
+              const existingElement = this.remoteMicAudioElements.get(participant.identity);
+              if (existingElement && existingElement !== audioElement) {
+                try {
+                  existingElement.pause();
+                  existingElement.srcObject = null;
+                } catch (e) { /* ignore cleanup errors */ }
+              }
+              
               // Store mic audio element
               this.remoteMicAudioElements.set(participant.identity, audioElement);
               
@@ -1324,10 +1376,13 @@ export class LiveKitWebRTCService {
       
       // Detach audio track and clean up references
       if (track.kind === Track.Kind.Audio && track instanceof RemoteAudioTrack) {
+        const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
+        
+        // Let LiveKit handle the detach
         track.detach();
         
-        // Clean up the correct map based on source
-        if (source === Track.Source.ScreenShareAudio) {
+        // Clean up our map reference
+        if (isScreenShareAudio) {
           this.remoteScreenShareAudioElements.delete(participant.identity);
           debug.log('🔊 [LiveKit] Screenshare audio detached for:', lookupId);
         } else {
