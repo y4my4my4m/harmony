@@ -778,9 +778,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
     /**
      * Toggle PIP mode for screenshare
+     * Pass null to close PIP, or a userId to open/toggle PIP for that user
      */
     togglePIP(userId: string | null, mode: 'draggable' | 'fixed' | 'native' = 'native'): void {
-      if (this.pipActive && this.pipUserId === userId) {
+      // Close PIP if null is passed or same user is toggled
+      if (userId === null || (this.pipActive && this.pipUserId === userId)) {
         this.pipActive = false;
         this.pipUserId = null;
       } else {

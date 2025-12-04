@@ -13,12 +13,6 @@
       <div class="voice-container" :class="[voiceStore.layoutMode, { 'maximized': voiceStore.viewMode === 'maximized', 'fullscreen-mode': voiceStore.viewMode === 'fullscreen' }]">
         <!-- Header -->
         <div class="voice-header">
-          <!-- Connection Mode Indicator -->
-          <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
-            <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
-            <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
-          </div>
-          
           <div class="channel-info">
             <div class="channel-icon">
               <Icon name="volume" />
@@ -35,6 +29,12 @@
           </div>
           
           <div class="header-controls">
+            <!-- Connection Mode Indicator -->
+            <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
+              <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
+              <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
+            </div>
+            
             <button 
               @click="voiceStore.setLayoutMode('grid')"
               class="layout-btn"
@@ -594,21 +594,20 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(145deg, #36393f, #2f3136);
-  gap: 12px;
 }
 
-/* Connection Mode Indicator */
+/* Connection Mode Indicator - Inline with header controls */
 .connection-mode-indicator {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  flex-shrink: 0;
+  margin-right: 4px;
 }
 
 .connection-mode-indicator.livekit {
