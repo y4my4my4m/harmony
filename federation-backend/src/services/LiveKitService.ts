@@ -116,18 +116,37 @@ class LiveKitService {
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url')
+      .select('id, username, display_name, avatar_url, federated_id')
       .eq('auth_user_id', request.userId)
       .single();
     
-    // Create access token - use profile.id as identity (this is what the app uses)
+    // Create access token
+    // Use federated identity format for consistency across federation
+    // This allows ANY client (local or remote) to resolve the user profile
     const profileId = profile?.id || request.userId;
+    const username = profile?.username || 'unknown';
+    
+    // Build the federated identity - use existing federated_id if present (for federated users)
+    // or construct one for local users based on instance domain
+    let identity: string;
+    if (profile?.federated_id) {
+      // User already has a federated ID (they're a federated user synced to this instance)
+      identity = `federated:${profile.federated_id}`;
+    } else if (config.INSTANCE_DOMAIN) {
+      // Local user - construct federated identity
+      identity = `federated:https://${config.INSTANCE_DOMAIN}/users/${username}`;
+    } else {
+      // Fallback for non-federated instances - just use UUID
+      identity = profileId;
+    }
+    
     const at = new AccessToken(cfg.apiKey, cfg.apiSecret, {
-      identity: profileId,
+      identity,
       name: profile?.display_name || profile?.username || 'Unknown User',
       ttl: '24h', // Token valid for 24 hours
       metadata: JSON.stringify({
         ...request.metadata,
+        profileId, // Include the local UUID for quick lookup
         avatarUrl: profile?.avatar_url,
         username: profile?.username,
         roomType: request.roomType,

@@ -158,7 +158,24 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
     return cachedUuid;
   }
   
-  // Look up the user by federated_id
+  // Parse the federated ID to extract domain and username
+  let federatedUrl: URL;
+  try {
+    federatedUrl = new URL(federatedId);
+  } catch {
+    debug.warn(`🌐 [LiveKit] Invalid federated ID URL: ${federatedId}`);
+    return null;
+  }
+  
+  const federatedDomain = federatedUrl.hostname;
+  const pathParts = federatedUrl.pathname.split('/').filter(p => p);
+  const username = pathParts[pathParts.length - 1]; // Last part of /users/username
+  
+  // Check if this is a local user (federated ID domain matches our instance)
+  const currentDomain = window.location.hostname;
+  const isLocalUser = federatedDomain === currentDomain;
+  
+  // Look up the user by federated_id first
   try {
     const { data: user } = await supabase
       .from('profiles')
@@ -171,6 +188,23 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
       uuidToIdentityCache.set(user.id, originalIdentity);
       debug.log(`🌐 [LiveKit] Resolved federated identity ${federatedId} to UUID ${user.id}`);
       return user.id;
+    }
+    
+    // If it's a local user, try looking up by username (local users don't have federated_id set)
+    if (isLocalUser && username) {
+      const { data: localUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .eq('is_local', true)
+        .maybeSingle();
+      
+      if (localUser?.id) {
+        federatedIdToUuidCache.set(federatedId, localUser.id);
+        uuidToIdentityCache.set(localUser.id, originalIdentity);
+        debug.log(`🌐 [LiveKit] Resolved local user ${username} to UUID ${localUser.id}`);
+        return localUser.id;
+      }
     }
     
     // Profile not found locally - need to fetch it from the remote instance

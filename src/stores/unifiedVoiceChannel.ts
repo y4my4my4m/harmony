@@ -410,8 +410,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             const { livekitUrl, token, roomName } = payload.payload;
             
             try {
-              // Setup WebRTC event listeners before joining
-              this.setupWebRTCListeners();
+              // Setup direct LiveKit event listeners for federated channels
+              // (webrtcManager listeners won't work since we bypass it)
+              this.setupFederatedVoiceListeners();
               
               // Connect directly to remote LiveKit using the provided token
               const success = await livekitWebRTC.joinWithToken(livekitUrl, token, channelId, userId);
@@ -435,9 +436,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               this.saveVoiceChannelState();
               this.startVoiceSessionHeartbeat();
               
-              // Update state
-              this.localState = webrtcManager.getLocalState();
-              this.localStream = webrtcManager.getLocalStream();
+              // Update state - get directly from livekitWebRTC, not webrtcManager
+              this.localState = livekitWebRTC.getLocalState();
+              this.localStream = livekitWebRTC.getLocalStream();
               
               // Play join sound
               themeStore.testAudio('voice_connect');
@@ -522,6 +523,121 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.federatedTokenSubscription = null;
       }
     },
+    
+    /**
+     * Setup direct event listeners on livekitWebRTC for federated voice channels.
+     * When using federated voice, we bypass webrtcManager, so we need to listen
+     * directly to livekitWebRTC events.
+     */
+    setupFederatedVoiceListeners() {
+      const { ensureProfilesAvailable } = useUserData();
+      const themeStore = useThemeStore();
+      
+      debug.log('🔔 Setting up federated voice listeners');
+      
+      // Local state changes
+      livekitWebRTC.on('local-state-changed', (state: UserMediaState) => {
+        debug.log('🎛️ [Federated] Local state changed:', {
+          isVideoEnabled: state.isVideoEnabled,
+          isScreenSharing: state.isScreenSharing,
+          isMuted: state.isMuted
+        });
+        this.localState = state;
+      });
+      
+      livekitWebRTC.on('local-stream-changed', (stream: MediaStream | null) => {
+        this.localStream = stream;
+      });
+      
+      // Channel state sync (includes all users)
+      livekitWebRTC.on('channel-state-synced', async (data: { users: UserMediaState[] }) => {
+        debug.log('🔄 [Federated] Channel state synced:', data);
+        this.allUsers = data.users;
+        
+        // Ensure profiles are loaded for all users
+        const userIds = data.users.map(u => u.userId).filter(id => id);
+        if (userIds.length > 0) {
+          await ensureProfilesAvailable(userIds).catch((err: unknown) => {
+            debug.warn('Failed to load profiles for federated voice users:', err);
+          });
+        }
+      });
+      
+      // User joined
+      livekitWebRTC.on('user-joined', async (data: { userId: string; mediaState: UserMediaState }) => {
+        debug.log('👋 [Federated] User joined:', data);
+        
+        const existingIndex = this.allUsers.findIndex(u => u.userId === data.userId);
+        if (existingIndex === -1) {
+          this.allUsers.push(data.mediaState);
+        } else {
+          this.allUsers[existingIndex] = data.mediaState;
+        }
+        
+        // Load profile for joined user
+        if (data.userId) {
+          await ensureProfilesAvailable([data.userId]).catch((err: unknown) => {
+            debug.warn('Failed to load profile for federated user:', err);
+          });
+        }
+        
+        themeStore.testAudio('voice_user_join');
+      });
+      
+      // User left
+      livekitWebRTC.on('user-left', (data: { userId: string }) => {
+        debug.log('👋 [Federated] User left:', data);
+        this.allUsers = this.allUsers.filter(u => u.userId !== data.userId);
+        themeStore.testAudio('voice_user_leave');
+      });
+      
+      // Media state changes
+      livekitWebRTC.on('user-state-changed', (data: { userId: string; mediaState: UserMediaState }) => {
+        const index = this.allUsers.findIndex(u => u.userId === data.userId);
+        if (index !== -1) {
+          this.allUsers[index] = data.mediaState;
+        }
+      });
+      
+      // Audio level changes
+      livekitWebRTC.on('audio-levels', (levels: Map<string, number>) => {
+        levels.forEach((level, usrId) => {
+          if (usrId === this.localState.userId) {
+            this.localState.audioLevel = level;
+          } else {
+            const user = this.allUsers.find(u => u.userId === usrId);
+            if (user) {
+              user.audioLevel = level;
+            }
+          }
+        });
+      });
+      
+      // Speaking state
+      livekitWebRTC.on('speaking-changed', (data: { userId: string; isSpeaking: boolean }) => {
+        if (data.userId === this.localState.userId) {
+          this.localState.isSpeaking = data.isSpeaking;
+        } else {
+          const user = this.allUsers.find(u => u.userId === data.userId);
+          if (user) {
+            user.isSpeaking = data.isSpeaking;
+            if (data.isSpeaking) {
+              this.updateRecentSpeakers(data.userId);
+            }
+          }
+        }
+      });
+      
+      // Remote stream changes
+      livekitWebRTC.on('stream-changed', (data: { userId: string; stream: MediaStream | null }) => {
+        if (data.stream) {
+          this.remoteStreams.set(data.userId, data.stream);
+        } else {
+          this.remoteStreams.delete(data.userId);
+        }
+        this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
+      });
+    },
 
     /**
      * Leave voice channel
@@ -553,8 +669,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Clear saved voice channel state (user manually left)
         this.clearVoiceChannelState();
         
-        // Leave WebRTC first
-        await webrtcManager.leaveChannel();
+        // Leave WebRTC - use livekitWebRTC directly for federated, webrtcManager for local
+        if (wasFederated) {
+          await livekitWebRTC.leaveChannel();
+        } else {
+          await webrtcManager.leaveChannel();
+        }
 
         // Clean up spatial audio
         this.cleanupSpatialAudio();
