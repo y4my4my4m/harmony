@@ -163,6 +163,15 @@
           </button>
 
           <button
+            v-if="isFullscreen"
+            class="menu-action"
+            @click="toggleFullWindow"
+          >
+            <Icon name="monitor" />
+            <span>{{ isFullWindowMode ? 'Exit Full Window' : 'Full Window' }}</span>
+          </button>
+
+          <button
             v-if="isScreenSharing"
             class="menu-action"
             @click="togglePIP"
@@ -337,6 +346,8 @@ const isFullscreen = computed(() => {
   return voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId === props.userState.userId;
 });
 
+const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
+
 const isPIP = computed(() => {
   return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
 });
@@ -445,11 +456,17 @@ const focusUser = () => {
   close();
 };
 
+const toggleFullWindow = () => {
+  voiceStore.toggleFullWindowMode();
+  close();
+};
+
 const togglePIP = () => {
   if (isPIP.value) {
     voiceStore.togglePIP(null);
   } else {
-    voiceStore.togglePIP(props.userState.userId, 'fixed');
+    // Use draggable mode for consistent drag/resize behavior
+    voiceStore.togglePIP(props.userState.userId, 'draggable');
   }
   close();
 };

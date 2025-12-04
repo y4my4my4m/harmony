@@ -66,6 +66,7 @@ interface VoiceChannelState {
   layoutMode: 'grid' | 'speaker' | 'gallery';
   viewMode: 'normal' | 'maximized' | 'fullscreen';
   fullscreenUserId: string | null;
+  isFullWindowMode: boolean; // Stream fills entire viewport in fullscreen mode
   
   // PIP state
   pipActive: boolean;
@@ -128,6 +129,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     layoutMode: 'grid',
     viewMode: 'normal',
     fullscreenUserId: null,
+    isFullWindowMode: false,
     
     pipActive: false,
     pipUserId: null,
@@ -774,6 +776,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     exitFullscreen(): void {
       this.viewMode = 'normal';
       this.fullscreenUserId = null;
+      this.isFullWindowMode = false;
+    },
+
+    /**
+     * Toggle full window mode (video fills entire viewport in fullscreen)
+     */
+    toggleFullWindowMode(): void {
+      this.isFullWindowMode = !this.isFullWindowMode;
     },
 
     /**
@@ -809,19 +819,23 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Update stream quality settings (resolution/framerate)
-     * Applies to camera and screenshare
+     * Update stream quality settings (resolution/framerate/audioBitrate)
+     * Applies to camera, screenshare, and audio
      */
-    async updateStreamQuality(settings: { resolution?: number; frameRate?: number }): Promise<void> {
+    async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
       const newSettings = { ...this.streamSettings, ...settings };
       this.streamSettings = newSettings;
       
       debug.log('🎬 Updating stream quality:', newSettings);
       
-      // Apply to active video/screenshare if any
-      if (this.localState.isVideoEnabled || this.localState.isScreenSharing) {
+      // Apply to active video/screenshare/audio if any
+      if (this.localState.isVideoEnabled || this.localState.isScreenSharing || !this.localState.isMuted) {
         try {
-          await webrtcManager.updateStreamQuality?.(newSettings);
+          await webrtcManager.updateStreamQuality?.({
+            resolution: newSettings.resolution,
+            frameRate: newSettings.frameRate,
+            audioBitrate: newSettings.audioBitrate
+          });
           debug.log('✅ Stream quality updated');
         } catch (error) {
           debug.error('❌ Failed to update stream quality:', error);

@@ -769,14 +769,15 @@ export function useAutoSuggest(
             insertText
           });
         } else {
-          // Chat mode: use mention_text for storage (includes Discord ID for bridged users)
-          // Falls back to display_text, then @username
-          if (suggestion.mention_text) {
-            insertText = suggestion.mention_text + ' '; // Use mention_text for proper ID storage
+          // Chat mode: use display_text (human-readable @username@domain format)
+          // The RichTextEditor will handle looking up the user ID when creating the mention element
+          // For bridged Discord users, use mention_text since it contains the special d!ID:username format
+          if (suggestion.isBridged && suggestion.mention_text) {
+            insertText = suggestion.mention_text + ' '; // Use special bridged user format
           } else if (suggestion.display_text) {
-            insertText = suggestion.display_text + ' '; // Add space after mention
+            insertText = suggestion.display_text + ' '; // Human-readable @username or @username@domain
           } else {
-            insertText = `@${suggestion.username} `; // Add space after mention
+            insertText = `@${suggestion.username} `; // Fallback
           }
         }
       }

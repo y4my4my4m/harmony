@@ -389,14 +389,14 @@ const handleCardClick = () => {
 
 /**
  * Toggle PIP mode for screenshare
+ * Always use draggable mode for consistent drag/resize behavior
  */
 const togglePIP = () => {
   if (isPIPActive.value) {
     voiceStore.togglePIP(null);
   } else {
-    // Try native PIP first, fall back to fixed
-    const pipMode = document.pictureInPictureEnabled ? 'native' : 'fixed';
-    voiceStore.togglePIP(props.userState.userId, pipMode);
+    // Use draggable mode for consistent drag/resize behavior
+    voiceStore.togglePIP(props.userState.userId, 'draggable');
   }
 };
 

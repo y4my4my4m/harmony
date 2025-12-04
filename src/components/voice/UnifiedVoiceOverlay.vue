@@ -131,7 +131,7 @@
           v-else-if="voiceStore.viewMode === 'fullscreen' && fullscreenParticipant" 
           class="fullscreen-container"
           :class="{ 'full-window-mode': isFullWindowMode }"
-          @click="isFullWindowMode && (isFullWindowMode = false)"
+          @click="isFullWindowMode && voiceStore.toggleFullWindowMode()"
         >
           <UnifiedVoiceUserCard
             :key="fullscreenParticipant.userId"
@@ -139,7 +139,6 @@
             @toggle-video="voiceStore.toggleVideo"
             @toggle-screen-share="voiceStore.toggleScreenShare"
             class="fullscreen-card"
-            @contextmenu.prevent="showFullWindowContextMenu"
           />
           
           <!-- Thumbnail strip at bottom with collapse button -->
@@ -257,26 +256,6 @@
     <SpatialAudioPanel 
       :is-under-overlay="true"
     />
-
-    <!-- Full Window Context Menu -->
-    <div 
-      v-if="fullWindowMenuVisible"
-      class="full-window-context-menu"
-      :style="{ left: fullWindowMenuPosition.x + 'px', top: fullWindowMenuPosition.y + 'px' }"
-      @click.stop
-    >
-      <div class="context-menu-backdrop" @click="closeFullWindowMenu"></div>
-      <div class="context-menu-content">
-        <button class="context-menu-item" @click="toggleFullWindowMode">
-          <Icon :name="isFullWindowMode ? 'minimize-2' : 'maximize-2'" />
-          <span>{{ isFullWindowMode ? 'Exit Full Window' : 'Full Window Mode' }}</span>
-        </button>
-        <button class="context-menu-item" @click="closeFullWindowMenu">
-          <Icon name="x" />
-          <span>Cancel</span>
-        </button>
-      </div>
-    </div>
   </Teleport>
 </template>
 
@@ -312,7 +291,9 @@ const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
 const isThumbnailStripCollapsed = ref(false);
-const isFullWindowMode = ref(false);
+
+// Full window mode is now in the store
+const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
 
 // =============================================================================
 // ADAPTIVE GRID
@@ -423,26 +404,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       }
     };
     
-    // Full window mode context menu
-    const fullWindowMenuVisible = ref(false);
-    const fullWindowMenuPosition = ref({ x: 0, y: 0 });
-    
-    const showFullWindowContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
-      fullWindowMenuPosition.value = { x: event.clientX, y: event.clientY };
-      fullWindowMenuVisible.value = true;
-    };
-    
-    const toggleFullWindowMode = () => {
-      isFullWindowMode.value = !isFullWindowMode.value;
-      fullWindowMenuVisible.value = false;
-    };
-    
-    // Close context menu when clicking elsewhere
-    const closeFullWindowMenu = () => {
-      fullWindowMenuVisible.value = false;
-    };
-    
     // =============================================================================
     // LIFECYCLE
     // =============================================================================
@@ -479,8 +440,8 @@ const connectionStats = computed(() => voiceStore.connectionStats);
             break;
           case 'escape':
             // Priority order: full-window mode > fullscreen > settings > minimize
-            if (isFullWindowMode.value) {
-              isFullWindowMode.value = false;
+            if (voiceStore.isFullWindowMode) {
+              voiceStore.toggleFullWindowMode();
             } else if (voiceStore.viewMode === 'fullscreen') {
               voiceStore.exitFullscreen();
             } else if (showSettings.value) {
@@ -1281,48 +1242,5 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .fullscreen-container.full-window-mode .thumbnail-strip-container {
   display: none !important;
-}
-
-/* Full Window Context Menu */
-.full-window-context-menu {
-  position: fixed;
-  z-index: 10003;
-}
-
-.full-window-context-menu .context-menu-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: -1;
-}
-
-.full-window-context-menu .context-menu-content {
-  background: rgba(30, 31, 34, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 6px;
-  min-width: 180px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-
-.full-window-context-menu .context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  width: 100%;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  color: #dcddde;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.full-window-context-menu .context-menu-item:hover {
-  background: rgba(88, 101, 242, 0.4);
 }
 </style>
