@@ -485,6 +485,14 @@
       "saveChanges": "Save Changes",
       "resetSettings": "Reset"
     },
+    "audio": {
+      "title": "Sounds",
+      "description": "Configure your audio settings.",
+      "inputDevice": "Input Device",
+      "outputDevice": "Output Device",
+      "inputVolume": "Input Volume",
+      "outputVolume": "Output Volume"
+    },
     "voice": {
       "title": "Voice & Video",
       "description": "Configure your audio and video settings.",

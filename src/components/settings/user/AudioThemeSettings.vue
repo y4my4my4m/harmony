@@ -240,8 +240,6 @@ onMounted(async () => {
 <style scoped>
 .audio-theme-settings {
   max-width: 740px;
-  margin: 0 auto;
-  padding: 0 16px;
 }
 
 .settings-header {

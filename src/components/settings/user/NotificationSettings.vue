@@ -1122,7 +1122,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 <style scoped>
 .unified-notification-settings {
   max-width: 800px;
-  margin: 0 auto;
+  /* margin: 0 auto; */
   padding: 0 16px;
 }
 

@@ -270,11 +270,11 @@ const userSections = computed(() => [
 ])
 
 const appSections = computed(() => [
-  { id: 'appearance', label: 'settings.appearance.title', icon: PaletteIcon },
-  { id: 'audio', label: 'settings.voice.title', icon: VoiceIcon },
   { id: 'notifications', label: 'settings.notifications.title', icon: BellIcon },
+  { id: 'appearance', label: 'settings.appearance.title', icon: PaletteIcon },
   { id: 'voice', label: 'settings.voice.title', icon: MicIcon },
   { id: 'keybinds', label: 'settings.keybinds.title', icon: KeyboardIcon },
+  { id: 'audio', label: 'settings.audio.title', icon: VoiceIcon },
   { id: 'language', label: 'settings.language.title', icon: GlobeIcon },
   { id: 'advanced', label: 'settings.advanced.title', icon: CogIcon },
 ])
