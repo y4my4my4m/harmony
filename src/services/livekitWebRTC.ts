@@ -1403,7 +1403,8 @@ export class LiveKitWebRTCService {
         debug.log(`📺 [LiveKit] Participant ${userId} has already-subscribed tracks, emitting state`);
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
-        this.emit('user-state-changed', { userId, mediaState });
+        // Spread to create new object reference for Vue reactivity
+        this.emit('user-state-changed', { userId, mediaState: { ...mediaState } });
       }
     }
     
@@ -1585,11 +1586,12 @@ export class LiveKitWebRTCService {
       }
       
       // Emit events to update UI - ALWAYS emit when we have a valid UUID
+      // IMPORTANT: Spread to create a NEW object reference so Vue's reactivity detects the change
       if (userId) {
         debug.log('📺 [LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
-        this.emit('user-state-changed', { userId, mediaState: state });
+        this.emit('user-state-changed', { userId, mediaState: { ...state } });
       }
     });
     
@@ -1642,10 +1644,11 @@ export class LiveKitWebRTCService {
       }
       
       // Only emit events if we have a valid UUID
-      if (userId) {
+      // IMPORTANT: Spread to create a NEW object reference so Vue's reactivity detects the change
+      if (userId && state) {
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
-        this.emit('user-state-changed', { userId, mediaState: state });
+        this.emit('user-state-changed', { userId, mediaState: { ...state } });
       }
     });
     
@@ -1702,12 +1705,57 @@ export class LiveKitWebRTCService {
             Object.assign(state, message.data);
             this.allUserStates.set(participant.identity, state);
             // Use state.userId (resolved UUID) instead of identity for events
-            this.emit('user-state-changed', { userId: state.userId, mediaState: state });
+            // Spread to create new object reference for Vue reactivity
+            this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
           }
         }
       } catch (error) {
         debug.warn('⚠️ [LiveKit] Failed to parse data message');
       }
+    });
+    
+    // LOCAL track unpublished (fires when Chrome's "Stop Sharing" is clicked or track ends)
+    this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, participant: LocalParticipant) => {
+      debug.log('📺 [LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
+      
+      // Update local media state based on what was unpublished
+      if (publication.kind === Track.Kind.Video) {
+        if (publication.source === Track.Source.ScreenShare) {
+          debug.log('📺 [LiveKit] Screen share ended (Chrome stop button or track ended)');
+          this.localMediaState.isScreenSharing = false;
+        } else if (publication.source === Track.Source.Camera) {
+          debug.log('📺 [LiveKit] Camera ended');
+          this.localMediaState.isVideoEnabled = false;
+        }
+      } else if (publication.kind === Track.Kind.Audio) {
+        if (publication.source === Track.Source.ScreenShareAudio) {
+          debug.log('🔊 [LiveKit] Screen share audio ended');
+          // No state to update - screenshare audio doesn't have a separate flag
+        }
+      }
+      
+      // Emit state change so UI updates (spread for new object reference)
+      this.emit('local-state-changed', { ...this.localMediaState });
+      
+      // Also emit user-stream-changed so remoteStreams in store gets updated
+      if (this.currentUserId) {
+        const stream = this.getLocalStream();
+        this.emit('user-stream-changed', { userId: this.currentUserId, stream });
+        this.emit('user-state-changed', { 
+          userId: this.currentUserId, 
+          mediaState: { ...this.localMediaState } 
+        });
+      }
+      
+      debug.log('📺 [LiveKit] Local state after unpublish:', 
+        'video:', this.localMediaState.isVideoEnabled, 
+        'screen:', this.localMediaState.isScreenSharing);
+    });
+    
+    // Track published by remote user (fires AFTER TrackSubscribed, good for UI notification)
+    this.room.on(RoomEvent.TrackPublished, async (publication: TrackPublication, participant: RemoteParticipant) => {
+      debug.log('📺 [LiveKit] Remote track published:', publication.kind, 'source:', publication.source, 'from:', participant.identity);
+      // This gives us another chance to update UI when remote user publishes a track
     });
     
     // Note: Initial sync is handled by syncExistingParticipants() which properly resolves identities
@@ -1725,7 +1773,8 @@ export class LiveKitWebRTCService {
         state.isMuted = true;
         this.allUserStates.set(participant.identity, state);
         // Use state.userId (resolved UUID) instead of identity for events
-        this.emit('user-state-changed', { userId: state.userId, mediaState: state });
+        // Spread to create new object reference for Vue reactivity
+        this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
       }
     });
     
@@ -1736,7 +1785,8 @@ export class LiveKitWebRTCService {
         state.isMuted = false;
         this.allUserStates.set(participant.identity, state);
         // Use state.userId (resolved UUID) instead of identity for events
-        this.emit('user-state-changed', { userId: state.userId, mediaState: state });
+        // Spread to create new object reference for Vue reactivity
+        this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
       }
     });
     
