@@ -18,6 +18,7 @@ import {
   LocalParticipant,
   Track,
   TrackPublication,
+  TrackSource,
   ConnectionState,
   ParticipantEvent,
   LocalTrack,
@@ -290,6 +291,9 @@ export class LiveKitWebRTCService {
   
   // Remote user states
   private allUserStates = new Map<string, UserMediaState>();
+  
+  // Remote audio elements (for deafen functionality)
+  private remoteAudioElements = new Map<string, HTMLAudioElement[]>();
   
   // Event listeners
   private eventListeners = new Map<string, Function[]>();
@@ -585,6 +589,7 @@ export class LiveKitWebRTCService {
     
     // Clear state
     this.allUserStates.clear();
+    this.remoteAudioElements.clear();
     
     const oldChannelId = this.channelId;
     this.channelId = null;
@@ -805,14 +810,12 @@ export class LiveKitWebRTCService {
       }
     }
     
-    // Mute/unmute all remote audio based on deafen state
-    if (this.room) {
-      for (const participant of this.room.remoteParticipants.values()) {
-        for (const publication of participant.audioTrackPublications.values()) {
-          if (publication.track) {
-            (publication.track as RemoteAudioTrack).setMuted(this.localMediaState.isDeafened);
-          }
-        }
+    // Mute/unmute all remote audio ELEMENTS based on deafen state
+    // We use audio element muting instead of track.setMuted() to avoid
+    // incorrectly changing the remote user's isMuted state
+    for (const elements of this.remoteAudioElements.values()) {
+      for (const audioElement of elements) {
+        audioElement.muted = this.localMediaState.isDeafened;
       }
     }
     
@@ -1129,6 +1132,7 @@ export class LiveKitWebRTCService {
       
       // Always clean up by identity at minimum
       this.allUserStates.delete(participant.identity);
+      this.remoteAudioElements.delete(participant.identity);
       
       if (userId) {
         this.allUserStates.delete(userId);
@@ -1159,9 +1163,19 @@ export class LiveKitWebRTCService {
           if (track instanceof RemoteAudioTrack) {
             const audioElement = track.attach();
             audioElement.volume = 1.0; // Default volume
+            
+            // Apply deafen state if active
+            if (this.localMediaState.isDeafened) {
+              audioElement.muted = true;
+            }
+            
+            // Store reference for deafen/volume control
+            const elements = this.remoteAudioElements.get(participant.identity) || [];
+            elements.push(audioElement);
+            this.remoteAudioElements.set(participant.identity, elements);
+            
             debug.log('🔊 [LiveKit] Audio track attached for:', lookupId, 'source:', source);
             
-            // Store reference for volume control later
             if (source === Track.Source.ScreenShareAudio) {
               debug.log('🔊 [LiveKit] Screenshare audio attached for:', lookupId);
             }
@@ -1193,9 +1207,21 @@ export class LiveKitWebRTCService {
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       const lookupId = userId || participant.identity;
       
-      // Detach audio track
+      // Detach audio track and clean up references
       if (track.kind === Track.Kind.Audio && track instanceof RemoteAudioTrack) {
-        track.detach();
+        const detachedElements = track.detach();
+        
+        // Remove detached elements from our map
+        const elements = this.remoteAudioElements.get(participant.identity);
+        if (elements) {
+          const remaining = elements.filter(el => !detachedElements.includes(el));
+          if (remaining.length > 0) {
+            this.remoteAudioElements.set(participant.identity, remaining);
+          } else {
+            this.remoteAudioElements.delete(participant.identity);
+          }
+        }
+        
         debug.log('🔊 [LiveKit] Audio track detached for:', lookupId);
       }
       
@@ -1336,13 +1362,27 @@ export class LiveKitWebRTCService {
    * @param resolvedUserId - Optional resolved UUID (for federated users). If not provided, uses participant.identity
    */
   private createMediaState(participant: RemoteParticipant, resolvedUserId?: string): UserMediaState {
+    // Check if participant has muted their microphone
+    // isMicrophoneEnabled is false when they've muted or don't have a mic track
+    const hasMic = participant.audioTrackPublications.size > 0;
+    const isMicMuted = hasMic && !participant.isMicrophoneEnabled;
+    
+    // Check for screen share (source type is ScreenShare)
+    let isScreenSharing = false;
+    for (const pub of participant.videoTrackPublications.values()) {
+      if (pub.source === TrackSource.ScreenShare) {
+        isScreenSharing = true;
+        break;
+      }
+    }
+    
     return {
       userId: resolvedUserId || participant.identity,
-      isAudioEnabled: participant.audioTrackPublications.size > 0,
-      isVideoEnabled: participant.videoTrackPublications.size > 0,
-      isScreenSharing: false, // LiveKit tracks this separately
-      isMuted: false,
-      isDeafened: false,
+      isAudioEnabled: hasMic,
+      isVideoEnabled: participant.isCameraEnabled,
+      isScreenSharing,
+      isMuted: isMicMuted,
+      isDeafened: false, // We can't know if remote user is deafened - they broadcast this via data messages
       isSpeaking: participant.isSpeaking,
       audioLevel: 0,
     };
