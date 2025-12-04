@@ -1229,7 +1229,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           debug.warn('⚠️ Failed to load profile for voice user:', data.userId, error);
         }
 
-        themeStore.testAudio('voice_connect');
+        // Only play sound for OTHER users joining, not for self
+        // (self sound is played immediately in ChannelSidebar for optimistic UX)
+        if (data.userId !== this.localState.userId) {
+          themeStore.testAudio('voice_connect');
+        }
       });
 
       webrtcManager.on('user-left', (data) => {
@@ -1260,7 +1264,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.callStartTime = null;
         }
 
-        themeStore.testAudio('voice_disconnect');
+        // Only play sound for OTHER users leaving, not for self
+        // (self disconnect sound is handled in leaveVoiceChannel/ChannelSidebar)
+        if (data.userId !== this.localState.userId) {
+          themeStore.testAudio('voice_disconnect');
+        }
       });
 
       webrtcManager.on('user-state-changed', (data) => {
