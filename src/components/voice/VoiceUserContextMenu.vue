@@ -88,11 +88,12 @@
         </div>
       </div>
       
-      <!-- Screenshare Volume Control (only when user is screensharing) -->
-      <div v-if="!isSelf && isScreenSharing && hasScreenShareAudio" class="menu-section">
+      <!-- Screenshare Volume Control (when user is screensharing) -->
+      <div v-if="!isSelf && isScreenSharing" class="menu-section">
         <div class="section-label">
           <Icon name="screen-share" />
           <span>Screenshare Audio</span>
+          <span v-if="!hasScreenShareAudio" class="no-audio-hint">(no audio)</span>
           <span class="volume-value">{{ currentScreenShareVolume }}%</span>
         </div>
         <div class="volume-slider-container">
@@ -609,6 +610,12 @@ watch(
   font-weight: 700;
 }
 
+.no-audio-hint {
+  font-size: 10px;
+  color: #72767d;
+  opacity: 0.7;
+}
+
 .volume-slider-container {
   margin-bottom: 12px;
 }
@@ -640,12 +647,12 @@ watch(
 
 /* Screenshare slider - purple/violet accent */
 .volume-slider.screenshare-slider::-webkit-slider-thumb {
-  background: #9b59b6;
-  box-shadow: 0 2px 6px rgba(155, 89, 182, 0.4);
+  background: var(--harmony-accent);;
+  box-shadow: 0 2px 6px var(--harmony-accent-alpha);
 }
 
 .volume-slider.screenshare-slider::-webkit-slider-runnable-track {
-  background: linear-gradient(to right, rgba(155, 89, 182, 0.3), rgba(155, 89, 182, 0.5));
+  /* background: linear-gradient(to right, rgba(155, 89, 182, 0.3), rgba(155, 89, 182, 0.5)); */
 }
 
 .volume-marks {

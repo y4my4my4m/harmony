@@ -575,37 +575,53 @@ watch(() => spatialStore.settings.enabled, (enabled) => {
   }
 });
 
-// Initialize positions for new participants
-watch(() => allParticipants.value, (newParticipants, oldParticipants) => {
-  const oldIds = new Set(oldParticipants?.map(p => p.userId) || []);
-  
-  newParticipants.forEach(participant => {
-    if (!oldIds.has(participant.userId)) {
-      spatialStore.initializeUserPosition(participant.userId);
-    }
-  });
-  
-  // Remove positions for users who left
-  const newIds = new Set(newParticipants.map(p => p.userId));
-  oldParticipants?.forEach(participant => {
-    if (!newIds.has(participant.userId)) {
-      spatialStore.removeUserPosition(participant.userId);
-    }
-  });
-}, { deep: true });
+// Track participant IDs to detect joins/leaves without deep watching
+let previousParticipantIds = new Set<string>();
+
+// Initialize positions for new participants (watch by user ID string to avoid deep watching)
+watch(
+  () => allParticipants.value.map(p => p.userId).sort().join(','),
+  () => {
+    const currentIds = new Set(allParticipants.value.map(p => p.userId));
+    
+    // Initialize positions for new participants
+    currentIds.forEach(userId => {
+      if (!previousParticipantIds.has(userId)) {
+        spatialStore.initializeUserPosition(userId);
+      }
+    });
+    
+    // Remove positions for users who left
+    previousParticipantIds.forEach(userId => {
+      if (!currentIds.has(userId)) {
+        spatialStore.removeUserPosition(userId);
+      }
+    });
+    
+    previousParticipantIds = currentIds;
+  }
+);
+
+// Track loaded user IDs to avoid repeated fetches
+const loadedProfileIds = new Set<string>();
 
 // Ensure all participant profiles are loaded when participants change
-watch(allParticipants, async (newParticipants) => {
-  const userIds = newParticipants.map(p => p.userId);
-  if (userIds.length > 0) {
-    try {
-      await ensureProfilesAvailable(userIds);
-      debug.log('✅ Loaded profiles for spatial audio participants:', userIds.length);
-    } catch (error) {
-      debug.warn('⚠️ Failed to load profiles for spatial audio participants:', error);
+watch(
+  () => allParticipants.value.map(p => p.userId).join(','),
+  async (userIdsString) => {
+    const userIds = userIdsString.split(',').filter(id => id && !loadedProfileIds.has(id));
+    if (userIds.length > 0) {
+      try {
+        await ensureProfilesAvailable(userIds);
+        userIds.forEach(id => loadedProfileIds.add(id));
+        debug.log('✅ Loaded profiles for spatial audio participants:', userIds.length);
+      } catch (error) {
+        debug.warn('⚠️ Failed to load profiles for spatial audio participants:', error);
+      }
     }
-  }
-}, { immediate: true });
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   nextTick(() => {

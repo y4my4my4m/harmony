@@ -479,24 +479,7 @@ watch(
   { immediate: true }
 );
 
-// Debug watcher to track when hasVideo changes
-watch(
-  () => hasVideo.value,
-  (newVal, oldVal) => {
-    debug.log(`🔄 hasVideo changed for ${props.userState.userId}: ${oldVal} -> ${newVal}`);
-  }
-);
-
-// Debug watcher for props changes
-watch(
-  () => props.userState,
-  (newState) => {
-    debug.log(`📋 Props userState changed for ${newState.userId}: isVideoEnabled=${newState.isVideoEnabled}, isScreenSharing=${newState.isScreenSharing}`);
-  },
-  { deep: true }
-);
-
-// Also watch for when video element becomes available (v-if renders it)
+// Watch for when video element becomes available (v-if renders it)
 watch(videoElement, (newEl) => {
   if (newEl) {
     debug.log(`📹 Video element now available for ${props.userState.userId}`);
@@ -845,7 +828,7 @@ onUpdated(() => {
   text-align: center;
   position: relative;
   padding-bottom: 0px;
-  top: 20px;
+  top: 10px;
   margin: 0 auto;
   width: 100%;
 }

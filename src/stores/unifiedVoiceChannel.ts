@@ -158,12 +158,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     // Get all participants (including self)
-    // Uses spread to create new object references, ensuring Vue detects changes
+    // Returns stable references to avoid reactivity loops
     allParticipants: (state) => {
-      const participants = [{ ...state.localState }];
+      const participants = [state.localState];
       state.allUsers.forEach(user => {
         if (user.userId !== state.localState.userId) {
-          participants.push({ ...user });
+          participants.push(user);
         }
       });
       return participants;
