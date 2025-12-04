@@ -565,6 +565,10 @@ export class UnifiedWebRTCService {
   /**
    * Toggle screen share on/off
    */
+  // Track IDs for screen share tracks (for proper cleanup)
+  private screenShareVideoTrackId: string | null = null;
+  private screenShareAudioTrackId: string | null = null;
+  
   async toggleScreenShare(): Promise<boolean> {
     try {
       if (!this.localMediaState.isScreenSharing) {
@@ -576,6 +580,16 @@ export class UnifiedWebRTCService {
         
         const screenVideoTrack = screenStream.getVideoTracks()[0];
         const screenAudioTrack = screenStream.getAudioTracks()[0]; // System audio
+        
+        // Store track IDs for cleanup
+        this.screenShareVideoTrackId = screenVideoTrack?.id || null;
+        this.screenShareAudioTrackId = screenAudioTrack?.id || null;
+        
+        debug.log('📺 Screen share tracks:', {
+          video: screenVideoTrack?.id,
+          audio: screenAudioTrack?.id,
+          audioLabel: screenAudioTrack?.label
+        });
         
         if (this.localStream && screenVideoTrack) {
           // If camera was enabled, turn it off first
@@ -650,62 +664,118 @@ export class UnifiedWebRTCService {
                 debug.log('✅ Screen share renegotiation offer sent to:', userId);
               }
               
-              // Add screen audio track if available
+              // Add screen audio track if available (needs renegotiation)
               if (screenAudioTrack) {
-                conn.peerConnection.addTrack(screenAudioTrack, this.localStream!);
-                debug.log('🔊 Added screen audio track to peer:', userId);
+                // Check if we already have this track in the peer connection
+                const existingSenders = conn.peerConnection.getSenders();
+                const hasScreenAudio = existingSenders.some(s => s.track?.id === screenAudioTrack.id);
+                
+                if (!hasScreenAudio) {
+                  conn.peerConnection.addTrack(screenAudioTrack, this.localStream!);
+                  debug.log('🔊 Added screen audio track to peer:', userId);
+                  
+                  // Need to renegotiate for the new audio track
+                  // Wait a moment for the track to be added, then send a new offer
+                  setTimeout(async () => {
+                    try {
+                      if (conn.peerConnection.signalingState === 'stable') {
+                        const offer = await conn.peerConnection.createOffer();
+                        await conn.peerConnection.setLocalDescription(offer);
+                        
+                        this.sendDirectMessage(userId, {
+                          type: 'offer',
+                          from: this.currentUserId!,
+                          to: userId,
+                          data: offer,
+                          timestamp: Date.now()
+                        });
+                        
+                        debug.log('✅ Screen audio renegotiation offer sent to:', userId);
+                      }
+                    } catch (error) {
+                      debug.error('❌ Screen audio renegotiation failed:', error);
+                    }
+                  }, 100);
+                }
               }
             } catch (error) {
               debug.error('❌ Error updating screen share for peer', userId, ':', error);
             }
           }
           
-          // Handle screen share ending
+          // Handle screen share ending (either video or audio ending should stop both)
           screenVideoTrack.onended = () => {
-            this.toggleScreenShare();
+            debug.log('📺 Screen video track ended');
+            if (this.localMediaState.isScreenSharing) {
+              this.toggleScreenShare();
+            }
           };
+          
+          if (screenAudioTrack) {
+            screenAudioTrack.onended = () => {
+              debug.log('🔊 Screen audio track ended');
+              // Don't auto-stop screenshare when audio ends (video might still be going)
+              // Just mark that audio is gone
+              this.screenShareAudioTrackId = null;
+            };
+          }
         }
       } else {
         // Stop screen sharing
         if (this.localStream) {
-          // Remove screen video tracks
-          const videoTracks = this.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.localStream!.removeTrack(track);
-            
-            // Remove from peer connections
-            this.connections.forEach(conn => {
-              const senders = conn.peerConnection.getSenders();
-              const videoSender = senders.find(s => s.track === track);
-              if (videoSender) {
-                conn.peerConnection.removeTrack(videoSender);
-              }
-            });
+          debug.log('🛑 Stopping screen share, cleaning up tracks:', {
+            videoTrackId: this.screenShareVideoTrackId,
+            audioTrackId: this.screenShareAudioTrackId
           });
           
-          // Remove screen audio tracks (system audio)
-          // We need to be careful to only remove non-microphone audio tracks
-          const audioTracks = this.localStream.getAudioTracks();
-          audioTracks.forEach(track => {
-            // Check if this is a screen audio track (has different label/source)
-            if (track.label.includes('System Audio') || track.label.includes('Screen') || 
-                track.getSettings().deviceId?.includes('screen')) {
+          // Remove screen video track by ID
+          const videoTracks = this.localStream.getVideoTracks();
+          videoTracks.forEach(track => {
+            // Remove the screen share video track (or all video if we don't have the ID)
+            if (!this.screenShareVideoTrackId || track.id === this.screenShareVideoTrackId) {
+              debug.log('🛑 Stopping video track:', track.id);
               track.stop();
               this.localStream!.removeTrack(track);
               
               // Remove from peer connections
               this.connections.forEach(conn => {
                 const senders = conn.peerConnection.getSenders();
-                const audioSender = senders.find(s => s.track === track);
-                if (audioSender) {
-                  conn.peerConnection.removeTrack(audioSender);
+                const videoSender = senders.find(s => s.track?.id === track.id);
+                if (videoSender) {
+                  conn.peerConnection.removeTrack(videoSender);
+                  debug.log('🛑 Removed video sender from peer:', conn.userId);
                 }
               });
-              
-              debug.log('🔇 Removed screen audio track:', track.label);
             }
           });
+          
+          // Remove screen audio track by ID (much more reliable than label matching)
+          if (this.screenShareAudioTrackId) {
+            const audioTracks = this.localStream.getAudioTracks();
+            const screenAudioTrack = audioTracks.find(t => t.id === this.screenShareAudioTrackId);
+            
+            if (screenAudioTrack) {
+              debug.log('🔇 Stopping screen audio track:', screenAudioTrack.id, screenAudioTrack.label);
+              screenAudioTrack.stop();
+              this.localStream!.removeTrack(screenAudioTrack);
+              
+              // Remove from peer connections
+              this.connections.forEach(conn => {
+                const senders = conn.peerConnection.getSenders();
+                const audioSender = senders.find(s => s.track?.id === this.screenShareAudioTrackId);
+                if (audioSender) {
+                  conn.peerConnection.removeTrack(audioSender);
+                  debug.log('🔇 Removed screen audio sender from peer:', conn.userId);
+                }
+              });
+            } else {
+              debug.warn('⚠️ Screen audio track not found for cleanup:', this.screenShareAudioTrackId);
+            }
+          }
+          
+          // Clear stored track IDs
+          this.screenShareVideoTrackId = null;
+          this.screenShareAudioTrackId = null;
           
           this.localMediaState.isScreenSharing = false;
           this.localMediaState.isVideoEnabled = false;

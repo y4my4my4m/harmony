@@ -415,43 +415,57 @@ const handleContextMenu = (event: MouseEvent) => {
 // Function to attach video to element
 // Track last attached state to prevent unnecessary re-attachments
 let lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+let lastAttachedStreamId: string | null = null;
 let isVideoAttached = false;
 
 const attachVideo = () => {
   const userId = props.userState.userId;
   const state = storeUserState.value;
+  const stream = userStream.value;
   
   if (!videoElement.value) {
     return;
   }
   
   const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
+  const currentStreamId = stream?.id || null;
   
-  // Check if we actually need to do anything
+  // Check if we need to reattach - either state changed OR stream changed
   const stateChanged = 
     lastAttachedVideoState.isVideoEnabled !== state.isVideoEnabled ||
     lastAttachedVideoState.isScreenSharing !== state.isScreenSharing;
+  const streamChanged = currentStreamId !== lastAttachedStreamId;
   
-  // Skip if video is already attached and state hasn't changed
-  if (isVideoAttached && shouldShowVideo && !stateChanged) {
+  // Skip if video is already attached and nothing changed
+  if (isVideoAttached && shouldShowVideo && !stateChanged && !streamChanged) {
     return;
   }
   
   if (shouldShowVideo) {
+    // If stream changed, we MUST reattach even if state looks the same
+    if (streamChanged && isVideoAttached) {
+      debug.log(`📹 Stream changed for ${userId}, forcing reattachment`);
+      // Clear old attachment
+      voiceStore.detachVideoFromElement(userId, videoElement.value);
+      videoElement.value.srcObject = null;
+      isVideoAttached = false;
+    }
+    
     // Use LiveKit's proper attach method - this is CRITICAL for adaptive streaming
     // Using srcObject directly causes LiveKit to disable all simulcast layers (frozen video)
     const attached = voiceStore.attachVideoToElement(userId, videoElement.value);
     if (attached) {
       isVideoAttached = true;
       lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
+      lastAttachedStreamId = currentStreamId;
       debug.log(`📹 ✅ Attached video for user ${userId}`);
     } else {
       // Fallback to srcObject for P2P mode or if attach fails
-      const stream = userStream.value;
       if (stream && stream.getVideoTracks().length > 0) {
         videoElement.value.srcObject = stream;
         isVideoAttached = true;
         lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
+        lastAttachedStreamId = currentStreamId;
         debug.log(`📹 ⚠️ Fallback: srcObject for user ${userId}`);
       }
     }
@@ -464,17 +478,20 @@ const attachVideo = () => {
     videoElement.value.load(); // Force reload to clear any cached frames
     isVideoAttached = false;
     lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+    lastAttachedStreamId = null;
     debug.log(`📹 Detached video for user ${userId}`);
   }
 };
 
 // Update video element when stream OR state changes
 // Uses LiveKit's proper track.attach() method for adaptive streaming to work correctly
+// Also watch streamUpdateCounter to catch stream changes in P2P mode
 watch(
   [
     () => userStream.value, 
     () => storeUserState.value.isVideoEnabled, 
-    () => storeUserState.value.isScreenSharing
+    () => storeUserState.value.isScreenSharing,
+    () => voiceStore.streamUpdateCounter
   ],
   () => {
     // Use nextTick to ensure DOM is updated before attaching
