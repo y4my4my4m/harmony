@@ -707,10 +707,43 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
     /**
      * Toggle mute on/off
+     * IMPORTANT: In PTT mode, this only allows MUTING, not unmuting via button click.
+     * Unmuting in PTT mode happens only via the PTT key.
+     * This prevents accidental audio leaks when user clicks unmute button.
      */
     async toggleMute(): Promise<boolean> {
       const themeStore = useThemeStore();
-      // Allow mute/unmute even when not connected (preemptive state)
+      const keybinds = useKeybinds();
+      
+      // In PTT mode, clicking the mute button should:
+      // - If currently transmitting (PTT held): mute immediately (safety)
+      // - If muted (PTT not held): stay muted, do NOT unmute via button
+      //   This prevents accidental voice activation when user clicks unmute
+      if (keybinds.isPTTMode.value) {
+        const currentlyMuted = this.localState.isMuted;
+        
+        if (!currentlyMuted) {
+          // User is unmuted (PTT is held) - allow muting for safety/privacy
+          if (this.isConnected) {
+            webrtcManager.setMuted(true);
+            this.localState = webrtcManager.getLocalState();
+          } else {
+            this.localState.isMuted = true;
+          }
+          themeStore.testAudio('mic_off');
+          debug.log('🎤 [PTT] Muted via button while transmitting');
+          return true;
+        } else {
+          // User is muted (PTT not held) - DON'T unmute via button click!
+          // They need to hold the PTT key to transmit
+          debug.log('🎤 [PTT] Ignoring unmute button - use PTT key to transmit');
+          // Play a subtle sound to indicate the action was blocked
+          // themeStore.testAudio('error'); // Optional: play error sound
+          return true; // Stay muted
+        }
+      }
+      
+      // Voice Activity mode - normal toggle behavior
       if (this.isConnected) {
         const muted = webrtcManager.toggleMute();
         this.localState = webrtcManager.getLocalState();

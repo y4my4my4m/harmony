@@ -385,8 +385,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       () => fullscreenParticipant.value,
       (participant, oldParticipant) => {
         if (!participant) {
-          // Fullscreen participant left - exit fullscreen
+          // Fullscreen participant left or not found - exit fullscreen immediately
           if (voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId) {
+            console.log('🖼️ [Fullscreen] Participant gone, exiting fullscreen');
             voiceStore.exitFullscreen();
           }
           previousScreenShareState.value = null;
@@ -396,8 +397,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         const hasVideoOrScreenshare = participant.isVideoEnabled || participant.isScreenSharing;
         const hadVideoOrScreenshare = previousScreenShareState.value;
         
-        // If they had video/screenshare and now don't, exit fullscreen
+        // If they had video/screenshare and now don't, exit fullscreen immediately
         if (hadVideoOrScreenshare === true && !hasVideoOrScreenshare) {
+          console.log('🖼️ [Fullscreen] No more video/screenshare, exiting fullscreen');
           voiceStore.exitFullscreen();
         }
         
@@ -407,21 +409,39 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       { deep: true, immediate: true }
     );
 
-    // Also specifically watch for screenshare stopping
-    // This ensures we catch the case where user stops sharing but still has camera on
+    // Watch the store's streamUpdateCounter for any stream changes affecting fullscreen user
+    // This provides a backup trigger in case the deep watch misses something
     watch(
-      () => fullscreenParticipant.value?.isScreenSharing,
-      (isScreenSharing, wasScreenSharing) => {
-        // Only exit if we were specifically watching a screenshare and it stopped
-        // AND the user doesn't have their camera on as a fallback
-        if (wasScreenSharing === true && isScreenSharing === false) {
-          const participant = fullscreenParticipant.value;
-          // Only exit if they also don't have camera enabled
-          if (participant && !participant.isVideoEnabled) {
-            voiceStore.exitFullscreen();
-          }
+      () => voiceStore.streamUpdateCounter,
+      () => {
+        if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return;
+        
+        // Re-check if fullscreen participant still has video/screenshare
+        const participant = fullscreenParticipant.value;
+        if (participant && !participant.isVideoEnabled && !participant.isScreenSharing) {
+          console.log('🖼️ [Fullscreen] Stream update detected - no video, exiting fullscreen');
+          voiceStore.exitFullscreen();
         }
       }
+    );
+
+    // Specifically watch for the fullscreen user's screenshare state
+    // This is the most direct way to catch screenshare stopping
+    watch(
+      [() => voiceStore.fullscreenUserId, () => voiceStore.allUsers],
+      ([userId, allUsers]) => {
+        if (voiceStore.viewMode !== 'fullscreen' || !userId) return;
+        
+        // Find the user in allUsers
+        const user = allUsers.find((u: any) => u.userId === userId);
+        
+        // If user exists but has no video/screenshare, exit fullscreen
+        if (user && !user.isVideoEnabled && !user.isScreenSharing) {
+          console.log('🖼️ [Fullscreen] User has no video/screenshare, exiting');
+          voiceStore.exitFullscreen();
+        }
+      },
+      { deep: true }
     );
 
     // =============================================================================
@@ -482,6 +502,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       keybinds.activateContext('voice-overlay');
       
       // Register keybind handlers
+      // Note: toggleMute already handles PTT mode check internally
       keybinds.registerHandler('toggle-mute', () => voiceStore.toggleMute());
       keybinds.registerHandler('toggle-deafen', () => voiceStore.toggleDeafen());
       keybinds.registerHandler('toggle-camera', () => voiceStore.toggleVideo());

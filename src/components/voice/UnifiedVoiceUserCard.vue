@@ -537,8 +537,8 @@ watch(videoElement, (newEl, oldEl) => {
   }
 });
 
-// Specific watcher for screenshare state changes to force reattachment
-// This ensures we catch the track properly when screenshare starts
+// Specific watcher for screenshare state changes
+// Handles both starting and stopping of screenshare
 watch(
   () => storeUserState.value.isScreenSharing,
   (newVal, oldVal) => {
@@ -551,6 +551,40 @@ watch(
           attachVideo(true);
         }
       }, 150);
+    } else if (!newVal && oldVal) {
+      // Screenshare just stopped - immediately clean up video element
+      debug.log(`📹 🖥️ Screenshare stopped for ${props.userState.userId}, cleaning up video`);
+      if (videoElement.value) {
+        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
+        videoElement.value.srcObject = null;
+        videoElement.value.src = '';
+        videoElement.value.load();
+        isVideoAttached = false;
+        lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+        lastAttachedStreamId = null;
+        attachmentRetryCount = 0;
+      }
+    }
+  }
+);
+
+// Watch for video state changes to immediately clean up when video stops
+watch(
+  () => storeUserState.value.isVideoEnabled,
+  (newVal, oldVal) => {
+    if (!newVal && oldVal && !storeUserState.value.isScreenSharing) {
+      // Video stopped and not screensharing - clean up
+      debug.log(`📹 Camera stopped for ${props.userState.userId}, cleaning up video`);
+      if (videoElement.value && isVideoAttached) {
+        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
+        videoElement.value.srcObject = null;
+        videoElement.value.src = '';
+        videoElement.value.load();
+        isVideoAttached = false;
+        lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+        lastAttachedStreamId = null;
+        attachmentRetryCount = 0;
+      }
     }
   }
 );

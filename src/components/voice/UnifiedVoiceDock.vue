@@ -92,6 +92,25 @@
         </button>
       </div>
 
+      <!-- Video Preview Thumbnail (when someone has video/screenshare) -->
+      <div 
+        v-if="activeVideoUser && !voiceStore.pipActive" 
+        class="dock-video-preview"
+        @click="expandToOverlay"
+        :title="`${activeVideoUserName} is ${activeVideoUser.isScreenSharing ? 'sharing screen' : 'on camera'}`"
+      >
+        <video
+          ref="dockVideoRef"
+          autoplay
+          playsinline
+          muted
+          class="dock-video"
+        />
+        <div class="dock-video-badge">
+          <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'camera'" />
+        </div>
+      </div>
+
       <!-- Action Controls -->
       <div class="action-controls">
         <button
@@ -249,6 +268,7 @@ const { getUser } = useUserData();
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
 const minimizedVideoRef = ref<HTMLVideoElement | null>(null);
+const dockVideoRef = ref<HTMLVideoElement | null>(null);
 
 // =============================================================================
 // COMPUTED PROPERTIES
@@ -370,6 +390,7 @@ const activatePIPForActiveVideo = () => {
 // Track last attached user to prevent flashing from repeated attachments
 let lastAttachedUserId: string | null = null;
 let lastAttachedElement: HTMLVideoElement | null = null;
+let lastDockAttachedUserId: string | null = null;
 
 // Attach video to minimized preview using LiveKit's proper method
 // Only re-attach when the user actually changes, not on every counter update
@@ -397,6 +418,32 @@ watch(
       videoEl.srcObject = null;
       lastAttachedUserId = null;
       lastAttachedElement = null;
+    }
+  },
+  { immediate: true }
+);
+
+// Attach video to dock preview (compact mode)
+watch(
+  [activeVideoUser, dockVideoRef],
+  ([user, videoEl]) => {
+    const userId = user?.userId || null;
+    
+    // Skip if same user is already attached
+    if (userId === lastDockAttachedUserId && videoEl?.srcObject) {
+      return;
+    }
+    
+    if (user && videoEl) {
+      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
+      if (!attached && activeVideoStream.value) {
+        videoEl.srcObject = activeVideoStream.value;
+      }
+      lastDockAttachedUserId = userId;
+    } else if (videoEl) {
+      voiceStore.detachVideoFromElement(lastDockAttachedUserId || '', videoEl);
+      videoEl.srcObject = null;
+      lastDockAttachedUserId = null;
     }
   },
   { immediate: true }
@@ -707,6 +754,51 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Dock Video Preview (small thumbnail in dock mode) */
+.dock-video-preview {
+  position: relative;
+  width: 64px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid rgba(88, 101, 242, 0.4);
+  flex-shrink: 0;
+}
+
+.dock-video-preview:hover {
+  transform: scale(1.05);
+  border-color: rgba(88, 101, 242, 0.8);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+}
+
+.dock-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dock-video-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(87, 242, 135, 0.9);
+  color: #000;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-video-badge :deep(svg) {
+  width: 10px;
+  height: 10px;
 }
 
 /* Action Controls */
