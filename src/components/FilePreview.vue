@@ -142,7 +142,7 @@ const hasUploading = computed(() => {
 }
 
 .file-count {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   text-transform: uppercase;
@@ -228,7 +228,7 @@ const hasUploading = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: white;
 }
 
@@ -243,7 +243,7 @@ const hasUploading = computed(() => {
 }
 
 .file-name {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;

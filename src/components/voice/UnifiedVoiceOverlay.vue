@@ -29,6 +29,12 @@
           </div>
           
           <div class="header-controls">
+            <!-- Connection Mode Indicator -->
+            <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
+              <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
+              <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
+            </div>
+            
             <button 
               @click="voiceStore.setLayoutMode('grid')"
               class="layout-btn"
@@ -90,8 +96,8 @@
           </div>
         </div>
 
-        <!-- Featured Speaker (Speaker mode) -->
-        <div v-if="voiceStore.layoutMode === 'speaker' && featuredSpeaker" class="featured-speaker">
+        <!-- Featured Speaker (Speaker mode) - Hidden when in fullscreen to avoid doubled video -->
+        <div v-if="voiceStore.layoutMode === 'speaker' && featuredSpeaker && voiceStore.viewMode !== 'fullscreen'" class="featured-speaker">
           <UnifiedVoiceUserCard
             :user-state="featuredSpeaker"
             @toggle-video="voiceStore.toggleVideo"
@@ -121,7 +127,12 @@
         </div>
 
         <!-- Fullscreen View -->
-        <div v-else-if="voiceStore.viewMode === 'fullscreen' && fullscreenParticipant" class="fullscreen-container">
+        <div 
+          v-else-if="voiceStore.viewMode === 'fullscreen' && fullscreenParticipant" 
+          class="fullscreen-container"
+          :class="{ 'full-window-mode': isFullWindowMode }"
+          @click="isFullWindowMode && voiceStore.toggleFullWindowMode()"
+        >
           <UnifiedVoiceUserCard
             :key="fullscreenParticipant.userId"
             :user-state="fullscreenParticipant"
@@ -130,16 +141,25 @@
             class="fullscreen-card"
           />
           
-          <!-- Thumbnail strip at bottom -->
-          <div class="thumbnail-strip">
-            <UnifiedVoiceUserCard
-              v-for="participant in nonFullscreenParticipants"
-              :key="participant.userId"
-              :user-state="participant"
-              @toggle-video="voiceStore.toggleVideo"
-              @toggle-screen-share="voiceStore.toggleScreenShare"
-              class="thumbnail-card"
-            />
+          <!-- Thumbnail strip at bottom with collapse button -->
+          <div class="thumbnail-strip-container">
+            <button 
+              class="thumbnail-collapse-btn"
+              @click="isThumbnailStripCollapsed = !isThumbnailStripCollapsed"
+              :title="isThumbnailStripCollapsed ? 'Show participants' : 'Hide participants'"
+            >
+              <Icon :name="isThumbnailStripCollapsed ? 'chevron-up' : 'chevron-down'" />
+            </button>
+            <div v-if="!isThumbnailStripCollapsed" class="thumbnail-strip">
+              <UnifiedVoiceUserCard
+                v-for="participant in nonFullscreenParticipants"
+                :key="participant.userId"
+                :user-state="participant"
+                @toggle-video="voiceStore.toggleVideo"
+                @toggle-screen-share="voiceStore.toggleScreenShare"
+                class="thumbnail-card"
+              />
+            </div>
           </div>
         </div>
 
@@ -154,11 +174,16 @@
                 class="control-button"
                 :class="{ 
                   active: !voiceStore.localState.isMuted,
-                  muted: voiceStore.localState.isMuted 
+                  muted: voiceStore.localState.isMuted,
+                  'ptt-mode': isPTTMode,
+                  'ptt-active': isPTTActive
                 }"
-                :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
+                :title="isPTTMode 
+                  ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`) 
+                  : (voiceStore.localState.isMuted ? 'Unmute (M)' : 'Mute (M)')"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
+                <span v-if="isPTTMode" class="ptt-badge" :class="{ active: isPTTActive }">PTT</span>
               </button>
               <DeviceSelector type="input" @open-settings="showSettings = true" />
             </div>
@@ -228,6 +253,7 @@
       >
         <VoiceSettingsPanel 
           @close="showSettings = false"
+          @update-settings="handleSettingsUpdate"
         />
       </div>
     </Teleport>
@@ -236,23 +262,26 @@
     <SpatialAudioPanel 
       :is-under-overlay="true"
     />
-
-    <!-- Screenshare PIP -->
-    <ScreensharePIP />
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
+import { useKeybinds } from '@/composables/useKeybinds';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
-import ScreensharePIP from './ScreensharePIP.vue';
 import DeviceSelector from './DeviceSelector.vue';
 import Icon from '@/components/common/Icon.vue';
+
+// Centralized keybind system
+const keybinds = useKeybinds();
+const isPTTMode = keybinds.isPTTMode;
+const isPTTActive = keybinds.isPTTActive;
+const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
 
 interface Props {
   channelName?: string;
@@ -274,6 +303,10 @@ const spatialStore = useSpatialAudioStore();
 const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
+const isThumbnailStripCollapsed = ref(false);
+
+// Full window mode is now in the store
+const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
 
 // =============================================================================
 // ADAPTIVE GRID
@@ -340,6 +373,78 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       return voiceStore.allParticipants.filter(p => p.userId !== voiceStore.fullscreenUserId);
     });
     
+    // Track previous screenshare state to detect when it stops
+    const previousScreenShareState = ref<boolean | null>(null);
+    
+    // =============================================================================
+    // WATCHERS
+    // =============================================================================
+    
+    // Watch for fullscreen participant's video/screenshare state changes
+    // Exit fullscreen when the user stops sharing their screen or disables video
+    watch(
+      () => fullscreenParticipant.value,
+      (participant, oldParticipant) => {
+        if (!participant) {
+          // Fullscreen participant left or not found - exit fullscreen immediately
+          if (voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId) {
+            console.log('🖼️ [Fullscreen] Participant gone, exiting fullscreen');
+            voiceStore.exitFullscreen();
+          }
+          previousScreenShareState.value = null;
+          return;
+        }
+        
+        const hasVideoOrScreenshare = participant.isVideoEnabled || participant.isScreenSharing;
+        const hadVideoOrScreenshare = previousScreenShareState.value;
+        
+        // If they had video/screenshare and now don't, exit fullscreen immediately
+        if (hadVideoOrScreenshare === true && !hasVideoOrScreenshare) {
+          console.log('🖼️ [Fullscreen] No more video/screenshare, exiting fullscreen');
+          voiceStore.exitFullscreen();
+        }
+        
+        // Update previous state
+        previousScreenShareState.value = hasVideoOrScreenshare;
+      },
+      { deep: true, immediate: true }
+    );
+
+    // Watch the store's streamUpdateCounter for any stream changes affecting fullscreen user
+    // This provides a backup trigger in case the deep watch misses something
+    watch(
+      () => voiceStore.streamUpdateCounter,
+      () => {
+        if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return;
+        
+        // Re-check if fullscreen participant still has video/screenshare
+        const participant = fullscreenParticipant.value;
+        if (participant && !participant.isVideoEnabled && !participant.isScreenSharing) {
+          console.log('🖼️ [Fullscreen] Stream update detected - no video, exiting fullscreen');
+          voiceStore.exitFullscreen();
+        }
+      }
+    );
+
+    // Specifically watch for the fullscreen user's screenshare state
+    // This is the most direct way to catch screenshare stopping
+    watch(
+      [() => voiceStore.fullscreenUserId, () => voiceStore.allUsers],
+      ([userId, allUsers]) => {
+        if (voiceStore.viewMode !== 'fullscreen' || !userId) return;
+        
+        // Find the user in allUsers
+        const user = allUsers.find((u: any) => u.userId === userId);
+        
+        // If user exists but has no video/screenshare, exit fullscreen
+        if (user && !user.isVideoEnabled && !user.isScreenSharing) {
+          console.log('🖼️ [Fullscreen] User has no video/screenshare, exiting');
+          voiceStore.exitFullscreen();
+        }
+      },
+      { deep: true }
+    );
+
     // =============================================================================
     // METHODS
     // =============================================================================
@@ -372,6 +477,33 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       showSettings.value = !showSettings.value;
     };
     
+    const handleSettingsUpdate = (event: { type: string; value: any }) => {
+      switch (event.type) {
+        case 'streamQuality':
+          // Update stream quality in the voice store
+          voiceStore.updateStreamQuality(event.value);
+          break;
+        case 'saveAll':
+          // Save all settings including stream quality
+          if (event.value.videoQuality || event.value.frameRate || event.value.audioBitrate) {
+            const qualityToResolution: Record<string, number> = {
+              '360p': 360,
+              '480p': 480,
+              '720p': 720,
+              '1080p': 1080,
+              'source': -1,
+            };
+            voiceStore.updateStreamQuality({
+              resolution: qualityToResolution[event.value.videoQuality] ?? 720,
+              frameRate: parseInt(event.value.frameRate) || 30,
+              audioBitrate: parseInt(event.value.audioBitrate) || 128
+            });
+          }
+          break;
+        // Other event types can be handled here if needed
+      }
+    };
+    
     const toggleSpatialPanel = () => {
       spatialStore.togglePanel();
     };
@@ -383,6 +515,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         voiceStore.setViewMode('maximized');
       }
     };
+    
     // =============================================================================
     // LIFECYCLE
     // =============================================================================
@@ -393,47 +526,39 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         isEntering.value = false;
       }, 300);
       
-      // Keyboard shortcuts
-      const handleKeyPress = (event: KeyboardEvent) => {
-        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-          return; // Don't trigger shortcuts when typing
-        }
-        
-        switch (event.key.toLowerCase()) {
-          case 'm':
-            voiceStore.toggleMute();
-            break;
-          case 'v':
-            voiceStore.toggleVideo();
-            break;
-          case 's':
-            if (event.ctrlKey || event.metaKey) return; // Don't interfere with save
-            voiceStore.toggleScreenShare();
-            break;
-          case 'd':
-            voiceStore.toggleDeafen();
-            break;
-          case ',':
-            // Settings shortcut (comma key, like Discord)
-            toggleSettings();
-            break;
-          case 'escape':
-            if (voiceStore.viewMode === 'fullscreen') {
-              voiceStore.exitFullscreen();
-            } else if (showSettings.value) {
-              showSettings.value = false;
-            } else {
-              minimizeOverlay();
-            }
-            break;
-        }
-      };
+      // Activate voice-overlay context for keybinds
+      keybinds.activateContext('voice-overlay');
       
-      document.addEventListener('keydown', handleKeyPress);
-      
-      onUnmounted(() => {
-        document.removeEventListener('keydown', handleKeyPress);
+      // Register keybind handlers
+      // Note: toggleMute already handles PTT mode check internally
+      keybinds.registerHandler('toggle-mute', () => voiceStore.toggleMute());
+      keybinds.registerHandler('toggle-deafen', () => voiceStore.toggleDeafen());
+      keybinds.registerHandler('toggle-camera', () => voiceStore.toggleVideo());
+      keybinds.registerHandler('toggle-screenshare', () => voiceStore.toggleScreenShare());
+      keybinds.registerHandler('toggle-voice-settings', () => toggleSettings());
+      keybinds.registerHandler('exit-fullscreen', () => {
+        // Priority order: full-window mode > fullscreen > settings > minimize
+        if (voiceStore.isFullWindowMode) {
+          voiceStore.toggleFullWindowMode();
+        } else if (voiceStore.viewMode === 'fullscreen') {
+          voiceStore.exitFullscreen();
+        } else if (showSettings.value) {
+          showSettings.value = false;
+        } else {
+          minimizeOverlay();
+        }
       });
+    });
+    
+    onUnmounted(() => {
+      // Deactivate context and unregister handlers
+      keybinds.deactivateContext('voice-overlay');
+      keybinds.unregisterHandler('toggle-mute');
+      keybinds.unregisterHandler('toggle-deafen');
+      keybinds.unregisterHandler('toggle-camera');
+      keybinds.unregisterHandler('toggle-screenshare');
+      keybinds.unregisterHandler('toggle-voice-settings');
+      keybinds.unregisterHandler('exit-fullscreen');
     });
 </script>
 
@@ -504,12 +629,23 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   align-items: unset;
 }
 
-/* Fullscreen mode */
+/* Fullscreen mode - maximize video space like Discord */
 .voice-container.fullscreen-mode {
-  max-width: 98vw;
-  max-height: 98vh;
-  height: 98vh;
-  width: 98vw;
+  max-width: 100vw;
+  max-height: 100vh;
+  height: 100vh;
+  width: 100vw;
+  border-radius: 0;
+}
+
+/* Compact header in fullscreen */
+.voice-container.fullscreen-mode .voice-header {
+  padding: 12px 16px;
+}
+
+/* Compact controls in fullscreen */
+.voice-container.fullscreen-mode .voice-controls {
+  padding: 12px 16px;
 }
 
 /* Header */
@@ -520,6 +656,43 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(145deg, #36393f, #2f3136);
+}
+
+/* Connection Mode Indicator - Inline with header controls */
+.connection-mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+
+.connection-mode-indicator.livekit {
+  background: rgba(87, 242, 135, 0.15);
+  color: #57f287;
+  border: 1px solid rgba(87, 242, 135, 0.3);
+}
+
+.connection-mode-indicator.p2p {
+  background: rgba(88, 101, 242, 0.15);
+  color: #5865f2;
+  border: 1px solid rgba(88, 101, 242, 0.3);
+}
+
+.connection-mode-indicator.unknown {
+  background: rgba(255, 255, 255, 0.1);
+  color: #b9bbbe;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.connection-mode-indicator :deep(svg) {
+  width: 12px;
+  height: 12px;
 }
 
 .channel-info {
@@ -549,7 +722,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .participant-count {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -572,7 +745,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -638,16 +811,33 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   border-color: #ed4245;
 }
 
-/* Featured Speaker */
+/* Featured Speaker - larger when screensharing */
 .featured-speaker {
-  padding: 20px 24px;
+  padding: 16px;
   display: flex;
   justify-content: center;
+  flex: 1;
+  min-height: 0;
 }
 
 .featured-card {
   width: 100%;
-  max-width: 600px;
+  max-width: 900px;
+  min-height: 300px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* When featured speaker is screensharing, maximize video */
+.featured-card :deep(.harmony-voice-card.screen-sharing) {
+  flex: 1;
+}
+
+.featured-card :deep(.harmony-voice-card.screen-sharing .video-container) {
+  flex: 1;
+  max-height: none;
+  height: auto;
   min-height: 300px;
 }
 
@@ -658,14 +848,14 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   overflow-y: auto;
   min-height: 300px;
   align-content: flex-start;
-  justify-content: flex-start;
+  justify-content: center;
   display: flex;
   flex-direction: column;
 }
 
 
 .voice-container.maximized .participants-container {
-  padding: 12px 24px;
+  padding: 12px 16px;
   min-height: 0;
 }
 
@@ -675,11 +865,12 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .voice-container.maximized .participant-card :deep(.harmony-voice-card) {
-  min-height: 400px;
+  min-height: 350px;
 }
 
 .voice-container.maximized .participant-card :deep(.video-container) {
-  height: 340px;
+  height: 300px;
+  max-height: none; /* Allow video to be larger */
 }
 
 .participants-grid {
@@ -773,7 +964,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -802,6 +993,47 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   color: white;
   border-color: rgba(237, 66, 69, 0.6);
   box-shadow: 0 4px 16px rgba(237, 66, 69, 0.3);
+}
+
+/* PTT Mode Styles */
+.control-button.ptt-mode {
+  position: relative;
+}
+
+.control-button.ptt-active {
+  background: linear-gradient(145deg, #00d4aa, #00b894) !important;
+  color: white !important;
+  border-color: rgba(0, 212, 170, 0.6) !important;
+  box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
+  animation: ptt-transmit 0.5s ease-in-out infinite;
+}
+
+@keyframes ptt-transmit {
+  0%, 100% {
+    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(0, 212, 170, 0.6), 0 0 30px rgba(0, 212, 170, 0.4);
+  }
+}
+
+.ptt-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #888;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ptt-badge.active {
+  background: #00d4aa;
+  color: white;
 }
 
 .control-button.deafened {
@@ -883,25 +1115,42 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
 }
 
-/* Fullscreen Container */
+/* Fullscreen Container - Discord-like layout where screenshare dominates */
 .fullscreen-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px 24px;
+  padding: 12px 16px;
   overflow: hidden;
   height: 100%;
+  min-height: 0; /* Allow flex shrinking */
 }
 
 .fullscreen-card {
   flex: 1;
   min-height: 0;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 0!important;
+}
+
+/* Remove card constraints in fullscreen - let video fill the space */
+.fullscreen-card :deep(.harmony-voice-card) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px;
 }
 
 .fullscreen-card :deep(.video-container) {
-  height: 100% !important;
-  min-height: 400px;
+  flex: 1;
+  height: auto !important;
+  min-height: 200px;
+  max-height: none !important; /* Override the 400px limit */
+  aspect-ratio: unset; /* Let it stretch to fill */
+  margin-bottom: 0;
 }
 
 .fullscreen-card :deep(.video-stream) {
@@ -910,36 +1159,100 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   object-fit: contain !important;
 }
 
+/* User info label overlay in fullscreen - positioned at bottom left corner */
+.fullscreen-card :deep(.user-info) {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  width: auto !important; /* Override default width: 100% */
+  background: rgba(0, 0, 0, 0.7);
+  padding: 4px 12px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  z-index: 5;
+  text-align: left;
+  margin: 0;
+  top: auto; /* Reset top positioning */
+}
+
+.fullscreen-card :deep(.avatar-container) {
+  display: none; /* Hide avatar when video is showing */
+}
+
+/* Thumbnail strip container with collapse button */
+.thumbnail-strip-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.thumbnail-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px 4px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: -1px;
+}
+
+.thumbnail-collapse-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
+/* Compact thumbnail strip at bottom - Discord style */
 .thumbnail-strip {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   overflow-x: auto;
-  padding: 8px 0;
-  max-height: 140px;
+  padding: 4px;
+  max-height: 128px;
+  flex-shrink: 0;
 }
 
 .thumbnail-card {
   flex-shrink: 0;
-  width: 160px;
+  width: 120px;
+  min-height: 120px!important;
+  max-height: 120px!important;
 }
 
 .thumbnail-card :deep(.harmony-voice-card) {
-  min-height: 120px;
-  padding: 8px;
+  min-height: 80px;
+  padding: 4px;
 }
 
 .thumbnail-card :deep(.video-container) {
-  height: 90px !important;
-  margin-bottom: 4px;
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  margin-bottom: 2px;
+  aspect-ratio: 16 / 9;
 }
 
 .thumbnail-card :deep(.username) {
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .thumbnail-card :deep(.user-info) {
   padding-bottom: 0;
-  top: 10px;
+  top: auto;
+  bottom: 2px;
+}
+
+.thumbnail-card :deep(.avatar-container) {
+  transform: scale(0.7);
+}
+
+.thumbnail-card :deep(.status-indicators) {
+  transform: scale(0.8);
 }
 
 @media (max-width: 1024px) {
@@ -1034,5 +1347,42 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: transparent;
   backdrop-filter: none;
   z-index: auto;
+}
+
+/* Full Window Mode - Stream fills entire viewport */
+.fullscreen-container.full-window-mode {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 10002;
+  background: #000;
+  cursor: pointer;
+}
+
+.fullscreen-container.full-window-mode .fullscreen-card {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+}
+
+.fullscreen-container.full-window-mode .fullscreen-card :deep(.video-container) {
+  height: 100% !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+}
+
+.fullscreen-container.full-window-mode .fullscreen-card :deep(.user-info) {
+  display: none !important;
+}
+
+.fullscreen-container.full-window-mode .thumbnail-strip-container {
+  display: none !important;
 }
 </style>

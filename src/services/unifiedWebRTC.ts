@@ -96,6 +96,13 @@ export class UnifiedWebRTCService {
     sampleRate: 48000
   };
 
+  // Stream quality settings (shared format with LiveKit)
+  private streamQualitySettings = {
+    resolution: 720,    // Default 720p
+    frameRate: 30,      // Default 30fps
+    audioBitrate: 128,  // Default 128kbps
+  };
+
   // Device selection
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
@@ -107,7 +114,102 @@ export class UnifiedWebRTCService {
   constructor() {
     this.setupCleanup();
     this.loadAudioSettings();
+    this.loadStreamQualitySettings();
     this.setupSettingsListener();
+  }
+
+  /**
+   * Load stream quality settings from localStorage
+   */
+  private loadStreamQualitySettings(): void {
+    try {
+      const saved = localStorage.getItem('harmony-stream-quality');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        this.streamQualitySettings = {
+          resolution: settings.resolution ?? 720,
+          frameRate: settings.frameRate ?? 30,
+          audioBitrate: settings.audioBitrate ?? 128,
+        };
+        debug.log('📊 [P2P] Loaded stream quality settings:', this.streamQualitySettings);
+      }
+    } catch (error) {
+      debug.warn('⚠️ [P2P] Failed to load stream quality settings:', error);
+    }
+  }
+
+  /**
+   * Save stream quality settings to localStorage
+   */
+  private saveStreamQualitySettings(): void {
+    try {
+      localStorage.setItem('harmony-stream-quality', JSON.stringify(this.streamQualitySettings));
+    } catch (error) {
+      debug.warn('⚠️ [P2P] Failed to save stream quality settings:', error);
+    }
+  }
+
+  /**
+   * Get MediaTrackConstraints for video based on resolution setting
+   * @param resolution - Resolution in pixels (360, 480, 720, 1080, or -1 for source)
+   */
+  private getVideoConstraints(resolution: number = this.streamQualitySettings.resolution): MediaTrackConstraints {
+    const frameRate = this.streamQualitySettings.frameRate;
+    
+    switch (resolution) {
+      case 360:
+        return { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: frameRate } };
+      case 480:
+        return { width: { ideal: 854 }, height: { ideal: 480 }, frameRate: { ideal: frameRate } };
+      case 720:
+        return { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: frameRate } };
+      case 1080:
+        return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: frameRate } };
+      case -1: // Source/Native - use max available
+        return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: frameRate } };
+      default:
+        // For any other value, calculate 16:9 dimensions
+        const width = Math.round(resolution * 16 / 9);
+        return { width: { ideal: width }, height: { ideal: resolution }, frameRate: { ideal: frameRate } };
+    }
+  }
+
+  /**
+   * Update stream quality settings
+   * Applies to currently active video/screenshare tracks
+   */
+  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+    debug.log('📊 [P2P] Updating stream quality:', settings);
+    
+    // Update settings
+    if (settings.resolution !== undefined) {
+      this.streamQualitySettings.resolution = settings.resolution;
+    }
+    if (settings.frameRate !== undefined) {
+      this.streamQualitySettings.frameRate = settings.frameRate;
+    }
+    if (settings.audioBitrate !== undefined) {
+      this.streamQualitySettings.audioBitrate = settings.audioBitrate;
+    }
+    
+    // Save to localStorage
+    this.saveStreamQualitySettings();
+    
+    // Apply to active video tracks using applyConstraints
+    if (this.localStream) {
+      const videoTracks = this.localStream.getVideoTracks();
+      for (const track of videoTracks) {
+        try {
+          const constraints = this.getVideoConstraints();
+          await track.applyConstraints(constraints);
+          debug.log('📊 [P2P] Applied video constraints:', constraints);
+        } catch (error) {
+          debug.warn('⚠️ [P2P] Failed to apply video constraints:', error);
+        }
+      }
+    }
+    
+    debug.log('📊 [P2P] Stream quality updated:', this.streamQualitySettings);
   }
 
   // =============================================================================
@@ -227,13 +329,12 @@ export class UnifiedWebRTCService {
           this.localStream!.removeTrack(track);
         });
         
-        // Get new video stream with selected device
+        // Get new video stream with selected device using quality settings
+        const baseVideoConstraints = this.getVideoConstraints();
         const videoConstraints: any = {
           video: {
             deviceId: { exact: deviceId },
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            frameRate: { ideal: 30, max: 60 }
+            ...baseVideoConstraints
           },
           audio: false
         };
@@ -384,12 +485,10 @@ export class UnifiedWebRTCService {
         
         const { videoDevice } = this.getSelectedDevices();
         
+        // Use stream quality settings
+        const baseVideoConstraints = this.getVideoConstraints();
         const videoConstraints: any = {
-          video: {
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            frameRate: { ideal: 30, max: 60 }
-          },
+          video: { ...baseVideoConstraints },
           audio: false
         };
         
@@ -565,17 +664,37 @@ export class UnifiedWebRTCService {
   /**
    * Toggle screen share on/off
    */
+  // Track IDs for screen share tracks (for proper cleanup)
+  private screenShareVideoTrackId: string | null = null;
+  private screenShareAudioTrackId: string | null = null;
+  
   async toggleScreenShare(): Promise<boolean> {
     try {
       if (!this.localMediaState.isScreenSharing) {
         // Start screen sharing with audio (like Discord)
+        // Use stream quality settings for resolution and framerate
+        const screenVideoConstraints = this.getVideoConstraints();
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: { ideal: 30 } },
+          video: {
+            width: screenVideoConstraints.width,
+            height: screenVideoConstraints.height,
+            frameRate: screenVideoConstraints.frameRate
+          },
           audio: true // Include system audio for app streaming
         });
         
         const screenVideoTrack = screenStream.getVideoTracks()[0];
         const screenAudioTrack = screenStream.getAudioTracks()[0]; // System audio
+        
+        // Store track IDs for cleanup
+        this.screenShareVideoTrackId = screenVideoTrack?.id || null;
+        this.screenShareAudioTrackId = screenAudioTrack?.id || null;
+        
+        debug.log('📺 Screen share tracks:', {
+          video: screenVideoTrack?.id,
+          audio: screenAudioTrack?.id,
+          audioLabel: screenAudioTrack?.label
+        });
         
         if (this.localStream && screenVideoTrack) {
           // If camera was enabled, turn it off first
@@ -650,62 +769,118 @@ export class UnifiedWebRTCService {
                 debug.log('✅ Screen share renegotiation offer sent to:', userId);
               }
               
-              // Add screen audio track if available
+              // Add screen audio track if available (needs renegotiation)
               if (screenAudioTrack) {
-                conn.peerConnection.addTrack(screenAudioTrack, this.localStream!);
-                debug.log('🔊 Added screen audio track to peer:', userId);
+                // Check if we already have this track in the peer connection
+                const existingSenders = conn.peerConnection.getSenders();
+                const hasScreenAudio = existingSenders.some(s => s.track?.id === screenAudioTrack.id);
+                
+                if (!hasScreenAudio) {
+                  conn.peerConnection.addTrack(screenAudioTrack, this.localStream!);
+                  debug.log('🔊 Added screen audio track to peer:', userId);
+                  
+                  // Need to renegotiate for the new audio track
+                  // Wait a moment for the track to be added, then send a new offer
+                  setTimeout(async () => {
+                    try {
+                      if (conn.peerConnection.signalingState === 'stable') {
+                        const offer = await conn.peerConnection.createOffer();
+                        await conn.peerConnection.setLocalDescription(offer);
+                        
+                        this.sendDirectMessage(userId, {
+                          type: 'offer',
+                          from: this.currentUserId!,
+                          to: userId,
+                          data: offer,
+                          timestamp: Date.now()
+                        });
+                        
+                        debug.log('✅ Screen audio renegotiation offer sent to:', userId);
+                      }
+                    } catch (error) {
+                      debug.error('❌ Screen audio renegotiation failed:', error);
+                    }
+                  }, 100);
+                }
               }
             } catch (error) {
               debug.error('❌ Error updating screen share for peer', userId, ':', error);
             }
           }
           
-          // Handle screen share ending
+          // Handle screen share ending (either video or audio ending should stop both)
           screenVideoTrack.onended = () => {
-            this.toggleScreenShare();
+            debug.log('📺 Screen video track ended');
+            if (this.localMediaState.isScreenSharing) {
+              this.toggleScreenShare();
+            }
           };
+          
+          if (screenAudioTrack) {
+            screenAudioTrack.onended = () => {
+              debug.log('🔊 Screen audio track ended');
+              // Don't auto-stop screenshare when audio ends (video might still be going)
+              // Just mark that audio is gone
+              this.screenShareAudioTrackId = null;
+            };
+          }
         }
       } else {
         // Stop screen sharing
         if (this.localStream) {
-          // Remove screen video tracks
-          const videoTracks = this.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.localStream!.removeTrack(track);
-            
-            // Remove from peer connections
-            this.connections.forEach(conn => {
-              const senders = conn.peerConnection.getSenders();
-              const videoSender = senders.find(s => s.track === track);
-              if (videoSender) {
-                conn.peerConnection.removeTrack(videoSender);
-              }
-            });
+          debug.log('🛑 Stopping screen share, cleaning up tracks:', {
+            videoTrackId: this.screenShareVideoTrackId,
+            audioTrackId: this.screenShareAudioTrackId
           });
           
-          // Remove screen audio tracks (system audio)
-          // We need to be careful to only remove non-microphone audio tracks
-          const audioTracks = this.localStream.getAudioTracks();
-          audioTracks.forEach(track => {
-            // Check if this is a screen audio track (has different label/source)
-            if (track.label.includes('System Audio') || track.label.includes('Screen') || 
-                track.getSettings().deviceId?.includes('screen')) {
+          // Remove screen video track by ID
+          const videoTracks = this.localStream.getVideoTracks();
+          videoTracks.forEach(track => {
+            // Remove the screen share video track (or all video if we don't have the ID)
+            if (!this.screenShareVideoTrackId || track.id === this.screenShareVideoTrackId) {
+              debug.log('🛑 Stopping video track:', track.id);
               track.stop();
               this.localStream!.removeTrack(track);
               
               // Remove from peer connections
               this.connections.forEach(conn => {
                 const senders = conn.peerConnection.getSenders();
-                const audioSender = senders.find(s => s.track === track);
-                if (audioSender) {
-                  conn.peerConnection.removeTrack(audioSender);
+                const videoSender = senders.find(s => s.track?.id === track.id);
+                if (videoSender) {
+                  conn.peerConnection.removeTrack(videoSender);
+                  debug.log('🛑 Removed video sender from peer:', conn.userId);
                 }
               });
-              
-              debug.log('🔇 Removed screen audio track:', track.label);
             }
           });
+          
+          // Remove screen audio track by ID (much more reliable than label matching)
+          if (this.screenShareAudioTrackId) {
+            const audioTracks = this.localStream.getAudioTracks();
+            const screenAudioTrack = audioTracks.find(t => t.id === this.screenShareAudioTrackId);
+            
+            if (screenAudioTrack) {
+              debug.log('🔇 Stopping screen audio track:', screenAudioTrack.id, screenAudioTrack.label);
+              screenAudioTrack.stop();
+              this.localStream!.removeTrack(screenAudioTrack);
+              
+              // Remove from peer connections
+              this.connections.forEach(conn => {
+                const senders = conn.peerConnection.getSenders();
+                const audioSender = senders.find(s => s.track?.id === this.screenShareAudioTrackId);
+                if (audioSender) {
+                  conn.peerConnection.removeTrack(audioSender);
+                  debug.log('🔇 Removed screen audio sender from peer:', conn.userId);
+                }
+              });
+            } else {
+              debug.warn('⚠️ Screen audio track not found for cleanup:', this.screenShareAudioTrackId);
+            }
+          }
+          
+          // Clear stored track IDs
+          this.screenShareVideoTrackId = null;
+          this.screenShareAudioTrackId = null;
           
           this.localMediaState.isScreenSharing = false;
           this.localMediaState.isVideoEnabled = false;
@@ -741,6 +916,27 @@ export class UnifiedWebRTCService {
     this.emit('local-state-changed', this.localMediaState);
     
     return this.localMediaState.isMuted;
+  }
+  
+  /**
+   * Set mute state directly (for Push-to-Talk)
+   */
+  setMuted(muted: boolean): void {
+    if (this.localMediaState.isMuted === muted) return; // No change
+    
+    this.localMediaState.isMuted = muted;
+    
+    if (this.localStream) {
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !muted;
+      }
+    }
+    
+    this.localMediaState.isSpeaking = this.calculateSpeakingState(this.localMediaState.audioLevel, muted);
+    
+    this.broadcastMediaState();
+    this.emit('local-state-changed', this.localMediaState);
   }
 
   /**

@@ -108,9 +108,9 @@ onUnmounted(() => {
 }
 
 .modal-container {
-  background: #2b2d31;
+  background:  var(--background-quinary);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-primary);
   box-shadow: 
     0 25px 50px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.03),
@@ -145,7 +145,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, var(--harmony-primary-light), transparent);
 }
 
 .modal-header {
@@ -166,7 +166,7 @@ onUnmounted(() => {
 .icon-container {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   border-radius: 16px;
   display: flex;
   align-items: center;

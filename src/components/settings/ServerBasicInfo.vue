@@ -261,7 +261,7 @@ const updateServerDescription = (event: Event) => {
 
 .section-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -303,7 +303,7 @@ const updateServerDescription = (event: Event) => {
 .notice-text p {
   margin: 0;
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -319,7 +319,7 @@ const updateServerDescription = (event: Event) => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;

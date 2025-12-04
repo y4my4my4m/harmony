@@ -320,7 +320,6 @@ const generateInvite = async () => {
     if (result.success && result.url) {
       inviteUrl.value = result.url
       await loadInviteHistory()
-      toast.success('Invite link generated successfully!')
     } else {
       permissionError.value = result.error || 'Failed to generate invite link'
       toast.error(result.error || 'Failed to generate invite link')
@@ -655,7 +654,7 @@ watch(() => props.show, async (newValue) => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   color: #ffffff;
@@ -771,7 +770,7 @@ watch(() => props.show, async (newValue) => {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {

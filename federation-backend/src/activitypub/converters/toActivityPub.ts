@@ -168,6 +168,11 @@ export function profileToActor(profile: any): any {
     actor.discoverable = profile.federation_discoverable;
   }
 
+  // Harmony extension: profile color
+  if (profile.color) {
+    actor['harmony:profileColor'] = profile.color;
+  }
+
   return actor;
 }
 

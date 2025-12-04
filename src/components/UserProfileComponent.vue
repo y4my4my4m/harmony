@@ -444,12 +444,12 @@ onBeforeUnmount(() => {
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .icon-button:hover {
   background-color: rgba(79, 84, 92, 0.4);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .icon-button.muted {
@@ -502,7 +502,7 @@ onBeforeUnmount(() => {
 .custom-status-label {
   font-size: 0.7rem;
   text-transform: uppercase;
-  color: #8e9297;
+  color: var(--text-muted);
   font-weight: 600;
   margin-bottom: 6px;
   letter-spacing: 0.02em;
@@ -521,7 +521,8 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   padding: 8px 10px;
   font-size: 0.85rem;
-  color: #dcddde;
+  width: 100%;
+  color: var(--text-secondary);
   outline: none;
 }
 
@@ -567,7 +568,7 @@ onBeforeUnmount(() => {
 .current-custom-status {
   margin-top: 6px;
   font-size: 0.75rem;
-  color: #8e9297;
+  color: var(--text-muted);
   font-style: italic;
   white-space: nowrap;
   overflow: hidden;
@@ -599,7 +600,7 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   transition: background 0.2s;
   font-size: 0.875rem;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .status-option:hover {
@@ -607,7 +608,7 @@ onBeforeUnmount(() => {
 }
 
 .status-option.active {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
 }
 
@@ -728,7 +729,7 @@ onBeforeUnmount(() => {
   }
   .mobile-profile-overlay .user-profile-section .status-text {
     font-size: 0.875rem;
-    color: #dcddde;
+    color: var(--text-secondary);
     width: 92px;
   }
   .mobile-profile-overlay .user-profile-section .status-dot {

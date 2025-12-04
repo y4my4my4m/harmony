@@ -682,11 +682,14 @@ export class CoreMessageService {
   // =====================================================
 
   /**
-   * Load channel messages with pagination (pure local)
+   * Load channel messages with pagination
+   * 
+   * Supports both local and federated (remote) channels:
+   * - Local channels: Query local database directly
+   * - Remote channels: Fetch from federation backend which proxies to remote server
    * 
    * NOTE: We trust Supabase to handle its own connection management.
    * No artificial timeouts - queries complete when they complete.
-   * Supabase's websocket stays alive across tab changes.
    */
   async loadChannelMessages(
     channelId: string,
@@ -702,6 +705,33 @@ export class CoreMessageService {
 
       debug.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
+      // Check if this is a remote channel by looking up the server
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('id, is_remote, server_id')
+        .eq('id', channelId)
+        .maybeSingle()
+
+      // If channel has is_remote flag or we need to check the server
+      let isRemoteChannel = channel?.is_remote === true
+
+      // Also check if the server is remote
+      if (!isRemoteChannel && channel?.server_id) {
+        const { data: server } = await supabase
+          .from('servers')
+          .select('is_local_server')
+          .eq('id', channel.server_id)
+          .maybeSingle()
+        
+        isRemoteChannel = server?.is_local_server === false
+      }
+
+      if (isRemoteChannel) {
+        debug.log(`🌐 Channel ${channelId} is remote, fetching via federation backend`)
+        return await this.loadRemoteChannelMessages(channelId, options)
+      }
+
+      // Local channel - use existing query
       let query = supabase
         .from('messages')
         .select('*')
@@ -761,6 +791,241 @@ export class CoreMessageService {
       debug.error('❌ Core: Failed to load channel messages:', error)
       throw error
     }
+  }
+
+  /**
+   * Load messages from a remote (federated) channel via federation backend
+   */
+  private async loadRemoteChannelMessages(
+    channelId: string,
+    options: {
+      limit?: number
+      before?: string
+      after?: string
+      signal?: AbortSignal
+    } = {}
+  ): Promise<Message[]> {
+    const { limit = 50, before } = options
+
+    try {
+      const params = new URLSearchParams()
+      params.append('limit', String(limit))
+      if (before) params.append('before', before)
+
+      const response = await fetch(`/api/federation/channels/${channelId}/messages?${params}`, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        debug.warn(`Failed to fetch remote messages: ${response.status}`)
+        // Fall back to local cache
+        return this.loadCachedRemoteMessages(channelId, options)
+      }
+
+      const data = await response.json()
+      const remoteMessages = data.messages || []
+
+      debug.log(`📨 Fetched ${remoteMessages.length} messages from remote channel (source: ${data.source})`)
+
+      // Transform to our message format
+      const messages = remoteMessages.map((msg: any) => ({
+        id: msg.id,
+        channel_id: channelId,
+        user_id: msg.author?.id,
+        content: this.parseRemoteContent(msg.content),
+        created_at: msg.created_at,
+        updated_at: msg.updated_at,
+        metadata: msg.metadata || {},
+        author: msg.author,
+        reactions: msg.reactions || [], // Use reactions from response if available
+      }))
+
+      // Reverse to get oldest-first for display
+      const orderedMessages = messages.reverse()
+
+      // Populate reactions store with data from response or local cache
+      const messageIds = orderedMessages.map((m: Message) => m.id).filter((id: string) => id)
+      
+      if (messageIds.length > 0) {
+        // Check if reactions came from the response
+        const hasReactionsFromResponse = orderedMessages.some((m: Message) => m.reactions && m.reactions.length > 0)
+        
+        if (hasReactionsFromResponse) {
+          // Use reactions from response - transform and cache them
+          const reactionsByMessage: Record<string, any[]> = {}
+          orderedMessages.forEach((m: Message) => {
+            if (m.reactions && m.reactions.length > 0) {
+              // Transform reaction format if needed
+              reactionsByMessage[m.id] = m.reactions.map((r: any) => ({
+                emoji_id: r.emoji?.id || r.emoji_id,
+                emoji: {
+                  id: r.emoji?.id || r.emoji_id,
+                  name: r.emoji?.name || r.emoji_name,
+                  url: r.emoji?.url, // Preserve remote emoji URL!
+                  is_native: r.emoji?.is_native ?? !r.emoji?.url,
+                },
+                count: r.count || 1,
+                reactions: r.reactions || [],
+                message_id_of_reactions: m.id,
+              }))
+            }
+          })
+          await this.populateReactionsStoreCache(reactionsByMessage)
+        } else {
+          // Fall back to loading from local cache
+          const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
+          
+          orderedMessages.forEach((message: Message) => {
+            message.reactions = reactionsByMessage[message.id] || []
+          })
+          
+          await this.populateReactionsStoreCache(reactionsByMessage)
+        }
+      }
+
+      return orderedMessages
+    } catch (error) {
+      debug.error('❌ Failed to fetch remote channel messages:', error)
+      // Fall back to cached messages
+      return this.loadCachedRemoteMessages(channelId, options)
+    }
+  }
+
+  /**
+   * Load cached messages for a remote channel (fallback)
+   */
+  private async loadCachedRemoteMessages(
+    channelId: string,
+    options: { limit?: number; before?: string } = {}
+  ): Promise<Message[]> {
+    const { limit = 50, before } = options
+
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .eq('channel_id', channelId)
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (before) {
+      query = query.lt('created_at', before)
+    }
+
+    const { data: messages } = await query
+    debug.log(`📦 Loaded ${(messages || []).length} cached messages for remote channel`)
+    
+    return (messages || []).reverse()
+  }
+
+  /**
+   * Parse remote message content (ActivityPub HTML to our format)
+   * Preserves custom emojis as images and converts common HTML to our format
+   */
+  private parseRemoteContent(content: string | any[]): any[] {
+    // If already in our format, return as-is
+    if (Array.isArray(content)) {
+      return content
+    }
+
+    // If null/undefined, return empty
+    if (!content) {
+      debug.log('⚠️ parseRemoteContent received null/undefined content')
+      return [{ type: 'text', text: '' }]
+    }
+
+    // If HTML string, convert to our format while preserving important elements
+    if (typeof content === 'string') {
+      // Debug log if content has emojis
+      if (content.includes('<img') || content.includes('emoji')) {
+        debug.log('🔍 parseRemoteContent input (first 300 chars):', content.substring(0, 300))
+      }
+      const result: any[] = []
+      
+      let processedContent = content
+      
+      // Replace <br> with newlines
+      processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n')
+      
+      // Replace <p> tags with newlines
+      processedContent = processedContent.replace(/<\/p>\s*<p>/gi, '\n\n')
+      processedContent = processedContent.replace(/<\/?p>/gi, '')
+      
+      // Extract ALL img tags that look like emojis (any img with src and reasonable attributes)
+      // More permissive pattern to catch various emoji formats:
+      // - <img class="emoji" src="..." alt=":name:" />
+      // - <img src="..." title=":name:" />
+      // - <img alt=":name:" src="..." />
+      // - <img data-emoji="name" src="..." />
+      const imgRegex = /<img\s+([^>]*)>/gi
+      
+      processedContent = processedContent.replace(imgRegex, (match, attrs) => {
+        // Extract src
+        const srcMatch = attrs.match(/src=["']([^"']+)["']/i)
+        if (!srcMatch) return match // Not a valid image, keep as-is
+        
+        const src = srcMatch[1]
+        
+        // Check if it's likely an emoji (has emoji class, or emoji in URL, or custom-emoji in URL)
+        const isEmoji = /class=["'][^"']*emoji/i.test(attrs) ||
+                       /emoji|custom[-_]?emoji/i.test(src) ||
+                       /\/emojis?\//i.test(src) ||
+                       /alt=["']:?[a-zA-Z0-9_-]+:?["']/i.test(attrs)
+        
+        if (!isEmoji) return match // Not an emoji, keep as-is
+        
+        // Extract name from alt, title, or data attributes
+        const altMatch = attrs.match(/alt=["']:?([^"':]+):?["']/i)
+        const titleMatch = attrs.match(/title=["']:?([^"':]+):?["']/i)
+        const dataMatch = attrs.match(/data-(?:emoji|shortcode)=["']([^"']+)["']/i)
+        
+        const emojiName = (altMatch?.[1] || titleMatch?.[1] || dataMatch?.[1] || 'emoji').trim()
+        
+        // Return a placeholder
+        return `[REMOTE_EMOJI:${emojiName}:${src}]`
+      })
+      
+      // Also handle Misskey/Mastodon style emoji: <span class="emoji">:name:</span>
+      processedContent = processedContent.replace(/<span[^>]*class="[^"]*emoji[^"]*"[^>]*>([^<]+)<\/span>/gi, (match, emojiCode) => {
+        return emojiCode // Keep the :emoji_name: text for now
+      })
+      
+      // Strip remaining HTML tags
+      const text = processedContent.replace(/<[^>]*>/g, '').trim()
+      
+      // Parse the text for remote emoji placeholders
+      if (text.includes('[REMOTE_EMOJI:')) {
+        // Split while keeping the delimiter
+        const parts = text.split(/(\[REMOTE_EMOJI:[^\]]+\])/g)
+        for (const part of parts) {
+          // Match: [REMOTE_EMOJI:name:url]
+          const emojiMatch = part.match(/\[REMOTE_EMOJI:([^:]+):(.+)\]/)
+          if (emojiMatch) {
+            const emojiName = emojiMatch[1].replace(/:/g, '').trim()
+            const emojiUrl = emojiMatch[2].trim()
+            
+            result.push({
+              type: 'emoji',
+              emoji: {
+                id: `remote:${emojiName}`,
+                name: emojiName,
+                url: emojiUrl,
+              }
+            })
+          } else if (part.trim()) {
+            result.push({ type: 'text', text: part })
+          }
+        }
+      } else if (text) {
+        result.push({ type: 'text', text })
+      }
+      
+      return result.length > 0 ? result : [{ type: 'text', text: '' }]
+    }
+
+    return [{ type: 'text', text: '' }]
   }
 
   /**

@@ -304,9 +304,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
         },
       });
 
-      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
+      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, async (payload) => {
         debug.log('🎙️ Received voice channel event:', payload);
-        const { event, userId, channelId, callStartTime } = payload.payload;
+        const { event, userId, channelId, callStartTime, federated } = payload.payload;
 
         if (event === 'user-joined') {
           if (!this.usersInVoiceChannels[channelId]) {
@@ -320,6 +320,14 @@ export const useServerUsersStore = defineStore('serverUsers', {
           if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
             this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
             debug.log(`🕐 Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+          }
+          
+          // For federated users, ensure their profile is loaded
+          if (federated && userId) {
+            debug.log(`🌐 Loading profile for federated voice user: ${userId}`);
+            userDataService.ensureUsersLoaded([userId]).catch((err) => {
+              debug.warn('Failed to load federated user profile:', err);
+            });
           }
           
           debug.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
@@ -368,31 +376,49 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
     /**
      * Fetch current voice channel state from database
+     * Checks both user_presence (for local servers) and voice_channel_participants (for federated)
      */
     async fetchVoiceChannelState(serverId: string) {
       try {
         debug.log('📞 Fetching voice channel state for server:', serverId);
         
-        const { data, error } = await supabase
+        const channelUsers: Record<string, string[]> = {};
+        
+        // Fetch from user_presence (local server tracking)
+        const { data: presenceData, error: presenceError } = await supabase
           .from('user_presence')
           .select('user_id, voice_channel_id')
           .eq('server_id', serverId)
           .not('voice_channel_id', 'is', null);
 
-        if (error) {
-          debug.error('Failed to fetch voice channel state:', error);
-          return;
-        }
-
-        // Group users by channel
-        const channelUsers: Record<string, string[]> = {};
-        if (data) {
-          for (const presence of data) {
+        if (!presenceError && presenceData) {
+          for (const presence of presenceData) {
             if (presence.voice_channel_id) {
               if (!channelUsers[presence.voice_channel_id]) {
                 channelUsers[presence.voice_channel_id] = [];
               }
-              channelUsers[presence.voice_channel_id].push(presence.user_id);
+              if (!channelUsers[presence.voice_channel_id].includes(presence.user_id)) {
+                channelUsers[presence.voice_channel_id].push(presence.user_id);
+              }
+            }
+          }
+        }
+        
+        // Also fetch from voice_channel_participants (federated tracking)
+        const { data: participantsData, error: participantsError } = await supabase
+          .from('voice_channel_participants')
+          .select('user_id, channel_id')
+          .eq('server_id', serverId);
+
+        if (!participantsError && participantsData) {
+          for (const participant of participantsData) {
+            if (participant.channel_id) {
+              if (!channelUsers[participant.channel_id]) {
+                channelUsers[participant.channel_id] = [];
+              }
+              if (!channelUsers[participant.channel_id].includes(participant.user_id)) {
+                channelUsers[participant.channel_id].push(participant.user_id);
+              }
             }
           }
         }
@@ -433,7 +459,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     // Voice channel connection methods
-    async joinVoiceChannel(serverId: string, channelId: string, userId: string) {
+    async joinVoiceChannel(serverId: string, channelId: string, userId: string, isLocalServer: boolean = true) {
       try {
         // Check if this is the first user (start new call)
         const isFirstUser = !this.usersInVoiceChannels[channelId] || this.usersInVoiceChannels[channelId].length === 0;
@@ -457,6 +483,29 @@ export const useServerUsersStore = defineStore('serverUsers', {
           callStartTime = this.voiceChannelCallStartTimes[channelId]?.toISOString();
         }
 
+        // Only write to voice_channel_participants for LOCAL servers
+        // For federated servers, the hosting instance handles this via VoiceChannelJoin activity
+        if (isLocalServer) {
+          supabase
+            .from('voice_channel_participants')
+            .upsert({
+              channel_id: channelId,
+              server_id: serverId,
+              user_id: userId,
+              joined_at: new Date().toISOString(),
+              is_federated: false,
+            }, { onConflict: 'channel_id,user_id' })
+            .then(({ error }) => {
+              if (error) {
+                debug.warn('Failed to write to voice_channel_participants:', error.message);
+              } else {
+                debug.log('✅ Wrote to voice_channel_participants');
+              }
+            });
+        } else {
+          debug.log('📡 Federated voice channel - skipping local DB write');
+        }
+
         // Broadcast to other users with call start time
         this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId, callStartTime);
         
@@ -468,7 +517,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
-    async leaveVoiceChannel(serverId: string, channelId: string, userId: string) {
+    async leaveVoiceChannel(serverId: string, channelId: string, userId: string, isLocalServer: boolean = true) {
       try {
         // Remove user from local state immediately
         if (this.usersInVoiceChannels[channelId]) {
@@ -479,6 +528,25 @@ export const useServerUsersStore = defineStore('serverUsers', {
             delete this.voiceChannelCallStartTimes[channelId];
             debug.log(`🕐 Cleared call start time for channel ${channelId}`);
           }
+        }
+
+        // Only write to voice_channel_participants for LOCAL servers
+        // For federated servers, the hosting instance handles this via VoiceChannelLeave activity
+        if (isLocalServer) {
+          supabase
+            .from('voice_channel_participants')
+            .delete()
+            .eq('channel_id', channelId)
+            .eq('user_id', userId)
+            .then(({ error }) => {
+              if (error) {
+                debug.warn('Failed to delete from voice_channel_participants:', error.message);
+              } else {
+                debug.log('✅ Removed from voice_channel_participants');
+              }
+            });
+        } else {
+          debug.log('📡 Federated voice channel - skipping local DB delete');
         }
 
         // Broadcast to other users
@@ -506,6 +574,42 @@ export const useServerUsersStore = defineStore('serverUsers', {
       for (const channelId of channelsToLeave) {
         await this.leaveVoiceChannel(serverId, channelId, userId);
       }
+    },
+
+    /**
+     * Clean up a disconnected user from voice channel state
+     * Called when LiveKit detects a user has disconnected (crash, network loss, etc.)
+     * This ensures the sidebar participant list stays in sync
+     */
+    cleanupDisconnectedUser(serverId: string, channelId: string, userId: string) {
+      debug.log(`🧹 Cleaning up disconnected user ${userId} from channel ${channelId}`);
+      
+      // Remove from local state
+      if (this.usersInVoiceChannels[channelId]) {
+        this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+        
+        // Clear call start time if last user left
+        if (this.usersInVoiceChannels[channelId].length === 0) {
+          delete this.voiceChannelCallStartTimes[channelId];
+        }
+      }
+
+      // Clean up database entry (fire-and-forget, don't block on this)
+      supabase
+        .from('voice_channel_participants')
+        .delete()
+        .eq('channel_id', channelId)
+        .eq('user_id', userId)
+        .then(({ error }) => {
+          if (error) {
+            debug.warn('Failed to cleanup voice_channel_participants:', error.message);
+          } else {
+            debug.log('✅ Cleaned up disconnected user from voice_channel_participants');
+          }
+        });
+
+      // Broadcast the leave event so other clients update their UI
+      this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);
     },
   }
 });

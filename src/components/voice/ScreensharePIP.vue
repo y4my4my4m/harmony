@@ -166,8 +166,8 @@ const onResize = (event: MouseEvent) => {
   const deltaY = event.clientY - resizeStart.value.y;
   
   size.value = {
-    width: Math.max(300, Math.min(800, resizeStart.value.width + deltaX)),
-    height: Math.max(200, Math.min(600, resizeStart.value.height + deltaY)),
+    width: Math.max(300, Math.min(1920, resizeStart.value.width + deltaX)),
+    height: Math.max(200, Math.min(1080, resizeStart.value.height + deltaY)),
   };
 };
 
@@ -302,7 +302,7 @@ onUnmounted(() => {
 .pip-title {
   font-size: 14px;
   font-weight: 600;
-  color: #dcddde;
+  color: var(--text-secondary);
   user-select: none;
 }
 
@@ -314,7 +314,7 @@ onUnmounted(() => {
 .pip-btn {
   background: transparent;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;

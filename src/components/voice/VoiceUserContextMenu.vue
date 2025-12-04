@@ -22,7 +22,7 @@
         />
         <div class="user-info">
           <span class="display-name">{{ displayName }}</span>
-          <span class="user-status">{{ userStatus }}</span>
+          <span class="user-info-status">{{ userStatus }}</span>
         </div>
       </div>
 
@@ -31,8 +31,8 @@
       <!-- Volume Control -->
       <div v-if="!isSelf" class="menu-section">
         <div class="section-label">
-          <Icon name="volume-2" />
-          <span>User Volume</span>
+          <Icon name="mic" />
+          <span>Mic Volume</span>
           <span class="volume-value">{{ currentVolume }}%</span>
         </div>
         <div class="volume-slider-container">
@@ -87,6 +87,67 @@
           </button>
         </div>
       </div>
+      
+      <!-- Screenshare Volume Control (when user is screensharing) -->
+      <div v-if="!isSelf && isScreenSharing" class="menu-section">
+        <div class="section-label">
+          <Icon name="screen-share" />
+          <span>Screenshare Audio</span>
+          <span v-if="!hasScreenShareAudio" class="no-audio-hint">(no audio)</span>
+          <span class="volume-value">{{ currentScreenShareVolume }}%</span>
+        </div>
+        <div class="volume-slider-container">
+          <input
+            type="range"
+            :value="currentScreenShareVolume"
+            min="0"
+            max="200"
+            step="1"
+            class="volume-slider screenshare-slider"
+            @input="handleScreenShareVolumeChange"
+          />
+          <div class="volume-marks">
+            <span>0%</span>
+            <span>100%</span>
+            <span>200%</span>
+          </div>
+        </div>
+        <div class="volume-presets">
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 0 }"
+            @click="setScreenShareVolume(0)"
+            title="Mute"
+          >
+            <Icon name="volume-x" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 50 }"
+            @click="setScreenShareVolume(50)"
+            title="50%"
+          >
+            <Icon name="volume-1" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 100 }"
+            @click="setScreenShareVolume(100)"
+            title="Normal"
+          >
+            <Icon name="volume-2" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 200 }"
+            @click="setScreenShareVolume(200)"
+            title="Max (200%)"
+          >
+            <Icon name="volume-2" />
+            <span class="boost-indicator">+</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Actions for other users -->
       <template v-if="!isSelf">
@@ -99,6 +160,15 @@
           >
             <Icon name="maximize-2" />
             <span>{{ isFullscreen ? 'Exit Focus' : 'Focus Video' }}</span>
+          </button>
+
+          <button
+            v-if="isFullscreen"
+            class="menu-action"
+            @click="toggleFullWindow"
+          >
+            <Icon name="monitor" />
+            <span>{{ isFullWindowMode ? 'Exit Full Window' : 'Full Window' }}</span>
           </button>
 
           <button
@@ -160,6 +230,23 @@
                 :title="`${fps.value} FPS`"
               >
                 {{ fps.value }}
+              </button>
+            </div>
+          </div>
+          
+          <!-- Audio Bitrate -->
+          <div class="quality-row">
+            <span class="quality-label">Audio Quality</span>
+            <div class="quality-options">
+              <button
+                v-for="bitrate in audioBitrateOptions"
+                :key="bitrate.value"
+                class="quality-btn"
+                :class="{ active: currentAudioBitrate === bitrate.value }"
+                @click="setAudioBitrate(bitrate.value)"
+                :title="bitrate.label"
+              >
+                {{ bitrate.short }}
               </button>
             </div>
           </div>
@@ -259,12 +346,22 @@ const isFullscreen = computed(() => {
   return voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId === props.userState.userId;
 });
 
+const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
+
 const isPIP = computed(() => {
   return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
 });
 
 const currentVolume = computed(() => {
   return voiceStore.getUserVolume(props.userState.userId);
+});
+
+const currentScreenShareVolume = computed(() => {
+  return voiceStore.getUserScreenShareVolume(props.userState.userId);
+});
+
+const hasScreenShareAudio = computed(() => {
+  return voiceStore.hasScreenShareAudio(props.userState.userId);
 });
 
 const localMuted = computed(() => voiceStore.localState.isMuted);
@@ -278,15 +375,27 @@ const menuStyle = computed(() => ({
 // Stream Quality Options
 // Note: -1 = Source (native resolution), other values are specific resolutions
 const resolutionOptions = [
-  { value: 720, label: '720p HD', short: '720p' },
-  { value: 1080, label: '1080p Full HD', short: '1080p' },
+  { value: 360, label: '360p (Low)', short: '360p' },
+  { value: 480, label: '480p (SD)', short: '480p' },
+  { value: 720, label: '720p (HD)', short: '720p' },
+  { value: 1080, label: '1080p (Full HD)', short: '1080p' },
   { value: -1, label: 'Source (Native)', short: 'Source' }, // -1 = native resolution
 ];
 
 const frameRateOptions = [
+  { value: 10, label: '10 FPS (Low)' },
   { value: 15, label: '15 FPS' },
+  { value: 24, label: '24 FPS (Cinema)' },
   { value: 30, label: '30 FPS' },
   { value: 60, label: '60 FPS' },
+];
+
+// Audio bitrate options (kbps)
+const audioBitrateOptions = [
+  { value: 32, label: '32 kbps (Low)', short: '32k' },
+  { value: 64, label: '64 kbps (Voice)', short: '64k' },
+  { value: 128, label: '128 kbps (Standard)', short: '128k' },
+  { value: 256, label: '256 kbps (High)', short: '256k' },
 ];
 
 // Current quality settings (from store or defaults)
@@ -296,6 +405,7 @@ const currentResolution = computed(() => {
   return res !== undefined && res !== null ? res : 720;
 });
 const currentFrameRate = computed(() => voiceStore.streamSettings?.frameRate || 30);
+const currentAudioBitrate = computed(() => voiceStore.streamSettings?.audioBitrate || 128);
 
 const setResolution = async (resolution: number) => {
   await voiceStore.updateStreamQuality({ resolution });
@@ -303,6 +413,10 @@ const setResolution = async (resolution: number) => {
 
 const setFrameRate = async (frameRate: number) => {
   await voiceStore.updateStreamQuality({ frameRate });
+};
+
+const setAudioBitrate = async (audioBitrate: number) => {
+  await voiceStore.updateStreamQuality({ audioBitrate });
 };
 
 // Methods
@@ -318,6 +432,16 @@ const handleVolumeChange = (event: Event) => {
 
 const setVolume = (volume: number) => {
   voiceStore.setUserVolume(props.userState.userId, volume);
+};
+
+const handleScreenShareVolumeChange = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const volume = parseInt(target.value, 10);
+  voiceStore.setUserScreenShareVolume(props.userState.userId, volume);
+};
+
+const setScreenShareVolume = (volume: number) => {
+  voiceStore.setUserScreenShareVolume(props.userState.userId, volume);
 };
 
 const toggleMuteUser = () => {
@@ -337,11 +461,17 @@ const focusUser = () => {
   close();
 };
 
+const toggleFullWindow = () => {
+  voiceStore.toggleFullWindowMode();
+  close();
+};
+
 const togglePIP = () => {
   if (isPIP.value) {
     voiceStore.togglePIP(null);
   } else {
-    voiceStore.togglePIP(props.userState.userId, 'fixed');
+    // Use draggable mode for consistent drag/resize behavior
+    voiceStore.togglePIP(props.userState.userId, 'draggable');
   }
   close();
 };
@@ -493,9 +623,9 @@ watch(
   text-overflow: ellipsis;
 }
 
-.user-status {
+.user-info-status {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -505,7 +635,7 @@ watch(
 .menu-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
-  margin: 4px 0;
+  margin: 0 0 4px 0;
 }
 
 /* Volume Section */
@@ -519,7 +649,7 @@ watch(
   gap: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 10px;
@@ -529,6 +659,12 @@ watch(
   margin-left: auto;
   color: #5865f2;
   font-weight: 700;
+}
+
+.no-audio-hint {
+  font-size: 10px;
+  color: #72767d;
+  opacity: 0.7;
 }
 
 .volume-slider-container {
@@ -549,7 +685,7 @@ watch(
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(88, 101, 242, 0.4);
@@ -558,6 +694,16 @@ watch(
 
 .volume-slider::-webkit-slider-thumb:hover {
   transform: scale(1.1);
+}
+
+/* Screenshare slider - purple/violet accent */
+.volume-slider.screenshare-slider::-webkit-slider-thumb {
+  background: var(--harmony-accent);;
+  box-shadow: 0 2px 6px var(--harmony-accent-alpha);
+}
+
+.volume-slider.screenshare-slider::-webkit-slider-runnable-track {
+  /* background: linear-gradient(to right, rgba(155, 89, 182, 0.3), rgba(155, 89, 182, 0.5)); */
 }
 
 .volume-marks {
@@ -584,7 +730,7 @@ watch(
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -596,7 +742,7 @@ watch(
 }
 
 .preset-btn.active {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
   border-color: #5865f2;
 }
@@ -629,29 +775,29 @@ watch(
 
 .quality-label {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .quality-options {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .quality-btn {
-  padding: 5px 12px;
+  padding: 5px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-width: 50px;
+  min-width: 42px;
   text-align: center;
 }
 
@@ -662,7 +808,7 @@ watch(
 }
 
 .quality-btn.active {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
   border-color: #5865f2;
 }
@@ -681,7 +827,7 @@ watch(
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.15s ease;

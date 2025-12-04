@@ -338,7 +338,7 @@
     }
   },
   "message": {
-    "typeMessage": "Tapez un message...",
+    "typeMessage": "Message à {to}",
     "addComment": "Ajouter un commentaire...",
     "editMessage": "Modifier le message",
     "deleteMessage": "Supprimer le message",

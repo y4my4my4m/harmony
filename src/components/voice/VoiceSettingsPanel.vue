@@ -158,20 +158,34 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Quality</label>
+            <label class="setting-label">Resolution</label>
             <select v-model="videoQuality" class="setting-select" @change="updateVideoSettings">
-              <option value="480p">480p (Standard)</option>
+              <option value="360p">360p (Low)</option>
+              <option value="480p">480p (SD)</option>
               <option value="720p">720p (HD)</option>
               <option value="1080p">1080p (Full HD)</option>
+              <option value="source">Source (Native)</option>
             </select>
           </div>
 
           <div class="setting-group">
             <label class="setting-label">Frame Rate</label>
             <select v-model="frameRate" class="setting-select" @change="updateVideoSettings">
+              <option value="10">10 FPS (Low)</option>
               <option value="15">15 FPS</option>
+              <option value="24">24 FPS (Cinema)</option>
               <option value="30">30 FPS</option>
               <option value="60">60 FPS</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-label">Audio Bitrate</label>
+            <select v-model="audioBitrate" class="setting-select" @change="updateVideoSettings">
+              <option value="32">32 kbps (Low)</option>
+              <option value="64">64 kbps (Voice)</option>
+              <option value="128">128 kbps (Standard)</option>
+              <option value="256">256 kbps (High)</option>
             </select>
           </div>
 
@@ -287,9 +301,10 @@ export default defineComponent({
     const noiseSuppression = ref(true);
     const autoGainControl = ref(true);
 
-    // Video settings
+    // Video/Stream settings
     const videoQuality = ref('720p');
     const frameRate = ref('30');
+    const audioBitrate = ref('128');
 
     // Testing
     const isTesting = ref(false);
@@ -342,6 +357,7 @@ export default defineComponent({
           if (settings.selectedVideoDevice) selectedVideoDevice.value = settings.selectedVideoDevice;
           if (settings.videoQuality) videoQuality.value = settings.videoQuality;
           if (settings.frameRate) frameRate.value = settings.frameRate;
+          if (settings.audioBitrate) audioBitrate.value = settings.audioBitrate;
         }
         
         debug.log('🎛️ Loaded settings - Audio constraints:', currentConstraints);
@@ -522,11 +538,21 @@ export default defineComponent({
     };
 
     const updateVideoSettings = () => {
+      // Convert quality string to resolution number
+      const qualityToResolution: Record<string, number> = {
+        '360p': 360,
+        '480p': 480,
+        '720p': 720,
+        '1080p': 1080,
+        'source': -1, // -1 means native/source
+      };
+      
       emit('update-settings', {
-        type: 'videoConstraints',
+        type: 'streamQuality',
         value: {
-          quality: videoQuality.value,
-          frameRate: parseInt(frameRate.value)
+          resolution: qualityToResolution[videoQuality.value] ?? 720,
+          frameRate: parseInt(frameRate.value),
+          audioBitrate: parseInt(audioBitrate.value)
         }
       });
       updateVideoPreview();
@@ -540,6 +566,7 @@ export default defineComponent({
       autoGainControl.value = true;
       videoQuality.value = '720p';
       frameRate.value = '30';
+      audioBitrate.value = '128';
     };
 
     const saveSettings = () => {
@@ -553,7 +580,8 @@ export default defineComponent({
         noiseSuppression: noiseSuppression.value,
         autoGainControl: autoGainControl.value,
         videoQuality: videoQuality.value,
-        frameRate: frameRate.value
+        frameRate: frameRate.value,
+        audioBitrate: audioBitrate.value
       };
 
       emit('update-settings', { type: 'saveAll', value: settings });
@@ -592,6 +620,7 @@ export default defineComponent({
       autoGainControl,
       videoQuality,
       frameRate,
+      audioBitrate,
       isTesting,
       testLevel,
       previewStream,
@@ -655,7 +684,7 @@ export default defineComponent({
 .close-btn {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 8px;
   border-radius: 8px;
@@ -703,7 +732,7 @@ export default defineComponent({
   align-items: center;
   font-size: 14px;
   font-weight: 500;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -718,7 +747,7 @@ export default defineComponent({
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 12px 16px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   transition: all 0.2s ease;
 }
@@ -749,7 +778,7 @@ export default defineComponent({
   appearance: none;
   width: 18px;
   height: 18px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
@@ -803,7 +832,7 @@ export default defineComponent({
 }
 
 .setting-checkbox:checked + .checkbox-custom {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
 }
 
@@ -824,13 +853,13 @@ export default defineComponent({
 
 .checkbox-content span {
   display: block;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-bottom: 4px;
 }
 
 .checkbox-content small {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -841,7 +870,7 @@ export default defineComponent({
 }
 
 .test-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -900,7 +929,7 @@ export default defineComponent({
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .keybind-hint {
@@ -923,7 +952,7 @@ export default defineComponent({
   padding: 12px;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 8px;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .keybind-combo {
@@ -938,7 +967,7 @@ kbd {
   padding: 4px 8px;
   font-size: 12px;
   font-family: monospace;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .settings-footer {
@@ -955,7 +984,7 @@ kbd {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 8px 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -975,7 +1004,7 @@ kbd {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 8px 16px;
-  color: #dcddde;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -985,7 +1014,7 @@ kbd {
 }
 
 .save-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   padding: 8px 20px;

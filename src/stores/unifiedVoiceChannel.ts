@@ -9,10 +9,16 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { useUserData } from '@/composables/useUserData';
+import { useKeybinds } from '@/composables/useKeybinds';
+import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Module-level variable for cross-tab heartbeat (not reactive)
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
+
+// Module-level keybind state management
+let keybindListenersSetup = false;
 
 // =============================================================================
 // TYPES
@@ -32,6 +38,23 @@ interface VoiceChannelState {
   sessionStartTime: Date | null; // Track when the user joined the channel
   callStartTime: Date | null; // Track when the call started (first user joined)
   
+  // Federation state
+  isFederatedChannel: boolean;
+  federatedTokenSubscription: RealtimeChannel | null;
+  pendingFederatedJoin: {
+    channelId: string;
+    serverId: string;
+    timeout: ReturnType<typeof setTimeout> | null;
+  } | null;
+  
+  // Connection state to prevent double-joining
+  isConnecting: boolean;
+  
+  // Optimistic UI state - show UI immediately while connecting
+  optimisticChannelId: string | null;
+  optimisticServerId: string | null;
+  optimisticChannelName: string | null;
+  
   // Users and their states
   allUsers: UserMediaState[];
   localState: UserMediaState;
@@ -42,6 +65,7 @@ interface VoiceChannelState {
   
   // Per-user volume settings (0-200, 100 = normal)
   userVolumes: Map<string, number>;
+  userScreenShareVolumes: Map<string, number>;
   
   // Recent speakers (last 5 users who spoke)
   recentSpeakers: RecentSpeaker[];
@@ -51,6 +75,7 @@ interface VoiceChannelState {
   layoutMode: 'grid' | 'speaker' | 'gallery';
   viewMode: 'normal' | 'maximized' | 'fullscreen';
   fullscreenUserId: string | null;
+  isFullWindowMode: boolean; // Stream fills entire viewport in fullscreen mode
   
   // PIP state
   pipActive: boolean;
@@ -59,8 +84,9 @@ interface VoiceChannelState {
   
   // Stream quality settings
   streamSettings: {
-    resolution: number; // 720, 1080, 0 (source)
+    resolution: number; // 720, 1080, -1 (source)
     frameRate: number; // 15, 30, 60
+    audioBitrate: number; // 64, 128, 256 (kbps)
   };
   
   // Counter to force reactivity when streams update (Map doesn't trigger Vue reactivity well)
@@ -76,9 +102,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     currentChannelId: null,
     currentServerId: null,
     isConnected: false,
+    isConnecting: false,
     currentChannelName: null,
     sessionStartTime: null,
     callStartTime: null,
+    
+    // Optimistic UI state
+    optimisticChannelId: null,
+    optimisticServerId: null,
+    optimisticChannelName: null,
+    
+    // Federation state
+    isFederatedChannel: false,
+    federatedTokenSubscription: null,
+    pendingFederatedJoin: null,
     
     allUsers: [],
     localState: {
@@ -97,6 +134,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     // Per-user volume (loaded from localStorage)
     userVolumes: new Map(),
+    userScreenShareVolumes: new Map(),
     
     // Recent speakers (last 5 users who spoke)
     recentSpeakers: [],
@@ -105,6 +143,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     layoutMode: 'grid',
     viewMode: 'normal',
     fullscreenUserId: null,
+    isFullWindowMode: false,
     
     pipActive: false,
     pipUserId: null,
@@ -112,7 +151,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     streamSettings: {
       resolution: 720,
-      frameRate: 30
+      frameRate: 30,
+      audioBitrate: 128
     },
     
     streamUpdateCounter: 0
@@ -140,12 +180,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     // Get all participants (including self)
-    // Uses spread to create new object references, ensuring Vue detects changes
+    // Returns stable references to avoid reactivity loops
     allParticipants: (state) => {
-      const participants = [{ ...state.localState }];
+      const participants = [state.localState];
       state.allUsers.forEach(user => {
         if (user.userId !== state.localState.userId) {
-          participants.push({ ...user });
+          participants.push(user);
         }
       });
       return participants;
@@ -173,6 +213,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return loudest.audioLevel > 20 ? loudest : null;
     },
 
+    // Optimistic connection state - true if connected or optimistically joining
+    isConnectedOrJoining: (state) => {
+      return state.isConnected || state.optimisticChannelId !== null;
+    },
+    
+    // Effective channel ID (optimistic or real)
+    effectiveChannelId: (state) => {
+      return state.currentChannelId || state.optimisticChannelId;
+    },
+    
+    // Effective server ID (optimistic or real)
+    effectiveServerId: (state) => {
+      return state.currentServerId || state.optimisticServerId;
+    },
+    
+    // Effective channel name (optimistic or real)
+    effectiveChannelName: (state) => {
+      return state.currentChannelName || state.optimisticChannelName;
+    },
+
     // Connection stats
     connectionStats: (state) => {
       const total = state.allUsers.length + 1; // +1 for self
@@ -182,9 +242,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return { total, withVideo, speaking };
     },
 
-    // Get user volume (0-200, 100 = normal)
+    // Get user mic volume (0-200, 100 = normal)
     getUserVolume: (state) => (userId: string): number => {
       return state.userVolumes.get(userId) ?? 100;
+    },
+    
+    // Get user screenshare volume (0-200, 100 = normal)
+    getUserScreenShareVolume: (state) => (userId: string): number => {
+      return state.userScreenShareVolumes.get(userId) ?? 100;
+    },
+    
+    // Check if user has screenshare audio
+    hasScreenShareAudio: () => (userId: string): boolean => {
+      return webrtcManager.hasScreenShareAudio(userId);
     },
 
     // Get recent speakers (sorted by most recent, max 5)
@@ -206,6 +276,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
       return speaking;
+    },
+    
+    // Get the active WebRTC service mode (livekit or p2p)
+    connectionMode: () => {
+      return webrtcManager.getActiveService();
     }
   },
 
@@ -221,9 +296,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async joinVoiceChannel(channelId: string, serverId: string): Promise<boolean> {
       try {
         const authStore = useAuthStore();
-        const serverUsersStore = useServerUsersStore();
         const serverChannelStore = useServerChannelStore();
-        const themeStore = useThemeStore();
 
         if (!authStore.session?.user) {
           throw new Error('User not authenticated');
@@ -231,11 +304,27 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         const userId = authStore.session.user.id;
         
+        // Prevent double-joining while connecting
+        if (this.isConnecting) {
+          debug.log('⚠️ Already attempting to connect, please wait...');
+          return false;
+        }
+        
         // Check if already in the same channel
         if (this.isConnected && this.currentChannelId === channelId) {
           debug.log('⚠️ Already connected to this voice channel');
           return true;
         }
+        
+        // Set optimistic state IMMEDIATELY for instant UI feedback
+        // This happens before any async operations
+        const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+        this.optimisticChannelId = channelId;
+        this.optimisticServerId = serverId;
+        this.optimisticChannelName = channel?.name || 'Voice Channel';
+        this.isConnecting = true;
+        
+        debug.log('🎯 [Optimistic] Voice dock should be visible now for:', channelId);
         
         // If already in a different voice channel, leave it first
         if (this.isConnected && this.currentChannelId) {
@@ -255,89 +344,285 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         debug.log('🎯 Joining voice channel:', channelId, 'on server:', serverId);
         
-        // Update server presence first
-        const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId);
-        if (!presenceSuccess) {
-          throw new Error('Failed to update server presence');
+        // Check if this is a federated (remote) server
+        const isRemoteServer = serverChannelStore.currentServer?.is_local_server === false;
+        this.isFederatedChannel = isRemoteServer;
+        
+        if (isRemoteServer) {
+          debug.log('🌐 Joining federated voice channel, waiting for token exchange...');
+          return await this.joinFederatedVoiceChannel(channelId, serverId, userId);
         }
         
-        // Setup WebRTC event listeners before joining
-        this.setupWebRTCListeners();
-        
-        // Determine room type: DM calls use 'dm_call', server channels use 'voice_channel'
-        const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
-        
-        // Join WebRTC channel (uses LiveKit SFU or P2P based on config)
-        const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType);
-        if (!webrtcSuccess) {
-          // Rollback server presence
-          await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
-          throw new Error('Failed to join WebRTC channel');
-        }
-        
-        debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
-        
-        // Update store state
-        this.currentChannelId = channelId;
-        this.currentServerId = serverId;
-        // FIXME: highly inefficient way to get channel name
-        // This should be optimized to avoid fetching all channels every time
-        const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
-        this.currentChannelName = channel ? channel.name : 'Voice Channel';
-        this.isConnected = true;
-        this.sessionStartTime = new Date(); // Track when user joined
-        
-        // Get call start time from serverUsersStore (synced across all users)
-        const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
-        if (existingCallStartTime) {
-          this.callStartTime = existingCallStartTime;
-          debug.log('🕐 Using existing call start time from serverUsersStore:', this.callStartTime);
-        } else {
-          // We're the first user - set it now
-          this.callStartTime = new Date();
-          debug.log('🕐 First user - setting call start time:', this.callStartTime);
-        }
-        
-        // Save voice channel state to localStorage for auto-reconnect
-        this.saveVoiceChannelState();
-        
-        // Start cross-tab session heartbeat
-        this.startVoiceSessionHeartbeat();
-        
-        // Check if anyone else is in the channel to determine if we're starting the call
-        // We'll set call start time after channel state sync
-        
-        // Get fresh state from WebRTC service
-        const newLocalState = webrtcManager.getLocalState();
-        
-        // Apply any preemptive mute/deafen state
-        if (this.localState.isMuted && !newLocalState.isMuted) {
-          debug.log('Applying preemptive mute state');
-          webrtcManager.toggleMute();
-        }
-        if (this.localState.isDeafened && !newLocalState.isDeafened) {
-          debug.log('Applying preemptive deafen state');
-          webrtcManager.toggleDeafen();
-        }
-        
-        // Update state after applying preemptive settings
-        this.localState = webrtcManager.getLocalState();
-        this.localStream = webrtcManager.getLocalStream();
-        
-        // Initialize spatial audio
-        await this.initializeSpatialAudio(userId);
-        
-        // Don't reset isOverlayVisible here - it may have been set to true
-        // by event handlers (user-joined, user-state-changed) that detected
-        // existing video/screenshare. Let the event handlers control this.
-        
-        // Play join sound
-        themeStore.testAudio('voice_connect');
-        
-        return true;
+        // Local server join flow
+        return await this.joinLocalVoiceChannel(channelId, serverId, userId);
       } catch (error) {
         debug.error('❌ Failed to join voice channel:', error);
+        this.isConnecting = false; // Reset on failure
+        // Clear optimistic state on failure
+        this.optimisticChannelId = null;
+        this.optimisticServerId = null;
+        this.optimisticChannelName = null;
         return false;
+      }
+    },
+    
+    /**
+     * Join a local (non-federated) voice channel
+     */
+    async joinLocalVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
+      const serverUsersStore = useServerUsersStore();
+      const serverChannelStore = useServerChannelStore();
+      
+      // Update server presence first (isLocalServer = true for local channels)
+      const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId, true);
+      if (!presenceSuccess) {
+        throw new Error('Failed to update server presence');
+      }
+      
+      // Setup WebRTC event listeners before joining
+      this.setupWebRTCListeners();
+      
+      // Determine room type: DM calls use 'dm_call', server channels use 'voice_channel'
+      const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
+      
+      // Join WebRTC channel (uses LiveKit SFU or P2P based on config)
+      const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType);
+      if (!webrtcSuccess) {
+        // Rollback server presence
+        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        throw new Error('Failed to join WebRTC channel');
+      }
+      
+      debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
+      
+      // Update store state
+      this.currentChannelId = channelId;
+      this.currentServerId = serverId;
+      // FIXME: highly inefficient way to get channel name
+      // This should be optimized to avoid fetching all channels every time
+      const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+      this.currentChannelName = channel ? channel.name : 'Voice Channel';
+      this.isConnected = true;
+      this.isConnecting = false; // Connection attempt complete
+      this.sessionStartTime = new Date(); // Track when user joined
+      
+      // Clear optimistic state - real connection is established
+      this.optimisticChannelId = null;
+      this.optimisticServerId = null;
+      this.optimisticChannelName = null;
+      
+      // Get call start time from serverUsersStore (synced across all users)
+      const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
+      if (existingCallStartTime) {
+        this.callStartTime = existingCallStartTime;
+        debug.log('🕐 Using existing call start time from serverUsersStore:', this.callStartTime);
+      } else {
+        // We're the first user - set it now
+        this.callStartTime = new Date();
+        debug.log('🕐 First user - setting call start time:', this.callStartTime);
+      }
+      
+      // Save voice channel state to localStorage for auto-reconnect
+      this.saveVoiceChannelState();
+      
+      // Start cross-tab session heartbeat
+      this.startVoiceSessionHeartbeat();
+      
+      // Check if anyone else is in the channel to determine if we're starting the call
+      // We'll set call start time after channel state sync
+      
+      // Get fresh state from WebRTC service
+      const newLocalState = webrtcManager.getLocalState();
+      
+      // Apply any preemptive mute/deafen state
+      if (this.localState.isMuted && !newLocalState.isMuted) {
+        debug.log('Applying preemptive mute state');
+        webrtcManager.toggleMute();
+      }
+      if (this.localState.isDeafened && !newLocalState.isDeafened) {
+        debug.log('Applying preemptive deafen state');
+        webrtcManager.toggleDeafen();
+      }
+      
+      // Update state after applying preemptive settings
+      this.localState = webrtcManager.getLocalState();
+      this.localStream = webrtcManager.getLocalStream();
+      
+      // Initialize spatial audio
+      await this.initializeSpatialAudio(userId);
+      
+      // Initialize Push-to-Talk
+      this.setupPushToTalk();
+      
+      // Don't reset isOverlayVisible here - it may have been set to true
+      // by event handlers (user-joined, user-state-changed) that detected
+      // existing video/screenshare. Let the event handlers control this.
+      
+      // Note: Join sound is now played immediately in ChannelSidebar for optimistic UX
+      // Don't play it again here to avoid duplicate sounds
+      
+      return true;
+    },
+    
+    /**
+     * Join a federated (remote server) voice channel
+     * This triggers a VoiceChannelJoin activity to be sent via ActivityPub,
+     * and waits for the VoiceChannelJoinAccept response with the LiveKit token.
+     */
+    async joinFederatedVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
+      const serverUsersStore = useServerUsersStore();
+      const serverChannelStore = useServerChannelStore();
+      
+      return new Promise((resolve, reject) => {
+        // Set up listener for federated voice token
+        const channelName = `federated-voice:${userId}`;
+        
+        debug.log('🔔 Subscribing to federated voice token channel:', channelName);
+        
+        this.federatedTokenSubscription = supabase
+          .channel(channelName)
+          .on('broadcast', { event: 'voice-token-received' }, async (payload) => {
+            debug.log('✅ Received federated voice token:', payload);
+            
+            // Clear pending state and timeout
+            if (this.pendingFederatedJoin?.timeout) {
+              clearTimeout(this.pendingFederatedJoin.timeout);
+            }
+            this.pendingFederatedJoin = null;
+            
+            // Extract token data
+            const { livekitUrl, token, roomName } = payload.payload;
+            
+            try {
+              // Setup WebRTC event listeners before joining
+              this.setupWebRTCListeners();
+              
+              // Connect to remote LiveKit via webrtcManager (which will set activeService='livekit')
+              const success = await webrtcManager.joinWithToken(livekitUrl, token, channelId, userId);
+              
+              if (!success) {
+                throw new Error('Failed to connect to remote LiveKit server');
+              }
+              
+              debug.log('🔌 [VoiceChannel] Connected to federated voice channel via LiveKit');
+              
+              // Update store state
+              this.currentChannelId = channelId;
+              this.currentServerId = serverId;
+              const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+              this.currentChannelName = channel ? channel.name : 'Voice Channel';
+              this.isConnected = true;
+              this.isConnecting = false; // Connection attempt complete
+              this.sessionStartTime = new Date();
+              this.callStartTime = new Date();
+              
+              // Clear optimistic state - real connection is established
+              this.optimisticChannelId = null;
+              this.optimisticServerId = null;
+              this.optimisticChannelName = null;
+              
+              // Save voice channel state
+              this.saveVoiceChannelState();
+              this.startVoiceSessionHeartbeat();
+              
+              // Update state from webrtcManager (now properly set to livekit)
+              this.localState = webrtcManager.getLocalState();
+              this.localStream = webrtcManager.getLocalStream();
+              
+              // Initialize Push-to-Talk
+              this.setupPushToTalk();
+              
+              // Note: Join sound is now played immediately in ChannelSidebar for optimistic UX
+              // Don't play it again here to avoid duplicate sounds
+              
+              resolve(true);
+            } catch (error) {
+              debug.error('Failed to connect with federated token:', error);
+              this.cleanupFederatedSubscription();
+              reject(error);
+            }
+          })
+          .on('broadcast', { event: 'voice-join-rejected' }, (payload) => {
+            debug.error('❌ Voice join rejected:', payload.payload);
+            
+            // Clear pending state
+            if (this.pendingFederatedJoin?.timeout) {
+              clearTimeout(this.pendingFederatedJoin.timeout);
+            }
+            this.pendingFederatedJoin = null;
+            this.cleanupFederatedSubscription();
+            
+            reject(new Error(payload.payload.reason || 'Voice join rejected by remote server'));
+          })
+          .subscribe((status) => {
+            debug.log(`📡 Federated voice subscription status: ${status}`);
+          });
+        
+        // Call federation-backend to send VoiceChannelJoin activity
+        // For remote servers, we don't write to local DB - the remote instance handles that
+        (async () => {
+          try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) {
+              this.cleanupFederatedSubscription();
+              reject(new Error('Not authenticated'));
+              return;
+            }
+            
+            const response = await fetch('/api/federation/voice/join', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session.access_token}`,
+              },
+              body: JSON.stringify({ channelId, serverId }),
+            });
+            
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+              throw new Error(error.error || 'Failed to send voice join request');
+            }
+            
+            debug.log('📡 Voice join request sent to federation backend');
+            
+            // Update local presence state (but don't write to DB)
+            serverUsersStore.joinVoiceChannel(serverId, channelId, userId, false);
+          } catch (error) {
+            this.isConnecting = false; // Reset on error
+            // Clear optimistic state on failure
+            this.optimisticChannelId = null;
+            this.optimisticServerId = null;
+            this.optimisticChannelName = null;
+            this.cleanupFederatedSubscription();
+            reject(error);
+          }
+        })();
+        
+        // Set timeout for token response (30 seconds)
+        const timeout = setTimeout(() => {
+          debug.error('❌ Timeout waiting for federated voice token');
+          this.pendingFederatedJoin = null;
+          this.isConnecting = false; // Reset on timeout
+          // Clear optimistic state on timeout
+          this.optimisticChannelId = null;
+          this.optimisticServerId = null;
+          this.optimisticChannelName = null;
+          this.cleanupFederatedSubscription();
+          serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+          reject(new Error('Timeout waiting for voice connection to remote server'));
+        }, 30000);
+        
+        this.pendingFederatedJoin = { channelId, serverId, timeout };
+      });
+    },
+    
+    /**
+     * Clean up federated voice subscription
+     */
+    cleanupFederatedSubscription() {
+      if (this.federatedTokenSubscription) {
+        this.federatedTokenSubscription.unsubscribe();
+        this.federatedTokenSubscription = null;
       }
     },
 
@@ -355,24 +640,56 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         const userId = authStore.session.user.id;
+        const wasFederated = this.isFederatedChannel;
+        const channelId = this.currentChannelId;
+        const serverId = this.currentServerId;
         
-        debug.log('👋 Leaving voice channel');
+        debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
+        
+        // Clean up federated subscription if active
+        this.cleanupFederatedSubscription();
+        if (this.pendingFederatedJoin?.timeout) {
+          clearTimeout(this.pendingFederatedJoin.timeout);
+          this.pendingFederatedJoin = null;
+        }
         
         // Clear saved voice channel state (user manually left)
         this.clearVoiceChannelState();
         
-        // Leave WebRTC first
+        // Leave WebRTC (webrtcManager handles both local and federated)
         await webrtcManager.leaveChannel();
 
         // Clean up spatial audio
         this.cleanupSpatialAudio();
         
+        // Clean up Push-to-Talk
+        this.cleanupPushToTalk();
+        
         // Update server presence
-        if (this.currentServerId) {
-          await serverUsersStore.leaveVoiceChannel(this.currentServerId, this.currentChannelId, userId);
+        if (serverId && channelId) {
+          // For federated channels, also notify the remote server
+          if (wasFederated) {
+            const session = await supabase.auth.getSession();
+            if (session.data.session) {
+              fetch('/api/federation/voice/leave', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ channelId, serverId }),
+              }).catch((error) => {
+                debug.warn('Failed to send federated voice leave:', error);
+              });
+            }
+          }
+          
+          // Update local state (isLocalServer = !wasFederated)
+          await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId, !wasFederated);
         }
         
         // Reset state
+        this.isFederatedChannel = false;
         this.resetState();
         
         // Play leave sound
@@ -418,8 +735,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Toggle screen share on/off
      */
     async toggleScreenShare(): Promise<boolean> {
-      const enabled = await webrtcManager.toggleScreenShare();
       const themeStore = useThemeStore();
+      const enabled = await webrtcManager.toggleScreenShare();
       
       // Force sync with WebRTC service state
       this.localState = webrtcManager.getLocalState();
@@ -445,10 +762,43 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
     /**
      * Toggle mute on/off
+     * IMPORTANT: In PTT mode, this only allows MUTING, not unmuting via button click.
+     * Unmuting in PTT mode happens only via the PTT key.
+     * This prevents accidental audio leaks when user clicks unmute button.
      */
     async toggleMute(): Promise<boolean> {
       const themeStore = useThemeStore();
-      // Allow mute/unmute even when not connected (preemptive state)
+      const keybinds = useKeybinds();
+      
+      // In PTT mode, clicking the mute button should:
+      // - If currently transmitting (PTT held): mute immediately (safety)
+      // - If muted (PTT not held): stay muted, do NOT unmute via button
+      //   This prevents accidental voice activation when user clicks unmute
+      if (keybinds.isPTTMode.value) {
+        const currentlyMuted = this.localState.isMuted;
+        
+        if (!currentlyMuted) {
+          // User is unmuted (PTT is held) - allow muting for safety/privacy
+          if (this.isConnected) {
+            webrtcManager.setMuted(true);
+            this.localState = webrtcManager.getLocalState();
+          } else {
+            this.localState.isMuted = true;
+          }
+          themeStore.testAudio('mic_off');
+          debug.log('🎤 [PTT] Muted via button while transmitting');
+          return true;
+        } else {
+          // User is muted (PTT not held) - DON'T unmute via button click!
+          // They need to hold the PTT key to transmit
+          debug.log('🎤 [PTT] Ignoring unmute button - use PTT key to transmit');
+          // Play a subtle sound to indicate the action was blocked
+          // themeStore.testAudio('error'); // Optional: play error sound
+          return true; // Stay muted
+        }
+      }
+      
+      // Voice Activity mode - normal toggle behavior
       if (this.isConnected) {
         const muted = webrtcManager.toggleMute();
         this.localState = webrtcManager.getLocalState();
@@ -460,6 +810,38 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         debug.log('Setting preemptive mute state:', this.localState.isMuted);
         themeStore.testAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
         return this.localState.isMuted;
+      }
+    },
+
+    /**
+     * Set mute state directly (for Push-to-Talk)
+     * Unlike toggleMute, this doesn't play sound effects (to avoid spam during PTT)
+     * @param muted - Whether to mute (true) or unmute (false)
+     * @param playSound - Whether to play the mute/unmute sound effect (default: false)
+     */
+    setMuted(muted: boolean, playSound: boolean = false): void {
+      const themeStore = useThemeStore();
+      
+      if (this.isConnected) {
+        // Only call webrtcManager if state is actually different
+        const currentMuted = this.localState.isMuted;
+        if (currentMuted !== muted) {
+          webrtcManager.setMuted(muted);
+          this.localState = webrtcManager.getLocalState();
+          if (playSound) {
+            themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
+          }
+          debug.log('🎤 [PTT] Set muted state:', muted);
+        }
+      } else {
+        // Update local state when not connected
+        if (this.localState.isMuted !== muted) {
+          this.localState.isMuted = muted;
+          if (playSound) {
+            themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
+          }
+          debug.log('🎤 [PTT] Set preemptive muted state:', muted);
+        }
       }
     },
 
@@ -527,13 +909,23 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     exitFullscreen(): void {
       this.viewMode = 'normal';
       this.fullscreenUserId = null;
+      this.isFullWindowMode = false;
+    },
+
+    /**
+     * Toggle full window mode (video fills entire viewport in fullscreen)
+     */
+    toggleFullWindowMode(): void {
+      this.isFullWindowMode = !this.isFullWindowMode;
     },
 
     /**
      * Toggle PIP mode for screenshare
+     * Pass null to close PIP, or a userId to open/toggle PIP for that user
      */
     togglePIP(userId: string | null, mode: 'draggable' | 'fixed' | 'native' = 'native'): void {
-      if (this.pipActive && this.pipUserId === userId) {
+      // Close PIP if null is passed or same user is toggled
+      if (userId === null || (this.pipActive && this.pipUserId === userId)) {
         this.pipActive = false;
         this.pipUserId = null;
       } else {
@@ -560,23 +952,29 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Update stream quality settings (resolution/framerate)
-     * Applies to camera and screenshare
+     * Update stream quality settings (resolution/framerate/audioBitrate)
+     * Applies to camera, screenshare, and audio
      */
-    async updateStreamQuality(settings: { resolution?: number; frameRate?: number }): Promise<void> {
+    async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
       const newSettings = { ...this.streamSettings, ...settings };
       this.streamSettings = newSettings;
       
       debug.log('🎬 Updating stream quality:', newSettings);
       
-      // Apply to active video/screenshare if any
-      if (this.localState.isVideoEnabled || this.localState.isScreenSharing) {
+      // Apply to active video/screenshare/audio if any
+      if (this.localState.isVideoEnabled || this.localState.isScreenSharing || !this.localState.isMuted) {
         try {
-          await webrtcManager.updateStreamQuality?.(newSettings);
-          debug.log('✅ Stream quality updated');
+          await webrtcManager.updateStreamQuality({
+            resolution: newSettings.resolution,
+            frameRate: newSettings.frameRate,
+            audioBitrate: newSettings.audioBitrate
+          });
+          debug.log('✅ Stream quality updated successfully');
         } catch (error) {
           debug.error('❌ Failed to update stream quality:', error);
         }
+      } else {
+        debug.log('ℹ️ Stream quality settings saved, will apply when video/audio is enabled');
       }
       
       // Persist settings
@@ -598,7 +996,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // Handle -1 (source/native) as valid, only default if truly undefined
           this.streamSettings = {
             resolution: settings.resolution !== undefined ? settings.resolution : 720,
-            frameRate: settings.frameRate || 30
+            frameRate: settings.frameRate || 30,
+            audioBitrate: settings.audioBitrate || 128
           };
         }
       } catch (error) {
@@ -607,7 +1006,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Set per-user volume (0-200, 100 = normal)
+     * Set per-user mic volume (0-200, 100 = normal)
      * Persisted to localStorage and applied to audio
      */
     setUserVolume(userId: string, volume: number): void {
@@ -615,17 +1014,35 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const clampedVolume = Math.max(0, Math.min(200, volume));
       this.userVolumes.set(userId, clampedVolume);
       
-      // Apply volume to the user's audio stream
-      webrtcManager.setUserVolume?.(userId, clampedVolume / 100);
+      // Apply volume to the user's mic audio stream
+      webrtcManager.setUserMicVolume(userId, clampedVolume);
       
       // Persist to localStorage
       this.saveUserVolumes();
       
-      debug.log(`🔊 Set volume for user ${userId}: ${clampedVolume}%`);
+      debug.log(`🔊 Set mic volume for user ${userId}: ${clampedVolume}%`);
+    },
+    
+    /**
+     * Set per-user screenshare volume (0-200, 100 = normal)
+     * Persisted to localStorage and applied to screenshare audio
+     */
+    setUserScreenShareVolume(userId: string, volume: number): void {
+      // Clamp volume to valid range
+      const clampedVolume = Math.max(0, Math.min(200, volume));
+      this.userScreenShareVolumes.set(userId, clampedVolume);
+      
+      // Apply volume to the user's screenshare audio stream
+      webrtcManager.setUserScreenShareVolume(userId, clampedVolume);
+      
+      // Persist to localStorage
+      this.saveScreenShareVolumes();
+      
+      debug.log(`🔊 Set screenshare volume for user ${userId}: ${clampedVolume}%`);
     },
 
     /**
-     * Save user volumes to localStorage
+     * Save user mic volumes to localStorage
      */
     saveUserVolumes(): void {
       try {
@@ -636,6 +1053,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         localStorage.setItem('harmony-user-volumes', JSON.stringify(volumeObj));
       } catch (error) {
         debug.warn('Failed to save user volumes:', error);
+      }
+    },
+    
+    /**
+     * Save user screenshare volumes to localStorage
+     */
+    saveScreenShareVolumes(): void {
+      try {
+        const volumeObj: Record<string, number> = {};
+        this.userScreenShareVolumes.forEach((volume, odUserId) => {
+          volumeObj[odUserId] = volume;
+        });
+        localStorage.setItem('harmony-user-screenshare-volumes', JSON.stringify(volumeObj));
+      } catch (error) {
+        debug.warn('Failed to save screenshare volumes:', error);
       }
     },
 
@@ -654,6 +1086,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       } catch (error) {
         debug.warn('Failed to load user volumes:', error);
+      }
+    },
+    
+    /**
+     * Load screenshare volumes from localStorage
+     */
+    loadScreenShareVolumes(): void {
+      try {
+        const saved = localStorage.getItem('harmony-user-screenshare-volumes');
+        if (saved) {
+          const volumeObj = JSON.parse(saved) as Record<string, number>;
+          Object.entries(volumeObj).forEach(([odUserId, volume]) => {
+            this.userScreenShareVolumes.set(odUserId, volume);
+          });
+          debug.log('🔊 Loaded screenshare volumes from localStorage');
+        }
+      } catch (error) {
+        debug.warn('Failed to load screenshare volumes:', error);
       }
     },
 
@@ -698,6 +1148,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     setupWebRTCListeners(): void {
       const themeStore = useThemeStore();
+      const serverUsersStore = useServerUsersStore();
+      const authStore = useAuthStore();
+      
+      // Get the current user's ID reliably from auth store
+      // (localState.userId might be empty at this point)
+      const currentUserId = authStore.session?.user?.id;
+      
       // Channel events
       webrtcManager.on('channel-joined', (data) => {
         debug.log('✅ Channel joined:', data);
@@ -778,7 +1235,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           debug.warn('⚠️ Failed to load profile for voice user:', data.userId, error);
         }
 
-        themeStore.testAudio('voice_connect');
+        // Only play sound for OTHER users joining, not for self
+        // (self sound is played immediately in ChannelSidebar for optimistic UX)
+        // Use currentUserId from authStore since localState.userId might be empty
+        if (currentUserId && data.userId !== currentUserId) {
+          themeStore.testAudio('voice_connect');
+        }
       });
 
       webrtcManager.on('user-left', (data) => {
@@ -791,6 +1253,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Remove from spatial audio
         this.removeUserFromSpatialAudio(data.userId);
 
+        // Clean up database state for the disconnected user
+        // This handles the case where a user crashes/disconnects without graceful leave
+        if (this.currentChannelId && this.currentServerId && !this.isFederatedChannel) {
+          // Only cleanup local server participants - federated cleanup is handled by the host
+          serverUsersStore.cleanupDisconnectedUser(
+            this.currentServerId, 
+            this.currentChannelId, 
+            data.userId
+          );
+        }
+
         // Reset call start time if everyone left
         const totalUsers = this.allUsers.length + 1; // +1 for local user
         if (totalUsers === 1) {
@@ -798,25 +1271,58 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.callStartTime = null;
         }
 
-        themeStore.testAudio('voice_disconnect');
+        // Only play sound for OTHER users leaving, not for self
+        // (self disconnect sound is handled in leaveVoiceChannel/ChannelSidebar)
+        // Use currentUserId from authStore since localState.userId might be empty
+        if (currentUserId && data.userId !== currentUserId) {
+          themeStore.testAudio('voice_disconnect');
+        }
       });
 
       webrtcManager.on('user-state-changed', (data) => {
-        debug.log('🎛️ User state changed:', data, 'isVideoEnabled:', data.mediaState?.isVideoEnabled);
-        
         // Update user state
         const userIndex = this.allUsers.findIndex(u => u.userId === data.userId);
+        // Check if video/screenshare state changed (not just audio level)
+        const oldState = userIndex !== -1 ? this.allUsers[userIndex] : null;
+        const videoStateChanged = oldState && (
+          oldState.isVideoEnabled !== data.mediaState.isVideoEnabled ||
+          oldState.isScreenSharing !== data.mediaState.isScreenSharing
+        );
+        
         if (userIndex !== -1) {
-          // Direct assignment - Vue 3/Pinia should handle reactivity
-          this.allUsers[userIndex] = data.mediaState;
+          // Use splice to ensure Vue detects the change (more reliable than direct assignment)
+          // This creates a new array reference for computed properties that depend on allUsers
+          this.allUsers.splice(userIndex, 1, data.mediaState);
         } else if (data.mediaState && data.mediaState.userId) {
           // User not in list yet - add them
           debug.log('➕ User not in list, adding:', data.userId);
           this.allUsers.push(data.mediaState);
         }
         
-        // Force reactivity by incrementing counter
-        this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
+        // Only increment counter when video/screenshare state actually changes
+        // NOT for audio level changes (which happen 20+ times per second)
+        if (videoStateChanged || !oldState) {
+          this.streamUpdateCounter = (this.streamUpdateCounter || 0) + 1;
+          debug.log('📹 Video state changed for', data.userId, '- counter:', this.streamUpdateCounter, 
+            'video:', data.mediaState.isVideoEnabled, 'screen:', data.mediaState.isScreenSharing);
+          
+          // Handle screenshare state change for spatial audio
+          // When user starts screensharing: disable spatial audio, enable traditional
+          // When user stops screensharing: re-enable spatial audio
+          if (oldState && oldState.isScreenSharing !== data.mediaState.isScreenSharing) {
+            const spatialStore = useSpatialAudioStore();
+            if (data.mediaState.isScreenSharing) {
+              // User started screensharing - switch to traditional audio
+              debug.log('🔊 User started screensharing, switching to traditional audio:', data.userId);
+              this.removeUserFromSpatialAudio(data.userId);
+              webrtcManager.setTraditionalAudioEnabled(true);
+            } else if (spatialStore.settings.enabled) {
+              // User stopped screensharing - restore spatial audio if enabled
+              debug.log('🎧 User stopped screensharing, restoring spatial audio:', data.userId);
+              this.addUserToSpatialAudio(data.userId);
+            }
+          }
+        }
         
         // NOTE: Don't auto-open overlay here - this fires on every state change
         // Auto-open only happens in user-joined for initial sync when joining
@@ -1149,10 +1655,25 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
+    // Debounce timers for spatial audio setup per user
+    _spatialAudioDebounceTimers: {} as Record<string, ReturnType<typeof setTimeout>>,
+    
     /**
      * Add user to spatial audio using MediaStream directly
+     * Note: Skips spatial audio when user is screensharing - screenshare audio
+     * (music, videos, games) should play in stereo, not be spatially positioned
      */
     addUserToSpatialAudio(userId: string): void {
+      // Check if user is screensharing - if so, skip spatial audio
+      // Screenshare audio should be played normally (stereo) not spatially
+      const userState = this.allUsers.find(u => u.userId === userId);
+      if (userState?.isScreenSharing) {
+        debug.log('🎧 Skipping spatial audio for screensharing user:', userId);
+        // Make sure traditional audio is enabled for this user
+        webrtcManager.setTraditionalAudioEnabled(true);
+        return;
+      }
+      
       // Initialize remote user position if not set (never local user here)
       const spatialStore = useSpatialAudioStore();
       if (!spatialStore.userPositions.has(userId)) {
@@ -1160,8 +1681,23 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         debug.log('🎧 Initialized position for new user:', userId);
       }
       
+      // Clear any pending setup timer for this user
+      if (this._spatialAudioDebounceTimers[userId]) {
+        clearTimeout(this._spatialAudioDebounceTimers[userId]);
+      }
+      
       // Small delay to ensure MediaStream is properly set up
-      setTimeout(() => {
+      this._spatialAudioDebounceTimers[userId] = setTimeout(() => {
+        delete this._spatialAudioDebounceTimers[userId];
+        
+        // Double-check screenshare status (might have changed)
+        const currentUserState = this.allUsers.find(u => u.userId === userId);
+        if (currentUserState?.isScreenSharing) {
+          debug.log('🎧 User started screensharing, skipping spatial audio:', userId);
+          webrtcManager.setTraditionalAudioEnabled(true);
+          return;
+        }
+        
         // Get the MediaStream for this user from WebRTC service
         const userStream = webrtcManager.getUserStream(userId);
         if (userStream) {
@@ -1177,26 +1713,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             spatialAudioService.updateSpatialEffects();
           }
         } else {
-          debug.warn('No media stream found for user:', userId, '- retrying in 100ms');
-          // Retry once more if stream isn't ready
-          setTimeout(() => {
-            const retryUserStream = webrtcManager.getUserStream(userId);
-            if (retryUserStream) {
-              spatialAudioService.setupSpatialForUser(userId, retryUserStream);
-              
-              // Mute traditional audio if spatial is enabled
-              const spatialStore = useSpatialAudioStore();
-              if (spatialStore.settings.enabled) {
-                debug.log('🔇 Muting traditional audio for user (spatial audio active, retry):', userId);
-                webrtcManager.setTraditionalAudioEnabled(false);
-                
-                // Force spatial effects update for new user
-                spatialAudioService.updateSpatialEffects();
-              }
-            } else {
-              debug.warn('Media stream still not found for user:', userId);
-            }
-          }, 100);
+          debug.warn('No media stream found for user:', userId);
         }
       }, 50);
     },
@@ -1205,6 +1722,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Remove user from spatial audio
      */
     removeUserFromSpatialAudio(userId: string): void {
+      // Clear any pending debounce timer
+      if (this._spatialAudioDebounceTimers[userId]) {
+        clearTimeout(this._spatialAudioDebounceTimers[userId]);
+        delete this._spatialAudioDebounceTimers[userId];
+      }
       spatialAudioService.removeUser(userId);
     },
 
@@ -1216,12 +1738,78 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Setup keybind integration for voice controls
+     * Registers handlers for all voice-related keybinds (PTT, mute, etc.)
+     */
+    setupPushToTalk(): void {
+      if (keybindListenersSetup) return;
+      
+      const keybinds = useKeybinds();
+      
+      // Activate the voice-connected context
+      keybinds.activateContext('voice-connected');
+      
+      // Register PTT handler (hold mode - callback receives isPressed)
+      keybinds.registerHandler('push-to-talk', (isPressed: boolean) => {
+        this.setMuted(!isPressed, false); // When pressed, unmute; when released, mute
+      });
+      
+      // Register voice toggle handlers (these work when overlay is NOT open)
+      // When overlay IS open, it registers its own handlers that take priority
+      keybinds.registerHandler('toggle-mute', () => {
+        // Only handle if not in PTT mode (PTT mode handles mute differently)
+        if (!keybinds.isPTTMode.value) {
+          this.toggleMute();
+        }
+      });
+      keybinds.registerHandler('toggle-deafen', () => this.toggleDeafen());
+      keybinds.registerHandler('toggle-camera', () => this.toggleVideo());
+      keybinds.registerHandler('toggle-screenshare', () => this.toggleScreenShare());
+      
+      // Setup global key listeners
+      keybinds.setupListeners();
+      
+      // If PTT mode is active, start muted
+      if (keybinds.isPTTMode.value) {
+        this.setMuted(true, false);
+      }
+      
+      keybindListenersSetup = true;
+      debug.log('⌨️ [Keybinds] Voice keybinds integrated with voice channel');
+    },
+
+    /**
+     * Cleanup keybind integration
+     */
+    cleanupPushToTalk(): void {
+      if (!keybindListenersSetup) return;
+      
+      const keybinds = useKeybinds();
+      
+      // Deactivate the voice-connected context
+      keybinds.deactivateContext('voice-connected');
+      
+      // Unregister all voice handlers
+      keybinds.unregisterHandler('push-to-talk');
+      keybinds.unregisterHandler('toggle-mute');
+      keybinds.unregisterHandler('toggle-deafen');
+      keybinds.unregisterHandler('toggle-camera');
+      keybinds.unregisterHandler('toggle-screenshare');
+      
+      keybinds.cleanupListeners();
+      
+      keybindListenersSetup = false;
+      debug.log('⌨️ [Keybinds] Voice keybinds cleanup complete');
+    },
+
+    /**
      * Reset store state
      */
     resetState(): void {
       this.currentChannelId = null;
       this.currentServerId = null;
       this.isConnected = false;
+      this.isConnecting = false;
       this.sessionStartTime = null;
       this.callStartTime = null;
       this.allUsers = [];

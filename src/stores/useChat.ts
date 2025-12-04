@@ -794,6 +794,13 @@ export const useChatStore = defineStore('chat', {
         onUpdate: async (payload) => {
           const payloadNew = payload.new as any;
           
+          // Handle soft delete (federated message deletions use UPDATE with is_deleted = true)
+          if (payloadNew.is_deleted) {
+            store.removeMessageFromCache(payloadNew.id);
+            debug.log('🗑️ Message soft-deleted via real-time:', payloadNew.id);
+            return;
+          }
+          
           let updatedMessage: Message = {
             id: payloadNew.id,
             created_at: new Date(payloadNew.created_at),

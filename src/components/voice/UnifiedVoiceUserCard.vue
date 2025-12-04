@@ -56,7 +56,7 @@
         <!-- Self controls -->
         <div v-if="isSelf" class="video-controls">
           <button
-            @click="emit('toggle-video')"
+            @click.stop="emit('toggle-video')"
             class="control-btn"
             :class="{ active: props.userState.isVideoEnabled && !props.userState.isScreenSharing }"
             :title="props.userState.isVideoEnabled && !props.userState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
@@ -64,12 +64,32 @@
             <Icon name="camera" />
           </button>
           <button
-            @click="emit('toggle-screen-share')"
+            @click.stop="emit('toggle-screen-share')"
             class="control-btn"
             :class="{ active: props.userState.isScreenSharing }"
             :title="props.userState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
           >
             <Icon name="screen-share" />
+          </button>
+          <button
+            @click.stop="handleCardClick"
+            class="control-btn"
+            :class="{ active: isFullscreenActive }"
+            title="Toggle fullscreen"
+          >
+            <Icon :name="isFullscreenActive ? 'minimize-2' : 'maximize-2'" />
+          </button>
+        </div>
+        
+        <!-- Fullscreen button for remote users (when not showing self controls) -->
+        <div v-else class="video-controls remote-controls">
+          <button
+            @click.stop="handleCardClick"
+            class="control-btn"
+            :class="{ active: isFullscreenActive }"
+            title="Toggle fullscreen"
+          >
+            <Icon :name="isFullscreenActive ? 'minimize-2' : 'maximize-2'" />
           </button>
         </div>
       </div>
@@ -302,12 +322,8 @@ const storeUserState = computed(() => {
 
 const hasVideo = computed(() => {
   // Read directly from store state for better reactivity
-  // Also trigger on streamUpdateCounter changes
-  const _counter = voiceStore.streamUpdateCounter;
   const state = storeUserState.value;
-  const result = state.isVideoEnabled || state.isScreenSharing;
-  debug.log(`🎥 hasVideo for ${state.userId}: ${result} (isVideoEnabled: ${state.isVideoEnabled}, isScreenSharing: ${state.isScreenSharing}, counter: ${_counter})`);
-  return result;
+  return state.isVideoEnabled || state.isScreenSharing;
 });
 
 const connectionQuality = computed(() => {
@@ -380,8 +396,18 @@ const onVideoLoaded = () => {
  * Handle card click - toggle fullscreen for videos
  */
 const handleCardClick = () => {
-  // Only enable fullscreen if user has video or is screen sharing
-  if (!hasVideo.value) return;
+  // Check both sources to match the v-if condition on video container
+  // hasVideo uses store state, props.userState uses props - they might be momentarily out of sync
+  const canShowVideo = hasVideo.value || props.userState.isVideoEnabled || props.userState.isScreenSharing;
+  
+  if (!canShowVideo) {
+    debug.log('📺 [FullScreen] No video to fullscreen', {
+      hasVideo: hasVideo.value,
+      propsVideoEnabled: props.userState.isVideoEnabled,
+      propsScreenSharing: props.userState.isScreenSharing
+    });
+    return;
+  }
   
   // Toggle fullscreen mode
   if (isFullscreenActive.value) {
@@ -393,14 +419,14 @@ const handleCardClick = () => {
 
 /**
  * Toggle PIP mode for screenshare
+ * Always use draggable mode for consistent drag/resize behavior
  */
 const togglePIP = () => {
   if (isPIPActive.value) {
     voiceStore.togglePIP(null);
   } else {
-    // Try native PIP first, fall back to fixed
-    const pipMode = document.pictureInPictureEnabled ? 'native' : 'fixed';
-    voiceStore.togglePIP(props.userState.userId, pipMode);
+    // Use draggable mode for consistent drag/resize behavior
+    voiceStore.togglePIP(props.userState.userId, 'draggable');
   }
 };
 
@@ -417,60 +443,107 @@ const handleContextMenu = (event: MouseEvent) => {
 // =============================================================================
 
 // Function to attach video to element
-const attachVideo = () => {
+// Track last attached state to prevent unnecessary re-attachments
+let lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+let lastAttachedStreamId: string | null = null;
+let isVideoAttached = false;
+let pendingAttachment = false; // Track if we need to attach when element becomes available
+let attachmentRetryCount = 0;
+const MAX_ATTACHMENT_RETRIES = 5;
+
+const attachVideo = (forceReattach = false) => {
   const userId = props.userState.userId;
   const state = storeUserState.value;
+  const stream = userStream.value;
   
   if (!videoElement.value) {
-    debug.log(`📹 attachVideo: No video element for ${userId}`);
+    // Mark that we have a pending attachment for when the element becomes available
+    const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
+    if (shouldShowVideo) {
+      pendingAttachment = true;
+      debug.log(`📹 Video element not ready for ${userId}, marking pending attachment`);
+    }
     return;
   }
   
+  pendingAttachment = false;
+  
   const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
-  debug.log(`📹 attachVideo called for ${userId}:`, {
-    shouldShowVideo,
-    isVideoEnabled: state.isVideoEnabled,
-    isScreenSharing: state.isScreenSharing,
-    hasStream: !!userStream.value,
-    videoTracks: userStream.value?.getVideoTracks?.()?.length ?? 0
-  });
+  const currentStreamId = stream?.id || null;
+  
+  // Check if we need to reattach - either state changed OR stream changed OR forced
+  const stateChanged = 
+    lastAttachedVideoState.isVideoEnabled !== state.isVideoEnabled ||
+    lastAttachedVideoState.isScreenSharing !== state.isScreenSharing;
+  const streamChanged = currentStreamId !== lastAttachedStreamId;
+  
+  // Skip if video is already attached and nothing changed (unless forced)
+  if (!forceReattach && isVideoAttached && shouldShowVideo && !stateChanged && !streamChanged) {
+    return;
+  }
   
   if (shouldShowVideo) {
+    // If stream changed OR state changed OR forced, we MUST reattach
+    if ((streamChanged || stateChanged || forceReattach) && isVideoAttached) {
+      debug.log(`📹 ${forceReattach ? 'Force' : 'State/Stream'} reattachment for ${userId}`);
+      // Clear old attachment
+      voiceStore.detachVideoFromElement(userId, videoElement.value);
+      videoElement.value.srcObject = null;
+      isVideoAttached = false;
+    }
+    
     // Use LiveKit's proper attach method - this is CRITICAL for adaptive streaming
     // Using srcObject directly causes LiveKit to disable all simulcast layers (frozen video)
     const attached = voiceStore.attachVideoToElement(userId, videoElement.value);
     if (attached) {
-      debug.log(`📹 ✅ Attached video for user ${userId} using LiveKit attach()`);
+      isVideoAttached = true;
+      lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
+      lastAttachedStreamId = currentStreamId;
+      attachmentRetryCount = 0;
+      debug.log(`📹 ✅ Attached video for user ${userId}`);
     } else {
       // Fallback to srcObject for P2P mode or if attach fails
-      const stream = userStream.value;
       if (stream && stream.getVideoTracks().length > 0) {
         videoElement.value.srcObject = stream;
-        debug.log(`📹 ⚠️ Fallback: Setting srcObject for user ${userId}`);
-      } else {
-        debug.log(`📹 ⏳ No video track yet for ${userId}, will retry on next update`);
+        isVideoAttached = true;
+        lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
+        lastAttachedStreamId = currentStreamId;
+        attachmentRetryCount = 0;
+        debug.log(`📹 ⚠️ Fallback: srcObject for user ${userId}`);
+      } else if (shouldShowVideo && attachmentRetryCount < MAX_ATTACHMENT_RETRIES) {
+        // Retry attachment after a short delay - track might not be ready yet
+        attachmentRetryCount++;
+        debug.log(`📹 ⏳ Retry ${attachmentRetryCount}/${MAX_ATTACHMENT_RETRIES} for ${userId}`);
+        setTimeout(() => {
+          if (videoElement.value && (storeUserState.value.isVideoEnabled || storeUserState.value.isScreenSharing)) {
+            attachVideo(true);
+          }
+        }, 100 * attachmentRetryCount);
       }
     }
-  } else {
+  } else if (isVideoAttached) {
     // Detach video properly when turning off
     voiceStore.detachVideoFromElement(userId, videoElement.value);
     // Clear the video element completely
     videoElement.value.srcObject = null;
     videoElement.value.src = '';
     videoElement.value.load(); // Force reload to clear any cached frames
-    debug.log(`📹 Detached and cleared video for user ${userId} (camera/screen off)`);
+    isVideoAttached = false;
+    lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+    lastAttachedStreamId = null;
+    attachmentRetryCount = 0;
+    debug.log(`📹 Detached video for user ${userId}`);
   }
 };
 
 // Update video element when stream OR state changes
 // Uses LiveKit's proper track.attach() method for adaptive streaming to work correctly
-// Also watches streamUpdateCounter to re-trigger when remote streams update (Map reactivity workaround)
 watch(
   [
     () => userStream.value, 
     () => storeUserState.value.isVideoEnabled, 
     () => storeUserState.value.isScreenSharing,
-    () => voiceStore.streamUpdateCounter // Force re-run when any stream updates
+    () => voiceStore.streamUpdateCounter
   ],
   () => {
     // Use nextTick to ensure DOM is updated before attaching
@@ -479,40 +552,72 @@ watch(
   { immediate: true }
 );
 
-// Debug watcher to track when hasVideo changes
-watch(
-  () => hasVideo.value,
-  (newVal, oldVal) => {
-    debug.log(`🔄 hasVideo changed for ${props.userState.userId}: ${oldVal} -> ${newVal}`);
-  }
-);
-
-// Debug watcher for props changes
-watch(
-  () => props.userState,
-  (newState) => {
-    debug.log(`📋 Props userState changed for ${newState.userId}: isVideoEnabled=${newState.isVideoEnabled}, isScreenSharing=${newState.isScreenSharing}`);
-  },
-  { deep: true }
-);
-
-// Also watch for when video element becomes available (v-if renders it)
-watch(videoElement, (newEl) => {
-  if (newEl) {
-    debug.log(`📹 Video element now available for ${props.userState.userId}`);
-    attachVideo();
-  }
-});
-
-// Retry attachment on component updates (catches edge cases)
-onUpdated(() => {
-  if (videoElement.value && (props.userState.isVideoEnabled || props.userState.isScreenSharing)) {
-    // Only retry if video element has no source
-    if (!videoElement.value.srcObject) {
-      attachVideo();
+// Watch for when video element becomes available (v-if renders it)
+// This is crucial for the case where state changes trigger v-if to render the element
+watch(videoElement, (newEl, oldEl) => {
+  if (newEl && !oldEl) {
+    // Element just became available - check for pending attachment
+    debug.log(`📹 Video element now available for ${props.userState.userId}, pending: ${pendingAttachment}`);
+    // Always try to attach when element becomes available if we should show video
+    const shouldShowVideo = storeUserState.value.isVideoEnabled || storeUserState.value.isScreenSharing;
+    if (shouldShowVideo) {
+      // Small delay to ensure element is fully in DOM
+      setTimeout(() => attachVideo(true), 0);
     }
   }
 });
+
+// Specific watcher for screenshare state changes
+// Handles both starting and stopping of screenshare
+watch(
+  () => storeUserState.value.isScreenSharing,
+  (newVal, oldVal) => {
+    if (newVal && !oldVal) {
+      // Screenshare just started - force reattachment after a short delay
+      // to ensure LiveKit has published the track
+      debug.log(`📹 🖥️ Screenshare started for ${props.userState.userId}, scheduling forced attachment`);
+      setTimeout(() => {
+        if (videoElement.value) {
+          attachVideo(true);
+        }
+      }, 150);
+    } else if (!newVal && oldVal) {
+      // Screenshare just stopped - immediately clean up video element
+      debug.log(`📹 🖥️ Screenshare stopped for ${props.userState.userId}, cleaning up video`);
+      if (videoElement.value) {
+        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
+        videoElement.value.srcObject = null;
+        videoElement.value.src = '';
+        videoElement.value.load();
+        isVideoAttached = false;
+        lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+        lastAttachedStreamId = null;
+        attachmentRetryCount = 0;
+      }
+    }
+  }
+);
+
+// Watch for video state changes to immediately clean up when video stops
+watch(
+  () => storeUserState.value.isVideoEnabled,
+  (newVal, oldVal) => {
+    if (!newVal && oldVal && !storeUserState.value.isScreenSharing) {
+      // Video stopped and not screensharing - clean up
+      debug.log(`📹 Camera stopped for ${props.userState.userId}, cleaning up video`);
+      if (videoElement.value && isVideoAttached) {
+        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
+        videoElement.value.srcObject = null;
+        videoElement.value.src = '';
+        videoElement.value.load();
+        isVideoAttached = false;
+        lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
+        lastAttachedStreamId = null;
+        attachmentRetryCount = 0;
+      }
+    }
+  }
+);
 </script>
 
 
@@ -622,6 +727,22 @@ onUpdated(() => {
   font-weight: 600;
   align-self: flex-start;
   pointer-events: auto;
+  /* Auto-hide animation - fades out after 3 seconds */
+  animation: indicator-fade-out 3s ease-in-out forwards;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* Show indicator on hover over the video container */
+.video-container:hover .screen-share-indicator {
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes indicator-fade-out {
+  0% { opacity: 1; }
+  66% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .pip-toggle-btn {
@@ -644,7 +765,7 @@ onUpdated(() => {
 }
 
 .pip-toggle-btn.active {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
   color: #fff;
 }
@@ -680,7 +801,7 @@ onUpdated(() => {
 .connection-bars span:nth-child(4) { height: 12px; }
 
 .connection-bars span.active {
-  background: #b9bbbe;
+  background: var(--text-secondary);
 }
 
 .connection-indicator.good .connection-bars span.active {
@@ -833,7 +954,7 @@ onUpdated(() => {
 }
 
 .status-badge.locally-muted {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .status-badge.connection-poor {
@@ -845,7 +966,7 @@ onUpdated(() => {
   text-align: center;
   position: relative;
   padding-bottom: 0px;
-  top: 20px;
+  top: 10px;
   margin: 0 auto;
   width: 100%;
 }
@@ -858,7 +979,7 @@ onUpdated(() => {
 .username {
   font-weight: 600;
   font-size: 14px;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 4px;
   transition: color 0.3s ease;
   line-height: 1.2;
@@ -871,7 +992,7 @@ onUpdated(() => {
 
 .harmony-voice-card-user-status {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   opacity: 0.8;
 }
 

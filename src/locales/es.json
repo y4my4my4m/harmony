@@ -189,7 +189,7 @@
     }
   },
   "message": {
-    "typeMessage": "Escribe un mensaje...",
+    "typeMessage": "Mensaje {to}",
     "addComment": "Añadir un comentario...",
     "editMessage": "Editar mensaje",
     "deleteMessage": "Eliminar mensaje",

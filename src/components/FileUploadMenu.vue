@@ -89,7 +89,7 @@ export default defineComponent({
   position: absolute;
   bottom: 100%;
   left: 0;
-  background-color: var(--vt-c-black-soft);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   padding: 8px;
@@ -107,13 +107,13 @@ export default defineComponent({
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
 }
 
 .menu-item:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: white;
 }
 

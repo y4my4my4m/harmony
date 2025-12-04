@@ -344,7 +344,7 @@ watch(isOpen, (newVal) => {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 12px;
@@ -436,7 +436,7 @@ watch(isOpen, (newVal) => {
   padding: 10px 16px;
   background: transparent;
   border: none;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -487,7 +487,7 @@ watch(isOpen, (newVal) => {
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;

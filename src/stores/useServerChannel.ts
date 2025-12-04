@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
-import type { Server, Category, Channel, ResolvedEmoji } from '@/types';
+import type { Server, Category, Channel, ResolvedEmoji, ServerFolder } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { statePersistence } from '@/services/StatePersistence';
 import { debug } from '@/utils/debug';
@@ -12,6 +12,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
     publicServers: [] as Server[],
+    folders: [] as ServerFolder[],
     channels: [] as Channel[],
     categories: [] as Category[],
     categoryChannels: {} as Record<string, Channel[]>,
@@ -53,8 +54,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.isInitializing = true;
         this.currentUserId = userId;
         
-        // Fetch user's servers first
-        await this.fetchServersForUser(userId);
+        // Fetch user's servers and folders in parallel
+        await Promise.all([
+          this.fetchServersForUser(userId),
+          this.fetchFolders(userId)
+        ]);
         
         // Subscribe to real-time updates for user's server list (join/leave)
         await this.subscribeToUserServers(userId);
@@ -243,6 +247,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const { data, error } = await supabase
         .from('user_servers')
         .select(`
+          folder_id,
+          position,
           server:server_id (
             id,
             name,
@@ -250,16 +256,25 @@ export const useServerChannelStore = defineStore('serverChannel', {
             icon,
             owner,
             allow_cross_server_emojis,
-            public
+            public,
+            federation_enabled,
+            is_local_server,
+            federation_domain,
+            federation_inbox_url
           )
         `)
         .eq('user_id', userId)
+        .order('position', { ascending: true })
 
       if (error) {
         throw new Error(`User servers fetching failed: ${error.message}`)
       }
 
-      return data?.map((item: any) => item.server).filter(Boolean) || []
+      return data?.map((item: any) => ({
+        ...item.server,
+        folder_id: item.folder_id,
+        position: item.position
+      })).filter((s: any) => s.id) || []
     },
 
     /**
@@ -269,6 +284,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const { data, error } = await supabase
         .from('user_servers')
         .select(`
+          folder_id,
+          position,
           server:server_id (
             id,
             name,
@@ -276,17 +293,26 @@ export const useServerChannelStore = defineStore('serverChannel', {
             icon,
             owner,
             allow_cross_server_emojis,
-            public
+            public,
+            federation_enabled,
+            is_local_server,
+            federation_domain,
+            federation_inbox_url
           )
         `)
         .eq('user_id', userId)
+        .order('position', { ascending: true })
 
       if (error) {
         debug.error('Error fetching servers for user in fallback:', error)
         return
       }
 
-      this.servers = data?.map((item: any) => item.server).filter(Boolean) || []
+      this.servers = data?.map((item: any) => ({
+        ...item.server,
+        folder_id: item.folder_id,
+        position: item.position
+      })).filter((s: any) => s.id) || []
       debug.log(`📊 Loaded ${this.servers.length} servers for user`)
     },
 
@@ -2152,6 +2178,322 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async cleanupSubscriptions(): Promise<void> {
       await this.unsubscribeFromServerStructure();
       await this.unsubscribeFromUserServers();
+    },
+
+    // =============================================
+    // SERVER FOLDER MANAGEMENT
+    // =============================================
+
+    /**
+     * Fetch all folders for a user
+     */
+    async fetchFolders(userId: string): Promise<void> {
+      try {
+        debug.log('📁 Fetching folders for user:', userId);
+        
+        const { data, error } = await supabase
+          .from('server_folders')
+          .select('*')
+          .eq('user_id', userId)
+          .order('position', { ascending: true });
+
+        if (error) {
+          debug.error('❌ Error fetching folders:', error);
+          return;
+        }
+
+        this.folders = data || [];
+        debug.log(`✅ Fetched ${this.folders.length} folders`);
+      } catch (error) {
+        debug.error('❌ Failed to fetch folders:', error);
+      }
+    },
+
+    /**
+     * Create a new folder
+     */
+    async createFolder(name: string = '', color: string = '#5865f2', position?: number): Promise<ServerFolder | null> {
+      if (!this.currentUserId) {
+        debug.error('❌ Cannot create folder: no current user');
+        return null;
+      }
+
+      try {
+        debug.log('📁 Creating folder:', name || '(unnamed)');
+        
+        // Use provided position or get next available
+        const folderPosition = position !== undefined 
+          ? position 
+          : (this.folders.length > 0 
+              ? Math.max(...this.folders.map(f => f.position)) + 1 
+              : 0);
+
+        const { data, error } = await supabase
+          .from('server_folders')
+          .insert({
+            user_id: this.currentUserId,
+            name,
+            color,
+            position: folderPosition
+          })
+          .select()
+          .single();
+
+        if (error) {
+          debug.error('❌ Error creating folder:', error);
+          const toast = useToast();
+          toast.error('Failed to create folder');
+          return null;
+        }
+
+        this.folders.push(data);
+        this.folders.sort((a, b) => a.position - b.position);
+        
+        debug.log('✅ Folder created:', data.id);
+        return data;
+      } catch (error) {
+        debug.error('❌ Failed to create folder:', error);
+        return null;
+      }
+    },
+
+    /**
+     * Update a folder's name, color, or expanded state
+     */
+    async updateFolder(folderId: string, updates: Partial<Pick<ServerFolder, 'name' | 'color' | 'is_expanded'>>): Promise<boolean> {
+      try {
+        debug.log('📁 Updating folder:', folderId, updates);
+
+        const { error } = await supabase
+          .from('server_folders')
+          .update(updates)
+          .eq('id', folderId);
+
+        if (error) {
+          debug.error('❌ Error updating folder:', error);
+          const toast = useToast();
+          toast.error('Failed to update folder');
+          return false;
+        }
+
+        // Update local state
+        const folderIndex = this.folders.findIndex(f => f.id === folderId);
+        if (folderIndex !== -1) {
+          this.folders[folderIndex] = { ...this.folders[folderIndex], ...updates };
+        }
+
+        debug.log('✅ Folder updated');
+        return true;
+      } catch (error) {
+        debug.error('❌ Failed to update folder:', error);
+        return false;
+      }
+    },
+
+    /**
+     * Toggle folder expanded/collapsed state
+     */
+    async toggleFolderExpanded(folderId: string): Promise<void> {
+      const folder = this.folders.find(f => f.id === folderId);
+      if (!folder) return;
+
+      await this.updateFolder(folderId, { is_expanded: !folder.is_expanded });
+    },
+
+    /**
+     * Delete a folder (servers in it move to root level)
+     */
+    async deleteFolder(folderId: string): Promise<boolean> {
+      try {
+        debug.log('🗑️ Deleting folder:', folderId);
+
+        // First, move all servers in this folder to root level
+        const serversInFolder = this.servers.filter(s => s.folder_id === folderId);
+        for (const server of serversInFolder) {
+          await this.moveServerToFolder(server.id, null);
+        }
+
+        const { error } = await supabase
+          .from('server_folders')
+          .delete()
+          .eq('id', folderId);
+
+        if (error) {
+          debug.error('❌ Error deleting folder:', error);
+          const toast = useToast();
+          toast.error('Failed to delete folder');
+          return false;
+        }
+
+        // Remove from local state
+        this.folders = this.folders.filter(f => f.id !== folderId);
+        
+        debug.log('✅ Folder deleted');
+        return true;
+      } catch (error) {
+        debug.error('❌ Failed to delete folder:', error);
+        return false;
+      }
+    },
+
+    /**
+     * Move a server to a folder (or to root if folderId is null)
+     */
+    async moveServerToFolder(serverId: string, folderId: string | null): Promise<boolean> {
+      if (!this.currentUserId) {
+        debug.error('❌ Cannot move server: no current user');
+        return false;
+      }
+
+      try {
+        debug.log('📁 Moving server to folder:', serverId, folderId);
+
+        // Get next position in target folder/root
+        const serversInTarget = this.servers.filter(s => s.folder_id === folderId);
+        const maxPosition = serversInTarget.length > 0
+          ? Math.max(...serversInTarget.map(s => s.position || 0)) + 1
+          : 0;
+
+        const { error } = await supabase
+          .from('user_servers')
+          .update({ folder_id: folderId, position: maxPosition })
+          .eq('user_id', this.currentUserId)
+          .eq('server_id', serverId);
+
+        if (error) {
+          debug.error('❌ Error moving server to folder:', error);
+          return false;
+        }
+
+        // Update local state
+        const serverIndex = this.servers.findIndex(s => s.id === serverId);
+        if (serverIndex !== -1) {
+          this.servers[serverIndex].folder_id = folderId;
+          this.servers[serverIndex].position = maxPosition;
+        }
+
+        debug.log('✅ Server moved to folder');
+        return true;
+      } catch (error) {
+        debug.error('❌ Failed to move server to folder:', error);
+        return false;
+      }
+    },
+
+    /**
+     * Update positions for servers and folders after drag-drop reorder
+     */
+    async updateServerPositions(positions: { serverId: string; folderId: string | null; position: number }[]): Promise<boolean> {
+      if (!this.currentUserId) {
+        debug.error('❌ Cannot update positions: no current user');
+        return false;
+      }
+
+      try {
+        debug.log('📁 Updating server positions:', positions.length, 'items');
+
+        // Update each server's position
+        for (const pos of positions) {
+          const { error } = await supabase
+            .from('user_servers')
+            .update({ folder_id: pos.folderId, position: pos.position })
+            .eq('user_id', this.currentUserId)
+            .eq('server_id', pos.serverId);
+
+          if (error) {
+            debug.error('❌ Error updating server position:', error);
+            return false;
+          }
+
+          // Update local state
+          const serverIndex = this.servers.findIndex(s => s.id === pos.serverId);
+          if (serverIndex !== -1) {
+            this.servers[serverIndex].folder_id = pos.folderId;
+            this.servers[serverIndex].position = pos.position;
+          }
+        }
+
+        debug.log('✅ Server positions updated');
+        return true;
+      } catch (error) {
+        debug.error('❌ Failed to update server positions:', error);
+        return false;
+      }
+    },
+
+    /**
+     * Update folder positions after drag-drop reorder
+     */
+    async updateFolderPositions(positions: { folderId: string; position: number }[]): Promise<boolean> {
+      try {
+        debug.log('📁 Updating folder positions:', positions.length, 'items');
+
+        for (const pos of positions) {
+          const { error } = await supabase
+            .from('server_folders')
+            .update({ position: pos.position })
+            .eq('id', pos.folderId);
+
+          if (error) {
+            debug.error('❌ Error updating folder position:', error);
+            return false;
+          }
+
+          // Update local state
+          const folderIndex = this.folders.findIndex(f => f.id === pos.folderId);
+          if (folderIndex !== -1) {
+            this.folders[folderIndex].position = pos.position;
+          }
+        }
+
+        this.folders.sort((a, b) => a.position - b.position);
+        debug.log('✅ Folder positions updated');
+        return true;
+      } catch (error) {
+        debug.error('❌ Failed to update folder positions:', error);
+        return false;
+      }
+    },
+
+    /**
+     * Get servers organized by folders for sidebar display
+     */
+    getOrganizedServers(): Array<ServerFolder | Server> {
+      const result: Array<ServerFolder | Server> = [];
+      
+      // Create a map of folder_id to servers
+      const serversByFolder = new Map<string | null, Server[]>();
+      
+      for (const server of this.servers) {
+        const folderId = server.folder_id || null;
+        if (!serversByFolder.has(folderId)) {
+          serversByFolder.set(folderId, []);
+        }
+        serversByFolder.get(folderId)!.push(server);
+      }
+
+      // Sort servers within each folder by position
+      for (const servers of serversByFolder.values()) {
+        servers.sort((a, b) => (a.position || 0) - (b.position || 0));
+      }
+
+      // Build result: folders (with their servers) and root-level servers
+      // sorted by position
+      const foldersWithServers = this.folders.map(folder => ({
+        ...folder,
+        servers: serversByFolder.get(folder.id) || []
+      }));
+
+      const rootServers = serversByFolder.get(null) || [];
+
+      // Combine and sort by position
+      // Folders and root servers are interleaved based on position
+      // For simplicity, we'll put all folders first, then root servers
+      // A more complex implementation would interleave by position
+      result.push(...foldersWithServers);
+      result.push(...rootServers);
+
+      return result;
     },
   }
 });

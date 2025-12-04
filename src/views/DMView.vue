@@ -42,6 +42,7 @@
         :chat-messages="chatMessages"
         :is-loading="isLoading"
         :is-d-m="true"
+        :dm-username="currentDMUsername"
         view-type="dm"
         current-view="dm"
         @load-more-messages="fetchMoreMessages"
@@ -136,6 +137,14 @@ const toast = useToast()
 // Computed
 const chatMessages = computed(() => dmStore.currentDMMessages)
 const currentConversation = computed(() => dmStore.getCurrentConversation)
+
+// DM username for placeholder
+const currentDMUsername = computed(() => {
+  const conversation = currentConversation.value
+  if (!conversation) return undefined
+  const otherParticipant = conversation.other_participants?.[0]
+  return otherParticipant?.display_name || otherParticipant?.username || conversation.other_user?.display_name || conversation.other_user?.username
+})
 
 const existingParticipants = computed(() => {
   const conversation = currentConversation.value

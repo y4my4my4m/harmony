@@ -1045,7 +1045,7 @@ onMounted(() => {
 
 .settings-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1093,7 +1093,7 @@ onMounted(() => {
 
 .setting-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -1127,7 +1127,7 @@ onMounted(() => {
 
 .radio-option input[type="radio"]:checked {
   border-color: #5865f2;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
 }
 
 .radio-label {
@@ -1139,7 +1139,7 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .blocked-users-list {
@@ -1184,7 +1184,7 @@ onMounted(() => {
 
 .user-username {
   font-size: 12px;
-  /* color: #b9bbbe; */
+  /* color: var(--text-secondary); */
   color: var(--text-secondary);
 }
 
@@ -1230,7 +1230,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
 }
 
@@ -1240,7 +1240,7 @@ onMounted(() => {
 
 .btn-secondary {
   background-color: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid #4f545c;
 }
 
@@ -1312,7 +1312,7 @@ onMounted(() => {
 
 .subsection-description {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
@@ -1329,7 +1329,7 @@ onMounted(() => {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -1374,7 +1374,7 @@ onMounted(() => {
   right: 8px;
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px;
   display: flex;
@@ -1434,7 +1434,7 @@ onMounted(() => {
 
 .status-text {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 12px 0;
 }
 
@@ -1458,7 +1458,7 @@ onMounted(() => {
 
 .step-description {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 16px 0;
 }
 
@@ -1500,7 +1500,7 @@ onMounted(() => {
 
 .secret-label {
   font-size: 11px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   flex-shrink: 0;
 }
@@ -1519,7 +1519,7 @@ onMounted(() => {
 .btn-copy {
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px;
   display: flex;
@@ -1594,7 +1594,7 @@ onMounted(() => {
 
 .modal-description {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 18px 0;
 }
 

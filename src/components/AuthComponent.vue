@@ -1163,7 +1163,7 @@ onMounted(async () => {
 }
 
 .checkbox-container input[type="checkbox"]:checked {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
 }
 
@@ -1258,7 +1258,7 @@ onMounted(async () => {
 }
 
 .switch-mode-btn:hover {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: white;
   transform: translateY(-1px);
 }
@@ -1370,7 +1370,7 @@ onMounted(async () => {
   right: 16px;
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -1394,7 +1394,7 @@ onMounted(async () => {
 
 .modal-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 24px 0;
   line-height: 1.5;
 }
@@ -1417,7 +1417,7 @@ onMounted(async () => {
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1453,7 +1453,7 @@ onMounted(async () => {
 
 .success-message {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
 }

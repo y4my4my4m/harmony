@@ -12,6 +12,7 @@
         :categories="publicServersStore.categories"
         :total-servers="publicServersStore.totalServers"
         :filtered-count="publicServersStore.filteredServers.length"
+        @join-by-url="showJoinFederatedServer = true"
       />
 
       <!-- Content -->
@@ -32,7 +33,10 @@
       />
 
       <!-- Footer -->
-      <PublicServersFooter @create-server="showCreateServerForm = true" />
+      <PublicServersFooter 
+        @create-server="showCreateServerForm = true" 
+        @join-by-url="showJoinFederatedServer = true"
+      />
     </div>
 
     <!-- Create Server Modal -->
@@ -40,6 +44,13 @@
       v-if="showCreateServerForm" 
       @close="showCreateServerForm = false" 
       @created="handleServerCreated"
+    />
+
+    <!-- Join Federated Server Modal -->
+    <JoinFederatedServer
+      v-if="showJoinFederatedServer"
+      @close="showJoinFederatedServer = false"
+      @joined="handleFederatedServerJoined"
     />
 
     <!-- User Profile Modal -->
@@ -72,6 +83,7 @@ import PublicServersSearch from '@/components/PublicServers/PublicServersSearch.
 import PublicServersContent from '@/components/PublicServers/PublicServersContent.vue'
 import PublicServersFooter from '@/components/PublicServers/PublicServersFooter.vue'
 import CreateServerForm from '@/components/CreateServer.vue'
+import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
 
 interface Emits {
@@ -104,6 +116,7 @@ const { handleEscapeKey } = useKeyboardEvents()
 const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const showCreateServerForm = ref(false)
+const showJoinFederatedServer = ref(false)
 const loadingServerIds = ref<Set<string>>(new Set())
 const showUserProfile = ref(false)
 const selectedUser = ref<any>(null)
@@ -202,6 +215,13 @@ const handleServerCreated = (server: any) => {
   showCreateServerForm.value = false
   toast.success('Server created successfully!')
   router.push({ name: 'Chat', params: { serverId: server.id } })
+  closeModal()
+}
+
+const handleFederatedServerJoined = (_serverId: string) => {
+  showJoinFederatedServer.value = false
+  toast.success('Joined federated server!')
+  // Navigation is handled by JoinFederatedServer component with the correct channel
   closeModal()
 }
 
@@ -451,7 +471,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .modal-subtitle {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -476,7 +496,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .close-icon {
   width: 16px;
   height: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .search-section {
@@ -591,7 +611,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .empty-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -690,7 +710,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .server-description {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
   margin: 0 0 16px;
   display: -webkit-box;
@@ -724,7 +744,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .owner-name {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -811,7 +831,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 

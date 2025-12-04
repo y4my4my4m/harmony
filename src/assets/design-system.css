@@ -698,7 +698,7 @@ body {
 /* Scrollbars */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: var(--bg-quaternary) transparent;
+  scrollbar-color: var(--background-quaternary) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -710,7 +710,7 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--bg-quaternary);
+  background: var(--background-quaternary);
   border-radius: var(--radius-full);
 }
 

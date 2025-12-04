@@ -97,11 +97,28 @@
               class="user-avatar"
             />
             <div class="user-info">
+              <div class="user-name-row">
+                <span 
+                  class="user-name" 
+                  :style="{ color: getUserColor(user.id).value || undefined }"
+                >
+                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                </span>
+                <span 
+                  v-if="!isUserLocal(user.id).value" 
+                  class="federation-badge"
+                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
+                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                  </svg>
+                </span>
+              </div>
               <span 
-                class="user-name" 
-                :style="{ color: getUserColor(user.id).value || undefined }"
+                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
+                class="user-domain"
               >
-                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                {{ getUserDomain(user.id).value }}
               </span>
             </div>
           </div>
@@ -135,11 +152,28 @@
               class="user-avatar"
             />
             <div class="user-info">
+              <div class="user-name-row">
+                <span 
+                  class="user-name" 
+                  :style="{ color: getUserColor(user.id).value || undefined }"
+                >
+                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                </span>
+                <span 
+                  v-if="!isUserLocal(user.id).value" 
+                  class="federation-badge"
+                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
+                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                  </svg>
+                </span>
+              </div>
               <span 
-                class="user-name" 
-                :style="{ color: getUserColor(user.id).value || undefined }"
+                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
+                class="user-domain"
               >
-                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                {{ getUserDomain(user.id).value }}
               </span>
             </div>
           </div>
@@ -173,11 +207,28 @@
               class="user-avatar"
             />
             <div class="user-info">
+              <div class="user-name-row">
+                <span 
+                  class="user-name" 
+                  :style="{ color: getUserColor(user.id).value || undefined }"
+                >
+                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                </span>
+                <span 
+                  v-if="!isUserLocal(user.id).value" 
+                  class="federation-badge"
+                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
+                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                  </svg>
+                </span>
+              </div>
               <span 
-                class="user-name" 
-                :style="{ color: getUserColor(user.id).value || undefined }"
+                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
+                class="user-domain"
               >
-                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                {{ getUserDomain(user.id).value }}
               </span>
             </div>
           </div>
@@ -211,11 +262,28 @@
               class="user-avatar"
             />
             <div class="user-info">
+              <div class="user-name-row">
+                <span 
+                  class="user-name" 
+                  :style="{ color: getUserColor(user.id).value || undefined }"
+                >
+                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                </span>
+                <span 
+                  v-if="!isUserLocal(user.id).value" 
+                  class="federation-badge"
+                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
+                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                  </svg>
+                </span>
+              </div>
               <span 
-                class="user-name" 
-                :style="{ color: getUserColor(user.id).value || undefined }"
+                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
+                class="user-domain"
               >
-                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                {{ getUserDomain(user.id).value }}
               </span>
             </div>
           </div>
@@ -278,6 +346,8 @@ const {
   unsubscribeFromContext,
   isUserOnline,
   getUserStatus,
+  isUserLocal,
+  getUserDomain,
 } = useUserData();
 
 // Component state
@@ -580,7 +650,7 @@ const closeInviteModal = () => {
   background: transparent;
   border: none;
   padding: 8px 12px 8px 32px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 400;
   outline: none;
@@ -621,7 +691,7 @@ const closeInviteModal = () => {
 }
 
 .clear-search:hover {
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .clear-search svg {
@@ -639,7 +709,7 @@ const closeInviteModal = () => {
 .control-btn {
   background: transparent;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px;
   border-radius: 4px;
@@ -652,7 +722,7 @@ const closeInviteModal = () => {
 
 .control-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .control-btn:active {
@@ -670,7 +740,7 @@ const closeInviteModal = () => {
 
 /* Member Count */
 .member-count {
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -752,7 +822,7 @@ const closeInviteModal = () => {
 .group-header {
   background: none;
   border: none;
-  color: #8e9297;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 6px 8px;
   font-size: 12px;
@@ -768,7 +838,7 @@ const closeInviteModal = () => {
 }
 
 .group-header:hover {
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .group-title {
@@ -852,8 +922,15 @@ const closeInviteModal = () => {
   gap: 2px;
 }
 
+.user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .user-name {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -862,8 +939,39 @@ const closeInviteModal = () => {
   line-height: 1.25;
 }
 
+.federation-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.federation-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--accent-primary, #5865f2);
+  opacity: 0.8;
+  transition: opacity 0.15s ease;
+}
+
+.user-item:hover .federation-icon {
+  opacity: 1;
+}
+
+.user-domain {
+  color: var(--text-muted, #72767d);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  opacity: 0.7;
+}
+
 .user-activity {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 400;
   white-space: nowrap;

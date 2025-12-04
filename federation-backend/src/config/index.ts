@@ -55,6 +55,10 @@ const envSchema = z.object({
   
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
+  
+  // Use pg-boss for job queue processing (more reliable but slightly higher latency)
+  // When true, pg-boss handles DMs and message reactions; DatabaseListener handles channels only
+  USE_PGBOSS_QUEUE: z.string().transform(v => v === 'true').default('true'),
 });
 
 // Validate and export configuration

@@ -495,7 +495,7 @@ onUnmounted(() => {
   height: 24px;
   background: none;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 4px;
   padding: 2px;

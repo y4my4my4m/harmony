@@ -213,7 +213,7 @@ const handleDecline = () => {
   right: -5px;
   width: 48px;
   height: 48px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: 4px solid var(--background-primary);
   border-radius: 50%;
   display: flex;
@@ -255,7 +255,7 @@ const handleDecline = () => {
 .dot {
   width: 8px;
   height: 8px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   animation: blink 1.4s ease-in-out infinite;
 }
@@ -322,7 +322,7 @@ const handleDecline = () => {
 }
 
 .video-accept {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .video-accept:hover {

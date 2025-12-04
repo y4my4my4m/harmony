@@ -47,3 +47,4 @@ dev/certs/*.pem
 # public/assets/emojis/*
 
 webrtc/livekit.yaml
+webrtc/docker-compose.yml

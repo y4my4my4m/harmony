@@ -150,15 +150,15 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background-color: rgba(32, 34, 37, 0.363);
+  background-color: var(--background-secondary);
   border-radius: 12px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #40444b;
+  background: var(--border-primary);
   border-radius: 12px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4f545c;
+  background: var(--border-hover);
 }

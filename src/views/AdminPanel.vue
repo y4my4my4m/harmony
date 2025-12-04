@@ -2489,11 +2489,11 @@ const handleAddInstance = () => {
 /* Emoji Importer Module */
 .emoji-module {
   grid-column: span 2; /* Full width like other major modules */
+  max-height: 1130px;
 }
 
 .emoji-content {
   padding: 0;
-  max-height: 600px;
   overflow-y: auto;
 }
 

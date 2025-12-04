@@ -1,5 +1,5 @@
 <template>
-  <div class="server-container" :title="alt" :class="[sizeClass, { 'interactive': interactive }]">
+  <div class="server-container" :title="showTitle ? alt : undefined" :class="[sizeClass, { 'interactive': interactive }]">
     <!-- server Image -->
     <img
       :src="imgSrc"
@@ -66,6 +66,7 @@ interface Props {
   interactive?: boolean
   loading?: boolean
   shape?: ImageShape
+  showTitle?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -74,7 +75,8 @@ const props = withDefaults(defineProps<Props>(), {
   editable: false,
   interactive: false,
   loading: false,
-  shape: 'rounded'
+  shape: 'rounded',
+  showTitle: true
 })
 
 // Emits
@@ -244,7 +246,7 @@ const handleFileSelect = (event: Event) => {
   height: 24px;
   border-radius: 50%;
   border: none;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
   cursor: pointer;
   display: flex;

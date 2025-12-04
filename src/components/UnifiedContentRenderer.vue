@@ -492,7 +492,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* Text content */
 .text-content {
-  /* color: #dcddde; */
+  /* color: var(--text-secondary); */
   color: var(--text-primary);
 }
 
@@ -520,7 +520,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .mention:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: rgba(255,255,255,0.9);
 }
 
@@ -715,7 +715,7 @@ const formatFileSize = (bytes: number): string => {
 
 .audio-filename {
   font-size: 0.875rem;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -740,7 +740,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* Files */
 .file-link {
-  color: #dcddde;
+  color: var(--text-secondary);
   text-decoration: none;
   display: inline-flex;
   align-items: center;

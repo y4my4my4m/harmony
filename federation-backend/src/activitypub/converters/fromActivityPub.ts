@@ -1,3 +1,5 @@
+import { config } from '../../config/index.js';
+
 /**
  * Convert ActivityPub Note to internal MessagePart[] format
  * Uses the same logic as the SQL convert_ap_to_jsonb function
@@ -131,7 +133,7 @@ export function noteToContent(note: any): any[] {
       const usernameParts = username.split('@');
       const actualUsername = usernameParts[0];
       const domain = usernameParts[1] || null;
-      const currentDomain = 'har.mony.lol';
+      const currentDomain = config.INSTANCE_DOMAIN;
       
       parts.push({
         type: 'mention',
@@ -229,6 +231,7 @@ export function actorToProfile(actor: any): {
   bio?: string;
   avatar?: string;
   banner?: string;
+  color?: string;
   public_key?: string;
   federated_id: string;
   inbox_url: string;
@@ -277,6 +280,11 @@ export function actorToProfile(actor: any): {
 
   if (actor.image?.url) {
     profile.banner = actor.image.url;
+  }
+
+  // Harmony extension: profile color
+  if (actor['harmony:profileColor']) {
+    profile.color = actor['harmony:profileColor'];
   }
 
   if (actor.publicKey?.publicKeyPem) {

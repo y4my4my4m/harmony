@@ -276,7 +276,7 @@ const getTypeIcon = (type: NotificationType) => {
 .toast-message {
   margin: 0 0 8px 0;
   font-size: 13px;
-  color: #dcddde;
+  color: var(--text-secondary);
   line-height: 1.4;
   word-wrap: break-word;
 }
@@ -291,7 +291,7 @@ const getTypeIcon = (type: NotificationType) => {
 
 .toast-emoji-fallback {
   font-size: 14px;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .toast-actions {
@@ -321,13 +321,13 @@ const getTypeIcon = (type: NotificationType) => {
 
 .toast-action-btn.secondary {
   background: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid var(--h-chat-light);
 }
 
 .toast-action-btn.secondary:hover {
   background: rgba(79, 84, 92, 0.16);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .toast-action-btn.danger {
@@ -359,7 +359,7 @@ const getTypeIcon = (type: NotificationType) => {
 
 .toast-close:hover {
   background: rgba(79, 84, 92, 0.16);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .toast-progress {

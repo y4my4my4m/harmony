@@ -231,6 +231,25 @@ export function useUserData() {
   })
 
   /**
+   * Check if user is a local user (not federated)
+   */
+  const isUserLocal = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    // Default to true if we don't have the data yet
+    return user?.isLocal ?? true
+  })
+
+  /**
+   * Get user's domain (for federated users)
+   */
+  const getUserDomain = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.domain || null
+  })
+
+  /**
    * Fetch user profile (with caching)
    */
   const fetchUserProfile = async (userId: string, forceRefresh: boolean = false) => {
@@ -580,6 +599,8 @@ export function useUserData() {
     getUserRoles,
     getUserMessageCount,
     getUserVoiceTime,
+    isUserLocal,
+    getUserDomain,
     
     // Context Data (reactive)
     getUsersInContext,

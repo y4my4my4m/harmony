@@ -924,7 +924,7 @@ export default defineComponent({
 
 /* Text content styling */
 .text-content {
-  /* color: #dcddde; */
+  /* color: var(--text-secondary); */
   color: var(--text-primary);
   user-select: text;
   -webkit-user-select: text;
@@ -992,7 +992,7 @@ export default defineComponent({
 }
 
 .mention:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: rgba(255,255,255,0.9);
 }
 
@@ -1013,7 +1013,7 @@ export default defineComponent({
 }
 
 .hashtag:hover {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: rgba(255,255,255,0.9);
 }
 
@@ -1136,7 +1136,7 @@ export default defineComponent({
 }
 
 .file-size {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   white-space: nowrap;
 }
@@ -1154,7 +1154,7 @@ export default defineComponent({
   border: 1px solid #40444b;
   border-radius: 8px;
   background-color: #40444b;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 14px;
   line-height: 1.375;
@@ -1208,7 +1208,7 @@ export default defineComponent({
 
 /* System message specific styling */
 .system-message-text {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-style: italic;
   font-size: 14px;
   user-select: text;
@@ -1285,7 +1285,7 @@ export default defineComponent({
 
 .audio-filename {
   font-size: 0.875rem;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 6px;
   font-weight: 500;
 }

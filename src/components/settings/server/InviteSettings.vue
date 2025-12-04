@@ -631,7 +631,7 @@ watch(() => props.serverId, () => {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {

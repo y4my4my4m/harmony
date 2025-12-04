@@ -12,6 +12,7 @@ import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
 import pushRouter from './routes/push.js';
 import livekitRouter from './routes/livekit.js';
+import voiceRouter from './routes/voice.js';
 
 // Import ActivityPub routes (FEDERATION ONLY!)
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -20,6 +21,9 @@ import nodeInfoRouter from './activitypub/NodeInfoService.js';
 import inboxRouter from './activitypub/InboxHandler.js';
 import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
+
+// Import Federation API routes
+import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 
 // Import database listener (legacy - will be replaced by QueueManager)
 import { startDatabaseListener } from './listeners/DatabaseListener.js';
@@ -32,8 +36,9 @@ import { queueManager } from './queue/QueueManager.js';
 // Import blocked instances cache
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 
-// Feature flag: Set to true to use pg-boss instead of Supabase Realtime
-const USE_PGBOSS_QUEUE = process.env.USE_PGBOSS_QUEUE === 'true';
+// Feature flag: Use config.USE_PGBOSS_QUEUE for pg-boss job queue
+// When true: pg-boss handles DMs/reactions, DatabaseListener handles channels
+// When false: DatabaseListener handles everything
 
 const app: Application = express();
 
@@ -72,6 +77,9 @@ app.use('/', inboxRouter);
 app.use('/', outboxRouter);
 app.use('/', groupRouter); // Servers as Groups
 
+// Federation API routes (for frontend to call)
+app.use('/', serverDiscoveryRouter);
+
 app.use('/link-preview', linkPreviewRouter);
 
 // Push notification routes (with rate limiting)
@@ -79,6 +87,9 @@ app.use('/push', apiLimiter, pushRouter);
 
 // LiveKit WebRTC routes
 app.use('/api/livekit', livekitRouter);
+
+// Voice federation routes
+app.use('/', voiceRouter);
 
 // 404 handler
 app.use(notFound);
@@ -100,26 +111,27 @@ app.listen(PORT, () => {
   });
   
   // Start federation event processing
-  if (USE_PGBOSS_QUEUE) {
-    // NEW: pg-boss queue-based federation (professional approach)
-    logger.info('🚀 Starting pg-boss QueueManager for federation...');
+  // USE_PGBOSS_QUEUE=true: pg-boss handles ALL federation (reliable, sweep-based)
+  // USE_PGBOSS_QUEUE=false: DatabaseListener handles everything (Supabase Realtime, unreliable in Docker)
+  
+  if (config.USE_PGBOSS_QUEUE) {
+    // pg-boss for reliable, sweep-based federation of ALL events
+    logger.info('🚀 Starting pg-boss QueueManager for ALL federation events...');
+    logger.info('📡 DatabaseListener DISABLED - pg-boss handles everything');
     queueManager.start().catch((error) => {
       logger.error('❌ Failed to start QueueManager:', error);
-      logger.info('⚠️  Falling back to DatabaseListener...');
-      startDatabaseListener().catch((err) => {
-        logger.error('Failed to start database listener:', err);
-      });
     });
   } else {
-    // LEGACY: Supabase Realtime-based federation
-    logger.info('📡 Using legacy DatabaseListener (set USE_PGBOSS_QUEUE=true to switch)');
-  startDatabaseListener().catch((error) => {
-    logger.error('Failed to start database listener:', error);
-  });
+    // Legacy: Supabase Realtime via DatabaseListener for everything
+    logger.info('🔊 Starting DatabaseListener for real-time federation events...');
+    logger.info('⚠️  Note: In Docker, Supabase Realtime often times out');
+    startDatabaseListener().catch((error) => {
+      logger.error('Failed to start database listener:', error);
+    });
   }
   
   // Initialize push notification service
-  if (USE_PGBOSS_QUEUE) {
+  if (config.USE_PGBOSS_QUEUE) {
     // pg-boss handles push notifications via 'send-push-notification' queue
     import('./services/PushNotificationService.js').then(({ PushNotificationService }) => {
       if (PushNotificationService.initialize()) {
@@ -132,9 +144,9 @@ app.listen(PORT, () => {
     });
   } else {
     // Legacy: Use Realtime listener
-  startPushNotificationListener().catch((error) => {
-    logger.error('Failed to start push notification listener:', error);
-  });
+    startPushNotificationListener().catch((error) => {
+      logger.error('Failed to start push notification listener:', error);
+    });
   }
   
   // Process delivery queue for retries every 30 seconds
@@ -154,7 +166,7 @@ app.listen(PORT, () => {
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully...`);
   
-  if (USE_PGBOSS_QUEUE) {
+  if (config.USE_PGBOSS_QUEUE) {
     try {
       await queueManager.stop();
     } catch (error) {

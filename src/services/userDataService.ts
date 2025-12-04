@@ -1077,7 +1077,17 @@ class UserDataService extends EventTarget {
    * Load user data from database
    */
   private async loadUsersData(userIds: string[]): Promise<void> {
-    const missingUserIds = userIds.filter(id => !this.users.has(id) || this.isUserDataStale(id))
+    // UUID v4 regex pattern
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    
+    // Filter out non-UUID strings (e.g., federated: prefixed identities) and check if missing/stale
+    const missingUserIds = userIds.filter(id => {
+      if (!uuidPattern.test(id)) {
+        debug.warn(`⚠️ Skipping non-UUID user ID in loadUsersData: ${id}`)
+        return false
+      }
+      return !this.users.has(id) || this.isUserDataStale(id)
+    })
     
     if (missingUserIds.length === 0) return
     

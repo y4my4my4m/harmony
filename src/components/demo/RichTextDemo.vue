@@ -143,7 +143,7 @@ watch(testText, (newValue) => {
   margin: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
@@ -219,7 +219,7 @@ watch(testText, (newValue) => {
   padding: 8px;
   border-radius: 4px;
   border: 1px solid #40444b;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .code-preview {
@@ -262,7 +262,7 @@ select {
 }
 
 .syntax-punctuation {
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .syntax-function {
@@ -274,6 +274,6 @@ select {
 }
 
 .syntax-text {
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 </style>

@@ -337,7 +337,7 @@ const handleImageLoad = () => {
   height: 24px;
   border-radius: 50%;
   border: none;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
   cursor: pointer;
   display: flex;

@@ -1420,8 +1420,7 @@ const fetchRemoteReactions = async () => {
   showMenu.value = false;
   
   try {
-    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
-    const response = await fetch(`${federationBackendUrl}/fetch-reactions`, {
+    const response = await fetch('/api/federation/fetch-reactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1493,8 +1492,7 @@ const fetchRemoteReplies = async () => {
   showMenu.value = false;
   
   try {
-    const federationBackendUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
-    const response = await fetch(`${federationBackendUrl}/fetch-replies`, {
+    const response = await fetch('/api/federation/fetch-replies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

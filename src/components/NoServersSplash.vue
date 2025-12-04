@@ -19,9 +19,7 @@
       <div class="welcome-section">
         <div class="logo-container">
           <div class="logo-glow"></div>
-          <svg viewBox="0 0 24 24" class="harmony-logo">
-            <path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5z" fill="currentColor"/>
-          </svg>
+          <img src="/img/app_icon_square.png" alt="Harmony Logo" class="harmony-logo" />
         </div>
         
         <div class="welcome-text">
@@ -82,6 +80,24 @@
         </div>
       </div>
 
+      <!-- Federated server join option -->
+      <div class="federated-join-section" @click="showFederatedJoin = true">
+        <div class="federated-icon">
+          <svg viewBox="0 0 24 24" class="icon">
+            <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="federated-text">
+          <span class="federated-label">{{ $t('federation.joinRemoteServer') }}</span>
+          <span class="federated-desc">{{ $t('federation.joinByUrl') }}</span>
+        </div>
+        <div class="federated-arrow">
+          <svg viewBox="0 0 24 24" class="arrow-icon">
+            <path d="M4,11V13H16L10.5,18.5L11.92,19.92L19.84,12L11.92,4.08L10.5,5.5L16,11H4Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+
       <!-- Additional info -->
       <div class="info-section">
         <div class="info-card">
@@ -98,11 +114,15 @@
 
     <!-- Create Server Modal -->
     <CreateServerForm v-if="showCreateServerForm" @close="showCreateServerForm = false" />
+    
+    <!-- Join Federated Server Modal -->
+    <JoinFederatedServer v-if="showFederatedJoin" @close="showFederatedJoin = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import CreateServerForm from './CreateServer.vue';
+import JoinFederatedServer from './JoinFederatedServer.vue';
 import { ref } from 'vue';
 
 const emit = defineEmits<{
@@ -110,6 +130,7 @@ const emit = defineEmits<{
 }>();
 
 const showCreateServerForm = ref(false);
+const showFederatedJoin = ref(false);
 
 const togglePublicServers = () => {
   emit('showPublicServers');
@@ -268,11 +289,10 @@ const getParticleStyle = (index: number) => {
 
 .harmony-logo {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   color: #ffffff;
-  background: linear-gradient(135deg, #5865f2, #7289da);
-  padding: 16px;
+  overflow: visible;
   border-radius: 50%;
   z-index: 1;
 }
@@ -290,7 +310,7 @@ const getParticleStyle = (index: number) => {
   font-weight: 700;
   color: #ffffff;
   margin: 0 0 12px;
-  background: linear-gradient(135deg, #ffffff, #b9bbbe);
+  background: linear-gradient(135deg, #ffffff, var(--text-secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -298,7 +318,7 @@ const getParticleStyle = (index: number) => {
 
 .welcome-subtitle {
   font-size: 18px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   font-weight: 500;
 }
@@ -413,7 +433,7 @@ const getParticleStyle = (index: number) => {
 
 .card-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 0 0 16px;
 }
@@ -437,7 +457,7 @@ const getParticleStyle = (index: number) => {
   align-self: flex-end;
   width: 24px;
   height: 24px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   transition: all 0.3s ease;
 }
 
@@ -449,6 +469,72 @@ const getParticleStyle = (index: number) => {
 .arrow-icon {
   width: 100%;
   height: 100%;
+}
+
+/* Federated join section */
+.federated-join-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: rgba(0, 212, 255, 0.05);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 32px;
+}
+
+.federated-join-section:hover {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: rgba(0, 212, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.federated-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #00d4ff, #5865f2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.federated-icon .icon {
+  width: 22px;
+  height: 22px;
+  color: white;
+}
+
+.federated-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.federated-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.federated-desc {
+  font-size: 13px;
+  color: #00d4ff;
+}
+
+.federated-arrow {
+  width: 24px;
+  height: 24px;
+  color: #00d4ff;
+  transition: transform 0.3s ease;
+}
+
+.federated-join-section:hover .federated-arrow {
+  transform: translateX(4px);
 }
 
 .info-section {
@@ -483,7 +569,7 @@ const getParticleStyle = (index: number) => {
 
 .info-text p {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 0;
 }

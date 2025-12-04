@@ -1,10 +1,85 @@
 <template>
   <div class="voice-settings-inline">
-    <!-- Audio Settings -->
+    <!-- Input Mode Settings -->
     <div class="settings-section">
       <h4 class="section-title">
         <Icon name="mic" />
-        Audio
+        Input Mode
+      </h4>
+      
+      <div class="input-mode-options">
+        <label 
+          class="input-mode-option" 
+          :class="{ active: inputMode === 'voice_activity' }"
+          @click="setInputMode('voice_activity')"
+        >
+          <div class="radio-custom" :class="{ checked: inputMode === 'voice_activity' }">
+            <div class="radio-inner"></div>
+          </div>
+          <div class="mode-content">
+            <span class="mode-title">Voice Activity</span>
+            <small class="mode-description">Automatically transmit when you speak</small>
+          </div>
+        </label>
+        
+        <label 
+          class="input-mode-option" 
+          :class="{ active: inputMode === 'push_to_talk' }"
+          @click="setInputMode('push_to_talk')"
+        >
+          <div class="radio-custom" :class="{ checked: inputMode === 'push_to_talk' }">
+            <div class="radio-inner"></div>
+          </div>
+          <div class="mode-content">
+            <span class="mode-title">Push to Talk</span>
+            <small class="mode-description">Hold a key to transmit</small>
+          </div>
+        </label>
+      </div>
+      
+      <!-- PTT-specific settings -->
+      <div v-if="inputMode === 'push_to_talk'" class="ptt-settings">
+        <div class="setting-group">
+          <label class="setting-label">Push to Talk Shortcut</label>
+          <button 
+            class="keybind-button" 
+            :class="{ recording: isRecordingKeybind }"
+            @click="handleKeybindClick"
+          >
+            <Icon name="keyboard" />
+            <span v-if="isRecordingKeybind">Press any key...</span>
+            <span v-else>{{ pttKeyDisplay }}</span>
+          </button>
+          <small class="setting-hint">Click to change the keybind</small>
+        </div>
+        
+        <div class="setting-group">
+          <label class="setting-label">
+            Release Delay
+            <span class="setting-value">{{ releaseDelay }}ms</span>
+          </label>
+          <div class="volume-control">
+            <input 
+              type="range" 
+              v-model.number="localReleaseDelay"
+              min="0" 
+              max="500" 
+              step="50"
+              class="setting-slider"
+              @input="updateReleaseDelay"
+            />
+            <div class="volume-indicator" :style="{ width: `${(localReleaseDelay / 500) * 100}%` }"></div>
+          </div>
+          <small class="setting-hint">Delay before muting after releasing the key (prevents cutting off words)</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audio Settings -->
+    <div class="settings-section">
+      <h4 class="section-title">
+        <Icon name="volume-2" />
+        Audio Devices
       </h4>
       
       <div class="setting-group">
@@ -187,10 +262,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
+import { useKeybinds, type KeybindModifiers } from '@/composables/useKeybinds';
 import Icon from '@/components/common/Icon.vue';
+
+type InputMode = 'voice_activity' | 'push_to_talk';
 
 interface Props {
   loading?: boolean;
@@ -201,6 +279,18 @@ defineProps<Props>();
 const emit = defineEmits<{
   'update-voice-settings': [settings: any];
 }>();
+
+// Centralized keybind system
+const keybinds = useKeybinds();
+
+// Local state for keybind recording
+const isRecordingKeybind = ref(false);
+
+// Computed refs for PTT settings
+const inputMode = keybinds.inputMode;
+const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
+const releaseDelay = keybinds.releaseDelay;
+const localReleaseDelay = ref(keybinds.releaseDelay.value);
 
 // Device lists
 const inputDevices = ref<MediaDeviceInfo[]>([]);
@@ -228,6 +318,86 @@ const isTesting = ref(false);
 const testLevel = ref(0);
 const previewStream = ref<MediaStream | null>(null);
 const previewVideo = ref<HTMLVideoElement | null>(null);
+
+// PTT Functions
+const setInputMode = (mode: InputMode) => {
+  keybinds.setInputMode(mode);
+  emit('update-voice-settings', { type: 'inputMode', value: mode });
+};
+
+const handleKeybindClick = () => {
+  if (isRecordingKeybind.value) {
+    isRecordingKeybind.value = false;
+  } else {
+    isRecordingKeybind.value = true;
+  }
+};
+
+const handleKeybindKeydown = (event: KeyboardEvent) => {
+  if (isRecordingKeybind.value) {
+    event.preventDefault();
+    
+    // Ignore modifier-only keys
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
+      return;
+    }
+    
+    // Escape cancels
+    if (event.code === 'Escape') {
+      isRecordingKeybind.value = false;
+      return;
+    }
+    
+    // Record the keybind
+    recordKey(event.code, {
+      ctrl: event.ctrlKey,
+      alt: event.altKey,
+      shift: event.shiftKey,
+      meta: event.metaKey,
+    });
+    event.stopPropagation();
+  }
+};
+
+// Handle mouse button recording (for PTT on mouse buttons)
+const handleKeybindMousedown = (event: MouseEvent) => {
+  if (!isRecordingKeybind.value) return;
+  
+  // Only capture extra mouse buttons (3, 4, 5+) by default
+  // Left (0), Middle (1), Right (2) are used for UI interaction
+  if (event.button < 3) {
+    // Allow capturing if user holds a modifier key
+    if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
+      return;
+    }
+  }
+  
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const mouseKey = `Mouse${event.button}`;
+  recordKey(mouseKey, {
+    ctrl: event.ctrlKey,
+    alt: event.altKey,
+    shift: event.shiftKey,
+    meta: event.metaKey,
+  });
+};
+
+// Common function to record a key/mouse button
+const recordKey = (key: string, modifiers: KeybindModifiers) => {
+  keybinds.setKeybind('push-to-talk', key, modifiers);
+  isRecordingKeybind.value = false;
+};
+
+const updateReleaseDelay = () => {
+  keybinds.setReleaseDelay(localReleaseDelay.value);
+};
+
+// Sync local release delay with store
+watch(releaseDelay, (newValue) => {
+  localReleaseDelay.value = newValue;
+}, { immediate: true });
 
 // Get available devices
 const getDevices = async () => {
@@ -464,14 +634,23 @@ onMounted(() => {
   getDevices();
   loadStoredSettings();
   navigator.mediaDevices.addEventListener('devicechange', getDevices);
+  // Add keybind recording listeners (keyboard + mouse)
+  window.addEventListener('keydown', handleKeybindKeydown);
+  window.addEventListener('mousedown', handleKeybindMousedown, { capture: true });
 });
 
 onUnmounted(() => {
   navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+  window.removeEventListener('keydown', handleKeybindKeydown);
+  window.removeEventListener('mousedown', handleKeybindMousedown, { capture: true });
   if (previewStream.value) {
     previewStream.value.getTracks().forEach(track => track.stop());
   }
   stopTesting();
+  // Cancel keybind recording if active
+  if (isRecordingKeybind.value) {
+    cancelRecordingKeybind();
+  }
 });
 </script>
 
@@ -510,7 +689,7 @@ onUnmounted(() => {
   align-items: center;
   font-size: 14px;
   font-weight: 500;
-  color: #dcddde;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -525,7 +704,7 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 12px 16px;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   transition: all 0.2s ease;
 }
@@ -556,7 +735,7 @@ onUnmounted(() => {
   appearance: none;
   width: 18px;
   height: 18px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
@@ -610,7 +789,7 @@ onUnmounted(() => {
 }
 
 .setting-checkbox:checked + .checkbox-custom {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-color: #5865f2;
 }
 
@@ -631,13 +810,13 @@ onUnmounted(() => {
 
 .checkbox-content span {
   display: block;
-  color: #dcddde;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-bottom: 4px;
 }
 
 .checkbox-content small {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -648,7 +827,7 @@ onUnmounted(() => {
 }
 
 .test-btn {
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -707,6 +886,134 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
+}
+
+/* Input Mode Styles */
+.input-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.input-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.input-mode-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.input-mode-option.active {
+  background: rgba(88, 101, 242, 0.1);
+  border-color: #5865f2;
+}
+
+.radio-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: all 0.2s ease;
+}
+
+.radio-custom.checked {
+  border-color: #5865f2;
+}
+
+.radio-inner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.radio-custom.checked .radio-inner {
+  background: #5865f2;
+}
+
+.mode-content {
+  flex: 1;
+}
+
+.mode-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.mode-description {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.ptt-settings {
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.keybind-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.keybind-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.keybind-button.recording {
+  background: rgba(88, 101, 242, 0.2);
+  border-color: #5865f2;
+  color: #5865f2;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.setting-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.8;
 }
 </style>

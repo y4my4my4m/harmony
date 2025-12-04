@@ -556,7 +556,7 @@ onMounted(() => {
 .close-btn {
   background: transparent;
   border: none;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 8px;
   border-radius: 4px;
@@ -675,7 +675,7 @@ onMounted(() => {
 .filter-label {
   font-size: 12px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -709,7 +709,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -759,7 +759,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border-radius: 12px;
   font-size: 12px;
 }
@@ -796,7 +796,7 @@ onMounted(() => {
   background: transparent;
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s;
@@ -813,7 +813,7 @@ onMounted(() => {
 }
 
 .filter-badge {
-  background: #5865f2;
+  background: var(--harmony-primary);
   color: #ffffff;
   padding: 2px 6px;
   border-radius: 10px;
@@ -871,7 +871,7 @@ onMounted(() => {
 
 .retry-btn {
   padding: 8px 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 4px;
   color: #ffffff;
@@ -911,7 +911,7 @@ onMounted(() => {
 
 .recent-searches h4 {
   margin: 0 0 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -931,7 +931,7 @@ onMounted(() => {
   background: #202225;
   border: none;
   border-radius: 4px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   text-align: left;
   cursor: pointer;
   transition: all 0.2s;
@@ -989,7 +989,7 @@ onMounted(() => {
 }
 
 .result-content {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -1005,7 +1005,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #5865f2;
+  background: var(--harmony-primary);
   border: none;
   border-radius: 4px;
   color: #ffffff;

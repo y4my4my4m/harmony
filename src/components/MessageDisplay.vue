@@ -1104,6 +1104,9 @@ const canEditMessage = (message: Message) => {
   // Can't edit messages that are still sending
   if (message.sending) return false;
   
+  // Can't edit messages in remote servers (federated servers)
+  if (serverChannelStore.currentServer?.is_local_server === false) return false;
+  
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
   return messageUserId === currentUserId || isCurrentUserServerOwner.value;
@@ -1111,6 +1114,10 @@ const canEditMessage = (message: Message) => {
 
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
+  
+  // Can't delete messages in remote servers (federated servers)
+  if (serverChannelStore.currentServer?.is_local_server === false) return false;
+  
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
   return messageUserId === currentUserId || isCurrentUserServerOwner.value;
@@ -1485,7 +1492,7 @@ const closeInviteModal = () => {
 }
 
 .reply-preview {
-  color: #dcddde;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1541,7 +1548,7 @@ const closeInviteModal = () => {
 
 .bot-badge {
   display: inline-block;
-  background: #5865F2;
+  background: var(--harmony-primary);
   color: white;
   font-size: 0.625rem;
   font-weight: 600;
@@ -1632,7 +1639,7 @@ const closeInviteModal = () => {
   width: 32px;
   height: 32px;
   cursor: pointer;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   transition: all 0.15s ease-out;
   border-radius: 4px;
   margin: 2px;
@@ -1640,7 +1647,7 @@ const closeInviteModal = () => {
 
 .action-btn:hover {
   background-color: #40444b;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .action-btn:active {
@@ -1692,7 +1699,7 @@ const closeInviteModal = () => {
 .date-separator-text {
   padding: 0 16px;
   /* background-color: #36393f; */
-  /* color: #b9bbbe; */
+  /* color: var(--text-secondary); */
   color: var(--text-secondary);
   font-size: 0.75rem;
   font-weight: 600;
@@ -1743,7 +1750,7 @@ const closeInviteModal = () => {
 
 .beginning-subtitle {
   font-size: 0.875rem;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
   opacity: 0.8;
 }
@@ -1834,7 +1841,7 @@ const closeInviteModal = () => {
 }
 .tooltip-emoji-name {
   font-size: 0.875rem;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 /* Loading skeletons */
@@ -1988,7 +1995,7 @@ const closeInviteModal = () => {
   margin-left: 4px;
   font-size: 0.875rem;
   width: 100%;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 
@@ -1999,7 +2006,7 @@ const closeInviteModal = () => {
 
 .system-text {
   flex: 1;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .system-text :deep(.system-message-content) {

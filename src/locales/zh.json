@@ -338,7 +338,7 @@
     }
   },
   "message": {
-    "typeMessage": "输入消息...",
+    "typeMessage": "消息 {to}",
     "addComment": "添加评论...",
     "editMessage": "编辑消息",
     "deleteMessage": "删除消息",

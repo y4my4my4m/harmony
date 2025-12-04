@@ -8,7 +8,25 @@ export interface Server {
   icon: string;
   allow_cross_server_emojis: boolean;
   public: boolean;
+  federation_enabled?: boolean;
+  is_local_server?: boolean;
   created_at?: string;
+  // Folder organization (from user_servers join)
+  folder_id?: string | null;
+  position?: number;
+}
+
+export interface ServerFolder {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  position: number;
+  is_expanded: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Computed/joined data
+  servers?: Server[];
 }
 
 export interface Channel {

@@ -22,7 +22,19 @@ dotenv.config()
 // Initialize components
 const mapper = new ChannelMapper('./config/bridge-config.yml')
 const config = mapper.getConfig()
+
+// Validate required configuration
+if (!config.harmony?.baseUrl) {
+  throw new Error('Configuration error: harmony.baseUrl is required in bridge-config.yml')
+}
+
+const harmonyBaseUrl = new URL(config.harmony.baseUrl)
+if (!harmonyBaseUrl.hostname || harmonyBaseUrl.hostname === 'localhost') {
+  console.warn('⚠️  Warning: harmony.baseUrl is set to localhost - federation mentions will use localhost domain')
+}
+
 const translator = new MessageTranslator()
+translator.setHarmonyDomain(harmonyBaseUrl.hostname)
 
 // Webhook cache for puppeting
 const webhookCache = new Map<string, Webhook>()
@@ -1197,8 +1209,9 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
       }
       
-      // Build Discord display text
-      const mentionDisplay = mentionedUsers.map(u => `@${u.username}@har.mony.lol`).join(' ')
+      // Build Discord display text - extract domain from config baseUrl
+      const harmonyDomain = new URL(config.harmony.baseUrl).hostname
+      const mentionDisplay = mentionedUsers.map(u => `@${u.username}@${harmonyDomain}`).join(' ')
       const discordDisplayText = message ? `${mentionDisplay} ${message}` : mentionDisplay
       
       console.log(`📤 Sending ${contentParts.length} parts to Harmony`)

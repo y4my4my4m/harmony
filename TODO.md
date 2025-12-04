@@ -100,3 +100,271 @@ After these changes, verify:
 - New: `src/components/voice/ScreensharePicker.vue` - Quality/source selection
 - New: `src/components/voice/ViewerList.vue` - Who's watching panel
 
+---
+
+## Federation: Channel Messages (Dec 2025) ✅
+
+**Status: WORKING** - Channel message federation between Harmony instances is functional!
+
+### What's Implemented:
+- ✅ **Server Join/Leave** - Users can join remote servers via invite links
+- ✅ **Channel Messages** - Create, Edit, Delete federated in real-time
+- ✅ **Reactions** - Emoji reactions federated to all server members
+- ✅ **Multi-Instance Relay** - When Instance B sends to Instance A (server host), A re-broadcasts to Instance C, D, etc.
+- ✅ **Immediate Delivery** - Database triggers queue pg-boss jobs instantly (no sweep delay for new messages)
+- ✅ **Sweep Fallback** - pg-boss sweep catches any missed items every 10 seconds
+
+### Required SQL Migrations (run on ALL instances):
+
+```bash
+# Run these in order on each Harmony instance's database:
+psql -f db_schema/20251203_add_federation_status_to_channels.sql
+psql -f db_schema/20251203_fix_remote_server_channels_trigger.sql
+psql -f db_schema/20251203_add_channel_message_federation_trigger.sql
+psql -f db_schema/20251203_fix_channel_message_federation_trigger.sql
+psql -f db_schema/20251203_fix_messages_updated_at_default.sql
+psql -f db_schema/20251203_add_channel_message_edit_delete_triggers.sql
+```
+
+### Architecture:
+```
+User sends message → DB Trigger → pgboss.job (immediate)
+                          ↓
+                    pg-boss worker → DeliveryQueue → Remote instance inbox
+                          ↓
+                    federation_status = 'completed'
+```
+
+### Key Files:
+- `federation-backend/src/listeners/ChannelMessageHandler.ts` - Outbound message federation
+- `federation-backend/src/activitypub/ServerInboxHandler.ts` - Inbound processing + re-broadcast
+- `federation-backend/src/queue/QueueManager.ts` - pg-boss job handling
+- `db_schema/20251203_*.sql` - Database triggers for immediate queueing
+
+---
+
+## Federation: Docker Supabase Realtime Issue (Lower Priority Now)
+
+**Current state:** When running in Docker, Supabase Realtime WebSocket connection times out:
+```
+📡 Realtime subscription status: TIMED_OUT
+❌ Database listener timed out
+```
+
+**Status (Dec 2025):** This is now a **lower priority** because we added database triggers that immediately queue pg-boss jobs. Federation works WITHOUT Realtime!
+
+**If you want truly hybrid mode (Realtime + pg-boss fallback):**
+1. Run `db_schema/20251204_hybrid_federation_triggers.sql` - Changes triggers to NOT queue immediately
+2. Fix Supabase Realtime connection in Docker
+3. Modify `federation-backend/src/index.ts` to start BOTH DatabaseListener AND QueueManager
+4. DatabaseListener handles immediate delivery, pg-boss sweep catches any missed
+
+**Root cause investigation (if desired):**
+1. Is `supabase-realtime` container healthy and accepting WebSocket connections?
+2. Does the WebSocket URL require authentication headers?
+3. Is there a network/DNS issue between federation-backend and supabase-realtime containers?
+
+**Files involved:**
+- `federation-backend/src/listeners/DatabaseListener.ts` - Realtime subscription
+- `federation-backend/src/config/supabase.ts` - Supabase client setup
+- `federation-backend/src/queue/QueueManager.ts` - pg-boss sweep
+
+---
+
+## Federation Backend URL Configuration (Future)
+
+**Current state:** Federation backend is accessed via relative path `/api/federation`, proxied by nginx.
+
+**Simplified approach (Dec 2025):** Removed `VITE_FEDERATION_BACKEND_URL` and `VITE_FEDERATION_URL` env vars. All federation API calls now use `/api/federation/...` which nginx routes to the backend.
+
+**If split-domain hosting is needed later:**
+1. Option A: Just configure nginx to proxy `/api/federation` to a different server
+2. Option B: Re-add configurable URL via:
+   - Instance config in DB (`instance_config` table)
+   - Load config on app init, store in a composable/store
+   - Use that URL as base for federation calls
+
+**Note:** The `link_preview_backend_url` in `federation_settings` is still needed! Database functions like `fetch_remote_link_preview()` use it for server-to-server HTTP calls (pg_http can't use relative paths). Only the frontend code was simplified to use relative paths.
+
+---
+
+## Federation: Remaining Work (Future)
+
+### Voice Channel Federation
+**Status:** Core implementation done (Dec 2025), needs testing and refinement
+
+**What's implemented:**
+- ✅ `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` activities
+- ✅ `harmony:VoiceChannelJoinAccept` with LiveKit token exchange
+- ✅ `voice_channel_participants` table for tracking federated users
+- ✅ pg-boss triggers: `federate-voice-join`, `federate-voice-leave`
+- ✅ Frontend handling for federated voice (token subscription via Realtime)
+
+**Future optimization - Merge voice presence tracking:**
+Currently we have both `user_presence` (with `voice_channel_id`) and `voice_channel_participants`.
+Consider merging into a unified approach:
+- Add federation columns to `user_presence` instead of separate table
+- Federation triggers only fire when server has `federation_enabled = true`
+- Non-federated instances stay pure realtime/in-memory for speed
+
+**Files:**
+- `federation-backend/src/activitypub/VoiceActivityHandler.ts` - Full handler
+- `federation-backend/src/queue/handlers/voiceHandler.ts` - pg-boss job handler
+- `src/stores/unifiedVoiceChannel.ts` - Federated voice join flow
+- `db_schema/20251204_add_voice_federation_tables.sql` - Voice federation schema
+
+### DM Federation
+**Status:** Partially working via standard ActivityPub private visibility
+
+**What's needed:**
+- Test DMs between users on different instances
+- Ensure E2E encryption works across federation (if enabled)
+
+---
+
+## Voice/Video Chat E2EE (End-to-End Encryption)
+
+**Status:** ❌ NOT ACTIVE - Infrastructure exists but E2EE is not enabled
+
+### Current Situation
+
+Both P2P and LiveKit modes have E2EE infrastructure code, but it's **not actually enabled**:
+
+**P2P Mode (`unifiedWebRTC.ts`):**
+- ✅ `WebRTCEncryptionService` exists with AES-GCM frame encryption
+- ✅ Insertable Streams support (`encodedInsertableStreams` option)
+- ✅ Participant encryption add/remove hooks
+- ❌ `encryptionEnabled` flag is always `false`
+- ❌ No key exchange mechanism implemented
+- ❌ Uses "temporary keys" fallback (not real E2EE)
+
+**LiveKit Mode (`livekitWebRTC.ts`):**
+- ✅ `ExternalE2EEKeyProvider` imported from livekit-client
+- ✅ `enableE2EE()` / `disableE2EE()` methods exist
+- ❌ E2EE options commented out in Room creation
+- ❌ `enableE2EE()` is never called anywhere
+- ❌ No shared key generation/exchange
+
+### Current Security Level
+
+| Mode | Transport Security | Server Visibility | True E2EE |
+|------|-------------------|-------------------|-----------|
+| **P2P** | ✅ DTLS-SRTP | N/A (no server) | ❌ Not active |
+| **LiveKit SFU** | ✅ DTLS-SRTP | ⚠️ Server can decode | ❌ Not active |
+
+**Note:** WebRTC always encrypts media in transit (DTLS-SRTP). The issue is that without E2EE, the LiveKit SFU server can technically access the media.
+
+### Implementation Tasks
+
+**Phase 1: P2P E2EE (simpler, no server trust issue)**
+- [ ] Add `enableEncryption()` method to `UnifiedWebRTCService`
+- [ ] Implement proper key derivation using existing Signal Protocol infrastructure
+- [ ] Exchange encryption keys via signaling channel (encrypted with Signal session)
+- [ ] Actually call encryption setup when `encryptionEnabled = true`
+- [ ] Add UI toggle in Voice Settings panel
+
+**Phase 2: LiveKit E2EE (requires all clients to support it)**
+- [ ] Uncomment and configure E2EE in Room creation
+- [ ] Generate shared room key (could use room ID + server secret as seed)
+- [ ] Distribute room key to participants via secure channel
+- [ ] Call `enableE2EE(sharedKey)` when joining room
+- [ ] Handle key renegotiation when participants join/leave
+- [ ] Add E2EE indicator in voice overlay (lock icon)
+
+**Phase 3: Federation-aware E2EE**
+- [ ] Key exchange across instances for federated voice
+- [ ] Consider how to handle mixed E2EE/non-E2EE participants
+
+### Key Files
+
+- `src/services/unifiedWebRTC.ts` - P2P WebRTC service
+- `src/services/livekitWebRTC.ts` - LiveKit SFU service  
+- `src/services/encryption/WebRTCEncryptionService.ts` - Frame encryption (exists but unused)
+- `src/services/encryption/SignalProtocolService.ts` - Could be used for key exchange
+- `src/components/voice/VoiceSettingsPanel.vue` - Needs E2EE toggle
+- `src/stores/unifiedVoiceChannel.ts` - Voice state management
+
+### References
+
+- [LiveKit E2EE Documentation](https://docs.livekit.io/realtime/client/e2ee/)
+- [WebRTC Insertable Streams](https://developer.mozilla.org/en-US/docs/Web/API/RTCRtpScriptTransform)
+- Existing `WebRTCEncryptionService.ts` uses AES-256-GCM with counter-based IV
+
+---
+
+## Federation: Server Actor for Signing (Future)
+
+**Current state:** Server-level ActivityPub activities (accepts, re-broadcasts, voice tokens) are signed using the **server owner's** keypair.
+
+**Why this works but isn't ideal:**
+- When Bob joins a voice channel on Alice's server, the `VoiceChannelJoinAccept` is signed by Alice
+- This is semantically odd: the *server* is accepting, not Alice personally
+- Same pattern for message re-broadcasts, membership accepts, etc.
+
+**Better approach - Dedicated Server Actor:**
+Like Mastodon's "instance actor", each server would have its own AP identity:
+- `https://example.com/servers/{uuid}` as the actor URL
+- Own public/private keypair stored in `servers` table
+- Server-level activities signed by the server itself, not the owner
+
+**Implementation:**
+1. Add `public_key`, `private_key` columns to `servers` table
+2. Generate keypair on server creation
+3. Create `ServerActorService.ts` to handle server-level signing
+4. Update `DeliveryQueue` to accept server ID and use server keys when appropriate
+5. Modify all server-level activity creation to use server actor as `actor`
+
+**Benefits:**
+- Semantically correct: server actions come from the server
+- Owner can transfer without breaking signatures
+- Clearer audit trail (user actions vs server actions)
+- Matches ActivityPub Group semantics better
+
+**Files to modify:**
+- `db_schema/` - Add keypair columns to servers table
+- `federation-backend/src/services/ServerActorService.ts` (new)
+- `federation-backend/src/activitypub/DeliveryQueue.ts` - Support server signing
+- `federation-backend/src/activitypub/VoiceActivityHandler.ts` - Use server actor
+- `federation-backend/src/activitypub/ServerInboxHandler.ts` - Use server actor
+
+---
+
+## Server Ownership Transfer (Future)
+
+**Current state:** Server owners cannot leave their own servers. There's no way to transfer ownership.
+
+**Implementation needed:**
+1. **Transfer Ownership UI**: In Server Settings, add "Transfer Ownership" option (dangerous action with confirmation)
+2. **Transfer Process**:
+   - Owner selects a new owner from server members
+   - Confirmation dialog explaining the consequences
+   - Atomic transfer of `servers.owner` field
+   - New owner gets admin role automatically
+   - Old owner gets demoted to member (or admin if they had that role)
+3. **Federation Considerations**:
+   - If server is federated, broadcast ownership change to remote members
+   - New owner's federated ID becomes the server's `attributedTo`
+
+**Files to modify:**
+- `src/components/settings/ServerAdvancedSettings.vue` - Add transfer UI
+- `src/stores/server.ts` - Add `transferOwnership` action
+- Database: `servers.owner` field update RPC
+- Federation: Update `GroupService.ts` to reflect new owner in AP responses
+
+
+
+
+--- 
+
+Uncategorized:
+
+✓ 1318 modules transformed.
+node_modules/@protobufjs/inquire/index.js (12:18): Use of eval in "node_modules/@protobufjs/inquire/index.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+
+---
+
+Federated reactions in chat (just like everywhere else) as ephemeral, we should find a proper solution to make them permanent.
+
+---
+
+RLS permission for select and stuff, we can't allow users to fetch more than they should be able to (could be kind of DDoS attacked that way)

@@ -251,8 +251,8 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 }
 
 .reaction:hover {
-  background-color: #40444b;
-  border-color: #4f545c;
+  background-color: var(--harmony-primary-alpha);
+  border-color: var(--harmony-primary-alpha-strong);
 }
 
 .reaction.reacted {

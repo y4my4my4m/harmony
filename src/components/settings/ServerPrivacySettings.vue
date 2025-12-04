@@ -20,6 +20,47 @@
       </div>
     </div>
 
+    <!-- Federation Settings -->
+    <div class="settings-card" v-if="permissions.canChangePrivacySettings">
+      <div class="form-group">
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="form-label">{{ $t('server.federationEnabled', 'Enable Federation') }}</label>
+            <div class="form-hint">
+              {{ $t('server.federationEnabledDesc', 'Allow users from other Harmony instances to join and interact with this server. Required for cross-instance communication.') }}
+            </div>
+          </div>
+          <div class="setting-control">
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                :checked="federationEnabled"
+                @change="handleFederationToggle"
+                :disabled="loading"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="federationEnabled" class="federation-info">
+        <div class="info-card federation">
+          <div class="info-header">
+            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
+              <path fill="#5865f2" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
+            </svg>
+            <h4 class="info-title">{{ $t('server.federationActive', 'Federation Active') }}</h4>
+          </div>
+          <ul class="info-list">
+            <li>{{ $t('server.federationBenefit1', 'Users from other instances can join via invite links') }}</li>
+            <li>{{ $t('server.federationBenefit2', 'Messages are shared with federated members in real-time') }}</li>
+            <li>{{ $t('server.federationBenefit3', 'Server appears in federated server discovery') }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-card">
       <div class="form-group">
         <div class="setting-row">
@@ -151,21 +192,31 @@ interface ServerPermissions {
 
 interface Props {
   isPublic: boolean
+  federationEnabled: boolean
   loading: boolean
   permissions: ServerPermissions
 }
 
 interface Emits {
   (e: 'update:isPublic', value: boolean): void
+  (e: 'update:federationEnabled', value: boolean): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  federationEnabled: false
+})
 const emit = defineEmits<Emits>()
 
 const handlePublicToggle = (event: Event) => {
   if (!props.permissions.canChangePrivacySettings) return
   const target = event.target as HTMLInputElement
   emit('update:isPublic', target.checked)
+}
+
+const handleFederationToggle = (event: Event) => {
+  if (!props.permissions.canChangePrivacySettings) return
+  const target = event.target as HTMLInputElement
+  emit('update:federationEnabled', target.checked)
 }
 
 const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
@@ -195,7 +246,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 
 .section-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -228,7 +279,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 .notice-text p {
   margin: 0;
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -251,7 +302,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -322,7 +373,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 }
 
 input:checked + .toggle-slider {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
 }
 
 input:checked + .toggle-slider:before {
@@ -343,8 +394,13 @@ input:checked + .toggle-slider:before {
   border-left: 4px solid #57f287;
 }
 
-.info-card.private {
+.info-card.private,
+.info-card.federation {
   border-left-color: #5865f2;
+}
+
+.federation-info {
+  margin-top: 16px;
 }
 
 .warning-card {
@@ -379,7 +435,7 @@ input:checked + .toggle-slider:before {
 .warning-list {
   margin: 0;
   padding-left: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -390,7 +446,7 @@ input:checked + .toggle-slider:before {
 }
 
 .info-text {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
   margin: 0;
@@ -464,7 +520,7 @@ input:checked + .toggle-slider:before {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   opacity: 0;
   transition: opacity 0.15s ease;
 }

@@ -293,7 +293,7 @@
     }
   },
   "message": {
-    "typeMessage": "Type a message...",
+    "typeMessage": "Message {to}",
     "addComment": "Add a comment...",
     "editMessage": "Edit message",
     "deleteMessage": "Delete Message",
@@ -485,6 +485,14 @@
       "saveChanges": "Save Changes",
       "resetSettings": "Reset"
     },
+    "audio": {
+      "title": "Sounds",
+      "description": "Configure your audio settings.",
+      "inputDevice": "Input Device",
+      "outputDevice": "Output Device",
+      "inputVolume": "Input Volume",
+      "outputVolume": "Output Volume"
+    },
     "voice": {
       "title": "Voice & Video",
       "description": "Configure your audio and video settings.",
@@ -499,7 +507,17 @@
       "videoQuality": "Video Quality",
       "low": "Low",
       "medium": "Medium",
-      "high": "High"
+      "high": "High",
+      "inputMode": "Input Mode",
+      "voiceActivity": "Voice Activity",
+      "voiceActivityDesc": "Automatically transmit when you speak",
+      "pushToTalk": "Push to Talk",
+      "pushToTalkDesc": "Hold a key to transmit",
+      "pttShortcut": "Push to Talk Shortcut",
+      "pttShortcutHint": "Click to change the keybind",
+      "releaseDelay": "Release Delay",
+      "releaseDelayHint": "Delay before muting after releasing the key (prevents cutting off words)",
+      "pressAnyKey": "Press any key..."
     },
     "notifications": {
       "title": "Notifications",
@@ -839,6 +857,28 @@
     "blockUserConfirm": "Are you sure you want to block this user?",
     "removeFriend": "Remove Friend",
     "removeFriendConfirm": "Are you sure you want to remove this friend?"
+  },
+  "federation": {
+    "joinRemoteServer": "Join Remote Server",
+    "joinRemoteServerDesc": "Connect with communities on other Harmony instances",
+    "serverUrl": "Server URL, Invite Link, or Handle",
+    "serverUrlPlaceholder": "https://instance.com/invite/CODE or server{'@'}instance.com",
+    "urlFormatHint": "Paste an invite link, server URL, or enter a handle like server{'@'}instance.com",
+    "discover": "Discover",
+    "members": "members",
+    "channels": "channels",
+    "more": "more",
+    "joinServer": "Join Server",
+    "federatedNotice": "This is a federated server hosted on another Harmony instance. Your messages will be sent across the network.",
+    "joinByUrl": "Join by URL",
+    "haveInviteLink": "Have an invite link? Paste it here",
+    "inviteLink": "Invite Link",
+    "invitedBy": "Invited by",
+    "expires": "Expires in",
+    "remoteServer": "Remote Server",
+    "hosted": "Hosted on",
+    "federatedUser": "Federated user",
+    "federatedBadge": "Federated"
   },
   "languages": {
     "en": "English",

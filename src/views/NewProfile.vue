@@ -901,7 +901,7 @@ const createProfile = async () => {
   font-weight: 700;
   color: #ffffff;
   margin: 0 0 8px;
-  background: linear-gradient(135deg, #ffffff, #b9bbbe);
+  background: linear-gradient(135deg, #ffffff, var(--text-secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -909,7 +909,7 @@ const createProfile = async () => {
 
 .welcome-subtitle {
   font-size: 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -936,7 +936,7 @@ const createProfile = async () => {
 
 .progress-text {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -989,7 +989,7 @@ const createProfile = async () => {
 
 .step-header p {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1033,7 +1033,7 @@ const createProfile = async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .avatar-icon {
@@ -1079,7 +1079,7 @@ const createProfile = async () => {
   padding: 12px 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.05);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border-radius: 12px;
   cursor: pointer;
   font-weight: 500;
@@ -1221,7 +1221,7 @@ const createProfile = async () => {
 
 .optional {
   font-weight: 400;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -1386,7 +1386,7 @@ const createProfile = async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .default-preview-avatar svg {
@@ -1407,7 +1407,7 @@ const createProfile = async () => {
 
 .preview-username {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1493,7 +1493,7 @@ const createProfile = async () => {
 
 .action-btn.secondary {
   background: rgba(255, 255, 255, 0.05);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 

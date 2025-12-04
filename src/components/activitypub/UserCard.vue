@@ -372,7 +372,7 @@ onBeforeUnmount(() => {
 }
 
 .user-bio {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   line-height: 1.4;
   margin-bottom: 0.5rem;

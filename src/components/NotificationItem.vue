@@ -750,7 +750,7 @@ const typeIcon = computed(() => {
 
 .notification-title-emoji-fallback {
   font-size: 14px;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .notification-item--unread .notification-title {
@@ -768,7 +768,7 @@ const typeIcon = computed(() => {
 
 .username {
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .separator {
@@ -814,7 +814,7 @@ const typeIcon = computed(() => {
 
 .action-btn:hover {
   background: rgba(79, 84, 92, 0.32);
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .read-toggle.active {
@@ -844,7 +844,7 @@ const typeIcon = computed(() => {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
-  color: #dcddde;
+  color: var(--text-secondary);
   word-wrap: break-word;
 }
 
@@ -861,7 +861,7 @@ const typeIcon = computed(() => {
 }
 
 .message-preview {
-  background: rgba(79, 84, 92, 0.3);
+  background: var(--background-quaternary, rgba(79, 84, 92, 0.3));
   border-radius: 6px;
   padding: 8px 10px;
   border-left: 3px solid rgba(88, 101, 242, 0.5);
@@ -869,7 +869,7 @@ const typeIcon = computed(() => {
 
 .preview-content {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.3;
 }
 
@@ -916,7 +916,7 @@ const typeIcon = computed(() => {
 }
 
 .reaction-text {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-weight: 500;
   display: flex;
   gap: 4px;

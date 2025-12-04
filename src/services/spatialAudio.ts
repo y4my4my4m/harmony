@@ -229,11 +229,28 @@ export class SpatialAudioService {
       // Remove existing node if it exists
       this.removeUser(userId);
 
+      // Log all tracks in the stream for debugging
+      const audioTracks = mediaStream.getAudioTracks();
+      debug.log(`🎧 Stream has ${audioTracks.length} audio tracks:`);
+      audioTracks.forEach((track, i) => {
+        debug.log(`   Track ${i}: id=${track.id.substring(0, 8)}..., label=${track.label}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+      });
+      
+      if (audioTracks.length === 0) {
+        debug.warn('⚠️ No audio tracks to process for spatial audio!');
+        return;
+      }
+      
+      // Check if any tracks are actually live
+      const liveTracks = audioTracks.filter(t => t.readyState === 'live' && t.enabled);
+      if (liveTracks.length === 0) {
+        debug.warn('⚠️ No live/enabled audio tracks for spatial audio!');
+      }
+
       // Create audio source directly from MediaStream (better quality than HTMLAudioElement)
       const source = this.audioContext.createMediaStreamSource(mediaStream);
       
       // Convert stereo to mono for better spatial audio effect
-      const audioTracks = mediaStream.getAudioTracks();
       const channelCount = audioTracks[0]?.getSettings().channelCount || 2;
       debug.log(`🎧 Audio source channel count: ${channelCount}`);
       
@@ -270,7 +287,15 @@ export class SpatialAudioService {
 
       this.spatialNodes.set(userId, spatialNode);
 
+      // Ensure AudioContext is running (browser autoplay policies)
+      if (this.audioContext.state === 'suspended') {
+        debug.log('🎧 AudioContext was suspended, resuming...');
+        await this.audioContext.resume();
+      }
+      debug.log('🎧 AudioContext state:', this.audioContext.state);
+      
       debug.log('✅ Professional spatial audio setup complete for user:', userId, {
+        audioContextState: this.audioContext.state,
         hasReverb: !!processingChain.convolver,
         pannerType: processingChain.panner.constructor.name,
         audioTracks: audioTracks.length

@@ -8,10 +8,19 @@
         <span class="info-text">{{ $t('server.cantFindLookingFor') }}</span>
       </div>
       
-      <button @click="$emit('createServer')" class="create-server-btn">
-        <Icon name="plus" :size="18" />
-        <span class="btn-text">{{ $t('server.createYourOwnServer') }}</span>
-      </button>
+      <div class="footer-actions">
+        <button @click="$emit('joinByUrl')" class="join-url-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" class="join-icon">
+            <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
+          </svg>
+          <span class="btn-text">{{ $t('federation.joinByUrl') }}</span>
+        </button>
+        
+        <button @click="$emit('createServer')" class="create-server-btn">
+          <Icon name="plus" :size="18" />
+          <span class="btn-text">{{ $t('server.createYourOwnServer') }}</span>
+        </button>
+      </div>
     </div>
     
     <div class="footer-gradient"></div>
@@ -23,6 +32,7 @@ import Icon from '@/components/common/Icon.vue';
 
 interface Emits {
   (e: 'createServer'): void
+  (e: 'joinByUrl'): void
 }
 
 defineEmits<Emits>()
@@ -41,6 +51,40 @@ defineEmits<Emits>()
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.join-url-btn {
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 10px;
+  padding: 14px 20px;
+  color: #00d4ff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.join-url-btn:hover {
+  background: rgba(0, 212, 255, 0.2);
+  border-color: rgba(0, 212, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.join-url-btn .join-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: currentColor;
 }
 
 .footer-info {
@@ -109,10 +153,6 @@ defineEmits<Emits>()
   z-index: 1;
 }
 
-.btn-text {
-  position: relative;
-  z-index: 1;
-}
 
 .footer-gradient {
   position: absolute;
@@ -140,9 +180,16 @@ defineEmits<Emits>()
     justify-content: center;
   }
   
+  .footer-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .join-url-btn,
   .create-server-btn {
     justify-content: center;
     padding: 16px 24px;
+    width: 100%;
   }
 }
 
@@ -158,10 +205,6 @@ defineEmits<Emits>()
   .create-server-btn {
     font-size: 13px;
     padding: 14px 20px;
-  }
-  
-  .btn-text {
-    white-space: nowrap;
   }
 }
 </style>

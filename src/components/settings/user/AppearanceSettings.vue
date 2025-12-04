@@ -612,7 +612,7 @@ onMounted(async () => {
 
 .settings-description {
   font-size: 14px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   margin: 0;
 }
 
@@ -705,7 +705,7 @@ onMounted(async () => {
 
 .theme-description {
   font-size: 12px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   margin: 0;
 }
 
@@ -735,7 +735,7 @@ onMounted(async () => {
 
 .section-help {
   font-size: 12px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
@@ -762,7 +762,7 @@ onMounted(async () => {
   padding: 12px 16px;
   border: 2px solid var(--h-chat-light);
   background-color: var(--h-chat-darker);
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -795,7 +795,7 @@ onMounted(async () => {
   padding: 16px 20px;
   border: 2px solid var(--h-chat-light);
   background-color: var(--h-chat-darker);
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
@@ -840,7 +840,7 @@ onMounted(async () => {
 
 .picker-help {
   font-size: 12px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   margin: 0 0 12px 0;
 }
 
@@ -913,7 +913,7 @@ onMounted(async () => {
   text-align: center;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   margin-top: 8px;
 }
 
@@ -986,7 +986,7 @@ onMounted(async () => {
   text-align: center;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   margin-top: 8px;
 }
 
@@ -1019,7 +1019,7 @@ onMounted(async () => {
 
 .setting-description {
   font-size: 12px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   margin: 0;
   line-height: 1.4;
 }
@@ -1038,7 +1038,7 @@ onMounted(async () => {
   width: 120px;
   height: 4px;
   border-radius: 2px;
-  background: #4f545c;
+  background: var(--background-quaternary);
   outline: none;
   appearance: none;
 }
@@ -1063,7 +1063,7 @@ onMounted(async () => {
 
 .font-size-display {
   font-size: 12px;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   min-width: 40px;
   text-align: center;
 }
@@ -1156,7 +1156,7 @@ onMounted(async () => {
 
 .btn-secondary {
   background-color: transparent;
-  color: var(--text-secondary, #b9bbbe);
+  color: var(--text-secondary, var(--text-secondary));
   border: 1px solid var(--h-chat-light);
 }
 

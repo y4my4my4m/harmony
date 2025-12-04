@@ -1,7 +1,7 @@
 <template>
   <!-- Unified Voice Dock - Combines best of both old and new systems -->
-  <div v-if="voiceStore.isConnected" class="unified-voice-dock" :class="dockMode">
-    <!-- Dock Mode (default) -->
+  <div v-if="voiceStore.isConnectedOrJoining" class="unified-voice-dock" :class="[dockMode, { 'is-connecting': voiceStore.isConnecting }]">
+    <!-- Compact Mode (floating bar at bottom) -->
     <div v-if="currentMode === 'dock'" class="dock-container">
       <!-- User Info -->
       <div class="user-section">
@@ -28,11 +28,16 @@
           :class="['control-btn', 'mic-btn', { 
             active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened,
             muted: voiceStore.localState.isMuted,
-            deafened: voiceStore.localState.isDeafened 
+            deafened: voiceStore.localState.isDeafened,
+            'ptt-mode': isPTTMode,
+            'ptt-active': isPTTActive
           }]"
-          :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
+          :title="isPTTMode 
+            ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk`) 
+            : (voiceStore.localState.isMuted ? 'Unmute' : 'Mute')"
         >
           <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
+          <span v-if="isPTTMode" class="ptt-indicator" :class="{ active: isPTTActive }">PTT</span>
         </button>
 
         <button
@@ -87,6 +92,25 @@
         </button>
       </div>
 
+      <!-- Video Preview Thumbnail (when someone has video/screenshare) -->
+      <div 
+        v-if="activeVideoUser && !voiceStore.pipActive" 
+        class="dock-video-preview"
+        @click="expandToOverlay"
+        :title="`${activeVideoUserName} is ${activeVideoUser.isScreenSharing ? 'sharing screen' : 'on camera'}`"
+      >
+        <video
+          ref="dockVideoRef"
+          autoplay
+          playsinline
+          muted
+          class="dock-video"
+        />
+        <div class="dock-video-badge">
+          <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'camera'" />
+        </div>
+      </div>
+
       <!-- Action Controls -->
       <div class="action-controls">
         <button
@@ -115,10 +139,10 @@
       </div>
     </div>
 
-    <!-- Minimized Mode -->
+    <!-- Minimized Mode (tiny dock in channel sidebar) -->
     <div v-else-if="currentMode === 'minimized'" class="minimized-container" @click="expandToDock">
-      <!-- Mini Video Preview (when someone is sharing video/screen) -->
-      <div v-if="activeVideoUser" class="minimized-video-preview" @click.stop>
+      <!-- Mini Video Preview (when someone is sharing video/screen) - hide if PIP is active -->
+      <div v-if="activeVideoUser && !voiceStore.pipActive" class="minimized-video-preview" @click.stop="expandToOverlay">
         <video
           ref="minimizedVideoRef"
           autoplay
@@ -199,6 +223,10 @@
       @close="handleOverlayClosed"
       @minimize="collapseToMinimized"
     />
+    
+    <!-- Screenshare PIP - Always rendered when connected, regardless of dock mode -->
+    <!-- This allows PIP to work even when dock is minimized -->
+    <ScreensharePIP />
   </div>
 </template>
 <script setup lang="ts">
@@ -208,13 +236,22 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
+import { useKeybinds } from '@/composables/useKeybinds';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
+
+// Centralized keybind system
+const keybinds = useKeybinds();
+const isPTTMode = keybinds.isPTTMode;
+const isPTTActive = keybinds.isPTTActive;
+const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
+
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
+const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
 
 // =============================================================================
 // STORE INSTANCES
@@ -231,12 +268,14 @@ const { getUser } = useUserData();
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
 const minimizedVideoRef = ref<HTMLVideoElement | null>(null);
+const dockVideoRef = ref<HTMLVideoElement | null>(null);
 
 // =============================================================================
 // COMPUTED PROPERTIES
 // =============================================================================
 const channelName = computed(() => {
-  return voiceStore.currentChannelName || 'Voice Channel';
+  // Use effective channel name which includes optimistic state
+  return voiceStore.effectiveChannelName || 'Voice Channel';
 });
 
 const currentUserId = computed(() => authStore.session?.user?.id);
@@ -338,7 +377,10 @@ const handleOverlayClosed = () => {
 
 const activatePIPForActiveVideo = () => {
   if (activeVideoUser.value) {
-    voiceStore.togglePIP(activeVideoUser.value.userId, 'fixed');
+    // Activate PIP directly - works from any mode (minimized, dock, or overlay)
+    // The floating video will appear while keeping current dock state
+    // Use 'draggable' mode so users can move and resize it
+    voiceStore.togglePIP(activeVideoUser.value.userId, 'draggable');
   }
 };
 
@@ -346,23 +388,83 @@ const activatePIPForActiveVideo = () => {
 // WATCHERS
 // =============================================================================
 
+// Track last attached user to prevent flashing from repeated attachments
+let lastAttachedUserId: string | null = null;
+let lastAttachedElement: HTMLVideoElement | null = null;
+let lastDockAttachedUserId: string | null = null;
+
 // Attach video to minimized preview using LiveKit's proper method
-// Watch streamUpdateCounter to react to stream changes (Map reactivity workaround)
+// Only re-attach when the user actually changes, not on every counter update
 watch(
-  [activeVideoUser, minimizedVideoRef, () => voiceStore.streamUpdateCounter],
-  ([user, videoEl, _counter]) => {
+  [activeVideoUser, minimizedVideoRef],
+  ([user, videoEl]) => {
+    const userId = user?.userId || null;
+    
+    // Skip if same user is already attached to same element
+    if (userId === lastAttachedUserId && videoEl === lastAttachedElement && videoEl?.srcObject) {
+      return;
+    }
+    
     if (user && videoEl) {
       const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
       if (!attached && activeVideoStream.value) {
         // Fallback to srcObject if attach fails (P2P mode)
         videoEl.srcObject = activeVideoStream.value;
       }
+      lastAttachedUserId = userId;
+      lastAttachedElement = videoEl;
     } else if (videoEl) {
       // Clean up when no active video user
+      voiceStore.detachVideoFromElement(lastAttachedUserId || '', videoEl);
       videoEl.srcObject = null;
+      lastAttachedUserId = null;
+      lastAttachedElement = null;
     }
   },
   { immediate: true }
+);
+
+// Attach video to dock preview (compact mode)
+watch(
+  [activeVideoUser, dockVideoRef],
+  ([user, videoEl]) => {
+    const userId = user?.userId || null;
+    
+    // Skip if same user is already attached
+    if (userId === lastDockAttachedUserId && videoEl?.srcObject) {
+      return;
+    }
+    
+    if (user && videoEl) {
+      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
+      if (!attached && activeVideoStream.value) {
+        videoEl.srcObject = activeVideoStream.value;
+      }
+      lastDockAttachedUserId = userId;
+    } else if (videoEl) {
+      voiceStore.detachVideoFromElement(lastDockAttachedUserId || '', videoEl);
+      videoEl.srcObject = null;
+      lastDockAttachedUserId = null;
+    }
+  },
+  { immediate: true }
+);
+
+// Only react to stream counter when user changes or stream is lost
+watch(
+  () => voiceStore.streamUpdateCounter,
+  () => {
+    const user = activeVideoUser.value;
+    const videoEl = minimizedVideoRef.value;
+    
+    // Only re-attach if we have a user but no video is playing
+    if (user && videoEl && !videoEl.srcObject) {
+      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
+      if (!attached && activeVideoStream.value) {
+        videoEl.srcObject = activeVideoStream.value;
+      }
+    }
+  }
 );
 
 // Sync store's isOverlayVisible with local currentMode
@@ -390,39 +492,12 @@ onMounted(() => {
     currentMode.value = 'overlay';
   }
   
-  // Keyboard shortcuts
-  const handleKeyPress = (event: KeyboardEvent) => {
-    // Ignore keypresses in input fields
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-      return;
-    }
-    
-    // Only handle shortcuts when not in overlay mode
-    if (currentMode.value !== 'overlay') {
-      switch (event.key.toLowerCase()) {
-        case 'm':
-          voiceStore.toggleMute();
-          break;
-        case 'd':
-          voiceStore.toggleDeafen();
-          break;
-        case 'v':
-          voiceStore.toggleVideo();
-          break;
-        case 's':
-          if (event.ctrlKey || event.metaKey) return; // Don't interfere with save shortcut
-          voiceStore.toggleScreenShare();
-          break;
-      }
-    }
-  };
+  // Keybind handlers are registered in UnifiedVoiceOverlay when overlay is open
+  // When in dock mode (not overlay), we still want these shortcuts to work
+  // The keybind system handles this through context - 'voice-connected' is active here
   
-  document.addEventListener('keydown', handleKeyPress);
-  
-  // Clean up the event listener when the component is unmounted
-  onUnmounted(() => {
-    document.removeEventListener('keydown', handleKeyPress);
-  });
+  // Note: Keybind handlers are registered once globally in the voice store when connected.
+  // The dock doesn't need its own handlers - the centralized system handles everything.
 });
 </script>
 
@@ -433,14 +508,14 @@ onMounted(() => {
   z-index: 1000;
 }
 
-/* Normal dock mode - centered */
+/* Compact Mode - floating bar centered at bottom */
 .unified-voice-dock.dock-mode {
   bottom: 0px;
   left: 50%;
   transform: translateX(-50%);
 }
 
-/* Minimized dock mode - above UserProfileComponent in left sidebar */
+/* Minimized Mode - tiny dock in channel sidebar */
 .unified-voice-dock.minimized-mode {
   bottom: 72px; /* Height of UserProfileComponent */
   left: 72px;   /* Offset from ServerSidebar (72px width) */
@@ -449,7 +524,7 @@ onMounted(() => {
   z-index: 10;  /* Above UserProfileComponent but below global overlays */
 }
 
-/* Overlay mode - full screen */
+/* Overlay Mode - full screen view with all participants */
 .unified-voice-dock.overlay-mode {
   top: 0;
   left: 0;
@@ -459,7 +534,7 @@ onMounted(() => {
 }
 
 /* =============================================================================
-   DOCK MODE (Default expanded view)
+   COMPACT MODE (Floating bar at bottom)
    ============================================================================= */
 
 .dock-container {
@@ -550,12 +625,13 @@ onMounted(() => {
 }
 
 .channel-name {
-  /* color: #b9bbbe; */
+  /* color: var(--text-secondary); */
   color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 65px;
 }
 
 /* Voice Controls */
@@ -570,7 +646,7 @@ onMounted(() => {
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  /* color: #b9bbbe; */
+  /* color: var(--text-secondary); */
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -600,6 +676,47 @@ onMounted(() => {
   color: white;
   border-color: rgba(237, 66, 69, 0.6);
   box-shadow: 0 4px 12px rgba(237, 66, 69, 0.3);
+}
+
+/* PTT Mode Styles */
+.control-btn.ptt-mode {
+  position: relative;
+}
+
+.control-btn.ptt-active {
+  background: linear-gradient(145deg, #00d4aa, #00b894) !important;
+  color: white !important;
+  border-color: rgba(0, 212, 170, 0.6) !important;
+  box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
+  animation: ptt-pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes ptt-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.6), 0 0 30px rgba(0, 212, 170, 0.4);
+  }
+}
+
+.ptt-indicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #888;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ptt-indicator.active {
+  background: #00d4aa;
+  color: white;
 }
 
 .control-btn.deafened {
@@ -641,6 +758,51 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
+/* Dock Video Preview (small thumbnail in dock mode) */
+.dock-video-preview {
+  position: relative;
+  width: 64px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid rgba(88, 101, 242, 0.4);
+  flex-shrink: 0;
+}
+
+.dock-video-preview:hover {
+  transform: scale(1.05);
+  border-color: rgba(88, 101, 242, 0.8);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+}
+
+.dock-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dock-video-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(87, 242, 135, 0.9);
+  color: #000;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-video-badge :deep(svg) {
+  width: 10px;
+  height: 10px;
+}
+
 /* Action Controls */
 .action-controls {
   display: flex;
@@ -666,7 +828,7 @@ onMounted(() => {
 }
 
 /* =============================================================================
-   MINIMIZED MODE
+   MINIMIZED MODE (Tiny dock in channel sidebar)
    ============================================================================= */
 
 .minimized-container {
@@ -804,7 +966,7 @@ onMounted(() => {
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -902,5 +1064,26 @@ onMounted(() => {
   .action-controls {
     justify-content: center;
   }
+}
+
+/* Connecting state - subtle pulse animation */
+.unified-voice-dock.is-connecting {
+  animation: connecting-pulse 1.5s ease-in-out infinite;
+}
+
+.unified-voice-dock.is-connecting .channel-name::after {
+  content: '...';
+  animation: connecting-dots 1.5s ease-in-out infinite;
+}
+
+@keyframes connecting-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes connecting-dots {
+  0% { content: '.'; }
+  33% { content: '..'; }
+  66% { content: '...'; }
 }
 </style>

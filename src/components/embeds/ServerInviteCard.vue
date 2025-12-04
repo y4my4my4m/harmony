@@ -372,7 +372,7 @@ watch(() => props.inviteCode, () => {
 .server-description {
   margin-top: 6px;
   font-size: 13px;
-  color: #8e9297;
+  color: var(--text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -412,7 +412,7 @@ watch(() => props.inviteCode, () => {
 .joined-button {
   padding: 10px 20px;
   background: rgba(255, 255, 255, 0.1);
-  color: #dcddde;
+  color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   font-size: 14px;

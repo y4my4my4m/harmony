@@ -30,6 +30,17 @@ const emojiCache = useEmojiCacheStore();
 // Emoji resolver function
 const emojiResolver = (name: string) => {
   try {
+    // First check server custom emojis via name index (fast path)
+    const nameIndexEntries = emojiCache.nameIndex.get(name);
+    if (nameIndexEntries && nameIndexEntries.length > 0) {
+      for (const entry of nameIndexEntries) {
+        if (entry.emoji && entry.emoji.url) {
+          return { url: entry.emoji.url, id: entry.emoji.id };
+        }
+      }
+    }
+    
+    // Fallback: iterate through server caches
     const allServerIds = Array.from(emojiCache.serverCaches.keys());
     for (const serverId of allServerIds) {
       const serverEmojis = emojiCache.getServerEmojis(serverId);

@@ -783,8 +783,7 @@ const loadMorePosts = async () => {
         const oldestPost = userPosts.value[userPosts.value.length - 1];
         const maxId = oldestPost?.ap_id || oldestRemotePostId.value;
         
-        const federationUrl = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation';
-        const response = await fetch(`${federationUrl}/fetch-posts`, {
+        const response = await fetch('/api/federation/fetch-posts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

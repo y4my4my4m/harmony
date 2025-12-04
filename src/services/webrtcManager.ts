@@ -27,6 +27,7 @@ export type WebRTCMode = 'sfu' | 'p2p' | 'hybrid';
 export interface WebRTCManager {
   // Connection
   joinChannel(channelId: string, userId: string, roomType?: 'voice_channel' | 'dm_call' | 'stage'): Promise<boolean>;
+  joinWithToken(wsUrl: string, token: string, channelId: string, userId: string): Promise<boolean>;
   leaveChannel(): Promise<void>;
   
   // Media controls
@@ -34,6 +35,16 @@ export interface WebRTCManager {
   toggleScreenShare(): Promise<boolean>;
   toggleMute(): boolean;
   toggleDeafen(): boolean;
+  
+  // Volume control
+  setUserMicVolume(userId: string, volume: number): void;
+  setUserScreenShareVolume(userId: string, volume: number): void;
+  getUserMicVolume(userId: string): number;
+  getUserScreenShareVolume(userId: string): number;
+  hasScreenShareAudio(userId: string): boolean;
+  
+  // Stream quality control
+  updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void>;
   
   // Stream access
   getLocalStream(): MediaStream | null;
@@ -236,6 +247,45 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   /**
+   * Join a voice channel with a pre-obtained token (for federated voice)
+   * Used when connecting to a remote instance's LiveKit server
+   */
+  async joinWithToken(
+    wsUrl: string,
+    token: string,
+    channelId: string,
+    userId: string
+  ): Promise<boolean> {
+    debug.log(`🌐 [WebRTCManager] Joining federated channel: ${channelId} with remote token`);
+    
+    // Leave any existing connection
+    if (this.activeService) {
+      await this.leaveChannel();
+    }
+    
+    // Set activeService BEFORE joining so events are forwarded during connection
+    this.activeService = 'livekit';
+    
+    try {
+      const success = await livekitWebRTC.joinWithToken(wsUrl, token, channelId, userId);
+      
+      if (success) {
+        debug.log('✅ [WebRTCManager] Connected to federated LiveKit server');
+        return true;
+      }
+      
+      // Connection failed, reset activeService
+      this.activeService = null;
+      return false;
+    } catch (error) {
+      debug.error('❌ [WebRTCManager] Federated connection failed:', error);
+      this.activeService = null;
+      this.emit('error', error);
+      return false;
+    }
+  }
+  
+  /**
    * Leave current voice channel
    */
   async leaveChannel(): Promise<void> {
@@ -288,6 +338,17 @@ class WebRTCManagerService implements WebRTCManager {
       return unifiedWebRTC.toggleMute();
     }
     return false;
+  }
+  
+  /**
+   * Set mute state directly (for Push-to-Talk)
+   */
+  setMuted(muted: boolean): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.setMuted(muted);
+    } else if (this.activeService === 'p2p') {
+      unifiedWebRTC.setMuted(muted);
+    }
   }
   
   /**
@@ -355,6 +416,20 @@ class WebRTCManagerService implements WebRTCManager {
       livekitWebRTC.detachVideoFromElement(userId, videoElement);
     } else {
       videoElement.srcObject = null;
+    }
+  }
+
+  /**
+   * Update stream quality settings (resolution, framerate, audio bitrate)
+   * Applies to currently active video/screenshare and audio tracks
+   */
+  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+    if (this.activeService === 'livekit') {
+      await livekitWebRTC.updateStreamQuality(settings);
+    } else if (this.activeService === 'p2p') {
+      await unifiedWebRTC.updateStreamQuality(settings);
+    } else {
+      debug.warn('⚠️ No active WebRTC service to update stream quality');
     }
   }
   
@@ -479,15 +554,54 @@ class WebRTCManagerService implements WebRTCManager {
   }
 
   /**
-   * Set volume for a specific user (0-2, where 1 = normal)
-   * Used for per-user volume control
+   * Set volume for a user's microphone audio (0-200, 100 = normal)
    */
-  setUserVolume(userId: string, volume: number): void {
+  setUserMicVolume(userId: string, volume: number): void {
     if (this.activeService === 'livekit') {
-      livekitWebRTC.setUserVolume?.(userId, volume);
+      livekitWebRTC.setUserMicVolume(userId, volume);
     } else if (this.activeService === 'p2p') {
-      unifiedWebRTC.setUserVolume?.(userId, volume);
+      unifiedWebRTC.setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
     }
+  }
+  
+  /**
+   * Set volume for a user's screenshare audio (0-200, 100 = normal)
+   */
+  setUserScreenShareVolume(userId: string, volume: number): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.setUserScreenShareVolume(userId, volume);
+    }
+    // P2P doesn't support screenshare audio separately yet
+  }
+  
+  /**
+   * Get mic volume for a user (0-200)
+   */
+  getUserMicVolume(userId: string): number {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.getUserMicVolume(userId);
+    }
+    return 100;
+  }
+  
+  /**
+   * Get screenshare volume for a user (0-200)
+   */
+  getUserScreenShareVolume(userId: string): number {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.getUserScreenShareVolume(userId);
+    }
+    return 100;
+  }
+  
+  /**
+   * Check if a user has screenshare audio available
+   */
+  hasScreenShareAudio(userId: string): boolean {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.hasScreenShareAudio(userId);
+    }
+    return false;
   }
   
   // =============================================================================

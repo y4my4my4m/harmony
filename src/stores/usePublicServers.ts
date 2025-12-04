@@ -125,6 +125,7 @@ export const usePublicServersStore = defineStore('publicServers', {
         debug.log('🔄 Fetching public servers...')
         
         // First, get basic server data without complex joins to avoid hanging
+        // Only show LOCAL servers in the public directory (not federated remote servers)
         const { data, error } = await supabase
           .from('servers')
           .select(`
@@ -135,9 +136,11 @@ export const usePublicServersStore = defineStore('publicServers', {
             owner,
             public,
             allow_cross_server_emojis,
-            created_at
+            created_at,
+            is_local_server
           `)
           .eq('public', true)
+          .neq('is_local_server', false)  // Exclude remote servers (is_local_server = false)
           .order('created_at', { ascending: false })
           .limit(100)
 

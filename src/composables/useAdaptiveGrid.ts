@@ -46,7 +46,7 @@ export function useAdaptiveGrid(participantCount: Ref<number> | (() => number)) 
         columns: 2,
         minCardWidth: '320px',
         maxCardWidth: '1fr',
-        cardHeight: '350px',
+        cardHeight: '100vh',
         gap: '16px',
         gridClass: 'grid-duo'
       };

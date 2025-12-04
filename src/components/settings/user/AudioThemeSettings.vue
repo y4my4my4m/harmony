@@ -240,8 +240,6 @@ onMounted(async () => {
 <style scoped>
 .audio-theme-settings {
   max-width: 740px;
-  margin: 0 auto;
-  padding: 0 16px;
 }
 
 .settings-header {
@@ -257,7 +255,7 @@ onMounted(async () => {
 
 .settings-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -363,7 +361,7 @@ onMounted(async () => {
 }
 
 .volume-icon {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   width: 18px;
   height: 18px;
 }
@@ -469,7 +467,7 @@ onMounted(async () => {
 
 .theme-version {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .theme-status {
@@ -502,7 +500,7 @@ onMounted(async () => {
 
 .theme-description-small {
   font-size: 13px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0 0 12px 0;
   line-height: 1.4;
 }
@@ -523,7 +521,7 @@ onMounted(async () => {
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
   padding: 6px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -553,7 +551,7 @@ onMounted(async () => {
   border: 1px solid var(--h-chat-light);
   border-radius: 6px;
   padding: 12px 8px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -608,7 +606,7 @@ onMounted(async () => {
 
 .setting-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -643,7 +641,7 @@ onMounted(async () => {
   border: 1px solid var(--h-chat-light);
   border-radius: 6px;
   padding: 8px 16px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;

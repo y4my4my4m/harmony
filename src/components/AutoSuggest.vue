@@ -158,7 +158,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   background: #36393f;
   border-bottom: 1px solid #40444b;
 }
@@ -176,7 +176,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-item.selected {
-  background: #5865f2;
+  background: var(--harmony-primary);
 }
 
 .suggest-item.selected .suggest-server {
@@ -184,7 +184,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-item:hover .suggest-server {
-  color: #dcddde; /* Better contrast on hover background */
+  color: var(--text-secondary); /* Better contrast on hover background */
 }
 
 .suggest-item-default {
@@ -268,7 +268,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-username {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

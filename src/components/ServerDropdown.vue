@@ -7,14 +7,22 @@
       <li v-if="canCreateCategories" @click="createCategory">{{ $t('server.createCategory') }}</li>
       <li v-if="canCreateChannels" @click="createChannel">{{ $t('channel.create') }}</li>
       <li @click="generateInviteLink">{{ $t('server.inviteLink') }}</li>
+      <li v-if="!isOwner" class="leave-server" @click="confirmLeaveServer">
+        {{ $t('server.leaveServer') }}
+      </li>
     </ul>
   </div>
 </template>
   
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useAuthStore } from '@/stores/auth';
+import { supabase } from '@/supabase';
+import { useToast } from 'vue-toastification';
+import { federationServerService } from '@/services/federation/FederationServerService';
 
 interface Props {
   serverId?: string
@@ -28,9 +36,13 @@ const emit = defineEmits<{
   showCategoryCreator: [value: boolean]
   createChannel: [value?: string]
   openInviteModal: []
+  serverLeft: []
 }>();
 
 const router = useRouter();
+const toast = useToast();
+const authStore = useAuthStore();
+const serverChannelStore = useServerChannelStore();
 const { serverSettingsPermissions, channelPermissions } = useServerPermissions();
 
 // Computed permissions
@@ -38,6 +50,15 @@ const canViewServerSettings = computed(() => serverSettingsPermissions.value.can
 const canManageServer = computed(() => serverSettingsPermissions.value.canEditBasicInfo);
 const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);
 const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
+
+// Check if user is server owner
+const isOwner = computed(() => {
+  const server = serverChannelStore.currentServer;
+  const userId = authStore.session?.user?.id;
+  return server?.owner === userId;
+});
+
+const isLeaving = ref(false);
 
 const createChannel = () => {
   emit('createChannel', undefined);
@@ -63,6 +84,63 @@ const generateInviteLink = () => {
   emit('openInviteModal');
   closeDropdown();
 };
+
+const confirmLeaveServer = async () => {
+  const server = serverChannelStore.currentServer;
+  if (!server || !props.serverId) return;
+  
+  const confirmed = window.confirm(
+    `Are you sure you want to leave "${server.name}"? You will lose access to all channels and messages.`
+  );
+  
+  if (!confirmed) {
+    closeDropdown();
+    return;
+  }
+  
+  await leaveServer();
+};
+
+const leaveServer = async () => {
+  const userId = authStore.session?.user?.id;
+  if (!userId || !props.serverId) return;
+  
+  isLeaving.value = true;
+  
+  try {
+    const server = serverChannelStore.currentServer;
+    
+    // Check if it's a remote server (federated)
+    if (server && !server.is_local_server) {
+      // Use federation service for remote servers
+      const result = await federationServerService.leaveServer(props.serverId, userId);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to leave server');
+      }
+    } else {
+      // Local server - just remove from user_servers
+      const { error } = await supabase
+        .from('user_servers')
+        .delete()
+        .eq('server_id', props.serverId)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+    }
+    
+    toast.success('Left server successfully');
+    emit('serverLeft');
+    
+    // Navigate to home
+    router.push('/');
+  } catch (error: any) {
+    console.error('Error leaving server:', error);
+    toast.error(error.message || 'Failed to leave server');
+  } finally {
+    isLeaving.value = false;
+    closeDropdown();
+  }
+};
 </script>
   
 <style scoped>
@@ -73,7 +151,7 @@ const generateInviteLink = () => {
     right: 0;
     z-index: 100;
     width: 226px;
-    background-color: var(--vt-c-black-soft);
+    background-color: var(--background-secondary);
     color: white;
     border-radius: 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
@@ -94,5 +172,17 @@ const generateInviteLink = () => {
   
   .server-dropdown li:hover {
     background-color: #424753;
+  }
+
+  .server-dropdown li.leave-server {
+    color: #ed4245;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 4px;
+    padding-top: 14px;
+  }
+
+  .server-dropdown li.leave-server:hover {
+    background-color: rgba(237, 66, 69, 0.2);
+    color: #ff6b6b;
   }
 </style>

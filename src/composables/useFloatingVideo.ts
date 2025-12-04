@@ -175,7 +175,7 @@ export function useFloatingVideo() {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      color: #b9bbbe;
+      color: var(--text-secondary);
       font-size: 14px;
       text-align: center;
       pointer-events: none;

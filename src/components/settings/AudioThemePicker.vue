@@ -117,7 +117,7 @@ const {
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
   padding: 4px 6px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -195,7 +195,7 @@ const {
 
 .theme-description {
   font-size: 11px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   line-height: 1.3;
 }
 
@@ -240,7 +240,7 @@ const {
 }
 
 .volume-icon-small {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   width: 14px;
   height: 14px;
   flex-shrink: 0;
@@ -276,7 +276,7 @@ const {
 
 .volume-text {
   font-size: 11px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   min-width: 28px;
   text-align: right;
   flex-shrink: 0;

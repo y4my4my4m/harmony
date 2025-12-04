@@ -106,7 +106,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 @media (pointer: fine) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: #4f545c #2b2d31;
+    scrollbar-color: var(--background-quaternary) var(--background-secondary);
   }
   
   *::-webkit-scrollbar {
@@ -119,12 +119,12 @@ input, textarea, [contenteditable], .message-content, .selectable {
   }
   
   *::-webkit-scrollbar-thumb {
-    background: #4f545c;
+    background: var(--background-quaternary);
     border-radius: 4px;
   }
   
   *::-webkit-scrollbar-thumb:hover {
-    background: #5865f2;
+    background: var(--harmony-primary);
   }
 }
 

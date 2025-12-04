@@ -182,6 +182,42 @@ export interface VoiceChannelLeave {
 }
 
 /**
+ * Voice channel join accept activity (response with LiveKit token)
+ * Sent by the server owner's instance back to the joining user's instance
+ */
+export interface VoiceChannelJoinAccept {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceChannelJoinAccept';
+  actor: string; // Server AP ID
+  to: string[]; // The user who requested to join
+  object: string; // Reference to the original VoiceChannelJoin activity
+  result: {
+    type: 'harmony:VoiceToken';
+    livekitUrl: string;
+    token: string;
+    roomName: string;
+    expiresAt: string;
+  };
+  published: string;
+}
+
+/**
+ * Voice channel join reject activity
+ * Sent when user doesn't have permission to join
+ */
+export interface VoiceChannelJoinReject {
+  '@context': string[];
+  id: string;
+  type: 'harmony:VoiceChannelJoinReject';
+  actor: string;
+  to: string[];
+  object: string;
+  reason?: string;
+  published: string;
+}
+
+/**
  * Union type for all voice activities
  */
 export type VoiceActivity = 
@@ -190,5 +226,7 @@ export type VoiceActivity =
   | VoiceCallReject 
   | VoiceCallEnd
   | VoiceChannelJoin 
-  | VoiceChannelLeave;
+  | VoiceChannelLeave
+  | VoiceChannelJoinAccept
+  | VoiceChannelJoinReject;
 

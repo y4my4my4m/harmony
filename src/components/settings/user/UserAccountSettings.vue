@@ -376,7 +376,7 @@ onMounted(() => {
 
 .settings-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -451,7 +451,7 @@ onMounted(() => {
 
 .username {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -467,7 +467,7 @@ onMounted(() => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -535,7 +535,7 @@ onMounted(() => {
   background-color: var(--h-chat-darker);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 12px;
   transition: all 0.15s ease;
@@ -607,7 +607,7 @@ onMounted(() => {
 .info-label {
   font-size: 14px;
   font-weight: 500;
-  color: #b9bbbe;
+  color: var(--text-secondary);
 }
 
 .info-value {
@@ -641,7 +641,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background-color: #5865f2;
+  background-color: var(--harmony-primary);
   color: #ffffff;
 }
 
@@ -651,7 +651,7 @@ onMounted(() => {
 
 .btn-secondary {
   background-color: transparent;
-  color: #b9bbbe;
+  color: var(--text-secondary);
   border: 1px solid #4f545c;
 }
 

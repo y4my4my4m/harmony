@@ -84,7 +84,17 @@ const isSingleLine = computed(() => {
 // Find emoji by name in cache or unified emoji pack
 const findEmojiByName = (name: string) => {
   try {
-    // First check server custom emojis
+    // First check server custom emojis via name index (fast path)
+    const nameIndexEntries = emojiCache.nameIndex.get(name);
+    if (nameIndexEntries && nameIndexEntries.length > 0) {
+      for (const entry of nameIndexEntries) {
+        if (entry.emoji && entry.emoji.url) {
+          return entry.emoji;
+        }
+      }
+    }
+    
+    // Fallback: iterate through server caches
     const allServerIds = Array.from(emojiCache.serverCaches.keys());
     for (const serverId of allServerIds) {
       const serverEmojis = emojiCache.getServerEmojis(serverId);
@@ -936,7 +946,7 @@ onMounted(() => {
   font-size: 1rem;
   line-height: 1.375;
   font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  color: #dcddde;
+  color: var(--text-secondary);
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;

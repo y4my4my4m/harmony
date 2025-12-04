@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -10,6 +11,15 @@ import {
   normalizeActor,
 } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
+
+/**
+ * Extract message UUID from a URL like https://domain/messages/{uuid}
+ */
+function extractMessageId(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/\/messages\/([a-f0-9-]{36})/);
+  return match ? match[1] : null;
+}
 
 export class ActivityProcessor {
   /**
@@ -211,6 +221,17 @@ export class ActivityProcessor {
     }
 
     if (object.type === 'Note' || object.type === 'Article') {
+      // Check if this is a Harmony channel message (not a regular ActivityPub post)
+      const harmonyServerId = object['harmony:serverId'];
+      const harmonyChannelName = object['harmony:channelName'];
+      
+      if (harmonyServerId) {
+        // This is a channel message - route to ServerInboxHandler
+        logger.info(`📨 Detected channel message for server ${harmonyServerId}, channel: ${harmonyChannelName}`);
+        await this.processChannelMessage(activity, object);
+        return;
+      }
+
       // Ensure author exists
       await this.ensureRemoteUser(normalizeActor(activity.actor));
 
@@ -597,6 +618,55 @@ export class ActivityProcessor {
         logger.error('Failed to update post:', updateError);
       } else {
         logger.info(`✏️ Updated post: ${object.id}`);
+      }
+    } else if (object.type === 'Group' || object['harmony:ChatServer']) {
+      // Update server (Group) - name, icon, description changes
+      logger.info(`🏠 Processing server update: ${object.id}`);
+      
+      // Extract server ID from the ap_id
+      const serverIdMatch = object.id?.match(/\/servers\/([a-f0-9-]{36})$/i);
+      if (!serverIdMatch) {
+        logger.warn(`Cannot extract server ID from ap_id: ${object.id}`);
+        return;
+      }
+      
+      // Find the server by ID (it should already exist as a federated copy)
+      const { data: existingServer } = await supabase
+        .from('servers')
+        .select('id')
+        .eq('id', serverIdMatch[1])
+        .eq('is_local_server', false)
+        .maybeSingle();
+      
+      if (!existingServer) {
+        logger.warn(`Remote server not found for Update: ${object.id}`);
+        return;
+      }
+      
+      // Build update object
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (object.name) {
+        updateData.name = object.name;
+      }
+      if (object.summary !== undefined) {
+        updateData.description = object.summary;
+      }
+      if (object.icon?.url) {
+        updateData.icon = object.icon.url;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('servers')
+        .update(updateData)
+        .eq('id', existingServer.id);
+      
+      if (updateError) {
+        logger.error(`Failed to update server ${existingServer.id}:`, updateError);
+      } else {
+        logger.info(`🏠 Updated remote server: ${object.name || existingServer.id}`);
       }
     }
   }
@@ -1692,15 +1762,15 @@ export class ActivityProcessor {
    * @param actorUrl - The ActivityPub actor URL
    * @param forceRefresh - If true, refresh profile even if user exists (for stale data)
    */
-  private static async ensureRemoteUser(actorUrl: string, forceRefresh: boolean = false): Promise<void> {
+  private static async ensureRemoteUser(actorUrl: string, forceRefresh: boolean = false): Promise<any | null> {
     const supabase = getSupabaseClient();
 
-    // Check if user already exists
+    // Check if user already exists by federated_id
     const { data: existing } = await supabase
       .from('profiles')
-      .select('id, updated_at')
+      .select('id, updated_at, federated_id, username, display_name, avatar_url, color')
       .eq('federated_id', actorUrl)
-      .single();
+      .maybeSingle();
 
     if (existing && !forceRefresh) {
       // Check if profile is stale (older than 24 hours)
@@ -1708,7 +1778,7 @@ export class ActivityProcessor {
       const hoursSinceUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60);
       
       if (hoursSinceUpdate < 24) {
-        return; // User exists and is fresh enough
+        return existing; // User exists and is fresh enough
       }
       // Profile is stale, refresh it
       logger.info(`Profile for ${actorUrl} is stale (${Math.round(hoursSinceUpdate)}h old), refreshing...`);
@@ -1726,7 +1796,7 @@ export class ActivityProcessor {
 
       if (!response.ok) {
         logger.error(`Failed to fetch actor ${actorUrl}: ${response.status}`);
-        return;
+        return existing || null;
       }
 
       const actor = await response.json();
@@ -1734,7 +1804,7 @@ export class ActivityProcessor {
 
       // Upsert remote user - map field names to database columns
       // This handles both initial creation and refreshing stale profiles
-      const profileRecord = {
+      const profileRecord: any = {
         username: profileData.username,
         domain: profileData.domain,
         display_name: profileData.display_name,
@@ -1748,17 +1818,190 @@ export class ActivityProcessor {
         followers_url: profileData.followers_url,
         following_url: profileData.following_url,
         is_local: false,
+        updated_at: new Date().toISOString(), // Track when we last synced
+        last_synced_at: new Date().toISOString(), // Also update last_synced_at
       };
 
-      await supabase.from('profiles').upsert(profileRecord, {
-        onConflict: 'federated_id',
-      });
+      // Include Harmony extension: profile color
+      if (profileData.color) {
+        profileRecord.color = profileData.color;
+      }
+
+      // Upsert the profile
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert(profileRecord, {
+          onConflict: 'federated_id',
+        });
+
+      if (upsertError) {
+        logger.error(`Failed to upsert profile for ${actorUrl}:`, upsertError);
+        return existing || null;
+      }
+
+      // Query the profile after upsert (upsert().select() doesn't reliably return data)
+      const { data: savedProfile, error: queryError } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, federated_id, color')
+        .eq('federated_id', profileData.federated_id)
+        .maybeSingle();
+
+      if (queryError) {
+        logger.error(`Failed to query profile after upsert for ${actorUrl}:`, queryError);
+        return existing || null;
+      }
+
+      if (!savedProfile) {
+        logger.error(`Profile not found after upsert for ${actorUrl} (federated_id: ${profileData.federated_id})`);
+        return existing || null;
+      }
 
       const action = existing ? 'Refreshed' : 'Created';
       logger.info(`${action} remote user: ${actorUrl}${profileData.banner ? ' (with banner)' : ''}`);
+      
+      return savedProfile;
     } catch (error) {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
+      return existing || null;
     }
+  }
+
+  /**
+   * Process channel message (Harmony server channel message, not regular post)
+   */
+  private static async processChannelMessage(activity: any, object: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
+    
+    // Get server and channel info from the activity
+    const serverId = object['harmony:serverId'];
+    const channelName = object['harmony:channelName'];
+    
+    // Extract channel ID from context URL (format: https://domain/servers/{serverId}/channels/{channelId})
+    let channelId: string | null = null;
+    if (object.context && typeof object.context === 'string') {
+      const channelMatch = object.context.match(/\/channels\/([a-f0-9-]{36})/);
+      if (channelMatch) {
+        channelId = channelMatch[1];
+      }
+    }
+
+    if (!channelId) {
+      logger.error(`Could not extract channel ID from context: ${object.context}`);
+      return;
+    }
+
+    // Verify the server exists locally (we should have a local reference)
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, name, is_local_server')
+      .eq('id', serverId)
+      .maybeSingle();
+
+    if (!server) {
+      logger.warn(`Server ${serverId} not found locally, cannot process channel message`);
+      return;
+    }
+
+    // Ensure author exists
+    const author = await this.ensureRemoteUser(actorUrl);
+    if (!author) {
+      logger.error(`Could not ensure remote user for channel message: ${actorUrl}`);
+      return;
+    }
+
+    // Check if author is a member of the server
+    const { data: membership } = await supabase
+      .from('user_servers')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('user_id', author.id)
+      .maybeSingle();
+
+    if (!membership) {
+      logger.warn(`Author ${author.username} is not a member of server ${serverId}`);
+      return;
+    }
+
+    // Extract message UUID from ap_id if it's a Harmony message URL
+    let messageId: string | null = null;
+    const messageMatch = object.id?.match(/\/messages\/([a-f0-9-]{36})/);
+    if (messageMatch) {
+      messageId = messageMatch[1];
+    } else {
+      // Generate a new UUID
+      messageId = randomUUID();
+    }
+
+    // Parse content - prefer harmony:rawContent for structured content
+    let content = object['harmony:rawContent'] || object.content || '';
+    
+    // If content is HTML string, convert to basic structure
+    if (typeof content === 'string') {
+      // Strip HTML tags for plain text
+      const plainText = content.replace(/<[^>]*>/g, '').trim();
+      content = [{ type: 'text', content: plainText }];
+    }
+    
+    // Convert remote emojis to URL-based format (like Discord bridge)
+    // Remote emoji UUIDs won't exist locally, so we need their URLs instead
+    const instanceDomain = new URL(actorUrl).hostname;
+    if (Array.isArray(content)) {
+      content = content.map((item: any) => {
+        if (item.type === 'emoji' && item.emoji) {
+          // Convert to URL-based emoji (like Discord bridge format)
+          return {
+            type: 'emoji',
+            emoji: {
+              name: item.emoji.name || 'emoji',
+              url: item.emoji.url, // Keep the original URL
+              domain: instanceDomain, // Mark as remote
+              is_remote: true,
+            }
+          };
+        }
+        return item;
+      });
+    }
+
+    // Check if message already exists
+    const { data: existingMessage } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('id', messageId)
+      .maybeSingle();
+
+    if (existingMessage) {
+      logger.debug(`Channel message ${messageId} already exists, skipping`);
+      return;
+    }
+
+    // Create the message
+    const { error: insertError } = await supabase
+      .from('messages')
+      .insert({
+        id: messageId,
+        channel_id: channelId,
+        user_id: author.id,
+        content: content,
+        created_at: object.published || new Date().toISOString(),
+        updated_at: object.updated || null,
+        reply_to: object.inReplyTo ? extractMessageId(object.inReplyTo) : null,
+        is_deleted: false,
+        federation_status: 'completed',
+        metadata: {
+          federated: true,
+          ap_id: object.id,
+          from_instance: new URL(actorUrl).hostname,
+        },
+      });
+
+    if (insertError) {
+      logger.error(`Failed to create channel message:`, insertError);
+      return;
+    }
+
+    logger.info(`✅ Created channel message ${messageId} in #${channelName} from ${author.username}`);
   }
 
   /**
