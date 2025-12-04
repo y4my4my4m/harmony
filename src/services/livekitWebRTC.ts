@@ -300,6 +300,13 @@ export class LiveKitWebRTCService {
   private userMicVolumes = new Map<string, number>();
   private userScreenShareVolumes = new Map<string, number>();
   
+  // Stream quality settings (applied to new tracks and updated live)
+  private streamQualitySettings = {
+    resolution: 720,    // Default 720p
+    frameRate: 30,      // Default 30fps
+    audioBitrate: 128,  // Default 128kbps
+  };
+  
   // Event listeners
   private eventListeners = new Map<string, Function[]>();
   
@@ -325,6 +332,7 @@ export class LiveKitWebRTCService {
   
   constructor() {
     this.loadAudioSettings();
+    this.loadStreamQualitySettings();
   }
   
   // =============================================================================
@@ -673,13 +681,32 @@ export class LiveKitWebRTCService {
           await this.toggleScreenShare();
         }
         
-        // Enable video
-        debug.log('🎥 [LiveKit] Enabling video...');
+        // Enable video with current quality settings
+        debug.log('🎥 [LiveKit] Enabling video with settings:', this.streamQualitySettings);
+        
+        // Build resolution based on saved settings (-1 means source/native)
+        const resolution = this.streamQualitySettings.resolution === -1 
+          ? VideoPresets.h1080.resolution // Use 1080p for "source" mode
+          : this.streamQualitySettings.resolution === 1080
+            ? VideoPresets.h1080.resolution
+            : VideoPresets.h720.resolution; // Default to 720p
         
         const videoTrack = await createLocalVideoTrack({
-          resolution: VideoPresets.h720.resolution,
+          resolution,
           deviceId: this.selectedVideoDevice || undefined,
+          facingMode: 'user',
         });
+        
+        // Apply frame rate constraint
+        if (this.streamQualitySettings.frameRate) {
+          try {
+            await videoTrack.mediaStreamTrack.applyConstraints({
+              frameRate: { ideal: this.streamQualitySettings.frameRate }
+            });
+          } catch (e) {
+            debug.warn('⚠️ [LiveKit] Could not apply frameRate constraint:', e);
+          }
+        }
         
         await this.room.localParticipant.publishTrack(videoTrack, {
           videoCodec: 'vp8',
@@ -752,6 +779,16 @@ export class LiveKitWebRTCService {
           debug.log(`  - ${pub.source}: ${pub.trackSid}, muted: ${pub.isMuted}`);
         }
         
+        // Use saved resolution for screenshare (-1 or 1080 = source, otherwise use setting)
+        const screenResolution = this.streamQualitySettings.resolution === -1 || this.streamQualitySettings.resolution >= 1080
+          ? VideoPresets.h1080.resolution
+          : VideoPresets.h720.resolution;
+        
+        debug.log('📺 [LiveKit] Starting screenshare with settings:', {
+          resolution: screenResolution,
+          frameRate: this.streamQualitySettings.frameRate
+        });
+        
         await this.room.localParticipant.setScreenShareEnabled(true, {
           audio: {
             // IMPORTANT: Disable all audio processing for screenshare audio
@@ -760,10 +797,26 @@ export class LiveKitWebRTCService {
             noiseSuppression: false,
             autoGainControl: false, // This is what causes "auto-volume" behavior
           },
-          resolution: VideoPresets.h1080.resolution,
+          resolution: screenResolution,
           contentHint: 'detail',
           systemAudio: 'include', // Explicitly request system audio
         });
+        
+        // Apply frame rate constraint to screenshare track
+        if (this.streamQualitySettings.frameRate) {
+          for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
+            if (pub.source === Track.Source.ScreenShare && pub.track?.mediaStreamTrack) {
+              try {
+                await pub.track.mediaStreamTrack.applyConstraints({
+                  frameRate: { ideal: this.streamQualitySettings.frameRate }
+                });
+                debug.log('✅ [LiveKit] Applied frameRate constraint to screenshare:', this.streamQualitySettings.frameRate);
+              } catch (e) {
+                debug.warn('⚠️ [LiveKit] Could not apply frameRate to screenshare:', e);
+              }
+            }
+          }
+        }
         
         this.localMediaState.isScreenSharing = true;
         
@@ -917,21 +970,36 @@ export class LiveKitWebRTCService {
   
   /**
    * Update stream quality settings (resolution, framerate, and audio bitrate)
-   * Applies to the currently active video/screenshare track and audio track
+   * Saves settings and applies to currently active video/screenshare tracks
    */
   async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+    // Save settings for future track creation
+    if (settings.resolution !== undefined) {
+      this.streamQualitySettings.resolution = settings.resolution;
+    }
+    if (settings.frameRate !== undefined) {
+      this.streamQualitySettings.frameRate = settings.frameRate;
+    }
+    if (settings.audioBitrate !== undefined) {
+      this.streamQualitySettings.audioBitrate = settings.audioBitrate;
+    }
+    
+    debug.log('🎬 [LiveKit] Stream quality settings updated:', this.streamQualitySettings);
+    
     if (!this.room?.localParticipant) {
-      debug.warn('⚠️ [LiveKit] No room connected');
+      debug.log('ℹ️ [LiveKit] Not connected - settings saved for next session');
       return;
     }
     
-    debug.log('🎬 [LiveKit] Updating stream quality:', settings);
-    
-    // Update video track constraints
+    // Apply to existing video tracks
     if (settings.resolution !== undefined || settings.frameRate !== undefined) {
+      let trackCount = 0;
       for (const publication of this.room.localParticipant.videoTrackPublications.values()) {
         const track = publication.track;
-        if (!track?.mediaStreamTrack) continue;
+        if (!track?.mediaStreamTrack) {
+          debug.log('⚠️ [LiveKit] Track publication has no media track:', publication.trackSid);
+          continue;
+        }
         
         const constraints: MediaTrackConstraints = {};
         
@@ -947,23 +1015,57 @@ export class LiveKitWebRTCService {
           constraints.frameRate = { ideal: settings.frameRate };
         }
         
-        try {
-          // Apply constraints to the underlying media stream track
-          await track.mediaStreamTrack.applyConstraints(constraints);
-          debug.log('✅ [LiveKit] Applied video constraints:', constraints);
-        } catch (error) {
-          debug.error('❌ [LiveKit] Failed to apply video constraints:', error);
+        if (Object.keys(constraints).length > 0) {
+          try {
+            // Apply constraints to the underlying media stream track
+            debug.log('🎬 [LiveKit] Applying constraints to track:', publication.trackSid, constraints);
+            await track.mediaStreamTrack.applyConstraints(constraints);
+            trackCount++;
+            debug.log('✅ [LiveKit] Applied video constraints to', publication.source);
+            
+            // Log actual track settings after applying
+            const actualSettings = track.mediaStreamTrack.getSettings();
+            debug.log('📊 [LiveKit] Actual track settings:', {
+              width: actualSettings.width,
+              height: actualSettings.height,
+              frameRate: actualSettings.frameRate,
+            });
+          } catch (error) {
+            debug.error('❌ [LiveKit] Failed to apply video constraints:', error);
+          }
         }
+      }
+      
+      if (trackCount === 0) {
+        debug.log('ℹ️ [LiveKit] No active video tracks to apply settings to');
       }
     }
     
-    // Note: Audio bitrate in LiveKit is typically set at track creation time
-    // via the AudioPresets or custom encoding parameters. Runtime bitrate changes
-    // require republishing the track with new parameters. For now, we just log
-    // the setting - it will be applied on the next audio track creation.
+    // Note: Audio bitrate in LiveKit is set at track creation time
+    // Runtime bitrate changes require republishing the track
     if (settings.audioBitrate !== undefined) {
-      debug.log('🎵 [LiveKit] Audio bitrate preference saved:', settings.audioBitrate, 'kbps');
+      debug.log('🎵 [LiveKit] Audio bitrate saved:', settings.audioBitrate, 'kbps');
       debug.log('   Note: Takes effect on next mic enable/reconnect');
+    }
+  }
+  
+  /**
+   * Load saved stream quality settings from localStorage
+   */
+  loadStreamQualitySettings(): void {
+    try {
+      const saved = localStorage.getItem('harmony-stream-settings');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        this.streamQualitySettings = {
+          resolution: settings.resolution ?? 720,
+          frameRate: settings.frameRate ?? 30,
+          audioBitrate: settings.audioBitrate ?? 128,
+        };
+        debug.log('📊 [LiveKit] Loaded stream quality settings:', this.streamQualitySettings);
+      }
+    } catch (error) {
+      debug.warn('⚠️ [LiveKit] Failed to load stream settings:', error);
     }
   }
   

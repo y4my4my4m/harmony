@@ -876,15 +876,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Apply to active video/screenshare/audio if any
       if (this.localState.isVideoEnabled || this.localState.isScreenSharing || !this.localState.isMuted) {
         try {
-          await webrtcManager.updateStreamQuality?.({
+          await webrtcManager.updateStreamQuality({
             resolution: newSettings.resolution,
             frameRate: newSettings.frameRate,
             audioBitrate: newSettings.audioBitrate
           });
-          debug.log('✅ Stream quality updated');
+          debug.log('✅ Stream quality updated successfully');
         } catch (error) {
           debug.error('❌ Failed to update stream quality:', error);
         }
+      } else {
+        debug.log('ℹ️ Stream quality settings saved, will apply when video/audio is enabled');
       }
       
       // Persist settings

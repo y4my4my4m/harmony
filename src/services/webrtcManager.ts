@@ -43,6 +43,9 @@ export interface WebRTCManager {
   getUserScreenShareVolume(userId: string): number;
   hasScreenShareAudio(userId: string): boolean;
   
+  // Stream quality control
+  updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void>;
+  
   // Stream access
   getLocalStream(): MediaStream | null;
   getUserStream(userId: string): MediaStream | null;
@@ -413,6 +416,22 @@ class WebRTCManagerService implements WebRTCManager {
       livekitWebRTC.detachVideoFromElement(userId, videoElement);
     } else {
       videoElement.srcObject = null;
+    }
+  }
+
+  /**
+   * Update stream quality settings (resolution, framerate, audio bitrate)
+   * Applies to currently active video/screenshare and audio tracks
+   */
+  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+    if (this.activeService === 'livekit') {
+      await livekitWebRTC.updateStreamQuality(settings);
+    } else if (this.activeService === 'p2p') {
+      // P2P mode would need its own implementation
+      // For now, just log that it's not supported
+      debug.warn('⚠️ Stream quality settings not yet implemented for P2P mode');
+    } else {
+      debug.warn('⚠️ No active WebRTC service to update stream quality');
     }
   }
   
