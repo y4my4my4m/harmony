@@ -362,7 +362,51 @@ export async function parseContentToMessageParts(
     parts.push(...await parseTextForUrls(remainingText, emojiDataMap));
   }
   
-  return parts;
+  // Clean up trailing whitespace from message parts
+  // This ensures emojis/mentions at the end are properly detected as standalone
+  // and reduces JSON payload size
+  return trimTrailingWhitespace(parts);
+}
+
+/**
+ * Remove trailing whitespace from message parts array
+ * This is called after parsing to clean up spaces added for typing convenience
+ * (e.g., auto-inserted space after emoji/mention selection)
+ * 
+ * Benefits:
+ * 1. Emojis at the end of messages display at 2x size (single-emoji detection works)
+ * 2. Smaller JSON payloads (no unnecessary {"type":"text","text":" "})
+ * 3. Cleaner message storage
+ */
+export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
+  if (!parts || parts.length === 0) return parts;
+  
+  // Work backwards through the array
+  const result = [...parts];
+  
+  while (result.length > 0) {
+    const lastPart = result[result.length - 1];
+    
+    // Only process text parts
+    if (lastPart.type !== 'text') break;
+    
+    const text = lastPart.text || '';
+    const trimmed = text.trimEnd();
+    
+    if (trimmed === '') {
+      // Last part is whitespace-only, remove it entirely
+      result.pop();
+    } else if (trimmed !== text) {
+      // Last part has trailing whitespace, trim it
+      result[result.length - 1] = { ...lastPart, text: trimmed };
+      break;
+    } else {
+      // No trailing whitespace, we're done
+      break;
+    }
+  }
+  
+  return result;
 }
 
 /**
