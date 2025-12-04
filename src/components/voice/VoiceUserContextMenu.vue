@@ -375,19 +375,24 @@ const menuStyle = computed(() => ({
 // Stream Quality Options
 // Note: -1 = Source (native resolution), other values are specific resolutions
 const resolutionOptions = [
-  { value: 720, label: '720p HD', short: '720p' },
-  { value: 1080, label: '1080p Full HD', short: '1080p' },
+  { value: 360, label: '360p (Low)', short: '360p' },
+  { value: 480, label: '480p (SD)', short: '480p' },
+  { value: 720, label: '720p (HD)', short: '720p' },
+  { value: 1080, label: '1080p (Full HD)', short: '1080p' },
   { value: -1, label: 'Source (Native)', short: 'Source' }, // -1 = native resolution
 ];
 
 const frameRateOptions = [
+  { value: 10, label: '10 FPS (Low)' },
   { value: 15, label: '15 FPS' },
+  { value: 24, label: '24 FPS (Cinema)' },
   { value: 30, label: '30 FPS' },
   { value: 60, label: '60 FPS' },
 ];
 
 // Audio bitrate options (kbps)
 const audioBitrateOptions = [
+  { value: 32, label: '32 kbps (Low)', short: '32k' },
   { value: 64, label: '64 kbps (Voice)', short: '64k' },
   { value: 128, label: '128 kbps (Standard)', short: '128k' },
   { value: 256, label: '256 kbps (High)', short: '256k' },
@@ -777,13 +782,13 @@ watch(
 
 .quality-options {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .quality-btn {
-  padding: 5px 12px;
+  padding: 5px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
@@ -792,7 +797,7 @@ watch(
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-width: 50px;
+  min-width: 42px;
   text-align: center;
 }
 

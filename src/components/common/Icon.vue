@@ -165,6 +165,12 @@
 
     <!-- Minimize -->
     <rect v-if="name === 'minimize'" x="3" y="11" width="18" height="2" rx="1" ry="1"></rect>
+
+    <!-- Minimize 2 (arrows pointing inward - opposite of maximize-2) -->
+    <polyline v-if="name === 'minimize-2'" points="4 14 10 14 10 20"></polyline>
+    <polyline v-if="name === 'minimize-2'" points="20 10 14 10 14 4"></polyline>
+    <line v-if="name === 'minimize-2'" x1="14" y1="10" x2="21" y2="3"></line>
+    <line v-if="name === 'minimize-2'" x1="3" y1="21" x2="10" y2="14"></line>
     
     <!-- User -->
     <circle v-if="name === 'user'" cx="12" cy="7" r="4"></circle>

@@ -56,7 +56,7 @@
         <!-- Self controls -->
         <div v-if="isSelf" class="video-controls">
           <button
-            @click="emit('toggle-video')"
+            @click.stop="emit('toggle-video')"
             class="control-btn"
             :class="{ active: props.userState.isVideoEnabled && !props.userState.isScreenSharing }"
             :title="props.userState.isVideoEnabled && !props.userState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
@@ -64,12 +64,32 @@
             <Icon name="camera" />
           </button>
           <button
-            @click="emit('toggle-screen-share')"
+            @click.stop="emit('toggle-screen-share')"
             class="control-btn"
             :class="{ active: props.userState.isScreenSharing }"
             :title="props.userState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
           >
             <Icon name="screen-share" />
+          </button>
+          <button
+            @click.stop="handleCardClick"
+            class="control-btn"
+            :class="{ active: isFullscreenActive }"
+            title="Toggle fullscreen"
+          >
+            <Icon :name="isFullscreenActive ? 'minimize-2' : 'maximize-2'" />
+          </button>
+        </div>
+        
+        <!-- Fullscreen button for remote users (when not showing self controls) -->
+        <div v-else class="video-controls remote-controls">
+          <button
+            @click.stop="handleCardClick"
+            class="control-btn"
+            :class="{ active: isFullscreenActive }"
+            title="Toggle fullscreen"
+          >
+            <Icon :name="isFullscreenActive ? 'minimize-2' : 'maximize-2'" />
           </button>
         </div>
       </div>

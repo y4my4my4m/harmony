@@ -253,6 +253,7 @@
       >
         <VoiceSettingsPanel 
           @close="showSettings = false"
+          @update-settings="handleSettingsUpdate"
         />
       </div>
     </Teleport>
@@ -474,6 +475,33 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     
     const toggleSettings = () => {
       showSettings.value = !showSettings.value;
+    };
+    
+    const handleSettingsUpdate = (event: { type: string; value: any }) => {
+      switch (event.type) {
+        case 'streamQuality':
+          // Update stream quality in the voice store
+          voiceStore.updateStreamQuality(event.value);
+          break;
+        case 'saveAll':
+          // Save all settings including stream quality
+          if (event.value.videoQuality || event.value.frameRate || event.value.audioBitrate) {
+            const qualityToResolution: Record<string, number> = {
+              '360p': 360,
+              '480p': 480,
+              '720p': 720,
+              '1080p': 1080,
+              'source': -1,
+            };
+            voiceStore.updateStreamQuality({
+              resolution: qualityToResolution[event.value.videoQuality] ?? 720,
+              frameRate: parseInt(event.value.frameRate) || 30,
+              audioBitrate: parseInt(event.value.audioBitrate) || 128
+            });
+          }
+          break;
+        // Other event types can be handled here if needed
+      }
     };
     
     const toggleSpatialPanel = () => {

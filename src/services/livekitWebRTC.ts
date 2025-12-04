@@ -334,6 +334,30 @@ export class LiveKitWebRTCService {
     this.loadAudioSettings();
     this.loadStreamQualitySettings();
   }
+
+  /**
+   * Get LiveKit VideoResolution preset for a given resolution value
+   * @param resolution - Resolution in pixels (360, 480, 720, 1080, or -1 for source)
+   */
+  private getResolutionPreset(resolution: number): { width: number; height: number; frameRate: number } {
+    switch (resolution) {
+      case 360:
+        return { width: 640, height: 360, frameRate: 30 };
+      case 480:
+        return { width: 854, height: 480, frameRate: 30 };
+      case 720:
+        return VideoPresets.h720.resolution;
+      case 1080:
+        return VideoPresets.h1080.resolution;
+      case -1: // Source/Native - use 1080p as max
+        return VideoPresets.h1080.resolution;
+      default:
+        // For any other value, calculate 16:9 dimensions
+        const height = resolution;
+        const width = Math.round(height * 16 / 9);
+        return { width, height, frameRate: 30 };
+    }
+  }
   
   // =============================================================================
   // CONFIGURATION
@@ -685,11 +709,7 @@ export class LiveKitWebRTCService {
         debug.log('🎥 [LiveKit] Enabling video with settings:', this.streamQualitySettings);
         
         // Build resolution based on saved settings (-1 means source/native)
-        const resolution = this.streamQualitySettings.resolution === -1 
-          ? VideoPresets.h1080.resolution // Use 1080p for "source" mode
-          : this.streamQualitySettings.resolution === 1080
-            ? VideoPresets.h1080.resolution
-            : VideoPresets.h720.resolution; // Default to 720p
+        const resolution = this.getResolutionPreset(this.streamQualitySettings.resolution);
         
         const videoTrack = await createLocalVideoTrack({
           resolution,
@@ -779,10 +799,10 @@ export class LiveKitWebRTCService {
           debug.log(`  - ${pub.source}: ${pub.trackSid}, muted: ${pub.isMuted}`);
         }
         
-        // Use saved resolution for screenshare (-1 or 1080 = source, otherwise use setting)
-        const screenResolution = this.streamQualitySettings.resolution === -1 || this.streamQualitySettings.resolution >= 1080
-          ? VideoPresets.h1080.resolution
-          : VideoPresets.h720.resolution;
+        // Use saved resolution for screenshare (-1 = source/1080p, otherwise use user's setting)
+        const screenResolution = this.streamQualitySettings.resolution === -1 
+          ? VideoPresets.h1080.resolution 
+          : this.getResolutionPreset(this.streamQualitySettings.resolution);
         
         debug.log('📺 [LiveKit] Starting screenshare with settings:', {
           resolution: screenResolution,
