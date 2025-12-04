@@ -38,11 +38,12 @@
               :class="['channel-item', { 
                 'selected': element.id === currentChannelId,
                 'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
-                'mobile-disabled': isMobile && element.type === 1
+                'voice-channel': element.type === 1,
+                'voice-connected': element.type === 1 && isUserInVoiceChannel(element.id)
               }]" 
-              @click="selectChannel(element.id)"
+              @click="element.type === 1 ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
-              :style="{ cursor: element.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
+              :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
               :data-channel-id="element.id"
               :data-category-id="null"
             >
@@ -57,29 +58,16 @@
               </div>
               <!-- Voice channel controls -->
               <div v-if="element.type === 1" class="voice-controls">
-                <button
-                  v-if="!isUserInVoiceChannel(element.id)"
-                  @click.stop="joinVoiceChannel(element.id)"
-                  @touchstart.stop="handleVoiceChannelTouch"
-                  @touchend.stop="handleVoiceChannelTouch"
-                  class="voice-btn join-btn"
-                  title="Join voice channel"
-                >
-                  🎤
-                </button>
-                <button
-                  v-else
-                  @click.stop="leaveVoiceChannel(element.id)"
-                  @touchstart.stop="handleVoiceChannelTouch"
-                  @touchend.stop="handleVoiceChannelTouch"
-                  class="voice-btn leave-btn"
-                  title="Leave voice channel"
-                >
-                  🔇
-                </button>
                 <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
                   {{ getUsersInVoiceChannel(element.id).length }}
                 </span>
+                <button
+                  @click.stop="openVoiceChannelChat(element.id)"
+                  class="voice-btn chat-btn"
+                  title="Open Chat"
+                >
+                  <ChatBubbleIcon />
+                </button>
               </div>
             </div>
             <!-- Voice channel participants -->
@@ -157,11 +145,12 @@
                       'selected': currentChannelId === channel.id,
                       'in-collapsed-category': collapsedCategories.has(category.id),
                       'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
-                      'mobile-disabled': isMobile && channel.type === 1
+                      'voice-channel': channel.type === 1,
+                      'voice-connected': channel.type === 1 && isUserInVoiceChannel(channel.id)
                     }"
-                    @click="selectChannel(channel.id)"
+                    @click="channel.type === 1 ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
-                    :style="{ cursor: channel.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
+                    :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
                     :data-channel-id="channel.id"
                     :data-category-id="category.id"
                   >
@@ -175,29 +164,16 @@
                     </div>
                     <!-- Voice channel controls -->
                     <div v-if="channel.type === 1" class="voice-controls">
-                      <button
-                        v-if="!isUserInVoiceChannel(channel.id)"
-                        @click.stop="joinVoiceChannel(channel.id)"
-                        @touchstart.stop="handleVoiceChannelTouch"
-                        @touchend.stop="handleVoiceChannelTouch"
-                        class="voice-btn join-btn"
-                        title="Join voice channel"
-                      >
-                        🎤
-                      </button>
-                      <button
-                        v-else
-                        @click.stop="leaveVoiceChannel(channel.id)"
-                        @touchstart.stop="handleVoiceChannelTouch"
-                        @touchend.stop="handleVoiceChannelTouch"
-                        class="voice-btn leave-btn"
-                        title="Leave voice channel"
-                      >
-                        🔇
-                      </button>
                       <span v-if="getUsersInVoiceChannel(channel.id).length > 0" class="user-count">
                         {{ getUsersInVoiceChannel(channel.id).length }}
                       </span>
+                      <button
+                        @click.stop="openVoiceChannelChat(channel.id)"
+                        class="voice-btn chat-btn"
+                        title="Open Chat"
+                      >
+                        <ChatBubbleIcon />
+                      </button>
                     </div>
                   </div>
                   <!-- Voice channel participants -->
@@ -305,6 +281,7 @@ import type { Channel, Category } from '@/types';
 import ArrowDownIcon from '@/components/icons/ArrowDown.vue';
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
+import ChatBubbleIcon from '@/components/icons/ChatBubble.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
@@ -503,11 +480,6 @@ const initializeCategoryStates = async () => {
   }
 };
 
-const handleVoiceChannelTouch = (event: TouchEvent) => {
-  event.stopPropagation();
-  event.stopImmediatePropagation();
-};
-
 const onDragStart = (evt: any) => {
   if (!canDragAndDrop.value) {
     evt.preventDefault();
@@ -612,6 +584,20 @@ const selectChannel = (channelId: string) => {
       channelId 
     } 
   });
+};
+
+// Handler for voice channel clicks - Discord-like behavior
+const handleVoiceChannelClick = async (channelId: string) => {
+  if (isUserInVoiceChannel(channelId)) {
+    await leaveVoiceChannel(channelId);
+  } else {
+    await joinVoiceChannel(channelId);
+  }
+};
+
+// Open voice channel text chat
+const openVoiceChannelChat = (channelId: string) => {
+  selectChannel(channelId);
 };
 const emitCreateChannel = (categoryId?: string) => emit('createChannel', categoryId);
 const showCategoryCreator = () => isCategoryCreatorOpen.value = !isCategoryCreatorOpen.value;
@@ -857,37 +843,13 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   color: #FFF;
 }
 
-.channel-item.mobile-disabled {
-  opacity: 0.8;
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  position: relative;
-  background: linear-gradient(135deg, rgba(250, 166, 26, 0.1), rgba(250, 166, 26, 0.05));
-  border: 1px solid rgba(250, 166, 26, 0.2);
+/* Voice channel connected state */
+.channel-item.voice-connected {
+  background-color: rgba(87, 242, 135, 0.1);
 }
 
-.channel-item.mobile-disabled::after {
-  content: 'Join Voice';
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 11px;
-  color: #faa61a;
-  background: rgba(250, 166, 26, 0.2);
-  padding: 4px 8px;
-  border-radius: 6px;
-  white-space: nowrap;
-  border: 1px solid rgba(250, 166, 26, 0.3);
-  font-weight: 500;
-}
-
-.channel-item.mobile-disabled .voice-controls {
-  /* Ensure voice controls are easily tappable on mobile */
-  z-index: 10;
-  position: relative;
+.channel-item.voice-connected:hover {
+  background-color: rgba(87, 242, 135, 0.15);
 }
 
 .channel-item.dragging {
@@ -1021,42 +983,41 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   opacity: 1;
 }
 
+/* Always show controls when connected to voice */
+.channel-item.voice-connected .voice-controls {
+  opacity: 1;
+}
+
 .voice-btn {
   background: none;
   border: none;
-  padding: 4px 6px;
-  border-radius: 3px;
+  padding: 4px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
+  color: var(--text-muted, #b5bac1);
 }
 
 .voice-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  transform: scale(1.1);
+  color: var(--text-normal, #fff);
 }
 
-.join-btn {
-  color: #57f287;
+.voice-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
-.join-btn:hover {
-  background-color: rgba(87, 242, 135, 0.2);
-  color: #57f287;
+.chat-btn {
+  color: var(--text-muted, #b5bac1);
 }
 
-.leave-btn {
-  color: #ed4245;
-}
-
-.leave-btn:hover {
-  background-color: rgba(237, 66, 69, 0.2);
-  color: #ed4245;
+.chat-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-normal, #fff);
 }
 
 .user-count {
