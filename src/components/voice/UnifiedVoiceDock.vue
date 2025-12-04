@@ -118,7 +118,7 @@
     <!-- Minimized Mode -->
     <div v-else-if="currentMode === 'minimized'" class="minimized-container" @click="expandToDock">
       <!-- Mini Video Preview (when someone is sharing video/screen) -->
-      <div v-if="activeVideoUser" class="minimized-video-preview" @click.stop>
+      <div v-if="activeVideoUser" class="minimized-video-preview" @click.stop="expandToOverlay">
         <video
           ref="minimizedVideoRef"
           autoplay
@@ -346,23 +346,56 @@ const activatePIPForActiveVideo = () => {
 // WATCHERS
 // =============================================================================
 
+// Track last attached user to prevent flashing from repeated attachments
+let lastAttachedUserId: string | null = null;
+let lastAttachedElement: HTMLVideoElement | null = null;
+
 // Attach video to minimized preview using LiveKit's proper method
-// Watch streamUpdateCounter to react to stream changes (Map reactivity workaround)
+// Only re-attach when the user actually changes, not on every counter update
 watch(
-  [activeVideoUser, minimizedVideoRef, () => voiceStore.streamUpdateCounter],
-  ([user, videoEl, _counter]) => {
+  [activeVideoUser, minimizedVideoRef],
+  ([user, videoEl]) => {
+    const userId = user?.userId || null;
+    
+    // Skip if same user is already attached to same element
+    if (userId === lastAttachedUserId && videoEl === lastAttachedElement && videoEl?.srcObject) {
+      return;
+    }
+    
     if (user && videoEl) {
       const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
       if (!attached && activeVideoStream.value) {
         // Fallback to srcObject if attach fails (P2P mode)
         videoEl.srcObject = activeVideoStream.value;
       }
+      lastAttachedUserId = userId;
+      lastAttachedElement = videoEl;
     } else if (videoEl) {
       // Clean up when no active video user
+      voiceStore.detachVideoFromElement(lastAttachedUserId || '', videoEl);
       videoEl.srcObject = null;
+      lastAttachedUserId = null;
+      lastAttachedElement = null;
     }
   },
   { immediate: true }
+);
+
+// Only react to stream counter when user changes or stream is lost
+watch(
+  () => voiceStore.streamUpdateCounter,
+  () => {
+    const user = activeVideoUser.value;
+    const videoEl = minimizedVideoRef.value;
+    
+    // Only re-attach if we have a user but no video is playing
+    if (user && videoEl && !videoEl.srcObject) {
+      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
+      if (!attached && activeVideoStream.value) {
+        videoEl.srcObject = activeVideoStream.value;
+      }
+    }
+  }
 );
 
 // Sync store's isOverlayVisible with local currentMode

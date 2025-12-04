@@ -750,9 +750,24 @@ export class LiveKitWebRTCService {
           audio: true, // Include system audio if available
           resolution: VideoPresets.h1080.resolution,
           contentHint: 'detail',
+          systemAudio: 'include', // Explicitly request system audio
         });
         
         this.localMediaState.isScreenSharing = true;
+        
+        // Log if screenshare audio was captured
+        let hasScreenShareAudio = false;
+        for (const pub of this.room.localParticipant.audioTrackPublications.values()) {
+          if (pub.source === Track.Source.ScreenShareAudio) {
+            hasScreenShareAudio = true;
+            debug.log('🔊 [LiveKit] Screenshare audio track published successfully');
+            break;
+          }
+        }
+        if (!hasScreenShareAudio) {
+          debug.warn('⚠️ [LiveKit] No screenshare audio - user may need to enable "Share audio" or browser may not support it');
+        }
+        
         debug.log('✅ [LiveKit] Screen share enabled');
       } else {
         // Disable screen share

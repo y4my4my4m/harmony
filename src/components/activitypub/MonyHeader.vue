@@ -241,7 +241,7 @@ const getIconPath = (iconName: string): string => {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(32, 34, 37, 0.8);
+  background: var(--background-tertiary-alpha);
   /* border: 2px solid rgba(88, 101, 242, 0.3); */
   border: 2px solid var(--harmony-primary-alpha);
   border-radius: 16px;

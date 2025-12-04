@@ -31,8 +31,8 @@
       <!-- Volume Control -->
       <div v-if="!isSelf" class="menu-section">
         <div class="section-label">
-          <Icon name="volume-2" />
-          <span>User Volume</span>
+          <Icon name="mic" />
+          <span>Mic Volume</span>
           <span class="volume-value">{{ currentVolume }}%</span>
         </div>
         <div class="volume-slider-container">
@@ -80,6 +80,66 @@
             class="preset-btn"
             :class="{ active: currentVolume === 200 }"
             @click="setVolume(200)"
+            title="Max (200%)"
+          >
+            <Icon name="volume-2" />
+            <span class="boost-indicator">+</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Screenshare Volume Control (only when user is screensharing) -->
+      <div v-if="!isSelf && isScreenSharing && hasScreenShareAudio" class="menu-section">
+        <div class="section-label">
+          <Icon name="screen-share" />
+          <span>Screenshare Audio</span>
+          <span class="volume-value">{{ currentScreenShareVolume }}%</span>
+        </div>
+        <div class="volume-slider-container">
+          <input
+            type="range"
+            :value="currentScreenShareVolume"
+            min="0"
+            max="200"
+            step="1"
+            class="volume-slider screenshare-slider"
+            @input="handleScreenShareVolumeChange"
+          />
+          <div class="volume-marks">
+            <span>0%</span>
+            <span>100%</span>
+            <span>200%</span>
+          </div>
+        </div>
+        <div class="volume-presets">
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 0 }"
+            @click="setScreenShareVolume(0)"
+            title="Mute"
+          >
+            <Icon name="volume-x" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 50 }"
+            @click="setScreenShareVolume(50)"
+            title="50%"
+          >
+            <Icon name="volume-1" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 100 }"
+            @click="setScreenShareVolume(100)"
+            title="Normal"
+          >
+            <Icon name="volume-2" />
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: currentScreenShareVolume === 200 }"
+            @click="setScreenShareVolume(200)"
             title="Max (200%)"
           >
             <Icon name="volume-2" />
@@ -267,6 +327,14 @@ const currentVolume = computed(() => {
   return voiceStore.getUserVolume(props.userState.userId);
 });
 
+const currentScreenShareVolume = computed(() => {
+  return voiceStore.getUserScreenShareVolume(props.userState.userId);
+});
+
+const hasScreenShareAudio = computed(() => {
+  return voiceStore.hasScreenShareAudio(props.userState.userId);
+});
+
 const localMuted = computed(() => voiceStore.localState.isMuted);
 const localDeafened = computed(() => voiceStore.localState.isDeafened);
 
@@ -318,6 +386,16 @@ const handleVolumeChange = (event: Event) => {
 
 const setVolume = (volume: number) => {
   voiceStore.setUserVolume(props.userState.userId, volume);
+};
+
+const handleScreenShareVolumeChange = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const volume = parseInt(target.value, 10);
+  voiceStore.setUserScreenShareVolume(props.userState.userId, volume);
+};
+
+const setScreenShareVolume = (volume: number) => {
+  voiceStore.setUserScreenShareVolume(props.userState.userId, volume);
 };
 
 const toggleMuteUser = () => {
@@ -558,6 +636,16 @@ watch(
 
 .volume-slider::-webkit-slider-thumb:hover {
   transform: scale(1.1);
+}
+
+/* Screenshare slider - purple/violet accent */
+.volume-slider.screenshare-slider::-webkit-slider-thumb {
+  background: #9b59b6;
+  box-shadow: 0 2px 6px rgba(155, 89, 182, 0.4);
+}
+
+.volume-slider.screenshare-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, rgba(155, 89, 182, 0.3), rgba(155, 89, 182, 0.5));
 }
 
 .volume-marks {
