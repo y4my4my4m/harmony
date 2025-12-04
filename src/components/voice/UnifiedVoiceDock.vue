@@ -225,7 +225,7 @@ const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOve
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
 
 // PTT composable
-const { isPTTMode, isPTTActive, pttKeyDisplay } = usePushToTalk();
+const { isPTTMode, isPTTActive, pttKeyDisplay, shouldBlockShortcut } = usePushToTalk();
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
@@ -444,6 +444,11 @@ onMounted(() => {
   const handleKeyPress = (event: KeyboardEvent) => {
     // Ignore keypresses in input fields
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    
+    // Don't handle shortcuts that conflict with PTT keybind
+    if (shouldBlockShortcut(event)) {
       return;
     }
     

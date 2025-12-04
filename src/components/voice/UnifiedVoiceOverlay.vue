@@ -277,7 +277,7 @@ import DeviceSelector from './DeviceSelector.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // PTT composable
-const { isPTTMode, isPTTActive, pttKeyDisplay } = usePushToTalk();
+const { isPTTMode, isPTTActive, pttKeyDisplay, shouldBlockShortcut } = usePushToTalk();
 
 interface Props {
   channelName?: string;
@@ -427,6 +427,11 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       const handleKeyPress = (event: KeyboardEvent) => {
         if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
           return; // Don't trigger shortcuts when typing
+        }
+        
+        // Don't handle shortcuts that conflict with PTT keybind
+        if (shouldBlockShortcut(event)) {
+          return;
         }
         
         switch (event.key.toLowerCase()) {
