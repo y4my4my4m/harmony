@@ -22,7 +22,7 @@
         />
         <div class="user-info">
           <span class="display-name">{{ displayName }}</span>
-          <span class="user-status">{{ userStatus }}</span>
+          <span class="user-info-status">{{ userStatus }}</span>
         </div>
       </div>
 
@@ -623,7 +623,7 @@ watch(
   text-overflow: ellipsis;
 }
 
-.user-status {
+.user-info-status {
   font-size: 12px;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -635,7 +635,7 @@ watch(
 .menu-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
-  margin: 4px 0;
+  margin: 0 0 4px 0;
 }
 
 /* Volume Section */
