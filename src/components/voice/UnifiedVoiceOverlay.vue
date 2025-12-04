@@ -265,7 +265,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
@@ -372,6 +372,58 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       return voiceStore.allParticipants.filter(p => p.userId !== voiceStore.fullscreenUserId);
     });
     
+    // Track previous screenshare state to detect when it stops
+    const previousScreenShareState = ref<boolean | null>(null);
+    
+    // =============================================================================
+    // WATCHERS
+    // =============================================================================
+    
+    // Watch for fullscreen participant's video/screenshare state changes
+    // Exit fullscreen when the user stops sharing their screen or disables video
+    watch(
+      () => fullscreenParticipant.value,
+      (participant, oldParticipant) => {
+        if (!participant) {
+          // Fullscreen participant left - exit fullscreen
+          if (voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId) {
+            voiceStore.exitFullscreen();
+          }
+          previousScreenShareState.value = null;
+          return;
+        }
+        
+        const hasVideoOrScreenshare = participant.isVideoEnabled || participant.isScreenSharing;
+        const hadVideoOrScreenshare = previousScreenShareState.value;
+        
+        // If they had video/screenshare and now don't, exit fullscreen
+        if (hadVideoOrScreenshare === true && !hasVideoOrScreenshare) {
+          voiceStore.exitFullscreen();
+        }
+        
+        // Update previous state
+        previousScreenShareState.value = hasVideoOrScreenshare;
+      },
+      { deep: true, immediate: true }
+    );
+
+    // Also specifically watch for screenshare stopping
+    // This ensures we catch the case where user stops sharing but still has camera on
+    watch(
+      () => fullscreenParticipant.value?.isScreenSharing,
+      (isScreenSharing, wasScreenSharing) => {
+        // Only exit if we were specifically watching a screenshare and it stopped
+        // AND the user doesn't have their camera on as a fallback
+        if (wasScreenSharing === true && isScreenSharing === false) {
+          const participant = fullscreenParticipant.value;
+          // Only exit if they also don't have camera enabled
+          if (participant && !participant.isVideoEnabled) {
+            voiceStore.exitFullscreen();
+          }
+        }
+      }
+    );
+
     // =============================================================================
     // METHODS
     // =============================================================================

@@ -417,34 +417,45 @@ const handleContextMenu = (event: MouseEvent) => {
 let lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
 let lastAttachedStreamId: string | null = null;
 let isVideoAttached = false;
+let pendingAttachment = false; // Track if we need to attach when element becomes available
+let attachmentRetryCount = 0;
+const MAX_ATTACHMENT_RETRIES = 5;
 
-const attachVideo = () => {
+const attachVideo = (forceReattach = false) => {
   const userId = props.userState.userId;
   const state = storeUserState.value;
   const stream = userStream.value;
   
   if (!videoElement.value) {
+    // Mark that we have a pending attachment for when the element becomes available
+    const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
+    if (shouldShowVideo) {
+      pendingAttachment = true;
+      debug.log(`📹 Video element not ready for ${userId}, marking pending attachment`);
+    }
     return;
   }
+  
+  pendingAttachment = false;
   
   const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
   const currentStreamId = stream?.id || null;
   
-  // Check if we need to reattach - either state changed OR stream changed
+  // Check if we need to reattach - either state changed OR stream changed OR forced
   const stateChanged = 
     lastAttachedVideoState.isVideoEnabled !== state.isVideoEnabled ||
     lastAttachedVideoState.isScreenSharing !== state.isScreenSharing;
   const streamChanged = currentStreamId !== lastAttachedStreamId;
   
-  // Skip if video is already attached and nothing changed
-  if (isVideoAttached && shouldShowVideo && !stateChanged && !streamChanged) {
+  // Skip if video is already attached and nothing changed (unless forced)
+  if (!forceReattach && isVideoAttached && shouldShowVideo && !stateChanged && !streamChanged) {
     return;
   }
   
   if (shouldShowVideo) {
-    // If stream changed, we MUST reattach even if state looks the same
-    if (streamChanged && isVideoAttached) {
-      debug.log(`📹 Stream changed for ${userId}, forcing reattachment`);
+    // If stream changed OR state changed OR forced, we MUST reattach
+    if ((streamChanged || stateChanged || forceReattach) && isVideoAttached) {
+      debug.log(`📹 ${forceReattach ? 'Force' : 'State/Stream'} reattachment for ${userId}`);
       // Clear old attachment
       voiceStore.detachVideoFromElement(userId, videoElement.value);
       videoElement.value.srcObject = null;
@@ -458,6 +469,7 @@ const attachVideo = () => {
       isVideoAttached = true;
       lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
       lastAttachedStreamId = currentStreamId;
+      attachmentRetryCount = 0;
       debug.log(`📹 ✅ Attached video for user ${userId}`);
     } else {
       // Fallback to srcObject for P2P mode or if attach fails
@@ -466,7 +478,17 @@ const attachVideo = () => {
         isVideoAttached = true;
         lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
         lastAttachedStreamId = currentStreamId;
+        attachmentRetryCount = 0;
         debug.log(`📹 ⚠️ Fallback: srcObject for user ${userId}`);
+      } else if (shouldShowVideo && attachmentRetryCount < MAX_ATTACHMENT_RETRIES) {
+        // Retry attachment after a short delay - track might not be ready yet
+        attachmentRetryCount++;
+        debug.log(`📹 ⏳ Retry ${attachmentRetryCount}/${MAX_ATTACHMENT_RETRIES} for ${userId}`);
+        setTimeout(() => {
+          if (videoElement.value && (storeUserState.value.isVideoEnabled || storeUserState.value.isScreenSharing)) {
+            attachVideo(true);
+          }
+        }, 100 * attachmentRetryCount);
       }
     }
   } else if (isVideoAttached) {
@@ -479,6 +501,7 @@ const attachVideo = () => {
     isVideoAttached = false;
     lastAttachedVideoState = { isVideoEnabled: false, isScreenSharing: false };
     lastAttachedStreamId = null;
+    attachmentRetryCount = 0;
     debug.log(`📹 Detached video for user ${userId}`);
   }
 };
@@ -500,11 +523,37 @@ watch(
 );
 
 // Watch for when video element becomes available (v-if renders it)
-watch(videoElement, (newEl) => {
-  if (newEl) {
-    attachVideo();
+// This is crucial for the case where state changes trigger v-if to render the element
+watch(videoElement, (newEl, oldEl) => {
+  if (newEl && !oldEl) {
+    // Element just became available - check for pending attachment
+    debug.log(`📹 Video element now available for ${props.userState.userId}, pending: ${pendingAttachment}`);
+    // Always try to attach when element becomes available if we should show video
+    const shouldShowVideo = storeUserState.value.isVideoEnabled || storeUserState.value.isScreenSharing;
+    if (shouldShowVideo) {
+      // Small delay to ensure element is fully in DOM
+      setTimeout(() => attachVideo(true), 0);
+    }
   }
 });
+
+// Specific watcher for screenshare state changes to force reattachment
+// This ensures we catch the track properly when screenshare starts
+watch(
+  () => storeUserState.value.isScreenSharing,
+  (newVal, oldVal) => {
+    if (newVal && !oldVal) {
+      // Screenshare just started - force reattachment after a short delay
+      // to ensure LiveKit has published the track
+      debug.log(`📹 🖥️ Screenshare started for ${props.userState.userId}, scheduling forced attachment`);
+      setTimeout(() => {
+        if (videoElement.value) {
+          attachVideo(true);
+        }
+      }, 150);
+    }
+  }
+);
 </script>
 
 
