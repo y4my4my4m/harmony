@@ -245,7 +245,7 @@ export class DeliveryQueue {
         .update({
           status: 'failed',
           last_attempt_at: new Date().toISOString(),
-          last_error: 'Endpoint marked as dead',
+          error_message: 'Endpoint marked as dead', // FIXED: was 'last_error'
         })
         .eq('id', item.id);
       return false;
@@ -366,7 +366,7 @@ export class DeliveryQueue {
           status: 'failed',
           last_attempt_at: new Date().toISOString(),
           attempts: newAttempts,
-          last_error: errorMessage,
+          error_message: errorMessage, // FIXED: was 'last_error'
           http_status_code: httpStatus,
         })
         .eq('id', item.id);
@@ -384,7 +384,7 @@ export class DeliveryQueue {
           attempts: newAttempts,
           last_attempt_at: new Date().toISOString(),
           next_attempt_at: nextRetry.toISOString(),
-          last_error: errorMessage,
+          error_message: errorMessage, // FIXED: was 'last_error'
           http_status_code: httpStatus,
         })
         .eq('id', item.id);
