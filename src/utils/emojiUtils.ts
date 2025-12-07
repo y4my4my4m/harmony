@@ -27,14 +27,16 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
             // Check if this is a local Supabase storage URL (same domain as our instance)
             const pathMatch = emojiUrl.match(/\/storage\/v1\/object\/public\/emojis\/(.+)$/);
             if (pathMatch && urlObj.hostname === localSupabaseUrl.hostname) {
-                // This is a LOCAL emoji, process through Supabase storage with transformation
-                const emojiPath = pathMatch[1];
-                const { data } = supabase.storage
-                    .from('emojis')
-                    .getPublicUrl(emojiPath, {
-                        transform: { width: size, height: size, resize: 'contain', quality: 80 }
-                    });
-                return data.publicUrl;
+            // This is a LOCAL emoji, process through Supabase storage with transformation
+            const emojiPath = pathMatch[1];
+            // Always use optimized size (never load full resolution)
+            const optimizedSize = Math.min(size, 128); // Cap at 128px for performance
+            const { data } = supabase.storage
+                .from('emojis')
+                .getPublicUrl(emojiPath, {
+                    transform: { width: optimizedSize, height: optimizedSize, resize: 'contain', quality: 80 }
+                });
+            return data.publicUrl;
             } else {
                 // This is a REMOTE emoji URL, return as-is (don't process through local storage)
                 return emojiUrl;

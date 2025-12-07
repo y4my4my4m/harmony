@@ -22,7 +22,7 @@
     <div v-else class="bots-grid">
       <div v-for="bot in bots" :key="bot.id" class="bot-card">
         <div class="bot-avatar">
-          <img :src="bot.avatar_url || '/default_avatar.png'" :alt="bot.username" />
+          <Avatar :src="bot.avatar_url" size="sm" :alt="bot.username" />
           <div class="bot-status" :class="{ online: botStatuses[bot.id] }"></div>
         </div>
         
@@ -150,6 +150,7 @@ import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
+import Avatar from '@/components/common/Avatar.vue'
 
 const toast = useToast()
 const authStore = useAuthStore()

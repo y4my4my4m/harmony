@@ -502,7 +502,18 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 
 // --- Lifecycle Hooks ---
 
-onMounted(() => {
+// Lazy load emoji data when popup is mounted (user opened emoji picker)
+onMounted(async () => {
+  // Load emoji data if not already loaded (lazy loading - saves 712KB on initial load)
+  if (!unifiedLoaded.value && !unifiedLoading.value) {
+    const { loadEmojiData } = await import('@/services/unifiedEmojiService')
+    await loadEmojiData()
+    // Preload mutant lookups if using mutant pack
+    if (currentPack.value === 'mutant') {
+      const { loadMutantLookups } = await import('@/services/unifiedEmojiService')
+      loadMutantLookups()
+    }
+  }
   setTimeout(() => {
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);

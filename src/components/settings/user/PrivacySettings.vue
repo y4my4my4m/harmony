@@ -465,7 +465,7 @@
           class="blocked-user-item"
         >
           <div class="user-info">
-            <img :src="user.avatar_url || '/default_avatar.png'" class="user-avatar" />
+            <Avatar :src="user.avatar_url" size="sm" class="user-avatar" />
             <div class="user-details">
               <span class="user-name">{{ user.display_name }}</span>
               <span class="user-username">{{ user.username }}</span>
@@ -552,6 +552,7 @@ import { isUrlTrackingStrippingEnabled, setUrlTrackingStrippingEnabled } from '@
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import Avatar from '@/components/common/Avatar.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'
 import EyeIcon from '@/components/icons/Eye.vue'
 import EyeOffIcon from '@/components/icons/EyeOff.vue'

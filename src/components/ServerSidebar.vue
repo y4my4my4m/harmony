@@ -3,7 +3,7 @@
     <!-- Fixed header section - never scrolls -->
     <div class="fixed-header">
       <div
-        :style="{ backgroundImage: 'url(/icon16.png)', margin: '8px' }"
+        :style="{ backgroundImage: 'url(/portal.webp)', margin: '8px' }"
         class="portal"
         @click="togglePublicServers"
         @mouseenter="showSidebarTooltip($event, 'Harmony Portal')"

@@ -37,7 +37,7 @@
         <div v-for="bot in myBots" :key="bot.id" class="bot-card">
           <div class="bot-header">
             <div class="bot-avatar">
-              <img :src="bot.avatar_url || '/default_avatar.png'" :alt="bot.username" />
+              <Avatar :src="bot.avatar_url" size="sm" :alt="bot.username" />
               <div class="bot-status" :class="{ online: bot.last_online_at }"></div>
             </div>
 
@@ -219,6 +219,7 @@ import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { formatDistanceToNow } from 'date-fns'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
+import Avatar from '@/components/common/Avatar.vue'
 
 defineProps<{ loading: boolean }>()
 const toast = useToast()

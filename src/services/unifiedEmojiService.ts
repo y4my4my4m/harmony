@@ -429,7 +429,17 @@ export interface ResolvedEmoji {
  * Resolve an emoji for display based on current pack
  * Input can be: unicode emoji, shortcode, or legacy "mutant:path" format
  */
+/**
+ * Resolve emoji from input (unicode, shortcode, or name)
+ * LAZY: Triggers background load if not already loaded (non-blocking)
+ */
 function resolveEmoji(input: string): ResolvedEmoji {
+  // Lazy load emoji data in background if not loaded (non-blocking)
+  if (!isLoaded.value && !isLoading.value) {
+    loadEmojiData().catch(err => {
+      debug.warn('Failed to lazy load emoji data:', err)
+    })
+  }
   // Handle legacy "mutant:path" format
   if (input.startsWith('mutant:')) {
     const path = input.replace('mutant:', '')
@@ -592,8 +602,16 @@ function normalizeToUnicode(input: string): string {
 
 /**
  * Search emojis by query
+ * LAZY: Triggers background load if not already loaded
  */
 function searchEmojis(query: string, limit: number = 50): EmojiEntry[] {
+  // Lazy load emoji data in background if not loaded (non-blocking)
+  if (!isLoaded.value && !isLoading.value) {
+    loadEmojiData().catch(err => {
+      debug.warn('Failed to lazy load emoji data:', err)
+    })
+  }
+  
   if (!emojiData.value || !query) return []
   
   const lowerQuery = query.toLowerCase()
@@ -637,14 +655,21 @@ function getAllEmojis(): EmojiEntry[] {
 
 /**
  * Unified emoji composable
+ * LAZY: Only loads emoji data when actually needed (emoji picker, search, etc.)
  */
 export function useUnifiedEmoji() {
-  // Initialize on first use
+  // Initialize pack preference (lightweight, can load immediately)
   loadPackPreference()
-  loadEmojiData()
   
-  // Preload mutant lookups if using mutant pack
-  if (currentPack.value === 'mutant') {
+  // LAZY: Don't auto-load emoji data - only load when needed
+  // This saves 712KB on initial page load
+  // Emoji data will be loaded when:
+  // - Emoji picker is opened
+  // - Emoji search is performed
+  // - Emojis need to be resolved (with check to avoid duplicate loads)
+  
+  // Preload mutant lookups if using mutant pack (only if emoji data is already loaded)
+  if (currentPack.value === 'mutant' && isLoaded.value) {
     loadMutantLookups()
   }
   

@@ -60,9 +60,9 @@
   ],
   "screenshots": [
     {
-      "src": "/harmony_text.png",
+      "src": "/harmony_text.webp",
       "sizes": "1280x720",
-      "type": "image/png",
+      "type": "image/webp",
       "form_factor": "wide",
       "label": "Harmony desktop view"
     }

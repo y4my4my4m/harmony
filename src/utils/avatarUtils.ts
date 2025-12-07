@@ -3,17 +3,29 @@ import { supabase } from '@/supabase'
 /**
  * Normalizes avatar URL to ensure consistent display across the application
  * Handles both full URLs and path-only formats
- * Always returns the proper public URL for Supabase storage paths
+ * Always returns the proper public URL for Supabase storage paths with optimization
  */
-export function getAvatarUrl(avatarUrl: string | null | undefined): string {
+export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
   // Return default avatar if no URL provided or if it's not a string
   if (!avatarUrl || typeof avatarUrl !== 'string') {
     return '/default_avatar.png'
   }
 
-  // If it's already a full URL (starts with http/https), return as-is
-  // This handles external URLs and already-processed Supabase URLs
+  // If it's already a full URL, check if it's a Supabase storage URL that needs transformation
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+    // Check if this is a Supabase storage URL for avatars
+    const pathMatch = avatarUrl.match(/\/storage\/v1\/object\/public\/avatars\/(.+)$/)
+    if (pathMatch) {
+      // Extract the path and use Supabase storage transformation
+      const avatarPath = pathMatch[1]
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(avatarPath, {
+          transform: { width: size, height: size, resize: 'contain', quality: 80 }
+        })
+      return data.publicUrl
+    }
+    // External URLs (not Supabase storage) - return as-is
     return avatarUrl
   }
 

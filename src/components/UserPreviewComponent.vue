@@ -1,6 +1,6 @@
 <template>
   <div class="user-preview" ref="profileCard">
-    <img :src="user.avatar_url" alt="User avatar" class="preview-avatar">
+    <Avatar :src="user.avatar_url" size="lg" alt="User avatar" class="preview-avatar" />
     <h2>{{ user.display_name }}</h2>
     <h4>{{ user.username }}</h4>
     <div class="user-preview-details">
@@ -23,9 +23,13 @@
 import { defineComponent, ref, onMounted, onUnmounted } from 'vue';
 import type { PropType, Ref } from 'vue';
 import type { User } from '../types';
+import Avatar from '@/components/common/Avatar.vue';
 
 export default defineComponent({
   name: 'UserPreviewComponent',
+  components: {
+    Avatar
+  },
   props: {
     user: {
       type: Object as PropType<User>,

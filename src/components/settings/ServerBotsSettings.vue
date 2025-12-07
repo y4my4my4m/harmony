@@ -35,7 +35,7 @@
           class="bot-card available"
         >
           <div class="bot-avatar">
-            <img :src="bot.avatar_url || '/default_avatar.png'" :alt="bot.username" />
+            <Avatar :src="bot.avatar_url" size="sm" :alt="bot.username" />
             <div class="bot-badge">BOT</div>
           </div>
           
@@ -75,7 +75,7 @@
           class="bot-item"
         >
           <div class="bot-avatar">
-            <img :src="installation.bot.avatar_url || '/default_avatar.png'" :alt="installation.bot.username" />
+            <Avatar :src="installation.bot.avatar_url" size="sm" :alt="installation.bot.username" />
             <div class="bot-status" :class="{ online: botStatuses[installation.bot_id] }"></div>
           </div>
 
@@ -199,6 +199,7 @@ import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
+import Avatar from '@/components/common/Avatar.vue'
 
 interface Props {
   serverId: string
