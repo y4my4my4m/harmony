@@ -2,6 +2,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import type { Thread, ThreadMember, Message } from '@/types'
 import { authContextService } from '@/services/AuthContextService'
+import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 
 // =============================================
 // Thread Types
@@ -608,9 +609,17 @@ class ThreadService {
 
       const messages = data || []
       const hasMore = messages.length > limit
+      const resultMessages = messages.slice(0, limit).reverse() as Message[]
+      
+      // Process URL embeds (same as chat/DM messages)
+      try {
+        ensureMessageEmbeds(resultMessages)
+      } catch (error) {
+        debug.warn('Failed to prepare thread message embeds:', error)
+      }
 
       return {
-        messages: messages.slice(0, limit).reverse() as Message[],
+        messages: resultMessages,
         has_more: hasMore,
         oldest_id: messages.length > 0 ? messages[messages.length - 1].id : undefined,
       }
@@ -657,7 +666,16 @@ class ThreadService {
       // Invalidate thread cache to refresh stats
       this.threadCache.delete(threadId)
 
-      return data as Message
+      const message = data as Message
+      
+      // Process URL embeds (same as chat/DM messages)
+      try {
+        ensureMessageEmbeds(message)
+      } catch (embedError) {
+        debug.warn('Failed to prepare embeds for sent thread message:', embedError)
+      }
+
+      return message
     } catch (error) {
       debug.error('Failed to send thread message:', error)
       return null
