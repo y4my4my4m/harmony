@@ -20,7 +20,6 @@
                   placeholder="Search for Thread Name"
                 />
               </div>
-              <button class="create-btn" @click="$emit('create')">Create</button>
               <button class="close-btn" @click="close">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -136,7 +135,6 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
-  create: []
   'select-thread': [thread: ThreadWithDetails]
 }>()
 
@@ -306,22 +304,6 @@ onMounted(() => {
 
 .search-box input::placeholder {
   color: var(--text-muted);
-}
-
-.create-btn {
-  background: var(--harmony-primary);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: filter 0.2s;
-}
-
-.create-btn:hover {
-  filter: brightness(1.1);
 }
 
 .close-btn {

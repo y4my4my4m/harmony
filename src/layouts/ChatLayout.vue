@@ -149,7 +149,6 @@
       :channel-id="currentChannelId"
       :server-id="currentServer?.id"
       @close="showAllThreads = false"
-      @create="showAllThreads = false"
       @select-thread="handleSelectThread"
     />
     
