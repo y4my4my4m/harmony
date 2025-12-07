@@ -584,8 +584,31 @@ const createProfile = async () => {
     const result = await profileStore.createProfile(profileData);
     debug.log('Profile creation result:', result);
     
-    // ActivityPub keys are generated lazily by federation-backend when first needed
-    // This keeps profile creation fast and non-blocking
+    // Generate ActivityPub keys for federation
+    // This ensures the user is immediately ready for federation (can be followed, etc.)
+    creationStep.value = 'Generating federation keys...';
+    try {
+      // Use relative URL - federation backend is proxied through the same domain
+      const keyGenResponse = await fetch('/api/federation/generate-keys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id: authStore.session.user.id }),
+      });
+      
+      if (keyGenResponse.ok) {
+        const keyGenResult = await keyGenResponse.json();
+        debug.log('✅ Federation keys generated:', keyGenResult);
+      } else {
+        const errorData = await keyGenResponse.json().catch(() => ({}));
+        debug.warn('⚠️ Failed to generate federation keys:', errorData);
+        // Don't fail profile creation - keys can be generated later when needed
+      }
+    } catch (keyGenError) {
+      debug.warn('⚠️ Federation key generation error (non-fatal):', keyGenError);
+      // Don't fail profile creation - the Actor endpoint will generate keys on-the-fly
+    }
     
     // Handle avatar upload if file exists
     if (avatarFile.value && result) {

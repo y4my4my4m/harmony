@@ -35,6 +35,36 @@ router.post(
     const [username, domain] = parts;
     const supabase = getSupabaseClient();
 
+    // SECURITY: Prevent looking up local users via federation lookup
+    // This prevents a malicious actor from potentially overwriting local user data
+    if (domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
+      logger.warn(`❌ Refusing federation lookup for local domain: ${username}@${domain}`);
+      
+      // Return the local user if they exist, but mark as local
+      const { data: localUser } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .eq('domain', domain)
+        .eq('is_local', true)
+        .single();
+      
+      if (localUser) {
+        return res.json({
+          success: true,
+          user: localUser,
+          cached: true,
+          is_local: true,
+          message: 'This is a local user, not a federated user'
+        });
+      }
+      
+      return res.status(400).json({ 
+        error: 'Cannot lookup local users via federation. This is a local instance domain.',
+        is_local_domain: true
+      });
+    }
+
     logger.info(`🔍 Looking up remote user: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
 
     // Check if user already exists locally (unless force refresh)
@@ -246,6 +276,34 @@ router.post(
       
       const profileData = actorToProfile(actor);
       logger.debug(`📋 Profile bio_emojis count: ${profileData.bio_emojis?.length || 0}`);
+      
+      // SECURITY: Double-check the domain from the actor data
+      // This protects against a remote server claiming to represent our domain
+      if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
+        logger.warn(`🚨 SECURITY: Remote actor claims local domain! Actor: ${actor.id}, Domain: ${profileData.domain}`);
+        return res.status(400).json({ 
+          error: 'Remote actor cannot claim local instance domain',
+          security_violation: true
+        });
+      }
+      
+      // SECURITY: Check if there's an existing LOCAL user with this username/domain
+      // This should not happen given the earlier domain check, but belt-and-suspenders
+      const { data: existingLocalUser } = await supabase
+        .from('profiles')
+        .select('id, is_local')
+        .eq('username', profileData.username)
+        .eq('domain', profileData.domain)
+        .eq('is_local', true)
+        .maybeSingle();
+      
+      if (existingLocalUser) {
+        logger.warn(`🚨 SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain}`);
+        return res.status(400).json({ 
+          error: 'Cannot overwrite local user with federated data',
+          security_violation: true
+        });
+      }
       
       const profileRecord: any = {
         username: profileData.username,
@@ -1547,6 +1605,110 @@ async function fetchRemotePostReplies(
 }
 
 /**
+ * Generate keys for a local user
+ * POST /generate-keys (proxied via /api/federation/generate-keys)
+ * Body: { user_id: uuid }
+ * 
+ * This endpoint generates RSA keys for a local user if they don't have them.
+ * Called during profile creation to ensure users are federation-ready.
+ */
+router.post(
+  '/generate-keys',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Verify this is a local user
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, domain, is_local, public_key')
+      .eq('id', user_id)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!profile.is_local) {
+      return res.status(400).json({ error: 'Cannot generate keys for remote users' });
+    }
+
+    // Check if keys already exist
+    if (profile.public_key) {
+      const { data: privateKeyExists } = await supabase
+        .from('user_private_keys')
+        .select('id')
+        .eq('user_id', user_id)
+        .maybeSingle();
+
+      if (privateKeyExists) {
+        logger.info(`🔐 Keys already exist for user ${profile.username}`);
+        return res.json({ 
+          success: true, 
+          message: 'Keys already exist',
+          already_exists: true
+        });
+      }
+    }
+
+    // Generate keys
+    logger.info(`🔐 Generating keys for user ${profile.username}...`);
+    
+    try {
+      const { SignatureService } = await import('./SignatureService.js');
+      const keys = await SignatureService.generateKeyPair();
+
+      // Store private key first
+      const { error: privateKeyError } = await supabase
+        .from('user_private_keys')
+        .upsert({
+          user_id: user_id,
+          private_key: keys.privateKey,
+          created_at: new Date().toISOString()
+        });
+
+      if (privateKeyError) {
+        logger.error(`Failed to store private key for ${profile.username}:`, privateKeyError);
+        return res.status(500).json({ error: 'Failed to store private key' });
+      }
+
+      // Update profile with public key
+      const { error: publicKeyError } = await supabase
+        .from('profiles')
+        .update({ public_key: keys.publicKey })
+        .eq('id', user_id);
+
+      if (publicKeyError) {
+        // Clean up orphaned private key
+        await supabase
+          .from('user_private_keys')
+          .delete()
+          .eq('user_id', user_id);
+        
+        logger.error(`Failed to store public key for ${profile.username}:`, publicKeyError);
+        return res.status(500).json({ error: 'Failed to store public key' });
+      }
+
+      logger.info(`✅ Generated keys for user ${profile.username}`);
+      
+      return res.json({
+        success: true,
+        message: 'Keys generated successfully',
+        already_exists: false
+      });
+    } catch (genError) {
+      logger.error(`Failed to generate keys for ${profile.username}:`, genError);
+      return res.status(500).json({ error: 'Failed to generate keys' });
+    }
+  })
+);
+
+/**
  * Actor endpoint
  * GET /users/:username - Returns ActivityPub Actor object
  */
@@ -1568,6 +1730,51 @@ router.get(
       return res.status(404).json({
         error: 'User not found',
       });
+    }
+
+    // SAFETY NET: Generate keys on-the-fly if missing
+    // This ensures users are always federation-ready when their Actor is requested
+    if (!profile.public_key) {
+      logger.info(`🔐 Actor ${username} missing keys, generating on-the-fly...`);
+      
+      try {
+        const { SignatureService } = await import('./SignatureService.js');
+        const keys = await SignatureService.generateKeyPair();
+
+        // Store private key first
+        const { error: privateKeyError } = await supabase
+          .from('user_private_keys')
+          .upsert({
+            user_id: profile.id,
+            private_key: keys.privateKey,
+            created_at: new Date().toISOString()
+          });
+
+        if (!privateKeyError) {
+          // Update profile with public key
+          const { error: publicKeyError } = await supabase
+            .from('profiles')
+            .update({ public_key: keys.publicKey })
+            .eq('id', profile.id);
+
+          if (!publicKeyError) {
+            profile.public_key = keys.publicKey;
+            logger.info(`✅ Generated keys on-the-fly for ${username}`);
+          } else {
+            // Clean up orphaned private key
+            await supabase
+              .from('user_private_keys')
+              .delete()
+              .eq('user_id', profile.id);
+            logger.error(`Failed to store public key for ${username}:`, publicKeyError);
+          }
+        } else {
+          logger.error(`Failed to store private key for ${username}:`, privateKeyError);
+        }
+      } catch (genError) {
+        logger.error(`Failed to generate keys for ${username}:`, genError);
+        // Continue anyway - the Actor response will just have no public key
+      }
     }
 
     // Convert to ActivityPub Actor

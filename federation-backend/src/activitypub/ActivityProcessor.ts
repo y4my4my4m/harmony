@@ -1803,6 +1803,29 @@ export class ActivityProcessor {
       const actor = await response.json();
       const profileData = actorToProfile(actor);
 
+      // SECURITY: Check if this actor claims to be from our local domain
+      // This could be a spoofing attack from a malicious remote server
+      const { config } = await import('../config/index.js');
+      if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
+        logger.warn(`🚨 SECURITY: Remote actor ${actorUrl} claims local domain ${profileData.domain}! Refusing to upsert.`);
+        return existing || null;
+      }
+
+      // SECURITY: Check if there's an existing LOCAL user with this username/domain
+      // The federated_id conflict should prevent this, but belt-and-suspenders
+      const { data: existingLocalUser } = await supabase
+        .from('profiles')
+        .select('id, is_local')
+        .eq('username', profileData.username)
+        .eq('domain', profileData.domain)
+        .eq('is_local', true)
+        .maybeSingle();
+      
+      if (existingLocalUser) {
+        logger.warn(`🚨 SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain} via ensureRemoteUser`);
+        return existing || null;
+      }
+
       // Upsert remote user - map field names to database columns
       // This handles both initial creation and refreshing stale profiles
       const profileRecord: any = {
