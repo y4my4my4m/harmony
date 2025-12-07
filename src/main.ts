@@ -78,35 +78,49 @@ app.directive('click-outside', ClickOutsideDirective);
 app.directive('haptic', vHaptic);
 
 async function initializeApp() {
+  // Mount the app IMMEDIATELY - don't wait for non-critical services
+  app.use(router).mount('#app')
+  
+  // Initialize critical auth first (needed for routing)
   try {
-    // Initialize PWA features first for better UX
-    await pwaManager.initialize()
-    debug.log('🚀 PWA Manager initialized')
-    
-    // Initialize auth store first to check for existing sessions
     const authStore = useAuthStore()
     await authStore.initializeAuth()
     debug.log('✅ Auth initialized')
-    
-    // Register service worker for enhanced notification handling
-    const swSupported = await serviceWorkerManager.initialize()
-    debug.log('🔔 Service Worker supported:', swSupported)
-    
-    // Request notification permission if supported
-    if (swSupported) {
-      await serviceWorkerManager.requestNotificationPermission()
-    }
-    
-    // Start reaction cache management
-    // TODO: revisit reactionCacheManager
-    // reactionCacheManager.startCleanup()
-    // debug.log('🎯 Reaction cache manager started')
   } catch (error) {
-    debug.error('❌ Error initializing service worker:', error)
+    debug.error('❌ Error initializing auth:', error)
   }
   
-  // Mount the app
-  app.use(router).mount('#app')
+  // Initialize non-critical services in background (don't block rendering)
+  Promise.all([
+    // PWA features - mostly synchronous setup, can run in parallel
+    pwaManager.initialize().then(() => {
+      debug.log('🚀 PWA Manager initialized')
+    }).catch(err => {
+      debug.error('❌ PWA Manager initialization failed:', err)
+    }),
+    
+    // Service worker - can be slow, run in background
+    serviceWorkerManager.initialize().then(swSupported => {
+      debug.log('🔔 Service Worker supported:', swSupported)
+      
+      // Request notification permission in background (non-blocking)
+      if (swSupported) {
+        // Don't await - let it happen in background
+        serviceWorkerManager.requestNotificationPermission().catch(err => {
+          debug.warn('⚠️ Notification permission request failed:', err)
+        })
+      }
+    }).catch(err => {
+      debug.error('❌ Service Worker initialization failed:', err)
+    })
+  ]).catch(err => {
+    debug.error('❌ Error initializing background services:', err)
+  })
+  
+  // Start reaction cache management
+  // TODO: revisit reactionCacheManager
+  // reactionCacheManager.startCleanup()
+  // debug.log('🎯 Reaction cache manager started')
 }
 
 // Initialize the application
