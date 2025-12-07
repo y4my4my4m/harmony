@@ -538,10 +538,10 @@ onMounted(() => {
 }
 
 .section-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
-  margin: 0;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 20px 0;
 }
 
 .loading-state,
