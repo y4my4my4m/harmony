@@ -664,13 +664,6 @@ class ThreadService {
     }
   }
 
-  /**
-   * Clear cache for a specific thread
-   */
-  clearThreadCache(threadId: string): void {
-    this.messageCache.delete(threadId)
-    debug.log(`🧹 Cleared thread message cache: ${threadId}`)
-  }
 
   /**
    * Get messages in a thread (with intelligent caching)
@@ -914,11 +907,13 @@ class ThreadService {
   }
 
   /**
-   * Clear cache for specific thread
+   * Clear cache for specific thread (clears thread, member, and message caches)
    */
   clearThreadCache(threadId: string): void {
     this.threadCache.delete(threadId)
     this.memberCache.delete(threadId)
+    this.messageCache.delete(threadId)
+    debug.log(`🧹 Cleared all caches for thread: ${threadId}`)
   }
 }
 
