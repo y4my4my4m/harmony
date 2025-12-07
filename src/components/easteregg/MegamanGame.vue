@@ -126,6 +126,7 @@ const hpBarSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const hpBarData = ref<any>(null)
 const currentFrame = ref<Map<string, number>>(new Map())
 const frameTime = ref<Map<string, number>>(new Map()) // Use time instead of timer
+const lastAnimationType = ref<Map<string, 'walk' | 'run_fire' | 'other'>>(new Map()) // Track last animation to detect switches
 const chargeFrame = ref<Map<string, number>>(new Map()) // For charge animation
 const smokeSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const hitSprites = ref<Map<string, HTMLImageElement>>(new Map())
@@ -1818,25 +1819,32 @@ function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFra
   }
   
   // Dash takes priority - use dash animation frames
-  // But check for dash+shooting first (Dash_Fire)
+  // When shooting during dash, use dash_fire sprites with same frame progression
   if (player.state === 'dashing') {
     const timeSinceLastShot = Date.now() - (player.lastShotTime || 0)
-    if ((player.isShooting || timeSinceLastShot < 200) && !player.isCharging) {
-      // Dash + shooting = Dash_Fire sprites
-      const dashFireFrames = animations.value.dash_fire || animations.value.shoot.filter(f => 
+    const isShooting = (player.isShooting || timeSinceLastShot < 200) && !player.isCharging
+    
+    // Get base frames (dash or dash_fire depending on shooting)
+    let baseFrames: AnimationFrame[] = []
+    if (isShooting) {
+      // Dash + shooting = use Dash_Fire sprites
+      baseFrames = animations.value.dash_fire || animations.value.shoot.filter(f => 
         f.name.toLowerCase().includes('dash') && f.name.toLowerCase().includes('fire')
       )
-      if (dashFireFrames && dashFireFrames.length > 0) {
-        return dashFireFrames
+      // Fallback to regular dash if no dash_fire available
+      if (baseFrames.length === 0) {
+        baseFrames = animations.value.dash || []
       }
+    } else {
+      // Normal dash = use Dash sprites
+      baseFrames = animations.value.dash || []
     }
-    // Normal dash animation: frame1 -> frame2 (hold) -> frame1 (end)
-    const dashFrames = animations.value.dash || []
-    if (dashFrames.length >= 2) {
+    
+    if (baseFrames.length >= 2) {
       // Check if dashStartTime is valid (not 0 or undefined)
       if (!player.dashStartTime || player.dashStartTime === 0) {
         // Dash just started or dash ended - show frame1
-        return [dashFrames[0]]
+        return [baseFrames[0]]
       }
       
       // Use deltaTime-based frame counter for smoother animation
@@ -1868,18 +1876,18 @@ function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFra
       
       // First 25% (0.0 to 0.25): frame1 (start)
       if (player.dashFrameProgress < 0.25) {
-        return [dashFrames[0]] // Dash1
+        return [baseFrames[0]] // Dash1 or Dash_Fire1
       } 
       // Middle 50% (0.25 to 0.75): hold frame2
-      else if (player.dashFrameProgress < .75) {
-        return [dashFrames[1]] // Dash2 - held for most of dash
+      else if (player.dashFrameProgress < 0.75) {
+        return [baseFrames[1]] // Dash2 or Dash_Fire2 - held for most of dash
       } 
       // Last 25% (0.75 to 1.0): frame1 (end)
       else {
-        return [dashFrames[0]] // Dash1 for end
+        return [baseFrames[0]] // Dash1 or Dash_Fire1 for end
       }
-    } else if (dashFrames.length > 0) {
-      return dashFrames
+    } else if (baseFrames.length > 0) {
+      return baseFrames
     }
     // Fallback to walk if dash not available
     return animations.value.walk || []
@@ -1900,10 +1908,25 @@ function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFra
     }
     
     // Find shooting animation that matches current movement state
+    // When walking and shooting, use run_fire sprites (same animation as walk, but with gun extended)
+    // IMPORTANT: Preserve frame index when switching between walk and run_fire to avoid jerking
+    if (player.state === 'walking') {
+      // Get run_fire frames that match walk animation
+      const runFireFrames = animations.value.shoot.filter(frame => {
+        const name = frame.name.toLowerCase()
+        return name.includes('run') && name.includes('fire')
+      })
+      
+      if (runFireFrames.length > 0) {
+        // Return run_fire frames - frame index will be preserved by the shared frame timer
+        // The frame timer continues seamlessly, so frame 3 of walk becomes frame 3 of run_fire
+        return runFireFrames
+      }
+    }
+    
     const shootFrames = animations.value.shoot.filter(frame => {
       const name = frame.name.toLowerCase()
       if ((player.state === 'idle' || player.state === 'landing') && name.includes('idle') && name.includes('fire')) return true
-      if (player.state === 'walking' && name.includes('run') && name.includes('fire')) return true
       if ((player.state === 'jumping' || player.state === 'dashJumping' || player.state === 'wallKick') && name.includes('jump') && name.includes('fire')) return true
       if (player.state === 'falling' && name.includes('fall') && name.includes('fire')) return true
       if (player.onWall && name.includes('wall') && name.includes('fire')) return true
@@ -2019,7 +2042,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   }
   
   // Update frame timer using delta time
-  // Walking animation is twice as fast
+  // Walking animation is faster (3x speed for smoother running)
   // Dash animation uses time-based frame selection (not cycling), so skip timer for dash
   let frameIndex = 0
   if (player.state === 'dashing') {
@@ -2027,7 +2050,21 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     frameIndex = 0
   } else {
     const isWalking = player.state === 'walking' && !player.isCharging
-    const frameDuration = isWalking ? FRAME_DURATION / 2 : FRAME_DURATION
+    const isShooting = (player.isShooting || (Date.now() - (player.lastShotTime || 0) < 200)) && !player.isCharging
+    const isWalkOrRunFire = isWalking || (player.state === 'walking' && isShooting)
+    
+    // Determine current animation type
+    const currentAnimType: 'walk' | 'run_fire' | 'other' = 
+      (player.state === 'walking' && isShooting) ? 'run_fire' :
+      (player.state === 'walking') ? 'walk' : 'other'
+    
+    // Check if we switched between walk and run_fire
+    const lastAnim = lastAnimationType.value.get(userId)
+    const switchedWalkRunFire = (lastAnim === 'walk' && currentAnimType === 'run_fire') || 
+                                (lastAnim === 'run_fire' && currentAnimType === 'walk')
+    
+    // Make walk animation 3x faster for smoother running
+    const frameDuration = isWalkOrRunFire ? FRAME_DURATION / 3 : FRAME_DURATION
     
     const currentTime = frameTime.value.get(userId) || 0
     const newTime = currentTime + (deltaSeconds * 1000) // Add delta in ms
@@ -2035,12 +2072,29 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     if (newTime >= frameDuration) {
       const current = currentFrame.value.get(userId) || 0
+      // Increment frame - for walk/run_fire, this creates seamless continuation
       const next = (current + 1) % frames.length
       currentFrame.value.set(userId, next)
       frameTime.value.set(userId, 0) // Reset timer
     }
     
     frameIndex = currentFrame.value.get(userId) || 0
+    
+    // If we switched between walk and run_fire, advance to next frame immediately
+    // This ensures: walk frame 3 → run_fire frame 4 (next in sequence)
+    if (switchedWalkRunFire && frameIndex < frames.length) {
+      frameIndex = (frameIndex + 1) % frames.length
+      currentFrame.value.set(userId, frameIndex)
+    }
+    
+    // Clamp frame index to valid range for current animation
+    if (frameIndex >= frames.length) {
+      frameIndex = frameIndex % frames.length
+      currentFrame.value.set(userId, frameIndex)
+    }
+    
+    // Update last animation type for next frame
+    lastAnimationType.value.set(userId, currentAnimType)
   }
   
   const frame = frames[frameIndex]
