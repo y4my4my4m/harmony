@@ -403,21 +403,31 @@ self.addEventListener('fetch', (event) => {
   const isCSSRequest = url.pathname.endsWith('.css')
   const isJSRequest = url.pathname.endsWith('.js') || url.pathname.endsWith('.ts')
   
+  // ✅ FIX: Skip all JS module requests to prevent caching HTML responses as JS
+  // Dynamic imports from Vite code splitting are in /assets/ and should be handled by browser
+  // This prevents the issue where 404 JS files return index.html, which gets cached as JS
+  const isViteModule = url.pathname.startsWith('/assets/') && isJSRequest
+  const isModuleRequest = event.request.destination === 'script' || 
+                          event.request.mode === 'cors' ||
+                          event.request.credentials === 'omit' ||
+                          event.request.headers.get('accept')?.includes('application/javascript') ||
+                          event.request.headers.get('accept')?.includes('text/javascript')
+  
   // ✅ PERFORMANCE: Skip modulepreload requests to prevent duplicate fetches
   // The browser handles these efficiently, and intercepting causes duplicates
   const isModulePreload = event.request.headers.get('purpose') === 'modulepreload' ||
-                          event.request.headers.get('X-Purpose') === 'modulepreload' ||
-                          event.request.mode === 'cors' && event.request.credentials === 'omit' && isJSRequest
+                          event.request.headers.get('X-Purpose') === 'modulepreload'
 
   // Only intercept specific types of requests
-  if (isModulePreload) {
-    // Let browser handle modulepreload requests naturally - don't intercept
+  if (isModulePreload || isViteModule || (isJSRequest && isModuleRequest)) {
+    // Let browser handle module requests naturally - don't intercept
+    // This prevents caching HTML responses (from 404s) as JS modules
     return
   } else if (isAPIRequest || isAuthRequest) {
     // Critical API requests - network first with enhanced error handling
     event.respondWith(enhancedNetworkFirst(event.request, API_CACHE))
-  } else if (isCSSRequest || isJSRequest) {
-    // Static assets - stale while revalidate (better for mobile)
+  } else if (isCSSRequest) {
+    // Static CSS assets - stale while revalidate (better for mobile)
     event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE))
   }
   // Remove the 'else' case that was intercepting ALL other requests
@@ -473,7 +483,15 @@ async function staleWhileRevalidate(request, cacheName) {
   
   // Always fetch in background to update cache
   const fetchPromise = fetch(request).then(response => {
-    if (response.status === 200) {
+    // ✅ FIX: Validate response MIME type before caching
+    // Only cache if response is actually the expected type (not HTML from 404s)
+    const contentType = response.headers.get('content-type') || ''
+    const isExpectedType = 
+      (request.url.endsWith('.css') && contentType.includes('text/css')) ||
+      (request.url.endsWith('.js') && (contentType.includes('application/javascript') || contentType.includes('text/javascript'))) ||
+      (!request.url.match(/\.(css|js)$/)) // Non-CSS/JS files
+    
+    if (response.status === 200 && response.ok && isExpectedType) {
       // Clone the response BEFORE using it
       const responseClone = response.clone()
       caches.open(cacheName).then(cache => {
@@ -481,6 +499,9 @@ async function staleWhileRevalidate(request, cacheName) {
       }).catch(err => {
         console.warn('Failed to cache response in background:', err)
       })
+    } else if (response.status === 200 && !isExpectedType) {
+      // If we got a 200 but wrong content type (e.g., HTML for a JS file), don't cache
+      console.warn('⚠️ Service Worker: Skipping cache for wrong content type:', request.url, contentType)
     }
     return response
   }).catch(err => {
