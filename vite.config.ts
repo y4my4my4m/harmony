@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { selectivePreload } from './vite-plugin-selective-preload'
 
 export default defineConfig({
   clearScreen: false,
@@ -12,6 +13,11 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    // Only preload critical chunks, not route chunks (saves ~500KB+ on initial load)
+    selectivePreload({
+      alwaysPreload: ['index', 'vendor', 'vue-vendor', 'supabase-vendor', 'crypto-vendor'],
+      neverPreload: [/^view-/], // Don't preload route chunks
+    }),
   ],
   resolve: {
     alias: {
