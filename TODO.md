@@ -412,3 +412,16 @@ RLS permission for select and stuff, we can't allow users to fetch more than the
 ---
 
 Some settings (like audio/video preferences or privacy) are only saved in localStorage, we should move them to the database.
+
+---
+
+Clean tables/views
+
+federation_health (table)
+federation_health_metrics (view)
+federation_stats (view)
+performance_metrics (table)
+performance_metrics_hourly (view)
+slow_queries (table)
+
+Also some of those are probably already available via supabase, are we being redundant?
