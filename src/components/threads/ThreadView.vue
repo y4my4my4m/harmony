@@ -491,21 +491,21 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     
     // Only send if we have message parts
     if (messageParts.length > 0) {
-      const newMessage = await threadService.sendThreadMessage(
-        targetThreadId, 
-        messageParts, 
-        replyMessageId || replyingToMessageId.value || undefined
-      )
-      
-      if (newMessage) {
-        messages.value.push(newMessage)
-        messageText.value = '' // Clear the input
-        // Clear reply state
-        replyingToMessageId.value = ''
-        replyingToUserName.value = ''
-        // Scroll to bottom
-        await nextTick()
-        scrollToBottom()
+    const newMessage = await threadService.sendThreadMessage(
+      targetThreadId, 
+      messageParts, 
+      replyMessageId || replyingToMessageId.value || undefined
+    )
+    
+    if (newMessage) {
+      messages.value.push(newMessage)
+      messageText.value = '' // Clear the input
+      // Clear reply state
+      replyingToMessageId.value = ''
+      replyingToUserName.value = ''
+      // Scroll to bottom
+      await nextTick()
+      scrollToBottom()
       }
     }
   } catch (error) {

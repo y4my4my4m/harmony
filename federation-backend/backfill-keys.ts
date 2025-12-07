@@ -45,14 +45,17 @@ async function backfillKeys() {
 
   console.log(`🔐 Generating keys for ${users.length} users...`);
 
+  let successCount = 0;
+  let failCount = 0;
+
   for (const user of users) {
     try {
       console.log(`  Generating for: ${user.username}...`);
       
       const { privateKey, publicKey } = generateRsaKeypair();
 
-      // Store private key
-      await supabase
+      // Store private key - CHECK FOR ERRORS!
+      const { error: privateKeyError } = await supabase
         .from('user_private_keys')
         .upsert({
           user_id: user.id,
@@ -60,17 +63,39 @@ async function backfillKeys() {
           created_at: new Date().toISOString()
         });
 
-      // Update profile with public key
-      await supabase
+      if (privateKeyError) {
+        console.error(`  ❌ Failed to store private key for ${user.username}:`, privateKeyError);
+        failCount++;
+        continue; // DON'T update public key if private key failed!
+      }
+
+      // Update profile with public key - only if private key succeeded
+      const { error: publicKeyError } = await supabase
         .from('profiles')
         .update({ public_key: publicKey })
         .eq('id', user.id);
 
+      if (publicKeyError) {
+        console.error(`  ❌ Failed to store public key for ${user.username}:`, publicKeyError);
+        // Try to clean up the orphaned private key
+        await supabase
+          .from('user_private_keys')
+          .delete()
+          .eq('user_id', user.id);
+        failCount++;
+        continue;
+      }
+
       console.log(`  ✅ ${user.username}`);
+      successCount++;
     } catch (err) {
       console.error(`  ❌ Failed for ${user.username}:`, err);
+      failCount++;
     }
   }
+
+  console.log(`\n📊 Results: ${successCount} succeeded, ${failCount} failed`);
+  
 
   console.log('🎉 Backfill complete!');
   process.exit(0);

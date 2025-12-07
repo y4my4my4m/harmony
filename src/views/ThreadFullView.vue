@@ -414,20 +414,20 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     
     // Only send if we have message parts
     if (messageParts.length > 0) {
-      const newMessage = await threadService.sendThreadMessage(
-        thread.value.id, 
-        messageParts, 
-        replyMessageId || replyingToMessageId.value || undefined
-      )
-      
-      if (newMessage) {
-        messages.value.push(newMessage)
-        messageText.value = ''
-        // Clear reply state
-        replyingToMessageId.value = ''
-        replyingToUserName.value = ''
-        await nextTick()
-        scrollToBottom()
+    const newMessage = await threadService.sendThreadMessage(
+      thread.value.id, 
+      messageParts, 
+      replyMessageId || replyingToMessageId.value || undefined
+    )
+    
+    if (newMessage) {
+      messages.value.push(newMessage)
+      messageText.value = ''
+      // Clear reply state
+      replyingToMessageId.value = ''
+      replyingToUserName.value = ''
+      await nextTick()
+      scrollToBottom()
       }
     }
   } catch (error) {

@@ -67,7 +67,7 @@ export class SignatureService {
         const keys = await this.generateKeyPair();
         
         // Store private key
-        await supabase
+        const { error: privateKeyError } = await supabase
           .from('user_private_keys')
           .upsert({
             user_id: userId,
@@ -75,11 +75,21 @@ export class SignatureService {
             created_at: new Date().toISOString()
           });
         
-        // Update profile with public key
-        await supabase
+        if (privateKeyError) {
+          logger.error(`Failed to store private key for user ${userId}:`, privateKeyError);
+          throw new AppError(500, 'Failed to store private key');
+        }
+        
+        // Update profile with public key - THIS IS CRITICAL for signature verification
+        const { error: publicKeyError } = await supabase
           .from('profiles')
           .update({ public_key: keys.publicKey })
           .eq('id', userId);
+        
+        if (publicKeyError) {
+          logger.error(`Failed to store public key for user ${userId}:`, publicKeyError);
+          throw new AppError(500, 'Failed to store public key');
+        }
         
         logger.info(`✅ Generated keys on-demand for user ${userId}`);
         keyData = { private_key: keys.privateKey };
