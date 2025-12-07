@@ -38,7 +38,7 @@ interface Player {
   x: number
   y: number
   facing: 'left' | 'right'
-  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'wallCling' | 'hit' | 'dead'
+  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'dashJumping' | 'wallCling' | 'wallKick' | 'hit' | 'dead'
   velocityX: number
   velocityY: number
   onGround: boolean
@@ -60,8 +60,12 @@ interface Player {
   smokeEffects: Array<{ x: number; y: number; frame: number; createdAt: number }>
   lastJumpKeyPressed?: boolean // Track if jump key was pressed last frame
   lastDashKeyPressed?: boolean // Track if dash key was pressed last frame
+  dashStartTime?: number // When dash started
   isSpawning?: boolean // True during intro animation
   spawnTime?: number // When spawn started
+  spawnY?: number // Y position when spawning (comes from top)
+  isDashJumping?: boolean // True when performing a dash-jump
+  wallKickTime?: number // When wall kick animation started
 }
 
 interface Bullet {
@@ -99,7 +103,12 @@ interface Animations {
   fall: AnimationFrame[]
   land: AnimationFrame[]
   dash?: AnimationFrame[]
+  dash_fire?: AnimationFrame[]
   wall?: AnimationFrame[]
+  wall_cling?: AnimationFrame[]
+  wall_kick?: AnimationFrame[]
+  hit?: AnimationFrame[]
+  death?: AnimationFrame[]
 }
 
 const animations = ref<Animations | null>(null)
@@ -115,6 +124,7 @@ const smokeSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const hitSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const readySprites = ref<Map<string, HTMLImageElement>>(new Map())
 const deathBubbleSprites = ref<Map<string, HTMLImageElement>>(new Map())
+const dashEffectSprites = ref<Map<string, HTMLImageElement>>(new Map())
 let gameStartTime = 0
 let showIntro = true
 const introFrame = ref(0)
@@ -231,13 +241,11 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
   try {
     initializeSounds()
     
-    // Stop any currently playing sound of this type (for looping sounds like chargeLoop)
+    // For looping sounds, check if already playing
     if (loop || soundName === 'chargeLoop') {
       const currentSound = playingSounds.get(soundName)
       if (currentSound && !currentSound.paused) {
-        currentSound.pause()
-        currentSound.currentTime = 0
-        playingSounds.delete(soundName)
+        return // Already playing, don't restart
       }
     }
     
@@ -249,10 +257,15 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
       try {
         const audio = new Audio(path)
         audio.loop = loop || soundName === 'chargeLoop'
-        audio.volume = 0.3
+        audio.volume = soundName === 'chargeLoop' ? 0.2 : 0.3 // Quieter for loop
         const playPromise = audio.play()
         if (playPromise) {
-          playPromise.catch((err) => {
+          playPromise.then(() => {
+            // Store reference for looping sounds so we can stop them
+            if (loop || soundName === 'chargeLoop') {
+              playingSounds.set(soundName, audio)
+            }
+          }).catch((err) => {
             // Ignore errors - file might not exist or need user interaction
             debug.warn(`Could not play sound ${path}:`, err)
           })
@@ -468,28 +481,40 @@ async function loadEffectSprites() {
   
   // Load hit sprites
   const hitFiles = [
-    { name: 'Hit1.png', path: '/assets/easteregg/megaman/sprites/hit/Hit1.png' },
-    { name: 'Hit2.png', path: '/assets/easteregg/megaman/sprites/hit/Hit2.png' },
-    { name: 'Hit3.png', path: '/assets/easteregg/megaman/sprites/hit/Hit3.png' },
+    // Hit sprites (Hit1-Hit10) from project.json
+    { name: '158a6fc8342580dad99bcd0cc3da6f5d.png', path: '/assets/easteregg/megaman/sprites/158a6fc8342580dad99bcd0cc3da6f5d.png' }, // Hit1
+    { name: '49d8234616dc6d46d1d29ae6a10b6b5f.png', path: '/assets/easteregg/megaman/sprites/49d8234616dc6d46d1d29ae6a10b6b5f.png' }, // Hit2
+    { name: '5b0a9bbe83f883e0e648f3cffda96839.png', path: '/assets/easteregg/megaman/sprites/5b0a9bbe83f883e0e648f3cffda96839.png' }, // Hit3
+    { name: '5f4eacbd8a13fe907a24e9dd4b366ca8.png', path: '/assets/easteregg/megaman/sprites/5f4eacbd8a13fe907a24e9dd4b366ca8.png' }, // Hit4
+    { name: 'ee5b4945c2685f318106f951a537a73c.png', path: '/assets/easteregg/megaman/sprites/ee5b4945c2685f318106f951a537a73c.png' }, // Hit5
+    { name: '91a9950186deed6b06296ec179d17a24.png', path: '/assets/easteregg/megaman/sprites/91a9950186deed6b06296ec179d17a24.png' }, // Hit6
+    { name: 'a37bb271560e365e9eac949ac675c009.png', path: '/assets/easteregg/megaman/sprites/a37bb271560e365e9eac949ac675c009.png' }, // Hit7
+    { name: '68a9b48294eab02f64a9aacec96b76c6.png', path: '/assets/easteregg/megaman/sprites/68a9b48294eab02f64a9aacec96b76c6.png' }, // Hit8
+    { name: '4fd717ba3385c8d6d76ea1df21e2b245.png', path: '/assets/easteregg/megaman/sprites/4fd717ba3385c8d6d76ea1df21e2b245.png' }, // Hit9
+    { name: '399f62bacb879833ca499c139e9a4461.png', path: '/assets/easteregg/megaman/sprites/399f62bacb879833ca499c139e9a4461.png' }, // Hit10
     // Also load the armor hit sprite with original name for backwards compat
     { name: 'aabdd8a0c4b70511511ef63327f01483.png', path: '/assets/easteregg/megaman/sprites/aabdd8a0c4b70511511ef63327f01483.png' },
   ]
   for (const hit of hitFiles) {
     const hitImg = new Image()
     hitImg.src = hit.path
-    hitImg.onload = () => hitSprites.value.set(hit.name, hitImg)
+    hitImg.onload = () => {
+      hitSprites.value.set(hit.name, hitImg)
+      spriteImages.value.set(hit.name, hitImg) // Also add to sprite images for getAnimationFrames
+    }
   }
   
-  // Load death sprites
+  // Load death sprites (Death1-Death3) from project.json
   const deathFiles = [
-    { name: 'Death1.png', path: '/assets/easteregg/megaman/sprites/death/Death1.png' },
-    { name: 'Death2.png', path: '/assets/easteregg/megaman/sprites/death/Death2.png' },
-    { name: 'Death3.png', path: '/assets/easteregg/megaman/sprites/death/Death3.png' },
+    { name: '9bac76cd3cca6342e5e1f3dc7fee5ac8.png', path: '/assets/easteregg/megaman/sprites/9bac76cd3cca6342e5e1f3dc7fee5ac8.png' }, // Death1
+    { name: 'f1f7bf17578b56bf022ee33081cc5c1a.png', path: '/assets/easteregg/megaman/sprites/f1f7bf17578b56bf022ee33081cc5c1a.png' }, // Death2
+    { name: '169c783f60359234fad5ec797d0cc9c9.png', path: '/assets/easteregg/megaman/sprites/169c783f60359234fad5ec797d0cc9c9.png' }, // Death3
   ]
   for (const death of deathFiles) {
     const deathImg = new Image()
     deathImg.src = death.path
-    deathImg.onload = () => hitSprites.value.set(death.name, deathImg)
+    // Store in spriteImages so getAnimationFrames can find them
+    deathImg.onload = () => spriteImages.value.set(death.name, deathImg)
   }
   
   // Load death bubble sprites
@@ -513,6 +538,13 @@ async function loadEffectSprites() {
     readyImg.onload = () => readySprites.value.set(`Ready${i}.png`, readyImg)
   }
   
+  // Load dash effect sprites (size: 200 in project.json = 2x scale)
+  for (let i = 1; i <= 4; i++) {
+    const dashEffectImg = new Image()
+    dashEffectImg.src = `/assets/easteregg/megaman/sprites/effects/Dash_Effect${i}.png`
+    dashEffectImg.onload = () => dashEffectSprites.value.set(`Dash_Effect${i}.png`, dashEffectImg)
+  }
+  
   debug.log('🎮 Loaded effect sprites')
 }
 
@@ -529,19 +561,21 @@ function initializePlayers() {
   debug.log(`🎮 Initializing ${props.participants.length} players`)
   
   props.participants.forEach((participant, index) => {
-    // Random spawn position
+    // Fixed spawn position for first player, offset for others
+    // This ensures all players see the same spawn positions
     const canvasWidth = canvas ? canvas.width / (window.devicePixelRatio || 1) : 600
-    const randomX = 50 + Math.random() * (canvasWidth - 150)
+    const spawnX = 100 + (index * 100) % (canvasWidth - 200) // Deterministic positions
+    const targetY = floorY - 64 // Where player will land
     
     const player: Player = {
       userId: participant.userId,
-      x: randomX,
-      y: floorY - 64,
+      x: spawnX,
+      y: -100, // Start above screen (spawn from top)
       facing: 'right',
       state: 'idle',
       velocityX: 0,
       velocityY: 0,
-      onGround: true,
+      onGround: false, // Not on ground yet (spawning)
       onWall: false,
       wallSide: null,
       color: PLAYER_COLORS[index % PLAYER_COLORS.length],
@@ -560,8 +594,10 @@ function initializePlayers() {
       smokeEffects: [],
       lastJumpKeyPressed: false,
       lastDashKeyPressed: false,
+      dashStartTime: 0,
       isSpawning: true, // Start with spawn animation
-      spawnTime: Date.now()
+      spawnTime: Date.now(),
+      spawnY: targetY // Target Y position
     } as Player
     
     players.value.set(participant.userId, player)
@@ -571,9 +607,13 @@ function initializePlayers() {
     
     debug.log(`🎮 Created player: ${participant.userId} at (${player.x}, ${player.y})`)
     
-    // Play spawn sound for local player
+    // Play spawn sound and broadcast position for local player
     if (participant.userId === props.userId) {
       playSound('spawn')
+      // Broadcast initial spawn position after a short delay to ensure channel is ready
+      setTimeout(() => {
+        broadcastPlayerState(player, true)
+      }, 100)
     }
   })
   
@@ -623,7 +663,8 @@ function handleKeyUp(event: KeyboardEvent) {
       if (chargeTime >= CHARGE_TIME_LV1) {
         // Charged shot
         fireChargedShot(localPlayer)
-        // Play appropriate charge level sound
+        // Stop charge loop and play appropriate charge level sound
+        stopSound('chargeLoop')
         if (localPlayer.chargeLevel >= 3) {
           playSound('shootLv3')
         } else if (localPlayer.chargeLevel >= 2) {
@@ -633,6 +674,7 @@ function handleKeyUp(event: KeyboardEvent) {
         }
       } else {
         // Quick tap = uncharged shot
+        stopSound('chargeLoop')
         fireBullet(localPlayer, 0)
         playSound('shoot')
       }
@@ -647,6 +689,7 @@ function handleKeyUp(event: KeyboardEvent) {
       playSound('shoot')
     }
     
+    stopSound('chargeLoop') // Always stop charge loop when releasing space
     localPlayer.isCharging = false
     localPlayer.chargeLevel = 0
     localPlayer.chargeStartTime = 0
@@ -662,35 +705,71 @@ function handleInput() {
   
   const now = Date.now()
   
-  // Dash (Shift) - single press, not hold
+  // Dash (Shift) - single press, not hold, Megaman X style
   const dashKeyPressed = keys.value.has('ShiftLeft') || keys.value.has('ShiftRight')
   const wasDashKeyPressed = localPlayer.lastDashKeyPressed || false
   localPlayer.lastDashKeyPressed = dashKeyPressed
   
   if (dashKeyPressed && !wasDashKeyPressed && localPlayer.canDash && now - localPlayer.dashCooldown >= DASH_COOLDOWN) {
-    if ((localPlayer.onGround || localPlayer.onWall) && localPlayer.state !== 'dashing') {
+    if (localPlayer.onGround && localPlayer.state !== 'dashing') {
       localPlayer.state = 'dashing'
+      localPlayer.dashStartTime = now
+      localPlayer.isDashJumping = false
       localPlayer.velocityX = localPlayer.facing === 'right' ? DASH_SPEED : -DASH_SPEED
-      localPlayer.velocityY = 0 // Cancel any vertical momentum
+      localPlayer.velocityY = 0 // Stay on ground during dash
       localPlayer.canDash = false
       localPlayer.dashCooldown = now
       playSound('dash')
-      
-      // End dash after duration
-      setTimeout(() => {
-        if (localPlayer.state === 'dashing') {
-          localPlayer.state = 'idle'
-          localPlayer.velocityX = 0 // Stop completely after dash
-        }
-        localPlayer.canDash = true
-      }, DASH_DURATION)
+      broadcastPlayerState(localPlayer, true)
     }
   }
   
-  // If dashing, don't process other movement - dash is a fixed action
+  // Handle dash state - check for dash-jump first
   if (localPlayer.state === 'dashing') {
+    const dashElapsed = now - (localPlayer.dashStartTime || now)
+    
+    // DASH JUMP: Jump while dashing = higher horizontal speed jump
+    const jumpKeyPressed = keys.value.has('ArrowUp')
+    const wasJumpKeyPressed = localPlayer.lastJumpKeyPressed || false
+    
+    if (jumpKeyPressed && !wasJumpKeyPressed) {
+      // Perform dash-jump - keep horizontal dash momentum and jump
+      localPlayer.state = 'dashJumping'
+      localPlayer.isDashJumping = true
+      localPlayer.velocityY = JUMP_STRENGTH
+      // Keep dash horizontal velocity (faster than normal walk)
+      localPlayer.onGround = false
+      localPlayer.canDash = true // Reset dash for when you land
+      playSound('jump')
+      // Add smoke effect
+      localPlayer.smokeEffects.push({
+        x: localPlayer.x + 32,
+        y: localPlayer.y + 64,
+        frame: 0,
+        createdAt: Date.now()
+      })
+      broadcastPlayerState(localPlayer, true)
+      localPlayer.lastJumpKeyPressed = jumpKeyPressed
+      return // Jump takes over from dash
+    }
+    
+    if (dashElapsed >= DASH_DURATION) {
+      // End dash smoothly - keep some momentum if still holding direction
+      const holdingLeft = keys.value.has('ArrowLeft')
+      const holdingRight = keys.value.has('ArrowRight')
+      if ((holdingLeft && localPlayer.facing === 'left') || (holdingRight && localPlayer.facing === 'right')) {
+        localPlayer.state = 'walking'
+        localPlayer.velocityX = localPlayer.facing === 'right' ? WALK_SPEED : -WALK_SPEED
+      } else {
+        localPlayer.state = 'idle'
+        localPlayer.velocityX = 0
+      }
+      localPlayer.canDash = true
+      localPlayer.isDashJumping = false
+    }
     broadcastPlayerState(localPlayer, true)
-    return // Don't process any other input during dash
+    localPlayer.lastJumpKeyPressed = keys.value.has('ArrowUp')
+    return // Don't process other movement during dash
   }
   
   // Charging (hold Space) - only update charge, don't fire here
@@ -760,16 +839,17 @@ function handleInput() {
     // Jump key just pressed (not held)
     if (localPlayer.onWall && localPlayer.wallSide) {
       // Wall kick/jump - Megaman X style: kick off wall, can re-grab to climb
-      // Jump up and slightly away from wall (not too far so player can return)
+      // Wall kick - jump up and slightly away from wall (can return to wall for climbing)
       localPlayer.velocityY = -14 // Strong upward kick
-      // Kick away from wall - but not too far
-      localPlayer.velocityX = localPlayer.wallSide === 'left' ? 4 : -4 // Reduced from 6
+      // Kick away from wall - but not too far so player can return
+      localPlayer.velocityX = localPlayer.wallSide === 'left' ? 5 : -5
       localPlayer.facing = localPlayer.wallSide === 'left' ? 'right' : 'left'
       localPlayer.onWall = false
       const previousWallSide = localPlayer.wallSide
       localPlayer.wallSide = null
       localPlayer.canWallJump = false
-      localPlayer.state = 'jumping'
+      localPlayer.state = 'wallKick' // Use wall kick state for animation
+      localPlayer.wallKickTime = Date.now()
       playSound('jump')
       // Add smoke effect at kick position
       localPlayer.smokeEffects.push({
@@ -778,7 +858,13 @@ function handleInput() {
         frame: 0,
         createdAt: Date.now()
       })
-      broadcastPlayerState(localPlayer, true) // Force broadcast wall jump
+      // After wall kick animation (200ms), switch to jumping
+      setTimeout(() => {
+        if (localPlayer.state === 'wallKick') {
+          localPlayer.state = 'jumping'
+        }
+      }, 200)
+      broadcastPlayerState(localPlayer, true) // Force broadcast wall kick
     } else if (localPlayer.onGround && !localPlayer.onWall) {
       // Ground jump - only if actually on ground AND not on wall
       localPlayer.velocityY = JUMP_STRENGTH
@@ -977,16 +1063,20 @@ function gameLoop(currentTime: number) {
   const wallLeft = 0
   const wallRight = canvasWidth
   
-  // Draw intro animation
+  // Draw "READY" text animation (after spawn animation)
   if (showIntro && gameStartTime > 0 && ctx) {
     const introTime = Date.now() - gameStartTime
-    if (introTime < 2000) { // Show intro for 2 seconds
-      const readyFrame = Math.min(Math.floor(introTime / 150), 12)
+    // Show Ready text from 800ms (after spawn) to 2500ms
+    if (introTime >= 800 && introTime < 2500) {
+      const readyAnimTime = introTime - 800
+      const readyFrame = Math.min(Math.floor(readyAnimTime / 100), 12)
       const readySprite = readySprites.value.get(`Ready${readyFrame}.png`)
-      if (readySprite && readySprite.complete) {
+      if (readySprite && readySprite.complete && readySprite.naturalWidth > 0) {
         ctx.save()
-        const readyWidth = readySprite.naturalWidth * 0.5
-        const readyHeight = readySprite.naturalHeight * 0.5
+        // Ready sprite uses 2x scale (size: 200 in project.json)
+        const scale = 2.0
+        const readyWidth = readySprite.naturalWidth * scale
+        const readyHeight = readySprite.naturalHeight * scale
         ctx.drawImage(
           readySprite,
           (canvasWidth - readyWidth) / 2,
@@ -996,7 +1086,7 @@ function gameLoop(currentTime: number) {
         )
         ctx.restore()
       }
-    } else {
+    } else if (introTime >= 2500) {
       showIntro = false
     }
   }
@@ -1036,6 +1126,8 @@ function gameLoop(currentTime: number) {
     players.value.forEach((player) => {
       // Don't hit the shooter
       if (player.userId === bullet.userId) return
+      // Don't hit dead or spawning players
+      if (player.state === 'dead' || player.isSpawning) return
       
       // Simple collision detection (bullet center vs player bounds)
       const bulletSize = 16
@@ -1277,12 +1369,23 @@ function gameLoop(currentTime: number) {
         if (userId === props.userId) {
           playSound('land')
         }
+        // Reset dash-jump indicator
+        player.isDashJumping = false
+        player.canDash = true // Can dash again after landing
+        
         player.state = 'landing'
+        // Add landing smoke effect
+        player.smokeEffects.push({
+          x: player.x + 32,
+          y: player.y + 64,
+          frame: 0,
+          createdAt: Date.now()
+        })
         setTimeout(() => {
           if (player.state === 'landing') {
             player.state = player.velocityX !== 0 ? 'walking' : 'idle'
           }
-        }, 200)
+        }, 150) // Slightly faster landing animation
       }
       player.y = floorY - 64
       player.velocityY = 0
@@ -1294,12 +1397,24 @@ function gameLoop(currentTime: number) {
     }
     
     // Update state based on velocity when in air (charging doesn't change state)
-    if (!player.onGround && !player.onWall && (player.state as string) !== 'dashing') {
+    // Keep dashJumping and wallKick states until landing or state changes
+    if (!player.onGround && !player.onWall && 
+        player.state !== 'dashing' && 
+        player.state !== 'dashJumping' && 
+        player.state !== 'wallKick' &&
+        player.state !== 'hit' &&
+        player.state !== 'dead') {
       if (player.velocityY > 0) {
         player.state = 'falling'
       } else if (player.velocityY < 0) {
         player.state = 'jumping'
       }
+    }
+    
+    // Dash-jumping transitions: when velocity drops significantly, switch to fall
+    if (player.state === 'dashJumping' && player.velocityY > 2) {
+      player.state = 'falling'
+      player.isDashJumping = true // Keep the momentum indicator
     }
     
     // Boundary collision
@@ -1332,39 +1447,84 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
     return []
   }
   
-  // Handle hit state - show hit sprite (aabdd8a0c4b70511511ef63327f01483.png)
+  // Handle hit state - cycle through Hit1-Hit10 (10 frames at ~50ms each = 500ms total)
   if (player.state === 'hit') {
-    // Use the single hit sprite
-    const hitSprite = hitSprites.value.get('aabdd8a0c4b70511511ef63327f01483.png')
-    if (hitSprite) {
-      return [{ name: 'Hit', file: 'aabdd8a0c4b70511511ef63327f01483.png' }]
+    const hitFrames = animations.value.hit || []
+    if (hitFrames.length > 0) {
+      const hitElapsed = Date.now() - player.hitTime
+      const hitFrameIndex = Math.min(Math.floor(hitElapsed / 50), hitFrames.length - 1)
+      return [hitFrames[hitFrameIndex]]
     }
   }
   
-  // Handle death state
+  // Handle death state - first show Death1-3, then fade out with bubbles
   if (player.state === 'dead') {
-    // Use death bubble sprites
-    const deathFrames: AnimationFrame[] = []
+    const deathElapsed = Date.now() - player.hitTime
+    
+    // First 600ms: Show Death1-3 animation
+    if (deathElapsed < 600) {
+      const deathFrames = animations.value.death || []
+      if (deathFrames.length > 0) {
+        const deathFrameIndex = Math.min(Math.floor(deathElapsed / 200), deathFrames.length - 1)
+        return [deathFrames[deathFrameIndex]]
+      }
+    }
+    
+    // After 600ms: Show bubble explosion effect
+    const deathBubbleFrames: AnimationFrame[] = []
     for (let i = 1; i <= 5; i++) {
       const bubbleSprite = deathBubbleSprites.value.get(`Bubble${i}.png`)
       if (bubbleSprite) {
-        deathFrames.push({ name: `Bubble${i}`, file: `Bubble${i}.png` })
+        deathBubbleFrames.push({ name: `Bubble${i}`, file: `Bubble${i}.png` })
       }
     }
-    if (deathFrames.length > 0) {
-      const deathTime = Date.now() - player.hitTime
-      const deathFrameIndex = Math.min(Math.floor(deathTime / 200), deathFrames.length - 1)
-      return [deathFrames[deathFrameIndex]]
+    if (deathBubbleFrames.length > 0) {
+      const bubbleTime = deathElapsed - 600
+      const bubbleFrameIndex = Math.min(Math.floor(bubbleTime / 150), deathBubbleFrames.length - 1)
+      return [deathBubbleFrames[bubbleFrameIndex]]
     }
   }
   
-  // Wall cling takes priority
+  // Wall kick animation (after wall jump, show wall kick frames)
+  if (player.state === 'wallKick') {
+    const wallKickFrames = animations.value.wall_kick || []
+    if (wallKickFrames.length > 0) {
+      const kickTime = Date.now() - (player.wallKickTime || Date.now())
+      const kickFrameIndex = Math.min(Math.floor(kickTime / 100), wallKickFrames.length - 1)
+      return [wallKickFrames[kickFrameIndex]]
+    }
+  }
+  
+  // Wall cling animation - slide down with animated Wall_Cling1-3
   if (player.onWall && player.state === 'wallCling') {
-    return animations.value.wall || []
+    const wallClingFrames = animations.value.wall_cling || []
+    if (wallClingFrames.length > 0) {
+      // Animate through Wall_Cling1-3 while sliding
+      return wallClingFrames
+    }
+    // Fallback to old wall array
+    const wallFrames = animations.value.wall || []
+    const clingFrames = wallFrames.filter(f => f.name.startsWith('Wall_Cling') && !f.name.includes('Fire'))
+    if (clingFrames.length > 0) {
+      return clingFrames
+    }
+    return wallFrames.slice(0, 1)
   }
   
   // Dash takes priority - use dash animation frames
+  // But check for dash+shooting first (Dash_Fire)
   if (player.state === 'dashing') {
+    const timeSinceLastShot = Date.now() - (player.lastShotTime || 0)
+    if ((player.isShooting || timeSinceLastShot < 200) && !player.isCharging) {
+      // Dash + shooting = Dash_Fire sprites
+      const dashFireFrames = animations.value.dash_fire || animations.value.shoot.filter(f => 
+        f.name.toLowerCase().includes('dash') && f.name.toLowerCase().includes('fire')
+      )
+      if (dashFireFrames && dashFireFrames.length > 0) {
+        return dashFireFrames
+      }
+    }
+    // Normal dash animation
     const dashFrames = animations.value.dash || []
     if (dashFrames.length > 0) {
       return dashFrames // Return Dash1 and Dash2 frames
@@ -1377,14 +1537,23 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
   // Show shooting animation for 200ms after firing
   const timeSinceLastShot = Date.now() - (player.lastShotTime || 0)
   if ((player.isShooting || timeSinceLastShot < 200) && !player.isCharging) {
+    // Dash-jumping + shooting uses Jump_Fire sprites
+    if (player.state === 'dashJumping' || player.isDashJumping) {
+      const jumpFireFrames = animations.value.shoot.filter(f => 
+        f.name.toLowerCase().includes('jump') && f.name.toLowerCase().includes('fire')
+      )
+      if (jumpFireFrames.length > 0) {
+        return jumpFireFrames
+      }
+    }
+    
     // Find shooting animation that matches current movement state
     const shootFrames = animations.value.shoot.filter(frame => {
       const name = frame.name.toLowerCase()
       if ((player.state === 'idle' || player.state === 'landing') && name.includes('idle') && name.includes('fire')) return true
       if (player.state === 'walking' && name.includes('run') && name.includes('fire')) return true
-      if (player.state === 'jumping' && name.includes('jump') && name.includes('fire')) return true
+      if ((player.state === 'jumping' || player.state === 'dashJumping' || player.state === 'wallKick') && name.includes('jump') && name.includes('fire')) return true
       if (player.state === 'falling' && name.includes('fall') && name.includes('fire')) return true
-      if (player.state === 'dashing' && name.includes('dash') && name.includes('fire')) return true
       if (player.onWall && name.includes('wall') && name.includes('fire')) return true
       return false
     })
@@ -1406,10 +1575,15 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
       return animations.value.walk || []
     case 'jumping':
       return animations.value.jump || []
+    case 'dashJumping':
+      // Dash-jump uses jump animation but with dash momentum
+      return animations.value.jump || []
     case 'falling':
       return animations.value.fall || []
     case 'landing':
       return animations.value.land || []
+    case 'wallKick':
+      return animations.value.wall_kick || animations.value.jump || []
     case 'idle':
     default:
       return animations.value.idle || []
@@ -1423,36 +1597,49 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     return
   }
   
-  // Handle spawn animation (teleport down)
+  // Handle spawn animation (teleport down from top of screen)
   if (player.isSpawning && player.spawnTime) {
     const spawnElapsed = Date.now() - player.spawnTime
-    const spawnDuration = 800 // 800ms for spawn animation (7 frames at ~100ms each)
+    const spawnDuration = 600 // 600ms for falling from top
     
     if (spawnElapsed < spawnDuration) {
-      // Calculate which intro frame to show (7 frames total)
-      const introFrameIndex = Math.min(Math.floor(spawnElapsed / (spawnDuration / 7)) + 1, 7)
+      // Calculate Y position - fall from top to target
+      const targetY = player.spawnY || 200
+      const startY = -80 // Start above screen
+      const progress = Math.min(spawnElapsed / spawnDuration, 1)
+      // Ease out for smooth landing
+      const easedProgress = 1 - Math.pow(1 - progress, 2)
+      const currentY = startY + (targetY - startY) * easedProgress
+      
+      // Calculate which intro frame to show (1-7)
+      const introFrameIndex = Math.min(Math.floor(progress * 6) + 1, 7)
       const introSprite = readySprites.value.get(`Intro${introFrameIndex}.png`)
       
       if (introSprite && introSprite.complete && introSprite.naturalWidth > 0) {
         ctx.save()
-        const scale = introSprite.naturalWidth > 100 ? 0.5 : 1
+        // Use 2x scale like project.json
+        const scale = 1.0 // Sprites are already 2x in source
         const drawWidth = introSprite.naturalWidth * scale
         const drawHeight = introSprite.naturalHeight * scale
         
-        // Center the sprite on player position
-        if (player.facing === 'left') {
-          ctx.scale(-1, 1)
-          ctx.drawImage(introSprite, -player.x - drawWidth, player.y, drawWidth, drawHeight)
-        } else {
-          ctx.drawImage(introSprite, player.x, player.y, drawWidth, drawHeight)
-        }
+        // Draw at calculated position
+        ctx.drawImage(introSprite, player.x, currentY, drawWidth, drawHeight)
         ctx.restore()
       }
       return // Don't draw normal player sprite during spawn
     } else {
-      // Spawn complete
+      // Spawn complete - put player at ground level
       player.isSpawning = false
       player.spawnTime = 0
+      player.y = player.spawnY || 200
+      player.onGround = true
+      // Add landing smoke effect
+      player.smokeEffects.push({
+        x: player.x + 32,
+        y: player.y + 64,
+        frame: 0,
+        createdAt: Date.now()
+      })
     }
   }
   
@@ -1485,6 +1672,14 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   const frame = frames[frameIndex]
   
   if (!frame) {
+    // No frame available - try to show idle as fallback
+    const idleFrames = animations.value?.idle || []
+    if (idleFrames.length > 0) {
+      const fallbackSprite = spriteImages.value.get(idleFrames[0].file)
+      if (fallbackSprite && fallbackSprite.complete && ctx) {
+        ctx.drawImage(fallbackSprite, player.x, player.y, 64, 64)
+      }
+    }
     return
   }
   
@@ -1494,9 +1689,22 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     // Try to get hit sprite directly
     spriteImg = hitSprites.value.get(frame.file) || null
   }
+  // Also check death bubble sprites for dead state
+  if (!spriteImg && player.state === 'dead') {
+    spriteImg = deathBubbleSprites.value.get(frame.file) || null
+  }
   // Fallback to regular sprite images
   if (!spriteImg) {
     spriteImg = spriteImages.value.get(frame.file) || null
+  }
+  
+  // If still no sprite, try to get first idle sprite as ultimate fallback
+  if (!spriteImg) {
+    const idleFrames = animations.value?.idle || []
+    if (idleFrames.length > 0) {
+      spriteImg = spriteImages.value.get(idleFrames[0].file) || null
+      debug.warn(`🎮 Missing sprite ${frame.file}, using idle fallback`)
+    }
   }
   
   if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
@@ -1726,24 +1934,53 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight)
     }
     
-    // Draw smoke effects
+    // Draw smoke effects (size: 200 in project.json = 2x scale)
     if (player.smokeEffects.length > 0 && ctx) {
       player.smokeEffects = player.smokeEffects.filter(smoke => {
         const age = Date.now() - smoke.createdAt
-        if (age > 500) return false // Remove after 500ms
+        if (age > 400) return false // Remove after 400ms (6 frames at ~66ms each)
         
-        // Draw smoke sprite (if loaded)
-        const smokeFrame = Math.floor((age / 80) % 6) // 6 smoke frames
+        // Draw smoke sprite (if loaded) - not looping, just one cycle
+        const smokeFrame = Math.min(Math.floor(age / 66), 5) // 6 smoke frames, no loop
         const smokeSprite = smokeSprites.value.get(`Smoke${smokeFrame + 1}.png`)
         if (smokeSprite && smokeSprite.complete && ctx) {
-          const smokeWidth = smokeSprite.naturalWidth * 0.5
-          const smokeHeight = smokeSprite.naturalHeight * 0.5
-          ctx.globalAlpha = 1 - (age / 500) // Fade out
+          // 2x scale like project.json (size: 200)
+          const scale = 2.0
+          const smokeWidth = smokeSprite.naturalWidth * scale
+          const smokeHeight = smokeSprite.naturalHeight * scale
+          ctx.globalAlpha = 1 - (age / 400) // Fade out
           ctx.drawImage(smokeSprite, smoke.x - smokeWidth/2, smoke.y - smokeHeight/2, smokeWidth, smokeHeight)
           ctx.globalAlpha = 1.0
         }
         return true
       })
+    }
+    
+    // Draw dash effect behind player when dashing (size: 200 = 2x scale)
+    if (player.state === 'dashing' && player.dashStartTime && ctx) {
+      const dashElapsed = Date.now() - player.dashStartTime
+      const dashFrame = Math.min(Math.floor(dashElapsed / 50), 3) + 1 // 4 frames, cycle quickly
+      const dashEffectSprite = dashEffectSprites.value.get(`Dash_Effect${dashFrame}.png`)
+      
+      if (dashEffectSprite && dashEffectSprite.complete) {
+        const scale = 2.0 // 2x scale like project.json
+        const effectWidth = dashEffectSprite.naturalWidth * scale
+        const effectHeight = dashEffectSprite.naturalHeight * scale
+        
+        ctx.save()
+        // Position effect behind player (opposite of facing direction)
+        const effectX = player.facing === 'right' 
+          ? player.x - effectWidth + 20 
+          : player.x + 64 - 20
+        
+        if (player.facing === 'left') {
+          ctx.scale(-1, 1)
+          ctx.drawImage(dashEffectSprite, -effectX - effectWidth, player.y + 32 - effectHeight/2, effectWidth, effectHeight)
+        } else {
+          ctx.drawImage(dashEffectSprite, effectX, player.y + 32 - effectHeight/2, effectWidth, effectHeight)
+        }
+        ctx.restore()
+      }
     }
   }
 }
