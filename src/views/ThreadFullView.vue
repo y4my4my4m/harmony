@@ -111,16 +111,22 @@
         :current-user-id="currentUserId"
         :channel-id="thread?.channel_id"
         :is-loading="loading"
+        :hide-thread-actions="true"
         @send-reaction="handleSendReaction"
+        @toggle-emoji-list="handleToggleEmojiList"
         @replying-to="handleReplyingTo"
       />
     </div>
 
     <!-- Message Input - Reuse MessageInput component (DRY) -->
     <MessageInput
+      ref="messageInputRef"
       v-model="messageText"
       :placeholder-target="thread?.name || 'thread'"
+      :reply-message-id="replyingToMessageId"
+      :reply-user-display-name="replyingToUserName"
       @send-message="handleSendMessage"
+      @update:reply-message-id="handleCancelReply"
     />
   </div>
 </template>
@@ -159,6 +165,11 @@ const authStore = useAuthStore()
 
 // Current user ID for MessageDisplay
 const currentUserId = computed(() => authStore.session?.user?.id)
+
+// Reply state
+const replyingToMessageId = ref<string>('')
+const replyingToUserName = ref<string>('')
+const messageInputRef = ref<any>(null)
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
@@ -283,11 +294,18 @@ const handleSendMessage = async (content: string, files: any[] = [], replyMessag
   
   try {
     const messageParts: MessagePart[] = [{ type: 'text' as const, text: content.trim() }]
-    const newMessage = await threadService.sendThreadMessage(thread.value.id, messageParts)
+    const newMessage = await threadService.sendThreadMessage(
+      thread.value.id, 
+      messageParts, 
+      replyMessageId || replyingToMessageId.value || undefined
+    )
     
     if (newMessage) {
       messages.value.push(newMessage)
       messageText.value = ''
+      // Clear reply state
+      replyingToMessageId.value = ''
+      replyingToUserName.value = ''
       await nextTick()
       scrollToBottom()
     }
@@ -315,9 +333,32 @@ const handleSendReaction = async (messageId: string, emoji: Emoji) => {
   }
 }
 
-const handleReplyingTo = (messageId: string) => {
-  // Threads don't support nested replies, just scroll to the message
-  console.log('Reply reference clicked:', messageId)
+const handleToggleEmojiList = (isReaction: boolean, message?: Message) => {
+  // For reactions on messages, we need to handle this differently
+  // The emoji picker is typically managed by ChatComponent
+  console.log('Toggle emoji list for reaction:', isReaction, message?.id)
+}
+
+const handleReplyingTo = (messageId: string, displayName?: string) => {
+  // Set reply state
+  replyingToMessageId.value = messageId
+  
+  if (displayName) {
+    replyingToUserName.value = displayName
+  } else {
+    // Fallback: find the message and get user display name
+    const replyMessage = messages.value.find(m => m.id === messageId)
+    if (replyMessage) {
+      replyingToUserName.value = getDisplayName(replyMessage.user_id).value
+    }
+  }
+}
+
+const handleCancelReply = (value: string) => {
+  if (!value) {
+    replyingToMessageId.value = ''
+    replyingToUserName.value = ''
+  }
 }
 
 // Watch for threadId changes

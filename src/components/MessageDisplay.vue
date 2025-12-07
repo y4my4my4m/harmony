@@ -242,7 +242,7 @@
         <div class="message-actions" v-if="hoveredMessageId === message.id">
           <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
           <div class="action-btn" @click="replyTo(message)"><ReplyIcon/></div>
-          <div class="action-btn thread-btn" @click="createThread(message)" title="Create Thread"><ThreadIcon/></div>
+          <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(message)" title="Create Thread"><ThreadIcon/></div>
           <div class="action-btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
           <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
           <div class="action-btn" @click="openContextMenu(message, $event)"><MoreIcon/></div>
@@ -257,9 +257,9 @@
           @open-emoji-picker="handleOpenEmojiPicker"
         />
         
-        <!-- Thread Indicator (if this message started a thread) -->
+        <!-- Thread Indicator (if this message started a thread) - hidden in thread view -->
         <ThreadIndicator
-          v-if="getThreadForMessage(message.id)"
+          v-if="!props.hideThreadActions && getThreadForMessage(message.id)"
           :thread="getThreadForMessage(message.id)"
           @open="openThread"
           class="message-thread-indicator"
@@ -400,6 +400,11 @@ const props = defineProps({
   },
   channelId: String,
   conversationId: String,
+  // Hide thread creation button (for use inside thread views)
+  hideThreadActions: {
+    type: Boolean,
+    default: false
+  },
 });
 
 const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads']);

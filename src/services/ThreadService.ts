@@ -627,7 +627,8 @@ class ThreadService {
    */
   async sendThreadMessage(
     threadId: string,
-    content: any[]
+    content: any[],
+    replyTo?: string
   ): Promise<Message | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -637,14 +638,20 @@ class ThreadService {
       const thread = await this.getThread(threadId)
       if (!thread) return null
 
+      const insertData: any = {
+        thread_id: threadId,
+        channel_id: thread.channel_id,
+        user_id: user.id,
+        content,
+      }
+      
+      if (replyTo) {
+        insertData.reply_to = replyTo
+      }
+
       const { data, error } = await supabase
         .from('messages')
-        .insert({
-          thread_id: threadId,
-          channel_id: thread.channel_id,
-          user_id: user.id,
-          content,
-        })
+        .insert(insertData)
         .select()
         .single()
 
