@@ -160,6 +160,99 @@ const PLAYER_COLORS = [
   '#b83275', '#2ec91c', '#020203', '#e5e4f2'
 ]
 
+// Palette maps for color swapping - maps actual source colors to target player colors
+// Source colors: 203080, 0040f0, 0080f8, 1858b0, 50a0f0, 78d8f0, f04010
+// Edit these HEX values to fine-tune each player's palette
+const PALETTE_MAPS: Record<string, Record<string, string>> = {
+  // Player 1: Red (#ff6b6b) - stays as original blue Megaman (no swap)
+  'ff6b6b': {
+    '203080': '203080', // dark blue → dark blue (unchanged)
+    '0040f0': '0040f0', // mid blue → mid blue (unchanged)
+    '0080f8': '0080f8', // bright blue → bright blue (unchanged)
+    '1858b0': '1858b0', // dark light blue → dark light blue (unchanged)
+    '50a0f0': '50a0f0', // mid light blue → mid light blue (unchanged)
+    '78d8f0': '78d8f0', // bright light blue → bright light blue (unchanged)
+    'f04010': 'f04010'  // accent → accent (unchanged)
+  },
+  
+  // Player 2: Dark Red (#cd3c41)
+  'cd3c41': {
+    '203080': '5a0000', // dark blue → dark red
+    '0040f0': '9a2e2e', // mid blue → mid red
+    '0080f8': 'cd3c41', // bright blue → bright red
+    '1858b0': '7a1e1e', // dark light blue → dark light red
+    '50a0f0': 'b83232', // mid light blue → mid light red
+    '78d8f0': 'e85a5a', // bright light blue → bright light red
+    'f04010': 'ff6b6b'  // accent → red accent
+  },
+  
+  // Player 3: Purple (#7832bf)
+  '7832bf': {
+    '203080': '4a1f73', // dark blue → dark purple
+    '0040f0': '7832bf', // mid blue → mid purple
+    '0080f8': '9b5fdf', // bright blue → bright purple
+    '1858b0': '5a2f8a', // dark light blue → dark light purple
+    '50a0f0': '8a4fcf', // mid light blue → mid light purple
+    '78d8f0': 'b87fef', // bright light blue → bright light purple
+    'f04010': 'c85fef'  // accent → purple accent
+  },
+  
+  // Player 4: Yellow (#f9ca24)
+  'f9ca24': {
+    '203080': '997a00', // dark blue → dark yellow
+    '0040f0': 'f9ca24', // mid blue → mid yellow
+    '0080f8': 'fff26b', // bright blue → bright yellow
+    '1858b0': 'b89a1e', // dark light blue → dark light yellow
+    '50a0f0': 'ffda4f', // mid light blue → mid light yellow
+    '78d8f0': 'ffea7f', // bright light blue → bright light yellow
+    'f04010': 'ffaa00'  // accent → yellow accent
+  },
+  
+  // Player 5: Magenta/Pink (#b83275)
+  'b83275': {
+    '203080': '6f1e47', // dark blue → dark magenta
+    '0040f0': 'b83275', // mid blue → mid magenta
+    '0080f8': 'e85ba8', // bright blue → bright magenta
+    '1858b0': '8a2f5a', // dark light blue → dark light magenta
+    '50a0f0': 'c85a9a', // mid light blue → mid light magenta
+    '78d8f0': 'f08fca', // bright light blue → bright light magenta
+    'f04010': 'ff6ba8'  // accent → magenta accent
+  },
+  
+  // Player 6: Green (#2ec91c)
+  '2ec91c': {
+    '203080': '007a2a', // dark blue → dark green
+    '0040f0': '3acc5c', // mid blue → mid green
+    '0080f8': '6bff8a', // bright blue → bright green
+    '1858b0': '1e9a3a', // dark light blue → dark light green
+    '50a0f0': '4fef7a', // mid light blue → mid light green
+    '78d8f0': '7fffaa', // bright light blue → bright light green
+    'f04010': '4fff5a'  // accent → green accent
+  },
+  
+  // Player 7: Black (#020203)
+  '020203': {
+    '203080': '020203', // dark blue → black
+    '0040f0': '202020', // mid blue → dark gray
+    '0080f8': '404040', // bright blue → mid gray
+    '1858b0': '151515', // dark light blue → dark gray
+    '50a0f0': '303030', // mid light blue → gray
+    '78d8f0': '505050', // bright light blue → light gray
+    'f04010': '404040'  // accent → gray accent
+  },
+  
+  // Player 8: Light Gray/White (#e5e4f2)
+  'e5e4f2': {
+    '203080': '8a8a9a', // dark blue → dark gray
+    '0040f0': 'b8b8c8', // mid blue → mid gray
+    '0080f8': 'e5e4f2', // bright blue → light gray
+    '1858b0': '9a9aaa', // dark light blue → gray
+    '50a0f0': 'c8c8d8', // mid light blue → light gray
+    '78d8f0': 'f5f5ff', // bright light blue → white
+    'f04010': 'd8d8e8'  // accent → light gray accent
+  }
+}
+
 // Sound effects - using actual Megaman X sounds from Scratch project
 const soundPaths = {
   jump: [
@@ -756,6 +849,8 @@ function handleKeyUp(event: KeyboardEvent) {
       playSound('shoot')
     }
     
+    // Always stop charge loop when releasing space (clean up)
+    stopSound('chargeLoop')
     localPlayer.chargeStartTime = 0
   }
   
@@ -1763,9 +1858,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     return
   }
   
-  // Debug: Log facing for remote players when it changes
-  const isRemote = userId !== props.userId
-  // Removed random logging - facing should be correct now
+  // No debug logging needed - facing is handled correctly
   
   // Handle spawn animation (teleport down from top of screen)
   // Megaman X style: Intro1 while falling from sky, then Intro2-7 when landing
@@ -1924,7 +2017,12 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     }
     
     // Apply palette swap for different players - Megaman style (replace blues with player color)
-    if (player.color !== '#ff6b6b') { // Default color - no swap needed
+    // Player 1 (first color) stays as original blue Megaman - no palette swap
+    const playerColorHex = player.color.replace('#', '').toLowerCase()
+    const isPlayer1 = playerColorHex === PLAYER_COLORS[0].replace('#', '').toLowerCase()
+    const palette = isPlayer1 ? null : PALETTE_MAPS[playerColorHex]
+    
+    if (palette) {
       // Draw sprite to offscreen canvas for color manipulation
       const offscreenCanvas = document.createElement('canvas')
       offscreenCanvas.width = drawWidth
@@ -1939,36 +2037,60 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         const imageData = offscreenCtx.getImageData(0, 0, drawWidth, drawHeight)
         const data = imageData.data
         
-        // Convert player color to RGB
-        const hex = player.color.replace('#', '')
-        const targetR = parseInt(hex.substr(0, 2), 16)
-        const targetG = parseInt(hex.substr(2, 2), 16)
-        const targetB = parseInt(hex.substr(4, 2), 16)
+        // Apply explicit color mapping with tolerance for slight color variations
+        // First, build a tolerance map for faster lookups
+        const tolerance = 15 // Allow ±15 RGB difference for matching
+        const sourceColors = Object.keys(palette)
+        const sourceColorRgb = sourceColors.map(hex => ({
+          hex,
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16)
+        }))
         
-        // Megaman X uses specific blue tones - we'll replace blue-ish pixels
-        // This gives a more authentic palette swap look
         for (let i = 0; i < data.length; i += 4) {
-          if (data[i + 3] > 0) { // Only process non-transparent pixels
-            const r = data[i]
-            const g = data[i + 1]
-            const b = data[i + 2]
-            
-            // Detect blue-ish pixels (Megaman's armor colors)
-            // Light blue: high B, medium R/G
-            // Dark blue: low-medium R/G, medium-high B
-            const isBlueish = b > 80 && b >= r && b >= g
-            
-            if (isBlueish) {
-              // Calculate intensity (how light/dark the pixel is)
-              const intensity = (r + g + b) / 3 / 255
+          if (data[i + 3] === 0) continue // Skip transparent pixels
+          
+          const r = data[i]
+          const g = data[i + 1]
+          const b = data[i + 2]
+          
+          // Try exact match first
+          const exactKey = (
+            r.toString(16).padStart(2, '0') +
+            g.toString(16).padStart(2, '0') +
+            b.toString(16).padStart(2, '0')
+          ).toLowerCase()
+          
+          let matchedColor: string | null = null
+          
+          if (palette[exactKey]) {
+            matchedColor = exactKey
+          } else {
+            // Try tolerance-based matching (for scaled/processed sprites)
+            for (const source of sourceColorRgb) {
+              const dr = Math.abs(r - source.r)
+              const dg = Math.abs(g - source.g)
+              const db = Math.abs(b - source.b)
               
-              // Replace with player color while keeping intensity
-              data[i] = Math.floor(targetR * intensity + targetR * 0.3) // R
-              data[i + 1] = Math.floor(targetG * intensity + targetG * 0.3) // G
-              data[i + 2] = Math.floor(targetB * intensity + targetB * 0.3) // B
+              // Check if within tolerance and is blue-ish (B >= R and B >= G)
+              if (dr <= tolerance && dg <= tolerance && db <= tolerance && 
+                  b >= r && b >= g && b > 80) {
+                matchedColor = source.hex
+                break
+              }
             }
-            // Non-blue pixels (skin, eyes, etc.) keep original color
           }
+          
+          // Apply color replacement if matched
+          if (matchedColor && palette[matchedColor]) {
+            const hex = palette[matchedColor]
+            data[i] = parseInt(hex.slice(0, 2), 16)     // R
+            data[i + 1] = parseInt(hex.slice(2, 4), 16)   // G
+            data[i + 2] = parseInt(hex.slice(4, 6), 16) // B
+            // Alpha (data[i + 3]) stays the same
+          }
+          // Non-mapped pixels (skin, eyes, etc.) keep original color
         }
         
         // Put modified image data back
