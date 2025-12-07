@@ -255,7 +255,8 @@ export class ActivityPubService {
    * Uses RPC for proper server-side filtering of deleted posts and suspended users
    */
   async getFederatedTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // OPTIMIZED: Use cached auth context
+    const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
     const limit = options.limit || 20;
@@ -283,7 +284,8 @@ export class ActivityPubService {
    * Uses RPC for proper server-side filtering
    */
   async getLocalTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // OPTIMIZED: Use cached auth context
+    const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
     const limit = options.limit || 20;
@@ -344,7 +346,8 @@ export class ActivityPubService {
     postId: string, 
     options: PostContextOptions = {}
   ): Promise<PostWithContext> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // OPTIMIZED: Use cached auth context
+    const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
     const {
@@ -442,7 +445,8 @@ export class ActivityPubService {
    * Get full conversation thread for a post
    */
   async getConversationThreadLegacy(conversationId: string): Promise<ConversationThread> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // OPTIMIZED: Use cached auth context
+    const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
     try {
@@ -471,7 +475,8 @@ export class ActivityPubService {
    * Get replies to a specific post
    */
   async getPostReplies(postId: string, options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // OPTIMIZED: Use cached auth context
+    const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
     const limit = options.limit || 20;

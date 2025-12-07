@@ -223,8 +223,12 @@ export interface UpdateRoleParams {
 
 class RoleService {
   private roleCache = new Map<string, ServerRole[]>() // serverId -> roles
-  private userRolesCache = new Map<string, string[]>() // `${userId}-${serverId}` -> roleIds
+  private userRolesCache = new Map<string, ServerRole[]>() // `${userId}-${serverId}` -> roles (FIXED: store full roles, not just IDs)
   private permissionCache = new Map<string, Record<Permission, boolean>>() // `${userId}-${serverId}-${channelId?}` -> permissions
+  
+  // OPTIMIZED: Request deduplication maps
+  private pendingUserRolesRequests = new Map<string, Promise<ServerRole[]>>()
+  private pendingPermissionsRequests = new Map<string, Promise<Record<Permission, boolean>>>()
 
   // =============================================
   // Role CRUD Operations
@@ -416,8 +420,35 @@ class RoleService {
 
   /**
    * Get roles assigned to a user in a server
+   * OPTIMIZED: Checks cache first, deduplicates concurrent requests
    */
   async getUserRoles(userId: string, serverId: string): Promise<ServerRole[]> {
+    const cacheKey = `${userId}-${serverId}`
+    
+    // Check cache first
+    if (this.userRolesCache.has(cacheKey)) {
+      return this.userRolesCache.get(cacheKey)!
+    }
+    
+    // Deduplicate concurrent requests
+    if (this.pendingUserRolesRequests.has(cacheKey)) {
+      return this.pendingUserRolesRequests.get(cacheKey)!
+    }
+    
+    const fetchPromise = this._fetchUserRoles(userId, serverId, cacheKey)
+    this.pendingUserRolesRequests.set(cacheKey, fetchPromise)
+    
+    try {
+      return await fetchPromise
+    } finally {
+      this.pendingUserRolesRequests.delete(cacheKey)
+    }
+  }
+  
+  /**
+   * Internal method to fetch user roles from DB
+   */
+  private async _fetchUserRoles(userId: string, serverId: string, cacheKey: string): Promise<ServerRole[]> {
     try {
       const { data, error } = await supabase
         .from('user_roles')
@@ -434,11 +465,12 @@ class RoleService {
         .map((ur: any) => ur.server_roles)
         .filter(Boolean) as ServerRole[]
 
-      // Cache the role IDs
-      const cacheKey = `${userId}-${serverId}`
-      this.userRolesCache.set(cacheKey, roles.map(r => r.id))
+      const sortedRoles = roles.sort((a, b) => b.position - a.position)
+      
+      // Cache the full roles
+      this.userRolesCache.set(cacheKey, sortedRoles)
 
-      return roles.sort((a, b) => b.position - a.position)
+      return sortedRoles
     } catch (error) {
       debug.error('Failed to fetch user roles:', error)
       return []
@@ -543,6 +575,7 @@ class RoleService {
   /**
    * Get effective permissions for a user in a server/channel
    * Uses the database function for proper calculation
+   * OPTIMIZED: Deduplicates concurrent requests
    */
   async getUserPermissions(
     userId: string,
@@ -551,10 +584,35 @@ class RoleService {
   ): Promise<Record<Permission, boolean>> {
     const cacheKey = `${userId}-${serverId}-${channelId || 'server'}`
 
+    // Check cache first
     if (this.permissionCache.has(cacheKey)) {
       return this.permissionCache.get(cacheKey)!
     }
-
+    
+    // Deduplicate concurrent requests
+    if (this.pendingPermissionsRequests.has(cacheKey)) {
+      return this.pendingPermissionsRequests.get(cacheKey)!
+    }
+    
+    const fetchPromise = this._fetchUserPermissions(userId, serverId, channelId, cacheKey)
+    this.pendingPermissionsRequests.set(cacheKey, fetchPromise)
+    
+    try {
+      return await fetchPromise
+    } finally {
+      this.pendingPermissionsRequests.delete(cacheKey)
+    }
+  }
+  
+  /**
+   * Internal method to fetch user permissions from DB
+   */
+  private async _fetchUserPermissions(
+    userId: string,
+    serverId: string,
+    channelId: string | undefined,
+    cacheKey: string
+  ): Promise<Record<Permission, boolean>> {
     try {
       const { data, error } = await supabase.rpc('get_user_permissions', {
         p_user_id: userId,

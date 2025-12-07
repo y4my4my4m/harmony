@@ -334,15 +334,16 @@ class TrendingService {
 
   /**
    * Get trending users (suggested follows)
+   * OPTIMIZED: Uses AuthContextService for cached auth lookup
    */
   async getTrendingUsers(options: TrendingOptions = {}): Promise<TrendingUser[]> {
     try {
       const { limit = 10, timeframe = 'daily' } = options;
 
       // Get current user id to exclude from trending users
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      const currentUserId = userData?.user?.id;
+      const { authContextService } = await import('@/services/AuthContextService');
+      const context = await authContextService.getCurrentContext();
+      const currentUserId = context.authUser?.id;
 
       // For now, get users with recent activity and good engagement
       // TODO: Implement proper trending_users table usage when that's populated

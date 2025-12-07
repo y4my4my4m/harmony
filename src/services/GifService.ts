@@ -5,10 +5,14 @@
  * Supports GIFs from any source (Tenor, Giphy, or direct URLs).
  * Uses Supabase for storage with RLS policies ensuring users
  * can only access their own favorites.
+ * 
+ * OPTIMIZED: Uses AuthContextService for auth, caches favorites globally,
+ * and deduplicates concurrent requests.
  */
 
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { authContextService } from '@/services/AuthContextService'
 import type { Gif } from '@/types'
 
 // Database row type for gif_favorites table
@@ -24,12 +28,20 @@ export interface GifFavorite {
 // Simplified type for favorites (same as database row)
 export type FavoriteGif = GifFavorite
 
+// Cache TTL: 5 minutes
+const CACHE_TTL = 5 * 60 * 1000
+
 export class GifService {
   private static instance: GifService
   
   // Local cache of favorite URLs for quick lookups
   private favoriteUrls: Set<string> = new Set()
   private cacheInitialized = false
+  
+  // OPTIMIZED: Full favorites cache with TTL
+  private favoritesCache: FavoriteGif[] | null = null
+  private favoritesCacheTime = 0
+  private pendingFavoritesRequest: Promise<FavoriteGif[]> | null = null
 
   static getInstance(): GifService {
     if (!GifService.instance) {
@@ -40,13 +52,14 @@ export class GifService {
 
   /**
    * Initialize the favorites cache for quick lookups
+   * OPTIMIZED: Uses AuthContextService instead of direct auth call
    */
   async initializeCache(): Promise<void> {
     if (this.cacheInitialized) return
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const isAuth = await authContextService.isAuthenticated()
+      if (!isAuth) return
 
       const { data, error } = await supabase
         .from('gif_favorites')
@@ -67,6 +80,7 @@ export class GifService {
 
   /**
    * Add a GIF to favorites by URL
+   * OPTIMIZED: Uses AuthContextService for cached profile ID
    */
   async addFavoriteByUrl(
     gifUrl: string, 
@@ -74,26 +88,15 @@ export class GifService {
     title: string | null = null
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const context = await authContextService.getCurrentContext()
+      if (!context.isAuthenticated) {
         return { success: false, error: 'User not authenticated' }
-      }
-
-      // Get user's profile ID
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (profileError || !profile) {
-        return { success: false, error: 'User profile not found' }
       }
 
       const { error } = await supabase
         .from('gif_favorites')
         .insert({
-          user_id: profile.id,
+          user_id: context.profileId,
           gif_url: gifUrl,
           preview_url: previewUrl,
           title: title
@@ -108,8 +111,10 @@ export class GifService {
         return { success: false, error: error.message }
       }
 
-      // Update local cache
+      // Update local caches
       this.favoriteUrls.add(gifUrl)
+      // Invalidate full cache so next getFavorites() refreshes
+      this.favoritesCache = null
       
       debug.log(`✅ Added GIF to favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
@@ -121,11 +126,12 @@ export class GifService {
 
   /**
    * Remove a GIF from favorites by URL
+   * OPTIMIZED: Uses AuthContextService for cached auth check
    */
   async removeFavoriteByUrl(gifUrl: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const isAuth = await authContextService.isAuthenticated()
+      if (!isAuth) {
         return { success: false, error: 'User not authenticated' }
       }
 
@@ -139,8 +145,10 @@ export class GifService {
         return { success: false, error: error.message }
       }
 
-      // Update local cache
+      // Update local caches
       this.favoriteUrls.delete(gifUrl)
+      // Invalidate full cache so next getFavorites() refreshes
+      this.favoritesCache = null
       
       debug.log(`✅ Removed GIF from favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
@@ -203,11 +211,38 @@ export class GifService {
 
   /**
    * Get all user's favorite GIFs
+   * OPTIMIZED: Caches results with TTL, deduplicates concurrent requests,
+   * uses AuthContextService for auth
    */
   async getFavorites(): Promise<FavoriteGif[]> {
+    // Return cached data if still valid
+    const now = Date.now()
+    if (this.favoritesCache && (now - this.favoritesCacheTime) < CACHE_TTL) {
+      return this.favoritesCache
+    }
+    
+    // Deduplicate concurrent requests
+    if (this.pendingFavoritesRequest) {
+      return this.pendingFavoritesRequest
+    }
+    
+    this.pendingFavoritesRequest = this._fetchFavorites()
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const result = await this.pendingFavoritesRequest
+      return result
+    } finally {
+      this.pendingFavoritesRequest = null
+    }
+  }
+  
+  /**
+   * Internal method to actually fetch favorites from DB
+   */
+  private async _fetchFavorites(): Promise<FavoriteGif[]> {
+    try {
+      const isAuth = await authContextService.isAuthenticated()
+      if (!isAuth) {
         debug.warn('Cannot get favorites: User not authenticated')
         return []
       }
@@ -222,11 +257,16 @@ export class GifService {
         return []
       }
 
-      // Update cache while we have the data
-      this.favoriteUrls = new Set((data || []).map(f => f.gif_url))
+      const favorites = (data || []) as FavoriteGif[]
+      
+      // Update caches
+      this.favoritesCache = favorites
+      this.favoritesCacheTime = Date.now()
+      this.favoriteUrls = new Set(favorites.map(f => f.gif_url))
       this.cacheInitialized = true
 
-      return (data || []) as FavoriteGif[]
+      debug.log(`📋 GIF favorites loaded: ${favorites.length} items (cached for ${CACHE_TTL / 1000}s)`)
+      return favorites
     } catch (error) {
       debug.error('Error getting GIF favorites:', error)
       return []
@@ -273,6 +313,10 @@ export class GifService {
   clearCache(): void {
     this.favoriteUrls.clear()
     this.cacheInitialized = false
+    this.favoritesCache = null
+    this.favoritesCacheTime = 0
+    this.pendingFavoritesRequest = null
+    debug.log('🧹 GIF favorites cache cleared')
   }
 }
 

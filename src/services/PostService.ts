@@ -366,21 +366,17 @@ export class PostService {
   // UTILITY METHODS (PRESERVED)
   // =====================================================
 
+  /**
+   * OPTIMIZED: Uses AuthContextService for cached profile ID lookup
+   */
   private async getCurrentUserProfileId(): Promise<string> {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (error || !profile) {
-      throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
+    const { authContextService } = await import('@/services/AuthContextService')
+    
+    try {
+      return await authContextService.getCurrentProfileId()
+    } catch {
+      throw this.createError('AUTH_REQUIRED', 'User not authenticated')
     }
-
-    return profile.id
   }
 
   private createError(code: string, message: string, details?: any): Error {
