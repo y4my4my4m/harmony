@@ -211,6 +211,12 @@ const toggleDropdown = async () => {
 const positionDropdown = () => {
   if (!selectorRef.value || !dropdownRef.value) return;
 
+  // On mobile (< 480px), use bottom sheet style - CSS handles positioning
+  if (window.innerWidth <= 480) {
+    dropdownPosition.value = { x: 0, y: 0 };
+    return;
+  }
+
   const triggerRect = selectorRef.value.getBoundingClientRect();
   const dropdownRect = dropdownRef.value.getBoundingClientRect();
   const padding = 8;
@@ -514,6 +520,178 @@ watch(isOpen, (newVal) => {
 
 .device-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+/* Tablet */
+@media (max-width: 768px) {
+  .selector-trigger {
+    padding: 6px 8px;
+    font-size: 14px;
+    min-width: 36px;
+    min-height: 36px;
+    justify-content: center;
+  }
+  
+  /* Hide chevron on tablet - tap to toggle */
+  .chevron {
+    display: none;
+  }
+  
+  .device-dropdown {
+    min-width: 300px;
+    max-width: 90vw;
+  }
+  
+  .section-header {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+  
+  .device-item {
+    padding: 14px 16px;
+    min-height: 48px;
+    font-size: 14px;
+  }
+  
+  .settings-link {
+    padding: 14px 12px;
+    min-height: 48px;
+    font-size: 14px;
+  }
+  
+  .device-list {
+    max-height: 200px;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Mobile - Bottom sheet style */
+@media (max-width: 480px) {
+  .selector-trigger {
+    padding: 8px 10px;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 8px;
+  }
+  
+  .device-dropdown-backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+  
+  /* Bottom sheet positioning */
+  .device-dropdown {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    min-width: 100%;
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    transform: none !important;
+  }
+  
+  /* Bottom sheet animation */
+  .dropdown-enter-from,
+  .dropdown-leave-to {
+    opacity: 1;
+    transform: translateY(100%) !important;
+  }
+  
+  .dropdown-enter-active,
+  .dropdown-leave-active {
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  /* Bottom sheet handle */
+  .device-dropdown::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    margin: 12px auto 8px;
+  }
+  
+  .device-section {
+    padding: 12px 0;
+  }
+  
+  .section-header {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+  
+  .device-list {
+    max-height: none;
+    overflow-y: visible;
+  }
+  
+  .device-item {
+    padding: 16px 20px;
+    min-height: 56px;
+    font-size: 15px;
+    gap: 12px;
+  }
+  
+  .device-item:active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .no-devices {
+    padding: 16px 20px;
+    font-size: 14px;
+  }
+  
+  .dropdown-footer {
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  
+  .settings-link {
+    padding: 16px;
+    min-height: 56px;
+    font-size: 15px;
+    border-radius: 10px;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .settings-link:active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Very small mobile */
+@media (max-width: 360px) {
+  .device-dropdown {
+    max-height: 80vh;
+  }
+  
+  .section-header {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+  
+  .device-item {
+    padding: 14px 16px;
+    min-height: 52px;
+    font-size: 14px;
+  }
+  
+  .settings-link {
+    padding: 14px;
+    min-height: 52px;
+    font-size: 14px;
+  }
 }
 </style>
 

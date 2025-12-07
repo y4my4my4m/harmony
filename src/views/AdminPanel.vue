@@ -585,6 +585,45 @@
           </div>
 
           <div class="config-section">
+            <h3>Instance Branding</h3>
+            <div class="setting-group">
+              <label>Instance Name</label>
+              <input 
+                v-model="instanceConfig.name" 
+                type="text" 
+                class="cyber-input"
+                placeholder="Harmony Instance"
+                @input="instanceBrandingChanged = true"
+              />
+              <span class="setting-hint">
+                This name appears on the login/register page. Changes will be visible to all users.
+              </span>
+            </div>
+            <div class="setting-group">
+              <label>Instance Description</label>
+              <textarea 
+                v-model="instanceConfig.description" 
+                class="cyber-input"
+                rows="3"
+                placeholder="A federated social platform"
+                @input="instanceBrandingChanged = true"
+              ></textarea>
+              <span class="setting-hint">
+                This description appears as the subtitle on the login/register page.
+              </span>
+            </div>
+            <button 
+              @click="saveInstanceBranding" 
+              class="save-btn" 
+              :disabled="!instanceBrandingChanged || savingBranding"
+              style="margin-top: 12px;"
+            >
+              <Icon name="save" :size="16" />
+              {{ savingBranding ? 'Saving...' : 'Save Branding' }}
+            </button>
+          </div>
+
+          <div class="config-section">
             <h3>WebRTC / Voice Settings</h3>
             <div class="setting-group">
               <label>WebRTC Mode</label>
@@ -722,6 +761,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
@@ -730,6 +770,7 @@ import { getServerIconUrl } from '@/utils/serverUtils'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const toast = useToast()
 
 // Security check - only allow admins
 onMounted(async () => {
@@ -757,6 +798,8 @@ const activityFilter = ref('all')
 const newBlockDomain = ref('')
 const newBlockReason = ref('')
 const configChanged = ref(false)
+const instanceBrandingChanged = ref(false)
+const savingBranding = ref(false)
 
 // Federation management data
 const instanceStats = ref<InstanceStats>({
@@ -1034,8 +1077,21 @@ const loadSystemHealth = async () => {
 }
 
 const loadInstanceConfig = async () => {
-  // Load instance configuration
-  // This would come from a settings table or config file
+  try {
+    const config = await adminService.getInstanceConfig()
+    if (config?.instance) {
+      instanceConfig.value = {
+        name: config.instance.name || 'Harmony Instance',
+        domain: config.instance.domain || import.meta.env.VITE_DOMAIN as string,
+        description: config.instance.description || 'A federated social platform',
+        openRegistration: config.instance.registrationOpen ?? true,
+        approvalRequired: config.instance.requiresApproval ?? false
+      }
+    }
+  } catch (error) {
+    debug.error('Failed to load instance config:', error)
+    // Keep defaults if loading fails
+  }
 }
 
 const refreshData = async () => {
@@ -1198,6 +1254,41 @@ const saveConfig = async () => {
     configChanged.value = false
   } catch (error) {
     debug.error('Failed to save configuration:', error)
+  }
+}
+
+const saveInstanceBranding = async () => {
+  if (!authStore.session?.user?.id) {
+    toast.error('You must be logged in to save instance branding')
+    return
+  }
+
+  savingBranding.value = true
+  try {
+    // Save instance name
+    await adminService.setInstanceConfig(
+      'instance_name',
+      instanceConfig.value.name,
+      authStore.session.user.id,
+      'The name of this Harmony instance'
+    )
+
+    // Save instance description
+    await adminService.setInstanceConfig(
+      'instance_description',
+      instanceConfig.value.description,
+      authStore.session.user.id,
+      'Description of this instance'
+    )
+
+    instanceBrandingChanged.value = false
+    toast.success('Instance branding saved successfully')
+    debug.log('Instance branding saved:', instanceConfig.value)
+  } catch (error: any) {
+    debug.error('Failed to save instance branding:', error)
+    toast.error(error.message || 'Failed to save instance branding')
+  } finally {
+    savingBranding.value = false
   }
 }
 

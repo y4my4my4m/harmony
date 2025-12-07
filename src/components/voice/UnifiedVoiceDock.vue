@@ -3,8 +3,8 @@
   <div v-if="voiceStore.isConnectedOrJoining" class="unified-voice-dock" :class="[dockMode, { 'is-connecting': voiceStore.isConnecting }]">
     <!-- Compact Mode (floating bar at bottom) -->
     <div v-if="currentMode === 'dock'" class="dock-container">
-      <!-- User Info -->
-      <div class="user-section">
+      <!-- User Info - Tappable on mobile to expand -->
+      <div class="user-section" @click="handleUserSectionClick">
         <div class="user-avatar-container">
           <Avatar
             :src="currentUserProfile?.avatar_url || '/default_avatar.webp'"
@@ -373,6 +373,13 @@ const leaveChannel = async () => {
 const handleOverlayClosed = () => {
   // When the overlay is closed, return to the docked mode.
   currentMode.value = 'dock';
+};
+
+// Handle user section click - expand to overlay on mobile
+const handleUserSectionClick = () => {
+  if (window.innerWidth <= 480) {
+    expandToOverlay();
+  }
 };
 
 const activatePIPForActiveVideo = () => {
@@ -1050,19 +1057,105 @@ onMounted(() => {
 }
 
 @media (max-width: 480px) {
-  .dock-container {
-    /* flex-direction: column; */
-    gap: 12px;
-    padding: 12px;
+  .unified-voice-dock.dock-mode {
+    left: 8px;
+    right: 8px;
+    bottom: 70px; /* Above message input */
+    transform: none;
   }
   
+  .dock-container {
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    margin-bottom: 0;
+    min-width: auto;
+    width: 100%;
+    position: relative;
+  }
+  
+  /* User info centered above buttons on mobile - tappable to expand */
   .user-section {
     width: 100%;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
   }
   
-  .voice-controls,
-  .action-controls {
+  .user-section:active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .user-avatar-container {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .user-details {
+    align-items: center;
+    gap: 1px;
+  }
+  
+  .user-name {
+    font-size: 14px;
+    text-align: center;
+  }
+  
+  .channel-name {
+    font-size: 11px;
+    text-align: center;
+    color: #00d4aa;
+  }
+  
+  /* Controls centered below user info */
+  .voice-controls {
     justify-content: center;
+    gap: 8px;
+  }
+  
+  .control-btn {
+    width: 42px;
+    height: 42px;
+    font-size: 15px;
+  }
+  
+  /* Hide video preview on mobile dock - save space */
+  .dock-video-preview {
+    display: none;
+  }
+  
+  /* Action controls row */
+  .action-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    gap: 4px;
+  }
+  
+  .action-controls .control-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  
+  /* Show expand button on mobile, hide minimize */
+  .expand-btn {
+    display: flex;
+  }
+  
+  .minimize-btn {
+    display: none;
   }
 }
 

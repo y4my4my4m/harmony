@@ -854,6 +854,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 
+
 .voice-container.maximized .participants-container {
   padding: 12px 16px;
   min-height: 0;
@@ -1265,30 +1266,354 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
 }
 
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+/* Tablet landscape */
 @media (max-width: 768px) {
   .voice-overlay {
-    padding: 10px;
+    padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  
+  .voice-container {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 16px;
   }
   
   .voice-header {
-    padding: 16px 20px;
-  }
-  
-  .channel-name {
-    font-size: 18px;
-  }
-  
-  .participants-container {
-    padding: 16px 20px;
-  }
-  
-  .participants-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    padding: 12px 16px;
+    flex-wrap: wrap;
     gap: 12px;
   }
   
+  .channel-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .channel-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+  
+  .channel-name {
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .participant-count {
+    font-size: 12px;
+  }
+  
+  /* Hide connection mode text on tablet */
+  .connection-mode-indicator span {
+    display: none;
+  }
+  
+  .connection-mode-indicator {
+    padding: 6px;
+  }
+  
+  .header-controls {
+    gap: 6px;
+  }
+  
+  .layout-btn,
+  .minimize-btn,
+  .close-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+  
+  /* Hide spatial badge text on tablet */
+  .spatial-badge {
+    font-size: 7px;
+    padding: 1px 3px;
+  }
+  
+  .participants-container {
+    padding: 12px 16px;
+    min-height: 200px;
+  }
+  
+  .participants-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  
   .voice-controls {
-    padding: 16px 20px;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .media-controls {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .control-button {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+  }
+  
+  .leave-button {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+  
+  /* Fullscreen adjustments */
+  .fullscreen-container {
+    padding: 8px;
+  }
+  
+  .thumbnail-strip {
+    gap: 6px;
+    max-height: 100px;
+  }
+  
+  .thumbnail-card {
+    width: 90px;
+    min-height: 90px !important;
+    max-height: 90px !important;
+  }
+}
+
+/* Mobile portrait */
+@media (max-width: 480px) {
+  .voice-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+  
+  .voice-container {
+    border-radius: 0;
+    max-height: 100vh;
+    height: 100%;
+  }
+  
+  .voice-header {
+    padding: 12px;
+    border-radius: 0;
+  }
+  
+  .channel-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+  
+  .channel-details {
+    gap: 2px;
+  }
+  
+  .channel-name {
+    font-size: 15px;
+  }
+  
+  .participant-count {
+    font-size: 11px;
+  }
+  
+  .speaking-count {
+    display: none;
+  }
+  
+  .header-controls {
+    gap: 4px;
+  }
+  
+  /* Show layout toggle buttons on mobile */
+  .layout-btn[title="Grid view"],
+  .layout-btn[title="Speaker view"] {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+  
+  /* Hide maximize button on mobile */
+  .layout-btn[title="Maximize"],
+  .minimize-btn {
+    display: none;
+  }
+  
+  .layout-btn.spatial-btn,
+  .close-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+  
+  /* Show settings button */
+  .layout-btn[title="Voice Settings"] {
+    display: flex;
+  }
+  
+  .participants-container {
+    padding: 8px 12px;
+    min-height: 150px;
+  }
+  
+  .participants-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .participants-grid.grid-single {
+    grid-template-columns: 1fr;
+  }
+  
+  .participants-grid.grid-duo {
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(180px, auto);
+  }
+  
+  .participants-grid.grid-quad {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: minmax(160px, auto);
+  }
+  
+  .participants-grid.grid-six {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: minmax(140px, auto);
+  }
+  
+  .participants-grid.grid-nine,
+  .participants-grid.grid-large,
+  .participants-grid.grid-gallery {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: minmax(120px, auto);
+  }
+  
+  .featured-card {
+    min-height: 200px;
+  }
+  
+  .featured-speaker {
+    padding: 8px;
+  }
+  
+  /* Voice controls - bottom sheet style */
+  .voice-controls {
+    padding: 12px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    gap: 12px;
+    background: linear-gradient(145deg, #2a2d35, #1e2028);
+  }
+  
+  .media-controls {
+    width: 100%;
+    justify-content: center;
+    gap: 10px;
+  }
+  
+  .control-group {
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .control-button {
+    width: 52px;
+    height: 52px;
+    font-size: 20px;
+  }
+  
+  .action-controls {
+    width: 100%;
+  }
+  
+  .leave-button {
+    width: 100%;
+    justify-content: center;
+    padding: 14px 24px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+  
+  /* PTT badge adjustments */
+  .ptt-badge {
+    font-size: 8px;
+    padding: 1px 4px;
+  }
+  
+  /* Fullscreen on mobile */
+  .fullscreen-container {
+    padding: 4px;
+  }
+  
+  .thumbnail-strip-container {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  .thumbnail-strip {
+    gap: 4px;
+    max-height: 80px;
+    padding: 2px;
+  }
+  
+  .thumbnail-card {
+    width: 70px;
+    min-height: 70px !important;
+    max-height: 70px !important;
+  }
+  
+  .thumbnail-card :deep(.video-container) {
+    height: 45px !important;
+    min-height: 45px !important;
+    max-height: 45px !important;
+  }
+  
+  .thumbnail-card :deep(.username) {
+    font-size: 9px;
+  }
+}
+
+/* Very small mobile screens */
+@media (max-width: 360px) {
+  .voice-header {
+    padding: 10px;
+  }
+  
+  .channel-info {
+    gap: 8px;
+  }
+  
+  .channel-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+  
+  .channel-name {
+    font-size: 14px;
+  }
+  
+  .header-controls {
+    gap: 3px;
+  }
+  
+  .layout-btn.spatial-btn,
+  .close-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  
+  .participants-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
   
   .media-controls {
@@ -1296,31 +1621,20 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
   
   .control-button {
-    width: 44px;
-    height: 44px;
-    font-size: 16px;
-  }
-}
-
-@media (max-width: 480px) {
-  .participants-grid {
-    grid-template-columns: 1fr 1fr;
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
   }
   
-  .featured-card {
-    min-height: 240px;
+  .leave-button {
+    padding: 12px 20px;
+    font-size: 13px;
   }
   
-  .header-controls {
-    gap: 4px;
-  }
-  
-  .layout-btn,
-  .minimize-btn,
-  .close-btn {
-    width: 32px;
-    height: 32px;
-    font-size: 14px;
+  .thumbnail-card {
+    width: 60px;
+    min-height: 60px !important;
+    max-height: 60px !important;
   }
 }
 
@@ -1337,6 +1651,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   justify-content: center;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 /* Override the VoiceSettingsPanel styles when inside our wrapper */
@@ -1347,6 +1662,22 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: transparent;
   backdrop-filter: none;
   z-index: auto;
+}
+
+/* Mobile settings wrapper */
+@media (max-width: 480px) {
+  .settings-overlay-wrapper {
+    padding: 0;
+    align-items: stretch;
+  }
+  
+  .settings-overlay-wrapper :deep(.settings-panel) {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
 }
 
 /* Full Window Mode - Stream fills entire viewport */

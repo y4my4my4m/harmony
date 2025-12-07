@@ -856,6 +856,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0; /* Prevent container from shrinking */
 }
 
 .avatar-wrapper {
@@ -876,6 +877,7 @@ watch(
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-shrink: 0; /* Prevent avatar from shrinking */
 }
 
 .avatar-frame.speaking {
@@ -1043,26 +1045,56 @@ watch(
   }
 }
 
-/* Responsive */
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+/* Tablet */
 @media (max-width: 768px) {
   .harmony-voice-card {
-    min-height: 160px;
+    min-height: 150px;
     padding: 12px;
+    border-radius: 12px;
   }
 
   .video-container {
-    min-height: 140px;
-    max-height: 280px;
+    min-height: 120px;
+    max-height: 250px;
+    border-radius: 10px;
+    margin-bottom: 10px;
   }
 
   .avatar-container {
-    height: auto;
-    margin-bottom: 30px;
+    height: 60px;
+    width: 60px;
   }
 
   .avatar-frame {
-    width: 60px;
-    height: 60px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .voice-ring {
+    top: -6px;
+    left: -6px;
+    width: calc(100% + 12px);
+    height: calc(100% + 12px);
+    overflow: visible;
+  }
+
+  .status-indicators {
+    bottom: -1px;
+    right: -1px;
+  }
+
+  .status-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+
+  .user-info {
+    top: 4px;
   }
 
   .username {
@@ -1071,6 +1103,214 @@ watch(
 
   .harmony-voice-card-user-status {
     font-size: 11px;
+  }
+
+  .video-controls {
+    gap: 6px;
+  }
+
+  .control-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .audio-visualizer {
+    bottom: 12px;
+    height: 16px;
+  }
+
+  .audio-bar {
+    width: 2px;
+    max-height: 16px;
+  }
+}
+
+/* Mobile portrait */
+@media (max-width: 480px) {
+  .harmony-voice-card {
+    min-height: 120px;
+    padding: 10px;
+    border-radius: 10px;
+    border-width: 1px;
+  }
+
+  .harmony-voice-card:hover {
+    transform: none; /* Disable hover lift on touch */
+  }
+
+  .video-container {
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-width: 1px;
+  }
+
+  .video-overlay {
+    padding: 8px;
+  }
+
+  .screen-share-indicator {
+    padding: 3px 6px;
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .pip-toggle-btn {
+    padding: 2px 3px;
+  }
+
+  .connection-indicator {
+    top: 6px;
+    right: 6px;
+    padding: 3px 5px;
+  }
+
+  .connection-bars {
+    height: 10px;
+    gap: 1px;
+  }
+
+  .connection-bars span {
+    width: 2px;
+  }
+
+  .connection-bars span:nth-child(1) { height: 3px; }
+  .connection-bars span:nth-child(2) { height: 5px; }
+  .connection-bars span:nth-child(3) { height: 7px; }
+  .connection-bars span:nth-child(4) { height: 10px; }
+
+  .video-controls {
+    gap: 8px;
+  }
+
+  /* Larger touch targets for controls */
+  .control-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .control-btn:active {
+    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .avatar-container {
+    height: 53px;
+    width: 53px;
+  }
+
+  .avatar-frame {
+    width: 48px;
+    height: 48px;
+  }
+
+  .voice-ring {
+    top: -5px;
+    left: -5px;
+    width: calc(100% + 10px);
+    height: calc(100% + 10px);
+  }
+
+  .user-info {
+    margin-bottom: 20px;
+  }
+
+  .voice-ring-bg {
+    stroke-width: 1.5;
+  }
+
+  .voice-ring-active {
+    stroke-width: 2;
+  }
+
+  .status-indicators {
+    gap: 2px;
+  }
+
+  .status-badge {
+    width: 16px;
+    height: 16px;
+    font-size: 8px;
+    border-width: 1.5px;
+  }
+
+  .user-info {
+    top: 6px;
+    padding-bottom: 0;
+  }
+
+  .video-enabled .user-info,
+  .screen-sharing .user-info {
+    padding-bottom: 16px;
+  }
+
+  .username {
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+  .harmony-voice-card-user-status {
+    font-size: 10px;
+  }
+
+  .audio-visualizer {
+    bottom: 10px;
+    height: 14px;
+    gap: 1px;
+  }
+
+  .audio-bar {
+    width: 2px;
+    max-height: 14px;
+  }
+}
+
+/* Very small mobile */
+@media (max-width: 360px) {
+  .harmony-voice-card {
+    min-height: 100px;
+    padding: 8px;
+  }
+
+  .video-container {
+    min-height: 80px;
+    max-height: 160px;
+    margin-bottom: 6px;
+  }
+
+  .avatar-container {
+    margin-bottom: 16px;
+  }
+
+  .avatar-frame {
+    width: 40px;
+    height: 40px;
+  }
+
+  .status-badge {
+    width: 14px;
+    height: 14px;
+    font-size: 7px;
+  }
+
+  .username {
+    font-size: 11px;
+  }
+
+  .harmony-voice-card-user-status {
+    font-size: 9px;
+  }
+
+  .control-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .audio-visualizer {
+    bottom: 8px;
+    height: 12px;
   }
 }
 

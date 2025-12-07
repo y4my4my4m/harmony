@@ -31,7 +31,7 @@
           <h1 class="brand-title">
             <span class="harmony-logo">
               <span 
-                v-for="(letter, index) in ['H', 'a', 'r', 'm', 'o', 'n', 'y']" 
+                v-for="(letter, index) in instanceNameLetters" 
                 :key="index"
                 class="letter" 
                 :data-letter="letter"
@@ -45,7 +45,7 @@
             </span>
           </h1>
           <p class="brand-subtitle">
-            Connect, communicate, and create together in perfect harmony
+            {{ instanceDescription }}
           </p>
           
           <!-- Feature highlights -->
@@ -342,6 +342,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/useTheme'
 import { useToast } from 'vue-toastification'
 import { supabase } from '@/supabase'
+import { getRandomLoginBackground } from '@/utils/backgroundUtils'
+import { adminService } from '@/services/AdminService'
 
 // Props
 interface Props {
@@ -411,6 +413,11 @@ const letterTransforms = ref<Record<number, { x: number; y: number }>>({})
 
 // Auth panel hover effect
 const isAuthPanelHovered = ref(false)
+
+// Instance branding
+const instanceName = ref('Harmony')
+const instanceDescription = ref('Connect, communicate, and create together in perfect harmony')
+const instanceNameLetters = computed(() => instanceName.value.split(''))
 
 // Computed
 const authStyles = computed(() => ({
@@ -716,10 +723,25 @@ const onAuthPanelHover = (isHovered: boolean) => {
   isAuthPanelHovered.value = isHovered
 }
 
+// Load instance branding
+const loadInstanceBranding = async () => {
+  try {
+    const config = await adminService.getInstanceConfig()
+    if (config?.instance) {
+      instanceName.value = config.instance.name || 'Harmony'
+      instanceDescription.value = config.instance.description || 'Connect, communicate, and create together in perfect harmony'
+    }
+  } catch (error) {
+    debug.warn('Failed to load instance branding, using defaults:', error)
+    // Fallbacks are already set in ref defaults
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
-  randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 65) + 1}.webp')`
+  randomBg.value = await getRandomLoginBackground()
   initializeParticles()
+  await loadInstanceBranding()
   await initializeLetterElements()
 })
 </script>

@@ -132,6 +132,10 @@
       @mousemove="handleGridMouseMove"
       @mouseup="handleGridMouseUp"
       @mouseleave="handleGridMouseUp"
+      @touchstart.passive="handleGridTouchStart"
+      @touchmove.prevent="handleGridTouchMove"
+      @touchend="handleGridTouchEnd"
+      @touchcancel="handleGridTouchEnd"
     >
       <!-- Background Grid Pattern -->
       <div class="grid-background"></div>
@@ -155,6 +159,7 @@
         }"
         :style="getAvatarStyle(participant.userId)"
         @mousedown="handleAvatarMouseDown($event, participant.userId)"
+        @touchstart.prevent="handleAvatarTouchStart($event, participant.userId)"
         @contextmenu.prevent="handleAvatarRightClick($event, participant.userId)"
       >
         <!-- Avatar Image -->
@@ -464,6 +469,62 @@ const handleGridMouseUp = () => {
     
     spatialStore.endDrag();
   }
+};
+
+// =============================================================================
+// TOUCH EVENT HANDLERS (Mobile support)
+// =============================================================================
+
+const handleAvatarTouchStart = (event: TouchEvent, userId: string) => {
+  // Prevent sidebar swipe gestures from interfering
+  event.stopPropagation();
+  
+  const touch = event.touches[0];
+  if (!touch) return;
+  
+  const rect = gridContainer.value?.getBoundingClientRect();
+  if (!rect) return;
+  
+  const startX = touch.clientX - rect.left;
+  const startY = touch.clientY - rect.top;
+  
+  spatialStore.startDrag(userId, startX, startY);
+  
+  // Start debounced spatial audio updates
+  if (spatialStore.settings.enabled) {
+    startSpatialUpdateTimer();
+  }
+};
+
+const handleGridTouchStart = (event: TouchEvent) => {
+  // Prevent sidebar gestures when touching the grid
+  event.stopPropagation();
+};
+
+const handleGridTouchMove = (event: TouchEvent) => {
+  if (!spatialStore.isDragging || !spatialStore.draggedUserId) return;
+  
+  const touch = event.touches[0];
+  if (!touch) return;
+  
+  const rect = gridContainer.value?.getBoundingClientRect();
+  if (!rect) return;
+  
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  
+  // Calculate new position with bounds checking
+  const dragOffset = spatialStore.dragOffset;
+  const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
+  const newY = Math.max(20, Math.min(rect.height - 20, y - dragOffset.y));
+  
+  // Update LOCAL visual position immediately for smooth movement
+  localVisualPositions.value.set(spatialStore.draggedUserId, { x: newX, y: newY });
+};
+
+const handleGridTouchEnd = () => {
+  // Reuse the same logic as mouse up
+  handleGridMouseUp();
 };
 
 const startSpatialUpdateTimer = () => {
@@ -1145,6 +1206,141 @@ onUnmounted(() => {
   
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Mobile - Full screen spatial panel */
+@media (max-width: 480px) {
+  .spatial-audio-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    z-index: 10001;
+  }
+  
+  .panel-header {
+    padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .header-left {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .panel-title h3 {
+    font-size: 16px;
+  }
+  
+  .panel-title p {
+    font-size: 11px;
+  }
+  
+  .header-controls {
+    gap: 6px;
+  }
+  
+  .control-btn {
+    padding: 8px 12px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Grid area fills available space with touch support */
+  .spatial-grid {
+    flex: 1;
+    touch-action: none; /* Prevent browser gestures */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Larger avatars for touch */
+  .spatial-avatar {
+    width: 56px;
+    height: 56px;
+    touch-action: none; /* Prevent scroll/zoom on avatar drag */
+  }
+  
+  .avatar-container {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .avatar-image {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .username-label {
+    top: 60px;
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  
+  /* Settings panel takes more space */
+  .settings-panel {
+    padding: 16px;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  
+  .settings-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .setting-group label {
+    font-size: 13px;
+  }
+  
+  .range-input {
+    height: 8px;
+  }
+  
+  .range-input::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .range-input::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .select-input {
+    padding: 12px;
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+  
+  /* Footer adjustments */
+  .panel-footer {
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .footer-info {
+    font-size: 11px;
+    flex: 1;
+  }
+  
+  .footer-actions {
+    gap: 6px;
+  }
+  
+  .action-btn {
+    padding: 10px 14px;
+    font-size: 12px;
+    min-height: 44px;
   }
 }
 </style>

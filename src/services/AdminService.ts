@@ -468,11 +468,18 @@ class AdminService {
         maxStageListeners: 100000
       };
       
-      const { data: webrtcData } = await supabase
+      // Use maybeSingle() instead of single() to handle cases where no row exists
+      // Also, don't use .single() as it can fail with RLS if the policy doesn't allow it
+      const { data: webrtcData, error: webrtcError } = await supabase
         .from('instance_webrtc_settings')
         .select('*')
         .limit(1)
-        .single();
+        .maybeSingle();
+      
+      // If there's an RLS error, log it but continue with defaults
+      if (webrtcError && webrtcError.code !== 'PGRST116') {
+        debug.warn('Failed to fetch WebRTC settings (may be RLS issue):', webrtcError)
+      }
       
       if (webrtcData) {
         webrtcSettings = {
@@ -481,6 +488,60 @@ class AdminService {
           allowFederatedVoice: webrtcData.allow_federated_voice ?? true,
           maxStageListeners: webrtcData.max_stage_listeners || 100000
         };
+      }
+
+      // Fetch instance config from instance_config table
+      let instanceName = 'Harmony Instance'
+      let instanceDescription = 'A federated social platform'
+      let domain = import.meta.env.VITE_DOMAIN as string
+      let registrationOpen = true
+      let requiresApproval = false
+
+      try {
+        const { data: configData } = await supabase
+          .from('instance_config')
+          .select('config_key, config_value')
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required'])
+
+        if (configData) {
+          configData.forEach((config) => {
+            try {
+              // Parse JSONB value - it may be a string with quotes or already parsed
+              let value = config.config_value
+              if (typeof value === 'string') {
+                // Try to parse if it's a JSON string
+                try {
+                  value = JSON.parse(value)
+                } catch {
+                  // If parsing fails, use the string as-is (remove quotes if present)
+                  value = value.replace(/^"|"$/g, '')
+                }
+              }
+
+              switch (config.config_key) {
+                case 'instance_name':
+                  instanceName = value || 'Harmony Instance'
+                  break
+                case 'instance_description':
+                  instanceDescription = value || 'A federated social platform'
+                  break
+                case 'domain':
+                  domain = value || import.meta.env.VITE_DOMAIN as string
+                  break
+                case 'open_registration':
+                  registrationOpen = value === true || value === 'true'
+                  break
+                case 'approval_required':
+                  requiresApproval = value === true || value === 'true'
+                  break
+              }
+            } catch (parseError) {
+              debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
+            }
+          })
+        }
+      } catch (configError) {
+        debug.warn('Failed to fetch instance config from database, using defaults:', configError)
       }
       
       return {
@@ -498,11 +559,11 @@ class AdminService {
         },
         webrtc: webrtcSettings,
         instance: {
-          name: 'Harmony Instance',
-          description: 'A federated social platform',
-          domain: import.meta.env.VITE_DOMAIN as string,
-          registrationOpen: true,
-          requiresApproval: false
+          name: instanceName,
+          description: instanceDescription,
+          domain: domain,
+          registrationOpen: registrationOpen,
+          requiresApproval: requiresApproval
         }
       };
     } catch (error) {
@@ -546,6 +607,7 @@ class AdminService {
 
   /**
    * Set instance configuration key-value pair
+   * Uses the set_instance_config RPC function which requires admin permissions
    */
   async setInstanceConfig(
     key: string, 
@@ -554,21 +616,38 @@ class AdminService {
     description?: string
   ): Promise<void> {
     try {
-      // For now, log the config change since we don't have a config table yet
-      debug.log(`Config update request: ${key} = ${value} by ${adminId}`);
-      
-      // In the future, this would update an instance_config table
-      // await supabase.from('instance_config').upsert({
-      //   config_key: key,
-      //   config_value: value,
-      //   updated_by: adminId,
-      //   description
-      // }, { onConflict: 'config_key' });
-      
-      // For now, just succeed silently
+      // Convert value to JSONB format
+      // If it's already a string, wrap it in quotes for JSONB
+      // Otherwise, stringify it
+      let jsonbValue: any
+      if (typeof value === 'string') {
+        // Store as JSON string (with quotes)
+        jsonbValue = JSON.stringify(value)
+      } else {
+        // Store as JSON value
+        jsonbValue = value
+      }
+
+      const { data, error } = await supabase.rpc('set_instance_config', {
+        p_admin_id: adminId,
+        p_key: key,
+        p_value: jsonbValue,
+        p_description: description || null
+      })
+
+      if (error) {
+        debug.error('RPC set_instance_config failed:', error)
+        throw new Error(error.message || 'Failed to set instance config')
+      }
+
+      if (data === false) {
+        throw new Error('Failed to set instance config - insufficient permissions or invalid data')
+      }
+
+      debug.log(`Instance config updated: ${key} = ${JSON.stringify(value)} by ${adminId}`)
     } catch (error) {
-      debug.error('Failed to set instance config:', error);
-      throw error;
+      debug.error('Failed to set instance config:', error)
+      throw error
     }
   }
 

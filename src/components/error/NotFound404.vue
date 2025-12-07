@@ -88,6 +88,7 @@ import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/common/Icon.vue'
+import { getRandom404Image } from '@/utils/backgroundUtils'
 
 interface Props {
   /** Override the default title */
@@ -115,12 +116,6 @@ const authStore = useAuthStore()
 const selectedImage = ref('')
 const imageError = ref(false)
 
-// Available 404 images
-const images = [
-  '/404.webp',
-  '/404_2.webp'
-]
-
 // Computed properties
 const isAuthenticated = computed(() => authStore.isLoggedIn)
 
@@ -128,17 +123,11 @@ const canGoBack = computed(() => window.history.length > 1)
 
 // Smart context awareness using existing utilities
 const notFoundContext = computed(() => {
-  try {
-    // Try to import and use existing utilities
-    const { getNotFoundContext } = require('@/utils/notFoundUtils')
-    return getNotFoundContext(route)
-  } catch {
-    // Fallback if utilities aren't available
-    return {
-      isAuthenticated: isAuthenticated.value,
-      suggestedRoute: isAuthenticated.value ? '/chat' : '/',
-      layoutType: isAuthenticated.value ? 'base' : 'auth'
-    }
+  // Fallback context - can be enhanced later with utilities if needed
+  return {
+    isAuthenticated: isAuthenticated.value,
+    suggestedRoute: isAuthenticated.value ? '/chat' : '/',
+    layoutType: isAuthenticated.value ? 'base' : 'auth'
   }
 })
 
@@ -186,19 +175,27 @@ const defaultRoute = computed(() => {
 })
 
 // Methods
-const selectRandomImage = () => {
-  const randomIndex = Math.floor(Math.random() * images.length)
-  selectedImage.value = images[randomIndex]
+const selectRandomImage = async () => {
+  try {
+    selectedImage.value = await getRandom404Image()
+  } catch (error) {
+    debug.warn('Failed to load 404 image from manifest, using fallback:', error)
+    // Fallback to legacy images
+    const legacyImages = ['/404.webp', '/404_2.webp']
+    const randomIndex = Math.floor(Math.random() * legacyImages.length)
+    selectedImage.value = legacyImages[randomIndex]
+  }
 }
 
 const handleImageError = () => {
   debug.warn('Failed to load 404 image:', selectedImage.value)
   imageError.value = true
-  // Try the other image if the first one fails
-  const currentIndex = images.indexOf(selectedImage.value)
+  // Try fallback legacy images
+  const legacyImages = ['/404.webp', '/404_2.webp']
+  const currentIndex = legacyImages.indexOf(selectedImage.value)
   const fallbackIndex = currentIndex === 0 ? 1 : 0
   if (fallbackIndex !== currentIndex) {
-    selectedImage.value = images[fallbackIndex]
+    selectedImage.value = legacyImages[fallbackIndex]
   }
 }
 
