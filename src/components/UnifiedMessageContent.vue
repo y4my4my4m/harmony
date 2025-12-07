@@ -187,6 +187,7 @@
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
+            @embed-loaded="handleEmbedLoad"
           />
         </template>
         
@@ -196,6 +197,7 @@
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.previewId || part.url}`"
+            @embed-loaded="handleEmbedLoad"
           />
         </template>
         
@@ -364,7 +366,7 @@ export default defineComponent({
       default: false
     }
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
@@ -389,6 +391,11 @@ export default defineComponent({
     const handleImageLoad = (url: string) => {
       imageLoadedState[url] = true;
       emit('image-loaded', url);
+    };
+    
+    // Handle embed load events
+    const handleEmbedLoad = () => {
+      emit('embed-loaded');
     };
     
     // Handle native video play/pause

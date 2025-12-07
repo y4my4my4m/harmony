@@ -158,6 +158,7 @@
               :decrypted="message.decrypted || false"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
+              @embed-loaded="handleEmbedLoaded(message.id)"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
@@ -190,6 +191,7 @@
               :decrypted="message.decrypted || false"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
+              @embed-loaded="handleEmbedLoaded(message.id)"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
@@ -541,6 +543,7 @@ const isAllMessagesLoaded = computed(() => {
 // --- REFS ---
 const messageDisplayContainer = ref<HTMLDivElement | null>(null);
 const imageLoaded: Ref<Record<string, boolean>> = ref({});
+const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
 const replyMessages = ref<Record<string, Message>>({});
 const tooltip = ref({
   visible: false,
@@ -626,6 +629,14 @@ watch(() => props.messages, (newMessages) => {
 
   const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
 
+  // Reset embed tracking for new messages
+  const newMessageIds = new Set(newMessages.map(m => m.id));
+  Object.keys(embedLoaded.value).forEach(messageId => {
+    if (!newMessageIds.has(messageId)) {
+      delete embedLoaded.value[messageId];
+    }
+  });
+
   const userIds = new Set<string>();
   newMessages.forEach(message => {
     if (message?.user_id) userIds.add(message.user_id);
@@ -667,17 +678,119 @@ watch(() => props.messages, (newMessages) => {
         // If this is the initial load (old height was 0), scroll to bottom
         if (oldScrollHeight === 0 && newMessages.length > 0) {
           debug.log('📜 Initial load - scrolling to bottom');
-          // Use setTimeout to ensure DOM is fully rendered
-          setTimeout(() => {
-            if (messageDisplayContainer.value) {
-              messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+          
+          // Set flag so we re-scroll when images load
+          shouldBeAtBottom.value = true;
+          
+          // Find all images in current messages that need to load
+          const imageUrlsInMessages = new Set<string>();
+          const embedCountsByMessage = new Map<string, number>();
+          
+          newMessages.forEach(message => {
+            // Count embeds in this message
+            let embedCount = 0;
+            if (Array.isArray(message.content)) {
+              message.content.forEach(part => {
+                // Check for image parts
+                if (part && typeof part === 'object' && 'url' in part && part.url) {
+                  if ((part.type === 'file' && part.fileType === 'image') || 
+                      (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp') || part.url.endsWith('.gif')))) {
+                    imageUrlsInMessages.add(part.url);
+                  }
+                }
+                // Check for embed parts
+                if (part && typeof part === 'object' && (part.type === 'embed' || (part.type === 'url' && message.metadata?.embeds?.[part.url]))) {
+                  embedCount++;
+                }
+              });
             }
-          }, 50);
+            // Also check metadata.embeds
+            if (message.metadata?.embeds) {
+              embedCount += Object.keys(message.metadata.embeds).length;
+            }
+            if (embedCount > 0) {
+              embedCountsByMessage.set(message.id, embedCount);
+              // Initialize embed count for this message
+              if (!embedLoaded.value[message.id]) {
+                embedLoaded.value[message.id] = 0;
+              }
+            }
+          });
+          
+          const pendingImages = Array.from(imageUrlsInMessages).filter(url => {
+            // Image is pending if it's not in the loaded map or explicitly marked as false
+            return url in imageLoaded.value ? imageLoaded.value[url] === false : true;
+          });
+          
+          const totalEmbeds = Array.from(embedCountsByMessage.values()).reduce((sum, count) => sum + count, 0);
+          debug.log('📜 Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
+          debug.log('📜 Total embeds to load:', totalEmbeds);
+          
+          // Function to scroll to bottom with proper timing
+          const scrollToBottom = (finalAttempt = false) => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (messageDisplayContainer.value) {
+                  messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+                  // Verify we're actually at the bottom
+                  const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+                  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+                  if (!isAtBottom && !finalAttempt) {
+                    // If not at bottom, try one more time after a short delay
+                    setTimeout(() => scrollToBottom(true), 100);
+                  } else if (isAtBottom || finalAttempt) {
+                    // Clear flag after successful scroll or final attempt
+                    setTimeout(() => {
+                      shouldBeAtBottom.value = false;
+                    }, 500);
+                  }
+                }
+              });
+            });
+          };
+          
+          if (pendingImages.length === 0 && totalEmbeds === 0) {
+            // No images or embeds to wait for, scroll immediately
+            setTimeout(() => scrollToBottom(), 50);
+          } else {
+            // Wait for images and embeds to load, but with a maximum timeout
+            const maxWaitTime = 3000; // Maximum 3 seconds (increased for embeds)
+            const startTime = Date.now();
+            
+            const checkAndScroll = () => {
+              const imagesLoadedCount = pendingImages.filter(url => imageLoaded.value[url] === true).length;
+              
+              // Count loaded embeds
+              let embedsLoadedCount = 0;
+              embedCountsByMessage.forEach((expectedCount, messageId) => {
+                const loadedCount = embedLoaded.value[messageId] || 0;
+                embedsLoadedCount += Math.min(loadedCount, expectedCount);
+              });
+              
+              const elapsed = Date.now() - startTime;
+              const allImagesLoaded = imagesLoadedCount >= pendingImages.length;
+              const allEmbedsLoaded = embedsLoadedCount >= totalEmbeds;
+              
+              // Scroll if all content loaded or timeout reached
+              if ((allImagesLoaded && allEmbedsLoaded) || elapsed >= maxWaitTime) {
+                debug.log(`📜 Images loaded: ${imagesLoadedCount}/${pendingImages.length}, Embeds loaded: ${embedsLoadedCount}/${totalEmbeds}, elapsed: ${elapsed}ms`);
+                scrollToBottom();
+              } else {
+                // Check again after a short delay
+                setTimeout(checkAndScroll, 100);
+              }
+            };
+            
+            // Start checking after initial render
+            setTimeout(checkAndScroll, 100);
+          }
         } 
         // When loading older messages, maintain scroll position by compensating for new content
         else if (scrollOffset > 0 && oldScrollHeight > 0) {
           debug.log('📜 Maintaining scroll position after loading older messages');
           messageDisplayContainer.value.scrollTop += scrollOffset;
+          // Clear flag when loading older messages (user is scrolling up)
+          shouldBeAtBottom.value = false;
         }
         
         checkScrollable();
@@ -980,7 +1093,13 @@ const handleScroll = () => {
     }
   }
 
-  emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
+  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+  // Clear flag if user scrolls away from bottom
+  if (!isAtBottom) {
+    shouldBeAtBottom.value = false;
+  }
+  
+  emit('update:isAtBottom', isAtBottom);
 };
 
 const handleWheel = (event: WheelEvent) => {
@@ -1256,9 +1375,46 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 };
 
 
+// Track if we should be at bottom (for initial load)
+const shouldBeAtBottom = ref(false);
+
 // Lightbox and Media
 const handleImageLoaded = (url: string) => {
   imageLoaded.value[url] = true;
+  
+  // If we should be at bottom and an image just loaded, re-scroll
+  if (shouldBeAtBottom.value && messageDisplayContainer.value) {
+    requestAnimationFrame(() => {
+      if (messageDisplayContainer.value) {
+        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+        if (!isAtBottom) {
+          messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+        }
+      }
+    });
+  }
+};
+
+// Handle embed loaded events
+const handleEmbedLoaded = (messageId: string) => {
+  if (!embedLoaded.value[messageId]) {
+    embedLoaded.value[messageId] = 0;
+  }
+  embedLoaded.value[messageId] = (embedLoaded.value[messageId] || 0) + 1;
+  
+  // If we should be at bottom and an embed just loaded, re-scroll
+  if (shouldBeAtBottom.value && messageDisplayContainer.value) {
+    requestAnimationFrame(() => {
+      if (messageDisplayContainer.value) {
+        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+        if (!isAtBottom) {
+          messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+        }
+      }
+    });
+  }
 };
 
 // Handle click-to-decrypt for encrypted messages
