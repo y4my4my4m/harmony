@@ -117,7 +117,7 @@ import type { CustomUserStatus } from '@/types'
 
 // Lazy load emoji picker
 const EmojiPicker = defineAsyncComponent(() => 
-  import('@/components/EmojiPicker.vue')
+  import('@/components/activitypub/EmojiPicker.vue')
 )
 
 interface Props {

@@ -65,8 +65,11 @@
       :is-visible="showThreadView"
       :thread-id="selectedThreadId"
       :initial-thread="selectedThread"
+      :draft-parent-message="draftParentMessage"
+      :channel-id="props.channelId"
       @close="closeThreadView"
       @thread-updated="handleThreadUpdated"
+      @thread-created="handleThreadCreated"
     />
   </div>
 </template>
@@ -219,12 +222,16 @@
         replyToUserDisplayName.value = '';
       };
 
+      // Thread state for draft threads
+      const draftParentMessage = ref<Message | null>(null);
+      
       // Thread handlers
       const handleCreateThread = async (messageOrEvent: Message | { thread: any }) => {
         // Handle case when receiving a thread directly (from ThreadIndicator)
         if ('thread' in messageOrEvent && messageOrEvent.thread) {
           selectedThreadId.value = messageOrEvent.thread.id;
           selectedThread.value = messageOrEvent.thread;
+          draftParentMessage.value = null;
           showThreadView.value = true;
           return;
         }
@@ -244,31 +251,31 @@
             // Open existing thread
             selectedThreadId.value = existingThread.id;
             selectedThread.value = existingThread;
+            draftParentMessage.value = null;
             showThreadView.value = true;
           } else {
-            // Create new thread - use first few words of message as default name
-            const messageText = Array.isArray(message.content) 
-              ? message.content.find(p => p.type === 'text')?.text || 'Thread'
-              : 'Thread';
-            const threadName = messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '');
-            
-            const newThread = await threadService.createThread({
-              message_id: message.id,
-              name: threadName,
-            });
-            
-            if (newThread) {
-              selectedThreadId.value = newThread.id;
-              selectedThread.value = null; // Will be fetched by ThreadView
-              showThreadView.value = true;
-              
-              // Send system message to channel about thread creation
-              const systemContent = [{ type: 'text' as const, text: `started a thread: **${threadName}**. See all **threads**.` }];
-              await sendSystemThreadMessage(props.channelId!, systemContent, newThread.id, threadName);
-            }
+            // Open draft thread view - thread will be created on first message
+            selectedThreadId.value = undefined;
+            selectedThread.value = null;
+            draftParentMessage.value = message;
+            showThreadView.value = true;
           }
         } catch (error) {
           debug.error('Failed to create/open thread:', error);
+        }
+      };
+      
+      // Handle when a thread is created from ThreadView (on first message)
+      const handleThreadCreated = async (thread: any, parentMessage: Message) => {
+        selectedThreadId.value = thread.id;
+        selectedThread.value = thread;
+        draftParentMessage.value = null;
+        
+        // Send system message to channel about thread creation
+        if (props.channelId) {
+          const threadName = thread.name || 'Thread';
+          const systemContent = [{ type: 'text' as const, text: `started a thread: **${threadName}**. See all **threads**.` }];
+          await sendSystemThreadMessage(props.channelId, systemContent, thread.id, threadName);
         }
       };
 
@@ -276,6 +283,7 @@
         showThreadView.value = false;
         selectedThreadId.value = undefined;
         selectedThread.value = null;
+        draftParentMessage.value = null;
       };
       
       // Send a system message for thread creation

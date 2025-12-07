@@ -123,21 +123,19 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="switch-label">
-                <span>Display role members separately</span>
-                <input type="checkbox" v-model="editForm.hoist" class="switch-input">
-                <span class="switch-slider"></span>
-              </label>
-              <p class="form-help">Members with this role will be shown separately in the member list.</p>
+            <div class="form-group toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-title">Display role members separately</span>
+                <p class="form-help">Members with this role will be shown separately in the member list.</p>
+              </div>
+              <ToggleSwitch v-model="editForm.hoist" />
             </div>
 
-            <div class="form-group">
-              <label class="switch-label">
-                <span>Allow anyone to @mention this role</span>
-                <input type="checkbox" v-model="editForm.mentionable" class="switch-input">
-                <span class="switch-slider"></span>
-              </label>
+            <div class="form-group toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-title">Allow anyone to @mention this role</span>
+              </div>
+              <ToggleSwitch v-model="editForm.mentionable" />
             </div>
           </div>
 
@@ -155,15 +153,10 @@
                     <span class="permission-name">{{ perm.label }}</span>
                     <span class="permission-desc">{{ perm.description }}</span>
                   </div>
-                  <label class="switch-label compact">
-                    <input 
-                      type="checkbox" 
-                      class="switch-input"
-                      :checked="hasPermission(perm.key)"
-                      @change="togglePermission(perm.key)"
-                    >
-                    <span class="switch-slider"></span>
-                  </label>
+                  <ToggleSwitch 
+                    :model-value="hasPermission(perm.key)"
+                    @update:model-value="togglePermission(perm.key)"
+                  />
                 </div>
               </div>
             </div>
@@ -238,6 +231,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import draggable from 'vuedraggable'
 import { roleService } from '@/services/RoleService'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import type { ServerRole, Permission } from '@/types'
 
 interface Props {
@@ -343,15 +337,55 @@ const permissionSections = [
   },
 ]
 
+// Helper to safely convert permissions to array
+// DB stores as { 'VIEW_CHANNEL': true, 'SEND_MESSAGES': true }
+// Frontend expects ['VIEW_CHANNEL', 'SEND_MESSAGES']
+const ensurePermissionsArray = (perms: unknown): string[] => {
+  if (Array.isArray(perms)) {
+    return [...perms]
+  } else if (typeof perms === 'object' && perms !== null) {
+    // Handle JSONB object format: { 'PERMISSION_NAME': true }
+    const obj = perms as Record<string, unknown>
+    return Object.entries(obj)
+      .filter(([_, value]) => value === true)
+      .map(([key]) => key)
+  } else if (typeof perms === 'string') {
+    try {
+      const parsed = JSON.parse(perms)
+      if (Array.isArray(parsed)) {
+        return parsed
+      } else if (typeof parsed === 'object') {
+        return Object.entries(parsed)
+          .filter(([_, value]) => value === true)
+          .map(([key]) => key)
+      }
+      return []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+// Helper to convert permissions array to JSONB object format for database
+const permissionsArrayToObject = (perms: string[]): Record<string, boolean> => {
+  const obj: Record<string, boolean> = {}
+  for (const perm of perms) {
+    obj[perm] = true
+  }
+  return obj
+}
+
 // Computed
 const hasChanges = computed(() => {
   if (!selectedRole.value) return false
+  const currentPerms = ensurePermissionsArray(selectedRole.value.permissions)
   return (
     editForm.value.name !== selectedRole.value.name ||
     editForm.value.color !== (selectedRole.value.color || '#99AAB5') ||
     editForm.value.hoist !== selectedRole.value.hoist ||
     editForm.value.mentionable !== selectedRole.value.mentionable ||
-    JSON.stringify(editForm.value.permissions.sort()) !== JSON.stringify((selectedRole.value.permissions || []).sort())
+    JSON.stringify([...editForm.value.permissions].sort()) !== JSON.stringify([...currentPerms].sort())
   )
 })
 
@@ -411,12 +445,13 @@ const selectRole = async (role: ServerRole) => {
 
 const resetForm = () => {
   if (!selectedRole.value) return
+  
   editForm.value = {
     name: selectedRole.value.name,
     color: selectedRole.value.color || '#99AAB5',
     hoist: selectedRole.value.hoist || false,
     mentionable: selectedRole.value.mentionable || false,
-    permissions: [...(selectedRole.value.permissions || [])],
+    permissions: ensurePermissionsArray(selectedRole.value.permissions),
   }
 }
 
@@ -438,12 +473,13 @@ const saveRole = async () => {
   
   saving.value = true
   try {
+    // Convert permissions array to JSONB object format for database
     const updated = await roleService.updateRole(selectedRole.value.id, {
       name: editForm.value.name,
       color: editForm.value.color,
       hoist: editForm.value.hoist,
       mentionable: editForm.value.mentionable,
-      permissions: editForm.value.permissions,
+      permissions: permissionsArrayToObject(editForm.value.permissions),
     })
     
     if (updated) {
@@ -802,6 +838,31 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin-bottom: 8px;
+}
+
+.form-group.toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.form-group.toggle-row .toggle-info {
+  flex: 1;
+}
+
+.form-group.toggle-row .toggle-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.form-group.toggle-row .form-help {
+  margin-top: 0;
 }
 
 .form-input {

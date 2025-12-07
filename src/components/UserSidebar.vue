@@ -120,6 +120,18 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
+              <!-- Custom Status -->
+              <div 
+                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji" 
+                class="user-custom-status"
+              >
+                <span v-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
+                  {{ getUserCustomStatus(user.id).value.emoji }}
+                </span>
+                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
+                  {{ getUserCustomStatus(user.id).value.text }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -348,6 +360,7 @@ const {
   getUserStatus,
   isUserLocal,
   getUserDomain,
+  getUserCustomStatus,
 } = useUserData();
 
 // Component state

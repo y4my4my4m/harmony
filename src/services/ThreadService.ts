@@ -214,6 +214,59 @@ class ThreadService {
   }
 
   /**
+   * Get all threads for a server (across all channels)
+   */
+  async getServerThreads(
+    serverId: string,
+    options: {
+      archived?: boolean
+      limit?: number
+    } = {}
+  ): Promise<ThreadWithDetails[]> {
+    const { archived = false, limit = 20 } = options
+
+    try {
+      // First get all channels for this server
+      const { data: channels, error: channelsError } = await supabase
+        .from('channels')
+        .select('id, name')
+        .eq('server_id', serverId)
+
+      if (channelsError) throw channelsError
+      if (!channels || channels.length === 0) return []
+
+      const channelIds = channels.map(c => c.id)
+      const channelMap = new Map(channels.map(c => [c.id, c.name]))
+
+      // Get threads from these channels
+      let query = supabase
+        .from('threads')
+        .select('*')
+        .in('channel_id', channelIds)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .limit(limit)
+
+      if (!archived) {
+        query = query.eq('archived', false)
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+
+      // Map channel names
+      return (data || []).map((t: any) => ({
+        ...t,
+        channel_name: channelMap.get(t.channel_id),
+        server_id: serverId,
+      }))
+    } catch (error) {
+      debug.error('Failed to fetch server threads:', error)
+      return []
+    }
+  }
+
+  /**
    * Get threads the current user is a member of
    */
   async getUserThreads(serverId?: string): Promise<ThreadWithDetails[]> {

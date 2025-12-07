@@ -12,7 +12,7 @@
                 </svg>
               </button>
               <div class="thread-info">
-                <h3>{{ thread?.name || 'Thread' }}</h3>
+                <h3>{{ displayThreadName }}</h3>
                 <p class="thread-channel">
                   <span class="hash">#</span>{{ thread?.channel_name || 'channel' }}
                 </p>
@@ -67,35 +67,42 @@
           </div>
 
           <!-- Parent Message (Original message that started the thread) -->
-          <div class="parent-message" v-if="thread?.parent_message">
+          <div class="parent-message" v-if="displayParentMessage">
             <div class="message-avatar">
               <Avatar 
-                :src="getAuthorAvatar(thread.parent_message.user_id)" 
-                :alt="getAuthorName(thread.parent_message.user_id)"
+                :src="getAuthorAvatar(displayParentMessage.user_id)" 
+                :alt="getAuthorName(displayParentMessage.user_id)"
                 size="sm"
                 :interactive="true"
               />
             </div>
             <div class="message-main">
               <div class="message-meta">
-                <span class="username" :style="{ color: getAuthorColor(thread.parent_message.user_id) }">
-                  {{ getAuthorName(thread.parent_message.user_id) }}
+                <span class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
+                  {{ getAuthorName(displayParentMessage.user_id) }}
                 </span>
-                <span class="timestamp">{{ formatTimestamp(thread.parent_message.created_at) }}</span>
+                <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
               </div>
               <div class="message-content">
                 <UnifiedMessageContent
-                  :content="thread.parent_message.content"
-                  :message-id="thread.parent_message.id"
+                  :content="displayParentMessage.content"
+                  :message-id="displayParentMessage.id"
                 />
               </div>
             </div>
           </div>
 
-          <!-- Divider with count -->
-          <div class="thread-divider">
+          <!-- Divider with count (only show when thread exists) -->
+          <div class="thread-divider" v-if="!isDraftMode">
             <div class="divider-line"></div>
             <span class="reply-count">{{ thread?.message_count || 0 }} repl{{ (thread?.message_count || 0) === 1 ? 'y' : 'ies' }}</span>
+            <div class="divider-line"></div>
+          </div>
+          
+          <!-- Draft mode hint -->
+          <div class="draft-hint" v-if="isDraftMode">
+            <div class="divider-line"></div>
+            <span class="hint-text">Send a message to start this thread</span>
             <div class="divider-line"></div>
           </div>
 
@@ -221,12 +228,15 @@ interface Props {
   isVisible: boolean
   threadId?: string
   initialThread?: ThreadWithDetails
+  draftParentMessage?: Message | null
+  channelId?: string
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
   'thread-updated': [thread: ThreadWithDetails]
+  'thread-created': [thread: ThreadWithDetails, parentMessage: Message]
 }>()
 
 const { 
@@ -248,6 +258,29 @@ const messageText = ref('')
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
+
+// Draft mode - thread not yet created
+const isDraftMode = computed(() => !props.threadId && !props.initialThread && !!props.draftParentMessage)
+
+// Parent message to display (from thread or draft)
+const displayParentMessage = computed(() => {
+  if (isDraftMode.value) {
+    return props.draftParentMessage
+  }
+  return thread.value?.parent_message
+})
+
+// Thread name (or generate from parent message in draft mode)
+const displayThreadName = computed(() => {
+  if (thread.value?.name) return thread.value.name
+  if (isDraftMode.value && props.draftParentMessage) {
+    const text = Array.isArray(props.draftParentMessage.content)
+      ? props.draftParentMessage.content.find(p => p.type === 'text')?.text || 'Thread'
+      : 'Thread'
+    return text.substring(0, 50) + (text.length > 50 ? '...' : '')
+  }
+  return 'Thread'
+})
 
 // Message grouping - show header if different author or > 7 min gap
 const shouldShowHeader = (message: Message, index: number): boolean => {
@@ -272,15 +305,20 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
 
 // Load thread data
 const loadThread = async () => {
-  if (!props.threadId && !props.initialThread) return
+  // In draft mode, don't load - just show parent message
+  if (isDraftMode.value) {
+    loading.value = false
+    messages.value = []
+    return
+  }
+  
+  const threadId = props.threadId || props.initialThread?.id
+  if (!threadId) return
   
   loading.value = true
   try {
-    if (props.initialThread) {
-      thread.value = props.initialThread
-    } else if (props.threadId) {
-      thread.value = await threadService.getThread(props.threadId)
-    }
+    // Always fetch full thread data to ensure parent_message is included
+    thread.value = await threadService.getThread(threadId, true) // force refresh
     
     isMember.value = thread.value?.is_member ?? true
     
@@ -363,7 +401,13 @@ const toggleMute = async () => {
 }
 
 const sendMessage = async () => {
-  if (!thread.value || !messageText.value.trim() || sending.value) return
+  if (!messageText.value.trim() || sending.value) return
+  
+  // In draft mode, need parent message to create thread
+  if (isDraftMode.value && !props.draftParentMessage) return
+  
+  // In normal mode, need thread
+  if (!isDraftMode.value && !thread.value) return
   
   const text = messageText.value.trim()
   messageText.value = ''
@@ -375,8 +419,33 @@ const sendMessage = async () => {
   }
   
   try {
+    let targetThreadId = thread.value?.id
+    
+    // If in draft mode, create the thread first
+    if (isDraftMode.value && props.draftParentMessage) {
+      const threadName = displayThreadName.value
+      const newThread = await threadService.createThread({
+        message_id: props.draftParentMessage.id,
+        name: threadName,
+      })
+      
+      if (!newThread) {
+        throw new Error('Failed to create thread')
+      }
+      
+      targetThreadId = newThread.id
+      thread.value = await threadService.getThread(newThread.id, true)
+      
+      // Emit thread-created event to parent
+      emit('thread-created', thread.value!, props.draftParentMessage)
+    }
+    
+    if (!targetThreadId) {
+      throw new Error('No thread ID')
+    }
+    
     const content = [{ type: 'text' as const, text }]
-    const newMessage = await threadService.sendThreadMessage(thread.value.id, content)
+    const newMessage = await threadService.sendThreadMessage(targetThreadId, content)
     
     if (newMessage) {
       messages.value.push(newMessage)
@@ -652,6 +721,22 @@ onMounted(() => {
 .reply-count {
   font-size: 12px;
   color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Draft Hint */
+.draft-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--background-primary);
+}
+
+.hint-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
   white-space: nowrap;
 }
 
