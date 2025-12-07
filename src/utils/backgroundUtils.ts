@@ -2,67 +2,60 @@
  * Utility functions for discovering and selecting background images
  * Supports organized folders: /backgrounds/login/ and /backgrounds/offline/
  * Falls back to legacy /img/ pattern if new folders don't exist
+ * 
+ * Uses a manifest file (generated at build time) for efficient discovery.
+ * Falls back to minimal runtime discovery if manifest doesn't exist.
  */
 
-const imageExtensions = ['.webp', '.png', '.jpg', '.jpeg']
-const maxDiscoveryAttempts = 100 // Limit attempts to prevent infinite loops
-
-// Cache for discovered images to avoid repeated discovery
-const imageCache = new Map<string, string[]>()
+// Cache for manifest
+let manifestCache: { login: string[]; offline: string[]; notFound: string[] } | null = null
+let manifestLoadAttempted = false
 
 /**
- * Attempts to discover available images in a directory by trying to load them
- * Uses a simple approach: tries numbered filenames with common extensions
+ * Loads the background manifest file if it exists
+ * This is generated at build time by scripts/build-background-manifest.mjs
  */
-async function discoverImagesInFolder(folderPath: string): Promise<string[]> {
-  const cacheKey = folderPath
-  if (imageCache.has(cacheKey)) {
-    return imageCache.get(cacheKey)!
+async function loadManifest(): Promise<{ login: string[]; offline: string[]; notFound: string[] } | null> {
+  if (manifestCache !== null) {
+    return manifestCache
   }
-
-  const discoveredImages: string[] = []
-  const attempts: Promise<boolean>[] = []
-
-  // Try numbered filenames (1-100) with common extensions
-  for (let i = 1; i <= maxDiscoveryAttempts; i++) {
-    for (const ext of imageExtensions) {
-      const imagePath = `${folderPath}/${i}${ext}`
-      attempts.push(
-        new Promise<boolean>((resolve) => {
-          const img = new Image()
-          img.onload = () => {
-            discoveredImages.push(imagePath)
-            resolve(true)
-          }
-          img.onerror = () => resolve(false)
-          // Set a timeout to prevent hanging
-          setTimeout(() => resolve(false), 100)
-          img.src = imagePath
-        })
-      )
+  
+  if (manifestLoadAttempted) {
+    return null
+  }
+  
+  manifestLoadAttempted = true
+  
+  try {
+    const response = await fetch('/backgrounds/manifest.json')
+    if (response.ok) {
+      const manifest = await response.json()
+      manifestCache = {
+        login: manifest.login || [],
+        offline: manifest.offline || [],
+        notFound: manifest.notFound || []
+      }
+      return manifestCache
     }
+  } catch (error) {
+    // Manifest doesn't exist or failed to load - that's okay, we'll use fallback
   }
-
-  // Wait for all attempts with a reasonable timeout
-  await Promise.allSettled(attempts.slice(0, 20)) // Check first 20 quickly
-  await Promise.allSettled(attempts.slice(20)) // Then check the rest
-
-  // Cache the results
-  imageCache.set(cacheKey, discoveredImages)
-  return discoveredImages
+  
+  return null
 }
+
 
 /**
  * Gets a random background image for login/register pages
- * Tries /backgrounds/login/ first, falls back to /img/login_bg*.webp
+ * Uses manifest if available, falls back to legacy /img/login_bg*.webp pattern
  */
 export async function getRandomLoginBackground(): Promise<string> {
-  // Try new organized folder first
-  const loginImages = await discoverImagesInFolder('/backgrounds/login')
+  // Try to load manifest first (most efficient)
+  const manifest = await loadManifest()
   
-  if (loginImages.length > 0) {
-    const randomIndex = Math.floor(Math.random() * loginImages.length)
-    return `url('${loginImages[randomIndex]}')`
+  if (manifest && manifest.login.length > 0) {
+    const randomIndex = Math.floor(Math.random() * manifest.login.length)
+    return `url('${manifest.login[randomIndex]}')`
   }
 
   // Fallback to legacy pattern
@@ -72,26 +65,46 @@ export async function getRandomLoginBackground(): Promise<string> {
 
 /**
  * Gets a random background image for offline pages
- * Tries /backgrounds/offline/ first, falls back to /img/offline_bg*.webp
+ * Uses manifest if available, falls back to legacy /img/offline_bg*.webp pattern
  */
 export async function getRandomOfflineBackground(): Promise<string> {
-  // Try new organized folder first
-  const offlineImages = await discoverImagesInFolder('/backgrounds/offline')
+  // Try to load manifest first (most efficient)
+  const manifest = await loadManifest()
   
-  if (offlineImages.length > 0) {
-    const randomIndex = Math.floor(Math.random() * offlineImages.length)
-    return `url('${offlineImages[randomIndex]}')`
+  if (manifest && manifest.offline.length > 0) {
+    const randomIndex = Math.floor(Math.random() * manifest.offline.length)
+    return `url('${manifest.offline[randomIndex]}')`
   }
 
-  // Fallback to legacy pattern (if it exists)
+  // Fallback to legacy pattern
   const randomNum = Math.floor(Math.random() * 2) + 1
   return `url('/img/offline_bg${randomNum}.webp')`
 }
 
 /**
- * Clears the image cache (useful for development/testing)
+ * Gets a random 404 image
+ * Uses manifest if available, falls back to legacy /404*.webp pattern
+ */
+export async function getRandom404Image(): Promise<string> {
+  // Try to load manifest first (most efficient)
+  const manifest = await loadManifest()
+  
+  if (manifest && manifest.notFound.length > 0) {
+    const randomIndex = Math.floor(Math.random() * manifest.notFound.length)
+    return manifest.notFound[randomIndex]
+  }
+
+  // Fallback to legacy pattern
+  const legacyImages = ['/404.webp', '/404_2.webp']
+  const randomIndex = Math.floor(Math.random() * legacyImages.length)
+  return legacyImages[randomIndex]
+}
+
+/**
+ * Clears the manifest cache (useful for development/testing)
  */
 export function clearBackgroundCache(): void {
-  imageCache.clear()
+  manifestCache = null
+  manifestLoadAttempted = false
 }
 
