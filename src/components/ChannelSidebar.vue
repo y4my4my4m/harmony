@@ -1335,15 +1335,22 @@ watch(() => props.currentServer?.id, () => {
   margin: 0 auto;
   width: calc(100% - 8px);
 }
+.channel-thread-item .thread-name {
+  padding: 6px 8px 6px 6px;
+  border-radius: 4px;
+  width: 100%;
+}
 
-.channel-thread-item:hover {
+.channel-thread-item .thread-name:hover {
   background: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
   color: var(--text-normal, #DBDEE1);
 }
 
 .channel-thread-item.selected {
-  background: var(--background-modifier-selected, rgba(79, 84, 92, 0.6));
   color: var(--text-primary, #FFFFFF);
+}
+.channel-thread-item.selected .thread-name {
+  background: var(--background-modifier-selected, rgba(79, 84, 92, 0.6));
 }
 
 /* Thread branch/tree-line - vertical line connecting to parent */
