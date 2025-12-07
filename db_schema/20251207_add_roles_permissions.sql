@@ -286,7 +286,15 @@ BEGIN
         );
     END IF;
     
+    -- Start with @everyone role permissions as base
+    SELECT permissions INTO v_base_permissions
+    FROM "public"."server_roles"
+    WHERE server_id = p_server_id AND is_default = true;
+    
+    v_base_permissions := COALESCE(v_base_permissions, '{}'::jsonb);
+    
     -- Collect permissions from all user's roles (ordered by position)
+    -- Merge on top of @everyone (higher position roles can override)
     FOR v_role IN
         SELECT sr.permissions, sr.position
         FROM "public"."user_roles" ur
@@ -297,13 +305,6 @@ BEGIN
         -- Merge permissions (higher position roles can override)
         v_base_permissions := v_base_permissions || v_role.permissions;
     END LOOP;
-    
-    -- Also include @everyone role permissions
-    SELECT permissions INTO v_base_permissions
-    FROM "public"."server_roles"
-    WHERE server_id = p_server_id AND is_default = true;
-    
-    v_base_permissions := COALESCE(v_base_permissions, '{}'::jsonb);
     
     -- If ADMINISTRATOR permission is set, grant all permissions
     IF (v_base_permissions->>'ADMINISTRATOR')::boolean = true THEN
@@ -647,6 +648,29 @@ END $$;
 -- =============================================
 -- 16. Realtime subscriptions
 -- =============================================
-ALTER PUBLICATION supabase_realtime ADD TABLE "public"."server_roles";
-ALTER PUBLICATION supabase_realtime ADD TABLE "public"."user_roles";
+-- Add tables to realtime publication if not already present
+DO $$
+BEGIN
+    -- Add server_roles if not already in publication
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'server_roles'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE "public"."server_roles";
+    END IF;
+    
+    -- Add user_roles if not already in publication
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'user_roles'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE "public"."user_roles";
+    END IF;
+END $$;
 

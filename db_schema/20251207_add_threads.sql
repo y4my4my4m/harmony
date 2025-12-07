@@ -413,8 +413,31 @@ GRANT ALL ON "public"."thread_members" TO "service_role";
 -- =============================================
 -- 12. Realtime subscriptions
 -- =============================================
-ALTER PUBLICATION supabase_realtime ADD TABLE "public"."threads";
-ALTER PUBLICATION supabase_realtime ADD TABLE "public"."thread_members";
+-- Add tables to realtime publication if not already present
+DO $$
+BEGIN
+    -- Add threads if not already in publication
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'threads'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE "public"."threads";
+    END IF;
+    
+    -- Add thread_members if not already in publication
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'thread_members'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE "public"."thread_members";
+    END IF;
+END $$;
 
 -- =============================================
 -- 13. View for active threads with stats
