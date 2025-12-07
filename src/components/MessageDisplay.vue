@@ -133,6 +133,12 @@
               </span>
               <span class="timestamp">
                 {{ formatTimestamp(message.created_at) }}
+                <!-- Pin indicator -->
+                <span 
+                  v-if="message.is_pinned" 
+                  class="pin-indicator"
+                  title="Pinned message"
+                >📌</span>
                 <!-- Encryption indicators -->
                 <span 
                   v-if="message.decrypted" 
@@ -212,6 +218,7 @@
         <div class="message-actions" v-if="hoveredMessageId === message.id">
           <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
           <div class="action-btn" @click="replyTo(message)"><ReplyIcon/></div>
+          <div class="action-btn thread-btn" @click="createThread(message)" title="Create Thread"><ThreadIcon/></div>
           <div class="action-btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
           <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
           <div class="action-btn" @click="openContextMenu(message, $event)"><MoreIcon/></div>
@@ -319,6 +326,7 @@ import InviteModal from '@/components/InviteModal.vue';
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
+import ThreadIcon from '@/components/icons/Thread.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
@@ -347,7 +355,7 @@ const props = defineProps({
   conversationId: String,
 });
 
-const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom']);
+const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread']);
 
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
@@ -1359,6 +1367,11 @@ const handleReplyClick = async (replyMessageId: string) => {
   if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
 };
 
+// Thread Logic
+const createThread = (message: Message) => {
+  emit('createThread', message);
+};
+
 const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
   if (replyMessages.value[replyMessageId] || props.messages.some(msg => msg.id === replyMessageId)) return;
   try {
@@ -1762,6 +1775,19 @@ const closeInviteModal = () => {
   margin-left: 0.35rem;
   vertical-align: baseline;
   line-height: 1.375;
+}
+
+/* Pin indicator */
+.pin-indicator {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.8;
+  cursor: help;
+}
+
+/* Thread action button */
+.thread-btn {
+  color: var(--harmony-primary);
 }
 
 /* Compact message (no header) */

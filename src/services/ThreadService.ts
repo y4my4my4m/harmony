@@ -28,6 +28,10 @@ export interface ThreadWithDetails extends Thread {
   recent_message_count?: number
   parent_message?: Message
   is_member?: boolean
+  muted?: boolean
+  unread_count?: number
+  last_message_preview?: string
+  participants?: Array<{ id: string; display_name?: string }>
 }
 
 export interface ThreadMessagesResult {
@@ -196,6 +200,13 @@ class ThreadService {
   }
 
   /**
+   * Alias for getChannelThreads for component compatibility
+   */
+  async getThreadsForChannel(channelId: string): Promise<ThreadWithDetails[]> {
+    return this.getChannelThreads(channelId)
+  }
+
+  /**
    * Get threads the current user is a member of
    */
   async getUserThreads(serverId?: string): Promise<ThreadWithDetails[]> {
@@ -203,7 +214,7 @@ class ThreadService {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
-      let query = supabase
+      const { data, error } = await supabase
         .from('thread_members')
         .select(`
           thread:threads (
@@ -221,14 +232,12 @@ class ThreadService {
         `)
         .eq('user_id', user.id)
 
-      const { data, error } = await query
-
       if (error) throw error
 
-      let threads = (data || [])
-        .map(tm => tm.thread)
-        .filter((t): t is NonNullable<typeof t> => t !== null)
-        .map(t => ({
+      let threads: ThreadWithDetails[] = (data || [])
+        .map((tm: any) => tm.thread)
+        .filter((t: any): t is NonNullable<typeof t> => t !== null)
+        .map((t: any) => ({
           ...t,
           channel_name: t.channels?.name,
           server_id: t.channels?.server_id,
@@ -245,8 +254,8 @@ class ThreadService {
 
       // Sort by last message
       threads.sort((a, b) => {
-        const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0
-        const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0
+        const aTime = a.last_message_at ? new Date(a.last_message_at as any).getTime() : 0
+        const bTime = b.last_message_at ? new Date(b.last_message_at as any).getTime() : 0
         return bTime - aTime
       })
 
@@ -688,11 +697,4 @@ class ThreadService {
 
 // Export singleton instance
 export const threadService = new ThreadService()
-
-export type {
-  CreateThreadParams,
-  UpdateThreadParams,
-  ThreadWithDetails,
-  ThreadMessagesResult,
-}
 

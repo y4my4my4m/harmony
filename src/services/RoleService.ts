@@ -210,7 +210,7 @@ export interface UpdateRoleParams {
   hoist?: boolean
   mentionable?: boolean
   position?: number
-  permissions?: Record<Permission, boolean>
+  permissions?: Record<Permission, boolean> | string[]
   icon_url?: string
   unicode_emoji?: string
 }
@@ -239,19 +239,32 @@ class RoleService {
     try {
       const { data, error } = await supabase
         .from('server_roles')
-        .select('*')
+        .select(`
+          *,
+          member_count:user_roles(count)
+        `)
         .eq('server_id', serverId)
         .order('position', { ascending: false })
 
       if (error) throw error
 
-      const roles = (data || []) as ServerRole[]
+      const roles = (data || []).map((r: any) => ({
+        ...r,
+        member_count: r.member_count?.[0]?.count || 0,
+      })) as ServerRole[]
       this.roleCache.set(serverId, roles)
       return roles
     } catch (error) {
       debug.error('Failed to fetch server roles:', error)
       return []
     }
+  }
+
+  /**
+   * Alias for getServerRoles for component compatibility
+   */
+  async getRolesForServer(serverId: string): Promise<ServerRole[]> {
+    return this.getServerRoles(serverId)
   }
 
   /**
@@ -276,17 +289,17 @@ class RoleService {
   /**
    * Create a new role
    */
-  async createRole(params: CreateRoleParams): Promise<ServerRole | null> {
+  async createRole(serverId: string, params: Partial<CreateRoleParams>): Promise<ServerRole | null> {
     try {
       // Get highest position for new role
-      const roles = await this.getServerRoles(params.server_id)
+      const roles = await this.getServerRoles(serverId)
       const maxPosition = Math.max(...roles.map(r => r.position), 0)
 
       const { data, error } = await supabase
         .from('server_roles')
         .insert({
-          server_id: params.server_id,
-          name: params.name,
+          server_id: serverId,
+          name: params.name || 'New Role',
           color: params.color || '#99AAB5',
           hoist: params.hoist || false,
           mentionable: params.mentionable || false,
@@ -301,7 +314,7 @@ class RoleService {
       if (error) throw error
 
       // Invalidate cache
-      this.roleCache.delete(params.server_id)
+      this.roleCache.delete(serverId)
 
       return data as ServerRole
     } catch (error) {
@@ -433,15 +446,30 @@ class RoleService {
   /**
    * Get all members with a specific role
    */
-  async getRoleMembers(roleId: string): Promise<{ user_id: string; assigned_at: string }[]> {
+  async getRoleMembers(roleId: string): Promise<{ id: string; username: string; display_name?: string; avatar_url?: string }[]> {
     try {
       const { data, error } = await supabase
         .from('user_roles')
-        .select('user_id, assigned_at')
+        .select(`
+          user_id,
+          assigned_at,
+          profiles:user_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          )
+        `)
         .eq('role_id', roleId)
 
       if (error) throw error
-      return data || []
+      
+      return (data || []).map((ur: any) => ({
+        id: ur.user_id,
+        username: ur.profiles?.username || 'Unknown',
+        display_name: ur.profiles?.display_name,
+        avatar_url: ur.profiles?.avatar_url,
+      }))
     } catch (error) {
       debug.error('Failed to fetch role members:', error)
       return []
@@ -722,7 +750,4 @@ class RoleService {
 
 // Export singleton instance
 export const roleService = new RoleService()
-
-// Export types and enums
-export type { ServerRole, UserRole, ChannelPermissionOverride, CreateRoleParams, UpdateRoleParams }
 

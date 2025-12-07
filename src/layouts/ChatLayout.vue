@@ -64,6 +64,7 @@
             @toggle-voice-panel="$emit('toggleVoicePanel')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
             @toggle-search="handleToggleSearch"
+            @show-pinned="showPinnedMessages = true"
           />
           <div v-else class="chat-placeholder-header">
             <div class="header-content">
@@ -133,6 +134,15 @@
       @close="showSearchModal = false"
       @message-click="handleSearchMessageClick"
     />
+    
+    <!-- Pinned Messages Popup -->
+    <PinnedMessagesPopup
+      :is-visible="showPinnedMessages"
+      :channel-id="currentChannelId"
+      :conversation-id="props.conversationId"
+      @close="showPinnedMessages = false"
+      @jump-to-message="handleJumpToMessage"
+    />
   </div>
 </template>
 
@@ -148,6 +158,7 @@ import NoServersSplash from '@/components/NoServersSplash.vue'
 import CreateChannel from '@/components/CreateChannel.vue'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
 import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
+import PinnedMessagesPopup from '@/components/PinnedMessagesPopup.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
@@ -207,6 +218,7 @@ const { getCurrentUser } = useUserData()
 // State
 const showCreateChannelForm = ref(false)
 const currentCategoryId = ref<string | undefined>()
+const showPinnedMessages = ref(false)
 
 // Computed
 const servers = computed(() => serverChannelStore.servers)
@@ -306,6 +318,13 @@ const handleSearchMessageClick = (message: any, searchQuery?: string) => {
       }
     })
   }
+}
+
+const handleJumpToMessage = (messageId: string) => {
+  // Scroll to message in current channel/conversation
+  // The chat store handles message jumping via query params
+  const currentQuery = { ...route.query, messageId }
+  router.replace({ query: currentQuery })
 }
 
 // Keyboard shortcut handler (Ctrl+K / Cmd+K)

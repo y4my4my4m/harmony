@@ -103,7 +103,7 @@ const fileInput = ref<HTMLInputElement>()
 const sizeMap: Record<AvatarSize, number> = {
   mini: 16,
   xs: 24,
-  sm: 32,
+  sm: 48, // should be 40px but 48 looks better because power of two value properly resize
   md: 48,
   lg: 64,
   xl: 96,

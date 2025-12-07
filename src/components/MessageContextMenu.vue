@@ -49,6 +49,17 @@
         <span>Copy Link URL</span>
       </div>
     </template>
+    
+    <template v-if="canPin">
+      <div class="context-menu-divider"></div>
+      
+      <div class="context-menu-item" @click="togglePin">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,2L15.09,8.26L22,9.27L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9.27L8.91,8.26L12,2Z"/>
+        </svg>
+        <span>{{ isPinned ? 'Unpin Message' : 'Pin Message' }}</span>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -57,6 +68,8 @@ import { computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useServerPermissions } from '@/composables/useServerPermissions';
+import { messageService } from '@/services';
 import type { Message, Emoji } from '@/types';
 
 interface Props {
@@ -71,6 +84,7 @@ interface Emits {
   (e: 'close'): void;
   (e: 'add-reaction', emoji: { native?: string; name: string; id?: string }): void;
   (e: 'open-emoji-picker'): void;
+  (e: 'pin-changed'): void;
 }
 
 const props = defineProps<Props>();
@@ -78,6 +92,10 @@ const emit = defineEmits<Emits>();
 
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
+const { canPinMessages } = useServerPermissions();
+
+const isPinned = computed(() => props.message?.is_pinned || false);
+const canPin = computed(() => canPinMessages.value);
 
 // Default emojis for quick reactions (used when no frequent emojis yet)
 const defaultQuickEmojis = [
@@ -180,6 +198,22 @@ const copyLinkURL = async () => {
   
   emit('close');
 };
+
+const togglePin = async () => {
+  if (!props.message) return;
+  
+  try {
+    if (isPinned.value) {
+      await messageService.unpinMessage(props.message.id);
+    } else {
+      await messageService.pinMessage(props.message.id);
+    }
+    emit('pin-changed');
+    emit('close');
+  } catch (error) {
+    debug.error('Failed to toggle pin:', error);
+  }
+};
 </script>
 
 <style scoped>
@@ -215,6 +249,7 @@ const copyLinkURL = async () => {
   font-size: 18px;
   color: var(--text-secondary);
   transition: all 0.15s ease;
+  overflow: hidden;
 }
 
 .quick-reaction-btn:hover {
