@@ -101,7 +101,7 @@
         <!-- User avatar -->
         <div class="avatar-frame" :class="{ speaking: isSpeaking }">
           <Avatar 
-            :src="userProfile?.avatar_url || '/default_avatar.png'" 
+            :src="userProfile?.avatar_url || '/default_avatar.webp'" 
             :alt="displayName" 
             size="xl" 
             class="user-avatar" 
@@ -233,7 +233,7 @@ const userProfile = computed(() => {
     const result = {
       display_name: profileData?.display_name || null,
       username: profileData?.username || 'Unknown User',
-      avatar_url: profileData?.avatar_url || '/default_avatar.png'
+      avatar_url: profileData?.avatar_url || '/default_avatar.webp'
     };
     
     return result;
@@ -242,7 +242,7 @@ const userProfile = computed(() => {
     return {
       display_name: null,
       username: 'Unknown User',
-      avatar_url: '/default_avatar.png'
+      avatar_url: '/default_avatar.webp'
     };
   }
 });

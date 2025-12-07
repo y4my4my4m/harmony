@@ -89,21 +89,34 @@ const emit = defineEmits<{
 // Refs
 const fileInput = ref<HTMLInputElement>()
 
+// Map server size to pixel size for optimization
+const sizeMap: Record<serverSize, number> = {
+  mini: 16,
+  xs: 24,
+  sm: 36,
+  md: 48,
+  lg: 64,
+  xl: 80,
+  '2xl': 128
+}
+
 // Computed
 const sizeClass = computed(() => `server-${props.size}`)
 
 // --- Fallback image logic ---
-const fallbackImage = '/default_server.png'
+const fallbackImage = '/default_server.webp'
 
-// Use a local ref for the img src, initialized to computed value or fallback
-const imgSrc = ref(getServerIconUrl(props.src) || fallbackImage)
+// Use a local ref for the img src to allow error handling
+const imgSrc = ref<string>(fallbackImage)
 
-// Watch for prop changes and update imgSrc
+// Update imgSrc when props change
 watch(
-  () => props.src,
-  (newVal) => {
-    imgSrc.value = getServerIconUrl(newVal) || fallbackImage
-  }
+  () => [props.src, props.size],
+  () => {
+    const pixelSize = sizeMap[props.size] || 48
+    imgSrc.value = getServerIconUrl(props.src, pixelSize) || fallbackImage
+  },
+  { immediate: true }
 )
 
 // Error handler for <img>

@@ -50,7 +50,7 @@ async function loadUserSettings() {
     
     // Apply locale if available
     if (profile.locale) {
-      setLocale(profile.locale)
+      await setLocale(profile.locale)
     }
     
     // Appearance settings are handled by useVisualTheme.initialize()
@@ -68,10 +68,10 @@ async function loadUserSettings() {
 /**
  * Apply default settings for new users or fallback
  */
-export function applyDefaultSettings() {
+export async function applyDefaultSettings() {
   const visualTheme = useVisualTheme()
   visualTheme.resetToDefaults()
-  setLocale('en')
+  await setLocale('en')
 }
 
 /**
@@ -100,7 +100,7 @@ export async function importUserSettings(settings: any) {
     }
     
     if (settings.locale) {
-      setLocale(settings.locale)
+      await setLocale(settings.locale)
     }
     
     debug.log('✅ Settings imported successfully')

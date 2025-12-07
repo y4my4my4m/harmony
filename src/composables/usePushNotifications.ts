@@ -375,6 +375,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
 /**
  * Initialize push notification system
  * Safe to call multiple times - will only initialize once
+ * Only fetches VAPID key if running as PWA or user has existing subscription
  */
 async function initialize(): Promise<void> {
   // Prevent duplicate initialization
@@ -397,7 +398,22 @@ async function initialize(): Promise<void> {
     // Check permission status
     permission.value = Notification.permission
 
-    // Fetch VAPID key (only if not already fetched)
+    // Only fetch VAPID key if:
+    // 1. Running as installed PWA, OR
+    // 2. User already has a subscription (check first without VAPID key)
+    const isPWAInstalled = isPWA()
+    
+    // Check if user already has a subscription (this doesn't require VAPID key)
+    const existingSubscription = await getCurrentSubscription()
+    
+    if (!isPWAInstalled && !existingSubscription) {
+      debug.log('🔔 Push notifications: Not PWA and no existing subscription, skipping VAPID fetch')
+      // Still mark as initialized but don't fetch VAPID key
+      isInitialized = true
+      return
+    }
+
+    // Fetch VAPID key (only if PWA or has existing subscription)
     if (!vapidPublicKey.value) {
       vapidPublicKey.value = await fetchVapidKey()
     }
@@ -420,7 +436,8 @@ async function initialize(): Promise<void> {
       supported: isSupported.value,
       permission: permission.value,
       subscribed: isSubscribed.value,
-      subscriptionCount: subscriptions.value.length
+      subscriptionCount: subscriptions.value.length,
+      isPWA: isPWAInstalled
     })
   } finally {
     isInitializing = false

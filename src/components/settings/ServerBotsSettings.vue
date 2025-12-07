@@ -35,7 +35,7 @@
           class="bot-card available"
         >
           <div class="bot-avatar">
-            <img :src="bot.avatar_url || '/default_avatar.png'" :alt="bot.username" />
+            <Avatar :src="bot.avatar_url" size="sm" :alt="bot.username" />
             <div class="bot-badge">BOT</div>
           </div>
           
@@ -75,7 +75,7 @@
           class="bot-item"
         >
           <div class="bot-avatar">
-            <img :src="installation.bot.avatar_url || '/default_avatar.png'" :alt="installation.bot.username" />
+            <Avatar :src="installation.bot.avatar_url" size="sm" :alt="installation.bot.username" />
             <div class="bot-status" :class="{ online: botStatuses[installation.bot_id] }"></div>
           </div>
 
@@ -107,7 +107,7 @@
 
         <div v-if="selectedBot" class="modal-content">
           <div class="bot-preview">
-            <img :src="selectedBot.avatar_url || '/default_avatar.png'" :alt="selectedBot.username" />
+            <img :src="selectedBot.avatar_url || '/default_avatar.webp'" :alt="selectedBot.username" />
             <div>
               <h4>{{ selectedBot.username }}</h4>
               <p>{{ selectedBot.bio }}</p>
@@ -153,7 +153,7 @@
 
         <div v-if="selectedInstallation" class="modal-content">
           <div class="bot-preview">
-            <img :src="selectedInstallation.bot.avatar_url || '/default_avatar.png'" :alt="selectedInstallation.bot.username" />
+            <img :src="selectedInstallation.bot.avatar_url || '/default_avatar.webp'" :alt="selectedInstallation.bot.username" />
             <div>
               <h4>{{ selectedInstallation.bot.username }}</h4>
               <p>Manage permissions for this bot</p>
@@ -199,6 +199,7 @@ import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
+import Avatar from '@/components/common/Avatar.vue'
 
 interface Props {
   serverId: string

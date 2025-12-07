@@ -741,6 +741,13 @@ watch(() => themeStore.currentAudioTheme, () => {
   top: 12px;
   right: 12px;
   color: #667eea;
+  background: var(--text-primary);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }

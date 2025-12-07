@@ -160,7 +160,7 @@
         <!-- Avatar Image -->
         <div class="avatar-container">
           <Avatar
-            :src="getUserProfile(participant.userId)?.avatar_url || '/default_avatar.png'"
+            :src="getUserProfile(participant.userId)?.avatar_url || '/default_avatar.webp'"
             :alt="getUserProfile(participant.userId)?.display_name || 'User'"
             class="avatar-image"
             draggable="false"

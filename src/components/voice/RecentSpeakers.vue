@@ -54,7 +54,7 @@ const isSpeaking = (userId: string) => {
 // Get speaker's avatar URL
 const getSpeakerAvatar = (userId: string) => {
   const profile = getUser(userId)?.value;
-  return profile?.avatarUrl || '/default_avatar.png';
+  return profile?.avatarUrl || '/default_avatar.webp';
 };
 
 // Get speaker's display name

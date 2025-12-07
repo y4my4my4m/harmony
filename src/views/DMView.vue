@@ -318,8 +318,8 @@ const getCallerName = computed(() => {
 })
 
 const getCallerAvatar = computed(() => {
-  if (!incomingCall.value?.callerId) return '/default_avatar.png'
-  return getUserAvatarUrl(incomingCall.value.callerId).value || '/default_avatar.png'
+  if (!incomingCall.value?.callerId) return '/default_avatar.webp'
+  return getUserAvatarUrl(incomingCall.value.callerId).value || '/default_avatar.webp'
 })
 
 // Watch for conversation changes

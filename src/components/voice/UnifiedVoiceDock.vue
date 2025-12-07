@@ -7,7 +7,7 @@
       <div class="user-section">
         <div class="user-avatar-container">
           <Avatar
-            :src="currentUserProfile?.avatar_url || '/default_avatar.png'"
+            :src="currentUserProfile?.avatar_url || '/default_avatar.webp'"
             :alt="currentUserProfile?.display_name || 'User'"
             size="sm"
             class="user-avatar"
@@ -282,23 +282,23 @@ const currentUserId = computed(() => authStore.session?.user?.id);
 
 const currentUserProfile = computed(() => {
   if (!currentUserId.value) {
-    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.png' };
+    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.webp' };
   }
   
   try {
     const user = getUser(currentUserId.value)?.value;
     if (!user) {
-      return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.png' };
+      return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.webp' };
     }
     
     return {
       display_name: user.displayName || null,
       username: user.username || 'Unknown',
-      avatar_url: user.avatarUrl || '/default_avatar.png'
+      avatar_url: user.avatarUrl || '/default_avatar.webp'
     };
   } catch (error) {
     debug.warn('Error getting current user profile for voice dock:', error);
-    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.png' };
+    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.webp' };
   }
 });
 

@@ -99,10 +99,22 @@ const imageError = ref(false)
 // Refs
 const fileInput = ref<HTMLInputElement>()
 
+// Map avatar size to pixel size for optimization
+const sizeMap: Record<AvatarSize, number> = {
+  mini: 16,
+  xs: 24,
+  sm: 32,
+  md: 48,
+  lg: 64,
+  xl: 96,
+  '2xl': 128
+}
+
 // Computed
 const avatarUrl = computed(() => {
-  if (imageError.value) return '/default_avatar.png'
-  return getAvatarUrl(props.src)
+  if (imageError.value) return '/default_avatar.webp'
+  const pixelSize = sizeMap[props.size] || 48
+  return getAvatarUrl(props.src, pixelSize)
 })
 
 const sizeClass = computed(() => `avatar-${props.size}`)

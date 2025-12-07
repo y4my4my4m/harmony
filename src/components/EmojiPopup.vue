@@ -120,6 +120,7 @@ import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { EMOJI_CATEGORIES, CATEGORY_ORDER } from '@/utils/emojiConstants';
+import { debug } from '@/utils/debug';
 
 // --- Types ---
 
@@ -502,7 +503,25 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 
 // --- Lifecycle Hooks ---
 
-onMounted(() => {
+// Lazy load emoji data when popup is mounted (user opened emoji picker)
+onMounted(async () => {
+  // ✅ Show popup immediately, load emojis in background (non-blocking)
+  // This ensures the popup opens instantly and emojis load progressively
+  
+  // Trigger emoji data loading in background (non-blocking)
+  const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
+  triggerEmojiDataLoad()
+  
+  // Also try to load unified emoji data if not already loaded (for picker display)
+  // Load in background, don't await - popup should show immediately
+  if (!unifiedLoaded.value && !unifiedLoading.value) {
+    import('@/services/unifiedEmojiService').then(({ loadEmojiData }) => {
+      loadEmojiData().catch(err => {
+        debug.warn('Failed to load unified emoji data:', err)
+      })
+    })
+  }
+  
   setTimeout(() => {
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);

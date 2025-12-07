@@ -620,7 +620,7 @@ class PushNotificationServiceClass {
     
     let title = notification.title || 'Harmony';
     let message = '';
-    let icon = data.sender?.avatar_url || '/img/app_icon_square.png';
+    let icon = data.sender?.avatar_url || '/img/app_icon_square.webp';
 
     switch (notification.type) {
       case 'mention':
@@ -700,7 +700,7 @@ class PushNotificationServiceClass {
       body: message,
       type: notification.type,
       icon,
-      badge: '/img/app_icon_square.png',
+      badge: '/img/app_icon_square.webp',
       tag: `harmony-${notification.type}-${notification.id}`,
       requireInteraction: ['mention', 'dm', 'activitypub_mention'].includes(notification.type),
       data: {

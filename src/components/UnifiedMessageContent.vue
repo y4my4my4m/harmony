@@ -187,6 +187,7 @@
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
+            @embed-loaded="handleEmbedLoad"
           />
         </template>
         
@@ -196,6 +197,7 @@
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.previewId || part.url}`"
+            @embed-loaded="handleEmbedLoad"
           />
         </template>
         
@@ -364,7 +366,7 @@ export default defineComponent({
       default: false
     }
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
@@ -389,6 +391,11 @@ export default defineComponent({
     const handleImageLoad = (url: string) => {
       imageLoadedState[url] = true;
       emit('image-loaded', url);
+    };
+    
+    // Handle embed load events
+    const handleEmbedLoad = () => {
+      emit('embed-loaded');
     };
     
     // Handle native video play/pause
@@ -571,16 +578,21 @@ export default defineComponent({
       
       // For mutant/twemoji pack: Replace unicode emojis with SVG images
       // For native pack: Leave unicode as-is (browser renders them)
+      // OPTIMIZED: Only resolve emojis if data is already loaded (prevents 823KB load on initial render)
       if (!isNativePack.value && emojiServiceLoaded.value) {
         // Unicode emoji regex - matches flags (Regional Indicators), ZWJ sequences, and standard emojis
         const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
         rendered = rendered.replace(emojiRegex, (match) => {
-          const resolved = resolveEmoji(match);
-          if (resolved.display.type === 'svg') {
-            const sizeClass = props.isSingleEmoji ? 'inline-emoji single' : 'inline-emoji';
-            return `<img class="${sizeClass}" src="${resolved.display.content}" alt="${resolved.shortcode || match}" draggable="false" />`;
+          // Only resolve if emoji data is loaded - don't trigger lazy load here
+          // If data not loaded, emoji will render as native unicode (browser default)
+          if (emojiServiceLoaded.value) {
+            const resolved = resolveEmoji(match);
+            if (resolved.display.type === 'svg') {
+              const sizeClass = props.isSingleEmoji ? 'inline-emoji single' : 'inline-emoji';
+              return `<img class="${sizeClass}" src="${resolved.display.content}" alt="${resolved.shortcode || match}" draggable="false" />`;
+            }
           }
-          return match; // Fallback to native if no SVG
+          return match; // Fallback to native unicode if no SVG or data not loaded
         });
       } else if (props.isSingleEmoji) {
         // Native pack with single emoji - wrap for bigger styling

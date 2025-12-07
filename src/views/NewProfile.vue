@@ -646,7 +646,7 @@ const createProfile = async () => {
       await userData.initialize(
         authStore.session.user.id,
         username.value,
-        avatarFile.value ? undefined : '/default_avatar.png'
+        avatarFile.value ? undefined : '/default_avatar.webp'
       );
       
       // Also update with the current form data to ensure immediate UI updates

@@ -808,7 +808,7 @@ const loadReplyContext = async () => {
             id: author.id,
             username: author.username,
             display_name: author.display_name || author.username,
-            avatar_url: author.avatar_url || '/default_avatar.png',
+            avatar_url: author.avatar_url || '/default_avatar.webp',
             domain: author.domain || import.meta.env.VITE_DOMAIN as string
           },
           created_at: parentPost.created_at,

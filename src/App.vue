@@ -78,9 +78,12 @@ const handleSwitchToChat = () => {
 }
 
 // Initialize haptic feedback for the app
-onMounted(async () => {
-  // Initialize app settings (theme, language, etc.)
-  await initializeAppSettings()
+onMounted(() => {
+  // Initialize app settings in background (non-blocking)
+  // This loads theme/language settings but doesn't block rendering
+  initializeAppSettings().catch(err => {
+    debug.error('❌ Failed to initialize app settings:', err)
+  })
   
   // Add haptic feedback to common interactive elements
   const addHapticToElements = (selector: string, pattern: string = 'light') => {

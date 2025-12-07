@@ -118,7 +118,7 @@
             @click="viewPost(post)"
           >
             <div class="post-author">
-              <img :src="post.author?.avatar_url || '/default_avatar.png'" :alt="post.author?.display_name" class="author-avatar" />
+              <Avatar :src="post.author?.avatar_url" size="sm" :alt="post.author?.display_name" class="author-avatar" />
               <span class="author-name">{{ post.author?.display_name || post.author?.username || 'Unknown' }}</span>
             </div>
             <div class="post-content">
@@ -166,6 +166,7 @@ import { debug } from '@/utils/debug'
 import type { FederatedInstance, TimelinePost } from '@/types';
 import BaseModal from '@/components/common/BaseModal.vue';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 
 interface Props {
   instance: FederatedInstance;

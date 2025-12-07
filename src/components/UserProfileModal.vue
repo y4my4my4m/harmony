@@ -583,8 +583,8 @@ const displayName = computed(() => {
 })
 
 const avatarUrl = computed(() => {
-  if (!props.user) return '/default_avatar.png'
-  return getUserAvatarUrl(props.user.id).value || props.user.avatar_url || '/default_avatar.png'
+  if (!props.user) return '/default_avatar.webp'
+  return getUserAvatarUrl(props.user.id).value || props.user.avatar_url || '/default_avatar.webp'
 })
 
 const userColor = computed(() => {

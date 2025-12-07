@@ -835,7 +835,7 @@ const testNotification = async (type: NotificationType) => {
     
     // Show desktop/native notification
     if (hasNotificationPermission.value) {
-      const iconUrl = testData.avatar.value || '/img/app_icon_square.png'
+      const iconUrl = testData.avatar.value || '/img/app_icon_square.webp'
       
       // On mobile PWA, we need to use service worker for notifications
       // Direct `new Notification()` doesn't work on mobile
@@ -901,7 +901,7 @@ const createTestNotificationData = (type: NotificationType) => {
     server_invite: {
       title: 'Test Server Invite',
       message: 'You were invited to join a server',
-      avatar: '/default_server.png'
+      avatar: '/default_server.webp'
     },
     friend_request: {
       title: 'Test Friend Request',
@@ -911,12 +911,12 @@ const createTestNotificationData = (type: NotificationType) => {
     server_update: {
       title: 'Test Server Update',
       message: 'A server has been updated',
-      avatar: '/default_server.png'
+      avatar: '/default_server.webp'
     },
     emoji_added: {
       title: 'Test Emoji Added',
       message: 'A new emoji was added to the server',
-      avatar: '/default_server.png'
+      avatar: '/default_server.webp'
     },
     activitypub_follow: {
       title: 'Test ActivityPub Follow',
@@ -1121,14 +1121,12 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 <style scoped>
 .unified-notification-settings {
-  max-width: 800px;
+  max-width: 700px;
   /* margin: 0 auto; */
-  padding: 0 16px;
 }
 
 .settings-header {
   margin-bottom: 32px;
-  text-align: center;
 }
 
 .settings-title {
@@ -1136,25 +1134,20 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   font-weight: 600;
   color: #ffffff;
   margin: 0 0 8px 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
 }
 
 .settings-description {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
-  line-height: 1.5;
 }
 
 .settings-section {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  background-color: var(--h-chat);
+  border-radius: 8px;
   padding: 24px;
-  margin-bottom: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 32px;
+  border: 1px solid var(--h-chat-light);
 }
 
 .section-header {
@@ -1165,10 +1158,10 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .section-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
-  margin: 0;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 20px 0;
 }
 
 .section-description {

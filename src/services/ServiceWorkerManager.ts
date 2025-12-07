@@ -64,8 +64,10 @@ export class ServiceWorkerManager {
       // Listen for messages from service worker
       navigator.serviceWorker.addEventListener('message', this.handleServiceWorkerMessage.bind(this))
 
-      // Prefetch critical resources
-      await this.prefetchCriticalResources()
+      // Prefetch critical resources in background (non-blocking)
+      this.prefetchCriticalResources().catch(err => {
+        debug.warn('⚠️ ServiceWorker: Prefetch failed:', err)
+      })
 
       this.isRegistered = true
       return true

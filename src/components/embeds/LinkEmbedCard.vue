@@ -5,6 +5,7 @@
         :src="payload.image"
         :alt="payload.title || payload.siteName || 'Link preview image'"
         loading="lazy"
+        @load="handleImageLoad"
       />
     </div>
     <div class="link-embed-card__body">
@@ -23,12 +24,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import type { EmbedPayload } from '@/types';
 
 const props = defineProps<{
   payload: EmbedPayload;
 }>();
+
+const emit = defineEmits<{
+  'load': [];
+}>();
+
+const imageLoaded = ref(!props.payload.image); // If no image, consider loaded immediately
 
 const displaySiteName = computed(() => {
   if (props.payload.siteName) {
@@ -39,6 +46,20 @@ const displaySiteName = computed(() => {
     return url.hostname.replace(/^www\./i, '');
   } catch {
     return props.payload.provider;
+  }
+});
+
+const handleImageLoad = () => {
+  if (!imageLoaded.value) {
+    imageLoaded.value = true;
+    emit('load');
+  }
+};
+
+onMounted(() => {
+  // If no image, emit load immediately
+  if (!props.payload.image) {
+    emit('load');
   }
 });
 </script>

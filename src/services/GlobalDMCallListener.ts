@@ -178,7 +178,7 @@ class GlobalDMCallListenerService {
     const incomingCallData: IncomingCallData = {
       callerId: signal.callerId,
       callerName: callerData?.displayName || callerData?.username || 'Unknown',
-      callerAvatar: callerData?.avatarUrl || '/default_avatar.png',
+      callerAvatar: callerData?.avatarUrl || '/default_avatar.webp',
       callType: signal.callType,
       conversationId,
       timestamp: signal.timestamp

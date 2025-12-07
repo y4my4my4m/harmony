@@ -16,7 +16,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-import { i18n } from './i18n'
+import { i18n, waitForInitialLocale } from './i18n'
 import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
 import { pwaManager } from '@/services/PWAManager'
 import { useAuthStore } from '@/stores/auth'
@@ -79,34 +79,51 @@ app.directive('haptic', vHaptic);
 
 async function initializeApp() {
   try {
-    // Initialize PWA features first for better UX
+    // Wait for initial locale to load (ensures translations are available)
+    await waitForInitialLocale()
+    debug.log('🌐 Initial locale loaded')
+    
+    // Initialize PWA features first for better UX (mostly synchronous)
     await pwaManager.initialize()
     debug.log('🚀 PWA Manager initialized')
     
-    // Initialize auth store first to check for existing sessions
+    // Initialize auth store first to check for existing sessions (CRITICAL - must be before mount)
     const authStore = useAuthStore()
     await authStore.initializeAuth()
     debug.log('✅ Auth initialized')
     
-    // Register service worker for enhanced notification handling
-    const swSupported = await serviceWorkerManager.initialize()
-    debug.log('🔔 Service Worker supported:', swSupported)
+    // Mount the app AFTER auth is initialized (so router guard has correct auth state)
+    app.use(router).mount('#app')
     
-    // Request notification permission if supported
-    if (swSupported) {
-      await serviceWorkerManager.requestNotificationPermission()
-    }
+    // Initialize non-critical services in background (don't block rendering)
+    Promise.all([
+      // Service worker - can be slow, run in background
+      serviceWorkerManager.initialize().then(swSupported => {
+        debug.log('🔔 Service Worker supported:', swSupported)
+        
+        // Request notification permission in background (non-blocking)
+        if (swSupported) {
+          // Don't await - let it happen in background
+          serviceWorkerManager.requestNotificationPermission().catch(err => {
+            debug.warn('⚠️ Notification permission request failed:', err)
+          })
+        }
+      }).catch(err => {
+        debug.error('❌ Service Worker initialization failed:', err)
+      })
+    ]).catch(err => {
+      debug.error('❌ Error initializing background services:', err)
+    })
     
     // Start reaction cache management
     // TODO: revisit reactionCacheManager
     // reactionCacheManager.startCleanup()
     // debug.log('🎯 Reaction cache manager started')
   } catch (error) {
-    debug.error('❌ Error initializing service worker:', error)
+    debug.error('❌ Error initializing app:', error)
+    // Still mount the app even if initialization fails
+    app.use(router).mount('#app')
   }
-  
-  // Mount the app
-  app.use(router).mount('#app')
 }
 
 // Initialize the application

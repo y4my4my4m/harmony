@@ -10,6 +10,7 @@ import AuthComponent from '@/components/AuthComponent.vue';
 import { useAuthStore } from '@/stores/auth';
 import { UserStatus } from '@/types';
 import { updateUserStatus } from '@/services/ProfileService';
+import { debug } from '@/utils/debug';
 
 export default defineComponent({
   name: 'LoginView',
@@ -21,17 +22,23 @@ export default defineComponent({
     const authStore = useAuthStore();
 
     watch(() => authStore.isLoggedIn, (isLoggedIn) => {
+      debug.log('🔐 LoginView: isLoggedIn changed:', isLoggedIn);
       if (isLoggedIn) {
         try {
           const userId = authStore.session?.user?.id || '';
+          debug.log('🔐 LoginView: Navigating to chat, userId:', userId);
           updateUserStatus(userId, UserStatus.Online);
-          router.push('/chat');
+          router.push('/chat').then(() => {
+            debug.log('✅ LoginView: Navigation to /chat successful');
+          }).catch((err) => {
+            debug.error('❌ LoginView: Navigation failed:', err);
+          });
         } catch (error: any) {
-          debug.log(error);
+          debug.error('❌ LoginView: Error during login navigation:', error);
           router.push('/new-profile');
         }
       }
-    });
+    }, { immediate: true }); // Add immediate to catch if already logged in
 
     return {};
   },

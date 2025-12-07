@@ -148,7 +148,7 @@ const ownerAvatar = computed(() => {
   debug.log('ServerCard: Loading state:', loadingOwnerData.value)
   
   // Return actual avatar URL if available and not default
-  if (avatarUrl && avatarUrl !== '/default_avatar.png') {
+  if (avatarUrl && avatarUrl !== '/default_avatar.webp') {
     return avatarUrl
   }
   
@@ -172,7 +172,7 @@ const formatMemberCount = (count?: number): string => {
 
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
-  img.src = '/default_server.png'
+  img.src = '/default_server.webp'
 }
 
 const handleJoin = () => {

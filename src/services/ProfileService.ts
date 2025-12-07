@@ -32,6 +32,11 @@ export interface ProfileServiceError {
 
 export class ProfileService {
   private static instance: ProfileService
+  // Request deduplication: track pending profile fetches
+  private pendingFetches = new Map<string, Promise<Profile | null>>()
+  // Cache: store recently fetched profiles with TTL
+  private cache = new Map<string, { profile: Profile; timestamp: number }>()
+  private readonly CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
   static getInstance(): ProfileService {
     if (!ProfileService.instance) {
@@ -288,11 +293,44 @@ export class ProfileService {
 
   /**
    * Fetch profile by ID (alias for compatibility with stores)
+   * Includes request deduplication and caching
    */
   async fetchProfile(userId: string, useCache = true): Promise<Profile | null> {
     try {
-      // For now, ignore cache parameter since we simplified the service
-      return await this.getProfileById(userId)
+      // Check cache first
+      if (useCache) {
+        const cached = this.cache.get(userId)
+        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+          debug.log(`✅ ProfileService: Using cached profile for ${userId}`)
+          return cached.profile
+        }
+      }
+
+      // Check if already fetching this profile
+      const pending = this.pendingFetches.get(userId)
+      if (pending) {
+        debug.log(`⏳ ProfileService: Reusing pending fetch for ${userId}`)
+        return pending
+      }
+
+      // Create fetch promise
+      const fetchPromise = (async () => {
+        try {
+          const profile = await this.getProfileById(userId)
+          // Cache the result
+          if (profile && useCache) {
+            this.cache.set(userId, { profile, timestamp: Date.now() })
+          }
+          return profile
+        } finally {
+          // Remove from pending
+          this.pendingFetches.delete(userId)
+        }
+      })()
+
+      // Track pending fetch
+      this.pendingFetches.set(userId, fetchPromise)
+      return fetchPromise
     } catch (error: any) {
       if (error.code === 'PROFILE_NOT_FOUND') {
         return null

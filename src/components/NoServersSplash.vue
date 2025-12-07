@@ -19,7 +19,7 @@
       <div class="welcome-section">
         <div class="logo-container">
           <div class="logo-glow"></div>
-          <img src="/img/app_icon_square.png" alt="Harmony Logo" class="harmony-logo" />
+          <img src="/img/app_icon_square.webp" alt="Harmony Logo" class="harmony-logo" />
         </div>
         
         <div class="welcome-text">

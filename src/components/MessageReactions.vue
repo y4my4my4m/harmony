@@ -185,17 +185,20 @@ const handleAddReactionClick = (event: MouseEvent) => {
   emit('open-emoji-picker', props.message.id, event);
 };
 
-// ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by CoreMessageService  
-// Components can safely request reactions - store has batch-loaded data, no N+1 queries
+// ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by batch loading in MessageDisplay
+// Individual components should only fetch if data is missing (batch loading handles most cases)
 onMounted(() => {
   // Skip fetching for optimistic/temp messages
   if (props.message.id.startsWith('temp-') || props.message.sending) {
-    debug.log('⏭️ Skipping reaction fetch for optimistic message:', props.message.id);
     return;
   }
   
-  // Store is populated by batch loading, but safe to request (will use cache)
-  if (!reactionsStore.isLoadingReactions(props.message.id)) {
+  // Only fetch individually if:
+  // 1. Not already loading (avoid duplicate requests)
+  // 2. Not already cached (batch loading should have populated this)
+  const hasCachedReactions = reactionsStore.getMessageReactions(props.message.id).length > 0;
+  if (!reactionsStore.isLoadingReactions(props.message.id) && !hasCachedReactions) {
+    // Fallback: fetch individually if batch loading missed this message
     reactionsStore.fetchMessageReactions(props.message.id);
   }
 });
@@ -204,14 +207,16 @@ onMounted(() => {
 watch(() => props.message.id, (newMessageId, oldMessageId) => {
   // Skip if it's a temp message or optimistic message
   if (newMessageId.startsWith('temp-') || props.message.sending) {
-    debug.log('⏭️ Skipping reaction fetch for optimistic message:', newMessageId);
     return;
   }
   
-  // Only fetch if message ID actually changed (temp → real)
-  if (newMessageId !== oldMessageId && !reactionsStore.isLoadingReactions(newMessageId)) {
-    debug.log('🔄 Message ID changed, fetching reactions:', oldMessageId, '→', newMessageId);
-    reactionsStore.fetchMessageReactions(newMessageId);
+  // Only fetch if message ID actually changed (temp → real) and data is missing
+  if (newMessageId !== oldMessageId) {
+    const hasCachedReactions = reactionsStore.getMessageReactions(newMessageId).length > 0;
+    if (!reactionsStore.isLoadingReactions(newMessageId) && !hasCachedReactions) {
+      // Fallback: fetch individually if batch loading missed this message
+      reactionsStore.fetchMessageReactions(newMessageId);
+    }
   }
 });
 </script>

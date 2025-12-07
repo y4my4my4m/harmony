@@ -90,7 +90,7 @@
       :show="showGlobalIncomingCall"
       :caller-id="globalIncomingCallData?.callerId || ''"
       :caller-name="globalIncomingCallData?.callerName || 'Unknown'"
-      :caller-avatar="globalIncomingCallData?.callerAvatar || '/default_avatar.png'"
+      :caller-avatar="globalIncomingCallData?.callerAvatar || '/default_avatar.webp'"
       :call-type="globalIncomingCallData?.callType || 'voice'"
       :conversation-id="globalIncomingCallData?.conversationId || ''"
       @accept="handleGlobalCallAccept"
@@ -255,7 +255,8 @@ const handleGlobalCallDecline = async () => {
 // Only loads what's needed for the current route instead of everything
 const initializeApp = async () => {
   try {
-    // Wait for auth to be ready if session is null
+    // Auth is already initialized in main.ts before mount, so session should be ready
+    // But add a small safety delay in case of race conditions
     if (!authStore.session) {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
@@ -273,42 +274,68 @@ const initializeApp = async () => {
     // Determine what to load based on current route
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
     
-    // Always load user environment (servers list) and profile - needed for navigation
-    await serverChannelStore.initializeUserEnvironment(userId)
-    await profileStore.fetchProfileByAuthUserId(userId)
+    // ✅ PERFORMANCE: Load minimum data needed to show UI, then mark as ready
+    // This allows the UI to appear immediately while other data loads in background
     
-    // Initialize core user data system
+    // Load user environment (servers list) - CRITICAL for navigation
+    await serverChannelStore.initializeUserEnvironment(userId)
+    
+    // ✅ CRITICAL: Load profile FIRST, then initialize userData with full profile data
+    // This ensures avatar, color, banner, and status are all available immediately
+    await profileStore.fetchProfileByAuthUserId(userId).catch(err => {
+      debug.warn('⚠️ Profile fetch failed:', err)
+    })
+    
+    // Initialize userData with full profile data (or fallback to auth data if profile not found)
     const { useUserData } = await import('@/composables/useUserData')
     const userData = useUserData()
     
+    // Use profile data if available, otherwise fallback to auth session data
     const userProfile = profileStore.profile || {
       id: userId,
-      username: authStore.session?.user?.user_metadata?.username || 'Unknown',
+      username: authStore.session?.user?.user_metadata?.username || authStore.session?.user?.email?.split('@')[0] || 'User',
       display_name: authStore.session?.user?.user_metadata?.display_name,
-      avatar_url: authStore.session?.user?.user_metadata?.avatar_url
+      avatar_url: authStore.session?.user?.user_metadata?.avatar_url,
+      color: undefined,
+      banner_url: undefined,
+      status: undefined
     }
     
-    // Pass already-loaded profile to avoid duplicate database query
+    // Initialize userData with full profile data (includes avatar, color, banner, status)
     await userData.initialize(
-      userId, 
-      userProfile.username || userProfile.display_name || 'Unknown',
+      userId,
+      userProfile.username || userProfile.display_name || 'User',
       userProfile.avatar_url,
       userProfile
-    )
+    ).catch(err => {
+      debug.warn('⚠️ UserData initialization failed:', err)
+    })
     
-    // Initialize server users store integration
-    const { useServerUsersStore } = await import('@/stores/useServerUsers')
-    const serverUsersStore = useServerUsersStore()
-    serverUsersStore.initializeUserDataIntegration()
+    debug.log('✅ UserData initialized with profile data (avatar, color, banner, status should all be available)')
     
-    // Load route-specific data
-    await initializeRouteSpecificData(userId, loadingStrategy, userData)
+    // Mark app as ready NOW - userData is initialized with full profile data
+    hasServersLoaded.value = true
+    isAppInitialized.value = true
     
-    // Note: Global presence is automatically set up during userData.initialize()
-    // No need to call refreshGlobalPresence() here - it would cause redundant tracking
-    // The route change watcher handles refreshing on actual navigation
+    // Continue loading other data in background (non-blocking)
+    (async () => {
+      try {
+        
+        // Initialize server users store integration
+        const { useServerUsersStore } = await import('@/stores/useServerUsers')
+        const serverUsersStore = useServerUsersStore()
+        serverUsersStore.initializeUserDataIntegration()
+        
+        // Step 3: Load route-specific data (needs userData)
+        await initializeRouteSpecificData(userId, loadingStrategy, userData).catch(err => {
+          debug.warn('⚠️ Background route data initialization failed:', err)
+        })
+      } catch (err) {
+        debug.warn('⚠️ Background initialization errors:', err)
+      }
+    })()
     
-    // Attempt to reconnect to previous voice channel if user was in one
+    // Attempt to reconnect to previous voice channel if user was in one (background)
     setTimeout(async () => {
       try {
         const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
@@ -317,15 +344,12 @@ const initializeApp = async () => {
       } catch (error) {
         debug.error('Failed to reconnect to voice channel:', error)
       }
-    }, 500) // Small delay to ensure everything is initialized
+    }, 500)
     
     // Background loading of non-critical data
     setTimeout(() => {
       initializeBackgroundData(userId, loadingStrategy)
     }, 100)
-
-    hasServersLoaded.value = true
-    isAppInitialized.value = true
     
   } catch (error) {
     debug.error('❌ Failed to initialize app:', error)

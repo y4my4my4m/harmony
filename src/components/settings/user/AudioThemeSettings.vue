@@ -1,7 +1,7 @@
 <template>
   <div class="audio-theme-settings">
     <div class="settings-header">
-      <h2 class="settings-title">{{ $t('settings.voice.title') }}</h2>
+      <h2 class="settings-title">{{ $t('settings.audio.title') }}</h2>
       <p class="settings-description">
         Choose your preferred audio experience with different sound themes.
       </p>
@@ -239,7 +239,7 @@ onMounted(async () => {
 
 <style scoped>
 .audio-theme-settings {
-  max-width: 740px;
+  max-width: 720px;
 }
 
 .settings-header {
@@ -247,7 +247,7 @@ onMounted(async () => {
 }
 
 .settings-title {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 600;
   color: #ffffff;
   margin: 0 0 8px 0;
@@ -260,16 +260,17 @@ onMounted(async () => {
 }
 
 .settings-section {
-  background: var(--h-chat-darker);
+  background-color: var(--h-chat);
   border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
+  padding: 24px;
+  margin-bottom: 32px;
+  border: 1px solid var(--h-chat-light);
 }
 
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin: 0 0 20px 0;
 }
 

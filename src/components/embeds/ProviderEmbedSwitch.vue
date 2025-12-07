@@ -40,6 +40,7 @@
           allowfullscreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           loading="lazy"
+          @load="handleEmbedLoad"
         ></iframe>
       </div>
       <div v-else-if="spotifyEmbedUrl" class="provider-embed__media provider-embed__media--spotify">
@@ -48,9 +49,10 @@
           frameborder="0"
           allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
           loading="lazy"
+          @load="handleEmbedLoad"
         ></iframe>
       </div>
-      <LinkEmbedCard v-else :payload="payload" />
+      <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
     </div>
   </div>
 </template>
@@ -70,12 +72,17 @@ const props = defineProps<{
   messageId?: string;
 }>();
 
+const emit = defineEmits<{
+  'embed-loaded': [];
+}>();
+
 const collapsed = ref(false);
 const harmonyPost = ref<TimelinePost | null>(null);
 const harmonyError = ref<string | null>(null);
 const youtubeContainer = ref<HTMLElement | null>(null);
 const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const isPlaying = ref(false);
+const embedLoaded = ref(false);
 
 const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
 
@@ -155,6 +162,7 @@ onMounted(() => {
   if (isHarmony.value) {
     loadHarmonyPost();
   }
+  // For YouTube, Spotify, and LinkEmbedCard, the load event will be handled by @load handlers
   
   // Setup YouTube Player API for floating video
   if (props.payload.provider === 'youtube') {
@@ -259,6 +267,7 @@ async function loadHarmonyPost() {
       const found = feed.posts.find((post) => post.id === props.payload.harmony!.postId);
       if (found) {
         harmonyPost.value = found;
+        handleEmbedLoad();
         return;
       }
     }
@@ -269,9 +278,19 @@ async function loadHarmonyPost() {
       harmonyError.value = 'Post unavailable';
     }
     harmonyPost.value = post;
+    handleEmbedLoad();
   } catch (error) {
     debug.warn('Failed to hydrate Harmony post:', error);
     harmonyError.value = 'Unable to load Harmony post';
+    // Still emit loaded event even on error so scroll doesn't wait forever
+    handleEmbedLoad();
+  }
+}
+
+function handleEmbedLoad() {
+  if (!embedLoaded.value) {
+    embedLoaded.value = true;
+    emit('embed-loaded');
   }
 }
 
