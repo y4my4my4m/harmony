@@ -237,12 +237,38 @@ export class SignatureService {
 
       const verified = verify.verify(publicKey, sig, 'base64');
 
-      // Log detailed info for debugging signature failures
+      // If verification failed, try refreshing the public key and retry ONCE
+      // This handles cases where the remote user regenerated their keys
       if (!verified) {
-        logger.debug(`Signature verification failed for ${actorUrl}`);
+        logger.info(`⚠️ Signature verification failed for ${actorUrl}, attempting key refresh...`);
         logger.debug(`Signed headers: ${signedHeaders}`);
         logger.debug(`Signing string:\n${signingString}`);
         logger.debug(`Public key (first 100 chars): ${publicKey.substring(0, 100)}...`);
+        
+        // Try fetching a fresh public key from the remote server
+        const freshPublicKey = await this.fetchActorPublicKey(actorUrl, true);
+        
+        if (freshPublicKey && freshPublicKey !== publicKey) {
+          logger.info(`🔑 Got different public key for ${actorUrl}, retrying verification...`);
+          
+          // Retry verification with fresh key
+          const retryVerify = crypto.createVerify('SHA256');
+          retryVerify.update(signingString);
+          retryVerify.end();
+          
+          const retryVerified = retryVerify.verify(freshPublicKey, sig, 'base64');
+          
+          if (retryVerified) {
+            logger.info(`✅ Signature verified after key refresh for ${actorUrl}`);
+            return { verified: true, actorUrl };
+          } else {
+            logger.warn(`❌ Signature still invalid after key refresh for ${actorUrl}`);
+          }
+        } else if (freshPublicKey === publicKey) {
+          logger.debug(`Public key unchanged for ${actorUrl}, no retry needed`);
+        } else {
+          logger.warn(`Could not fetch fresh public key for ${actorUrl}`);
+        }
       }
       
       logger.debug(`Signature verification for ${actorUrl}: ${verified}`);
@@ -283,36 +309,41 @@ export class SignatureService {
   /**
    * Fetch actor's public key from their server
    * First checks local database (profiles table), then cache, then remote fetch
+   * @param forceRefresh - If true, skip cache and fetch directly from remote
    */
-  private static async fetchActorPublicKey(actorUrl: string): Promise<string | null> {
+  private static async fetchActorPublicKey(actorUrl: string, forceRefresh = false): Promise<string | null> {
     const supabase = getSupabaseClient();
     
-    // First, check if we have this actor in our profiles table
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('public_key')
-      .eq('federated_id', actorUrl)
-      .maybeSingle();
-    
-    if (profile?.public_key) {
-      logger.debug(`Using cached public key from profiles table for ${actorUrl}`);
-      return profile.public_key;
-    }
-    
-    // Second, check actor cache table
-    const { data: cachedActor } = await supabase
-      .from('ap_actor_cache')
-      .select('actor_data, cache_expires_at')
-      .eq('ap_id', actorUrl)
-      .gt('cache_expires_at', new Date().toISOString())
-      .maybeSingle();
-    
-    if (cachedActor?.actor_data) {
-      const actor = cachedActor.actor_data;
-      if (actor.publicKey?.publicKeyPem) {
-        logger.debug(`Using cached actor data for ${actorUrl}`);
-        return actor.publicKey.publicKeyPem;
+    if (!forceRefresh) {
+      // First, check if we have this actor in our profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('public_key')
+        .eq('federated_id', actorUrl)
+        .maybeSingle();
+      
+      if (profile?.public_key) {
+        logger.debug(`Using cached public key from profiles table for ${actorUrl}`);
+        return profile.public_key;
       }
+      
+      // Second, check actor cache table
+      const { data: cachedActor } = await supabase
+        .from('ap_actor_cache')
+        .select('actor_data, cache_expires_at')
+        .eq('ap_id', actorUrl)
+        .gt('cache_expires_at', new Date().toISOString())
+        .maybeSingle();
+      
+      if (cachedActor?.actor_data) {
+        const actor = cachedActor.actor_data;
+        if (actor.publicKey?.publicKeyPem) {
+          logger.debug(`Using cached actor data for ${actorUrl}`);
+          return actor.publicKey.publicKeyPem;
+        }
+      }
+    } else {
+      logger.info(`🔄 Force refreshing public key for ${actorUrl}`);
     }
     
     // Finally, fetch from remote server
@@ -337,6 +368,27 @@ export class SignatureService {
       const actor = await response.json();
 
       if (actor.publicKey && actor.publicKey.publicKeyPem) {
+        const publicKeyPem = actor.publicKey.publicKeyPem;
+        
+        // Update the profiles table with the fresh public key
+        try {
+          const { error: profileUpdateError } = await supabase
+            .from('profiles')
+            .update({ 
+              public_key: publicKeyPem,
+              updated_at: new Date().toISOString()
+            })
+            .eq('federated_id', actorUrl);
+          
+          if (profileUpdateError) {
+            logger.debug(`Could not update profile public key for ${actorUrl}:`, profileUpdateError);
+          } else {
+            logger.info(`✅ Updated public key in profiles table for ${actorUrl}`);
+          }
+        } catch (profileError) {
+          logger.debug('Failed to update profile public key:', profileError);
+        }
+        
         // Cache the actor data for future use
         try {
           const actorUrlObj = new URL(actorUrl);
@@ -359,7 +411,7 @@ export class SignatureService {
           // Non-fatal, continue
         }
         
-        return actor.publicKey.publicKeyPem;
+        return publicKeyPem;
       }
 
       logger.warn(`Actor ${actorUrl} does not have publicKey`);
