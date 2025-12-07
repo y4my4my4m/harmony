@@ -91,6 +91,7 @@
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
+  import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
@@ -219,7 +220,17 @@
       };
 
       // Thread handlers
-      const handleCreateThread = async (message: Message) => {
+      const handleCreateThread = async (messageOrEvent: Message | { thread: any }) => {
+        // Handle case when receiving a thread directly (from ThreadIndicator)
+        if ('thread' in messageOrEvent && messageOrEvent.thread) {
+          selectedThreadId.value = messageOrEvent.thread.id;
+          selectedThread.value = messageOrEvent.thread;
+          showThreadView.value = true;
+          return;
+        }
+        
+        const message = messageOrEvent as Message;
+        
         if (!message || !props.channelId) {
           debug.warn('Cannot create thread: missing message or channelId');
           return;
@@ -250,6 +261,10 @@
               selectedThreadId.value = newThread.id;
               selectedThread.value = null; // Will be fetched by ThreadView
               showThreadView.value = true;
+              
+              // Send system message to channel about thread creation
+              const systemContent = [{ type: 'text' as const, text: `started a thread: **${threadName}**. See all **threads**.` }];
+              await sendSystemThreadMessage(props.channelId!, systemContent, newThread.id, threadName);
             }
           }
         } catch (error) {
@@ -261,6 +276,28 @@
         showThreadView.value = false;
         selectedThreadId.value = undefined;
         selectedThread.value = null;
+      };
+      
+      // Send a system message for thread creation
+      const sendSystemThreadMessage = async (channelId: string, content: MessagePart[], threadId: string, threadName: string) => {
+        try {
+          const userId = authStore.session?.user?.id;
+          if (!userId) return;
+          
+          await supabase.from('messages').insert({
+            channel_id: channelId,
+            user_id: userId,
+            content: content,
+            is_system: true,
+            metadata: {
+              type: 'thread_created',
+              thread_id: threadId,
+              thread_name: threadName,
+            }
+          });
+        } catch (error) {
+          debug.error('Failed to send thread system message:', error);
+        }
       };
 
       const handleThreadUpdated = (thread: any) => {

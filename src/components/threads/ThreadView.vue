@@ -20,15 +20,6 @@
             </div>
             <div class="header-actions">
               <button 
-                v-if="!isMember" 
-                class="join-btn" 
-                @click="joinThread"
-                :disabled="joining"
-              >
-                {{ joining ? 'Joining...' : 'Join Thread' }}
-              </button>
-              <button 
-                v-else
                 class="action-btn"
                 @click="showOptions = !showOptions"
                 title="Thread options"
@@ -44,7 +35,16 @@
 
           <!-- Thread Options Menu -->
           <div v-if="showOptions" class="options-menu" v-click-outside="() => showOptions = false">
-            <button @click="leaveThread" class="option-item">
+            <button v-if="!isMember" @click="joinThread" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="8.5" cy="7" r="4"/>
+                <line x1="20" y1="8" x2="20" y2="14"/>
+                <line x1="23" y1="11" x2="17" y2="11"/>
+              </svg>
+              Join Thread
+            </button>
+            <button v-if="isMember" @click="leaveThread" class="option-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                 <polyline points="16 17 21 12 16 7"/>
@@ -54,29 +54,36 @@
             </button>
             <button v-if="thread?.muted" @click="toggleMute" class="option-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M11.5 5C7.91 5 5 7.91 5 11.5C5 15.09 7.91 18 11.5 18C12.99 18 14.38 17.5 15.5 16.66L19.29 20.45C19.68 20.84 20.32 20.84 20.71 20.45C21.1 20.06 21.1 19.42 20.71 19.04L16.92 15.25C17.76 14.12 18.25 12.73 18.25 11.24C18.25 7.65 15.34 4.74 11.75 4.74L11.5 5Z"/>
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
               </svg>
               Unmute Thread
             </button>
             <button v-else @click="toggleMute" class="option-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"/>
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
               </svg>
               Mute Thread
             </button>
           </div>
 
-          <!-- Parent Message -->
+          <!-- Parent Message (Original message that started the thread) -->
           <div class="parent-message" v-if="thread?.parent_message">
-            <div class="parent-avatar">
-              <Avatar :user-id="thread.parent_message.user_id" :size="40" />
+            <div class="message-avatar">
+              <Avatar 
+                :src="getAuthorAvatar(thread.parent_message.user_id)" 
+                :alt="getAuthorName(thread.parent_message.user_id)"
+                size="sm"
+                :interactive="true"
+              />
             </div>
-            <div class="parent-content">
-              <div class="parent-header">
-                <span class="parent-author">{{ getAuthorName(thread.parent_message.user_id) }}</span>
-                <span class="parent-time">{{ formatTimestamp(thread.parent_message.created_at) }}</span>
+            <div class="message-main">
+              <div class="message-meta">
+                <span class="username" :style="{ color: getAuthorColor(thread.parent_message.user_id) }">
+                  {{ getAuthorName(thread.parent_message.user_id) }}
+                </span>
+                <span class="timestamp">{{ formatTimestamp(thread.parent_message.created_at) }}</span>
               </div>
-              <div class="parent-text">
+              <div class="message-content">
                 <UnifiedMessageContent
                   :content="thread.parent_message.content"
                   :message-id="thread.parent_message.id"
@@ -88,11 +95,11 @@
           <!-- Divider with count -->
           <div class="thread-divider">
             <div class="divider-line"></div>
-            <span class="reply-count">{{ thread?.message_count || 0 }} replies</span>
+            <span class="reply-count">{{ thread?.message_count || 0 }} repl{{ (thread?.message_count || 0) === 1 ? 'y' : 'ies' }}</span>
             <div class="divider-line"></div>
           </div>
 
-          <!-- Thread Messages -->
+          <!-- Thread Messages (styled like normal chat) -->
           <div class="thread-messages" ref="messagesContainer">
             <div v-if="loading" class="loading-state">
               <div class="spinner"></div>
@@ -100,68 +107,99 @@
             </div>
             
             <template v-else>
-              <div 
-                v-for="message in messages" 
-                :key="message.id"
-                class="thread-message"
-              >
-                <div class="message-avatar">
-                  <Avatar :user-id="message.user_id" :size="32" />
-                </div>
-                <div class="message-body">
-                  <div class="message-header">
-                    <span class="message-author">{{ getAuthorName(message.user_id) }}</span>
-                    <span class="message-time">{{ formatTimestamp(message.created_at) }}</span>
-                  </div>
-                  <div class="message-content">
-                    <UnifiedMessageContent
-                      :content="message.content"
-                      :message-id="message.id"
-                    />
-                  </div>
-                </div>
-              </div>
-              
               <button 
                 v-if="hasMore" 
                 class="load-more-btn"
                 @click="loadMore"
                 :disabled="loadingMore"
               >
-                {{ loadingMore ? 'Loading...' : 'Load more' }}
+                {{ loadingMore ? 'Loading...' : 'Load older messages' }}
               </button>
+              
+              <div 
+                v-for="(message, index) in messages" 
+                :key="message.id"
+                class="message-group"
+                :class="{ 'has-header': shouldShowHeader(message, index) }"
+              >
+                <!-- Message with header (avatar + username + timestamp) -->
+                <template v-if="shouldShowHeader(message, index)">
+                  <div class="message-avatar">
+                    <Avatar 
+                      :src="getAuthorAvatar(message.user_id)" 
+                      :alt="getAuthorName(message.user_id)"
+                      size="sm"
+                      :interactive="true"
+                    />
+                  </div>
+                  <div class="message-main">
+                    <div class="message-meta">
+                      <span class="username" :style="{ color: getAuthorColor(message.user_id) }">
+                        {{ getAuthorName(message.user_id) }}
+                      </span>
+                      <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
+                    </div>
+                    <div class="message-content">
+                      <UnifiedMessageContent
+                        :content="message.content"
+                        :message-id="message.id"
+                      />
+                    </div>
+                  </div>
+                </template>
+                
+                <!-- Compact message (no header, just content aligned with previous messages) -->
+                <template v-else>
+                  <div class="message-gutter" :data-timestamp="formatTimeOnly(message.created_at)"></div>
+                  <div class="message-main">
+                    <div class="message-content">
+                      <UnifiedMessageContent
+                        :content="message.content"
+                        :message-id="message.id"
+                      />
+                    </div>
+                  </div>
+                </template>
+              </div>
             </template>
           </div>
 
-          <!-- Message Input -->
-          <div class="thread-input" v-if="isMember">
-            <div class="input-container">
-              <textarea
-                ref="inputRef"
-                v-model="messageText"
-                :placeholder="`Reply to thread...`"
-                @keydown.enter.exact.prevent="sendMessage"
-                @input="handleInput"
-                rows="1"
-              />
-              <button 
-                class="send-btn"
-                @click="sendMessage"
-                :disabled="!messageText.trim() || sending"
-              >
+          <!-- Message Input (styled like normal chat input) -->
+          <div class="thread-input">
+            <div class="input-wrapper">
+              <button class="input-action-btn" title="Add attachment">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
                 </svg>
               </button>
+              <div class="input-container">
+                <textarea
+                  ref="inputRef"
+                  v-model="messageText"
+                  :placeholder="`Message &quot;${thread?.name || 'thread'}&quot;`"
+                  @keydown.enter.exact.prevent="sendMessage"
+                  @input="handleInput"
+                  rows="1"
+                />
+              </div>
+              <div class="input-actions">
+                <button class="input-action-btn" title="Add emoji">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+                  </svg>
+                </button>
+                <button 
+                  class="send-btn"
+                  @click="sendMessage"
+                  :disabled="!messageText.trim() || sending"
+                  title="Send message"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
-          </div>
-
-          <!-- Not a member prompt -->
-          <div class="join-prompt" v-else>
-            <p>Join this thread to reply</p>
-            <button @click="joinThread" :disabled="joining">
-              {{ joining ? 'Joining...' : 'Join Thread' }}
-            </button>
           </div>
         </div>
       </div>
@@ -173,7 +211,7 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
-import { format } from 'date-fns'
+import { format, isSameDay, differenceInMinutes } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message, Thread } from '@/types'
@@ -191,7 +229,11 @@ const emit = defineEmits<{
   'thread-updated': [thread: ThreadWithDetails]
 }>()
 
-const { getUserDisplayName: getDisplayName } = useUserData()
+const { 
+  getUserDisplayName: getDisplayName, 
+  getUserColor: getColor,
+  getUserAvatarUrl: getAvatarUrl 
+} = useUserData()
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
@@ -199,13 +241,34 @@ const messages = ref<Message[]>([])
 const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(false)
-const isMember = ref(false)
+const isMember = ref(true) // Default to true to allow sending
 const joining = ref(false)
 const showOptions = ref(false)
 const messageText = ref('')
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
+
+// Message grouping - show header if different author or > 7 min gap
+const shouldShowHeader = (message: Message, index: number): boolean => {
+  if (index === 0) return true
+  
+  const prevMessage = messages.value[index - 1]
+  if (!prevMessage) return true
+  
+  // Different author
+  if (message.user_id !== prevMessage.user_id) return true
+  
+  // More than 7 minutes apart
+  const currentTime = new Date(message.created_at)
+  const prevTime = new Date(prevMessage.created_at)
+  if (differenceInMinutes(currentTime, prevTime) > 7) return true
+  
+  // Different day
+  if (!isSameDay(currentTime, prevTime)) return true
+  
+  return false
+}
 
 // Load thread data
 const loadThread = async () => {
@@ -219,13 +282,17 @@ const loadThread = async () => {
       thread.value = await threadService.getThread(props.threadId)
     }
     
-    isMember.value = thread.value?.is_member || false
+    isMember.value = thread.value?.is_member ?? true
     
     // Load messages
     if (thread.value) {
       const result = await threadService.getThreadMessages(thread.value.id)
       messages.value = result.messages
       hasMore.value = result.has_more
+      
+      // Scroll to bottom after loading
+      await nextTick()
+      scrollToBottom()
     }
   } catch (error) {
     console.error('Failed to load thread:', error)
@@ -258,6 +325,7 @@ const joinThread = async () => {
   if (!thread.value) return
   
   joining.value = true
+  showOptions.value = false
   try {
     await threadService.joinThread(thread.value.id)
     isMember.value = true
@@ -301,6 +369,11 @@ const sendMessage = async () => {
   messageText.value = ''
   sending.value = true
   
+  // Reset textarea height
+  if (inputRef.value) {
+    inputRef.value.style.height = 'auto'
+  }
+  
   try {
     const content = [{ type: 'text' as const, text }]
     const newMessage = await threadService.sendThreadMessage(thread.value.id, content)
@@ -309,9 +382,7 @@ const sendMessage = async () => {
       messages.value.push(newMessage)
       // Scroll to bottom
       await nextTick()
-      if (messagesContainer.value) {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-      }
+      scrollToBottom()
     }
   } catch (error) {
     console.error('Failed to send message:', error)
@@ -319,6 +390,12 @@ const sendMessage = async () => {
     messageText.value = text
   } finally {
     sending.value = false
+  }
+}
+
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
   }
 }
 
@@ -334,10 +411,29 @@ const getAuthorName = (userId?: string) => {
   return getDisplayName(userId).value
 }
 
+const getAuthorColor = (userId?: string) => {
+  if (!userId) return undefined
+  return getColor(userId).value
+}
+
+const getAuthorAvatar = (userId?: string) => {
+  if (!userId) return '/default_avatar.webp'
+  return getAvatarUrl(userId).value
+}
+
 const formatTimestamp = (date: Date | string) => {
   try {
     const d = typeof date === 'string' ? new Date(date) : date
     return format(d, 'MMM d, h:mm a')
+  } catch {
+    return ''
+  }
+}
+
+const formatTimeOnly = (date: Date | string) => {
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date
+    return format(d, 'h:mm a')
   } catch {
     return ''
   }
@@ -382,7 +478,7 @@ onMounted(() => {
 
 .thread-panel {
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   height: 100%;
   background: var(--background-primary);
   display: flex;
@@ -394,9 +490,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   background: var(--background-secondary);
+  min-height: 48px;
 }
 
 .header-left {
@@ -410,7 +507,7 @@ onMounted(() => {
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 8px;
+  padding: 6px;
   border-radius: 4px;
   display: flex;
   transition: all 0.2s;
@@ -436,7 +533,6 @@ onMounted(() => {
 
 .thread-channel .hash {
   color: var(--text-muted);
-  margin-right: 2px;
 }
 
 .header-actions {
@@ -444,33 +540,12 @@ onMounted(() => {
   gap: 8px;
 }
 
-.join-btn {
-  background: var(--harmony-primary);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.join-btn:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-
-.join-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .action-btn {
   background: none;
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 8px;
+  padding: 6px;
   border-radius: 4px;
   transition: all 0.2s;
 }
@@ -487,71 +562,85 @@ onMounted(() => {
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 8px 0;
+  padding: 6px;
   z-index: 10;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  min-width: 160px;
 }
 
 .option-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 10px 16px;
+  padding: 8px 12px;
   background: none;
   border: none;
+  border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
   text-align: left;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 
 .option-item:hover {
   background: var(--background-secondary);
 }
 
+/* Parent Message - styled like regular chat */
 .parent-message {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   padding: 16px;
   background: var(--background-secondary);
   border-bottom: 1px solid var(--border-color);
 }
 
-.parent-content {
+.parent-message .message-avatar {
+  flex-shrink: 0;
+}
+
+.parent-message .message-main {
   flex: 1;
   min-width: 0;
 }
 
-.parent-header {
+.parent-message .message-meta {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   margin-bottom: 4px;
 }
 
-.parent-author {
+.parent-message .username {
   font-weight: 600;
-  color: var(--text-primary);
+  font-size: 15px;
+  cursor: pointer;
 }
 
-.parent-time {
+.parent-message .username:hover {
+  text-decoration: underline;
+}
+
+.parent-message .timestamp {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
-.parent-text {
+.parent-message .message-content {
   color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 15px;
+  line-height: 1.375;
 }
 
+/* Divider */
 .thread-divider {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 8px 16px;
+  background: var(--background-primary);
 }
 
 .divider-line {
@@ -566,13 +655,11 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* Thread Messages - styled exactly like main chat */
 .thread-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  padding: 16px 0;
 }
 
 .loading-state {
@@ -598,42 +685,9 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-.thread-message {
-  display: flex;
-  gap: 12px;
-}
-
-.message-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.message-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.message-author {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.message-time {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.message-content {
-  color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.4;
-}
-
 .load-more-btn {
-  align-self: center;
+  display: block;
+  margin: 0 auto 16px;
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
@@ -654,19 +708,114 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
+/* Message Group - matches MessageDisplay.vue styling */
+.message-group {
+  display: flex;
+  padding: 2px 16px;
+  transition: background 0.1s;
+}
+
+.message-group:hover {
+  background: var(--background-message-hover, rgba(0, 0, 0, 0.05));
+}
+
+.message-group.has-header {
+  padding-top: 16px;
+  margin-top: 0;
+}
+
+.message-group .message-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  margin-right: 16px;
+}
+
+.message-group .message-gutter {
+  width: 40px;
+  margin-right: 16px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.message-group:hover .message-gutter::before {
+  content: attr(data-timestamp);
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.message-group .message-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-group .message-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.message-group .username {
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.message-group .username:hover {
+  text-decoration: underline;
+}
+
+.message-group .timestamp {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.message-group .message-content {
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.375;
+  word-wrap: break-word;
+}
+
+/* Thread Input - styled like main chat input */
 .thread-input {
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
-  background: var(--background-secondary);
+  padding: 0 16px 24px;
+  background: var(--background-primary);
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  padding: 0 4px;
+}
+
+.input-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 10px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.input-action-btn:hover {
+  color: var(--text-primary);
 }
 
 .input-container {
+  flex: 1;
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  background: var(--background-tertiary);
-  border-radius: 8px;
-  padding: 8px 12px;
+  align-items: center;
 }
 
 .input-container textarea {
@@ -674,66 +823,45 @@ onMounted(() => {
   background: none;
   border: none;
   color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 15px;
+  line-height: 1.375;
   resize: none;
-  min-height: 24px;
+  min-height: 44px;
   max-height: 150px;
+  padding: 11px 0;
   outline: none;
+  font-family: inherit;
 }
 
 .input-container textarea::placeholder {
   color: var(--text-muted);
 }
 
+.input-actions {
+  display: flex;
+  align-items: center;
+}
+
 .send-btn {
-  background: var(--harmony-primary);
-  color: white;
+  background: none;
   border: none;
-  padding: 8px;
-  border-radius: 4px;
+  color: var(--harmony-primary);
   cursor: pointer;
+  padding: 10px 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  opacity: 0.7;
 }
 
 .send-btn:hover:not(:disabled) {
-  filter: brightness(1.1);
+  opacity: 1;
 }
 
 .send-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.3;
   cursor: not-allowed;
-}
-
-.join-prompt {
-  padding: 24px;
-  text-align: center;
-  background: var(--background-secondary);
-  border-top: 1px solid var(--border-color);
-}
-
-.join-prompt p {
-  margin: 0 0 12px 0;
-  color: var(--text-secondary);
-}
-
-.join-prompt button {
-  background: var(--harmony-primary);
-  color: white;
-  border: none;
-  padding: 10px 24px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.join-prompt button:hover:not(:disabled) {
-  filter: brightness(1.1);
 }
 
 /* Slide panel transition */
@@ -759,4 +887,3 @@ onMounted(() => {
   }
 }
 </style>
-

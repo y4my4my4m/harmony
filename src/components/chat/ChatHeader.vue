@@ -43,11 +43,13 @@
       </button>
       
       <button 
-        class="action-btn voice-btn"
-        @click="$emit('toggle-voice-panel')"
-        title="Join voice channel"
+        class="action-btn threads-btn"
+        @click="handleThreadsClick"
+        title="View all threads"
       >
-        <Icon name="phone" :size="16" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M5.43 21L3 3h2.23l1.41 14.24L13.42 11H6.88L6.11 4h15.22l-.87 8.5-7.59 7.75L10.04 21H5.43z"/>
+        </svg>
       </button>
       
       <button 
@@ -97,10 +99,10 @@ const props = defineProps<Props>()
 // Emits
 const emit = defineEmits<{
   'toggle-left-sidebar': []
-  'toggle-voice-panel': []
   'toggle-right-sidebar': []
   'toggle-search': []
   'show-pinned': []
+  'show-threads': []
 }>()
 
 // State
@@ -124,6 +126,10 @@ const handlePinnedClick = () => {
 
 const handleSearchClick = () => {
   emit('toggle-search')
+}
+
+const handleThreadsClick = () => {
+  emit('show-threads')
 }
 
 const handleMembersClick = () => {

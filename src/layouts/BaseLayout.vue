@@ -74,7 +74,6 @@
         :right-sidebar-drag-offset="rightSidebarDragOffset"
         @toggle-left-sidebar="toggleLeftSidebar"
         @toggle-right-sidebar="toggleRightSidebar"
-        @toggle-voice-panel="toggleVoicePanel"
         @showPublicServers="$emit('showPublicServers')"
       />
     </div>

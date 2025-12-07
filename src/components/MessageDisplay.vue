@@ -232,6 +232,14 @@
           @hide-reaction-tooltip="hideTooltip"
           @open-emoji-picker="handleOpenEmojiPicker"
         />
+        
+        <!-- Thread Indicator (if this message started a thread) -->
+        <ThreadIndicator
+          v-if="getThreadForMessage(message.id)"
+          :thread="getThreadForMessage(message.id)"
+          @open="openThread"
+          class="message-thread-indicator"
+        />
       </div>
         </template>
       </div>
@@ -333,6 +341,9 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
+import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
+import { threadService } from '@/services/ThreadService';
+import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
@@ -379,10 +390,47 @@ const {
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
 
+// Thread data cache - map message ID -> thread data
+const threadsByMessageId = ref<Map<string, ThreadWithDetails>>(new Map());
+const loadingThreads = ref(false);
+
+// Fetch threads for the current channel
+const loadChannelThreads = async () => {
+  if (!props.channelId) {
+    threadsByMessageId.value.clear();
+    return;
+  }
+  
+  loadingThreads.value = true;
+  try {
+    const threads = await threadService.getThreadsForChannel(props.channelId);
+    threadsByMessageId.value.clear();
+    threads.forEach(thread => {
+      if (thread.parent_message_id) {
+        threadsByMessageId.value.set(thread.parent_message_id, thread);
+      }
+    });
+  } catch (error) {
+    debug.error('Failed to load threads:', error);
+  } finally {
+    loadingThreads.value = false;
+  }
+};
+
+// Get thread for a message (if this message started a thread)
+const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined => {
+  return threadsByMessageId.value.get(messageId);
+};
+
+// Open a thread
+const openThread = (thread: ThreadWithDetails) => {
+  emit('createThread', { thread } as any);
+};
+
 // Encryption capability check (cached - only updates when service state changes)
 const canDecryptMessages = ref(false);
 
-// Check encryption status once on mount
+// Check encryption status once on mount and load threads
 onMounted(async () => {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
@@ -390,6 +438,14 @@ onMounted(async () => {
   } catch {
     canDecryptMessages.value = false;
   }
+  
+  // Load threads for initial channel
+  loadChannelThreads();
+});
+
+// Reload threads when channel changes
+watch(() => props.channelId, () => {
+  loadChannelThreads();
 });
 
 // Fetch bot data from database
