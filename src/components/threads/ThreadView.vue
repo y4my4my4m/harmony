@@ -144,8 +144,12 @@
             :placeholder-target="thread?.name || 'thread'"
             :reply-message-id="replyingToMessageId"
             :reply-user-display-name="replyingToUserName"
+            :giphy-open="giphyOpen"
+            :emoji-list-open="emojiListOpen"
             @send-message="handleSendMessage"
             @update:reply-message-id="handleCancelReply"
+            @toggle-giphy="toggleGiphy"
+            @toggle-emoji-list="toggleEmojiListForInput"
           />
         </div>
       </div>
@@ -162,6 +166,18 @@
       :triggerElement="reactionTriggerElement || undefined"
       @resetEmojiIconClicked="emojiIconClicked = false"
     />
+    
+    <!-- Media Picker (GIFs + Emoji) for message input -->
+    <MediaPickerPopup
+      v-if="mediaPickerOpen"
+      @click.stop
+      @sendGif="handleSendGif"
+      @sendEmoji="handleSendEmojiToInput"
+      :closePopup="closeMediaPicker"
+      :position="'above'"
+      :triggerElement="mediaPickerTriggerElement || undefined"
+      :initialTab="mediaPickerInitialTab"
+    />
   </Teleport>
 </template>
 
@@ -176,10 +192,15 @@ import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
+import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
-import type { Message, Thread, MessagePart, Emoji } from '@/types'
+import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
+import { recordEmojiUsage } from '@/services/emojiService'
+import { debug } from '@/utils/debug'
+import type { Message, Thread, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
+import type { FilePreviewData } from '@/components/FilePreview.vue'
 
 interface Props {
   isVisible: boolean
@@ -219,6 +240,19 @@ const reactionTriggerElement = ref<HTMLElement | null>(null)
 const selectedMessageId = ref<string>('')
 const isPopupForReaction = ref(false)
 const emojiIconClicked = ref(false)
+
+// Media picker state (for GIFs + Emoji in message input)
+const mediaPickerOpen = ref(false)
+const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs')
+
+// Computed values for MessageInput props
+const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs')
+const emojiListOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'emoji')
+
+// Trigger element for media picker positioning
+const mediaPickerTriggerElement = computed(() => {
+  return messageInputRef.value?.gifTriggerRef || messageInputRef.value?.emojiTriggerRef || null
+})
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
@@ -354,8 +388,28 @@ const toggleMute = async () => {
   }
 }
 
-const handleSendMessage = async (content: string, files: any[] = [], replyMessageId?: string) => {
-  if (!content.trim() || sending.value) return
+// Use unified content parsing system (DRY - same as ChatComponent)
+const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
+  debug.log('🔧 ThreadView: Using unified content parsing for:', input)
+  
+  // Use efficient batch mention resolution
+  const userDataMap = await resolveMentionsUserData(input)
+  
+  // Use unified emoji resolution - includes both server emojis AND unified pack
+  const emojiDataMap = await resolveEmojisData(input)
+  
+  debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length)
+  
+  // Parse with unified system (now with emoji data)
+  const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap)
+  
+  debug.log('🔧 Final parsed message parts:', result)
+  return result
+}
+
+const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
+  // Allow sending if we have content OR files
+  if ((!content.trim() && files.length === 0) || sending.value) return
   
   // In draft mode, need parent message to create thread
   if (isDraftMode.value && !props.draftParentMessage) return
@@ -363,7 +417,20 @@ const handleSendMessage = async (content: string, files: any[] = [], replyMessag
   // In normal mode, need thread
   if (!isDraftMode.value && !thread.value) return
   
-  const text = content.trim()
+  // Check if all files are uploaded
+  const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading')
+  const hasFailedFiles = files.some(file => file.uploadStatus === 'error')
+  
+  if (hasUploadingFiles) {
+    debug.warn('Cannot send message while files are still uploading')
+    return
+  }
+  
+  if (hasFailedFiles) {
+    debug.warn('Cannot send message with failed uploads')
+    return
+  }
+  
   sending.value = true
   
   try {
@@ -392,25 +459,57 @@ const handleSendMessage = async (content: string, files: any[] = [], replyMessag
       throw new Error('No thread ID')
     }
     
-    const messageParts: MessagePart[] = [{ type: 'text' as const, text }]
-    const newMessage = await threadService.sendThreadMessage(
-      targetThreadId, 
-      messageParts, 
-      replyMessageId || replyingToMessageId.value || undefined
-    )
+    const messageParts: MessagePart[] = []
     
-    if (newMessage) {
-      messages.value.push(newMessage)
-      messageText.value = '' // Clear the input
-      // Clear reply state
-      replyingToMessageId.value = ''
-      replyingToUserName.value = ''
-      // Scroll to bottom
-      await nextTick()
-      scrollToBottom()
+    // Parse text content if present (handles mentions, emojis, URLs/embeds - same as chat)
+    if (content.trim()) {
+      const parsedMessage = await parseMessageInput(content)
+      messageParts.push(...parsedMessage)
+    }
+    
+    // Add uploaded files as message parts
+    for (const fileData of files) {
+      if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
+        let fileType: 'image' | 'video' | 'audio' | 'file' = 'file'
+        
+        if (fileData.type.startsWith('image/')) {
+          fileType = 'image'
+        } else if (fileData.type.startsWith('video/')) {
+          fileType = 'video'
+        } else if (fileData.type.startsWith('audio/')) {
+          fileType = 'audio'
+        }
+        
+        messageParts.push({
+          type: 'file',
+          url: fileData.uploadedUrl,
+          fileType,
+          fileName: fileData.name
+        })
+      }
+    }
+    
+    // Only send if we have message parts
+    if (messageParts.length > 0) {
+      const newMessage = await threadService.sendThreadMessage(
+        targetThreadId, 
+        messageParts, 
+        replyMessageId || replyingToMessageId.value || undefined
+      )
+      
+      if (newMessage) {
+        messages.value.push(newMessage)
+        messageText.value = '' // Clear the input
+        // Clear reply state
+        replyingToMessageId.value = ''
+        replyingToUserName.value = ''
+        // Scroll to bottom
+        await nextTick()
+        scrollToBottom()
+      }
     }
   } catch (error) {
-    console.error('Failed to send message:', error)
+    debug.error('Failed to send message:', error)
   } finally {
     sending.value = false
   }
@@ -496,6 +595,101 @@ watch(reactionEmojiOpen, () => {
     reactionTriggerElement.value = null
   }
 })
+
+// Media picker handlers (GIF + Emoji for message input)
+const toggleGiphy = () => {
+  mediaPickerInitialTab.value = 'gifs'
+  mediaPickerOpen.value = !mediaPickerOpen.value
+  if (mediaPickerOpen.value) {
+    reactionEmojiOpen.value = false
+  }
+}
+
+const toggleEmojiListForInput = (isReaction: boolean, message?: Message) => {
+  if (!isReaction) {
+    // Regular emoji input - use unified media picker
+    mediaPickerInitialTab.value = 'emoji'
+    mediaPickerOpen.value = !mediaPickerOpen.value
+    if (mediaPickerOpen.value) {
+      reactionEmojiOpen.value = false
+    }
+  }
+}
+
+const closeMediaPicker = () => {
+  mediaPickerOpen.value = false
+}
+
+watch(mediaPickerOpen, () => {
+  if (!mediaPickerOpen.value) {
+    emojiIconClicked.value = false
+  }
+})
+
+// Handle sending a GIF
+const handleSendGif = async (gif: Gif) => {
+  const gifUrl = gif.media_formats.gif.url
+  closeMediaPicker()
+  
+  if (!thread.value && !isDraftMode.value) return
+  
+  sending.value = true
+  try {
+    let targetThreadId = thread.value?.id
+    
+    // If in draft mode, create the thread first
+    if (isDraftMode.value && props.draftParentMessage) {
+      const threadName = displayThreadName.value
+      const newThread = await threadService.createThread({
+        message_id: props.draftParentMessage.id,
+        name: threadName,
+      })
+      
+      if (!newThread) {
+        throw new Error('Failed to create thread')
+      }
+      
+      targetThreadId = newThread.id
+      thread.value = await threadService.getThread(newThread.id, true)
+      emit('thread-created', thread.value!, props.draftParentMessage)
+    }
+    
+    if (!targetThreadId) {
+      throw new Error('No thread ID')
+    }
+    
+    const messageParts: MessagePart[] = [{
+      type: 'file',
+      url: gifUrl,
+      fileType: 'image'
+    }]
+    
+    const newMessage = await threadService.sendThreadMessage(
+      targetThreadId,
+      messageParts,
+      replyingToMessageId.value || undefined
+    )
+    
+    if (newMessage) {
+      messages.value.push(newMessage)
+      replyingToMessageId.value = ''
+      replyingToUserName.value = ''
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (error) {
+    debug.error('Failed to send GIF:', error)
+  } finally {
+    sending.value = false
+  }
+}
+
+// Handle adding emoji to message input (not reaction)
+const handleSendEmojiToInput = (emoji: Emoji) => {
+  closeMediaPicker()
+  // Append emoji to message text
+  messageText.value += `:${emoji.name}:`
+}
 
 const handleReplyingTo = (messageId: string, displayName?: string) => {
   // Set reply state
