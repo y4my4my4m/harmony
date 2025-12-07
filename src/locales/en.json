@@ -748,8 +748,14 @@
   "gif": {
     "search": "Search GIF...",
     "searchGifs": "Search GIFs...",
+    "searchTenor": "Search Tenor",
     "trending": "Trending",
-    "noResults": "No GIFs found"
+    "favorites": "Favorites",
+    "noResults": "No GIFs found",
+    "noFavorites": "No favorite GIFs yet",
+    "noFavoritesHint": "Click the star on any GIF to save it here",
+    "addToFavorites": "Add to favorites",
+    "removeFromFavorites": "Remove from favorites"
   },
   "emoji": {
     "search": "Search emoji...",

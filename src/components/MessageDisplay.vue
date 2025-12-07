@@ -311,6 +311,17 @@
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
   />
+
+  <!-- Delete Message Confirmation Modal (for messages with threads) -->
+  <ConfirmationModal
+    :show="showDeleteConfirmModal"
+    title="Delete Message"
+    :message="`This message has a thread attached: '${deleteConfirmConfig.threadName}'`"
+    secondary-message="Deleting this message will permanently delete the thread and all its replies. This action cannot be undone."
+    confirm-button-text="Delete Message & Thread"
+    @close="cancelDeleteMessage"
+    @confirm="confirmDeleteMessage"
+  />
 </template>
 
 <script setup lang="ts">
@@ -342,6 +353,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
@@ -628,6 +640,14 @@ const bufferDistance = ref(0);
 const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
+
+// Delete confirmation modal state
+const showDeleteConfirmModal = ref(false);
+const deleteConfirmConfig = ref({
+  messageId: '',
+  hasThread: false,
+  threadName: '',
+});
 
 // Context menu state
 const contextMenuVisible = ref(false);
@@ -1365,9 +1385,47 @@ const cancelEdit = () => {
 };
 
 const deleteMessage = (messageId: string) => {
+  // Check if message has a thread
+  const thread = getThreadForMessage(messageId);
+  
+  if (thread) {
+    // Show confirmation modal for messages with threads
+    deleteConfirmConfig.value = {
+      messageId,
+      hasThread: true,
+      threadName: thread.name || 'this thread',
+    };
+    showDeleteConfirmModal.value = true;
+  } else {
+    // No thread, delete directly
+    triggerDestructive();
+    chatStore.deleteMessage(messageId);
+  }
+};
+
+const confirmDeleteMessage = async () => {
+  const { messageId } = deleteConfirmConfig.value;
+  
   // Haptic feedback for destructive action
   triggerDestructive();
-  chatStore.deleteMessage(messageId);
+  
+  // Delete the message (cascade will delete the thread)
+  await chatStore.deleteMessage(messageId);
+  
+  // Clear thread from local cache
+  threadsByMessageId.value.delete(messageId);
+  
+  // Close the modal
+  showDeleteConfirmModal.value = false;
+};
+
+const cancelDeleteMessage = () => {
+  showDeleteConfirmModal.value = false;
+  deleteConfirmConfig.value = {
+    messageId: '',
+    hasThread: false,
+    threadName: '',
+  };
 };
 
 const openEmojiReactor = (message: Message, event: MouseEvent) => {

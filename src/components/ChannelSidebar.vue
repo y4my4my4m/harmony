@@ -36,7 +36,7 @@
           <div :key="element.id" class="channel-wrapper">
             <div 
               :class="['channel-item', { 
-                'selected': element.id === currentChannelId,
+                'selected': element.id === currentChannelId && !selectedThreadId,
                 'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
                 'voice-channel': element.type === 1,
                 'voice-connected': element.type === 1 && isUserInVoiceChannel(element.id)
@@ -89,6 +89,7 @@
               class="channel-thread-item"
               :class="{ 'selected': selectedThreadId === thread.id }"
               @click.stop="openThread(thread)"
+              @contextmenu.stop="openThreadContextMenu($event, thread)"
             >
               <div class="thread-branch"></div>
               <span class="thread-name">{{ thread.name }}</span>
@@ -153,7 +154,7 @@
                   <div
                     class="channel-item"
                     :class="{ 
-                      'selected': currentChannelId === channel.id,
+                      'selected': currentChannelId === channel.id && !selectedThreadId,
                       'in-collapsed-category': collapsedCategories.has(category.id),
                       'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
                       'voice-channel': channel.type === 1,
@@ -206,6 +207,7 @@
                     class="channel-thread-item"
                     :class="{ 'selected': selectedThreadId === thread.id }"
                     @click.stop="openThread(thread)"
+                    @contextmenu.stop="openThreadContextMenu($event, thread)"
                   >
                     <div class="thread-branch"></div>
                     <span class="thread-name">{{ thread.name }}</span>
@@ -253,6 +255,22 @@
       @delete-category="handleDeleteCategory"
     />
 
+    <ThreadContextMenu
+      :is-visible="showThreadContextMenu"
+      :position="contextMenuPosition"
+      :thread="selectedThread"
+      :server-id="currentServer?.id"
+      @close="closeContextMenus"
+      @leave="handleLeaveThread"
+      @edit="handleEditThread"
+      @open-split-view="handleOpenSplitView"
+      @close-thread="handleCloseThread"
+      @reopen="handleReopenThread"
+      @lock="handleLockThread"
+      @unlock="handleUnlockThread"
+      @delete="handleDeleteThread"
+    />
+
     <!-- Edit Modals -->
     <ChannelEditModal
       :show="showChannelEditModal"
@@ -289,7 +307,7 @@ import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -314,6 +332,7 @@ import CategoryContextMenu from './CategoryContextMenu.vue';
 import ChannelEditModal from './ChannelEditModal.vue';
 import CategoryEditModal from './CategoryEditModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
+import ThreadContextMenu from './threads/ThreadContextMenu.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
 
 import draggable from "vuedraggable";
@@ -367,9 +386,11 @@ const loadingThreads = ref(false);
 // Context menu state
 const showChannelContextMenu = ref(false);
 const showCategoryContextMenu = ref(false);
+const showThreadContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const selectedChannel = ref<Channel | null>(null);
 const selectedCategory = ref<Category | null>(null);
+const selectedThread = ref<ThreadWithDetails | null>(null);
 
 // Modal state
 const showChannelEditModal = ref(false);
@@ -397,6 +418,7 @@ const dragState = ref<DragState>({
 // Stores and Composables
 const serverChannelStore = useServerChannelStore();
 const router = useRouter();
+const route = useRoute();
 const serverUsersStore = useServerUsersStore();
 const voiceChannelStore = useUnifiedVoiceChannelStore();
 const themeStore = useThemeStore();
@@ -764,6 +786,17 @@ const openCategoryContextMenu = (event: MouseEvent, category: Category) => openC
 const closeContextMenus = () => {
   showChannelContextMenu.value = false;
   showCategoryContextMenu.value = false;
+  showThreadContextMenu.value = false;
+};
+
+// Thread context menu handler
+const openThreadContextMenu = (event: MouseEvent, thread: ThreadWithDetails) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeContextMenus();
+  selectedThread.value = thread;
+  showThreadContextMenu.value = true;
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
 };
 
 const handleInviteUsers = () => openInviteModal();
@@ -825,6 +858,98 @@ const handleDeleteCategory = (category: Category) => {
   showConfirmationModal.value = true;
 };
 
+// Thread context menu action handlers
+const handleLeaveThread = async () => {
+  if (!selectedThread.value) return;
+  try {
+    await threadService.leaveThread(selectedThread.value.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to leave thread:', error);
+  }
+};
+
+const handleEditThread = (thread: ThreadWithDetails) => {
+  // TODO: Implement thread editing modal
+  debug.log('Edit thread:', thread.name);
+};
+
+const handleOpenSplitView = (thread: ThreadWithDetails) => {
+  // TODO: Implement split view functionality
+  debug.log('Open split view for thread:', thread.name);
+};
+
+const handleCloseThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.archiveThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to close thread:', error);
+  }
+};
+
+const handleReopenThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.unarchiveThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to reopen thread:', error);
+  }
+};
+
+const handleLockThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.lockThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to lock thread:', error);
+  }
+};
+
+const handleUnlockThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.unlockThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to unlock thread:', error);
+  }
+};
+
+const handleDeleteThread = (thread: ThreadWithDetails) => {
+  confirmationConfig.value = {
+    title: 'Delete Thread',
+    message: `Are you sure you want to delete "${thread.name}"?`,
+    secondaryMessage: 'This will permanently delete the thread and all its messages. This action cannot be undone.',
+    confirmButtonText: 'Delete Thread',
+    requireConfirmation: false,
+    confirmationText: thread.name,
+    onConfirm: async () => {
+      try {
+        await threadService.deleteThread(thread.id);
+        await loadActiveThreads();
+        closeConfirmationModal();
+        // Navigate back to channel if we were viewing this thread
+        if (selectedThreadId.value === thread.id) {
+          selectedThreadId.value = null;
+          if (thread.channel_id) {
+            router.push({
+              name: 'ChatChannel',
+              params: {
+                serverId: props.currentServer?.id,
+                channelId: thread.channel_id
+              }
+            });
+          }
+        }
+      } catch (error) {
+        debug.error('Failed to delete thread:', error);
+        closeConfirmationModal();
+      }
+    }
+  };
+  showConfirmationModal.value = true;
+};
+
 const closeChannelEditModal = () => showChannelEditModal.value = false;
 const closeCategoryEditModal = () => showCategoryEditModal.value = false;
 const closeConfirmationModal = () => showConfirmationModal.value = false;
@@ -855,6 +980,15 @@ watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.val
 watch(() => props.currentServer?.id, (newServerId) => {
   if (newServerId) {
     loadActiveThreads();
+  }
+}, { immediate: true });
+
+// Sync selectedThreadId with route (for thread full view)
+watch(() => route.params.threadId, (threadId) => {
+  if (threadId && typeof threadId === 'string') {
+    selectedThreadId.value = threadId;
+  } else {
+    selectedThreadId.value = null;
   }
 }, { immediate: true });
 
@@ -1148,14 +1282,15 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px 6px 28px;
-  margin-left: 0;
+  padding: 6px 8px 6px 34px;
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-muted, #949BA4);
   font-size: 14px;
   transition: all 0.1s ease;
   position: relative;
+  margin: 0 auto;
+  width: calc(100% - 8px);
 }
 
 .channel-thread-item:hover {
@@ -1171,7 +1306,7 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 /* Thread branch/tree-line - vertical line connecting to parent */
 .channel-thread-item .thread-branch {
   position: absolute;
-  left: 12px;
+  left: 21px;
   width: 10px;
   height: 100%;
   pointer-events: none;
@@ -1196,7 +1331,7 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 10px;
+  width: 14px;
   height: 2px;
   background: var(--text-muted, #4f545c);
   opacity: 0.5;

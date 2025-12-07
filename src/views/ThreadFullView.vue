@@ -145,33 +145,12 @@
       </div>
     </div>
 
-    <!-- Message Input -->
-    <div class="message-input-section">
-      <div class="input-wrapper">
-        <button class="attach-btn" title="Attach file">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
-          </svg>
-        </button>
-        <textarea
-          ref="inputRef"
-          v-model="messageText"
-          :placeholder="`Reply to thread...`"
-          @keydown.enter.exact.prevent="sendMessage"
-          @input="handleInput"
-          rows="1"
-        />
-        <button 
-          class="send-btn" 
-          :disabled="!messageText.trim() || sending"
-          @click="sendMessage"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-          </svg>
-        </button>
-      </div>
-    </div>
+    <!-- Message Input - Reuse MessageInput component (DRY) -->
+    <MessageInput
+      v-model="messageText"
+      :placeholder-target="thread?.name || 'thread'"
+      @send-message="handleSendMessage"
+    />
   </div>
 </template>
 
@@ -183,7 +162,8 @@ import { useUserData } from '@/composables/useUserData'
 import { format, isSameDay, differenceInMinutes } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
-import type { Message } from '@/types'
+import MessageInput from '@/components/MessageInput.vue'
+import type { Message, MessagePart } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 
 // Props
@@ -214,7 +194,6 @@ const showOptions = ref(false)
 const messageText = ref('')
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
-const inputRef = ref<HTMLTextAreaElement | null>(null)
 
 // Format helpers
 const formatDate = (date: string | Date) => {
@@ -349,29 +328,23 @@ const toggleNotifications = () => {
   // TODO: Implement actual mute functionality
 }
 
-const sendMessage = async () => {
-  if (!thread.value || !messageText.value.trim() || sending.value) return
+const handleSendMessage = async (content: string, files: any[] = [], replyMessageId?: string) => {
+  if (!thread.value || !content.trim()) return
   
-  const text = messageText.value.trim()
-  messageText.value = ''
   sending.value = true
   
-  if (inputRef.value) {
-    inputRef.value.style.height = 'auto'
-  }
-  
   try {
-    const content = [{ type: 'text' as const, text }]
-    const newMessage = await threadService.sendThreadMessage(thread.value.id, content)
+    const messageParts: MessagePart[] = [{ type: 'text' as const, text: content.trim() }]
+    const newMessage = await threadService.sendThreadMessage(thread.value.id, messageParts)
     
     if (newMessage) {
       messages.value.push(newMessage)
+      messageText.value = ''
       await nextTick()
       scrollToBottom()
     }
   } catch (error) {
     console.error('Failed to send message:', error)
-    messageText.value = text
   } finally {
     sending.value = false
   }
@@ -380,17 +353,6 @@ const sendMessage = async () => {
 const scrollToBottom = () => {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
-}
-
-const handleScroll = () => {
-  // Could implement lazy loading on scroll
-}
-
-const handleInput = () => {
-  if (inputRef.value) {
-    inputRef.value.style.height = 'auto'
-    inputRef.value.style.height = Math.min(inputRef.value.scrollHeight, 200) + 'px'
   }
 }
 
@@ -715,60 +677,5 @@ onMounted(() => {
   line-height: 1.375;
 }
 
-/* Input Section */
-.message-input-section {
-  padding: 16px 20px 24px;
-  background: var(--background-primary);
-  flex-shrink: 0;
-}
-
-.input-wrapper {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  background: var(--background-tertiary);
-  border-radius: 8px;
-  padding: 8px 12px;
-}
-
-.attach-btn,
-.send-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  display: flex;
-  transition: all 0.2s;
-}
-
-.attach-btn:hover,
-.send-btn:hover:not(:disabled) {
-  background: var(--background-modifier-hover);
-  color: var(--text-primary);
-}
-
-.send-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.input-wrapper textarea {
-  flex: 1;
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.375;
-  resize: none;
-  outline: none;
-  max-height: 200px;
-  font-family: inherit;
-}
-
-.input-wrapper textarea::placeholder {
-  color: var(--text-muted);
-}
 </style>
 
