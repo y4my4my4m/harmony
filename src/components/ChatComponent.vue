@@ -43,6 +43,7 @@
       v-if="giphyOpen==true"
       @click.stop
       @sendGif="handleSendGif"
+      @switchToEmoji="handleSwitchToEmoji"
       :closeGiphy="closeGiphy"
       :gifIconClicked="gifIconClicked"
       :position="'above'"
@@ -368,6 +369,12 @@
 
       const closeGiphy = () => {
         giphyOpen.value = false;
+      };
+
+      // Handle switching from GIF picker to emoji picker
+      const handleSwitchToEmoji = () => {
+        giphyOpen.value = false;
+        emojiListOpen.value = true;
       };
 
       // New drag and drop handler for the chat container (fallback)

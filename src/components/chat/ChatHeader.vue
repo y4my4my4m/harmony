@@ -47,9 +47,7 @@
         @click="handleThreadsClick"
         title="View all threads"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M5.43 21L3 3h2.23l1.41 14.24L13.42 11H6.88L6.11 4h15.22l-.87 8.5-7.59 7.75L10.04 21H5.43z"/>
-        </svg>
+        <Icon name="thread" :size="16" />
       </button>
       
       <button 

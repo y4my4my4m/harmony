@@ -364,7 +364,7 @@ watch(() => props.threadId, () => {
 }, { immediate: true })
 
 onMounted(() => {
-  inputRef.value?.focus()
+  // Focus will be handled by MessageInput component
 })
 </script>
 

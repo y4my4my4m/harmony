@@ -309,6 +309,7 @@
           <GifComponent
             v-if="showGiphyPicker"
             @sendGif="handleGifInsert"
+            @switchToEmoji="handleSwitchToEmoji"
             :closeGiphy="() => showGiphyPicker = false"
             :position="'above'"
             :triggerElement="gifTriggerRef || undefined"
@@ -643,6 +644,11 @@ const toggleGifPicker = () => {
   showVisibilityMenu.value = false;
   showEmojiPicker.value = false;
   showGiphyPicker.value = !wasOpen;
+};
+
+const handleSwitchToEmoji = () => {
+  showGiphyPicker.value = false;
+  showEmojiPicker.value = true;
 };
 
 const handleOverlayClick = () => {

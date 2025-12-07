@@ -18,56 +18,47 @@
         Stickers
       </button>
       <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'emoji' }"
-        @click="activeTab = 'emoji'"
-        disabled
+        class="tab-button"
+        @click="switchToEmoji"
       >
         Emoji
       </button>
-      <!-- Favorite toggle in header -->
+      <!-- Favorite toggle in header (only for GIFs tab) -->
       <button 
+        v-if="activeTab === 'gifs'"
         class="tab-icon-button"
         :class="{ active: showFavorites }"
-        @click="toggleFavoritesView"
-        :title="showFavorites ? 'Show Trending' : 'Show Favorites'"
+        @click="showFavorites = !showFavorites"
+        :title="showFavorites ? $t('gif.trending') : $t('gif.favorites')"
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-        </svg>
+        <StarIcon :filled="showFavorites" />
       </button>
     </div>
 
-    <!-- Category Buttons (Favorites/Trending) -->
-    <div class="gif-categories">
+    <!-- Category Buttons (Favorites/Trending) - Only for GIFs tab -->
+    <div v-if="activeTab === 'gifs'" class="gif-categories">
       <button 
         class="category-button"
         :class="{ active: showFavorites }"
         @click="showFavorites = true"
       >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-        </svg>
-        Favorites
+        <StarIcon :filled="true" :size="16" />
+        {{ $t('gif.favorites') }}
       </button>
       <button 
         class="category-button"
         :class="{ active: !showFavorites }"
         @click="showFavorites = false"
       >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-          <path d="M17.09 4.56c-.7-1.03-1.5-1.99-2.4-2.85-.35-.34-.94-.02-.84.46.19.94.39 2.18.39 3.29 0 2.06-1.35 3.73-3.41 3.73-1.54 0-2.8-.93-3.35-2.26-.1-.2-.14-.32-.2-.54-.11-.42-.66-.55-.9-.18-.18.27-.35.56-.51.84A13.74 13.74 0 004 14c0 4.42 3.58 8 8 8s8-3.58 8-8c0-3.49-1.08-6.73-2.91-9.44zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.47-.3 2.98-.93 4.03-1.92.28-.26.74-.14.82.23.23 1.02.35 2.08.35 3.15.01 2.65-2.14 4.8-4.79 4.8z"/>
-        </svg>
-        Trending
+        <TrendingIcon :size="16" />
+        {{ $t('gif.trending') }}
       </button>
     </div>
 
-    <!-- Search Input -->
-    <div class="gif-search" v-if="!showFavorites">
+    <!-- Search Input (hidden in favorites view) -->
+    <div v-if="activeTab === 'gifs' && !showFavorites" class="gif-search">
       <div class="search-wrapper">
-        <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-          <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-        </svg>
+        <SearchIcon :size="16" class="search-icon" />
         <input 
           type="text" 
           v-model="searchQuery" 
@@ -89,11 +80,9 @@
       <!-- Favorites View -->
       <template v-else-if="showFavorites">
         <div v-if="favorites.length === 0" class="empty-state">
-          <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" class="empty-icon">
-            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-          </svg>
-          <p>No favorite GIFs yet</p>
-          <span class="empty-hint">Click the star on any GIF to save it here</span>
+          <StarIcon :filled="false" :size="48" class="empty-icon" />
+          <p>{{ $t('gif.noFavorites') }}</p>
+          <span class="empty-hint">{{ $t('gif.noFavoritesHint') }}</span>
         </div>
         <masonry-wall v-else :items="favorites" :column-width="150" :gap="10">
           <template #default="{ item }">
@@ -104,15 +93,13 @@
               @mouseleave="hoveredGif = null"
               @click="selectFavoriteGif(item)"
             >
-              <img :src="getFavoriteImageSource(item)" :alt="item.title || 'GIF'">
+              <img :src="getGifImageSource(item.tenor_id, item.gif_url, item.preview_url)" :alt="item.title || 'GIF'">
               <button 
                 class="favorite-button favorited"
-                @click.stop="removeFavoriteGif(item.tenor_id)"
-                title="Remove from favorites"
+                @click.stop="removeFavorite(item.tenor_id)"
+                :title="$t('gif.removeFromFavorites')"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                </svg>
+                <StarIcon :filled="true" :size="16" />
               </button>
             </div>
           </template>
@@ -122,7 +109,7 @@
       <!-- Trending/Search Results -->
       <template v-else>
         <div v-if="gifs.length === 0 && !isLoading" class="empty-state">
-          <p>No GIFs found</p>
+          <p>{{ $t('gif.noResults') }}</p>
           <span class="empty-hint">Try a different search term</span>
         </div>
         <masonry-wall v-else :items="gifs" :column-width="150" :gap="10">
@@ -134,17 +121,14 @@
               @mouseleave="hoveredGif = null"
               @click="selectGif(item)"
             >
-              <img :src="getImageSource(item)" :alt="item.title">
+              <img :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title">
               <button 
                 class="favorite-button"
-                :class="{ favorited: isFavorite(item.id) }"
+                :class="{ favorited: isFavorited(item.id) }"
                 @click.stop="toggleFavorite(item)"
-                :title="isFavorite(item.id) ? 'Remove from favorites' : 'Add to favorites'"
+                :title="isFavorited(item.id) ? $t('gif.removeFromFavorites') : $t('gif.addToFavorites')"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <path v-if="isFavorite(item.id)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                  <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
-                </svg>
+                <StarIcon :filled="isFavorited(item.id)" :size="16" />
               </button>
             </div>
           </template>
@@ -155,12 +139,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
-import { debug } from '@/utils/debug'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { debug } from '@/utils/debug';
 import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
 import { gifService, type FavoriteGif } from '@/services/GifService';
 import type { Gif } from '@/types';
 
+// Icons as inline components for DRY code
+const StarIcon = {
+  props: { filled: { type: Boolean, default: false }, size: { type: Number, default: 18 } },
+  template: `
+    <svg :width="size" :height="size" viewBox="0 0 24 24" fill="currentColor">
+      <path v-if="filled" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+      <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+    </svg>
+  `
+};
+
+const TrendingIcon = {
+  props: { size: { type: Number, default: 18 } },
+  template: `
+    <svg :width="size" :height="size" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.09 4.56c-.7-1.03-1.5-1.99-2.4-2.85-.35-.34-.94-.02-.84.46.19.94.39 2.18.39 3.29 0 2.06-1.35 3.73-3.41 3.73-1.54 0-2.8-.93-3.35-2.26-.1-.2-.14-.32-.2-.54-.11-.42-.66-.55-.9-.18-.18.27-.35.56-.51.84A13.74 13.74 0 004 14c0 4.42 3.58 8 8 8s8-3.58 8-8c0-3.49-1.08-6.73-2.91-9.44zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.47-.3 2.98-.93 4.03-1.92.28-.26.74-.14.82.23.23 1.02.35 2.08.35 3.15.01 2.65-2.14 4.8-4.79 4.8z"/>
+    </svg>
+  `
+};
+
+const SearchIcon = {
+  props: { size: { type: Number, default: 18 } },
+  template: `
+    <svg :width="size" :height="size" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+    </svg>
+  `
+};
+
+// Props
 interface Props {
   closeGiphy?: () => void;
   gifIconClicked?: boolean;
@@ -174,9 +188,11 @@ const props = withDefaults(defineProps<Props>(), {
   position: 'above',
 });
 
+// Emits
 interface Emits {
   (e: 'sendGif', gif: Gif): void;
   (e: 'resetGifIconClicked'): void;
+  (e: 'switchToEmoji'): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -199,81 +215,65 @@ const triggerElementRef = ref<HTMLElement | null>(null);
 
 watch(() => props.triggerElement, (newTrigger) => {
   triggerElementRef.value = newTrigger || null;
+  nextTick(() => updatePosition());
 }, { immediate: true });
 
 const { positionStyle, updatePosition } = usePopupPositioning(
   triggerElementRef,
   POPUP_DIMENSIONS,
-  {
-    position: props.position,
-    offset: 8,
-    viewport: { padding: 10 }
-  }
+  { position: props.position, offset: 8, viewport: { padding: 10 } }
 );
 
-watch(() => props.triggerElement, () => {
-  nextTick(() => {
-    updatePosition();
-  });
-});
-
-// Image source helpers
-const getImageSource = (gif: Gif) => {
-  return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
-};
-
-const getFavoriteImageSource = (favorite: FavoriteGif) => {
-  return hoveredGif.value === favorite.tenor_id ? favorite.gif_url : favorite.preview_url;
+// Unified image source helper - DRY
+const getGifImageSource = (id: string, gifUrl: string, previewUrl: string): string => {
+  return hoveredGif.value === id ? gifUrl : previewUrl;
 };
 
 // Check if a GIF is favorited
-const isFavorite = (tenorId: string): boolean => {
-  return favoriteTenorIds.value.has(tenorId);
+const isFavorited = (tenorId: string): boolean => favoriteTenorIds.value.has(tenorId);
+
+// Switch to emoji picker
+const switchToEmoji = () => {
+  props.closeGiphy?.();
+  emit('switchToEmoji');
 };
 
-// Toggle favorites view
-const toggleFavoritesView = () => {
-  showFavorites.value = !showFavorites.value;
-  if (showFavorites.value) {
-    loadFavorites();
-  }
-};
-
-// Fetch trending GIFs
+// Fetch trending GIFs from Tenor API
 const fetchTrendingGifs = async () => {
   isLoading.value = true;
   try {
-    const response = await fetch(`https://tenor.googleapis.com/v2/featured?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`);
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
+    const response = await fetch(
+      `https://tenor.googleapis.com/v2/featured?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`
+    );
+    if (!response.ok) throw new Error('Network response was not ok');
     const data = await response.json();
     gifs.value = data.results;
   } catch (error) {
-    debug.error('Fetch error:', error);
+    debug.error('Failed to fetch trending GIFs:', error);
   } finally {
     isLoading.value = false;
   }
 };
 
-// Search GIFs
+// Search GIFs from Tenor API
 const searchGifs = async () => {
   if (!searchQuery.value.trim()) {
     await fetchTrendingGifs();
-  } else {
-    isLoading.value = true;
-    try {
-      const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`);
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      const data = await response.json();
-      gifs.value = data.results;
-    } catch (error) {
-      debug.error('Fetch error:', error);
-    } finally {
-      isLoading.value = false;
-    }
+    return;
+  }
+  
+  isLoading.value = true;
+  try {
+    const response = await fetch(
+      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`
+    );
+    if (!response.ok) throw new Error('Network response was not ok');
+    const data = await response.json();
+    gifs.value = data.results;
+  } catch (error) {
+    debug.error('Failed to search GIFs:', error);
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -282,7 +282,6 @@ const loadFavorites = async () => {
   isLoading.value = true;
   try {
     favorites.value = await gifService.getFavorites();
-    // Update local cache of favorite IDs
     favoriteTenorIds.value = new Set(favorites.value.map(f => f.tenor_id));
   } catch (error) {
     debug.error('Failed to load favorites:', error);
@@ -293,17 +292,29 @@ const loadFavorites = async () => {
 
 // Toggle favorite status for a GIF
 const toggleFavorite = async (gif: Gif) => {
+  const wasAlreadyFavorite = isFavorited(gif.id);
   const result = await gifService.toggleFavorite(gif);
+  
   if (result.error) {
     debug.error('Failed to toggle favorite:', result.error);
     return;
   }
   
-  // Update local state
+  // Update local state immediately for responsive UI
   if (result.isFavorite) {
     favoriteTenorIds.value.add(gif.id);
+    // Add to favorites array for immediate display when switching to favorites view
+    favorites.value.unshift({
+      id: crypto.randomUUID(), // Temporary ID until reload
+      tenor_id: gif.id,
+      gif_url: gif.media_formats.gif.url,
+      preview_url: gif.media_formats.gifpreview.url,
+      title: gif.title || null,
+      created_at: new Date().toISOString()
+    });
   } else {
     favoriteTenorIds.value.delete(gif.id);
+    favorites.value = favorites.value.filter(f => f.tenor_id !== gif.id);
   }
   
   // Trigger reactivity
@@ -311,7 +322,7 @@ const toggleFavorite = async (gif: Gif) => {
 };
 
 // Remove a favorite GIF
-const removeFavoriteGif = async (tenorId: string) => {
+const removeFavorite = async (tenorId: string) => {
   const result = await gifService.removeFavorite(tenorId);
   if (result.success) {
     favorites.value = favorites.value.filter(f => f.tenor_id !== tenorId);
@@ -321,52 +332,52 @@ const removeFavoriteGif = async (tenorId: string) => {
 };
 
 // Select and send a GIF
-const selectGif = (gif: Gif) => {
-  emit('sendGif', gif);
-};
+const selectGif = (gif: Gif) => emit('sendGif', gif);
 
-// Select and send a favorite GIF
+// Select and send a favorite GIF (convert to Gif type)
 const selectFavoriteGif = (favorite: FavoriteGif) => {
-  const gif = gifService.favoriteToGif(favorite);
-  emit('sendGif', gif);
+  emit('sendGif', gifService.favoriteToGif(favorite));
 };
 
-// Click outside handler
+// Event handlers
 const handleClickOutside = (event: MouseEvent) => {
   if (gifPopup.value && !gifPopup.value.contains(event.target as Node)) {
     props.closeGiphy?.();
   }
 };
 
-// Escape key handler
 const handleKeyDown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     props.closeGiphy?.();
   }
 };
 
-// Debounce helper
+// Debounced search
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 watch(searchQuery, () => {
   if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    searchGifs();
-  }, 300);
+  searchTimeout = setTimeout(searchGifs, 300);
 });
 
+// Load favorites when switching to favorites view
+watch(showFavorites, (show) => {
+  if (show && favorites.value.length === 0) {
+    loadFavorites();
+  }
+});
+
+// Lifecycle
 onMounted(async () => {
-  // Add event listeners with a small delay to prevent immediate closure
+  // Delay event listeners to prevent immediate closure
   setTimeout(() => {
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
   }, 100);
   
-  // Initialize favorites cache and load trending
-  await gifService.initializeCache();
-  favoriteTenorIds.value = new Set(
-    (await gifService.getFavorites()).map(f => f.tenor_id)
-  );
+  // Initialize favorites cache (single load)
+  await loadFavorites();
   
+  // Load trending GIFs
   fetchTrendingGifs();
   
   nextTick(() => {

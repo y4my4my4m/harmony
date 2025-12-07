@@ -171,43 +171,12 @@
             </template>
           </div>
 
-          <!-- Message Input (styled like normal chat input) -->
-          <div class="thread-input">
-            <div class="input-wrapper">
-              <button class="input-action-btn" title="Add attachment">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
-                </svg>
-              </button>
-              <div class="input-container">
-                <textarea
-                  ref="inputRef"
-                  v-model="messageText"
-                  :placeholder="`Message &quot;${thread?.name || 'thread'}&quot;`"
-                  @keydown.enter.exact.prevent="sendMessage"
-                  @input="handleInput"
-                  rows="1"
-                />
-              </div>
-              <div class="input-actions">
-                <button class="input-action-btn" title="Add emoji">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
-                  </svg>
-                </button>
-                <button 
-                  class="send-btn"
-                  @click="sendMessage"
-                  :disabled="!messageText.trim() || sending"
-                  title="Send message"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
+          <!-- Message Input - Reuse MessageInput component (DRY) -->
+          <MessageInput
+            v-model="messageText"
+            :placeholder-target="thread?.name || 'thread'"
+            @send-message="handleSendMessage"
+          />
         </div>
       </div>
     </Transition>
@@ -221,7 +190,8 @@ import { useUserData } from '@/composables/useUserData'
 import { format, isSameDay, differenceInMinutes } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
-import type { Message, Thread } from '@/types'
+import MessageInput from '@/components/MessageInput.vue'
+import type { Message, Thread, MessagePart } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 
 interface Props {
@@ -257,7 +227,6 @@ const showOptions = ref(false)
 const messageText = ref('')
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
-const inputRef = ref<HTMLTextAreaElement | null>(null)
 
 // Draft mode - thread not yet created
 const isDraftMode = computed(() => !props.threadId && !props.initialThread && !!props.draftParentMessage)
@@ -400,8 +369,8 @@ const toggleMute = async () => {
   }
 }
 
-const sendMessage = async () => {
-  if (!messageText.value.trim() || sending.value) return
+const handleSendMessage = async (content: string, files: any[] = [], replyMessageId?: string) => {
+  if (!content.trim() || sending.value) return
   
   // In draft mode, need parent message to create thread
   if (isDraftMode.value && !props.draftParentMessage) return
@@ -409,14 +378,8 @@ const sendMessage = async () => {
   // In normal mode, need thread
   if (!isDraftMode.value && !thread.value) return
   
-  const text = messageText.value.trim()
-  messageText.value = ''
+  const text = content.trim()
   sending.value = true
-  
-  // Reset textarea height
-  if (inputRef.value) {
-    inputRef.value.style.height = 'auto'
-  }
   
   try {
     let targetThreadId = thread.value?.id
@@ -444,19 +407,18 @@ const sendMessage = async () => {
       throw new Error('No thread ID')
     }
     
-    const content = [{ type: 'text' as const, text }]
-    const newMessage = await threadService.sendThreadMessage(targetThreadId, content)
+    const messageParts: MessagePart[] = [{ type: 'text' as const, text }]
+    const newMessage = await threadService.sendThreadMessage(targetThreadId, messageParts)
     
     if (newMessage) {
       messages.value.push(newMessage)
+      messageText.value = '' // Clear the input
       // Scroll to bottom
       await nextTick()
       scrollToBottom()
     }
   } catch (error) {
     console.error('Failed to send message:', error)
-    // Restore message text on error
-    messageText.value = text
   } finally {
     sending.value = false
   }
@@ -465,13 +427,6 @@ const sendMessage = async () => {
 const scrollToBottom = () => {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
-}
-
-const handleInput = () => {
-  if (inputRef.value) {
-    inputRef.value.style.height = 'auto'
-    inputRef.value.style.height = Math.min(inputRef.value.scrollHeight, 150) + 'px'
   }
 }
 
@@ -865,88 +820,6 @@ onMounted(() => {
   font-size: 15px;
   line-height: 1.375;
   word-wrap: break-word;
-}
-
-/* Thread Input - styled like main chat input */
-.thread-input {
-  padding: 0 16px 24px;
-  background: var(--background-primary);
-}
-
-.input-wrapper {
-  display: flex;
-  align-items: flex-end;
-  background: var(--background-tertiary);
-  border-radius: 8px;
-  padding: 0 4px;
-}
-
-.input-action-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 10px 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s;
-}
-
-.input-action-btn:hover {
-  color: var(--text-primary);
-}
-
-.input-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-.input-container textarea {
-  flex: 1;
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.375;
-  resize: none;
-  min-height: 44px;
-  max-height: 150px;
-  padding: 11px 0;
-  outline: none;
-  font-family: inherit;
-}
-
-.input-container textarea::placeholder {
-  color: var(--text-muted);
-}
-
-.input-actions {
-  display: flex;
-  align-items: center;
-}
-
-.send-btn {
-  background: none;
-  border: none;
-  color: var(--harmony-primary);
-  cursor: pointer;
-  padding: 10px 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  opacity: 0.7;
-}
-
-.send-btn:hover:not(:disabled) {
-  opacity: 1;
-}
-
-.send-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
 }
 
 /* Slide panel transition */

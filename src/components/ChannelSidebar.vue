@@ -334,6 +334,7 @@ import CategoryEditModal from './CategoryEditModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import ThreadContextMenu from './threads/ThreadContextMenu.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
+import { supabase } from '@/supabase';
 
 import draggable from "vuedraggable";
 
@@ -992,10 +993,52 @@ watch(() => route.params.threadId, (threadId) => {
   }
 }, { immediate: true });
 
+// Realtime subscription for threads
+let threadsSubscription: ReturnType<typeof supabase.channel> | null = null;
+
+const setupThreadsSubscription = () => {
+  if (!props.currentServer?.id) return;
+  
+  // Clean up existing subscription
+  if (threadsSubscription) {
+    supabase.removeChannel(threadsSubscription);
+  }
+  
+  // Subscribe to thread changes for this server's channels
+  threadsSubscription = supabase
+    .channel(`threads-${props.currentServer.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'threads'
+      },
+      (payload) => {
+        debug.log('🧵 Thread change detected:', payload.eventType);
+        // Reload threads on any change (INSERT, UPDATE, DELETE)
+        loadActiveThreads();
+      }
+    )
+    .subscribe();
+};
+
 onMounted(() => {
   document.addEventListener('click', closeContextMenus);
+  setupThreadsSubscription();
 });
-onUnmounted(() => document.removeEventListener('click', closeContextMenus));
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeContextMenus);
+  if (threadsSubscription) {
+    supabase.removeChannel(threadsSubscription);
+  }
+});
+
+// Re-setup subscription when server changes
+watch(() => props.currentServer?.id, () => {
+  setupThreadsSubscription();
+});
 
 
 </script>
