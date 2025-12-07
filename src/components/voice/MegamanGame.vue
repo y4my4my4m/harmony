@@ -124,7 +124,7 @@ const GRAVITY = 0.8
 const JUMP_STRENGTH = -15
 const WALL_JUMP_X = 6
 const WALL_JUMP_Y = -12
-const WALL_SLIDE_SPEED = 2
+const WALL_SLIDE_SPEED = 1.5 // Slide down slowly (positive = down)
 const WALK_SPEED = 3
 const DASH_SPEED = 10
 const DASH_DURATION = 200 // ms
@@ -675,12 +675,17 @@ function handleInput() {
         localPlayer.chargeLevel = 1
       }
       
-      // Play charge sound on start, then loop
+      // Play charge sound on start, then loop (less frequently to avoid bugging)
       if (chargeTime < 100) {
         playSound('charge')
-      } else if (chargeTime > 200 && chargeTime % 1000 < 50) {
-        // Play charge loop occasionally
-        playSound('chargeLoop')
+      } else if (chargeTime > 500) {
+        // Play charge loop every 800ms (only once per interval)
+        const loopInterval = 800
+        const currentInterval = Math.floor(chargeTime / loopInterval)
+        const lastInterval = Math.floor((chargeTime - 16) / loopInterval) // Assume ~16ms per frame
+        if (currentInterval !== lastInterval) {
+          playSound('chargeLoop')
+        }
       }
     }
   }
@@ -690,19 +695,23 @@ function handleInput() {
     if (keys.value.has('ArrowLeft')) {
       localPlayer.velocityX = -WALK_SPEED
       localPlayer.facing = 'left'
-      if (localPlayer.onGround && !localPlayer.isCharging) {
-        localPlayer.state = 'walking'
+      if (localPlayer.onGround) {
+        localPlayer.state = 'walking' // Always show walking when moving, even while charging
       }
+      // Broadcast facing change immediately
+      broadcastPlayerState(localPlayer)
     } else if (keys.value.has('ArrowRight')) {
       localPlayer.velocityX = WALK_SPEED
       localPlayer.facing = 'right'
-      if (localPlayer.onGround && !localPlayer.isCharging) {
-        localPlayer.state = 'walking'
+      if (localPlayer.onGround) {
+        localPlayer.state = 'walking' // Always show walking when moving, even while charging
       }
+      // Broadcast facing change immediately
+      broadcastPlayerState(localPlayer)
     } else {
       localPlayer.velocityX = 0
       if (localPlayer.onGround && localPlayer.state !== 'jumping' && localPlayer.state !== 'falling' && localPlayer.state !== 'landing' && (localPlayer.state as string) !== 'dashing') {
-        localPlayer.state = localPlayer.isCharging ? 'shooting' : 'idle'
+        localPlayer.state = localPlayer.isCharging ? 'idle' : 'idle' // Don't use 'shooting' state while charging
       }
     }
   }
@@ -858,17 +867,17 @@ function fireChargedShot(player: Player) {
 
 // Broadcast player state to other participants
 function broadcastPlayerState(player: Player) {
-  if (!props.channelId) return
+  if (!props.channelId || !gameChannel) return
   
-  const channel = supabase.channel(`megaman-game:${props.channelId}`)
-  channel.send({
+  // Use the existing gameChannel instead of creating a new one
+  gameChannel.send({
     type: 'broadcast',
     event: 'player-update',
     payload: {
       userId: player.userId,
       x: player.x,
       y: player.y,
-      facing: player.facing,
+      facing: player.facing, // Make sure facing is always included
       state: player.state,
       velocityX: player.velocityX,
       velocityY: player.velocityY,
@@ -981,13 +990,23 @@ function gameLoop(currentTime: number) {
         player.invulnerableUntil = now + 1000 // 1 second invulnerability
         player.state = 'hit'
         
-        // Remove bullet
+        // Remove bullet immediately (both locally and for all players)
         bullets.value.delete(bulletId)
         
+        // Broadcast bullet removal to all players
+        if (gameChannel) {
+          gameChannel.send({
+            type: 'broadcast',
+            event: 'bullet-removed',
+            payload: {
+              bulletId: bulletId
+            }
+          })
+        }
+        
         // Broadcast damage
-        if (props.channelId) {
-          const channel = supabase.channel(`megaman-game:${props.channelId}`)
-          channel.send({
+        if (gameChannel) {
+          gameChannel.send({
             type: 'broadcast',
             event: 'player-damaged',
             payload: {
@@ -1005,7 +1024,7 @@ function gameLoop(currentTime: number) {
         // Check if player died
         if (player.health <= 0) {
           player.state = 'dead'
-          playSound('damage') // Use damage sound for death
+          playSound('hit') // Use hit sound for death (death sound not available)
           // Respawn after 3 seconds
           setTimeout(() => {
             if (player.health <= 0) {
@@ -1137,25 +1156,39 @@ function gameLoop(currentTime: number) {
     const isNearLeftWall = player.x <= wallLeft + wallThreshold
     const isNearRightWall = player.x >= wallRight - wallThreshold - 64
     
-    if ((isNearLeftWall || isNearRightWall) && !player.onGround && player.velocityY > 0) {
-      // Can wall cling
-      if (keys.value.has('ArrowLeft') && isNearLeftWall) {
+    if ((isNearLeftWall || isNearRightWall) && !player.onGround && player.velocityY >= 0) {
+      // Can wall cling - only if holding the direction key toward the wall
+      const isLocalPlayer = userId === props.userId
+      const isHoldingLeft = isLocalPlayer ? keys.value.has('ArrowLeft') : player.wallSide === 'left'
+      const isHoldingRight = isLocalPlayer ? keys.value.has('ArrowRight') : player.wallSide === 'right'
+      
+      if (isHoldingLeft && isNearLeftWall) {
         if (!player.onWall) {
           // Just touched wall - enable wall jump
           player.canWallJump = true
         }
         player.onWall = true
         player.wallSide = 'left'
-        player.velocityY = WALL_SLIDE_SPEED // Slide down slowly
+        // Cap slide speed - don't slide up, only down
+        if (player.velocityY < WALL_SLIDE_SPEED) {
+          player.velocityY = Math.min(WALL_SLIDE_SPEED, player.velocityY + 0.2) // Gradually increase to slide speed
+        } else {
+          player.velocityY = WALL_SLIDE_SPEED // Maintain slide speed
+        }
         player.state = 'wallCling'
-      } else if (keys.value.has('ArrowRight') && isNearRightWall) {
+      } else if (isHoldingRight && isNearRightWall) {
         if (!player.onWall) {
           // Just touched wall - enable wall jump
           player.canWallJump = true
         }
         player.onWall = true
         player.wallSide = 'right'
-        player.velocityY = WALL_SLIDE_SPEED
+        // Cap slide speed - don't slide up, only down
+        if (player.velocityY < WALL_SLIDE_SPEED) {
+          player.velocityY = Math.min(WALL_SLIDE_SPEED, player.velocityY + 0.2) // Gradually increase to slide speed
+        } else {
+          player.velocityY = WALL_SLIDE_SPEED // Maintain slide speed
+        }
         player.state = 'wallCling'
       } else {
         player.onWall = false
@@ -1234,7 +1267,7 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
     return []
   }
   
-  // Handle hit state
+  // Handle hit state - show hit animation sprites
   if (player.state === 'hit') {
     // Use hit sprites if available (Hit1-Hit10)
     const hitFrames: AnimationFrame[] = []
@@ -1245,9 +1278,16 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
       }
     }
     if (hitFrames.length > 0) {
+      // Animate through hit frames, then return to normal state
       const hitTime = Date.now() - player.hitTime
-      const hitFrameIndex = Math.min(Math.floor(hitTime / 30), hitFrames.length - 1)
-      return [hitFrames[hitFrameIndex]]
+      const hitFrameIndex = Math.min(Math.floor(hitTime / 50), hitFrames.length - 1) // 50ms per frame
+      // After hit animation completes, transition back to appropriate state
+      if (hitTime > hitFrames.length * 50) {
+        // Hit animation done, but still invulnerable - show normal sprite with flash
+        // Don't return hit frames anymore, let normal animation logic handle it
+      } else {
+        return [hitFrames[hitFrameIndex]]
+      }
     }
   }
   
@@ -1273,13 +1313,18 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
     return animations.value.wall || []
   }
   
-  // Dash takes priority
+  // Dash takes priority - use dash animation frames
   if (player.state === 'dashing') {
-    return animations.value.dash || animations.value.walk || []
+    const dashFrames = animations.value.dash || []
+    if (dashFrames.length > 0) {
+      return dashFrames // Return Dash1 and Dash2 frames
+    }
+    // Fallback to walk if dash not available
+    return animations.value.walk || []
   }
   
-  // Shooting animation when shooting (including while charging)
-  if (player.isShooting || player.isCharging) {
+  // Shooting animation when shooting (but NOT while charging - charging shows movement animation with charge effect)
+  if (player.isShooting && !player.isCharging) {
     // Find shooting animation that matches current movement state
     const shootFrames = animations.value.shoot.filter(frame => {
       const name = frame.name.toLowerCase()
@@ -1334,11 +1379,17 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   }
   
   // Update frame timer using delta time
+  // Walking animation is twice as fast
+  // Dash animation should be faster too (cycle through Dash1/Dash2 quickly)
+  const isWalking = player.state === 'walking' && !player.isCharging
+  const isDashing = player.state === 'dashing'
+  const frameDuration = isWalking ? FRAME_DURATION / 2 : (isDashing ? FRAME_DURATION / 3 : FRAME_DURATION) // Dash cycles 3x faster
+  
   const currentTime = frameTime.value.get(userId) || 0
   const newTime = currentTime + (deltaSeconds * 1000) // Add delta in ms
   frameTime.value.set(userId, newTime)
   
-  if (newTime >= FRAME_DURATION) {
+  if (newTime >= frameDuration) {
     const current = currentFrame.value.get(userId) || 0
     const next = (current + 1) % frames.length
     currentFrame.value.set(userId, next)
@@ -1352,8 +1403,16 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     return
   }
   
-  // Get sprite image
-  const spriteImg = spriteImages.value.get(frame.file)
+  // Get sprite image - check hit sprites first if in hit state
+  let spriteImg: HTMLImageElement | null = null
+  if (player.state === 'hit') {
+    // Try to get hit sprite directly
+    spriteImg = hitSprites.value.get(frame.file) || null
+  }
+  // Fallback to regular sprite images
+  if (!spriteImg) {
+    spriteImg = spriteImages.value.get(frame.file) || null
+  }
   
   if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
     // Draw sprite - get actual sprite dimensions
@@ -1367,15 +1426,23 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     ctx.save()
     
-    // Handle hit state - flash effect
+    // Handle invulnerability flash effect (only after hit animation completes)
     const now = Date.now()
     const isInvulnerable = now < player.invulnerableUntil
-    if (isInvulnerable && player.state === 'hit') {
-      // Flash effect - alternate visibility
+    const hitTime = now - player.hitTime
+    if (isInvulnerable && player.state === 'hit' && hitTime > 500) {
+      // After hit animation (500ms), show flash effect on normal sprite
       const flashRate = 100 // ms
-      const flashVisible = Math.floor((now - player.hitTime) / flashRate) % 2 === 0
+      const flashVisible = Math.floor((hitTime - 500) / flashRate) % 2 === 0
       if (!flashVisible) {
-        ctx.globalAlpha = 0.3
+        ctx.globalAlpha = 0.5 // Semi-transparent flash, not fully invisible
+      }
+    } else if (isInvulnerable && player.state !== 'hit') {
+      // Invulnerable but not in hit state (e.g., after respawn)
+      const flashRate = 100 // ms
+      const flashVisible = Math.floor((now - (player.invulnerableUntil - 1000)) / flashRate) % 2 === 0
+      if (!flashVisible) {
+        ctx.globalAlpha = 0.5
       }
     }
     
@@ -1409,10 +1476,10 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         // Apply color tint while preserving transparency
         for (let i = 0; i < data.length; i += 4) {
           if (data[i + 3] > 0) { // Only process non-transparent pixels
-            // Blend with target color (60% original, 40% target for subtle tint)
-            data[i] = Math.floor(data[i] * 0.6 + targetR * 0.4)     // R
-            data[i + 1] = Math.floor(data[i + 1] * 0.6 + targetG * 0.4) // G
-            data[i + 2] = Math.floor(data[i + 2] * 0.6 + targetB * 0.4) // B
+            // Blend with target color (40% original, 60% target for more visible tint)
+            data[i] = Math.floor(data[i] * 0.4 + targetR * 0.6)     // R
+            data[i + 1] = Math.floor(data[i + 1] * 0.4 + targetG * 0.6) // G
+            data[i + 2] = Math.floor(data[i + 2] * 0.4 + targetB * 0.6) // B
             // Alpha stays the same
           }
         }
@@ -1703,12 +1770,12 @@ function setupRealtimeListener() {
     
     // Add remote bullet
     bullets.value.set(bullet.id, bullet)
-    
-    // Remove bullet after time
-    const lifetime = 3000 + (bullet.chargeLevel || 0) * 1000
-    setTimeout(() => {
-      bullets.value.delete(bullet.id)
-    }, lifetime)
+  })
+  
+  gameChannel.on('broadcast', { event: 'bullet-removed' }, (payload) => {
+    const { bulletId } = payload.payload as { bulletId: string }
+    // Remove bullet for all players when it hits someone
+    bullets.value.delete(bulletId)
   })
   
   gameChannel.subscribe()
@@ -1893,5 +1960,35 @@ function closeGame() {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   display: block;
+  position: relative;
+  z-index: 10003;
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10005; /* Higher than canvas z-index (10003) */
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #4ecdc4;
+  border-radius: 4px;
+  color: #4ecdc4;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  pointer-events: all;
+}
+
+.close-button:hover {
+  background: rgba(78, 205, 196, 0.2);
+  transform: scale(1.1);
+}
+
+.close-button:active {
+  transform: scale(0.95);
 }
 </style>

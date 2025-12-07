@@ -551,7 +551,14 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     // =============================================================================
     
     // Konami code and easter egg
+    const konamiEnabled = ref(true)
+    
     const handleKonamiActivate = () => {
+      // Don't activate if konami is disabled or game is already active
+      if (!konamiEnabled.value || easterEggState.value.isActive) {
+        return
+      }
+      
       // Only activate if 2+ participants are in the call
       // if (connectionStats.value.total < 2) {
       //   debug.log('🎮 [Konami] Not enough participants (need 2+, have', connectionStats.value.total, ')')
@@ -565,10 +572,19 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       }
 
       debug.log('🎮 [Konami] Activating Megaman game mode!')
+      konamiEnabled.value = false // Disable konami code detection
       easterEggService.activate('megaman', currentUserId)
       
       // No auto-deactivate - users can close manually with X button
     }
+    
+    // Reset konami flag when game closes
+    watch(() => easterEggState.value.isActive, (isActive) => {
+      if (!isActive && easterEggState.value.type === 'megaman') {
+        konamiEnabled.value = true // Re-enable konami code detection
+        debug.log('🎮 [Konami] Game closed, re-enabling konami code detection')
+      }
+    })
 
     // Initialize easter egg service when channel changes
     const initializeEasterEgg = () => {
