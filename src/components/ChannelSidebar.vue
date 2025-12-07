@@ -1325,7 +1325,7 @@ watch(() => props.currentServer?.id, () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px 6px 34px;
+  padding: 2px 0 2px 34px;
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-muted, #949BA4);
@@ -1336,11 +1336,10 @@ watch(() => props.currentServer?.id, () => {
   width: calc(100% - 8px);
 }
 .channel-thread-item .thread-name {
-  padding: 6px 8px 6px 6px;
+  padding: 6px;
   border-radius: 4px;
   width: 100%;
 }
-
 .channel-thread-item .thread-name:hover {
   background: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
   color: var(--text-normal, #DBDEE1);
@@ -1350,6 +1349,7 @@ watch(() => props.currentServer?.id, () => {
   color: var(--text-primary, #FFFFFF);
 }
 .channel-thread-item.selected .thread-name {
+  color: var(--text-primary, #FFFFFF);
   background: var(--background-modifier-selected, rgba(79, 84, 92, 0.6));
 }
 
