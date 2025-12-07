@@ -39,10 +39,10 @@ export function selectivePreload(options: SelectivePreloadOptions = {}): Plugin 
 
   return {
     name: 'selective-preload',
-    enforce: 'post',
+    order: 'post',
     transformIndexHtml: {
-      enforce: 'post',
-      transform(html: string) {
+      order: 'post',
+      handler(html: string) {
         // Find all modulepreload links
         const modulepreloadRegex = /<link[^>]*rel=["']modulepreload["'][^>]*>/gi
         const matches = html.match(modulepreloadRegex) || []
