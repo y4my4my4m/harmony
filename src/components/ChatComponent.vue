@@ -22,6 +22,7 @@
       @toggleEmojiList="toggleEmojiList"
       @sendReaction="toggleReaction"
       @replyingTo="replyingTo"
+      @createThread="handleCreateThread"
     />
     <MessageInput 
       ref="messageInputRef"
@@ -58,6 +59,15 @@
       :triggerElement="(isPopupForReaction ? reactionTriggerElement : emojiTriggerElement) || undefined"
       @resetEmojiIconClicked="emojiIconClicked = false"
     />
+    
+    <!-- Thread View -->
+    <ThreadView
+      :is-visible="showThreadView"
+      :thread-id="selectedThreadId"
+      :initial-thread="selectedThread"
+      @close="closeThreadView"
+      @thread-updated="handleThreadUpdated"
+    />
   </div>
 </template>
 
@@ -76,9 +86,11 @@
   import { readFile } from '@tauri-apps/plugin-fs';
   import GifComponent from '@/components/GifComponent.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
+  import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+  import { threadService } from '@/services/ThreadService';
   import { debug } from '@/utils/debug';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
@@ -123,6 +135,11 @@
   const replyToUserDisplayName = ref('');
   const giphyOpen = ref(false);
   const messageContent = ref('');
+  
+  // Thread state
+  const showThreadView = ref(false);
+  const selectedThreadId = ref<string | undefined>();
+  const selectedThread = ref<any>(null);
   
   // Component refs
   const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
@@ -199,6 +216,55 @@
       const handleDontReply = () => {
         replyToMessageId.value = '';
         replyToUserDisplayName.value = '';
+      };
+
+      // Thread handlers
+      const handleCreateThread = async (message: Message) => {
+        if (!message || !props.channelId) {
+          debug.warn('Cannot create thread: missing message or channelId');
+          return;
+        }
+        
+        try {
+          // Check if thread already exists for this message
+          const existingThread = await threadService.getThreadForMessage(message.id);
+          
+          if (existingThread) {
+            // Open existing thread
+            selectedThreadId.value = existingThread.id;
+            selectedThread.value = existingThread;
+            showThreadView.value = true;
+          } else {
+            // Create new thread - use first few words of message as default name
+            const messageText = Array.isArray(message.content) 
+              ? message.content.find(p => p.type === 'text')?.text || 'Thread'
+              : 'Thread';
+            const threadName = messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '');
+            
+            const newThread = await threadService.createThread({
+              message_id: message.id,
+              name: threadName,
+            });
+            
+            if (newThread) {
+              selectedThreadId.value = newThread.id;
+              selectedThread.value = null; // Will be fetched by ThreadView
+              showThreadView.value = true;
+            }
+          }
+        } catch (error) {
+          debug.error('Failed to create/open thread:', error);
+        }
+      };
+
+      const closeThreadView = () => {
+        showThreadView.value = false;
+        selectedThreadId.value = undefined;
+        selectedThread.value = null;
+      };
+
+      const handleThreadUpdated = (thread: any) => {
+        selectedThread.value = thread;
       };
 
       const toggleReaction = (messageId: string, emoji: Emoji) => {

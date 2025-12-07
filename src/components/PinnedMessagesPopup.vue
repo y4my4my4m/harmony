@@ -189,22 +189,25 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
 }
 
 .pinned-messages-drawer {
   width: 100%;
-  max-width: 600px;
-  max-height: 80vh;
-  background: var(--background-primary);
-  border-radius: 12px 12px 0 0;
+  max-width: 520px;
+  max-height: 70vh;
+  margin: 20px;
+  background: var(--background-secondary);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .drawer-header {

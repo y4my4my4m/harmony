@@ -107,6 +107,12 @@
             @file-change="handleFileChange"
           />
 
+          <!-- Roles Section -->
+          <RoleManagement
+            v-if="activeSection === 'roles'"
+            :server-id="serverId"
+          />
+
           <!-- Emoji Management Section -->
           <ServerEmojiManagement
             v-if="activeSection === 'emoji'"
@@ -174,6 +180,7 @@ import ServerPrivacySettings from '@/components/settings/ServerPrivacySettings.v
 import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
 import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
 import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
+import RoleManagement from '@/components/settings/RoleManagement.vue'
 
 interface Props {
   serverId: string
@@ -235,6 +242,7 @@ const emojiPermissions = computed(() => ({
 const availableSections = computed(() => {
   const sections = [
     { id: 'overview', label: t('server.overview') },
+    { id: 'roles', label: t('server.roles', 'Roles') },
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }

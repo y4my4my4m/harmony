@@ -1,8 +1,9 @@
 <template>
   <div 
     v-if="isVisible" 
+    ref="menuRef"
     class="context-menu"
-    :style="{ top: position.y + 'px', left: position.x + 'px' }"
+    :style="menuStyle"
     @click.stop
     v-click-outside="() => $emit('close')"
   >
@@ -64,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -79,6 +80,9 @@ interface Props {
   channelId?: string;
   conversationId?: string;
 }
+
+const menuRef = ref<HTMLElement | null>(null)
+const adjustedPosition = ref({ x: 0, y: 0 })
 
 interface Emits {
   (e: 'close'): void;
@@ -96,6 +100,49 @@ const { canPinMessages } = useServerPermissions();
 
 const isPinned = computed(() => props.message?.is_pinned || false);
 const canPin = computed(() => canPinMessages.value);
+
+// Calculate menu position with boundary checking
+const menuStyle = computed(() => ({
+  top: `${adjustedPosition.value.y}px`,
+  left: `${adjustedPosition.value.x}px`,
+}));
+
+// Watch for visibility changes to adjust position
+watch(() => props.isVisible, async (visible) => {
+  if (visible) {
+    // Start with the provided position
+    adjustedPosition.value = { ...props.position }
+    
+    // Wait for menu to render
+    await nextTick()
+    
+    if (menuRef.value) {
+      const rect = menuRef.value.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      const padding = 8
+      
+      let x = props.position.x
+      let y = props.position.y
+      
+      // Check right boundary
+      if (x + rect.width > viewportWidth - padding) {
+        x = viewportWidth - rect.width - padding
+      }
+      
+      // Check bottom boundary
+      if (y + rect.height > viewportHeight - padding) {
+        y = viewportHeight - rect.height - padding
+      }
+      
+      // Ensure not negative
+      x = Math.max(padding, x)
+      y = Math.max(padding, y)
+      
+      adjustedPosition.value = { x, y }
+    }
+  }
+});
 
 // Default emojis for quick reactions (used when no frequent emojis yet)
 const defaultQuickEmojis = [

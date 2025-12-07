@@ -429,10 +429,22 @@ export class MessageService {
     try {
       debug.log(`📌 Loading pinned messages for channel: ${channelId}`)
 
-      const { data, error } = await supabase.rpc('get_pinned_messages', {
-        p_channel_id: channelId,
-        p_conversation_id: null,
-      })
+      // Use direct query instead of RPC to avoid type mismatch issues
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          author:profiles!messages_user_id_fkey (
+            id, username, display_name, avatar_url, color
+          ),
+          pinner:profiles!messages_pinned_by_fkey (
+            id, username, display_name
+          )
+        `)
+        .eq('channel_id', channelId)
+        .eq('is_pinned', true)
+        .eq('is_deleted', false)
+        .order('pinned_at', { ascending: false })
 
       if (error) {
         debug.error('Failed to load pinned messages:', error)
@@ -449,20 +461,12 @@ export class MessageService {
         content: m.content,
         reply_to: m.reply_to,
         is_pinned: m.is_pinned,
+        pinned_at: m.pinned_at,
+        pinned_by: m.pinned_by,
         metadata: {
           ...m.metadata,
-          pinned_at: m.pinned_at,
-          pinned_by: m.pinned_by,
-          author: {
-            username: m.author_username,
-            display_name: m.author_display_name,
-            avatar_url: m.author_avatar_url,
-            color: m.author_color,
-          },
-          pinner: {
-            username: m.pinner_username,
-            display_name: m.pinner_display_name,
-          },
+          author: m.author,
+          pinner: m.pinner,
         },
       }))
 
@@ -481,10 +485,22 @@ export class MessageService {
     try {
       debug.log(`📌 Loading pinned messages for DM: ${conversationId}`)
 
-      const { data, error } = await supabase.rpc('get_pinned_messages', {
-        p_channel_id: null,
-        p_conversation_id: conversationId,
-      })
+      // Use direct query instead of RPC to avoid type mismatch issues
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          author:profiles!messages_user_id_fkey (
+            id, username, display_name, avatar_url, color
+          ),
+          pinner:profiles!messages_pinned_by_fkey (
+            id, username, display_name
+          )
+        `)
+        .eq('conversation_id', conversationId)
+        .eq('is_pinned', true)
+        .eq('is_deleted', false)
+        .order('pinned_at', { ascending: false })
 
       if (error) {
         debug.error('Failed to load pinned DM messages:', error)
@@ -501,20 +517,12 @@ export class MessageService {
         content: m.content,
         reply_to: m.reply_to,
         is_pinned: m.is_pinned,
+        pinned_at: m.pinned_at,
+        pinned_by: m.pinned_by,
         metadata: {
           ...m.metadata,
-          pinned_at: m.pinned_at,
-          pinned_by: m.pinned_by,
-          author: {
-            username: m.author_username,
-            display_name: m.author_display_name,
-            avatar_url: m.author_avatar_url,
-            color: m.author_color,
-          },
-          pinner: {
-            username: m.pinner_username,
-            display_name: m.pinner_display_name,
-          },
+          author: m.author,
+          pinner: m.pinner,
         },
       }))
 
