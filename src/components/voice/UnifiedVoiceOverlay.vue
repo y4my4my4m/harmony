@@ -552,6 +552,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     
     // Konami code and easter egg
     const konamiEnabled = ref(true)
+    let konamiDetector: ReturnType<typeof useKonamiCode> | null = null
     
     const handleKonamiActivate = () => {
       // Don't activate if konami is disabled or game is already active
@@ -573,6 +574,12 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
       debug.log('🎮 [Konami] Activating Megaman game mode!')
       konamiEnabled.value = false // Disable konami code detection
+      
+      // Stop konami code detector
+      if (konamiDetector) {
+        konamiDetector.reset()
+      }
+      
       easterEggService.activate('megaman', currentUserId)
       
       // No auto-deactivate - users can close manually with X button
@@ -582,6 +589,8 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     watch(() => easterEggState.value.isActive, (isActive) => {
       if (!isActive && easterEggState.value.type === 'megaman') {
         konamiEnabled.value = true // Re-enable konami code detection
+        // Re-initialize konami detector
+        konamiDetector = useKonamiCode(handleKonamiActivate)
         debug.log('🎮 [Konami] Game closed, re-enabling konami code detection')
       }
     })
@@ -614,7 +623,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     )
 
     // Konami code detector
-    useKonamiCode(handleKonamiActivate)
+    konamiDetector = useKonamiCode(handleKonamiActivate)
 
     onMounted(() => {
       isEntering.value = true;

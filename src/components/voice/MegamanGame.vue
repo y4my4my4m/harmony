@@ -58,6 +58,7 @@ interface Player {
   invulnerableUntil: number // Invulnerability timer
   canWallJump: boolean // Can wall jump (must press jump again)
   smokeEffects: Array<{ x: number; y: number; frame: number; createdAt: number }>
+  lastJumpKeyPressed?: boolean // Track if jump key was pressed last frame
 }
 
 interface Bullet {
@@ -180,6 +181,7 @@ const soundPaths = {
 
 // Create sound pool for better performance
 const soundPool: Map<string, HTMLAudioElement[]> = new Map()
+const playingSounds: Map<string, HTMLAudioElement> = new Map() // Track currently playing looping sounds
 let soundsInitialized = false
 
 function initializeSounds() {
@@ -220,6 +222,16 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
   try {
     initializeSounds()
     
+    // Stop any currently playing sound of this type (for looping sounds like chargeLoop)
+    if (loop || soundName === 'chargeLoop') {
+      const currentSound = playingSounds.get(soundName)
+      if (currentSound && !currentSound.paused) {
+        currentSound.pause()
+        currentSound.currentTime = 0
+        playingSounds.delete(soundName)
+      }
+    }
+    
     const paths = soundPaths[soundName]
     if (!paths || paths.length === 0) return
     
@@ -227,8 +239,8 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
     for (const path of paths) {
       try {
         const audio = new Audio(path)
+        audio.loop = loop || soundName === 'chargeLoop'
         audio.volume = 0.3
-        audio.loop = loop
         const playPromise = audio.play()
         if (playPromise) {
           playPromise.catch((err) => {
@@ -245,6 +257,15 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
     }
   } catch (error) {
     // Ignore sound errors - sounds are optional
+  }
+}
+
+function stopSound(soundName: keyof typeof soundPaths) {
+  const currentSound = playingSounds.get(soundName)
+  if (currentSound) {
+    currentSound.pause()
+    currentSound.currentTime = 0
+    playingSounds.delete(soundName)
   }
 }
 
@@ -450,24 +471,10 @@ async function loadEffectSprites() {
     }
   }
   
-  // Load hit sprites
-  const hitFiles = [
-    '158a6fc8342580dad99bcd0cc3da6f5d.png', // Hit1
-    '49d8234616dc6d46d1d29ae6a10b6b5f.png', // Hit2
-    '5b0a9bbe83f883e0e648f3cffda96839.png', // Hit3
-    '5f4eacbd8a13fe907a24e9dd4b366ca8.png', // Hit4
-    'ee5b4945c2685f318106f951a537a73c.png', // Hit5
-    '91a9950186deed6b06296ec179d17a24.png', // Hit6
-    'a37bb271560e365e9eac949ac675c009.png', // Hit7
-    '68a9b48284eab02f64a9aacec96b76c6.png', // Hit8
-    '4fd717ba3385c8d6d76ea1df21e2b245.png', // Hit9
-    '399f62bacb879833ca499c139e9a4461.png', // Hit10
-  ]
-  for (let i = 0; i < hitFiles.length; i++) {
-    const hitImg = new Image()
-    hitImg.src = `/assets/easteregg/megaman/sprites/${hitFiles[i]}`
-    hitImg.onload = () => hitSprites.value.set(`Hit${i + 1}.png`, hitImg)
-  }
+  // Load hit sprite (single sprite: aabdd8a0c4b70511511ef63327f01483.png)
+  const hitImg = new Image()
+  hitImg.src = `/assets/easteregg/megaman/sprites/aabdd8a0c4b70511511ef63327f01483.png`
+  hitImg.onload = () => hitSprites.value.set('aabdd8a0c4b70511511ef63327f01483.png', hitImg)
   
   // Load death bubble sprites
   const bubbleFiles = [
@@ -549,8 +556,9 @@ function initializePlayers() {
       hitTime: 0,
       invulnerableUntil: 0,
       canWallJump: false,
-      smokeEffects: []
-    }
+      smokeEffects: [],
+      lastJumpKeyPressed: false
+    } as Player
     
     players.value.set(participant.userId, player)
     currentFrame.value.set(participant.userId, 0)
@@ -599,6 +607,9 @@ function handleKeyUp(event: KeyboardEvent) {
     const chargeTime = now - localPlayer.chargeStartTime
     
     if (localPlayer.isCharging) {
+      // Stop charge loop sound
+      stopSound('chargeLoop')
+      
       // Fire based on charge level
       if (chargeTime >= CHARGE_TIME_LV1) {
         // Charged shot
@@ -616,8 +627,13 @@ function handleKeyUp(event: KeyboardEvent) {
         fireBullet(localPlayer, 0)
         playSound('shoot')
       }
+      
+      localPlayer.isCharging = false
+      localPlayer.chargeLevel = 0
+      localPlayer.isShooting = false
     } else {
       // Very quick tap without charging state
+      stopSound('chargeLoop') // Stop charge loop if playing
       fireBullet(localPlayer, 0)
       playSound('shoot')
     }
@@ -675,22 +691,18 @@ function handleInput() {
         localPlayer.chargeLevel = 1
       }
       
-      // Play charge sound on start, then loop (less frequently to avoid bugging)
+      // Play charge sound on start, then loop continuously
       if (chargeTime < 100) {
         playSound('charge')
-      } else if (chargeTime > 500) {
-        // Play charge loop every 800ms (only once per interval)
-        const loopInterval = 800
-        const currentInterval = Math.floor(chargeTime / loopInterval)
-        const lastInterval = Math.floor((chargeTime - 16) / loopInterval) // Assume ~16ms per frame
-        if (currentInterval !== lastInterval) {
-          playSound('chargeLoop')
-        }
+      } else if (chargeTime >= 200 && chargeTime < 300) {
+        // Start charge loop after initial charge sound (only once)
+        playSound('chargeLoop', true) // Loop continuously
       }
     }
   }
   
   // Movement with arrow keys
+  const previousFacing = localPlayer.facing
   if (localPlayer.state !== 'dashing') {
     if (keys.value.has('ArrowLeft')) {
       localPlayer.velocityX = -WALK_SPEED
@@ -698,32 +710,39 @@ function handleInput() {
       if (localPlayer.onGround) {
         localPlayer.state = 'walking' // Always show walking when moving, even while charging
       }
-      // Broadcast facing change immediately
-      broadcastPlayerState(localPlayer)
     } else if (keys.value.has('ArrowRight')) {
       localPlayer.velocityX = WALK_SPEED
       localPlayer.facing = 'right'
       if (localPlayer.onGround) {
         localPlayer.state = 'walking' // Always show walking when moving, even while charging
       }
-      // Broadcast facing change immediately
-      broadcastPlayerState(localPlayer)
     } else {
       localPlayer.velocityX = 0
       if (localPlayer.onGround && localPlayer.state !== 'jumping' && localPlayer.state !== 'falling' && localPlayer.state !== 'landing' && (localPlayer.state as string) !== 'dashing') {
         localPlayer.state = localPlayer.isCharging ? 'idle' : 'idle' // Don't use 'shooting' state while charging
       }
     }
+    
+    // Broadcast immediately if facing changed
+    if (previousFacing !== localPlayer.facing) {
+      broadcastPlayerState(localPlayer)
+    }
   }
   
   // Jump (ArrowUp) - only on key press, not hold
-  if (keys.value.has('ArrowUp') && !localPlayer.onGround && !localPlayer.onWall) {
-    // Prevent double jump
-  } else if (keys.value.has('ArrowUp')) {
-    if (localPlayer.onWall && localPlayer.wallSide && localPlayer.canWallJump) {
-      // Wall jump - requires canWallJump flag (set when first touching wall)
+  // Track if jump key was just pressed (not held)
+  const jumpKeyPressed = keys.value.has('ArrowUp')
+  const wasJumpKeyPressed = localPlayer.lastJumpKeyPressed || false
+  localPlayer.lastJumpKeyPressed = jumpKeyPressed
+  
+  if (jumpKeyPressed && !wasJumpKeyPressed) {
+    // Jump key just pressed (not held)
+    if (localPlayer.onWall && localPlayer.wallSide) {
+      // Wall jump - jump away from wall (can climb by jumping off and going back on)
       localPlayer.velocityY = WALL_JUMP_Y
+      // Jump away from wall (opposite direction)
       localPlayer.velocityX = localPlayer.wallSide === 'left' ? WALL_JUMP_X : -WALL_JUMP_X
+      localPlayer.facing = localPlayer.wallSide === 'left' ? 'right' : 'left' // Face away from wall
       localPlayer.onWall = false
       localPlayer.wallSide = null
       localPlayer.canWallJump = false
@@ -736,7 +755,9 @@ function handleInput() {
         frame: 0,
         createdAt: Date.now()
       })
-    } else if (localPlayer.onGround && localPlayer.state !== 'jumping' && localPlayer.state !== 'falling') {
+      broadcastPlayerState(localPlayer) // Broadcast wall jump
+    } else if (localPlayer.onGround) {
+      // Ground jump - only if actually on ground (not just near wall)
       localPlayer.velocityY = JUMP_STRENGTH
       localPlayer.onGround = false
       localPlayer.state = 'jumping'
@@ -760,6 +781,17 @@ function handleInput() {
 // Fire a bullet (uncharged or charged)
 function fireBullet(player: Player, chargeLevel: number = 0) {
   if (!props.channelId) return
+  
+  // Set shooting state to show shooting animation
+  player.isShooting = true
+  player.lastShotTime = Date.now()
+  
+  // Clear shooting state after animation duration
+  setTimeout(() => {
+    if (Date.now() - player.lastShotTime >= 200) {
+      player.isShooting = false
+    }
+  }, 200)
   
   const bulletId = `bullet-${bulletIdCounter++}-${Date.now()}`
   const bulletX = player.facing === 'right' ? player.x + 64 : player.x
@@ -1156,11 +1188,12 @@ function gameLoop(currentTime: number) {
     const isNearLeftWall = player.x <= wallLeft + wallThreshold
     const isNearRightWall = player.x >= wallRight - wallThreshold - 64
     
+    // Wall detection - can cling if falling and near wall
     if ((isNearLeftWall || isNearRightWall) && !player.onGround && player.velocityY >= 0) {
-      // Can wall cling - only if holding the direction key toward the wall
+      // Can wall cling - check if holding direction key toward wall (for local player) or if already on wall (for remote)
       const isLocalPlayer = userId === props.userId
-      const isHoldingLeft = isLocalPlayer ? keys.value.has('ArrowLeft') : player.wallSide === 'left'
-      const isHoldingRight = isLocalPlayer ? keys.value.has('ArrowRight') : player.wallSide === 'right'
+      const isHoldingLeft = isLocalPlayer ? keys.value.has('ArrowLeft') : (player.wallSide === 'left' || isNearLeftWall)
+      const isHoldingRight = isLocalPlayer ? keys.value.has('ArrowRight') : (player.wallSide === 'right' || isNearRightWall)
       
       if (isHoldingLeft && isNearLeftWall) {
         if (!player.onWall) {
@@ -1169,7 +1202,7 @@ function gameLoop(currentTime: number) {
         }
         player.onWall = true
         player.wallSide = 'left'
-        // Cap slide speed - don't slide up, only down
+        // Cap slide speed - don't slide up, only down (Megaman X style)
         if (player.velocityY < WALL_SLIDE_SPEED) {
           player.velocityY = Math.min(WALL_SLIDE_SPEED, player.velocityY + 0.2) // Gradually increase to slide speed
         } else {
@@ -1183,7 +1216,7 @@ function gameLoop(currentTime: number) {
         }
         player.onWall = true
         player.wallSide = 'right'
-        // Cap slide speed - don't slide up, only down
+        // Cap slide speed - don't slide up, only down (Megaman X style)
         if (player.velocityY < WALL_SLIDE_SPEED) {
           player.velocityY = Math.min(WALL_SLIDE_SPEED, player.velocityY + 0.2) // Gradually increase to slide speed
         } else {
@@ -1191,6 +1224,7 @@ function gameLoop(currentTime: number) {
         }
         player.state = 'wallCling'
       } else {
+        // Not holding direction key - release from wall
         player.onWall = false
         player.wallSide = null
         player.canWallJump = false
@@ -1267,27 +1301,12 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
     return []
   }
   
-  // Handle hit state - show hit animation sprites
+  // Handle hit state - show hit sprite (aabdd8a0c4b70511511ef63327f01483.png)
   if (player.state === 'hit') {
-    // Use hit sprites if available (Hit1-Hit10)
-    const hitFrames: AnimationFrame[] = []
-    for (let i = 1; i <= 10; i++) {
-      const hitSprite = hitSprites.value.get(`Hit${i}.png`)
-      if (hitSprite) {
-        hitFrames.push({ name: `Hit${i}`, file: `Hit${i}.png` })
-      }
-    }
-    if (hitFrames.length > 0) {
-      // Animate through hit frames, then return to normal state
-      const hitTime = Date.now() - player.hitTime
-      const hitFrameIndex = Math.min(Math.floor(hitTime / 50), hitFrames.length - 1) // 50ms per frame
-      // After hit animation completes, transition back to appropriate state
-      if (hitTime > hitFrames.length * 50) {
-        // Hit animation done, but still invulnerable - show normal sprite with flash
-        // Don't return hit frames anymore, let normal animation logic handle it
-      } else {
-        return [hitFrames[hitFrameIndex]]
-      }
+    // Use the single hit sprite
+    const hitSprite = hitSprites.value.get('aabdd8a0c4b70511511ef63327f01483.png')
+    if (hitSprite) {
+      return [{ name: 'Hit', file: 'aabdd8a0c4b70511511ef63327f01483.png' }]
     }
   }
   
@@ -1324,11 +1343,13 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
   }
   
   // Shooting animation when shooting (but NOT while charging - charging shows movement animation with charge effect)
-  if (player.isShooting && !player.isCharging) {
+  // Show shooting animation for 200ms after firing
+  const timeSinceLastShot = Date.now() - (player.lastShotTime || 0)
+  if ((player.isShooting || timeSinceLastShot < 200) && !player.isCharging) {
     // Find shooting animation that matches current movement state
     const shootFrames = animations.value.shoot.filter(frame => {
       const name = frame.name.toLowerCase()
-      if (player.state === 'idle' && name.includes('idle') && name.includes('fire')) return true
+      if ((player.state === 'idle' || player.state === 'landing') && name.includes('idle') && name.includes('fire')) return true
       if (player.state === 'walking' && name.includes('run') && name.includes('fire')) return true
       if (player.state === 'jumping' && name.includes('jump') && name.includes('fire')) return true
       if (player.state === 'falling' && name.includes('fall') && name.includes('fire')) return true
@@ -1701,8 +1722,9 @@ function setupRealtimeListener() {
         hitTime: 0,
         invulnerableUntil: 0,
         canWallJump: false,
-        smokeEffects: []
-      }
+        smokeEffects: [],
+        lastJumpKeyPressed: false
+      } as Player
       
       players.value.set(userId, player)
       currentFrame.value.set(userId, 0)
@@ -1713,19 +1735,27 @@ function setupRealtimeListener() {
     }
     
     // Update player state
-    player.x = x
-    player.y = y
-    player.facing = facing
-    player.state = state
-    player.velocityX = velocityX
-    player.velocityY = velocityY
-    player.isShooting = isShooting || false
-    player.isCharging = isCharging || false
-    player.chargeLevel = chargeLevel || 0
-    player.onWall = onWall || false
-    player.wallSide = wallSide || null
-    if (health !== undefined) player.health = health
-    if (maxHealth !== undefined) player.maxHealth = maxHealth
+    if (player) {
+      player.x = x
+      player.y = y
+      player.facing = facing
+      player.state = state
+      player.velocityX = velocityX
+      player.velocityY = velocityY
+      player.isShooting = isShooting || false
+      player.isCharging = isCharging || false
+      player.chargeLevel = chargeLevel || 0
+      player.onWall = onWall || false
+      player.wallSide = wallSide || null
+      if (health !== undefined) player.health = health
+      if (maxHealth !== undefined) player.maxHealth = maxHealth
+      // Update lastShotTime for shooting animation sync
+      const remoteLastShotTime = (payload.payload as any).lastShootTime
+      if (remoteLastShotTime !== undefined && remoteLastShotTime > 0) {
+        player.lastShotTime = remoteLastShotTime
+        player.isShooting = Date.now() - remoteLastShotTime < 200
+      }
+    }
   })
   
   gameChannel.on('broadcast', { event: 'player-damaged' }, (payload) => {
@@ -1883,6 +1913,12 @@ function startGame() {
   lastFrameTime = performance.now()
   gameStartTime = Date.now()
   showIntro = true
+  
+  // Initialize players after a short delay to show intro first
+  setTimeout(() => {
+    initializePlayers()
+  }, 100)
+  
   animationFrame = requestAnimationFrame(gameLoop)
   
   // Add event listeners
