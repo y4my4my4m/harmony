@@ -205,6 +205,8 @@
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'image'" 
           class="media-container image-container"
+          @mouseenter="hoveredImageUrl = part.url"
+          @mouseleave="hoveredImageUrl = null"
         >
           <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
           <img
@@ -215,6 +217,19 @@
             draggable="false"
             class="content-image"
           />
+          <!-- GIF Favorite Button -->
+          <button 
+            v-if="isAnimatedImage(part.url)"
+            class="gif-favorite-button"
+            :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
+            @click.stop="toggleGifFavorite(part.url)"
+            :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+            </svg>
+          </button>
         </div>
 
         <!-- Video files -->
@@ -311,6 +326,7 @@ import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
 
 export default defineComponent({
@@ -373,6 +389,10 @@ export default defineComponent({
     const videoContainers = ref<HTMLElement[]>([]);
     const decrypting = ref(false);
     
+    // GIF favorites state
+    const hoveredImageUrl = ref<string | null>(null);
+    const favoriteGifUrls = ref<Set<string>>(new Set());
+    
     // Unified emoji service for mutant pack rendering
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
     
@@ -428,8 +448,46 @@ export default defineComponent({
       }
     };
     
-    // Register videos for floating on mount
+    // GIF favorites helpers
+    const isAnimatedImage = (url: string): boolean => {
+      if (!url) return false;
+      const lowerUrl = url.toLowerCase();
+      // Check for GIF, animated WebP, or animated PNG
+      return lowerUrl.includes('.gif') || 
+             lowerUrl.includes('tenor.com') || 
+             lowerUrl.includes('giphy.com') ||
+             lowerUrl.includes('/gif') ||
+             // Could also check for webp/apng but harder to detect animation
+             false;
+    };
+    
+    const isGifFavorited = (url: string): boolean => {
+      return favoriteGifUrls.value.has(url);
+    };
+    
+    const toggleGifFavorite = async (url: string) => {
+      const result = await gifService.toggleFavoriteByUrl(url, url, null);
+      if (!result.error) {
+        if (result.isFavorite) {
+          favoriteGifUrls.value.add(url);
+        } else {
+          favoriteGifUrls.value.delete(url);
+        }
+        // Trigger reactivity
+        favoriteGifUrls.value = new Set(favoriteGifUrls.value);
+      }
+    };
+    
+    const loadGifFavorites = async () => {
+      const favorites = await gifService.getFavorites();
+      favoriteGifUrls.value = new Set(favorites.map(f => f.gif_url));
+    };
+    
+    // Register videos for floating on mount and load GIF favorites
     onMounted(() => {
+      // Load GIF favorites
+      loadGifFavorites();
+      
       nextTick(() => {
         // Register all video containers
         videoContainers.value.forEach((container, index) => {
@@ -907,7 +965,12 @@ export default defineComponent({
       resolveEmbedPayload,
       decrypting,
       handleDecryptClick,
-      generateGlyphs
+      generateGlyphs,
+      // GIF favorites
+      hoveredImageUrl,
+      isAnimatedImage,
+      isGifFavorited,
+      toggleGifFavorite
     };
   }
 });
@@ -1058,6 +1121,7 @@ export default defineComponent({
 
 .image-container {
   max-width: 400px;
+  position: relative;
 }
 
 .content-image {
@@ -1071,6 +1135,38 @@ export default defineComponent({
 
 .content-image:hover {
   transform: scale(1.02);
+}
+
+/* GIF Favorite Button */
+.gif-favorite-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s ease;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.gif-favorite-button.visible {
+  opacity: 1;
+}
+
+.gif-favorite-button:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.1);
+}
+
+.gif-favorite-button.favorited {
+  color: var(--color-warning, #faa61a);
 }
 
 .video-container {

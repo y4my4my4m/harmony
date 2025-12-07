@@ -699,6 +699,12 @@ export const useChatStore = defineStore('chat', {
           
           const payloadNew = payload.new as any;
           
+          // Skip thread messages - they only appear in thread view, not main channel
+          if (payloadNew.thread_id) {
+            debug.log('⚠️ Skipping thread message in main channel:', payloadNew.id);
+            return;
+          }
+          
           // Skip if this message already exists (from optimistic update)
           if (store.messages.findIndex(m => m.id === payloadNew.id) !== -1) {
             debug.log('⚠️ Real message already exists (from sendMessage), skipping');
@@ -793,6 +799,12 @@ export const useChatStore = defineStore('chat', {
         // Handle message updates
         onUpdate: async (payload) => {
           const payloadNew = payload.new as any;
+          
+          // Skip thread messages - they only appear in thread view, not main channel
+          if (payloadNew.thread_id) {
+            debug.log('⚠️ Skipping thread message update in main channel:', payloadNew.id);
+            return;
+          }
           
           // Handle soft delete (federated message deletions use UPDATE with is_deleted = true)
           if (payloadNew.is_deleted) {

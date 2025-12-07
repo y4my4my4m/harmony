@@ -1,32 +1,30 @@
 -- =============================================
 -- GIF Favorites Table
--- Allows users to save favorite GIFs from Tenor
+-- Allows users to save favorite GIFs (from Tenor or any source)
 -- =============================================
 
 -- Create the gif_favorites table
 CREATE TABLE IF NOT EXISTS "public"."gif_favorites" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
-    "tenor_id" "text" NOT NULL,
     "gif_url" "text" NOT NULL,
     "preview_url" "text" NOT NULL,
     "title" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     CONSTRAINT "gif_favorites_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "gif_favorites_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE,
-    CONSTRAINT "gif_favorites_unique" UNIQUE ("user_id", "tenor_id")
+    CONSTRAINT "gif_favorites_unique_url" UNIQUE ("user_id", "gif_url")
 );
 
 ALTER TABLE "public"."gif_favorites" OWNER TO "postgres";
 
-COMMENT ON TABLE "public"."gif_favorites" IS 'User GIF favorites - stores references to Tenor GIFs';
-COMMENT ON COLUMN "public"."gif_favorites"."tenor_id" IS 'Tenor GIF ID for deduplication';
-COMMENT ON COLUMN "public"."gif_favorites"."gif_url" IS 'Full resolution GIF URL';
+COMMENT ON TABLE "public"."gif_favorites" IS 'User GIF favorites - stores references to GIFs from any source';
+COMMENT ON COLUMN "public"."gif_favorites"."gif_url" IS 'Full resolution GIF URL (unique identifier)';
 COMMENT ON COLUMN "public"."gif_favorites"."preview_url" IS 'Preview/thumbnail URL for faster loading';
 
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS "idx_gif_favorites_user_id" ON "public"."gif_favorites"("user_id");
-CREATE INDEX IF NOT EXISTS "idx_gif_favorites_user_tenor" ON "public"."gif_favorites"("user_id", "tenor_id");
+CREATE INDEX IF NOT EXISTS "idx_gif_favorites_user_url" ON "public"."gif_favorites"("user_id", "gif_url");
 
 -- =============================================
 -- Row Level Security Policies
@@ -60,4 +58,3 @@ CREATE POLICY "Users can delete own gif favorites"
 GRANT ALL ON TABLE "public"."gif_favorites" TO "anon";
 GRANT ALL ON TABLE "public"."gif_favorites" TO "authenticated";
 GRANT ALL ON TABLE "public"."gif_favorites" TO "service_role";
-

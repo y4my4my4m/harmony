@@ -57,21 +57,45 @@
           <div class="gap-line"></div>
         </div>
 
-        <!-- System Message (join/leave announcements) -->
+        <!-- System Message (join/leave announcements, thread creation) -->
         <div v-if="message.is_system" class="system-message">
           <div class="system-message-content">
             <div class="system-timestamp" v-html="formatSystemTimestamp(message.created_at)"></div>
             <div class="system-content">
-              <div class="system-icon">👋</div>
-              <div class="system-text">
-                <UnifiedMessageContent 
-                  :content="message.content"
-                  :message-id="message.id"
-                  :is-system="true"
-                  :embed-payloads="message.metadata?.embeds"
-                  @show-user-profile="showUserProfile"
-                />
-              </div>
+              <!-- Thread created system message -->
+              <template v-if="message.metadata?.type === 'thread_created'">
+                <div class="system-icon">🧵</div>
+                <div class="system-text thread-created-text">
+                  <span 
+                    class="system-user-mention"
+                    @click="showUserProfile(message.user_id)"
+                    :style="{ color: getUserColor(message.user_id).value }"
+                  >{{ getUserDisplayName(message.user_id).value }}</span>
+                  started a thread: 
+                  <span 
+                    class="system-thread-link"
+                    @click="handleOpenThread(message.metadata?.thread_id)"
+                  >{{ message.metadata?.thread_name || 'Thread' }}</span>. 
+                  See all 
+                  <span 
+                    class="system-threads-link"
+                    @click="emit('showAllThreads')"
+                  >threads</span>.
+                </div>
+              </template>
+              <!-- Default system message (join/leave, etc.) -->
+              <template v-else>
+                <div class="system-icon">👋</div>
+                <div class="system-text">
+                  <UnifiedMessageContent 
+                    :content="message.content"
+                    :message-id="message.id"
+                    :is-system="true"
+                    :embed-payloads="message.metadata?.embeds"
+                    @show-user-profile="showUserProfile"
+                  />
+                </div>
+              </template>
             </div>
           </div>
           
@@ -378,7 +402,7 @@ const props = defineProps({
   conversationId: String,
 });
 
-const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread']);
+const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads']);
 
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
@@ -437,6 +461,20 @@ const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined =
 // Open a thread
 const openThread = (thread: ThreadWithDetails) => {
   emit('createThread', { thread } as any);
+};
+
+// Open a thread by ID (for system messages)
+const handleOpenThread = async (threadId?: string) => {
+  if (!threadId) return;
+  
+  try {
+    const thread = await threadService.getThread(threadId);
+    if (thread) {
+      emit('createThread', { thread } as any);
+    }
+  } catch (error) {
+    debug.error('Failed to open thread:', error);
+  }
 };
 
 // Encryption capability check (cached - only updates when service state changes)
@@ -2324,6 +2362,35 @@ const closeInviteModal = () => {
 
 .system-text :deep(.system-message-content) {
   color: inherit !important;
+}
+
+/* Thread created system message */
+.thread-created-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.system-user-mention {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.system-user-mention:hover {
+  text-decoration: underline;
+}
+
+.system-thread-link,
+.system-threads-link {
+  color: var(--text-link, #00aff4);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.system-thread-link:hover,
+.system-threads-link:hover {
+  text-decoration: underline;
 }
 
 .system-timestamp {

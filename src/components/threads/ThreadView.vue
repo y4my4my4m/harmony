@@ -106,7 +106,7 @@
             <div class="divider-line"></div>
           </div>
 
-          <!-- Thread Messages (styled like normal chat) -->
+          <!-- Thread Messages - Reuse MessageDisplay component (DRY) -->
           <div class="thread-messages" ref="messagesContainer">
             <div v-if="loading" class="loading-state">
               <div class="spinner"></div>
@@ -123,51 +123,15 @@
                 {{ loadingMore ? 'Loading...' : 'Load older messages' }}
               </button>
               
-              <div 
-                v-for="(message, index) in messages" 
-                :key="message.id"
-                class="message-group"
-                :class="{ 'has-header': shouldShowHeader(message, index) }"
-              >
-                <!-- Message with header (avatar + username + timestamp) -->
-                <template v-if="shouldShowHeader(message, index)">
-                  <div class="message-avatar">
-                    <Avatar 
-                      :src="getAuthorAvatar(message.user_id)" 
-                      :alt="getAuthorName(message.user_id)"
-                      size="sm"
-                      :interactive="true"
-                    />
-                  </div>
-                  <div class="message-main">
-                    <div class="message-meta">
-                      <span class="username" :style="{ color: getAuthorColor(message.user_id) }">
-                        {{ getAuthorName(message.user_id) }}
-                      </span>
-                      <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
-                    </div>
-                    <div class="message-content">
-                      <UnifiedMessageContent
-                        :content="message.content"
-                        :message-id="message.id"
-                      />
-                    </div>
-                  </div>
-                </template>
-                
-                <!-- Compact message (no header, just content aligned with previous messages) -->
-                <template v-else>
-                  <div class="message-gutter" :data-timestamp="formatTimeOnly(message.created_at)"></div>
-                  <div class="message-main">
-                    <div class="message-content">
-                      <UnifiedMessageContent
-                        :content="message.content"
-                        :message-id="message.id"
-                      />
-                    </div>
-                  </div>
-                </template>
-              </div>
+              <!-- Use the same MessageDisplay component as the main chat -->
+              <MessageDisplay
+                :messages="messages"
+                :current-user-id="currentUserId"
+                :channel-id="thread?.channel_id"
+                :is-loading="loading"
+                @send-reaction="handleSendReaction"
+                @replying-to="handleReplyingTo"
+              />
             </template>
           </div>
 
@@ -185,13 +149,16 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { supabase } from '@/supabase'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
-import { format, isSameDay, differenceInMinutes } from 'date-fns'
+import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
-import type { Message, Thread, MessagePart } from '@/types'
+import MessageDisplay from '@/components/MessageDisplay.vue'
+import { useAuthStore } from '@/stores/auth'
+import type { Message, Thread, MessagePart, Emoji } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 
 interface Props {
@@ -214,6 +181,11 @@ const {
   getUserColor: getColor,
   getUserAvatarUrl: getAvatarUrl 
 } = useUserData()
+
+const authStore = useAuthStore()
+
+// Current user ID for MessageDisplay
+const currentUserId = computed(() => authStore.session?.user?.id)
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
@@ -251,26 +223,6 @@ const displayThreadName = computed(() => {
   return 'Thread'
 })
 
-// Message grouping - show header if different author or > 7 min gap
-const shouldShowHeader = (message: Message, index: number): boolean => {
-  if (index === 0) return true
-  
-  const prevMessage = messages.value[index - 1]
-  if (!prevMessage) return true
-  
-  // Different author
-  if (message.user_id !== prevMessage.user_id) return true
-  
-  // More than 7 minutes apart
-  const currentTime = new Date(message.created_at)
-  const prevTime = new Date(prevMessage.created_at)
-  if (differenceInMinutes(currentTime, prevTime) > 7) return true
-  
-  // Different day
-  if (!isSameDay(currentTime, prevTime)) return true
-  
-  return false
-}
 
 // Load thread data
 const loadThread = async () => {
@@ -454,17 +406,26 @@ const formatTimestamp = (date: Date | string) => {
   }
 }
 
-const formatTimeOnly = (date: Date | string) => {
-  try {
-    const d = typeof date === 'string' ? new Date(date) : date
-    return format(d, 'h:mm a')
-  } catch {
-    return ''
-  }
-}
 
 const close = () => {
   emit('close')
+}
+
+// MessageDisplay event handlers
+const handleSendReaction = async (messageId: string, emoji: Emoji) => {
+  // Use the reactions store to toggle reaction
+  try {
+    const { useReactionsStore } = await import('@/stores/useReactions')
+    const reactionsStore = useReactionsStore()
+    await reactionsStore.toggleReaction(messageId, emoji)
+  } catch (error) {
+    console.error('Failed to toggle reaction:', error)
+  }
+}
+
+const handleReplyingTo = (messageId: string) => {
+  // Threads don't support nested replies, just scroll to the message
+  console.log('Reply reference clicked:', messageId)
 }
 
 // Watch for visibility changes
@@ -746,80 +707,6 @@ onMounted(() => {
 .load-more-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* Message Group - matches MessageDisplay.vue styling */
-.message-group {
-  display: flex;
-  padding: 2px 16px;
-  transition: background 0.1s;
-}
-
-.message-group:hover {
-  background: var(--background-message-hover, rgba(0, 0, 0, 0.05));
-}
-
-.message-group.has-header {
-  padding-top: 16px;
-  margin-top: 0;
-}
-
-.message-group .message-avatar {
-  flex-shrink: 0;
-  width: 40px;
-  margin-right: 16px;
-}
-
-.message-group .message-gutter {
-  width: 40px;
-  margin-right: 16px;
-  flex-shrink: 0;
-  position: relative;
-}
-
-.message-group:hover .message-gutter::before {
-  content: attr(data-timestamp);
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.message-group .message-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.message-group .message-meta {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-
-.message-group .username {
-  font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.message-group .username:hover {
-  text-decoration: underline;
-}
-
-.message-group .timestamp {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.message-group .message-content {
-  color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.375;
-  word-wrap: break-word;
 }
 
 /* Slide panel transition */

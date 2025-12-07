@@ -87,8 +87,8 @@
       </div>
     </div>
 
-    <!-- Thread Messages -->
-    <div class="messages-section" ref="messagesContainer" @scroll="handleScroll">
+    <!-- Thread Messages - Reuse MessageDisplay component (DRY) -->
+    <div class="messages-section" ref="messagesContainer">
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
         <span>Loading messages...</span>
@@ -104,45 +104,16 @@
         <p>Be the first to reply in this thread!</p>
       </div>
 
-      <!-- Messages List -->
-      <div 
-        v-for="(message, index) in messages" 
-        :key="message.id" 
-        class="message-wrapper"
-        :class="{ 'compact': !shouldShowHeader(message, index) }"
-      >
-        <template v-if="shouldShowHeader(message, index)">
-          <Avatar 
-            :src="getAvatarUrl(message.user_id).value" 
-            :alt="getDisplayName(message.user_id).value"
-            size="sm"
-            :interactive="true"
-          />
-          <div class="message-main">
-            <div class="message-header">
-              <span class="username" :style="{ color: getColor(message.user_id).value }">
-                {{ getDisplayName(message.user_id).value }}
-              </span>
-              <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
-            </div>
-            <div class="message-body">
-              <UnifiedMessageContent
-                :content="message.content"
-                :message-id="message.id"
-              />
-            </div>
-          </div>
-        </template>
-        <template v-else>
-          <span class="compact-time">{{ formatTime(message.created_at) }}</span>
-          <div class="message-body">
-            <UnifiedMessageContent
-              :content="message.content"
-              :message-id="message.id"
-            />
-          </div>
-        </template>
-      </div>
+      <!-- Use the same MessageDisplay component as the main chat -->
+      <MessageDisplay
+        v-if="messages.length > 0"
+        :messages="messages"
+        :current-user-id="currentUserId"
+        :channel-id="thread?.channel_id"
+        :is-loading="loading"
+        @send-reaction="handleSendReaction"
+        @replying-to="handleReplyingTo"
+      />
     </div>
 
     <!-- Message Input - Reuse MessageInput component (DRY) -->
@@ -159,11 +130,13 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
-import { format, isSameDay, differenceInMinutes } from 'date-fns'
+import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
-import type { Message, MessagePart } from '@/types'
+import MessageDisplay from '@/components/MessageDisplay.vue'
+import { useAuthStore } from '@/stores/auth'
+import type { Message, MessagePart, Emoji } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 
 // Props
@@ -181,6 +154,11 @@ const {
   getUserColor: getColor,
   getUserAvatarUrl: getAvatarUrl 
 } = useUserData()
+
+const authStore = useAuthStore()
+
+// Current user ID for MessageDisplay
+const currentUserId = computed(() => authStore.session?.user?.id)
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
@@ -200,37 +178,7 @@ const formatDate = (date: string | Date) => {
   return format(new Date(date), 'MMM d, yyyy \'at\' h:mm a')
 }
 
-const formatTimestamp = (date: string | Date) => {
-  const d = new Date(date)
-  const now = new Date()
-  
-  if (isSameDay(d, now)) {
-    return `Today at ${format(d, 'h:mm a')}`
-  }
-  
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (isSameDay(d, yesterday)) {
-    return `Yesterday at ${format(d, 'h:mm a')}`
-  }
-  
-  return format(d, 'MM/dd/yyyy h:mm a')
-}
 
-const formatTime = (date: string | Date) => {
-  return format(new Date(date), 'h:mm a')
-}
-
-// Message grouping
-const shouldShowHeader = (message: Message, index: number): boolean => {
-  if (index === 0) return true
-  const prev = messages.value[index - 1]
-  if (!prev) return true
-  if (message.user_id !== prev.user_id) return true
-  if (differenceInMinutes(new Date(message.created_at), new Date(prev.created_at)) > 7) return true
-  if (!isSameDay(new Date(message.created_at), new Date(prev.created_at))) return true
-  return false
-}
 
 // Load thread
 const loadThread = async () => {
@@ -354,6 +302,22 @@ const scrollToBottom = () => {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
   }
+}
+
+// MessageDisplay event handlers
+const handleSendReaction = async (messageId: string, emoji: Emoji) => {
+  try {
+    const { useReactionsStore } = await import('@/stores/useReactions')
+    const reactionsStore = useReactionsStore()
+    await reactionsStore.toggleReaction(messageId, emoji)
+  } catch (error) {
+    console.error('Failed to toggle reaction:', error)
+  }
+}
+
+const handleReplyingTo = (messageId: string) => {
+  // Threads don't support nested replies, just scroll to the message
+  console.log('Reply reference clicked:', messageId)
 }
 
 // Watch for threadId changes

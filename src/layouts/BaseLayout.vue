@@ -287,7 +287,20 @@ const initializeApp = async () => {
     
     // Initialize userData with full profile data (or fallback to auth data if profile not found)
     const { useUserData } = await import('@/composables/useUserData')
+    
+    // Defensive check: ensure useUserData is a function
+    if (typeof useUserData !== 'function') {
+      debug.error('❌ useUserData is not a function:', typeof useUserData, useUserData)
+      throw new Error(`useUserData is not a function, got: ${typeof useUserData}`)
+    }
+    
     const userData = useUserData()
+    
+    // Defensive check: ensure userData has initialize method
+    if (!userData || typeof userData.initialize !== 'function') {
+      debug.error('❌ userData.initialize is not a function:', typeof userData?.initialize, userData)
+      throw new Error(`userData.initialize is not a function, got: ${typeof userData?.initialize}`)
+    }
     
     // Use profile data if available, otherwise fallback to auth session data
     const userProfile = profileStore.profile || {
@@ -301,14 +314,23 @@ const initializeApp = async () => {
     }
     
     // Initialize userData with full profile data (includes avatar, color, banner, status)
-    await userData.initialize(
-      userId,
-      userProfile.username || userProfile.display_name || 'User',
-      userProfile.avatar_url,
-      userProfile
-    ).catch(err => {
+    // Double-check that initialize is still a function before calling
+    if (typeof userData?.initialize !== 'function') {
+      debug.error('❌ userData.initialize is not a function before call:', typeof userData?.initialize, userData)
+      throw new Error(`userData.initialize is not a function before call, got: ${typeof userData?.initialize}`)
+    }
+    
+    try {
+      await userData.initialize(
+        userId,
+        userProfile.username || userProfile.display_name || 'User',
+        userProfile.avatar_url,
+        userProfile
+      )
+    } catch (err) {
       debug.warn('⚠️ UserData initialization failed:', err)
-    })
+      // Don't throw - allow app to continue even if userData init fails
+    }
     
     debug.log('✅ UserData initialized with profile data (avatar, color, banner, status should all be available)')
     
@@ -319,6 +341,11 @@ const initializeApp = async () => {
     // Continue loading other data in background (non-blocking)
     (async () => {
       try {
+        // Verify userData is still valid before using it in background
+        if (!userData || typeof userData !== 'object') {
+          debug.error('❌ userData is invalid in background function:', typeof userData, userData)
+          return
+        }
         
         // Initialize server users store integration
         const { useServerUsersStore } = await import('@/stores/useServerUsers')
@@ -330,7 +357,7 @@ const initializeApp = async () => {
           debug.warn('⚠️ Background route data initialization failed:', err)
         })
       } catch (err) {
-        debug.warn('⚠️ Background initialization errors:', err)
+        debug.error('❌ Background initialization errors:', err)
       }
     })()
     

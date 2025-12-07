@@ -2,6 +2,7 @@
  * GifService - User GIF favorites management
  * 
  * Handles CRUD operations for user's favorite GIFs.
+ * Supports GIFs from any source (Tenor, Giphy, or direct URLs).
  * Uses Supabase for storage with RLS policies ensuring users
  * can only access their own favorites.
  */
@@ -14,28 +15,20 @@ import type { Gif } from '@/types'
 export interface GifFavorite {
   id: string
   user_id: string
-  tenor_id: string
   gif_url: string
   preview_url: string
   title: string | null
   created_at: string
 }
 
-// Simplified Gif type for favorites (we store minimal data)
-export interface FavoriteGif {
-  id: string // our database id
-  tenor_id: string
-  gif_url: string
-  preview_url: string
-  title: string | null
-  created_at: string
-}
+// Simplified type for favorites (same as database row)
+export type FavoriteGif = GifFavorite
 
 export class GifService {
   private static instance: GifService
   
-  // Local cache for quick isFavorite checks
-  private favoriteTenorIds: Set<string> = new Set()
+  // Local cache of favorite URLs for quick lookups
+  private favoriteUrls: Set<string> = new Set()
   private cacheInitialized = false
 
   static getInstance(): GifService {
@@ -57,25 +50,29 @@ export class GifService {
 
       const { data, error } = await supabase
         .from('gif_favorites')
-        .select('tenor_id')
+        .select('gif_url')
 
       if (error) {
         debug.error('Failed to initialize GIF favorites cache:', error)
         return
       }
 
-      this.favoriteTenorIds = new Set((data || []).map(f => f.tenor_id))
+      this.favoriteUrls = new Set((data || []).map(f => f.gif_url))
       this.cacheInitialized = true
-      debug.log(`✅ GIF favorites cache initialized: ${this.favoriteTenorIds.size} favorites`)
+      debug.log(`✅ GIF favorites cache initialized: ${this.favoriteUrls.size} favorites`)
     } catch (error) {
       debug.error('Error initializing GIF favorites cache:', error)
     }
   }
 
   /**
-   * Add a GIF to favorites
+   * Add a GIF to favorites by URL
    */
-  async addFavorite(gif: Gif): Promise<{ success: boolean; error?: string }> {
+  async addFavoriteByUrl(
+    gifUrl: string, 
+    previewUrl: string, 
+    title: string | null = null
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -97,10 +94,9 @@ export class GifService {
         .from('gif_favorites')
         .insert({
           user_id: profile.id,
-          tenor_id: gif.id,
-          gif_url: gif.media_formats.gif.url,
-          preview_url: gif.media_formats.gifpreview.url,
-          title: gif.title || null
+          gif_url: gifUrl,
+          preview_url: previewUrl,
+          title: title
         })
 
       if (error) {
@@ -113,9 +109,9 @@ export class GifService {
       }
 
       // Update local cache
-      this.favoriteTenorIds.add(gif.id)
+      this.favoriteUrls.add(gifUrl)
       
-      debug.log(`✅ Added GIF to favorites: ${gif.id}`)
+      debug.log(`✅ Added GIF to favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
     } catch (error) {
       debug.error('Error adding GIF to favorites:', error)
@@ -124,9 +120,9 @@ export class GifService {
   }
 
   /**
-   * Remove a GIF from favorites
+   * Remove a GIF from favorites by URL
    */
-  async removeFavorite(tenorId: string): Promise<{ success: boolean; error?: string }> {
+  async removeFavoriteByUrl(gifUrl: string): Promise<{ success: boolean; error?: string }> {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -136,7 +132,7 @@ export class GifService {
       const { error } = await supabase
         .from('gif_favorites')
         .delete()
-        .eq('tenor_id', tenorId)
+        .eq('gif_url', gifUrl)
 
       if (error) {
         debug.error('Failed to remove GIF from favorites:', error)
@@ -144,9 +140,9 @@ export class GifService {
       }
 
       // Update local cache
-      this.favoriteTenorIds.delete(tenorId)
+      this.favoriteUrls.delete(gifUrl)
       
-      debug.log(`✅ Removed GIF from favorites: ${tenorId}`)
+      debug.log(`✅ Removed GIF from favorites: ${gifUrl.substring(0, 50)}...`)
       return { success: true }
     } catch (error) {
       debug.error('Error removing GIF from favorites:', error)
@@ -155,18 +151,54 @@ export class GifService {
   }
 
   /**
-   * Toggle a GIF's favorite status
+   * Toggle a GIF's favorite status by URL
    */
-  async toggleFavorite(gif: Gif): Promise<{ isFavorite: boolean; error?: string }> {
-    const isCurrentlyFavorite = this.isFavorite(gif.id)
+  async toggleFavoriteByUrl(
+    gifUrl: string, 
+    previewUrl: string, 
+    title: string | null = null
+  ): Promise<{ isFavorite: boolean; error?: string }> {
+    const isCurrentlyFavorite = this.isFavoriteByUrl(gifUrl)
     
     if (isCurrentlyFavorite) {
-      const result = await this.removeFavorite(gif.id)
+      const result = await this.removeFavoriteByUrl(gifUrl)
       return { isFavorite: !result.success, error: result.error }
     } else {
-      const result = await this.addFavorite(gif)
+      const result = await this.addFavoriteByUrl(gifUrl, previewUrl, title)
       return { isFavorite: result.success, error: result.error }
     }
+  }
+
+  /**
+   * Legacy method: Toggle favorite for a Tenor Gif object
+   */
+  async toggleFavorite(gif: Gif): Promise<{ isFavorite: boolean; error?: string }> {
+    return this.toggleFavoriteByUrl(
+      gif.media_formats.gif.url,
+      gif.media_formats.gifpreview.url,
+      gif.title || null
+    )
+  }
+
+  /**
+   * Legacy method: Add a Tenor Gif to favorites
+   */
+  async addFavorite(gif: Gif): Promise<{ success: boolean; error?: string }> {
+    return this.addFavoriteByUrl(
+      gif.media_formats.gif.url,
+      gif.media_formats.gifpreview.url,
+      gif.title || null
+    )
+  }
+
+  /**
+   * Legacy method: Remove favorite by Tenor ID (now removes by URL)
+   */
+  async removeFavorite(tenorId: string): Promise<{ success: boolean; error?: string }> {
+    // This method is kept for backwards compatibility but should use removeFavoriteByUrl
+    debug.warn('removeFavorite(tenorId) is deprecated, use removeFavoriteByUrl(gifUrl)')
+    // We can't easily map tenorId to URL, so this will need to be updated at call sites
+    return { success: false, error: 'Use removeFavoriteByUrl instead' }
   }
 
   /**
@@ -191,17 +223,10 @@ export class GifService {
       }
 
       // Update cache while we have the data
-      this.favoriteTenorIds = new Set((data || []).map(f => f.tenor_id))
+      this.favoriteUrls = new Set((data || []).map(f => f.gif_url))
       this.cacheInitialized = true
 
-      return (data || []).map(row => ({
-        id: row.id,
-        tenor_id: row.tenor_id,
-        gif_url: row.gif_url,
-        preview_url: row.preview_url,
-        title: row.title,
-        created_at: row.created_at
-      }))
+      return (data || []) as FavoriteGif[]
     } catch (error) {
       debug.error('Error getting GIF favorites:', error)
       return []
@@ -209,20 +234,20 @@ export class GifService {
   }
 
   /**
-   * Check if a GIF is favorited (uses local cache for speed)
+   * Check if a GIF URL is favorited (uses local cache for speed)
    */
-  isFavorite(tenorId: string): boolean {
-    return this.favoriteTenorIds.has(tenorId)
+  isFavoriteByUrl(gifUrl: string): boolean {
+    return this.favoriteUrls.has(gifUrl)
   }
 
   /**
-   * Check if a GIF is favorited (async version that ensures cache is initialized)
+   * Check if a GIF URL is favorited (async version that ensures cache is initialized)
    */
-  async isFavoriteAsync(tenorId: string): Promise<boolean> {
+  async isFavoriteByUrlAsync(gifUrl: string): Promise<boolean> {
     if (!this.cacheInitialized) {
       await this.initializeCache()
     }
-    return this.favoriteTenorIds.has(tenorId)
+    return this.favoriteUrls.has(gifUrl)
   }
 
   /**
@@ -230,7 +255,7 @@ export class GifService {
    */
   favoriteToGif(favorite: FavoriteGif): Gif {
     return {
-      id: favorite.tenor_id,
+      id: favorite.id,
       media_formats: {
         gif: { url: favorite.gif_url },
         gifpreview: { url: favorite.preview_url },
@@ -246,11 +271,10 @@ export class GifService {
    * Clear the local cache (useful when user logs out)
    */
   clearCache(): void {
-    this.favoriteTenorIds.clear()
+    this.favoriteUrls.clear()
     this.cacheInitialized = false
   }
 }
 
 // Export singleton instance
 export const gifService = GifService.getInstance()
-

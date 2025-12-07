@@ -39,25 +39,27 @@
       @update:replyMessageId="handleDontReply"
       @upload-status-changed="handleUploadStatusChanged"
     />
-    <GifComponent
-      v-if="giphyOpen==true"
+    <!-- Media Picker (GIFs + Emoji) for message input -->
+    <MediaPickerPopup
+      v-if="mediaPickerOpen"
       @click.stop
       @sendGif="handleSendGif"
-      @switchToEmoji="handleSwitchToEmoji"
-      :closeGiphy="closeGiphy"
-      :gifIconClicked="gifIconClicked"
+      @sendEmoji="handleSendEmoji"
+      :closePopup="closeMediaPicker"
       :position="'above'"
-      :triggerElement="gifTriggerElement || undefined"
-      @resetGifIconClicked="gifIconClicked = false"
+      :triggerElement="mediaPickerTriggerElement || undefined"
+      :initialTab="mediaPickerInitialTab"
     />
+    
+    <!-- Emoji Popup for reactions only -->
     <EmojiPopup
-      v-if="emojiListOpen==true"
+      v-if="reactionEmojiOpen"
       @click.stop
       @sendEmoji="handleSendEmoji"
-      :closeEmojiList="closeEmojiList"
+      :closeEmojiList="closeReactionEmoji"
       :emojiIconClicked="emojiIconClicked"
-      :position="isPopupForReaction ? 'left' : 'above'"
-      :triggerElement="(isPopupForReaction ? reactionTriggerElement : emojiTriggerElement) || undefined"
+      :position="'left'"
+      :triggerElement="reactionTriggerElement || undefined"
       @resetEmojiIconClicked="emojiIconClicked = false"
     />
     
@@ -88,7 +90,7 @@
   import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
   import { readFile } from '@tauri-apps/plugin-fs';
-  import GifComponent from '@/components/GifComponent.vue';
+  import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
@@ -133,13 +135,22 @@
   
   const showDragDropArea = ref(false);
   const uploading = ref(false);
-  const emojiListOpen = ref(false);
+  
+  // Media picker state (unified GIF + Emoji picker)
+  const mediaPickerOpen = ref(false);
+  const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs');
+  
+  // Reaction emoji picker (separate for positioning on messages)
+  const reactionEmojiOpen = ref(false);
   const isPopupForReaction = ref(false);
   const selectedMessageId = ref('');
   const replyToMessageId = ref('');
   const replyToUserDisplayName = ref('');
-  const giphyOpen = ref(false);
   const messageContent = ref('');
+  
+  // Legacy compatibility
+  const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs');
+  const emojiListOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'emoji');
   
   // Thread state
   const showThreadView = ref(false);
@@ -155,6 +166,9 @@
   // Computed trigger refs from MessageInput
   const gifTriggerElement = computed(() => messageInputRef.value?.gifTriggerRef || null);
   const emojiTriggerElement = computed(() => messageInputRef.value?.emojiTriggerRef || null);
+  
+  // Media picker uses GIF trigger as default
+  const mediaPickerTriggerElement = computed(() => gifTriggerElement.value || emojiTriggerElement.value);
   
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
@@ -273,10 +287,10 @@
         draftParentMessage.value = null;
         
         // Send system message to channel about thread creation
+        // The content is minimal - actual rendering uses metadata
         if (props.channelId) {
           const threadName = thread.name || 'Thread';
-          const systemContent = [{ type: 'text' as const, text: `started a thread: **${threadName}**. See all **threads**.` }];
-          await sendSystemThreadMessage(props.channelId, systemContent, thread.id, threadName);
+          await sendSystemThreadMessage(props.channelId, threadName, thread.id);
         }
       };
 
@@ -288,10 +302,13 @@
       };
       
       // Send a system message for thread creation
-      const sendSystemThreadMessage = async (channelId: string, content: MessagePart[], threadId: string, threadName: string) => {
+      const sendSystemThreadMessage = async (channelId: string, threadName: string, threadId: string) => {
         try {
           const userId = authStore.session?.user?.id;
           if (!userId) return;
+          
+          // Content is minimal - the MessageDisplay renders thread_created messages specially using metadata
+          const content = [{ type: 'text' as const, text: 'started a thread' }];
           
           await supabase.from('messages').insert({
             channel_id: channelId,
@@ -320,61 +337,59 @@
       };
 
       const toggleEmojiList = (isReaction: boolean, message?: Message, triggerElement?: HTMLElement) => {
-        // Close GIF picker when opening emoji picker
-        if (!emojiListOpen.value) {
-          giphyOpen.value = false;
-        }
-        
-        if(message) selectedMessageId.value = message.id;
-        if(triggerElement) reactionTriggerElement.value = triggerElement;
-        isPopupForReaction.value = isReaction;
-        emojiListOpen.value = !emojiListOpen.value;
-        if (emojiListOpen.value) {
-          emojiIconClicked.value = true;
+        if (isReaction) {
+          // Reaction emoji - use separate popup positioned on the message
+          if (message) selectedMessageId.value = message.id;
+          if (triggerElement) reactionTriggerElement.value = triggerElement;
+          isPopupForReaction.value = true;
+          reactionEmojiOpen.value = !reactionEmojiOpen.value;
+          if (reactionEmojiOpen.value) {
+            mediaPickerOpen.value = false; // Close media picker
+            emojiIconClicked.value = true;
+          }
+        } else {
+          // Regular emoji input - use unified media picker
+          mediaPickerInitialTab.value = 'emoji';
+          mediaPickerOpen.value = !mediaPickerOpen.value;
+          if (mediaPickerOpen.value) {
+            reactionEmojiOpen.value = false;
+            emojiIconClicked.value = true;
+          }
         }
       };
 
-      watch(emojiListOpen, () => {
-          if (!emojiListOpen.value) {
+      watch(reactionEmojiOpen, () => {
+          if (!reactionEmojiOpen.value) {
             emojiIconClicked.value = false;
             reactionTriggerElement.value = null;
           }
       });
 
-      const closeEmojiList = () => {
-        emojiListOpen.value = false;
+      const closeReactionEmoji = () => {
+        reactionEmojiOpen.value = false;
         reactionTriggerElement.value = null;
       };
 
       const toggleGiphy = () => {
           debug.log('toggleGiphy called');
-          
-          // Close emoji picker when opening GIF picker
-          if (!giphyOpen.value) {
-            emojiListOpen.value = false;
-          }
-          
-          giphyOpen.value = !giphyOpen.value;
-          debug.log('giphyOpen is now:', giphyOpen.value);
-          if (giphyOpen.value) {
+          mediaPickerInitialTab.value = 'gifs';
+          mediaPickerOpen.value = !mediaPickerOpen.value;
+          debug.log('mediaPickerOpen is now:', mediaPickerOpen.value);
+          if (mediaPickerOpen.value) {
               gifIconClicked.value = true;
+              reactionEmojiOpen.value = false;
           }
       };
 
-      watch(giphyOpen, () => {
-          if (!giphyOpen.value) {
+      watch(mediaPickerOpen, () => {
+          if (!mediaPickerOpen.value) {
               gifIconClicked.value = false;
+              emojiIconClicked.value = false;
           }
       });
 
-      const closeGiphy = () => {
-        giphyOpen.value = false;
-      };
-
-      // Handle switching from GIF picker to emoji picker
-      const handleSwitchToEmoji = () => {
-        giphyOpen.value = false;
-        emojiListOpen.value = true;
+      const closeMediaPicker = () => {
+        mediaPickerOpen.value = false;
       };
 
       // New drag and drop handler for the chat container (fallback)
