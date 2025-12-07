@@ -267,6 +267,15 @@
     <ConfettiEffect 
       :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'"
     />
+
+    <!-- Megaman Game -->
+    <MegamanGame
+      v-if="easterEggState.isActive && easterEggState.type === 'megaman'"
+      :is-active="easterEggState.isActive && easterEggState.type === 'megaman'"
+      :channel-id="voiceStore.currentChannelId || voiceStore.optimisticChannelId || ''"
+      :user-id="voiceStore.localState.userId || authStore.session?.user?.id || ''"
+      :participants="voiceStore.allParticipants.map(p => ({ userId: p.userId, username: (p as any).username || 'Player' }))"
+    />
   </Teleport>
 </template>
 
@@ -285,6 +294,7 @@ import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
 import ConfettiEffect from './ConfettiEffect.vue';
+import MegamanGame from './MegamanGame.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Centralized keybind system
@@ -319,7 +329,7 @@ const isThumbnailStripCollapsed = ref(false);
 // Easter egg state
 const easterEggState = ref({
   isActive: false,
-  type: null as 'rainbow-party' | 'retro-game' | 'power-up' | null,
+  type: null as 'rainbow-party' | 'retro-game' | 'power-up' | 'megaman' | null,
   activatedBy: null as string | null,
   activatedAt: null as number | null,
 });
@@ -553,8 +563,8 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         return
       }
 
-      debug.log('🎮 [Konami] Activating rainbow party mode!')
-      easterEggService.activate('rainbow-party', currentUserId)
+      debug.log('🎮 [Konami] Activating Megaman game mode!')
+      easterEggService.activate('megaman', currentUserId)
       
       // Auto-deactivate after 30 seconds
       setTimeout(() => {
@@ -590,7 +600,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     )
 
     // Konami code detector
-    const { isActive: konamiActive } = useKonamiCode(handleKonamiActivate)
+    useKonamiCode(handleKonamiActivate)
 
     onMounted(() => {
       isEntering.value = true;

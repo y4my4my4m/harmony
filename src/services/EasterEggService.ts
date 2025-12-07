@@ -7,7 +7,7 @@
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 
-export type EasterEggType = 'rainbow-party' | 'retro-game' | 'power-up'
+export type EasterEggType = 'rainbow-party' | 'retro-game' | 'power-up' | 'megaman'
 
 interface EasterEggState {
   isActive: boolean

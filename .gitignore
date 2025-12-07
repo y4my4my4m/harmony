@@ -48,3 +48,5 @@ dev/certs/*.pem
 
 webrtc/livekit.yaml
 webrtc/docker-compose.yml
+
+tmp/*
