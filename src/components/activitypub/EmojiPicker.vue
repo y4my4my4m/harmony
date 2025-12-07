@@ -317,7 +317,6 @@ onMounted(() => {
 }
 
 .emoji-picker {
-  background: var(--color-bg-primary);
   border-radius: 12px;
   width: 90vw;
   max-width: 400px;

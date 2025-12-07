@@ -28,12 +28,19 @@
             <!-- Emoji & Text Row -->
             <div class="input-row emoji-row">
               <button 
+                ref="emojiButtonRef"
                 type="button" 
                 class="emoji-btn"
-                @click="showEmojiPicker = !showEmojiPicker"
+                @click.stop="toggleEmojiPicker"
               >
-                <span v-if="selectedEmoji" class="selected-emoji">
-                  {{ selectedEmoji.native || selectedEmoji.name }}
+                <img 
+                  v-if="selectedEmoji?.url" 
+                  :src="selectedEmoji.url" 
+                  :alt="selectedEmoji.name || 'Emoji'"
+                  class="selected-emoji-img"
+                />
+                <span v-else-if="selectedEmoji?.native" class="selected-emoji">
+                  {{ selectedEmoji.native }}
                 </span>
                 <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
                   <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
@@ -51,13 +58,17 @@
               <span class="char-count">{{ statusText.length }}/128</span>
             </div>
 
-            <!-- Emoji Picker (inline) -->
-            <div v-if="showEmojiPicker" class="emoji-picker-container">
-              <EmojiPicker
-                @select="selectEmoji"
-                @close="showEmojiPicker = false"
-              />
-            </div>
+            <!-- Emoji Popup -->
+            <EmojiPopup
+              v-if="showEmojiPicker"
+              @click.stop
+              @sendEmoji="selectEmoji"
+              :closeEmojiList="closeEmojiPicker"
+              :emojiIconClicked="true"
+              :position="'below'"
+              :triggerElement="emojiButtonRef || undefined"
+              @resetEmojiIconClicked="() => {}"
+            />
 
             <!-- Activity Type -->
             <div class="input-row">
@@ -111,24 +122,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, h, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, h } from 'vue'
 import { userDataService } from '@/services/userDataService'
-import type { CustomUserStatus } from '@/types'
-
-// Lazy load emoji picker
-const EmojiPicker = defineAsyncComponent(() => 
-  import('@/components/activitypub/EmojiPicker.vue')
-)
+import EmojiPopup from '@/components/EmojiPopup.vue'
+import type { CustomUserStatus, Emoji } from '@/types'
 
 interface Props {
   isVisible: boolean
-  currentStatus?: CustomUserStatus | null
+  currentStatus?: CustomUserStatus | undefined
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
-  'status-updated': [status: CustomUserStatus | null]
+  'status-updated': [status: CustomUserStatus | undefined]
 }>()
 
 // Activity Icons as simple render functions
@@ -156,6 +163,7 @@ const selectedActivity = ref('custom')
 const selectedDuration = ref('4h')
 const showEmojiPicker = ref(false)
 const saving = ref(false)
+const emojiButtonRef = ref<HTMLElement | null>(null)
 
 // Computed
 const hasCurrentStatus = computed(() => {
@@ -163,34 +171,60 @@ const hasCurrentStatus = computed(() => {
 })
 
 // Methods
-const selectEmoji = (emoji: any) => {
-  selectedEmoji.value = {
-    native: emoji.native,
-    name: emoji.id || emoji.name,
-    url: emoji.url,
+const selectEmoji = (emoji: Emoji) => {
+  // EmojiPopup sends Emoji type with id, name, url
+  // For custom emojis: url is present, id is the emoji UUID
+  // For native emojis: url is empty, id is the unicode character
+  if (emoji.url) {
+    // Custom emoji - use URL, no native representation
+    selectedEmoji.value = {
+      native: undefined,
+      name: emoji.name,
+      url: emoji.url,
+    }
+  } else {
+    // Native emoji - use unicode (id) as native
+    selectedEmoji.value = {
+      native: emoji.id, // id is the unicode for native emojis
+      name: emoji.name,
+      url: undefined,
+    }
   }
+  closeEmojiPicker()
+}
+
+const toggleEmojiPicker = () => {
+  showEmojiPicker.value = !showEmojiPicker.value
+}
+
+const closeEmojiPicker = () => {
   showEmojiPicker.value = false
 }
 
-const calculateExpiresAt = (): Date | null => {
+const calculateExpiresAt = (): string | undefined => {
   const now = new Date()
   
   switch (selectedDuration.value) {
-    case '30m':
-      return new Date(now.getTime() + 30 * 60 * 1000)
-    case '1h':
-      return new Date(now.getTime() + 60 * 60 * 1000)
-    case '4h':
-      return new Date(now.getTime() + 4 * 60 * 60 * 1000)
-    case 'today':
+    case '30m': {
+      return new Date(now.getTime() + 30 * 60 * 1000).toISOString()
+    }
+    case '1h': {
+      return new Date(now.getTime() + 60 * 60 * 1000).toISOString()
+    }
+    case '4h': {
+      return new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString()
+    }
+    case 'today': {
       const endOfDay = new Date(now)
       endOfDay.setHours(23, 59, 59, 999)
-      return endOfDay
-    case '1w':
-      return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      return endOfDay.toISOString()
+    }
+    case '1w': {
+      return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    }
     case 'never':
     default:
-      return null
+      return undefined
   }
 }
 
@@ -203,11 +237,11 @@ const saveStatus = async () => {
   saving.value = true
   try {
     const status: CustomUserStatus = {
-      text: statusText.value.trim() || null,
-      emoji: selectedEmoji.value?.native || null,
-      emoji_url: selectedEmoji.value?.url || null,
-      activity_type: selectedActivity.value,
-      expires_at: calculateExpiresAt(),
+      text: statusText.value.trim() || '',
+      ...(selectedEmoji.value?.native && { emoji: selectedEmoji.value.native }),
+      ...(selectedEmoji.value?.url && { emoji_url: selectedEmoji.value.url }),
+      type: selectedActivity.value as CustomUserStatus['type'],
+      ...(calculateExpiresAt() && { expiresAt: calculateExpiresAt() }),
     }
     
     await userDataService.setCustomStatus(status)
@@ -223,8 +257,8 @@ const saveStatus = async () => {
 const clearStatus = async () => {
   saving.value = true
   try {
-    await userDataService.setCustomStatus(null)
-    emit('status-updated', null)
+    await userDataService.setCustomStatus(undefined)
+    emit('status-updated', undefined)
     close()
   } catch (error) {
     console.error('Failed to clear status:', error)
@@ -244,7 +278,7 @@ watch(() => props.isVisible, (visible) => {
     selectedEmoji.value = props.currentStatus?.emoji 
       ? { native: props.currentStatus.emoji, url: props.currentStatus.emoji_url || undefined }
       : null
-    selectedActivity.value = props.currentStatus?.activity_type || 'custom'
+    selectedActivity.value = props.currentStatus?.type || 'custom'
     selectedDuration.value = '4h'
     showEmojiPicker.value = false
   }
@@ -395,6 +429,12 @@ watch(() => props.isVisible, (visible) => {
   line-height: 1;
 }
 
+.selected-emoji-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
 .emoji-placeholder {
   color: var(--text-muted);
 }
@@ -417,14 +457,6 @@ watch(() => props.isVisible, (visible) => {
   font-size: 12px;
   color: var(--text-muted);
   flex-shrink: 0;
-}
-
-.emoji-picker-container {
-  margin-top: -12px;
-  margin-bottom: 20px;
-  background: var(--background-tertiary);
-  border-radius: 8px;
-  overflow: hidden;
 }
 
 .input-label {

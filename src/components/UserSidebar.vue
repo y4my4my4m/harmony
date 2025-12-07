@@ -789,6 +789,10 @@ const closeInviteModal = () => {
   background-color: rgba(255, 255, 255, 0.15);
 }
 
+.user-custom-status {
+  opacity: 0.5;
+}
+
 .offline-user {
   opacity: 0.3;
   transition: opacity 0.2s ease;
