@@ -271,30 +271,95 @@ export class SignatureService {
 
   /**
    * Fetch actor's public key from their server
+   * First checks local database (profiles table), then cache, then remote fetch
    */
   private static async fetchActorPublicKey(actorUrl: string): Promise<string | null> {
+    const supabase = getSupabaseClient();
+    
+    // First, check if we have this actor in our profiles table
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('public_key')
+      .eq('federated_id', actorUrl)
+      .maybeSingle();
+    
+    if (profile?.public_key) {
+      logger.debug(`Using cached public key from profiles table for ${actorUrl}`);
+      return profile.public_key;
+    }
+    
+    // Second, check actor cache table
+    const { data: cachedActor } = await supabase
+      .from('ap_actor_cache')
+      .select('actor_data, cache_expires_at')
+      .eq('ap_id', actorUrl)
+      .gt('cache_expires_at', new Date().toISOString())
+      .maybeSingle();
+    
+    if (cachedActor?.actor_data) {
+      const actor = cachedActor.actor_data;
+      if (actor.publicKey?.publicKeyPem) {
+        logger.debug(`Using cached actor data for ${actorUrl}`);
+        return actor.publicKey.publicKeyPem;
+      }
+    }
+    
+    // Finally, fetch from remote server
     try {
       const response = await fetch(actorUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!response.ok) {
-        logger.warn(`Failed to fetch actor: ${response.status}`);
+        logger.warn(`Failed to fetch actor: ${response.status} for ${actorUrl}`);
+        // If we have a cached actor that's expired, try using it anyway
+        if (cachedActor?.actor_data?.publicKey?.publicKeyPem) {
+          logger.warn(`Using expired cached public key for ${actorUrl}`);
+          return cachedActor.actor_data.publicKey.publicKeyPem;
+        }
         return null;
       }
 
       const actor = await response.json();
 
       if (actor.publicKey && actor.publicKey.publicKeyPem) {
+        // Cache the actor data for future use
+        try {
+          const actorUrlObj = new URL(actorUrl);
+          await supabase
+            .from('ap_actor_cache')
+            .upsert({
+              ap_id: actorUrl,
+              domain: actorUrlObj.hostname,
+              username: actor.preferredUsername || actorUrlObj.pathname.split('/').pop() || 'unknown',
+              actor_data: actor,
+              last_fetched_at: new Date().toISOString(),
+              cache_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
+              is_reachable: true,
+              fetch_attempts: 0,
+            }, {
+              onConflict: 'ap_id',
+            });
+        } catch (cacheError) {
+          logger.debug('Failed to cache actor data:', cacheError);
+          // Non-fatal, continue
+        }
+        
         return actor.publicKey.publicKeyPem;
       }
 
-      logger.warn('Actor does not have publicKey');
+      logger.warn(`Actor ${actorUrl} does not have publicKey`);
       return null;
     } catch (error) {
-      logger.error('Error fetching actor public key:', error);
+      logger.error(`Error fetching actor public key for ${actorUrl}:`, error);
+      // If we have a cached actor that's expired, try using it anyway
+      if (cachedActor?.actor_data?.publicKey?.publicKeyPem) {
+        logger.warn(`Using expired cached public key for ${actorUrl} due to fetch error`);
+        return cachedActor.actor_data.publicKey.publicKeyPem;
+      }
       return null;
     }
   }

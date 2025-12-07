@@ -110,6 +110,7 @@ export async function processServerInboxActivity(
 
     case 'Like':
     case 'EmojiReaction':
+    case 'EmojiReact': // Some instances use EmojiReact instead of EmojiReaction
       if (!server.federation_enabled) {
         logger.info(`Federation not enabled for server ${serverId}, rejecting reaction`);
         return;

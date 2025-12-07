@@ -68,6 +68,7 @@ export class ActivityProcessor {
         break;
       case 'Like':
       case 'EmojiReaction':
+      case 'EmojiReact': // Some instances use EmojiReact instead of EmojiReaction
         await this.processLike(activity);
         break;
       case 'Announce':

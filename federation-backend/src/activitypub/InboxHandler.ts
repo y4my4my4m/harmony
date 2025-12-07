@@ -335,9 +335,16 @@ async function handleInbox(
   // actorUrl already extracted above during signature verification
   const originDomain = actorUrl ? new URL(actorUrl).hostname : null;
 
+  // Normalize activity type for database storage
+  // Some instances send "EmojiReact" but our constraint expects "EmojiReaction"
+  let normalizedType = activity.type;
+  if (normalizedType === 'EmojiReact') {
+    normalizedType = 'EmojiReaction';
+  }
+
   const { error: storeError } = await supabase.rpc('upsert_ap_activity', {
     p_ap_id: activity.id,
-    p_ap_type: activity.type,
+    p_ap_type: normalizedType,
     p_actor_ap_id: actorUrl,
     p_activity_data: activity,
     p_origin_domain: originDomain,
