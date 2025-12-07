@@ -66,6 +66,11 @@ interface Player {
   spawnY?: number // Y position when spawning (comes from top)
   isDashJumping?: boolean // True when performing a dash-jump
   wallKickTime?: number // When wall kick animation started
+  chargeLoopStarted?: boolean // Track if charge loop has been started for this charge cycle
+  // Interpolation for remote players
+  targetX?: number // Target position from network
+  targetY?: number // Target position from network
+  lastNetworkUpdate?: number // Timestamp of last network update
 }
 
 interface Bullet {
@@ -151,8 +156,8 @@ const CHARGE_TIME_LV3 = 3000 // ms
 
 // Player colors for differentiation
 const PLAYER_COLORS = [
-  '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', 
-  '#f0932b', '#eb4d4b', '#6c5ce7', '#a29bfe'
+  '#ff6b6b', '#cd3c41', '#7832bf', '#f9ca24', 
+  '#b83275', '#2ec91c', '#020203', '#e5e4f2'
 ]
 
 // Sound effects - using actual Megaman X sounds from Scratch project
@@ -245,11 +250,11 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
     if (loop || soundName === 'chargeLoop') {
       const currentSound = playingSounds.get(soundName)
       if (currentSound) {
-        // If already playing, don't restart (let it continue)
-        if (!currentSound.paused) {
-          return
+        // If already playing and we're trying to start the same loop, don't restart (let it continue)
+        if (!currentSound.paused && soundName === 'chargeLoop') {
+          return // Already playing charge loop, don't restart
         }
-        // If paused but still in map, clean it up first
+        // If paused or different sound, clean it up first
         currentSound.pause()
         currentSound.currentTime = 0
         playingSounds.delete(soundName)
@@ -623,11 +628,13 @@ function initializePlayers() {
   debug.log(`🎮 Initializing ${props.participants.length} players`)
   
   props.participants.forEach((participant, index) => {
-    // Fixed spawn position for first player, offset for others
-    // This ensures all players see the same spawn positions
+    // Spawn positions - ensure different positions for each player
     const canvasWidth = canvas ? canvas.width / (window.devicePixelRatio || 1) : 600
-    const spawnX = 100 + (index * 100) % (canvasWidth - 200) // Deterministic positions
+    // Use index to create different spawn positions (spread out across canvas)
+    const spawnX = Math.max(50, Math.min(canvasWidth - 114, 100 + (index * 150))) // Different positions: 100, 250, 400, etc.
     const targetY = floorY - 64 // Where player will land
+    
+    debug.log(`🎮 Player ${index} (${participant.userId.substring(0, 6)}) spawning at x=${spawnX}`)
     
     const player: Player = {
       userId: participant.userId,
@@ -717,16 +724,15 @@ function handleKeyUp(event: KeyboardEvent) {
     const now = Date.now()
     const chargeTime = now - localPlayer.chargeStartTime
     
+    // Always stop charge loop when releasing space (clean up)
+    stopSound('chargeLoop')
+    
     if (localPlayer.isCharging) {
-      // Stop charge loop sound
-      stopSound('chargeLoop')
-      
       // Fire based on charge level
       if (chargeTime >= CHARGE_TIME_LV1) {
         // Charged shot
         fireChargedShot(localPlayer)
-        // Stop charge loop and play appropriate charge level sound
-        stopSound('chargeLoop')
+        // Play appropriate charge level sound
         if (localPlayer.chargeLevel >= 3) {
           playSound('shootLv3')
         } else if (localPlayer.chargeLevel >= 2) {
@@ -736,26 +742,21 @@ function handleKeyUp(event: KeyboardEvent) {
         }
       } else {
         // Quick tap = uncharged shot
-        stopSound('chargeLoop')
         fireBullet(localPlayer, 0)
         playSound('shoot')
       }
       
       localPlayer.isCharging = false
       localPlayer.chargeLevel = 0
+      localPlayer.chargeLoopStarted = false // Reset loop flag
       localPlayer.isShooting = false
     } else {
       // Very quick tap without charging state
-      stopSound('chargeLoop') // Stop charge loop if playing
       fireBullet(localPlayer, 0)
       playSound('shoot')
     }
     
-    stopSound('chargeLoop') // Always stop charge loop when releasing space
-    localPlayer.isCharging = false
-    localPlayer.chargeLevel = 0
     localPlayer.chargeStartTime = 0
-    localPlayer.isShooting = false
   }
   
   handleInput()
@@ -837,9 +838,12 @@ function handleInput() {
   // Charging (hold Space) - only update charge, don't fire here
   if (keys.value.has('Space')) {
     if (!localPlayer.isCharging) {
+      // Starting a new charge - stop any existing loop first
+      stopSound('chargeLoop')
       localPlayer.isCharging = true
       localPlayer.chargeStartTime = now
       localPlayer.chargeLevel = 0
+      localPlayer.chargeLoopStarted = false // Reset loop flag
       localPlayer.isShooting = true // Show shooting animation while charging
     } else {
       // Update charge level
@@ -852,17 +856,26 @@ function handleInput() {
         localPlayer.chargeLevel = 1
       }
       
-      // Play charge sound on start, then loop continuously
-      if (chargeTime < 100) {
+      // Play charge sound on start, then loop continuously (ONLY ONCE per charge cycle)
+      // Megaman X behavior: Initial charge sound plays once, then loop starts and continues
+      if (chargeTime < 50) {
+        // Initial charge sound - play once at the very start
         playSound('charge')
-      } else if (chargeTime >= 200) {
-        // Start charge loop after initial charge sound - check if not already playing
-        const currentLoop = playingSounds.get('chargeLoop')
-        if (!currentLoop || currentLoop.paused) {
-          // Only start if not already playing
-          playSound('chargeLoop', true) // Loop continuously
-        }
+        localPlayer.chargeLoopStarted = false // Reset flag when starting new charge
+      } else if (chargeTime >= 150 && !localPlayer.chargeLoopStarted) {
+        // Start charge loop after initial charge sound - ONLY ONCE
+        // Stop any existing loop first to ensure clean start
+        stopSound('chargeLoop')
+        playSound('chargeLoop', true) // Loop continuously until release
+        localPlayer.chargeLoopStarted = true // Mark that we've started the loop
       }
+    }
+  } else {
+    // Space not pressed - if we were charging, stop the loop
+    // This handles the case where Space is released but handleKeyUp hasn't fired yet
+    if (localPlayer.isCharging) {
+      stopSound('chargeLoop')
+      localPlayer.chargeLoopStarted = false // Reset flag
     }
   }
   
@@ -891,7 +904,9 @@ function handleInput() {
     
     // Broadcast immediately if facing changed (force broadcast)
     if (previousFacing !== localPlayer.facing) {
+      // Force immediate broadcast on facing change
       broadcastPlayerState(localPlayer, true)
+      debug.log(`🎮 Facing changed to ${localPlayer.facing}, broadcasting immediately`)
     }
   }
   
@@ -917,6 +932,7 @@ function handleInput() {
       localPlayer.state = 'wallKick' // Use wall kick state for animation
       localPlayer.wallKickTime = Date.now()
       playSound('jump')
+      broadcastPlayerState(localPlayer, true) // Force broadcast wall jump with facing change
       // Add smoke effect at kick position
       localPlayer.smokeEffects.push({
         x: previousWallSide === 'left' ? localPlayer.x : localPlayer.x + 64,
@@ -1074,16 +1090,41 @@ function fireChargedShot(player: Player) {
 
 // Broadcast player state to other participants
 let lastBroadcastTime = 0
-const BROADCAST_INTERVAL = 50 // Broadcast every 50ms for smooth updates
+let lastFacing: 'left' | 'right' | null = null
+let lastState: string | null = null
+const BROADCAST_INTERVAL = 16 // Broadcast every ~16ms (~60fps) - minimal throttling for network efficiency
 
 function broadcastPlayerState(player: Player, force: boolean = false) {
   if (!props.channelId || !gameChannel) return
   
   const now = Date.now()
-  // Only broadcast if enough time has passed or forced (for immediate updates like facing/dash changes)
-  if (!force && now - lastBroadcastTime < BROADCAST_INTERVAL) {
+  
+  // Ensure facing is always valid ('left' or 'right')
+  const facingValue = (player.facing === 'left' || player.facing === 'right') ? player.facing : 'right'
+  
+  // Detect critical changes that need immediate broadcast
+  const facingChanged = lastFacing !== null && lastFacing !== facingValue
+  const stateChanged = lastState !== null && lastState !== player.state
+  const isCriticalUpdate = facingChanged || stateChanged || force
+  
+  if (facingChanged) {
+    lastFacing = facingValue
+    debug.log(`🎮 Facing changed to ${facingValue}, forcing immediate broadcast`)
+  } else if (lastFacing === null) {
+    lastFacing = facingValue
+  }
+  
+  if (stateChanged) {
+    lastState = player.state
+  } else if (lastState === null) {
+    lastState = player.state
+  }
+  
+  // Minimal throttling - only skip if it's a non-critical update and very recent
+  if (!isCriticalUpdate && now - lastBroadcastTime < BROADCAST_INTERVAL) {
     return
   }
+  
   lastBroadcastTime = now
   
   // Use the existing gameChannel instead of creating a new one
@@ -1094,7 +1135,7 @@ function broadcastPlayerState(player: Player, force: boolean = false) {
       userId: player.userId,
       x: player.x,
       y: player.y,
-      facing: player.facing, // Critical: must always be included for proper orientation sync
+      facing: facingValue, // Critical: must always be included for proper orientation sync
       state: player.state,
       velocityX: player.velocityX,
       velocityY: player.velocityY,
@@ -1345,131 +1386,190 @@ function gameLoop(currentTime: number) {
   
   // Update and draw players
   players.value.forEach((player, userId) => {
-    // Update physics
-    if (!player.onGround && !player.onWall) {
-      player.velocityY += GRAVITY * deltaSeconds * 60
+    const isLocalPlayer = userId === props.userId
+    
+    if (isLocalPlayer) {
+      // Update physics for local player only
+      if (!player.onGround && !player.onWall) {
+        player.velocityY += GRAVITY * deltaSeconds * 60
+      }
+    } else {
+      // REMOTE PLAYERS: Apply physics locally based on network velocity for smooth movement
+      // This makes them move smoothly every frame, not just when network updates arrive
+      if (!player.onGround && !player.onWall && player.velocityY !== undefined) {
+        // Apply gravity to remote players based on their state
+        if (player.state !== 'wallCling') {
+          player.velocityY += GRAVITY * deltaSeconds * 60
+        }
+      }
+      
+      // Apply velocity to remote player position every frame (smooth movement)
+      if (player.velocityX !== undefined && player.velocityY !== undefined) {
+        player.x += player.velocityX * deltaSeconds * 60
+        player.y += player.velocityY * deltaSeconds * 60
+      }
+      
+      // Snap to network position if difference is large (correction for drift)
+      // Use tighter threshold for smoother correction
+      if (player.targetX !== undefined && player.targetY !== undefined && player.lastNetworkUpdate) {
+        const timeSinceUpdate = Date.now() - player.lastNetworkUpdate
+        // Only correct if update is recent (within 100ms) and difference is significant
+        if (timeSinceUpdate < 100) {
+          const dx = Math.abs(player.targetX - player.x)
+          const dy = Math.abs(player.targetY - player.y)
+          // Snap if difference is large (teleport correction) or interpolate if small
+          if (dx > 20 || dy > 20) {
+            // Large difference - snap immediately (network correction)
+            player.x = player.targetX
+            player.y = player.targetY
+          } else if (dx > 1 || dy > 1) {
+            // Small difference - smooth interpolation
+            const interpolationSpeed = 0.5 // Faster interpolation
+            player.x += (player.targetX - player.x) * interpolationSpeed
+            player.y += (player.targetY - player.y) * interpolationSpeed
+          }
+        }
+      }
+      
+      // Ground collision for remote players (prevent falling through floor)
+      if (player.y >= floorY - 64) {
+        player.y = floorY - 64
+        if (player.velocityY !== undefined && player.velocityY > 0) {
+          player.velocityY = 0
+        }
+        player.onGround = true
+      } else {
+        player.onGround = false
+      }
+      
+      // Boundary collision for remote players
+      if (player.x < 0) {
+        player.x = 0
+      }
+      if (player.x > canvasWidth - 64) {
+        player.x = canvasWidth - 64
+      }
     }
     
-    // Wall detection
+    // Wall detection (only for local player - remote players get wall state from network)
     const wallThreshold = 5
     const isNearLeftWall = player.x <= wallLeft + wallThreshold
     const isNearRightWall = player.x >= wallRight - wallThreshold - 64
     
-    // Wall detection - can cling if in the air and touching wall
-    // Megaman X style: wall slide is slow, wall jump kicks off the wall
-    const isLocalPlayer = userId === props.userId
-    
-    if ((isNearLeftWall || isNearRightWall) && !player.onGround) {
-      // Check if player is moving towards wall (or already on wall)
-      const isPressingTowardLeft = isLocalPlayer ? keys.value.has('ArrowLeft') : player.wallSide === 'left'
-      const isPressingTowardRight = isLocalPlayer ? keys.value.has('ArrowRight') : player.wallSide === 'right'
-      
-      // Wall cling only when pressing toward wall AND falling (velocityY > 0)
-      if ((isPressingTowardLeft && isNearLeftWall) || (isPressingTowardRight && isNearRightWall)) {
-        if (!player.onWall) {
-          // Just touched wall
-          player.canWallJump = true
-        }
-        player.onWall = true
-        player.wallSide = isNearLeftWall ? 'left' : 'right'
+    // Only apply wall detection and collision to LOCAL player
+    // Remote players use network-synced wall state but still apply physics
+    if (isLocalPlayer) {
+      if ((isNearLeftWall || isNearRightWall) && !player.onGround) {
+        // Check if player is moving towards wall
+        const isPressingTowardLeft = keys.value.has('ArrowLeft')
+        const isPressingTowardRight = keys.value.has('ArrowRight')
         
-        // Wall slide: slow controlled descent, not going up
-        // Only slow down if actually falling (velocityY > 0)
-        if (player.velocityY > 0) {
-          player.velocityY = Math.min(player.velocityY, WALL_SLIDE_SPEED)
-        } else if (player.velocityY < 0) {
-          // Rising - let gravity slow us down naturally, but faster
-          player.velocityY += GRAVITY * deltaSeconds * 60 * 1.5
+        // Wall cling only when pressing toward wall AND falling (velocityY > 0)
+        if ((isPressingTowardLeft && isNearLeftWall) || (isPressingTowardRight && isNearRightWall)) {
+          if (!player.onWall) {
+            // Just touched wall
+            player.canWallJump = true
+          }
+          player.onWall = true
+          player.wallSide = isNearLeftWall ? 'left' : 'right'
+          
+          // Wall slide: slow controlled descent, not going up
+          // Only slow down if actually falling (velocityY > 0)
+          if (player.velocityY > 0) {
+            player.velocityY = Math.min(player.velocityY, WALL_SLIDE_SPEED)
+          } else if (player.velocityY < 0) {
+            // Rising - let gravity slow us down naturally, but faster
+            player.velocityY += GRAVITY * deltaSeconds * 60 * 1.5
+          }
+          
+          // Horizontal velocity should be 0 while wall clinging
+          player.velocityX = 0
+          player.state = 'wallCling'
+        } else {
+          // Releasing direction key while on wall - detach and fall
+          player.onWall = false
+          player.wallSide = null
         }
-        
-        // Horizontal velocity should be 0 while wall clinging
-        player.velocityX = 0
-        player.state = 'wallCling'
       } else {
-        // Releasing direction key while on wall - detach and fall
         player.onWall = false
         player.wallSide = null
+        player.canWallJump = false
       }
-    } else {
-      player.onWall = false
-      player.wallSide = null
-      player.canWallJump = false
-    }
-    
-    player.x += player.velocityX * deltaSeconds * 60
-    player.y += player.velocityY * deltaSeconds * 60
-    
-    // Ground collision
-    const wasOnGround = player.onGround
-    if (player.y >= floorY - 64) {
-      if (!player.onGround) {
-        // Just landed - play land sound
-        if (userId === props.userId) {
+      
+      // Apply velocity to position (local player - remote players already handled above)
+      player.x += player.velocityX * deltaSeconds * 60
+      player.y += player.velocityY * deltaSeconds * 60
+      
+      // Ground collision (local player)
+      if (player.y >= floorY - 64) {
+        if (!player.onGround) {
+          // Just landed - play land sound
           playSound('land')
+          // Reset dash-jump indicator
+          player.isDashJumping = false
+          player.canDash = true // Can dash again after landing
+          
+          player.state = 'landing'
+          // Add landing smoke effect
+          player.smokeEffects.push({
+            x: player.x + 32,
+            y: player.y + 64,
+            frame: 0,
+            createdAt: Date.now()
+          })
+          setTimeout(() => {
+            if (player.state === 'landing') {
+              player.state = player.velocityX !== 0 ? 'walking' : 'idle'
+            }
+          }, 150) // Slightly faster landing animation
         }
-        // Reset dash-jump indicator
-        player.isDashJumping = false
-        player.canDash = true // Can dash again after landing
-        
-        player.state = 'landing'
-        // Add landing smoke effect
-        player.smokeEffects.push({
-          x: player.x + 32,
-          y: player.y + 64,
-          frame: 0,
-          createdAt: Date.now()
-        })
-        setTimeout(() => {
-          if (player.state === 'landing') {
-            player.state = player.velocityX !== 0 ? 'walking' : 'idle'
-          }
-        }, 150) // Slightly faster landing animation
+        player.y = floorY - 64
+        player.velocityY = 0
+        player.onGround = true
+        player.onWall = false
+        player.wallSide = null
+      } else {
+        player.onGround = false
       }
-      player.y = floorY - 64
-      player.velocityY = 0
-      player.onGround = true
-      player.onWall = false
-      player.wallSide = null
-    } else {
-      player.onGround = false
-    }
-    
-    // Update state based on velocity when in air (charging doesn't change state)
-    // Keep dashJumping and wallKick states until landing or state changes
-    if (!player.onGround && !player.onWall && 
-        player.state !== 'dashing' && 
-        player.state !== 'dashJumping' && 
-        player.state !== 'wallKick' &&
-        player.state !== 'hit' &&
-        player.state !== 'dead') {
-      if (player.velocityY > 0) {
+      
+      // Update state based on velocity when in air (charging doesn't change state)
+      // Keep dashJumping and wallKick states until landing or state changes
+      if (!player.onGround && !player.onWall && 
+          player.state !== 'dashing' && 
+          player.state !== 'dashJumping' && 
+          player.state !== 'wallKick' &&
+          player.state !== 'hit' &&
+          player.state !== 'dead') {
+        if (player.velocityY > 0) {
+          player.state = 'falling'
+        } else if (player.velocityY < 0) {
+          player.state = 'jumping'
+        }
+      }
+      
+      // Dash-jumping transitions: when velocity drops significantly, switch to fall
+      if (player.state === 'dashJumping' && player.velocityY > 2) {
         player.state = 'falling'
-      } else if (player.velocityY < 0) {
-        player.state = 'jumping'
+        player.isDashJumping = true // Keep the momentum indicator
+      }
+      
+      // Boundary collision (only for local player)
+      if (player.x < 0) {
+        player.x = 0
+        if (!player.onGround) {
+          player.onWall = true
+          player.wallSide = 'left'
+        }
+      }
+      if (player.x > canvasWidth - 64) {
+        player.x = canvasWidth - 64
+        if (!player.onGround) {
+          player.onWall = true
+          player.wallSide = 'right'
+        }
       }
     }
-    
-    // Dash-jumping transitions: when velocity drops significantly, switch to fall
-    if (player.state === 'dashJumping' && player.velocityY > 2) {
-      player.state = 'falling'
-      player.isDashJumping = true // Keep the momentum indicator
-    }
-    
-    // Boundary collision
-    if (player.x < 0) {
-      player.x = 0
-      if (!player.onGround) {
-        player.onWall = true
-        player.wallSide = 'left'
-      }
-    }
-    if (player.x > canvasWidth - 64) {
-      player.x = canvasWidth - 64
-      if (!player.onGround) {
-        player.onWall = true
-        player.wallSide = 'right'
-      }
-    }
+    // Remote players: position/state come from network, no physics applied
     
     // Draw player
     drawPlayer(player, userId, deltaSeconds)
@@ -1663,6 +1763,10 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     return
   }
   
+  // Debug: Log facing for remote players when it changes
+  const isRemote = userId !== props.userId
+  // Removed random logging - facing should be correct now
+  
   // Handle spawn animation (teleport down from top of screen)
   // Megaman X style: Intro1 while falling from sky, then Intro2-7 when landing
   if (player.isSpawning && player.spawnTime) {
@@ -1828,13 +1932,8 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       const offscreenCtx = offscreenCanvas.getContext('2d')
       
       if (offscreenCtx) {
-        // Draw sprite to offscreen (handle flipping)
-        if (player.facing === 'left') {
-          offscreenCtx.scale(-1, 1)
-          offscreenCtx.drawImage(spriteImg, -drawWidth, 0, drawWidth, drawHeight)
-        } else {
-          offscreenCtx.drawImage(spriteImg, 0, 0, drawWidth, drawHeight)
-        }
+        // Draw sprite to offscreen WITHOUT flipping (we'll flip when drawing to main canvas)
+        offscreenCtx.drawImage(spriteImg, 0, 0, drawWidth, drawHeight)
         
         // Get image data
         const imageData = offscreenCtx.getImageData(0, 0, drawWidth, drawHeight)
@@ -1875,7 +1974,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         // Put modified image data back
         offscreenCtx.putImageData(imageData, 0, 0)
         
-        // Draw tinted sprite to main canvas
+        // Draw tinted sprite to main canvas (flip here based on facing direction)
         if (player.facing === 'left') {
           ctx.scale(-1, 1)
           ctx.drawImage(offscreenCanvas, -player.x - drawWidth, player.y)
@@ -2122,7 +2221,11 @@ function setupRealtimeListener() {
         lastDashKeyPressed: false,
         isSpawning: isSpawning || false,
         spawnTime: isSpawning ? Date.now() : 0,
-        spawnY: spawnY || (floorY - 64)
+        spawnY: spawnY || (floorY - 64),
+        // Initialize interpolation targets
+        targetX: x || 100,
+        targetY: y || (floorY - 64),
+        lastNetworkUpdate: Date.now()
       } as Player
       
       players.value.set(userId, player)
@@ -2134,13 +2237,44 @@ function setupRealtimeListener() {
     }
     
     // Update player state - ALWAYS update position and facing from network
+    // Remote players should use network data, not local physics
     if (player) {
-      player.x = x
-      player.y = y
-      player.facing = facing // CRITICAL: always update facing direction!
-      player.state = state
-      player.velocityX = velocityX
-      player.velocityY = velocityY
+      // ALWAYS update facing immediately from network (critical for visual sync)
+      // facing should always be 'left' or 'right'
+      if (facing === 'left' || facing === 'right') {
+        // Always update facing - don't check if changed, just update it
+        if (player.facing !== facing) {
+          debug.log(`🎮 Remote player ${userId.substring(0, 6)} facing changed: ${player.facing} -> ${facing}`)
+        }
+        player.facing = facing // Always set from network
+      } else if (facing !== undefined && facing !== null) {
+        // Fallback: if facing is provided but invalid, log warning and use default
+        debug.warn(`🎮 Invalid facing value for player ${userId}: ${facing}, defaulting to 'right'`)
+        player.facing = 'right'
+      }
+      
+      // Store network position as target for interpolation (smooth movement)
+      // Remote players will interpolate towards this while applying physics locally
+      if (x !== undefined && x !== null) {
+        player.targetX = x
+        // Snap immediately if difference is very large (teleport correction)
+        if (Math.abs(player.x - x) > 100) {
+          player.x = x
+        }
+      }
+      if (y !== undefined && y !== null) {
+        player.targetY = y
+        // Snap immediately if difference is very large (teleport correction)
+        if (Math.abs(player.y - y) > 100) {
+          player.y = y
+        }
+      }
+      player.lastNetworkUpdate = Date.now()
+      
+      // Update state and velocity from network (controls the physics)
+      if (state !== undefined && state !== null) player.state = state
+      if (velocityX !== undefined && velocityX !== null) player.velocityX = velocityX
+      if (velocityY !== undefined && velocityY !== null) player.velocityY = velocityY
       player.isShooting = isShooting || false
       player.isCharging = isCharging || false
       player.chargeLevel = chargeLevel || 0
