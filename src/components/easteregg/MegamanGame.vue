@@ -66,6 +66,7 @@ interface Player {
   spawnTime?: number // When spawn started
   spawnY?: number // Y position when spawning (comes from top)
   isDashJumping?: boolean // True when performing a dash-jump
+  isWallJumping?: boolean // True when performing a wall jump (keep jump animation until re-attaching)
   wallKickTime?: number // When wall kick animation started
   chargeLoopStarted?: boolean // Track if charge loop has been started for this charge cycle
   // Interpolation for remote players
@@ -127,6 +128,7 @@ const hpBarData = ref<any>(null)
 const currentFrame = ref<Map<string, number>>(new Map())
 const frameTime = ref<Map<string, number>>(new Map()) // Use time instead of timer
 const lastAnimationType = ref<Map<string, 'walk' | 'run_fire' | 'other'>>(new Map()) // Track last animation to detect switches
+const lastPlayerStateMap = ref<Map<string, string>>(new Map()) // Track last player state to detect state transitions
 const chargeFrame = ref<Map<string, number>>(new Map()) // For charge animation
 const smokeSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const hitSprites = ref<Map<string, HTMLImageElement>>(new Map())
@@ -146,10 +148,10 @@ const GRAVITY = 0.8
 const JUMP_STRENGTH = -15
 const WALL_JUMP_X = 6
 const WALL_JUMP_Y = -12
-const WALL_SLIDE_SPEED = 1.5 // Slide down slowly (positive = down)
+const WALL_SLIDE_SPEED = 3.5 // Slide down faster (positive = down)
 const WALK_SPEED = 3
 const DASH_SPEED = 10
-const DASH_DURATION = 300 // ms
+const DASH_DURATION = 350 // ms
 const DASH_COOLDOWN = 500 // ms
 const FRAME_DURATION = 200 // ms per frame (slower animation)
 const BULLET_SPEED = 12
@@ -723,14 +725,46 @@ function initializePlayers() {
   
   debug.log(`🎮 Initializing ${props.participants.length} players`)
   
+  // Get colors already used by existing players
+  const usedColors = new Set<string>()
+  players.value.forEach((existingPlayer) => {
+    usedColors.add(existingPlayer.color)
+  })
+  
   props.participants.forEach((participant, index) => {
-    // Spawn positions - ensure different positions for each player
+    // Spawn positions - random X position for each player
     const canvasWidth = canvas ? canvas.width / (window.devicePixelRatio || 1) : 600
-    // Use index to create different spawn positions (spread out across canvas)
-    const spawnX = Math.max(50, Math.min(canvasWidth - 114, 100 + (index * 150))) // Different positions: 100, 250, 400, etc.
+    // Random X position between 50 and canvasWidth - 114 (leaving some margin)
+    const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
     const targetY = floorY - 64 // Where player will land
     
-    debug.log(`🎮 Player ${index} (${participant.userId.substring(0, 6)}) spawning at x=${spawnX}`)
+    // Assign unique color - use hash of userId to get consistent but random color
+    // This ensures each player gets a consistent color but it's not always the same order
+    let hash = 0
+    for (let i = 0; i < participant.userId.length; i++) {
+      hash = ((hash << 5) - hash) + participant.userId.charCodeAt(i)
+      hash = hash & hash // Convert to 32-bit integer
+    }
+    // Start with a color based on hash, then find first available
+    let startIndex = Math.abs(hash) % PLAYER_COLORS.length
+    let playerColor = PLAYER_COLORS[startIndex]
+    let playerIndex = startIndex
+    
+    // If that color is used, find first available
+    if (usedColors.has(playerColor)) {
+      for (let i = 0; i < PLAYER_COLORS.length; i++) {
+        const candidateIndex = (startIndex + i) % PLAYER_COLORS.length
+        const candidateColor = PLAYER_COLORS[candidateIndex]
+        if (!usedColors.has(candidateColor)) {
+          playerColor = candidateColor
+          playerIndex = candidateIndex
+          break
+        }
+      }
+    }
+    usedColors.add(playerColor) // Mark this color as used
+    
+    debug.log(`🎮 Player ${index} (${participant.userId.substring(0, 6)}) spawning at x=${spawnX} with color ${playerColor}`)
     
     const player: Player = {
       userId: participant.userId,
@@ -743,8 +777,8 @@ function initializePlayers() {
       onGround: false, // Not on ground yet (spawning)
       onWall: false,
       wallSide: null,
-      color: PLAYER_COLORS[index % PLAYER_COLORS.length],
-      playerIndex: index % PLAYER_COLORS.length,
+      color: playerColor,
+      playerIndex: playerIndex,
       isShooting: false,
       isCharging: false,
       chargeLevel: 0,
@@ -757,6 +791,7 @@ function initializePlayers() {
       hitTime: 0,
       invulnerableUntil: 0,
       canWallJump: false,
+      isWallJumping: false,
       smokeEffects: [],
       lastJumpKeyPressed: false,
       lastDashKeyPressed: false,
@@ -986,11 +1021,15 @@ function handleInput() {
       
       // Play charge sound on start, then loop continuously (ONLY ONCE per charge cycle)
       // Megaman X behavior: Initial charge sound plays once, then loop starts and continues
-      if (chargeTime < 50) {
-        // Initial charge sound - play once at the very start
+      // Since handleInput is called every frame now, we need to be careful about the loop
+      // Only play charge sound if we're actually going to charge (chargeTime >= 150ms)
+      // Don't play for quick taps that will just fire uncharged bullets (< 150ms)
+      // Quick taps are typically < 100ms, so 150ms threshold ensures we only play for actual charges
+      if (chargeTime >= 150 && chargeTime < 200 && !localPlayer.chargeLoopStarted) {
+        // Initial charge sound - play once after 150ms (only if actually charging, not quick tap)
         playSound('charge')
         localPlayer.chargeLoopStarted = false // Reset flag when starting new charge
-      } else if (chargeTime >= 150 && !localPlayer.chargeLoopStarted) {
+      } else if (chargeTime >= 250 && !localPlayer.chargeLoopStarted) {
         // Start charge loop after initial charge sound - ONLY ONCE
         // Stop any existing loop first to ensure clean start
         stopSound('chargeLoop')
@@ -1067,6 +1106,7 @@ function handleInput() {
       localPlayer.wallSide = null
       localPlayer.canWallJump = false
       localPlayer.state = 'wallKick' // Use wall kick state for animation
+      localPlayer.isWallJumping = true // Mark as wall jumping to preserve jump animation
       localPlayer.wallKickTime = Date.now()
       playSound('jump')
       broadcastPlayerState(localPlayer, true) // Force broadcast wall jump with facing change
@@ -1078,8 +1118,9 @@ function handleInput() {
         createdAt: Date.now()
       })
       // After wall kick animation (200ms), switch to jumping
+      // Keep jump animation until re-attaching to wall
       setTimeout(() => {
-        if (localPlayer.state === 'wallKick') {
+        if (localPlayer.state === 'wallKick' && !localPlayer.onWall) {
           localPlayer.state = 'jumping'
         }
       }, 200)
@@ -1286,6 +1327,7 @@ function broadcastPlayerState(player: Player, force: boolean = false) {
       lastShotTime: player.lastShotTime || 0,
       isSpawning: player.isSpawning || false, // Sync spawn state
       spawnY: player.spawnY || 0,
+      spawnX: player.x, // Broadcast spawn X position
     }
   })
 }
@@ -1398,20 +1440,48 @@ function gameLoop(currentTime: number) {
         // Check if player died
         if (player.health <= 0) {
           player.state = 'dead'
+          player.hitTime = now // Set hitTime for death animation
           playSound('death') // Use X_LoseLife sound for death
+          
+          // Broadcast death event
+          if (gameChannel) {
+            gameChannel.send({
+              type: 'broadcast',
+              event: 'player-died',
+              payload: {
+                userId: player.userId,
+                health: player.health
+              }
+            })
+          }
+          
+          // Broadcast death state
+          broadcastPlayerState(player, true)
+          
           // Respawn after 3 seconds with spawn animation
           setTimeout(() => {
             if (player.health <= 0) {
+              const canvasWidth = gameCanvasWidth.value
+              const canvasHeight = gameCanvasHeight.value
+              const floorY = canvasHeight - 20
+              
+              // Random spawn X position
+              const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
+              
               player.health = player.maxHealth
-              player.x = 50 + Math.random() * (canvasWidth - 150)
-              player.y = floorY - 64
+              player.x = spawnX
+              player.y = -100 // Start above screen for spawn animation
               player.velocityX = 0
               player.velocityY = 0
               player.state = 'idle'
               player.isSpawning = true
               player.spawnTime = Date.now()
+              player.spawnY = floorY - 64 // Target Y position
               player.invulnerableUntil = Date.now() + 2000 // Extra invulnerability on respawn
               playSound('spawn') // Teleport down sound
+              
+              // Broadcast respawn with spawn position
+              broadcastPlayerState(player, true)
             }
           }, 3000)
         } else {
@@ -1617,27 +1687,36 @@ function gameLoop(currentTime: number) {
         const isPressingTowardLeft = keys.value.has('ArrowLeft')
         const isPressingTowardRight = keys.value.has('ArrowRight')
         
-        // Wall cling only when pressing toward wall AND falling (velocityY > 0)
-        if ((isPressingTowardLeft && isNearLeftWall) || (isPressingTowardRight && isNearRightWall)) {
-          if (!player.onWall) {
-            // Just touched wall
-            player.canWallJump = true
-          }
-          player.onWall = true
-          player.wallSide = isNearLeftWall ? 'left' : 'right'
-          
-          // Wall slide: slow controlled descent, not going up
-          // Only slow down if actually falling (velocityY > 0)
-          if (player.velocityY > 0) {
-            player.velocityY = Math.min(player.velocityY, WALL_SLIDE_SPEED)
-          } else if (player.velocityY < 0) {
-            // Rising - let gravity slow us down naturally, but faster
-            player.velocityY += GRAVITY * deltaSeconds * 60 * 1.5
-          }
-          
-          // Horizontal velocity should be 0 while wall clinging
-          player.velocityX = 0
-          player.state = 'wallCling'
+          // Wall cling only when pressing toward wall AND falling (velocityY > 0)
+          if ((isPressingTowardLeft && isNearLeftWall) || (isPressingTowardRight && isNearRightWall)) {
+            if (!player.onWall) {
+              // Just touched wall - switch from jump/wallKick to wallCling
+              player.canWallJump = true
+              // If we were jumping or in wallKick state, switch to wallCling
+              if (player.state === 'jumping' || player.state === 'wallKick') {
+                player.state = 'wallCling'
+                player.isWallJumping = false // Clear wall jump flag when re-attaching
+              }
+            }
+            player.onWall = true
+            player.wallSide = isNearLeftWall ? 'left' : 'right'
+            
+            // Wall slide: slow controlled descent, not going up
+            // Only slow down if actually falling (velocityY > 0)
+            if (player.velocityY > 0) {
+              player.velocityY = Math.min(player.velocityY, WALL_SLIDE_SPEED)
+            } else if (player.velocityY < 0) {
+              // Rising - let gravity slow us down naturally, but faster
+              player.velocityY += GRAVITY * deltaSeconds * 60 * 1.5
+            }
+            
+            // Horizontal velocity should be 0 while wall clinging
+            player.velocityX = 0
+            // Ensure we're in wallCling state when on wall
+            if (player.state === 'jumping' || player.state === 'wallKick') {
+              player.state = 'wallCling'
+              player.isWallJumping = false // Clear wall jump flag when re-attaching
+            }
         } else {
           // Releasing direction key while on wall - detach and fall
           player.onWall = false
@@ -1686,18 +1765,24 @@ function gameLoop(currentTime: number) {
       }
       
       // Update state based on velocity when in air (charging doesn't change state)
-      // Keep dashJumping and wallKick states until landing or state changes
+      // Keep dashJumping, wallKick, and wallJumping states until landing or state changes
       if (!player.onGround && !player.onWall && 
           player.state !== 'dashing' && 
           player.state !== 'dashJumping' && 
           player.state !== 'wallKick' &&
           player.state !== 'hit' &&
-          player.state !== 'dead') {
+          player.state !== 'dead' &&
+          !player.isWallJumping) { // Don't override state during wall jump
         if (player.velocityY > 0) {
           player.state = 'falling'
         } else if (player.velocityY < 0) {
           player.state = 'jumping'
         }
+      }
+      
+      // Clear wall jump flag when landing
+      if (player.onGround && player.isWallJumping) {
+        player.isWallJumping = false
       }
       
       // Dash-jumping transitions: when velocity drops significantly, switch to fall
@@ -1814,11 +1899,10 @@ function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFra
     }
   }
   
-  // Wall cling animation - slide down with animated Wall_Cling1-3
+  // Wall cling animation - slide down with static frame (no looping)
   if (player.onWall && player.state === 'wallCling') {
     const wallClingFrames = animations.value.wall_cling || []
     if (wallClingFrames.length > 0) {
-      // Animate through Wall_Cling1-3 while sliding
       return wallClingFrames
     }
     // Fallback to old wall array
@@ -2056,6 +2140,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   // Update frame timer using delta time
   // Walking animation is faster (3x speed for smoother running)
   // Dash animation uses time-based frame selection (not cycling), so skip timer for dash
+  // Wall cling plays through frames once (no looping) - stops at last frame
   let frameIndex = 0
   if (player.state === 'dashing') {
     // Dash uses time-based selection in getAnimationFrames, so always use first (and only) frame
@@ -2064,6 +2149,15 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     const isWalking = player.state === 'walking' && !player.isCharging
     const isShooting = (player.isShooting || (Date.now() - (player.lastShotTime || 0) < 200)) && !player.isCharging
     const isWalkOrRunFire = isWalking || (player.state === 'walking' && isShooting)
+    const isWallCling = player.state === 'wallCling'
+    
+    // Reset frame to 0 when transitioning to wallCling state (so animation plays from start)
+    const lastPlayerState = lastPlayerStateMap.value.get(userId)
+    if (isWallCling && lastPlayerState !== 'wallCling') {
+      currentFrame.value.set(userId, 0)
+      frameTime.value.set(userId, 0)
+    }
+    lastPlayerStateMap.value.set(userId, player.state)
     
     // Determine current animation type
     const currentAnimType: 'walk' | 'run_fire' | 'other' = 
@@ -2084,9 +2178,15 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     if (newTime >= frameDuration) {
       const current = currentFrame.value.get(userId) || 0
-      // Increment frame - for walk/run_fire, this creates seamless continuation
-      const next = (current + 1) % frames.length
-      currentFrame.value.set(userId, next)
+      if (isWallCling) {
+        // Wall cling: advance to next frame but stop at last frame (no looping)
+        const next = Math.min(current + 1, frames.length - 1)
+        currentFrame.value.set(userId, next)
+      } else {
+        // Other animations: loop using modulo
+        const next = (current + 1) % frames.length
+        currentFrame.value.set(userId, next)
+      }
       frameTime.value.set(userId, 0) // Reset timer
     }
     
@@ -2101,7 +2201,13 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     // Clamp frame index to valid range for current animation
     if (frameIndex >= frames.length) {
-      frameIndex = frameIndex % frames.length
+      if (isWallCling) {
+        // Wall cling: clamp to last frame (no looping)
+        frameIndex = frames.length - 1
+      } else {
+        // Other animations: use modulo to loop
+        frameIndex = frameIndex % frames.length
+      }
       currentFrame.value.set(userId, frameIndex)
     }
     
@@ -2429,7 +2535,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       const dashEffectSprite = dashEffectSprites.value.get(`Dash_Effect${dashFrame}.png`)
       
       if (dashEffectSprite && dashEffectSprite.complete) {
-        const scale = 2.0 // 2x scale like project.json
+        const scale = 1.0 // 1x scale (half of original 2x)
         const effectWidth = dashEffectSprite.naturalWidth * scale
         const effectHeight = dashEffectSprite.naturalHeight * scale
         
@@ -2463,7 +2569,7 @@ function setupRealtimeListener() {
   
   gameChannel.on('broadcast', { event: 'player-update' }, (payload) => {
     const data = payload.payload as any
-    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY } = data
+    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY, spawnX } = data
     
     // Don't update local player from remote updates
     if (userId === props.userId) return
@@ -2475,13 +2581,31 @@ function setupRealtimeListener() {
       const canvasHeight = gameCanvasHeight.value
       const floorY = canvasHeight - 20
       
-      // Find color index for this user
-      const participantIndex = props.participants.findIndex(p => p.userId === userId)
-      const colorIndex = participantIndex >= 0 ? participantIndex : players.value.size
+      // Find unique color for this user (not used by other players)
+      const usedColors = new Set<string>()
+      players.value.forEach((existingPlayer) => {
+        if (existingPlayer.userId !== userId) {
+          usedColors.add(existingPlayer.color)
+        }
+      })
+      
+      // Pick first available color
+      let playerColor = PLAYER_COLORS[0]
+      let playerIndex = 0
+      for (let i = 0; i < PLAYER_COLORS.length; i++) {
+        if (!usedColors.has(PLAYER_COLORS[i])) {
+          playerColor = PLAYER_COLORS[i]
+          playerIndex = i
+          break
+        }
+      }
+      
+      // Use spawnX if provided (for initial spawn), otherwise use received x
+      const initialX = spawnX !== undefined && spawnX !== null ? spawnX : (x || 100)
       
       player = {
         userId,
-        x: x || 100, // USE RECEIVED X, not random!
+        x: initialX, // USE RECEIVED spawnX or X, not random!
         y: y || (floorY - 64), // USE RECEIVED Y!
         facing: facing || 'right', // USE RECEIVED FACING!
         state: state || 'idle',
@@ -2490,8 +2614,8 @@ function setupRealtimeListener() {
         onGround: state !== 'jumping' && state !== 'falling' && state !== 'dashJumping',
         onWall: onWall || false,
         wallSide: wallSide || null,
-        color: PLAYER_COLORS[colorIndex % PLAYER_COLORS.length],
-        playerIndex: colorIndex % PLAYER_COLORS.length,
+        color: playerColor,
+        playerIndex: playerIndex,
         isShooting: isShooting || false,
         isCharging: isCharging || false,
         chargeLevel: chargeLevel || 0,
@@ -2511,7 +2635,7 @@ function setupRealtimeListener() {
         spawnTime: isSpawning ? Date.now() : 0,
         spawnY: spawnY || (floorY - 64),
         // Initialize interpolation targets
-        targetX: x || 100,
+        targetX: initialX,
         targetY: y || (floorY - 64),
         lastNetworkUpdate: Date.now()
       } as Player
