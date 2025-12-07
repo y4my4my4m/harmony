@@ -5,6 +5,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
 import type { ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug';
@@ -160,6 +161,9 @@ export function useAutoSuggest(
     if (!finalConfig.enableEmojis || state.value.triggerType !== 'emoji' || !state.value.query) {
       return [];
     }
+    
+    // Trigger lazy loading of emoji data when user starts typing emoji autocomplete
+    ensureEmojiDataLoaded()
 
     const suggestions: SuggestionItem[] = [];
     const query = state.value.query.toLowerCase();
