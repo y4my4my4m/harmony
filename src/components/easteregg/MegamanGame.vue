@@ -1007,28 +1007,37 @@ function handleInput() {
     }
   }
   
-  // Movement with arrow keys (not during dash)
+  // Movement with arrow keys (not during dash or dashJumping)
+  // Physics-like: Don't override velocityX while in the air - preserve momentum
+  // This is especially important for dash jumps to maintain horizontal dash speed
   const previousFacing = localPlayer.facing
   // Note: We already return early if dashing, so this check is just for safety
-  if ((localPlayer.state as string) !== 'dashing') {
-    if (keys.value.has('ArrowLeft')) {
-      localPlayer.velocityX = -WALK_SPEED
-      localPlayer.facing = 'left'
-      if (localPlayer.onGround) {
-        localPlayer.state = 'walking' // Always show walking when moving, even while charging
-      }
-    } else if (keys.value.has('ArrowRight')) {
-      localPlayer.velocityX = WALK_SPEED
-      localPlayer.facing = 'right'
-      if (localPlayer.onGround) {
-        localPlayer.state = 'walking' // Always show walking when moving, even while charging
-      }
-    } else {
-      localPlayer.velocityX = 0
-      if (localPlayer.onGround && localPlayer.state !== 'jumping' && localPlayer.state !== 'falling' && localPlayer.state !== 'landing' && (localPlayer.state as string) !== 'dashing') {
-        localPlayer.state = localPlayer.isCharging ? 'idle' : 'idle' // Don't use 'shooting' state while charging
+  // Also exclude dashJumping to preserve horizontal dash momentum during dash jump
+  const isInAir = !localPlayer.onGround && !localPlayer.onWall
+  
+  if ((localPlayer.state as string) !== 'dashing' && (localPlayer.state as string) !== 'dashJumping') {
+    // Only apply movement input when on ground - preserve momentum while in air
+    if (!isInAir) {
+      if (keys.value.has('ArrowLeft')) {
+        localPlayer.velocityX = -WALK_SPEED
+        localPlayer.facing = 'left'
+        if (localPlayer.onGround) {
+          localPlayer.state = 'walking' // Always show walking when moving, even while charging
+        }
+      } else if (keys.value.has('ArrowRight')) {
+        localPlayer.velocityX = WALK_SPEED
+        localPlayer.facing = 'right'
+        if (localPlayer.onGround) {
+          localPlayer.state = 'walking' // Always show walking when moving, even while charging
+        }
+      } else {
+        localPlayer.velocityX = 0
+        if (localPlayer.onGround && localPlayer.state !== 'jumping' && localPlayer.state !== 'falling' && localPlayer.state !== 'landing' && (localPlayer.state as string) !== 'dashing') {
+          localPlayer.state = localPlayer.isCharging ? 'idle' : 'idle' // Don't use 'shooting' state while charging
+        }
       }
     }
+    // While in air: preserve existing velocityX (don't override) - physics-like behavior
     
     // Broadcast immediately if facing changed (force broadcast)
     if (previousFacing !== localPlayer.facing) {
@@ -1517,6 +1526,9 @@ function gameLoop(currentTime: number) {
     const isLocalPlayer = userId === props.userId
     
     if (isLocalPlayer) {
+      // Process input every frame (not just on key events) so dash duration checks run continuously
+      handleInput()
+      
       // Update physics for local player only
       if (!player.onGround && !player.onWall) {
         player.velocityY += GRAVITY * deltaSeconds * 60
