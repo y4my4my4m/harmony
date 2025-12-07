@@ -1,5 +1,13 @@
 -- Track endpoint health to avoid retrying dead endpoints indefinitely
 -- Based on ActivityPub best practices: mark endpoints as dead after 24-48 hours of consistent failures
+-- This migration is IDEMPOTENT - safe to run multiple times
+
+-- Drop existing trigger if exists (for re-running migration)
+DROP TRIGGER IF EXISTS "federation_endpoint_health_cleanup_trigger" ON "public"."federation_endpoint_health";
+
+-- Drop existing policies if they exist (for re-running migration)
+DROP POLICY IF EXISTS "Service role can manage endpoint health" ON "public"."federation_endpoint_health";
+DROP POLICY IF EXISTS "Authenticated users can read endpoint health" ON "public"."federation_endpoint_health";
 
 CREATE TABLE IF NOT EXISTS "public"."federation_endpoint_health" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
@@ -212,7 +220,7 @@ CREATE TRIGGER "federation_endpoint_health_cleanup_trigger"
 -- RLS policies
 ALTER TABLE "public"."federation_endpoint_health" ENABLE ROW LEVEL SECURITY;
 
--- Allow service role to read/write
+-- Allow service role to read/write (policies for RLS)
 CREATE POLICY "Service role can manage endpoint health"
     ON "public"."federation_endpoint_health"
     FOR ALL
@@ -224,3 +232,12 @@ CREATE POLICY "Authenticated users can read endpoint health"
     FOR SELECT
     USING (auth.role() = 'authenticated');
 
+-- CRITICAL: Grant table access to service_role, authenticated, and anon roles
+-- RLS policies alone don't grant access - we need explicit GRANTs for the table
+GRANT SELECT, INSERT, UPDATE, DELETE ON "public"."federation_endpoint_health" TO service_role;
+GRANT SELECT ON "public"."federation_endpoint_health" TO authenticated;
+
+-- Grant EXECUTE on the RPC functions to allow calling them
+GRANT EXECUTE ON FUNCTION "public"."update_endpoint_health"("text", "text", boolean, integer, "text") TO service_role;
+GRANT EXECUTE ON FUNCTION "public"."update_endpoint_health"("text", "text", boolean, integer, "text") TO authenticated;
+GRANT EXECUTE ON FUNCTION "public"."cleanup_dead_endpoint_users"("text") TO service_role;

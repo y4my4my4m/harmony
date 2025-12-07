@@ -216,9 +216,12 @@ export class SignatureService {
           signingParts.push(`(request-target): ${requestTarget}`);
         } else {
           // Try both lowercase and capitalized versions
+          // Express normalizes headers to lowercase
           const value = headers[headerName.toLowerCase()] || headers[headerName];
           if (value) {
-            signingParts.push(`${headerName}: ${value}`);
+            // CRITICAL: Use the lowercase header name as per HTTP Signature spec
+            // The signing string should use lowercase header names
+            signingParts.push(`${headerName.toLowerCase()}: ${value}`);
           } else {
             logger.warn(`Missing header in signature verification: ${headerName}`);
           }
@@ -234,6 +237,14 @@ export class SignatureService {
 
       const verified = verify.verify(publicKey, sig, 'base64');
 
+      // Log detailed info for debugging signature failures
+      if (!verified) {
+        logger.debug(`Signature verification failed for ${actorUrl}`);
+        logger.debug(`Signed headers: ${signedHeaders}`);
+        logger.debug(`Signing string:\n${signingString}`);
+        logger.debug(`Public key (first 100 chars): ${publicKey.substring(0, 100)}...`);
+      }
+      
       logger.debug(`Signature verification for ${actorUrl}: ${verified}`);
 
       return { verified, actorUrl };
