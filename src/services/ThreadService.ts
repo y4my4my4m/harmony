@@ -46,9 +46,21 @@ export interface ThreadMessagesResult {
 // Thread Service Class
 // =============================================
 
+interface ThreadMessageCache {
+  messages: Message[]
+  lastFetchedAt: Date
+  oldestMessageId?: string
+  hasMore: boolean
+}
+
 class ThreadService {
   private threadCache = new Map<string, ThreadWithDetails>()
   private memberCache = new Map<string, ThreadMember[]>()
+  
+  // Professional message caching system (same pattern as useChat/useDM)
+  private messageCache = new Map<string, ThreadMessageCache>()
+  private cacheValidityDuration = 5 * 60 * 1000 // 5 minutes
+  private maxCacheSize = 50 // Maximum number of threads to cache
 
   // =============================================
   // Thread CRUD Operations
@@ -556,7 +568,112 @@ class ThreadService {
   // =============================================
 
   /**
-   * Get messages in a thread
+   * Check if thread messages are cached and valid
+   */
+  private isCacheValid(threadId: string): boolean {
+    if (!this.messageCache.has(threadId)) return false
+    
+    const cached = this.messageCache.get(threadId)!
+    const now = new Date()
+    const cacheAge = now.getTime() - cached.lastFetchedAt.getTime()
+    
+    return cacheAge < this.cacheValidityDuration
+  }
+
+  /**
+   * Load messages from cache (instant loading)
+   */
+  private loadCachedMessages(threadId: string): ThreadMessagesResult | null {
+    const cached = this.messageCache.get(threadId)
+    if (cached && this.isCacheValid(threadId)) {
+      debug.log(`📦 Loading ${cached.messages.length} thread messages from cache: ${threadId}`)
+      return {
+        messages: [...cached.messages],
+        has_more: cached.hasMore,
+        oldest_id: cached.oldestMessageId,
+      }
+    }
+    return null
+  }
+
+  /**
+   * Evict oldest cache entries when limit is reached
+   */
+  private evictOldestCache(): void {
+    if (this.messageCache.size <= this.maxCacheSize) return
+
+    let oldestThreadId: string | null = null
+    let oldestTime = new Date()
+
+    this.messageCache.forEach((cache, threadId) => {
+      if (cache.lastFetchedAt < oldestTime) {
+        oldestTime = cache.lastFetchedAt
+        oldestThreadId = threadId
+      }
+    })
+
+    if (oldestThreadId) {
+      this.messageCache.delete(oldestThreadId)
+      debug.log(`🗑️ Evicted thread message cache: ${oldestThreadId}`)
+    }
+  }
+
+  /**
+   * Add message to cache (for realtime updates)
+   */
+  addMessageToCache(threadId: string, message: Message): void {
+    const cached = this.messageCache.get(threadId)
+    if (cached) {
+      if (!cached.messages.some(msg => msg.id === message.id)) {
+        cached.messages.push(message)
+        debug.log(`✅ Added message to thread cache: ${message.id}`)
+      }
+    } else {
+      // Create new cache entry
+      this.evictOldestCache()
+      this.messageCache.set(threadId, {
+        messages: [message],
+        lastFetchedAt: new Date(),
+        hasMore: false,
+      })
+    }
+  }
+
+  /**
+   * Update message in cache (for edits)
+   */
+  updateMessageInCache(threadId: string, messageId: string, updatedMessage: Message): void {
+    const cached = this.messageCache.get(threadId)
+    if (cached) {
+      const index = cached.messages.findIndex(msg => msg.id === messageId)
+      if (index !== -1) {
+        cached.messages[index] = updatedMessage
+        debug.log(`🔄 Updated message in thread cache: ${messageId}`)
+      }
+    }
+  }
+
+  /**
+   * Remove message from cache (for deletes)
+   */
+  removeMessageFromCache(threadId: string, messageId: string): void {
+    const cached = this.messageCache.get(threadId)
+    if (cached) {
+      cached.messages = cached.messages.filter(msg => msg.id !== messageId)
+      debug.log(`🗑️ Removed message from thread cache: ${messageId}`)
+    }
+  }
+
+  /**
+   * Clear cache for a specific thread
+   */
+  clearThreadCache(threadId: string): void {
+    this.messageCache.delete(threadId)
+    debug.log(`🧹 Cleared thread message cache: ${threadId}`)
+  }
+
+  /**
+   * Get messages in a thread (with intelligent caching)
    */
   async getThreadMessages(
     threadId: string,
@@ -618,11 +735,34 @@ class ThreadService {
         debug.warn('Failed to prepare thread message embeds:', error)
       }
 
-      return {
+      const result: ThreadMessagesResult = {
         messages: resultMessages,
         has_more: hasMore,
         oldest_id: messages.length > 0 ? messages[messages.length - 1].id : undefined,
       }
+
+      // Update cache for initial load
+      if (!before && !after) {
+        this.evictOldestCache()
+        this.messageCache.set(threadId, {
+          messages: [...resultMessages],
+          lastFetchedAt: new Date(),
+          oldestMessageId: result.oldest_id,
+          hasMore: hasMore,
+        })
+        debug.log(`✅ Cached ${resultMessages.length} thread messages: ${threadId}`)
+      } else if (before) {
+        // Loading older messages - prepend to cache
+        const cached = this.messageCache.get(threadId)
+        if (cached) {
+          cached.messages = [...resultMessages, ...cached.messages]
+          cached.oldestMessageId = result.oldest_id
+          cached.hasMore = hasMore
+          debug.log(`✅ Updated cache with ${resultMessages.length} older messages: ${threadId}`)
+        }
+      }
+
+      return result
     } catch (error) {
       debug.error('Failed to fetch thread messages:', error)
       return { messages: [], has_more: false }

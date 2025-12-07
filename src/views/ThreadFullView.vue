@@ -424,6 +424,8 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     
     if (newMessage) {
       messages.value.push(newMessage)
+      // Update cache
+      threadService.addMessageToCache(thread.value.id, newMessage)
       messageText.value = ''
       // Clear reply state
       replyingToMessageId.value = ''
@@ -543,6 +545,8 @@ const handleSendGif = async (gif: Gif) => {
     
     if (newMessage) {
       messages.value.push(newMessage)
+      // Update cache
+      threadService.addMessageToCache(thread.value.id, newMessage)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
       await nextTick()
@@ -631,6 +635,8 @@ const setupRealtimeSubscription = () => {
         }
         
         messages.value.push(newMessage)
+        // Update cache
+        threadService.addMessageToCache(thread.value.id, newMessage)
         await nextTick()
         scrollToBottom()
         debug.log('📝 Thread message added via realtime:', newMessage.id)
@@ -646,6 +652,10 @@ const setupRealtimeSubscription = () => {
         const index = messages.value.findIndex(m => m.id === payloadNew.id)
         if (index !== -1) {
           messages.value.splice(index, 1)
+          // Update cache
+          if (thread.value?.id) {
+            threadService.removeMessageFromCache(thread.value.id, payloadNew.id)
+          }
           debug.log('🗑️ Thread message soft-deleted via realtime:', payloadNew.id)
         }
         return
@@ -654,11 +664,16 @@ const setupRealtimeSubscription = () => {
       // Handle message edits
       const index = messages.value.findIndex(m => m.id === payloadNew.id)
       if (index !== -1) {
-        messages.value[index] = {
+        const updatedMessage: Message = {
           ...messages.value[index],
           content: payloadNew.content,
           updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
           metadata: payloadNew.metadata || null,
+        }
+        messages.value[index] = updatedMessage
+        // Update cache
+        if (thread.value?.id) {
+          threadService.updateMessageInCache(thread.value.id, payloadNew.id, updatedMessage)
         }
         debug.log('🔄 Thread message updated via realtime:', payloadNew.id)
       }
@@ -670,6 +685,10 @@ const setupRealtimeSubscription = () => {
       const index = messages.value.findIndex(m => m.id === payloadOld.id)
       if (index !== -1) {
         messages.value.splice(index, 1)
+        // Update cache
+        if (thread.value?.id) {
+          threadService.removeMessageFromCache(thread.value.id, payloadOld.id)
+        }
         debug.log('🗑️ Thread message deleted via realtime:', payloadOld.id)
       }
     },
