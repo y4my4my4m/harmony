@@ -59,6 +59,9 @@ interface Player {
   canWallJump: boolean // Can wall jump (must press jump again)
   smokeEffects: Array<{ x: number; y: number; frame: number; createdAt: number }>
   lastJumpKeyPressed?: boolean // Track if jump key was pressed last frame
+  lastDashKeyPressed?: boolean // Track if dash key was pressed last frame
+  isSpawning?: boolean // True during intro animation
+  spawnTime?: number // When spawn started
 }
 
 interface Bullet {
@@ -176,6 +179,12 @@ const soundPaths = {
   ],
   hit: [
     '/assets/easteregg/buster_hit.wav',
+  ],
+  death: [
+    '/assets/easteregg/x_loselife.wav',
+  ],
+  spawn: [
+    '/assets/easteregg/x_teleportdown.wav',
   ],
 }
 
@@ -448,67 +457,59 @@ async function loadHPBarSprites() {
   }
 }
 
-// Load effect sprites (smoke, hit, death, ready)
+// Load effect sprites (smoke, hit, death, ready, intro)
 async function loadEffectSprites() {
-  // Load smoke sprites
+  // Load smoke sprites (from named files)
   for (let i = 1; i <= 6; i++) {
-    const img = new Image()
-    img.src = `/assets/easteregg/megaman/sprites/91bd67ba95f6268d620fb979740e067d.png` // Smoke1
-    if (i === 1) {
-      const smokeFiles = [
-        '91bd67ba95f6268d620fb979740e067d.png', // Smoke1
-        '5c4ed69b9d8d86739e7050c054a4c4e2.png', // Smoke2
-        '1b421d6c89210c8d76451461229d1e96.png', // Smoke3
-        'c4ce1cacca548b610a33ba6aeb1b02a4.png', // Smoke4
-        'ebc1e3f6d1baafc857bfad8c53920cc6.png', // Smoke5
-        '46dc7c0864d7011b1d2cbc0baea9d11c.png', // Smoke6
-      ]
-      for (let j = 0; j < smokeFiles.length; j++) {
-        const smokeImg = new Image()
-        smokeImg.src = `/assets/easteregg/megaman/sprites/${smokeFiles[j]}`
-        smokeImg.onload = () => smokeSprites.value.set(`Smoke${j + 1}.png`, smokeImg)
-      }
-    }
+    const smokeImg = new Image()
+    smokeImg.src = `/assets/easteregg/megaman/sprites/effects/Smoke${i}.png`
+    smokeImg.onload = () => smokeSprites.value.set(`Smoke${i}.png`, smokeImg)
   }
   
-  // Load hit sprite (single sprite: aabdd8a0c4b70511511ef63327f01483.png)
-  const hitImg = new Image()
-  hitImg.src = `/assets/easteregg/megaman/sprites/aabdd8a0c4b70511511ef63327f01483.png`
-  hitImg.onload = () => hitSprites.value.set('aabdd8a0c4b70511511ef63327f01483.png', hitImg)
+  // Load hit sprites
+  const hitFiles = [
+    { name: 'Hit1.png', path: '/assets/easteregg/megaman/sprites/hit/Hit1.png' },
+    { name: 'Hit2.png', path: '/assets/easteregg/megaman/sprites/hit/Hit2.png' },
+    { name: 'Hit3.png', path: '/assets/easteregg/megaman/sprites/hit/Hit3.png' },
+    // Also load the armor hit sprite with original name for backwards compat
+    { name: 'aabdd8a0c4b70511511ef63327f01483.png', path: '/assets/easteregg/megaman/sprites/aabdd8a0c4b70511511ef63327f01483.png' },
+  ]
+  for (const hit of hitFiles) {
+    const hitImg = new Image()
+    hitImg.src = hit.path
+    hitImg.onload = () => hitSprites.value.set(hit.name, hitImg)
+  }
+  
+  // Load death sprites
+  const deathFiles = [
+    { name: 'Death1.png', path: '/assets/easteregg/megaman/sprites/death/Death1.png' },
+    { name: 'Death2.png', path: '/assets/easteregg/megaman/sprites/death/Death2.png' },
+    { name: 'Death3.png', path: '/assets/easteregg/megaman/sprites/death/Death3.png' },
+  ]
+  for (const death of deathFiles) {
+    const deathImg = new Image()
+    deathImg.src = death.path
+    deathImg.onload = () => hitSprites.value.set(death.name, deathImg)
+  }
   
   // Load death bubble sprites
-  const bubbleFiles = [
-    '9cc8ef10ae74f39329ad6010aa037d7c.png', // Bubble1
-    'e7da56b51e9f0a3e45003ec18c486b3f.png', // Bubble2
-    '0e2f47ca72197d1cd118d045f9879ae5.png', // Bubble3
-    'a631ed7e3a6a9ed3f398760f3b9c2a83.png', // Bubble4
-    'a99df56d8b808493ff7feb23fb1a2382.png', // Bubble5
-  ]
-  for (let i = 0; i < bubbleFiles.length; i++) {
+  for (let i = 1; i <= 5; i++) {
     const bubbleImg = new Image()
-    bubbleImg.src = `/assets/easteregg/megaman/sprites/${bubbleFiles[i]}`
-    bubbleImg.onload = () => deathBubbleSprites.value.set(`Bubble${i + 1}.png`, bubbleImg)
+    bubbleImg.src = `/assets/easteregg/megaman/sprites/death/Bubble${i}.png`
+    bubbleImg.onload = () => deathBubbleSprites.value.set(`Bubble${i}.png`, bubbleImg)
   }
   
-  // Load Ready (intro) sprites
-  const readyFiles = [
-    '3495321c6b96977754d0640a217b0bbb.png', // Ready0
-    'ab48d7b0004000561df78c2ed1a49097.png', // Ready1
-    '527415308683c1ae03002b994f62523c.png', // Ready2
-    '05361c98720aa7b021e7baa040305c96.png', // Ready3
-    '53916d8af31494b8ad18e43da577f42d.png', // Ready4
-    '273d250fa24222dfabc193731ece432e.png', // Ready5
-    '2d99806b4adb3c306337b7b831d7dc9f.png', // Ready6
-    'c105cc8cfe61d517749eee97dd6a44d4.png', // Ready7
-    'a34556b9a853e584a69aee58987bea60.png', // Ready8
-    'b80a6838d5f53cddf60be65dc119c25a.png', // Ready9
-    'cf16acf016e7eccdf36303bc36154417.png', // Ready10
-    'ebc29ca008dad4472c2364093628cd0e.png', // Ready11
-    'd27003a4b30032e3001dfef312fc4c69.png', // Ready12
-  ]
-  for (let i = 0; i < readyFiles.length; i++) {
+  // Load intro/spawn sprites (teleport down animation)
+  for (let i = 1; i <= 7; i++) {
+    const introImg = new Image()
+    introImg.src = `/assets/easteregg/megaman/sprites/intro/Intro${i}.png`
+    introImg.onload = () => readySprites.value.set(`Intro${i}.png`, introImg)
+  }
+  
+  // Load Ready text sprites
+  for (let i = 0; i <= 12; i++) {
     const readyImg = new Image()
-    readyImg.src = `/assets/easteregg/megaman/sprites/${readyFiles[i]}`
+    readyImg.src = `/assets/easteregg/megaman/sprites/ready/Ready${i}.png`
     readyImg.onload = () => readySprites.value.set(`Ready${i}.png`, readyImg)
   }
   
@@ -557,7 +558,10 @@ function initializePlayers() {
       invulnerableUntil: 0,
       canWallJump: false,
       smokeEffects: [],
-      lastJumpKeyPressed: false
+      lastJumpKeyPressed: false,
+      lastDashKeyPressed: false,
+      isSpawning: true, // Start with spawn animation
+      spawnTime: Date.now()
     } as Player
     
     players.value.set(participant.userId, player)
@@ -566,6 +570,11 @@ function initializePlayers() {
     chargeFrame.value.set(participant.userId, 0)
     
     debug.log(`🎮 Created player: ${participant.userId} at (${player.x}, ${player.y})`)
+    
+    // Play spawn sound for local player
+    if (participant.userId === props.userId) {
+      playSound('spawn')
+    }
   })
   
   debug.log(`🎮 Total players: ${players.value.size}`)
@@ -653,11 +662,16 @@ function handleInput() {
   
   const now = Date.now()
   
-  // Dash (Shift)
-  if ((keys.value.has('ShiftLeft') || keys.value.has('ShiftRight')) && localPlayer.canDash && now - localPlayer.dashCooldown >= DASH_COOLDOWN) {
-    if (localPlayer.onGround || localPlayer.onWall) {
+  // Dash (Shift) - single press, not hold
+  const dashKeyPressed = keys.value.has('ShiftLeft') || keys.value.has('ShiftRight')
+  const wasDashKeyPressed = localPlayer.lastDashKeyPressed || false
+  localPlayer.lastDashKeyPressed = dashKeyPressed
+  
+  if (dashKeyPressed && !wasDashKeyPressed && localPlayer.canDash && now - localPlayer.dashCooldown >= DASH_COOLDOWN) {
+    if ((localPlayer.onGround || localPlayer.onWall) && localPlayer.state !== 'dashing') {
       localPlayer.state = 'dashing'
       localPlayer.velocityX = localPlayer.facing === 'right' ? DASH_SPEED : -DASH_SPEED
+      localPlayer.velocityY = 0 // Cancel any vertical momentum
       localPlayer.canDash = false
       localPlayer.dashCooldown = now
       playSound('dash')
@@ -665,12 +679,18 @@ function handleInput() {
       // End dash after duration
       setTimeout(() => {
         if (localPlayer.state === 'dashing') {
-          localPlayer.state = localPlayer.velocityX !== 0 ? 'walking' : 'idle'
-          localPlayer.velocityX *= 0.5 // Slow down after dash
+          localPlayer.state = 'idle'
+          localPlayer.velocityX = 0 // Stop completely after dash
         }
         localPlayer.canDash = true
       }, DASH_DURATION)
     }
+  }
+  
+  // If dashing, don't process other movement - dash is a fixed action
+  if (localPlayer.state === 'dashing') {
+    broadcastPlayerState(localPlayer, true)
+    return // Don't process any other input during dash
   }
   
   // Charging (hold Space) - only update charge, don't fire here
@@ -701,9 +721,10 @@ function handleInput() {
     }
   }
   
-  // Movement with arrow keys
+  // Movement with arrow keys (not during dash)
   const previousFacing = localPlayer.facing
-  if (localPlayer.state !== 'dashing') {
+  // Note: We already return early if dashing, so this check is just for safety
+  if ((localPlayer.state as string) !== 'dashing') {
     if (keys.value.has('ArrowLeft')) {
       localPlayer.velocityX = -WALK_SPEED
       localPlayer.facing = 'left'
@@ -723,9 +744,9 @@ function handleInput() {
       }
     }
     
-    // Broadcast immediately if facing changed
+    // Broadcast immediately if facing changed (force broadcast)
     if (previousFacing !== localPlayer.facing) {
-      broadcastPlayerState(localPlayer)
+      broadcastPlayerState(localPlayer, true)
     }
   }
   
@@ -738,26 +759,28 @@ function handleInput() {
   if (jumpKeyPressed && !wasJumpKeyPressed) {
     // Jump key just pressed (not held)
     if (localPlayer.onWall && localPlayer.wallSide) {
-      // Wall jump - jump away from wall (can climb by jumping off and going back on)
-      localPlayer.velocityY = WALL_JUMP_Y
-      // Jump away from wall (opposite direction)
-      localPlayer.velocityX = localPlayer.wallSide === 'left' ? WALL_JUMP_X : -WALL_JUMP_X
-      localPlayer.facing = localPlayer.wallSide === 'left' ? 'right' : 'left' // Face away from wall
+      // Wall kick/jump - Megaman X style: kick off wall, can re-grab to climb
+      // Jump up and slightly away from wall (not too far so player can return)
+      localPlayer.velocityY = -14 // Strong upward kick
+      // Kick away from wall - but not too far
+      localPlayer.velocityX = localPlayer.wallSide === 'left' ? 4 : -4 // Reduced from 6
+      localPlayer.facing = localPlayer.wallSide === 'left' ? 'right' : 'left'
       localPlayer.onWall = false
+      const previousWallSide = localPlayer.wallSide
       localPlayer.wallSide = null
       localPlayer.canWallJump = false
       localPlayer.state = 'jumping'
       playSound('jump')
-      // Add smoke effect at jump position
+      // Add smoke effect at kick position
       localPlayer.smokeEffects.push({
-        x: localPlayer.x + 32,
-        y: localPlayer.y + 64,
+        x: previousWallSide === 'left' ? localPlayer.x : localPlayer.x + 64,
+        y: localPlayer.y + 32,
         frame: 0,
         createdAt: Date.now()
       })
-      broadcastPlayerState(localPlayer) // Broadcast wall jump
-    } else if (localPlayer.onGround) {
-      // Ground jump - only if actually on ground (not just near wall)
+      broadcastPlayerState(localPlayer, true) // Force broadcast wall jump
+    } else if (localPlayer.onGround && !localPlayer.onWall) {
+      // Ground jump - only if actually on ground AND not on wall
       localPlayer.velocityY = JUMP_STRENGTH
       localPlayer.onGround = false
       localPlayer.state = 'jumping'
@@ -898,8 +921,18 @@ function fireChargedShot(player: Player) {
 }
 
 // Broadcast player state to other participants
-function broadcastPlayerState(player: Player) {
+let lastBroadcastTime = 0
+const BROADCAST_INTERVAL = 50 // Broadcast every 50ms for smooth updates
+
+function broadcastPlayerState(player: Player, force: boolean = false) {
   if (!props.channelId || !gameChannel) return
+  
+  const now = Date.now()
+  // Only broadcast if enough time has passed or forced (for immediate updates like facing/dash changes)
+  if (!force && now - lastBroadcastTime < BROADCAST_INTERVAL) {
+    return
+  }
+  lastBroadcastTime = now
   
   // Use the existing gameChannel instead of creating a new one
   gameChannel.send({
@@ -909,7 +942,7 @@ function broadcastPlayerState(player: Player) {
       userId: player.userId,
       x: player.x,
       y: player.y,
-      facing: player.facing, // Make sure facing is always included
+      facing: player.facing, // Critical: must always be included for proper orientation sync
       state: player.state,
       velocityX: player.velocityX,
       velocityY: player.velocityY,
@@ -920,6 +953,7 @@ function broadcastPlayerState(player: Player) {
       wallSide: player.wallSide,
       health: player.health,
       maxHealth: player.maxHealth,
+      lastShotTime: player.lastShotTime || 0,
     }
   })
 }
@@ -1056,8 +1090,8 @@ function gameLoop(currentTime: number) {
         // Check if player died
         if (player.health <= 0) {
           player.state = 'dead'
-          playSound('hit') // Use hit sound for death (death sound not available)
-          // Respawn after 3 seconds
+          playSound('death') // Use X_LoseLife sound for death
+          // Respawn after 3 seconds with spawn animation
           setTimeout(() => {
             if (player.health <= 0) {
               player.health = player.maxHealth
@@ -1066,7 +1100,10 @@ function gameLoop(currentTime: number) {
               player.velocityX = 0
               player.velocityY = 0
               player.state = 'idle'
-              player.invulnerableUntil = now + 2000 // Extra invulnerability on respawn
+              player.isSpawning = true
+              player.spawnTime = Date.now()
+              player.invulnerableUntil = Date.now() + 2000 // Extra invulnerability on respawn
+              playSound('spawn') // Teleport down sound
             }
           }, 3000)
         } else {
@@ -1188,46 +1225,40 @@ function gameLoop(currentTime: number) {
     const isNearLeftWall = player.x <= wallLeft + wallThreshold
     const isNearRightWall = player.x >= wallRight - wallThreshold - 64
     
-    // Wall detection - can cling if falling and near wall
-    if ((isNearLeftWall || isNearRightWall) && !player.onGround && player.velocityY >= 0) {
-      // Can wall cling - check if holding direction key toward wall (for local player) or if already on wall (for remote)
-      const isLocalPlayer = userId === props.userId
-      const isHoldingLeft = isLocalPlayer ? keys.value.has('ArrowLeft') : (player.wallSide === 'left' || isNearLeftWall)
-      const isHoldingRight = isLocalPlayer ? keys.value.has('ArrowRight') : (player.wallSide === 'right' || isNearRightWall)
+    // Wall detection - can cling if in the air and touching wall
+    // Megaman X style: wall slide is slow, wall jump kicks off the wall
+    const isLocalPlayer = userId === props.userId
+    
+    if ((isNearLeftWall || isNearRightWall) && !player.onGround) {
+      // Check if player is moving towards wall (or already on wall)
+      const isPressingTowardLeft = isLocalPlayer ? keys.value.has('ArrowLeft') : player.wallSide === 'left'
+      const isPressingTowardRight = isLocalPlayer ? keys.value.has('ArrowRight') : player.wallSide === 'right'
       
-      if (isHoldingLeft && isNearLeftWall) {
+      // Wall cling only when pressing toward wall AND falling (velocityY > 0)
+      if ((isPressingTowardLeft && isNearLeftWall) || (isPressingTowardRight && isNearRightWall)) {
         if (!player.onWall) {
-          // Just touched wall - enable wall jump
+          // Just touched wall
           player.canWallJump = true
         }
         player.onWall = true
-        player.wallSide = 'left'
-        // Cap slide speed - don't slide up, only down (Megaman X style)
-        if (player.velocityY < WALL_SLIDE_SPEED) {
-          player.velocityY = Math.min(WALL_SLIDE_SPEED, player.velocityY + 0.2) // Gradually increase to slide speed
-        } else {
-          player.velocityY = WALL_SLIDE_SPEED // Maintain slide speed
+        player.wallSide = isNearLeftWall ? 'left' : 'right'
+        
+        // Wall slide: slow controlled descent, not going up
+        // Only slow down if actually falling (velocityY > 0)
+        if (player.velocityY > 0) {
+          player.velocityY = Math.min(player.velocityY, WALL_SLIDE_SPEED)
+        } else if (player.velocityY < 0) {
+          // Rising - let gravity slow us down naturally, but faster
+          player.velocityY += GRAVITY * deltaSeconds * 60 * 1.5
         }
-        player.state = 'wallCling'
-      } else if (isHoldingRight && isNearRightWall) {
-        if (!player.onWall) {
-          // Just touched wall - enable wall jump
-          player.canWallJump = true
-        }
-        player.onWall = true
-        player.wallSide = 'right'
-        // Cap slide speed - don't slide up, only down (Megaman X style)
-        if (player.velocityY < WALL_SLIDE_SPEED) {
-          player.velocityY = Math.min(WALL_SLIDE_SPEED, player.velocityY + 0.2) // Gradually increase to slide speed
-        } else {
-          player.velocityY = WALL_SLIDE_SPEED // Maintain slide speed
-        }
+        
+        // Horizontal velocity should be 0 while wall clinging
+        player.velocityX = 0
         player.state = 'wallCling'
       } else {
-        // Not holding direction key - release from wall
+        // Releasing direction key while on wall - detach and fall
         player.onWall = false
         player.wallSide = null
-        player.canWallJump = false
       }
     } else {
       player.onWall = false
@@ -1392,6 +1423,39 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     return
   }
   
+  // Handle spawn animation (teleport down)
+  if (player.isSpawning && player.spawnTime) {
+    const spawnElapsed = Date.now() - player.spawnTime
+    const spawnDuration = 800 // 800ms for spawn animation (7 frames at ~100ms each)
+    
+    if (spawnElapsed < spawnDuration) {
+      // Calculate which intro frame to show (7 frames total)
+      const introFrameIndex = Math.min(Math.floor(spawnElapsed / (spawnDuration / 7)) + 1, 7)
+      const introSprite = readySprites.value.get(`Intro${introFrameIndex}.png`)
+      
+      if (introSprite && introSprite.complete && introSprite.naturalWidth > 0) {
+        ctx.save()
+        const scale = introSprite.naturalWidth > 100 ? 0.5 : 1
+        const drawWidth = introSprite.naturalWidth * scale
+        const drawHeight = introSprite.naturalHeight * scale
+        
+        // Center the sprite on player position
+        if (player.facing === 'left') {
+          ctx.scale(-1, 1)
+          ctx.drawImage(introSprite, -player.x - drawWidth, player.y, drawWidth, drawHeight)
+        } else {
+          ctx.drawImage(introSprite, player.x, player.y, drawWidth, drawHeight)
+        }
+        ctx.restore()
+      }
+      return // Don't draw normal player sprite during spawn
+    } else {
+      // Spawn complete
+      player.isSpawning = false
+      player.spawnTime = 0
+    }
+  }
+  
   const frames = getAnimationFrames(player)
   
   // Don't draw placeholder - wait for sprites to load
@@ -1467,7 +1531,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       }
     }
     
-    // Apply palette swap (color tint) for different players - preserve transparency
+    // Apply palette swap for different players - Megaman style (replace blues with player color)
     if (player.color !== '#ff6b6b') { // Default color - no swap needed
       // Draw sprite to offscreen canvas for color manipulation
       const offscreenCanvas = document.createElement('canvas')
@@ -1494,14 +1558,29 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         const targetG = parseInt(hex.substr(2, 2), 16)
         const targetB = parseInt(hex.substr(4, 2), 16)
         
-        // Apply color tint while preserving transparency
+        // Megaman X uses specific blue tones - we'll replace blue-ish pixels
+        // This gives a more authentic palette swap look
         for (let i = 0; i < data.length; i += 4) {
           if (data[i + 3] > 0) { // Only process non-transparent pixels
-            // Blend with target color (40% original, 60% target for more visible tint)
-            data[i] = Math.floor(data[i] * 0.4 + targetR * 0.6)     // R
-            data[i + 1] = Math.floor(data[i + 1] * 0.4 + targetG * 0.6) // G
-            data[i + 2] = Math.floor(data[i + 2] * 0.4 + targetB * 0.6) // B
-            // Alpha stays the same
+            const r = data[i]
+            const g = data[i + 1]
+            const b = data[i + 2]
+            
+            // Detect blue-ish pixels (Megaman's armor colors)
+            // Light blue: high B, medium R/G
+            // Dark blue: low-medium R/G, medium-high B
+            const isBlueish = b > 80 && b >= r && b >= g
+            
+            if (isBlueish) {
+              // Calculate intensity (how light/dark the pixel is)
+              const intensity = (r + g + b) / 3 / 255
+              
+              // Replace with player color while keeping intensity
+              data[i] = Math.floor(targetR * intensity + targetR * 0.3) // R
+              data[i + 1] = Math.floor(targetG * intensity + targetG * 0.3) // G
+              data[i + 2] = Math.floor(targetB * intensity + targetB * 0.3) // B
+            }
+            // Non-blue pixels (skin, eyes, etc.) keep original color
           }
         }
         
@@ -1723,7 +1802,10 @@ function setupRealtimeListener() {
         invulnerableUntil: 0,
         canWallJump: false,
         smokeEffects: [],
-        lastJumpKeyPressed: false
+        lastJumpKeyPressed: false,
+        lastDashKeyPressed: false,
+        isSpawning: false, // Remote players don't show spawn locally
+        spawnTime: 0
       } as Player
       
       players.value.set(userId, player)
@@ -1750,11 +1832,14 @@ function setupRealtimeListener() {
       if (health !== undefined) player.health = health
       if (maxHealth !== undefined) player.maxHealth = maxHealth
       // Update lastShotTime for shooting animation sync
-      const remoteLastShotTime = (payload.payload as any).lastShootTime
+      const remoteLastShotTime = (payload.payload as any).lastShotTime
       if (remoteLastShotTime !== undefined && remoteLastShotTime > 0) {
         player.lastShotTime = remoteLastShotTime
         player.isShooting = Date.now() - remoteLastShotTime < 200
       }
+      
+      // Debug: Log facing updates
+      // debug.log(`🎮 Remote player ${userId.substring(0, 6)} facing: ${facing}`)
     }
   })
   
