@@ -172,33 +172,46 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
       
       // For emojis not found in database, check unified emoji pack
       // This supports Mutant Standard and other emoji packs
-      await loadEmojiData(); // Ensure emoji data is loaded
+      // OPTIMIZED: Only try to resolve if emoji data is already loaded
+      // Don't trigger load here - let it load lazily when user actually needs it (emoji picker, etc.)
+      const unresolvedEmojis = Array.from(uniqueEmojiNames).filter(name => !emojiDataMap[name])
       
-      for (const emojiName of uniqueEmojiNames) {
-        if (!emojiDataMap[emojiName]) {
-          // Try to resolve from unified emoji service
-          const resolved = resolveEmoji(emojiName);
-          
-          // Check if we got a valid resolution:
-          // 1. SVG path exists (mutant pack has it), OR
-          // 2. Unicode is different from input (we found a real unicode mapping), OR
-          // 3. resolved.shortcode exists and differs from input (case-insensitive match found it)
-          const hasValidSvg = resolved.display.type === 'svg' && resolved.display.content;
-          const hasValidUnicode = resolved.unicode && resolved.unicode !== emojiName;
-          const hasShortcodeMatch = resolved.shortcode && resolved.shortcode.toLowerCase() === emojiName.toLowerCase();
-          
-          if (hasValidUnicode || (hasShortcodeMatch && hasValidSvg)) {
-            emojiDataMap[emojiName] = {
-              id: resolved.unicode || emojiName,
-              name: emojiName,
-              unicode: resolved.unicode || null,
-              // Mark as inline so parser outputs as text, not emoji object
-              _inlineAsText: !!resolved.unicode,
-              source: 'unified'
-            };
+      if (unresolvedEmojis.length > 0) {
+        // Only try to resolve if emoji data is already loaded
+        // If not loaded, emojis will render as :shortcode: text until data loads
+        // This prevents loading 823KB of emoji data on initial page load
+        if (unifiedEmojiLoaded.value) {
+          // Emoji data is already loaded, try to resolve
+          for (const emojiName of unresolvedEmojis) {
+            // Try to resolve from unified emoji service
+            const resolved = resolveEmoji(emojiName);
+            
+            // Check if we got a valid resolution:
+            // 1. SVG path exists (mutant pack has it), OR
+            // 2. Unicode is different from input (we found a real unicode mapping), OR
+            // 3. resolved.shortcode exists and differs from input (case-insensitive match found it)
+            const hasValidSvg = resolved.display.type === 'svg' && resolved.display.content;
+            const hasValidUnicode = resolved.unicode && resolved.unicode !== emojiName;
+            const hasShortcodeMatch = resolved.shortcode && resolved.shortcode.toLowerCase() === emojiName.toLowerCase();
+            
+            // Add to map if we have a valid resolution
+            if (hasValidUnicode || (hasShortcodeMatch && hasValidSvg)) {
+              emojiDataMap[emojiName] = {
+                id: resolved.unicode || emojiName,
+                name: emojiName,
+                unicode: resolved.unicode || null,
+                // Mark as inline so parser outputs as text, not emoji object
+                _inlineAsText: !!resolved.unicode,
+                source: 'unified'
+              };
+            }
           }
-          // If no valid resolution, don't add to map - will render as :shortcode: text
         }
+        // If emoji data is not loaded, don't add to map - will render as :shortcode: text
+        // Emoji data will load lazily when:
+        // - User opens emoji picker
+        // - User searches for emojis
+        // - Component explicitly needs emoji resolution (and triggers load)
       }
     }
   } catch (error) {

@@ -11,6 +11,8 @@ export const useAuthStore = defineStore('auth', {
     session: null as Session | null,
     isPasswordResetMode: false, // Flag to track if we're in password reset flow
     _mfaValidatedForSession: null as string | null, // Track which session we already validated MFA for
+    _sessionCacheTimestamp: null as number | null, // Cache timestamp to prevent redundant getSession() calls
+    _sessionCacheTimeout: 5000, // Cache session for 5 seconds to prevent duplicate calls
   }),
   getters: {
     isLoggedIn: (state) => {
@@ -107,43 +109,59 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async initializeAuth() {
-      const { data: getSessionData } = await supabase.auth.getSession();
-      const session = getSessionData.session;
-      
-      // Check if we're on password reset page or have recovery token in URL
-      // This handles the case where Supabase has already processed the recovery token
-      // before the PASSWORD_RECOVERY event fires
-      const currentPath = window.location.pathname;
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const queryParams = new URLSearchParams(window.location.search);
-      const type = hashParams.get('type') || queryParams.get('type');
-      
-      if (currentPath === '/reset-password' && (type === 'recovery' || session)) {
-        // This is likely a recovery session - don't treat it as logged in
-        debug.log('🔒 Recovery session detected on initialization - entering password reset mode');
-        this.isPasswordResetMode = true;
-        // Keep the session - it's needed for updateUser to work
-        // But isLoggedIn will return false because of isPasswordResetMode
-        this.session = session;
-      } else if (session) {
-        // 🚨 CRITICAL SECURITY: Check AAL2 on session restoration
-        // This prevents MFA bypass when another tab creates an AAL1 session
-        // and this tab picks it up from localStorage on refresh
-        const isValid = await this.validateSessionForMFA(session);
-        
-        if (isValid) {
-          this.session = session;
-          // ✅ PERFORMANCE: Remember we validated this session to avoid redundant validation
-          // on INITIAL_SESSION event that fires immediately after
-          this._mfaValidatedForSession = session.access_token;
-        } else {
-          debug.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
-          // Sign out the incomplete session to prevent other tabs from using it
-          await supabase.auth.signOut();
-          this.session = null;
+      // ✅ PERFORMANCE: Check if we recently fetched session to avoid duplicate calls
+      const now = Date.now()
+      if (this._sessionCacheTimestamp && (now - this._sessionCacheTimestamp) < this._sessionCacheTimeout) {
+        debug.log('⚡ Using cached session (avoiding duplicate getSession call)')
+        // Use existing session from state
+        const session = this.session
+        if (!session) {
+          // If no cached session, still need to fetch
+          const { data: getSessionData } = await supabase.auth.getSession()
+          this.session = getSessionData.session
+          this._sessionCacheTimestamp = now
         }
       } else {
-        this.session = null;
+        const { data: getSessionData } = await supabase.auth.getSession()
+        const session = getSessionData.session
+        this._sessionCacheTimestamp = now
+        
+        // Check if we're on password reset page or have recovery token in URL
+        // This handles the case where Supabase has already processed the recovery token
+        // before the PASSWORD_RECOVERY event fires
+        const currentPath = window.location.pathname;
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const queryParams = new URLSearchParams(window.location.search);
+        const type = hashParams.get('type') || queryParams.get('type');
+        
+        if (currentPath === '/reset-password' && (type === 'recovery' || session)) {
+          // This is likely a recovery session - don't treat it as logged in
+          debug.log('🔒 Recovery session detected on initialization - entering password reset mode');
+          this.isPasswordResetMode = true;
+          // Keep the session - it's needed for updateUser to work
+          // But isLoggedIn will return false because of isPasswordResetMode
+          this.session = session;
+        } else if (session) {
+          // 🚨 CRITICAL SECURITY: Check AAL2 on session restoration
+          // This prevents MFA bypass when another tab creates an AAL1 session
+          // and this tab picks it up from localStorage on refresh
+          const isValid = await this.validateSessionForMFA(session);
+          
+          if (isValid) {
+            this.session = session;
+            this._sessionCacheTimestamp = Date.now()
+            // ✅ PERFORMANCE: Remember we validated this session to avoid redundant validation
+            // on INITIAL_SESSION event that fires immediately after
+            this._mfaValidatedForSession = session.access_token;
+          } else {
+            debug.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
+            // Sign out the incomplete session to prevent other tabs from using it
+            await supabase.auth.signOut();
+            this.session = null;
+          }
+        } else {
+          this.session = null;
+        }
       }
 
       // Initialize notification system for existing session

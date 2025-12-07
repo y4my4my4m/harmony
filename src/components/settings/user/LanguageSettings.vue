@@ -55,7 +55,7 @@ const availableLanguages = availableLocales
 
 const onLanguageChange = async () => {
   // Update i18n locale
-  setLocale(selectedLanguage.value)
+  await setLocale(selectedLanguage.value)
   
   // Emit to parent
   emit('update-language', selectedLanguage.value)
@@ -95,7 +95,7 @@ onMounted(async () => {
       
       if (data?.locale) {
         selectedLanguage.value = data.locale
-        setLocale(data.locale)
+        await setLocale(data.locale)
       }
     } catch (error) {
       debug.error('Failed to load language preference:', error)

@@ -16,7 +16,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-import { i18n } from './i18n'
+import { i18n, waitForInitialLocale } from './i18n'
 import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
 import { pwaManager } from '@/services/PWAManager'
 import { useAuthStore } from '@/stores/auth'
@@ -79,6 +79,10 @@ app.directive('haptic', vHaptic);
 
 async function initializeApp() {
   try {
+    // Wait for initial locale to load (ensures translations are available)
+    await waitForInitialLocale()
+    debug.log('🌐 Initial locale loaded')
+    
     // Initialize PWA features first for better UX (mostly synchronous)
     await pwaManager.initialize()
     debug.log('🚀 PWA Manager initialized')

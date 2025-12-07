@@ -61,7 +61,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
         ]);
         
         // Subscribe to real-time updates for user's server list (join/leave)
-        await this.subscribeToUserServers(userId);
+        // NON-BLOCKING: Don't wait for websocket connection - let it connect in background
+        // This prevents 6+ second blocking during initial load
+        this.subscribeToUserServers(userId).catch(error => {
+          debug.warn('⚠️ Failed to subscribe to user servers (non-blocking):', error)
+        })
         
         // Restore last selected server and channel from persistence
         await this.restorePersistedState();

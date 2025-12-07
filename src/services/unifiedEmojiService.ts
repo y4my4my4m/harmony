@@ -434,12 +434,13 @@ export interface ResolvedEmoji {
  * LAZY: Triggers background load if not already loaded (non-blocking)
  */
 function resolveEmoji(input: string): ResolvedEmoji {
-  // Lazy load emoji data in background if not loaded (non-blocking)
-  if (!isLoaded.value && !isLoading.value) {
-    loadEmojiData().catch(err => {
-      debug.warn('Failed to lazy load emoji data:', err)
-    })
-  }
+  // OPTIMIZED: Don't auto-trigger lazy load here - let callers decide when to load
+  // This prevents 823KB from loading during initial message rendering
+  // Emoji data should only load when:
+  // - User opens emoji picker
+  // - User searches for emojis
+  // - Component explicitly needs emoji resolution (and checks isLoaded first)
+  // If data not loaded, this will return a basic resolution (native unicode)
   // Handle legacy "mutant:path" format
   if (input.startsWith('mutant:')) {
     const path = input.replace('mutant:', '')

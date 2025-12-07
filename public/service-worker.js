@@ -402,9 +402,18 @@ self.addEventListener('fetch', (event) => {
   const isAuthRequest = url.pathname.includes('/auth/')
   const isCSSRequest = url.pathname.endsWith('.css')
   const isJSRequest = url.pathname.endsWith('.js') || url.pathname.endsWith('.ts')
+  
+  // ✅ PERFORMANCE: Skip modulepreload requests to prevent duplicate fetches
+  // The browser handles these efficiently, and intercepting causes duplicates
+  const isModulePreload = event.request.headers.get('purpose') === 'modulepreload' ||
+                          event.request.headers.get('X-Purpose') === 'modulepreload' ||
+                          event.request.mode === 'cors' && event.request.credentials === 'omit' && isJSRequest
 
   // Only intercept specific types of requests
-  if (isAPIRequest || isAuthRequest) {
+  if (isModulePreload) {
+    // Let browser handle modulepreload requests naturally - don't intercept
+    return
+  } else if (isAPIRequest || isAuthRequest) {
     // Critical API requests - network first with enhanced error handling
     event.respondWith(enhancedNetworkFirst(event.request, API_CACHE))
   } else if (isCSSRequest || isJSRequest) {

@@ -138,6 +138,18 @@
    - **Impact**: Saves ~500KB+ on initial load
    - **Files**: `vite-plugin-selective-preload.ts`, `vite.config.ts`
 
+2. **Make websocket connection non-blocking** - Changed `subscribeToUserServers` to not await during initialization
+   - **Impact**: Prevents 6.7 second blocking during page load
+   - **Files**: `src/stores/useServerChannel.ts`
+
+3. **Cache auth state** - Added session caching to prevent multiple `/auth/v1/user` calls
+   - **Impact**: Reduces 4 duplicate auth calls to 1
+   - **Files**: `src/stores/auth.ts`
+
+4. **Emoji data lazy loading** - Already implemented! Emoji data (712KB) only loads when emoji picker is opened
+   - **Impact**: Saves 712KB on initial load
+   - **Files**: `src/components/EmojiPopup.vue`, `src/services/unifiedEmojiService.ts`
+
 ### Immediate (Critical)
 1. **Make websocket connection non-blocking** - Don't wait for realtime connection before showing UI
 2. **Fix duplicate asset requests** - Investigate service worker and cache headers

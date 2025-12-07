@@ -77,15 +77,16 @@ export function useUserData() {
 
   /**
    * Get user avatar URL for current user
+   * Always use getAvatarUrl to handle null/undefined and optimization
    */
   const getUserAvatarUrlCurrent = computed(() => {
     forceUpdate.value // Force reactivity
     const currentUser = userDataService.getCurrentUser()
-    if (currentUser?.isLocal) {
-      return getAvatarUrl(currentUser?.avatarUrl)
+    if (!currentUser) {
+      return '/default_avatar.webp'
     }
-    // Fallback for non-local users
-    return currentUser?.avatarUrl || '/default_avatar.webp'
+    // Always use getAvatarUrl - it handles null/undefined and optimization
+    return getAvatarUrl(currentUser.avatarUrl)
   })
   
   /**
