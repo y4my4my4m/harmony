@@ -44,7 +44,7 @@ const toggle = () => {
 .toggle-switch {
   width: 44px;
   height: 24px;
-  background-color: var(--background-quaternary);
+  background-color: var(--background-primary);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
