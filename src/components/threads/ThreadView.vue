@@ -191,7 +191,7 @@ const emit = defineEmits<{
   'thread-updated': [thread: ThreadWithDetails]
 }>()
 
-const { getUserById } = useUserData()
+const { getUserDisplayName: getDisplayName } = useUserData()
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
@@ -331,8 +331,7 @@ const handleInput = () => {
 
 const getAuthorName = (userId?: string) => {
   if (!userId) return 'Unknown'
-  const user = getUserById(userId)
-  return user?.displayName || user?.username || 'Unknown'
+  return getDisplayName(userId).value
 }
 
 const formatTimestamp = (date: Date | string) => {

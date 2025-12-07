@@ -45,12 +45,13 @@
               >
                 <div class="message-header">
                   <Avatar
-                    :user-id="message.user_id"
-                    :size="32"
+                    :src="getUserAvatar(message.user_id)"
+                    :alt="getUserDisplayName(message.user_id)"
+                    size="sm"
                     class="message-avatar"
                   />
                   <div class="message-info">
-                    <div class="message-author">
+                    <div class="message-author" :style="{ color: getUserColorValue(message.user_id) }">
                       {{ getUserDisplayName(message.user_id) }}
                     </div>
                     <div class="message-time">
@@ -112,7 +113,11 @@ const emit = defineEmits<{
 }>()
 
 const { canPinMessages } = useServerPermissions()
-const { getUserById } = useUserData()
+const { 
+  getUserDisplayName: getDisplayName, 
+  getUserColor: getColor,
+  getUserAvatarUrl: getAvatarUrl
+} = useUserData()
 
 const pinnedMessages = ref<Message[]>([])
 const loading = ref(false)
@@ -156,8 +161,17 @@ const close = () => {
 
 const getUserDisplayName = (userId?: string) => {
   if (!userId) return 'Unknown'
-  const user = getUserById(userId)
-  return user?.displayName || user?.username || 'Unknown'
+  return getDisplayName(userId).value
+}
+
+const getUserColorValue = (userId?: string) => {
+  if (!userId) return undefined
+  return getColor(userId).value
+}
+
+const getUserAvatar = (userId?: string) => {
+  if (!userId) return '/default_avatar.webp'
+  return getAvatarUrl(userId).value
 }
 
 const formatTimestamp = (date: Date | string) => {
@@ -311,15 +325,15 @@ onMounted(() => {
 
 .pinned-message-item {
   padding: 12px;
-  background: var(--background-secondary);
+  background: var(--background-tertiary);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-color);
 }
 
 .pinned-message-item:hover {
-  background: var(--background-tertiary);
+  background: var(--background-hover);
   border-color: var(--harmony-primary);
 }
 
@@ -374,18 +388,26 @@ onMounted(() => {
 }
 
 .message-content {
-  margin-left: 44px;
+  margin-left: 48px; /* Avatar sm (32px) + gap (12px) + small offset */
   color: var(--text-primary);
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .pinned-by {
-  margin-left: 44px;
+  margin-left: 48px;
   margin-top: 8px;
   font-size: 11px;
-  color: var(--text-secondary);
-  opacity: 0.7;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pinned-by::before {
+  content: '📌';
+  font-size: 10px;
 }
 
 /* Modal transition */

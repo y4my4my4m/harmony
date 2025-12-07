@@ -166,7 +166,9 @@ export interface ServerRole {
   permissions: Record<Permission, boolean>
   icon_url?: string
   unicode_emoji?: string
-  is_default: boolean
+  is_default?: boolean
+  is_admin?: boolean
+  member_count?: number
   created_at: string
   updated_at: string
   ap_id?: string

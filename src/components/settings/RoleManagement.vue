@@ -43,6 +43,7 @@
               <div class="role-color" :style="{ background: role.color || '#99AAB5' }"></div>
               <span class="role-name">
                 {{ role.name }}
+                <span v-if="role.is_admin" class="admin-badge">Admin</span>
                 <span v-if="role.is_default" class="default-badge">Default</span>
               </span>
               <span class="member-count">{{ role.member_count || 0 }} members</span>
@@ -461,8 +462,12 @@ const saveRole = async () => {
   }
 }
 
+const isProtectedRole = computed(() => {
+  return selectedRole.value?.is_default || selectedRole.value?.is_admin
+})
+
 const deleteRole = async () => {
-  if (!selectedRole.value || selectedRole.value.is_default) return
+  if (!selectedRole.value || isProtectedRole.value) return
   
   if (!confirm(`Are you sure you want to delete the "${selectedRole.value.name}" role?`)) {
     return
@@ -472,8 +477,9 @@ const deleteRole = async () => {
     await roleService.deleteRole(selectedRole.value.id)
     roles.value = roles.value.filter(r => r.id !== selectedRole.value!.id)
     selectedRole.value = null
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to delete role:', error)
+    alert(error.message || 'Failed to delete role')
   }
 }
 
@@ -639,12 +645,23 @@ onMounted(() => {
   gap: 8px;
 }
 
-.default-badge {
+.default-badge,
+.admin-badge {
   font-size: 10px;
-  background: var(--background-tertiary);
-  color: var(--text-secondary);
   padding: 2px 6px;
   border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.default-badge {
+  background: var(--background-tertiary);
+  color: var(--text-secondary);
+}
+
+.admin-badge {
+  background: rgba(231, 76, 60, 0.2);
+  color: #E74C3C;
   text-transform: uppercase;
   font-weight: 600;
 }

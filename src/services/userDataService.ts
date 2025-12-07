@@ -326,7 +326,12 @@ class UserDataService extends EventTarget {
           bio: profile.bio,
           color: profile.color,
           domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-          isLocal: profile.is_local || false,
+          // Default to true for local users - is_local defaults to true in DB
+          // Check: is_local explicitly set, OR no domain (local), OR domain matches our instance
+          isLocal: profile.is_local ?? (
+            !profile.domain || 
+            profile.domain === import.meta.env.VITE_DOMAIN
+          ),
           status: finalStatus,
           customStatus: undefined, // Will be loaded separately if exists
           isOnline: true,
@@ -564,7 +569,7 @@ class UserDataService extends EventTarget {
       // 🎨 Use color from presence if provided (real-time color sync)
       color: presence.color || existing?.color,
       domain: existing?.domain,
-      isLocal: existing?.isLocal || false,
+      isLocal: existing?.isLocal ?? true,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in global presence with a visible status, so they're online
@@ -616,7 +621,7 @@ class UserDataService extends EventTarget {
       // 🎨 Use color from presence if provided (real-time color sync)
       color: presence.color || existing?.color,
       domain: existing?.domain || import.meta.env.VITE_DOMAIN as string,
-      isLocal: existing?.isLocal || false,
+      isLocal: existing?.isLocal ?? true,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in context presence with a visible status, so they're online
@@ -1110,7 +1115,11 @@ class UserDataService extends EventTarget {
             bio: profile.bio,
             color: profile.color,
             domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-            isLocal: profile.is_local || false,
+            // Default to true for local users - check if domain matches our instance
+            isLocal: profile.is_local ?? (
+              !profile.domain || 
+              profile.domain === import.meta.env.VITE_DOMAIN
+            ),
             status: profile.status ?? UserStatus.Offline,
             customStatus: undefined, // Would need separate table for custom status
             isOnline: false, // Will be updated by presence
