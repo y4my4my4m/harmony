@@ -68,16 +68,22 @@ export function useUserData() {
   
   /**
    * Get user avatar URL
+   * Handles both local and remote/federated users correctly
    */
   const getUserAvatarUrl = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
-    return user?.avatarUrl || '/default_avatar.webp'
+    if (!user) {
+      return '/default_avatar.webp'
+    }
+    // Pass isLocal flag to getAvatarUrl so it doesn't transform remote URLs
+    return getAvatarUrl(user.avatarUrl, 256, user.isLocal)
   })
 
   /**
    * Get user avatar URL for current user
    * Always use getAvatarUrl to handle null/undefined and optimization
+   * Current user is always local, so isLocal is true
    */
   const getUserAvatarUrlCurrent = computed(() => {
     forceUpdate.value // Force reactivity
@@ -85,8 +91,8 @@ export function useUserData() {
     if (!currentUser) {
       return '/default_avatar.webp'
     }
-    // Always use getAvatarUrl - it handles null/undefined and optimization
-    return getAvatarUrl(currentUser.avatarUrl)
+    // Current user is always local, so pass true for isLocal
+    return getAvatarUrl(currentUser.avatarUrl, 256, true)
   })
   
   /**

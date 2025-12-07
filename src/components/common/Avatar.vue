@@ -75,6 +75,7 @@ interface Props {
   editable?: boolean
   interactive?: boolean
   loading?: boolean
+  isLocalUser?: boolean  // Whether this is a local user (true) or remote/federated (false). If undefined, will try to detect.
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -114,7 +115,8 @@ const sizeMap: Record<AvatarSize, number> = {
 const avatarUrl = computed(() => {
   if (imageError.value) return '/default_avatar.webp'
   const pixelSize = sizeMap[props.size] || 48
-  return getAvatarUrl(props.src, pixelSize)
+  // Pass isLocalUser flag so remote/federated URLs aren't transformed
+  return getAvatarUrl(props.src, pixelSize, props.isLocalUser)
 })
 
 const sizeClass = computed(() => `avatar-${props.size}`)
