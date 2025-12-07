@@ -61,7 +61,7 @@ FROM pg_publication p
 JOIN pg_publication_rel pr ON p.oid = pr.prpubid
 JOIN pg_class c ON c.oid = pr.prrelid
 JOIN pg_namespace n ON n.oid = c.relnamespace
-ORDER BY 1,2,3;
+ORDER BY p.pubname, n.nspname, c.relname;
 " > "$TMP_REALTIME"
 
 # ==============================
