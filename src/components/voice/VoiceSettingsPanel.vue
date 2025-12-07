@@ -207,8 +207,8 @@
           </div>
         </div>
 
-        <!-- Keybinds -->
-        <div class="settings-section">
+        <!-- Keybinds - Hidden on touch devices -->
+        <div v-if="!isTouchDevice" class="settings-section keybinds-section">
           <h4 class="section-title">
             <Icon name="keyboard" />
             Keybinds
@@ -311,6 +311,15 @@ export default defineComponent({
     const testLevel = ref(0);
     const previewStream = ref<MediaStream | null>(null);
     const previewVideo = ref<HTMLVideoElement | null>(null);
+
+    // Touch device detection (hide keybinds on touch devices)
+    const isTouchDevice = ref(false);
+    const detectTouchDevice = () => {
+      isTouchDevice.value = 
+        'ontouchstart' in window || 
+        navigator.maxTouchPoints > 0 ||
+        window.matchMedia('(pointer: coarse)').matches;
+    };
 
     // Get available devices
     const getDevices = async () => {
@@ -595,6 +604,7 @@ export default defineComponent({
     onMounted(() => {
       getDevices();
       loadStoredSettings();
+      detectTouchDevice();
       navigator.mediaDevices.addEventListener('devicechange', getDevices);
     });
 
@@ -625,6 +635,7 @@ export default defineComponent({
       testLevel,
       previewStream,
       previewVideo,
+      isTouchDevice,
       testMicrophone,
       updateInputDevice,
       updateOutputDevice,
@@ -1045,5 +1056,299 @@ kbd {
 
 .settings-content::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+/* Tablet */
+@media (max-width: 768px) {
+  .settings-panel {
+    width: 95vw;
+    max-height: 90vh;
+  }
+  
+  .settings-header {
+    padding: 16px 20px;
+  }
+  
+  .settings-header h3 {
+    font-size: 18px;
+  }
+  
+  .settings-content {
+    padding: 16px 20px;
+  }
+  
+  .settings-section {
+    margin-bottom: 24px;
+  }
+  
+  .section-title {
+    font-size: 15px;
+    margin-bottom: 16px;
+  }
+  
+  .setting-group {
+    margin-bottom: 16px;
+  }
+  
+  .setting-select {
+    padding: 14px 16px;
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+  
+  /* Larger slider thumb for touch */
+  .setting-slider::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .setting-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  
+  /* Larger checkbox targets */
+  .checkbox-label {
+    padding: 14px;
+    min-height: 56px;
+  }
+  
+  .checkbox-custom {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .video-preview {
+    height: 180px;
+  }
+  
+  .settings-footer {
+    padding: 16px 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .reset-btn,
+  .cancel-btn,
+  .save-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+}
+
+/* Mobile portrait */
+@media (max-width: 480px) {
+  /* Make overlay truly fullscreen on mobile */
+  .settings-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  
+  .settings-panel {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+  
+  .settings-header {
+    padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  }
+  
+  .settings-header h3 {
+    font-size: 17px;
+  }
+  
+  .close-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .settings-content {
+    padding: 16px;
+    padding-bottom: 24px;
+  }
+  
+  .settings-section {
+    margin-bottom: 20px;
+  }
+  
+  .section-title {
+    font-size: 14px;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  
+  .setting-label {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  
+  .setting-select {
+    padding: 16px;
+    font-size: 16px; /* Prevent iOS zoom */
+    border-radius: 10px;
+  }
+  
+  /* Even larger slider for mobile touch */
+  .volume-control {
+    padding: 8px 0;
+  }
+  
+  .setting-slider {
+    height: 8px;
+  }
+  
+  .setting-slider::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .setting-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .volume-indicator {
+    top: 16px;
+    height: 8px;
+  }
+  
+  /* Touch-friendly checkboxes */
+  .checkbox-label {
+    padding: 16px;
+    min-height: 64px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  
+  .checkbox-custom {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+  
+  .checkbox-content span {
+    font-size: 15px;
+  }
+  
+  .checkbox-content small {
+    font-size: 13px;
+  }
+  
+  /* Test button */
+  .audio-test {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .test-btn {
+    width: 100%;
+    padding: 14px 20px;
+    justify-content: center;
+    font-size: 15px;
+  }
+  
+  .test-indicator {
+    width: 100%;
+    height: 8px;
+  }
+  
+  /* Video preview */
+  .video-preview {
+    height: 150px;
+    border-radius: 10px;
+  }
+  
+  /* Footer - stacked buttons */
+  .settings-footer {
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .reset-btn {
+    order: 3;
+    width: 100%;
+    padding: 14px;
+    font-size: 14px;
+  }
+  
+  .footer-actions {
+    width: 100%;
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+  
+  .cancel-btn,
+  .save-btn {
+    width: 100%;
+    padding: 16px;
+    font-size: 15px;
+    border-radius: 10px;
+  }
+  
+  .save-btn {
+    order: 1;
+  }
+  
+  .cancel-btn {
+    order: 2;
+  }
+  
+  /* Hide keybinds section on mobile via CSS backup (v-if handles JS) */
+  .keybinds-section {
+    display: none;
+  }
+}
+
+/* Very small mobile */
+@media (max-width: 360px) {
+  .settings-header {
+    padding: 12px;
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  }
+  
+  .settings-header h3 {
+    font-size: 16px;
+  }
+  
+  .settings-content {
+    padding: 12px;
+  }
+  
+  .section-title {
+    font-size: 13px;
+  }
+  
+  .setting-label {
+    font-size: 12px;
+  }
+  
+  .checkbox-label {
+    padding: 14px;
+    min-height: 56px;
+  }
+  
+  .video-preview {
+    height: 120px;
+  }
 }
 </style>
