@@ -314,6 +314,9 @@ export class SignatureService {
   private static async fetchActorPublicKey(actorUrl: string, forceRefresh = false): Promise<string | null> {
     const supabase = getSupabaseClient();
     
+    // Declare cachedActor outside the if block so it's in scope for fallback logic
+    let cachedActorData: any = null;
+    
     if (!forceRefresh) {
       // First, check if we have this actor in our profiles table
       const { data: profile } = await supabase
@@ -327,19 +330,21 @@ export class SignatureService {
         return profile.public_key;
       }
       
-      // Second, check actor cache table
+      // Second, check actor cache table (also check expired cache for fallback)
       const { data: cachedActor } = await supabase
         .from('ap_actor_cache')
         .select('actor_data, cache_expires_at')
         .eq('ap_id', actorUrl)
-        .gt('cache_expires_at', new Date().toISOString())
         .maybeSingle();
       
-      if (cachedActor?.actor_data) {
-        const actor = cachedActor.actor_data;
-        if (actor.publicKey?.publicKeyPem) {
+      // Store for potential fallback use
+      cachedActorData = cachedActor?.actor_data;
+      
+      // Only use cache if not expired
+      if (cachedActor?.cache_expires_at && new Date(cachedActor.cache_expires_at) > new Date()) {
+        if (cachedActorData?.publicKey?.publicKeyPem) {
           logger.debug(`Using cached actor data for ${actorUrl}`);
-          return actor.publicKey.publicKeyPem;
+          return cachedActorData.publicKey.publicKeyPem;
         }
       }
     } else {
@@ -357,10 +362,10 @@ export class SignatureService {
 
       if (!response.ok) {
         logger.warn(`Failed to fetch actor: ${response.status} for ${actorUrl}`);
-        // If we have a cached actor that's expired, try using it anyway
-        if (cachedActor?.actor_data?.publicKey?.publicKeyPem) {
+        // If we have a cached actor (even expired), try using it anyway
+        if (cachedActorData?.publicKey?.publicKeyPem) {
           logger.warn(`Using expired cached public key for ${actorUrl}`);
-          return cachedActor.actor_data.publicKey.publicKeyPem;
+          return cachedActorData.publicKey.publicKeyPem;
         }
         return null;
       }
@@ -418,10 +423,10 @@ export class SignatureService {
       return null;
     } catch (error) {
       logger.error(`Error fetching actor public key for ${actorUrl}:`, error);
-      // If we have a cached actor that's expired, try using it anyway
-      if (cachedActor?.actor_data?.publicKey?.publicKeyPem) {
+      // If we have a cached actor (even expired), try using it anyway
+      if (cachedActorData?.publicKey?.publicKeyPem) {
         logger.warn(`Using expired cached public key for ${actorUrl} due to fetch error`);
-        return cachedActor.actor_data.publicKey.publicKeyPem;
+        return cachedActorData.publicKey.publicKeyPem;
       }
       return null;
     }
