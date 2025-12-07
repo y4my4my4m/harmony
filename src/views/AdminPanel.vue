@@ -673,6 +673,17 @@
         </div>
       </div>
 
+      <!-- Performance Monitoring -->
+      <div class="admin-module performance-module">
+        <div class="module-header">
+          <Icon name="activity" :size="20" />
+          <h2>Performance Monitoring</h2>
+        </div>
+        <div class="performance-content">
+          <PerformanceMonitoring />
+        </div>
+      </div>
+
       <!-- Emoji Importer -->
       <div class="admin-module emoji-module">
         <div class="module-header">
@@ -765,6 +776,7 @@ import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
+import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult } from '@/services/AdminService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 
@@ -2585,6 +2597,17 @@ const handleAddInstance = () => {
 
 .emoji-content {
   padding: 0;
+  overflow-y: auto;
+}
+
+/* Performance Monitoring Module */
+.performance-module {
+  grid-column: 1 / -1; /* Full width */
+}
+
+.performance-content {
+  padding: 0;
+  max-height: 800px;
   overflow-y: auto;
 }
 

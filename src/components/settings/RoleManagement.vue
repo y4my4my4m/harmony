@@ -1,21 +1,22 @@
 <template>
   <div class="role-management">
-    <!-- Header -->
-    <div class="management-header">
-      <div class="header-text">
-        <h2>Roles</h2>
-        <p>Create and manage roles for your server. Roles can be used to manage permissions and organize members.</p>
+    <div class="role-management-main">
+      <!-- Header -->
+      <div class="management-header">
+        <div class="header-text">
+          <h2>Roles</h2>
+          <p>Create and manage roles for your server. Roles can be used to manage permissions and organize members.</p>
+        </div>
+        <button class="create-role-btn" @click="createRole">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          Create Role
+        </button>
       </div>
-      <button class="create-role-btn" @click="createRole">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-        </svg>
-        Create Role
-      </button>
-    </div>
 
-    <!-- Role List -->
-    <div class="role-list" v-if="!loading">
+      <!-- Role List -->
+      <div class="role-list" v-if="!loading">
       <div class="role-section">
         <div class="section-header">
           <span>{{ roles.length }} roles</span>
@@ -51,9 +52,10 @@
       </div>
     </div>
 
-    <div v-else class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading roles...</p>
+      <div v-else class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading roles...</p>
+      </div>
     </div>
 
     <!-- Role Editor Panel -->
@@ -516,17 +518,25 @@ onMounted(() => {
 <style scoped>
 .role-management {
   display: flex;
-  height: 100%;
+  min-height: 400px;
+  height: auto;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.role-management-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .management-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 24px;
+  padding: 0 0 20px 0;
   border-bottom: 1px solid var(--border-color);
+  margin-bottom: 16px;
 }
 
 .header-text h2 {
@@ -565,7 +575,7 @@ onMounted(() => {
 .role-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 0;
 }
 
 .section-header {

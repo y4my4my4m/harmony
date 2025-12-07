@@ -86,30 +86,46 @@ class ThreadService {
     }
 
     try {
+      // Simple query without FK hints - fetch thread data directly
       const { data, error } = await supabase
         .from('threads')
-        .select(`
-          *,
-          channels!threads_channel_id_fkey (
-            name,
-            server_id
-          ),
-          profiles!threads_created_by_fkey (
-            username,
-            display_name,
-            avatar_url
-          ),
-          parent_message:messages!threads_parent_message_id_fkey (
-            id,
-            content,
-            user_id,
-            created_at
-          )
-        `)
+        .select('*')
         .eq('id', threadId)
         .single()
 
       if (error) throw error
+
+      // Fetch related data separately
+      let channelData = null
+      let creatorData = null
+      let parentMessage = null
+
+      if (data.channel_id) {
+        const { data: channel } = await supabase
+          .from('channels')
+          .select('name, server_id')
+          .eq('id', data.channel_id)
+          .single()
+        channelData = channel
+      }
+
+      if (data.created_by) {
+        const { data: creator } = await supabase
+          .from('profiles')
+          .select('username, display_name, avatar_url')
+          .eq('id', data.created_by)
+          .single()
+        creatorData = creator
+      }
+
+      if (data.parent_message_id) {
+        const { data: msg } = await supabase
+          .from('messages')
+          .select('id, content, user_id, created_at')
+          .eq('id', data.parent_message_id)
+          .single()
+        parentMessage = msg
+      }
 
       // Check if current user is a member
       const { data: { user } } = await supabase.auth.getUser()
@@ -121,19 +137,19 @@ class ThreadService {
           .select('id')
           .eq('thread_id', threadId)
           .eq('user_id', user.id)
-          .single()
+          .maybeSingle()
         
         isMember = !!membership
       }
 
       const thread: ThreadWithDetails = {
         ...data,
-        channel_name: data.channels?.name,
-        server_id: data.channels?.server_id,
-        creator_username: data.profiles?.username,
-        creator_display_name: data.profiles?.display_name,
-        creator_avatar_url: data.profiles?.avatar_url,
-        parent_message: data.parent_message,
+        channel_name: channelData?.name,
+        server_id: channelData?.server_id,
+        creator_username: creatorData?.username,
+        creator_display_name: creatorData?.display_name,
+        creator_avatar_url: creatorData?.avatar_url,
+        parent_message: parentMessage,
         is_member: isMember,
       }
 
@@ -159,20 +175,10 @@ class ThreadService {
     const { includeArchived = false, limit = 50, offset = 0 } = options
 
     try {
+      // Simple query without FK hints
       let query = supabase
         .from('threads')
-        .select(`
-          *,
-          channels!threads_channel_id_fkey (
-            name,
-            server_id
-          ),
-          profiles!threads_created_by_fkey (
-            username,
-            display_name,
-            avatar_url
-          )
-        `)
+        .select('*')
         .eq('channel_id', channelId)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(offset, offset + limit - 1)
@@ -185,13 +191,14 @@ class ThreadService {
 
       if (error) throw error
 
-      return (data || []).map(t => ({
+      // Return basic thread data - creator info will be fetched by components
+      return (data || []).map((t: any) => ({
         ...t,
-        channel_name: t.channels?.name,
-        server_id: t.channels?.server_id,
-        creator_username: t.profiles?.username,
-        creator_display_name: t.profiles?.display_name,
-        creator_avatar_url: t.profiles?.avatar_url,
+        channel_name: undefined, // Will be fetched if needed
+        server_id: undefined,
+        creator_username: undefined,
+        creator_display_name: undefined,
+        creator_avatar_url: undefined,
       }))
     } catch (error) {
       debug.error('Failed to fetch channel threads:', error)
@@ -521,7 +528,7 @@ class ThreadService {
             avatar_url,
             color
           ),
-          reactions:message_reactions (
+          reactions:reactions (
             id,
             emoji_id,
             user_id,
@@ -613,12 +620,18 @@ class ThreadService {
         .from('threads')
         .select('id')
         .eq('parent_message_id', messageId)
-        .single()
+        .maybeSingle()
 
-      if (error || !data) return null
+      if (error) {
+        debug.warn('Error checking for thread:', error)
+        return null
+      }
+      
+      if (!data) return null
 
       return this.getThread(data.id)
     } catch (error) {
+      debug.warn('Exception checking for thread:', error)
       return null
     }
   }

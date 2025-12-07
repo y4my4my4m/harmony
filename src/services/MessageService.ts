@@ -429,18 +429,10 @@ export class MessageService {
     try {
       debug.log(`📌 Loading pinned messages for channel: ${channelId}`)
 
-      // Use direct query instead of RPC to avoid type mismatch issues
+      // Use direct query - fetch messages first, then get author info separately
       const { data, error } = await supabase
         .from('messages')
-        .select(`
-          *,
-          author:profiles!messages_user_id_fkey (
-            id, username, display_name, avatar_url, color
-          ),
-          pinner:profiles!messages_pinned_by_fkey (
-            id, username, display_name
-          )
-        `)
+        .select('*')
         .eq('channel_id', channelId)
         .eq('is_pinned', true)
         .eq('is_deleted', false)
@@ -451,7 +443,7 @@ export class MessageService {
         throw this.createError('LOAD_PINS_FAILED', error.message)
       }
 
-      // Transform to Message type
+      // Transform to Message type - author info will be fetched by the component via useUserData
       const messages = (data || []).map((m: any) => ({
         id: m.id,
         created_at: new Date(m.created_at),
@@ -463,11 +455,7 @@ export class MessageService {
         is_pinned: m.is_pinned,
         pinned_at: m.pinned_at,
         pinned_by: m.pinned_by,
-        metadata: {
-          ...m.metadata,
-          author: m.author,
-          pinner: m.pinner,
-        },
+        metadata: m.metadata || {},
       }))
 
       debug.log(`✅ Loaded ${messages.length} pinned messages`)
@@ -485,18 +473,10 @@ export class MessageService {
     try {
       debug.log(`📌 Loading pinned messages for DM: ${conversationId}`)
 
-      // Use direct query instead of RPC to avoid type mismatch issues
+      // Use direct query - author info will be fetched by the component
       const { data, error } = await supabase
         .from('messages')
-        .select(`
-          *,
-          author:profiles!messages_user_id_fkey (
-            id, username, display_name, avatar_url, color
-          ),
-          pinner:profiles!messages_pinned_by_fkey (
-            id, username, display_name
-          )
-        `)
+        .select('*')
         .eq('conversation_id', conversationId)
         .eq('is_pinned', true)
         .eq('is_deleted', false)
@@ -507,7 +487,7 @@ export class MessageService {
         throw this.createError('LOAD_PINS_FAILED', error.message)
       }
 
-      // Transform to Message type (same as channel)
+      // Transform to Message type - author info will be fetched by the component
       const messages = (data || []).map((m: any) => ({
         id: m.id,
         created_at: new Date(m.created_at),
@@ -519,11 +499,7 @@ export class MessageService {
         is_pinned: m.is_pinned,
         pinned_at: m.pinned_at,
         pinned_by: m.pinned_by,
-        metadata: {
-          ...m.metadata,
-          author: m.author,
-          pinner: m.pinner,
-        },
+        metadata: m.metadata || {},
       }))
 
       debug.log(`✅ Loaded ${messages.length} pinned DM messages`)

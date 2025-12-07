@@ -388,18 +388,15 @@ onMounted(() => {
   opacity: 0.7;
 }
 
-/* Drawer transition */
+/* Modal transition */
 .drawer-enter-active,
 .drawer-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 
-.drawer-enter-from .pinned-messages-drawer {
-  transform: translateY(100%);
-}
-
-.drawer-leave-to .pinned-messages-drawer {
-  transform: translateY(100%);
+.drawer-enter-active .pinned-messages-drawer,
+.drawer-leave-active .pinned-messages-drawer {
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .drawer-enter-from,
@@ -407,11 +404,18 @@ onMounted(() => {
   opacity: 0;
 }
 
+.drawer-enter-from .pinned-messages-drawer,
+.drawer-leave-to .pinned-messages-drawer {
+  transform: scale(0.95);
+  opacity: 0;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   .pinned-messages-drawer {
     max-height: 90vh;
-    border-radius: 16px 16px 0 0;
+    margin: 0;
+    border-radius: 12px;
   }
 }
 </style>
