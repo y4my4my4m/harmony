@@ -118,27 +118,40 @@ const PLAYER_COLORS = [
   '#f0932b', '#eb4d4b', '#6c5ce7', '#a29bfe'
 ]
 
-// Sound effects - use Web Audio API for better compatibility
+// Sound effects - using actual Megaman X sounds from Scratch project
 const soundPaths = {
   jump: [
-    '/assets/sounds/easteregg/jump.wav',
-    '/assets/sounds/easteregg/jump.mp3',
+    '/assets/easteregg/x_jump.wav',
   ],
   shoot: [
-    '/assets/sounds/easteregg/shoot.wav',
-    '/assets/sounds/easteregg/shoot.mp3',
+    '/assets/easteregg/x_buster.wav',
   ],
-  walk: [
-    '/assets/sounds/easteregg/walk.wav',
-    '/assets/sounds/easteregg/walk.mp3',
+  shootLv1: [
+    '/assets/easteregg/x_buster_lv1.wav',
+  ],
+  shootLv2: [
+    '/assets/easteregg/x_buster_lv2.wav',
+  ],
+  shootLv3: [
+    '/assets/easteregg/x_buster_lv3.wav',
+  ],
+  land: [
+    '/assets/easteregg/x_land.wav',
   ],
   dash: [
-    '/assets/sounds/easteregg/dash.wav',
-    '/assets/sounds/easteregg/dash.mp3',
+    '/assets/easteregg/x_dash.wav',
   ],
   charge: [
-    '/assets/sounds/easteregg/charge.wav',
-    '/assets/sounds/easteregg/charge.mp3',
+    '/assets/easteregg/x_charge.wav',
+  ],
+  chargeLoop: [
+    '/assets/easteregg/x_charge_loop.wav',
+  ],
+  damage: [
+    '/assets/easteregg/x_damage.wav',
+  ],
+  hit: [
+    '/assets/easteregg/buster_hit.wav',
   ],
 }
 
@@ -180,21 +193,26 @@ function initializeSounds() {
   soundsInitialized = true
 }
 
-function playSound(soundName: keyof typeof soundPaths) {
+function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
   try {
     initializeSounds()
     
     const paths = soundPaths[soundName]
+    if (!paths || paths.length === 0) return
     
     // Try to play sound - create new Audio each time for better reliability
     for (const path of paths) {
       try {
         const audio = new Audio(path)
         audio.volume = 0.3
-        audio.play().catch((err) => {
-          // Ignore errors - file might not exist or need user interaction
-          debug.warn(`Could not play sound ${path}:`, err)
-        })
+        audio.loop = loop
+        const playPromise = audio.play()
+        if (playPromise) {
+          playPromise.catch((err) => {
+            // Ignore errors - file might not exist or need user interaction
+            debug.warn(`Could not play sound ${path}:`, err)
+          })
+        }
         // If we successfully created and attempted to play, break
         break
       } catch (e) {
@@ -476,6 +494,14 @@ function handleKeyUp(event: KeyboardEvent) {
       if (chargeTime >= CHARGE_TIME_LV1) {
         // Charged shot
         fireChargedShot(localPlayer)
+        // Play appropriate charge level sound
+        if (localPlayer.chargeLevel >= 3) {
+          playSound('shootLv3')
+        } else if (localPlayer.chargeLevel >= 2) {
+          playSound('shootLv2')
+        } else {
+          playSound('shootLv1')
+        }
       } else {
         // Quick tap = uncharged shot
         fireBullet(localPlayer, 0)
@@ -540,9 +566,12 @@ function handleInput() {
         localPlayer.chargeLevel = 1
       }
       
-      // Play charge sound occasionally
-      if (chargeTime % 500 < 50 && chargeTime > 100) {
+      // Play charge sound on start, then loop
+      if (chargeTime < 100) {
         playSound('charge')
+      } else if (chargeTime > 200 && chargeTime % 1000 < 50) {
+        // Play charge loop occasionally
+        playSound('chargeLoop')
       }
     }
   }
@@ -585,12 +614,9 @@ function handleInput() {
       localPlayer.state = 'jumping'
       playSound('jump')
     }
-  }
+    
   
-  // Play walk sound when moving
-  if (localPlayer.velocityX !== 0 && localPlayer.onGround && Math.random() < 0.05) {
-    playSound('walk')
-  }
+  // Note: No walk sound in Megaman X - only jump, dash, shoot, charge sounds
   
   // Broadcast player state
   broadcastPlayerState(localPlayer)
@@ -808,7 +834,7 @@ function gameLoop(currentTime: number) {
         }
         
         // Play hit sound
-        playSound('shoot') // Use shoot sound for hit
+        playSound('hit') // Use buster hit sound
         
         // Check if player died
         if (player.health <= 0) {
@@ -959,13 +985,17 @@ function gameLoop(currentTime: number) {
     player.y += player.velocityY * deltaSeconds * 60
     
     // Ground collision
+    const wasOnGround = player.onGround
     if (player.y >= floorY - 64) {
       if (!player.onGround) {
-        // Just landed
+        // Just landed - play land sound
+        if (userId === props.userId) {
+          playSound('land')
+        }
         player.state = 'landing'
         setTimeout(() => {
           if (player.state === 'landing') {
-            player.state = player.velocityX !== 0 ? 'walking' : (player.isCharging ? 'shooting' : 'idle')
+            player.state = player.velocityX !== 0 ? 'walking' : 'idle'
           }
         }, 200)
       }
