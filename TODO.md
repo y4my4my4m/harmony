@@ -368,3 +368,7 @@ Federated reactions in chat (just like everywhere else) as ephemeral, we should 
 ---
 
 RLS permission for select and stuff, we can't allow users to fetch more than they should be able to (could be kind of DDoS attacked that way)
+
+---
+
+Some settings (like audio/video preferences or privacy) are only saved in localStorage, we should move them to the database.
