@@ -128,6 +128,18 @@
       @send-message="handleSendMessage"
       @update:reply-message-id="handleCancelReply"
     />
+    
+    <!-- Emoji Popup for reactions -->
+    <EmojiPopup
+      v-if="reactionEmojiOpen"
+      @click.stop
+      @sendEmoji="handleSendEmoji"
+      :closeEmojiList="closeReactionEmoji"
+      :emojiIconClicked="emojiIconClicked"
+      :position="'left'"
+      :triggerElement="reactionTriggerElement || undefined"
+      @resetEmojiIconClicked="emojiIconClicked = false"
+    />
   </div>
 </template>
 
@@ -141,7 +153,9 @@ import Avatar from '@/components/common/Avatar.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
+import EmojiPopup from '@/components/EmojiPopup.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/useChat'
 import type { Message, MessagePart, Emoji } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 
@@ -162,6 +176,7 @@ const {
 } = useUserData()
 
 const authStore = useAuthStore()
+const chatStore = useChatStore()
 
 // Current user ID for MessageDisplay
 const currentUserId = computed(() => authStore.session?.user?.id)
@@ -170,6 +185,13 @@ const currentUserId = computed(() => authStore.session?.user?.id)
 const replyingToMessageId = ref<string>('')
 const replyingToUserName = ref<string>('')
 const messageInputRef = ref<any>(null)
+
+// Emoji popup state for reactions
+const reactionEmojiOpen = ref(false)
+const reactionTriggerElement = ref<HTMLElement | null>(null)
+const selectedMessageId = ref<string>('')
+const isPopupForReaction = ref(false)
+const emojiIconClicked = ref(false)
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
@@ -333,11 +355,39 @@ const handleSendReaction = async (messageId: string, emoji: Emoji) => {
   }
 }
 
-const handleToggleEmojiList = (isReaction: boolean, message?: Message) => {
-  // For reactions on messages, we need to handle this differently
-  // The emoji picker is typically managed by ChatComponent
-  console.log('Toggle emoji list for reaction:', isReaction, message?.id)
+const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerElement?: HTMLElement) => {
+  if (isReaction) {
+    // Reaction emoji - use separate popup positioned on the message
+    if (message) selectedMessageId.value = message.id
+    if (triggerElement) reactionTriggerElement.value = triggerElement
+    isPopupForReaction.value = true
+    reactionEmojiOpen.value = !reactionEmojiOpen.value
+    if (reactionEmojiOpen.value) {
+      emojiIconClicked.value = true
+    }
+  }
 }
+
+const handleSendEmoji = async (emoji: Emoji) => {
+  if (isPopupForReaction.value && authStore.session?.user) {
+    // Add reaction using chat store
+    await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id)
+  }
+  closeReactionEmoji()
+}
+
+const closeReactionEmoji = () => {
+  reactionEmojiOpen.value = false
+  reactionTriggerElement.value = null
+  emojiIconClicked.value = false
+}
+
+watch(reactionEmojiOpen, () => {
+  if (!reactionEmojiOpen.value) {
+    emojiIconClicked.value = false
+    reactionTriggerElement.value = null
+  }
+})
 
 const handleReplyingTo = (messageId: string, displayName?: string) => {
   // Set reply state

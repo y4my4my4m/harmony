@@ -6,9 +6,7 @@
           <!-- Header -->
           <div class="modal-header">
             <div class="header-left">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="thread-icon">
-                <path d="M5.43 21L3 3h2.23l1.41 14.24L13.42 11H6.88L6.11 4h15.22l-.87 8.5-7.59 7.75L10.04 21H5.43z"/>
-              </svg>
+              <Icon name="thread" />
               <h2>Threads</h2>
             </div>
             <div class="header-actions">
@@ -127,6 +125,7 @@ import { useUserData } from '@/composables/useUserData'
 import { formatDistanceToNow } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import type { ThreadWithDetails } from '@/services/ThreadService'
+import Icon from '@/components/common/Icon.vue'
 
 interface Props {
   isVisible: boolean

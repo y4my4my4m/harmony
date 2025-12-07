@@ -1349,7 +1349,7 @@ watch(() => props.currentServer?.id, () => {
 /* Thread branch/tree-line - vertical line connecting to parent */
 .channel-thread-item .thread-branch {
   position: absolute;
-  left: 21px;
+  left: 16px;
   width: 10px;
   height: 100%;
   pointer-events: none;
