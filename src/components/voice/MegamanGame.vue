@@ -30,7 +30,7 @@ interface Player {
   x: number
   y: number
   facing: 'left' | 'right'
-  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'wallCling'
+  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'wallCling' | 'hit' | 'dead'
   velocityX: number
   velocityY: number
   onGround: boolean
@@ -46,6 +46,10 @@ interface Player {
   canDash: boolean
   health: number
   maxHealth: number
+  hitTime: number // When player was hit
+  invulnerableUntil: number // Invulnerability timer
+  canWallJump: boolean // Can wall jump (must press jump again)
+  smokeEffects: Array<{ x: number; y: number; frame: number; createdAt: number }>
 }
 
 interface Bullet {
@@ -95,6 +99,14 @@ const hpBarData = ref<any>(null)
 const currentFrame = ref<Map<string, number>>(new Map())
 const frameTime = ref<Map<string, number>>(new Map()) // Use time instead of timer
 const chargeFrame = ref<Map<string, number>>(new Map()) // For charge animation
+const smokeSprites = ref<Map<string, HTMLImageElement>>(new Map())
+const hitSprites = ref<Map<string, HTMLImageElement>>(new Map())
+const readySprites = ref<Map<string, HTMLImageElement>>(new Map())
+const deathBubbleSprites = ref<Map<string, HTMLImageElement>>(new Map())
+let gameStartTime = 0
+let showIntro = true
+const introFrame = ref(0)
+const introFrameTime = ref(0)
 
 // Constants
 const GRAVITY = 0.8
@@ -244,6 +256,7 @@ async function loadAnimations() {
       await loadSpriteImages()
       await loadBusterSprites()
       await loadHPBarSprites()
+      await loadEffectSprites()
     } else {
       debug.warn('Could not load animations.json:', response.status, response.statusText)
     }
@@ -403,6 +416,87 @@ async function loadHPBarSprites() {
   }
 }
 
+// Load effect sprites (smoke, hit, death, ready)
+async function loadEffectSprites() {
+  // Load smoke sprites
+  for (let i = 1; i <= 6; i++) {
+    const img = new Image()
+    img.src = `/assets/easteregg/megaman/sprites/91bd67ba95f6268d620fb979740e067d.png` // Smoke1
+    if (i === 1) {
+      const smokeFiles = [
+        '91bd67ba95f6268d620fb979740e067d.png', // Smoke1
+        '5c4ed69b9d8d86739e7050c054a4c4e2.png', // Smoke2
+        '1b421d6c89210c8d76451461229d1e96.png', // Smoke3
+        'c4ce1cacca548b610a33ba6aeb1b02a4.png', // Smoke4
+        'ebc1e3f6d1baafc857bfad8c53920cc6.png', // Smoke5
+        '46dc7c0864d7011b1d2cbc0baea9d11c.png', // Smoke6
+      ]
+      for (let j = 0; j < smokeFiles.length; j++) {
+        const smokeImg = new Image()
+        smokeImg.src = `/assets/easteregg/megaman/sprites/${smokeFiles[j]}`
+        smokeImg.onload = () => smokeSprites.value.set(`Smoke${j + 1}.png`, smokeImg)
+      }
+    }
+  }
+  
+  // Load hit sprites
+  const hitFiles = [
+    '158a6fc8342580dad99bcd0cc3da6f5d.png', // Hit1
+    '49d8234616dc6d46d1d29ae6a10b6b5f.png', // Hit2
+    '5b0a9bbe83f883e0e648f3cffda96839.png', // Hit3
+    '5f4eacbd8a13fe907a24e9dd4b366ca8.png', // Hit4
+    'ee5b4945c2685f318106f951a537a73c.png', // Hit5
+    '91a9950186deed6b06296ec179d17a24.png', // Hit6
+    'a37bb271560e365e9eac949ac675c009.png', // Hit7
+    '68a9b48284eab02f64a9aacec96b76c6.png', // Hit8
+    '4fd717ba3385c8d6d76ea1df21e2b245.png', // Hit9
+    '399f62bacb879833ca499c139e9a4461.png', // Hit10
+  ]
+  for (let i = 0; i < hitFiles.length; i++) {
+    const hitImg = new Image()
+    hitImg.src = `/assets/easteregg/megaman/sprites/${hitFiles[i]}`
+    hitImg.onload = () => hitSprites.value.set(`Hit${i + 1}.png`, hitImg)
+  }
+  
+  // Load death bubble sprites
+  const bubbleFiles = [
+    '9cc8ef10ae74f39329ad6010aa037d7c.png', // Bubble1
+    'e7da56b51e9f0a3e45003ec18c486b3f.png', // Bubble2
+    '0e2f47ca72197d1cd118d045f9879ae5.png', // Bubble3
+    'a631ed7e3a6a9ed3f398760f3b9c2a83.png', // Bubble4
+    'a99df56d8b808493ff7feb23fb1a2382.png', // Bubble5
+  ]
+  for (let i = 0; i < bubbleFiles.length; i++) {
+    const bubbleImg = new Image()
+    bubbleImg.src = `/assets/easteregg/megaman/sprites/${bubbleFiles[i]}`
+    bubbleImg.onload = () => deathBubbleSprites.value.set(`Bubble${i + 1}.png`, bubbleImg)
+  }
+  
+  // Load Ready (intro) sprites
+  const readyFiles = [
+    '3495321c6b96977754d0640a217b0bbb.png', // Ready0
+    'ab48d7b0004000561df78c2ed1a49097.png', // Ready1
+    '527415308683c1ae03002b994f62523c.png', // Ready2
+    '05361c98720aa7b021e7baa040305c96.png', // Ready3
+    '53916d8af31494b8ad18e43da577f42d.png', // Ready4
+    '273d250fa24222dfabc193731ece432e.png', // Ready5
+    '2d99806b4adb3c306337b7b831d7dc9f.png', // Ready6
+    'c105cc8cfe61d517749eee97dd6a44d4.png', // Ready7
+    'a34556b9a853e584a69aee58987bea60.png', // Ready8
+    'b80a6838d5f53cddf60be65dc119c25a.png', // Ready9
+    'cf16acf016e7eccdf36303bc36154417.png', // Ready10
+    'ebc29ca008dad4472c2364093628cd0e.png', // Ready11
+    'd27003a4b30032e3001dfef312fc4c69.png', // Ready12
+  ]
+  for (let i = 0; i < readyFiles.length; i++) {
+    const readyImg = new Image()
+    readyImg.src = `/assets/easteregg/megaman/sprites/${readyFiles[i]}`
+    readyImg.onload = () => readySprites.value.set(`Ready${i}.png`, readyImg)
+  }
+  
+  debug.log('🎮 Loaded effect sprites')
+}
+
 // Initialize players
 function initializePlayers() {
   players.value.clear()
@@ -440,7 +534,11 @@ function initializePlayers() {
       dashCooldown: 0,
       canDash: true,
       health: 100,
-      maxHealth: 100
+      maxHealth: 100,
+      hitTime: 0,
+      invulnerableUntil: 0,
+      canWallJump: false,
+      smokeEffects: []
     }
     
     players.value.set(participant.userId, player)
@@ -598,23 +696,40 @@ function handleInput() {
     }
   }
   
-  // Jump (ArrowUp)
-  if (keys.value.has('ArrowUp')) {
-    if (localPlayer.onWall && localPlayer.wallSide) {
-      // Wall jump
+  // Jump (ArrowUp) - only on key press, not hold
+  if (keys.value.has('ArrowUp') && !localPlayer.onGround && !localPlayer.onWall) {
+    // Prevent double jump
+  } else if (keys.value.has('ArrowUp')) {
+    if (localPlayer.onWall && localPlayer.wallSide && localPlayer.canWallJump) {
+      // Wall jump - requires canWallJump flag (set when first touching wall)
       localPlayer.velocityY = WALL_JUMP_Y
       localPlayer.velocityX = localPlayer.wallSide === 'left' ? WALL_JUMP_X : -WALL_JUMP_X
       localPlayer.onWall = false
       localPlayer.wallSide = null
+      localPlayer.canWallJump = false
       localPlayer.state = 'jumping'
       playSound('jump')
-    } else if (localPlayer.onGround && localPlayer.state !== 'jumping') {
+      // Add smoke effect at jump position
+      localPlayer.smokeEffects.push({
+        x: localPlayer.x + 32,
+        y: localPlayer.y + 64,
+        frame: 0,
+        createdAt: Date.now()
+      })
+    } else if (localPlayer.onGround && localPlayer.state !== 'jumping' && localPlayer.state !== 'falling') {
       localPlayer.velocityY = JUMP_STRENGTH
       localPlayer.onGround = false
       localPlayer.state = 'jumping'
       playSound('jump')
+      // Add smoke effect at jump position
+      localPlayer.smokeEffects.push({
+        x: localPlayer.x + 32,
+        y: localPlayer.y + 64,
+        frame: 0,
+        createdAt: Date.now()
+      })
     }
-    
+  }
   
   // Note: No walk sound in Megaman X - only jump, dash, shoot, charge sounds
   
@@ -677,8 +792,13 @@ function fireBullet(player: Player, chargeLevel: number = 0) {
         .map((f: any) => f.file)
       damage = 35
     } else if (chargeLevel === 3 && busterData.value.Buster_LV3) {
-      // LV3 uses the ball sprite
-      spriteFile = busterData.value.Buster_LV3[0]?.file || null
+      // LV3 uses the ball sprite - but also use Flash sprites for the projectile
+      if (busterData.value.Buster_LV3_Flash && busterData.value.Buster_LV3_Flash.length > 0) {
+        // Use Flash1 as the main projectile sprite
+        spriteFile = busterData.value.Buster_LV3_Flash[0]?.file || busterData.value.Buster_LV3[0]?.file || null
+      } else {
+        spriteFile = busterData.value.Buster_LV3[0]?.file || null
+      }
       damage = 50
     }
   }
@@ -772,21 +892,47 @@ function gameLoop(currentTime: number) {
   const wallLeft = 0
   const wallRight = canvasWidth
   
-  // Clear canvas
-  ctx.fillStyle = 'rgba(26, 26, 46, 0.9)' // Semi-transparent
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+  // Draw intro animation
+  if (showIntro && gameStartTime > 0 && ctx) {
+    const introTime = Date.now() - gameStartTime
+    if (introTime < 2000) { // Show intro for 2 seconds
+      const readyFrame = Math.min(Math.floor(introTime / 150), 12)
+      const readySprite = readySprites.value.get(`Ready${readyFrame}.png`)
+      if (readySprite && readySprite.complete) {
+        ctx.save()
+        const readyWidth = readySprite.naturalWidth * 0.5
+        const readyHeight = readySprite.naturalHeight * 0.5
+        ctx.drawImage(
+          readySprite,
+          (canvasWidth - readyWidth) / 2,
+          (canvasHeight - readyHeight) / 2,
+          readyWidth,
+          readyHeight
+        )
+        ctx.restore()
+      }
+    } else {
+      showIntro = false
+    }
+  }
   
-  // Draw floor
-  ctx.fillStyle = '#16213e'
-  ctx.fillRect(0, floorY, canvasWidth, canvasHeight - floorY)
-  
-  // Draw walls (for wall sliding)
-  ctx.fillStyle = '#1a2e3a'
-  ctx.fillRect(0, 0, 5, canvasHeight) // Left wall
-  ctx.fillRect(canvasWidth - 5, 0, 5, canvasHeight) // Right wall
+  // Clear canvas (only if not showing intro)
+  if (!showIntro || Date.now() - gameStartTime >= 2000) {
+    ctx.fillStyle = 'rgba(26, 26, 46, 0.9)' // Semi-transparent
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+    
+    // Draw floor
+    ctx.fillStyle = '#16213e'
+    ctx.fillRect(0, floorY, canvasWidth, canvasHeight - floorY)
+    
+    // Draw walls (for wall sliding)
+    ctx.fillStyle = '#1a2e3a'
+    ctx.fillRect(0, 0, 5, canvasHeight) // Left wall
+    ctx.fillRect(canvasWidth - 5, 0, 5, canvasHeight) // Right wall
+  }
   
   // Debug: Draw player count
-  if (players.value.size === 0) {
+  if (players.value.size === 0 && (!showIntro || Date.now() - gameStartTime >= 2000)) {
     ctx.fillStyle = '#fff'
     ctx.font = '16px monospace'
     ctx.fillText('No players initialized', 10, 30)
@@ -812,8 +958,15 @@ function gameLoop(currentTime: number) {
       const distanceY = Math.abs(bullet.y - playerCenterY)
       
       if (distanceX < (bulletSize + playerSize) / 2 && distanceY < (bulletSize + playerSize) / 2) {
+        // Check invulnerability
+        const now = Date.now()
+        if (now < player.invulnerableUntil) return
+        
         // Hit! Apply damage
         player.health = Math.max(0, player.health - bullet.damage)
+        player.hitTime = now
+        player.invulnerableUntil = now + 1000 // 1 second invulnerability
+        player.state = 'hit'
         
         // Remove bullet
         bullets.value.delete(bulletId)
@@ -838,7 +991,9 @@ function gameLoop(currentTime: number) {
         
         // Check if player died
         if (player.health <= 0) {
-          // Respawn after 2 seconds
+          player.state = 'dead'
+          playSound('damage') // Use damage sound for death
+          // Respawn after 3 seconds
           setTimeout(() => {
             if (player.health <= 0) {
               player.health = player.maxHealth
@@ -846,8 +1001,17 @@ function gameLoop(currentTime: number) {
               player.y = floorY - 64
               player.velocityX = 0
               player.velocityY = 0
+              player.state = 'idle'
+              player.invulnerableUntil = now + 2000 // Extra invulnerability on respawn
             }
-          }, 2000)
+          }, 3000)
+        } else {
+          // Return to previous state after hit animation
+          setTimeout(() => {
+            if (player.state === 'hit' && player.health > 0) {
+              player.state = player.velocityX !== 0 ? 'walking' : 'idle'
+            }
+          }, 300)
         }
       }
     })
@@ -963,11 +1127,19 @@ function gameLoop(currentTime: number) {
     if ((isNearLeftWall || isNearRightWall) && !player.onGround && player.velocityY > 0) {
       // Can wall cling
       if (keys.value.has('ArrowLeft') && isNearLeftWall) {
+        if (!player.onWall) {
+          // Just touched wall - enable wall jump
+          player.canWallJump = true
+        }
         player.onWall = true
         player.wallSide = 'left'
         player.velocityY = WALL_SLIDE_SPEED // Slide down slowly
         player.state = 'wallCling'
       } else if (keys.value.has('ArrowRight') && isNearRightWall) {
+        if (!player.onWall) {
+          // Just touched wall - enable wall jump
+          player.canWallJump = true
+        }
         player.onWall = true
         player.wallSide = 'right'
         player.velocityY = WALL_SLIDE_SPEED
@@ -975,10 +1147,12 @@ function gameLoop(currentTime: number) {
       } else {
         player.onWall = false
         player.wallSide = null
+        player.canWallJump = false
       }
     } else {
       player.onWall = false
       player.wallSide = null
+      player.canWallJump = false
     }
     
     player.x += player.velocityX * deltaSeconds * 60
@@ -1047,6 +1221,40 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
     return []
   }
   
+  // Handle hit state
+  if (player.state === 'hit') {
+    // Use hit sprites if available (Hit1-Hit10)
+    const hitFrames: AnimationFrame[] = []
+    for (let i = 1; i <= 10; i++) {
+      const hitSprite = hitSprites.value.get(`Hit${i}.png`)
+      if (hitSprite) {
+        hitFrames.push({ name: `Hit${i}`, file: `Hit${i}.png` })
+      }
+    }
+    if (hitFrames.length > 0) {
+      const hitTime = Date.now() - player.hitTime
+      const hitFrameIndex = Math.min(Math.floor(hitTime / 30), hitFrames.length - 1)
+      return [hitFrames[hitFrameIndex]]
+    }
+  }
+  
+  // Handle death state
+  if (player.state === 'dead') {
+    // Use death bubble sprites
+    const deathFrames: AnimationFrame[] = []
+    for (let i = 1; i <= 5; i++) {
+      const bubbleSprite = deathBubbleSprites.value.get(`Bubble${i}.png`)
+      if (bubbleSprite) {
+        deathFrames.push({ name: `Bubble${i}`, file: `Bubble${i}.png` })
+      }
+    }
+    if (deathFrames.length > 0) {
+      const deathTime = Date.now() - player.hitTime
+      const deathFrameIndex = Math.min(Math.floor(deathTime / 200), deathFrames.length - 1)
+      return [deathFrames[deathFrameIndex]]
+    }
+  }
+  
   // Wall cling takes priority
   if (player.onWall && player.state === 'wallCling') {
     return animations.value.wall || []
@@ -1107,24 +1315,8 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   
   const frames = getAnimationFrames(player)
   
-  // Always draw something, even if animations aren't loaded
+  // Don't draw placeholder - wait for sprites to load
   if (frames.length === 0 || !animations.value) {
-    // Draw placeholder
-    ctx.fillStyle = player.color
-    ctx.fillRect(player.x, player.y, 64, 64)
-    
-    // Draw charge indicator
-    if (player.isCharging && player.chargeLevel > 0) {
-      ctx.fillStyle = player.chargeLevel === 1 ? '#ffff00' :
-                      player.chargeLevel === 2 ? '#ff8800' : '#ff0000'
-      ctx.fillRect(player.x + 20, player.y - 10, 24, 4)
-    }
-    
-    // Draw simple face
-    ctx.fillStyle = '#000'
-    ctx.fillRect(player.x + 16, player.y + 16, 8, 8) // Left eye
-    ctx.fillRect(player.x + 40, player.y + 16, 8, 8) // Right eye
-    ctx.fillRect(player.x + 20, player.y + 40, 24, 8) // Mouth
     return
   }
   
@@ -1144,9 +1336,6 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   const frame = frames[frameIndex]
   
   if (!frame) {
-    // Draw placeholder if no frame
-    ctx.fillStyle = player.color
-    ctx.fillRect(player.x, player.y, 64, 64)
     return
   }
   
@@ -1164,6 +1353,32 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     const drawHeight = spriteHeight * scale
     
     ctx.save()
+    
+    // Apply palette swap (color tint) for different players
+    if (player.color !== '#ff6b6b') { // Default color - no swap needed
+      // Convert hex color to RGB
+      const hex = player.color.replace('#', '')
+      const r = parseInt(hex.substr(0, 2), 16) / 255
+      const g = parseInt(hex.substr(2, 2), 16) / 255
+      const b = parseInt(hex.substr(4, 2), 16) / 255
+      
+      // Apply color overlay using composite operation
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.fillStyle = player.color
+      ctx.globalAlpha = 0.3
+    }
+    
+    // Handle hit state - flash effect
+    const now = Date.now()
+    const isInvulnerable = now < player.invulnerableUntil
+    if (isInvulnerable && player.state === 'hit') {
+      // Flash effect - alternate visibility
+      const flashRate = 100 // ms
+      const flashVisible = Math.floor((now - player.hitTime) / flashRate) % 2 === 0
+      if (!flashVisible) {
+        ctx.globalAlpha = 0.3
+      }
+    }
     
     // Flip horizontally if facing left
     if (player.facing === 'left') {
@@ -1184,6 +1399,10 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         drawHeight
       )
     }
+    
+    // Reset composite operation
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1.0
     
     ctx.restore()
     
@@ -1264,8 +1483,9 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       if (hpFrame && hpBarSprites.value.has(hpFrame.file)) {
         const hpSprite = hpBarSprites.value.get(hpFrame.file)!
         if (hpSprite && hpSprite.complete) {
+          // Make health bar taller - use full height, scale width if needed
           const hpWidth = hpSprite.naturalWidth * (hpSprite.naturalWidth > 100 ? 0.5 : 1)
-          const hpHeight = hpSprite.naturalHeight * (hpSprite.naturalHeight > 100 ? 0.5 : 1)
+          const hpHeight = hpSprite.naturalHeight * (hpSprite.naturalHeight > 50 ? 1.0 : 2) // Make taller
           const hpX = player.x + (64 - hpWidth) / 2
           const hpY = player.y - hpHeight - 5
           
@@ -1275,9 +1495,9 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     } else if (ctx) {
       // Fallback to simple bar if sprites not loaded
       const barWidth = 60
-      const barHeight = 6
+      const barHeight = 12 // Make taller
       const barX = player.x + (64 - barWidth) / 2
-      const barY = player.y - 12
+      const barY = player.y - 18
       
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
       ctx.fillRect(barX, barY, barWidth, barHeight)
@@ -1286,22 +1506,25 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       ctx.fillStyle = healthPercent > 0.5 ? '#4ecdc4' : healthPercent > 0.25 ? '#f9ca24' : '#eb4d4b'
       ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight)
     }
-  } else {
-    // Draw placeholder if sprite not loaded
-    ctx.fillStyle = player.color
-    ctx.fillRect(player.x, player.y, 64, 64)
     
-    // Draw simple face
-    ctx.fillStyle = '#000'
-    ctx.fillRect(player.x + 16, player.y + 16, 8, 8) // Left eye
-    ctx.fillRect(player.x + 40, player.y + 16, 8, 8) // Right eye
-    ctx.fillRect(player.x + 20, player.y + 40, 24, 8) // Mouth
-    
-    // Draw charge indicator
-    if (player.isCharging && player.chargeLevel > 0) {
-      ctx.fillStyle = player.chargeLevel === 1 ? '#ffff00' :
-                      player.chargeLevel === 2 ? '#ff8800' : '#ff0000'
-      ctx.fillRect(player.x + 20, player.y - 10, 24, 4)
+    // Draw smoke effects
+    if (player.smokeEffects.length > 0 && ctx) {
+      player.smokeEffects = player.smokeEffects.filter(smoke => {
+        const age = Date.now() - smoke.createdAt
+        if (age > 500) return false // Remove after 500ms
+        
+        // Draw smoke sprite (if loaded)
+        const smokeFrame = Math.floor((age / 80) % 6) // 6 smoke frames
+        const smokeSprite = smokeSprites.value.get(`Smoke${smokeFrame + 1}.png`)
+        if (smokeSprite && smokeSprite.complete && ctx) {
+          const smokeWidth = smokeSprite.naturalWidth * 0.5
+          const smokeHeight = smokeSprite.naturalHeight * 0.5
+          ctx.globalAlpha = 1 - (age / 500) // Fade out
+          ctx.drawImage(smokeSprite, smoke.x - smokeWidth/2, smoke.y - smokeHeight/2, smokeWidth, smokeHeight)
+          ctx.globalAlpha = 1.0
+        }
+        return true
+      })
     }
   }
 }
@@ -1416,6 +1639,8 @@ function initializeCanvas() {
 function startGame() {
   if (animationFrame) return
   lastFrameTime = performance.now()
+  gameStartTime = Date.now()
+  showIntro = true
   animationFrame = requestAnimationFrame(gameLoop)
   
   // Add event listeners
@@ -1444,19 +1669,19 @@ function stopGame() {
   lastFrameTime = 0
 }
 
-onMounted(() => {
-  if (props.isActive) {
-    initializeCanvas()
-    // Start game loop immediately
-    startGame()
-    // Then initialize players and load assets
-    initializePlayers()
-    loadAnimations().then(() => {
-      debug.log('🎮 Animations and sprites loaded')
-    })
-    setupRealtimeListener()
-  }
-})
+  onMounted(() => {
+    if (props.isActive) {
+      initializeCanvas()
+      // Start game loop immediately
+      startGame()
+      // Then initialize players and load assets
+      initializePlayers()
+      loadAnimations().then(() => {
+        debug.log('🎮 Animations and sprites loaded')
+      })
+      setupRealtimeListener()
+    }
+  })
 
 onUnmounted(() => {
   stopGame()
