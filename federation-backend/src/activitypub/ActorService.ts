@@ -1749,7 +1749,7 @@ router.get(
     } else if (page) {
       // Legacy page-based pagination
       const offset = (parseInt(page) - 1) * limit;
-      query = query.range(offset, offset + limit);
+      query = query.range(offset, offset + limit - 1);
     }
 
     const { data: follows } = await query;
@@ -1863,7 +1863,7 @@ router.get(
       }
     } else if (page) {
       const offset = (parseInt(page) - 1) * limit;
-      query = query.range(offset, offset + limit);
+      query = query.range(offset, offset + limit - 1);
     }
 
     const { data: follows } = await query;

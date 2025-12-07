@@ -155,8 +155,9 @@ const menuStyle = computed(() => {
 })
 
 const canManageThread = computed(() => {
-  // Can manage if user owns the thread or has MANAGE_THREADS permission
-  return canManageChannels.value || props.thread?.is_member
+  // Can manage threads only if user has MANAGE_CHANNELS permission
+  // Thread membership alone should not grant management capabilities
+  return canManageChannels.value
 })
 
 const leaveThread = () => {

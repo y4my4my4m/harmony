@@ -99,7 +99,7 @@ router.get(
       // Legacy page-based pagination
       const pageNum = parseInt(page) || 1;
       const offset = (pageNum - 1) * limit;
-      query = query.range(offset, offset + limit);
+      query = query.range(offset, offset + limit - 1);
     }
 
     // Apply type filter
