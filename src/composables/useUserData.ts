@@ -72,7 +72,7 @@ export function useUserData() {
   const getUserAvatarUrl = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
-    return user?.avatarUrl || '/default_avatar.png'
+    return user?.avatarUrl || '/default_avatar.webp'
   })
 
   /**
@@ -85,7 +85,7 @@ export function useUserData() {
       return getAvatarUrl(currentUser?.avatarUrl)
     }
     // Fallback for non-local users
-    return currentUser?.avatarUrl || '/default_avatar.png'
+    return currentUser?.avatarUrl || '/default_avatar.webp'
   })
   
   /**

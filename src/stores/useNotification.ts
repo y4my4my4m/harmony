@@ -1203,7 +1203,7 @@ export const useNotificationStore = defineStore('notification', {
             sender: {
               user_id: 'dev-user-1',
               username: 'Developer',
-              avatar_url: '/default_avatar.png'
+              avatar_url: '/default_avatar.webp'
             },
             location: {
               server_id: 'test-server',
@@ -1229,7 +1229,7 @@ export const useNotificationStore = defineStore('notification', {
             sender: {
               user_id: 'dev-user-2',
               username: 'Friend',
-              avatar_url: '/default_avatar.png'
+              avatar_url: '/default_avatar.webp'
             },
             conversation: {
               id: 'test-conv'

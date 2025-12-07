@@ -452,7 +452,7 @@ const getBotDisplayName = (botId: string): ComputedRef<string> => {
 const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
   return computed(() => {
     const bot = botDataCache.value.get(botId);
-    return bot?.avatar_url || '/default_avatar.png';
+    return bot?.avatar_url || '/default_avatar.webp';
   });
 };
 
@@ -492,13 +492,13 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
   return computed(() => {
     // Check for Discord user metadata first (puppeting)
     if (message.metadata?.discord_user) {
-      return message.metadata.discord_user.avatar_url || '/default_avatar.png';
+      return message.metadata.discord_user.avatar_url || '/default_avatar.webp';
     }
     
     // Regular bot
     if (message.bot_id) {
       const bot = botDataCache.value.get(message.bot_id);
-      return bot?.avatar_url || '/default_avatar.png';
+      return bot?.avatar_url || '/default_avatar.webp';
     }
     
     // Regular user
@@ -506,7 +506,7 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
       return getUserAvatarUrl(message.user_id).value;
     }
     
-    return '/default_avatar.png';
+    return '/default_avatar.webp';
   });
 };
 
@@ -1381,7 +1381,7 @@ const getReplyUserColor = (replyMessageId: string) => {
 
 const getReplyUserAvatar = (replyMessageId: string) => {
   const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? '/default_avatar.png' : getUserAvatarUrl(userId).value;
+  return userId === 'unknown' ? '/default_avatar.webp' : getUserAvatarUrl(userId).value;
 };
 
 const getReplyMessagePreview = (replyMessageId: string) => {

@@ -8,7 +8,7 @@ import { supabase } from '@/supabase'
 export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
   // Return default avatar if no URL provided or if it's not a string
   if (!avatarUrl || typeof avatarUrl !== 'string') {
-    return '/default_avatar.png'
+    return '/default_avatar.webp'
   }
 
   // If it's already a full URL, check if it's a Supabase storage URL that needs transformation
@@ -47,7 +47,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
   }
 
   // If it's just a filename or doesn't match expected patterns, return default
-  return '/default_avatar.png'
+  return '/default_avatar.webp'
 }
 
 /**

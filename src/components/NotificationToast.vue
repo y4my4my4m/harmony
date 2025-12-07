@@ -120,7 +120,7 @@ const handleToastClick = (toast: NotificationToast) => {
 
 const handleAvatarError = (event: Event) => {
   const target = event.target as HTMLImageElement
-  target.src = '/default_avatar.png'
+  target.src = '/default_avatar.webp'
 }
 
 const getTypeIcon = (type: NotificationType) => {

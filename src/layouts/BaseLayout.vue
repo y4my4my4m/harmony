@@ -90,7 +90,7 @@
       :show="showGlobalIncomingCall"
       :caller-id="globalIncomingCallData?.callerId || ''"
       :caller-name="globalIncomingCallData?.callerName || 'Unknown'"
-      :caller-avatar="globalIncomingCallData?.callerAvatar || '/default_avatar.png'"
+      :caller-avatar="globalIncomingCallData?.callerAvatar || '/default_avatar.webp'"
       :call-type="globalIncomingCallData?.callType || 'voice'"
       :conversation-id="globalIncomingCallData?.conversationId || ''"
       @accept="handleGlobalCallAccept"

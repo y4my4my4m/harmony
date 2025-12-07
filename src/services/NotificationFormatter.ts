@@ -419,7 +419,7 @@ export class NotificationFormatter {
       avatar = data.sender_avatar_url
     }
 
-    return utilGetAvatarUrl(avatar) || '/default_avatar.png'
+    return utilGetAvatarUrl(avatar) || '/default_avatar.webp'
   }
   
   /**

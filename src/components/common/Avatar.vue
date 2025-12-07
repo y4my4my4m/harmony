@@ -112,7 +112,7 @@ const sizeMap: Record<AvatarSize, number> = {
 
 // Computed
 const avatarUrl = computed(() => {
-  if (imageError.value) return '/default_avatar.png'
+  if (imageError.value) return '/default_avatar.webp'
   const pixelSize = sizeMap[props.size] || 48
   return getAvatarUrl(props.src, pixelSize)
 })

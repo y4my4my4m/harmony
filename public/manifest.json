@@ -139,15 +139,15 @@
       "purpose": "maskable"
     },
     {
-      "src": "/img/app_icon_square.png",
+      "src": "/img/app_icon_square.webp",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/webp",
       "purpose": "any"
     },
     {
-      "src": "/img/app_icon_square.png",
+      "src": "/img/app_icon_square.webp",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/webp",
       "purpose": "maskable"
     }
   ]

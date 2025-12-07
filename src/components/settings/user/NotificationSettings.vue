@@ -835,7 +835,7 @@ const testNotification = async (type: NotificationType) => {
     
     // Show desktop/native notification
     if (hasNotificationPermission.value) {
-      const iconUrl = testData.avatar.value || '/img/app_icon_square.png'
+      const iconUrl = testData.avatar.value || '/img/app_icon_square.webp'
       
       // On mobile PWA, we need to use service worker for notifications
       // Direct `new Notification()` doesn't work on mobile

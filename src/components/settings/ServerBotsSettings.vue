@@ -107,7 +107,7 @@
 
         <div v-if="selectedBot" class="modal-content">
           <div class="bot-preview">
-            <img :src="selectedBot.avatar_url || '/default_avatar.png'" :alt="selectedBot.username" />
+            <img :src="selectedBot.avatar_url || '/default_avatar.webp'" :alt="selectedBot.username" />
             <div>
               <h4>{{ selectedBot.username }}</h4>
               <p>{{ selectedBot.bio }}</p>
@@ -153,7 +153,7 @@
 
         <div v-if="selectedInstallation" class="modal-content">
           <div class="bot-preview">
-            <img :src="selectedInstallation.bot.avatar_url || '/default_avatar.png'" :alt="selectedInstallation.bot.username" />
+            <img :src="selectedInstallation.bot.avatar_url || '/default_avatar.webp'" :alt="selectedInstallation.bot.username" />
             <div>
               <h4>{{ selectedInstallation.bot.username }}</h4>
               <p>Manage permissions for this bot</p>

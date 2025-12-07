@@ -10,7 +10,7 @@ const API_CACHE = 'harmony-api-v2'
 const STATIC_RESOURCES = [
   '/',
   '/manifest.json',
-  '/img/app_icon_square.png',
+  '/img/app_icon_square.webp',
   '/favicon/android-icon-192x192.png',
   '/src/main.ts',
   '/src/App.vue'

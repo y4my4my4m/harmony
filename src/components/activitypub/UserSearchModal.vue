@@ -89,7 +89,7 @@
                   class="recent-item"
                 >
                   <img 
-                    :src="search.avatar_url || '/default_avatar.png'" 
+                    :src="search.avatar_url || '/default_avatar.webp'" 
                     :alt="search.display_name"
                     class="recent-avatar"
                   />

@@ -272,8 +272,8 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
       message: 'Push notifications are working!',
       body: 'Push notifications are working!',
       type: 'test',
-      icon: '/img/app_icon_square.png',
-      badge: '/img/app_icon_square.png',
+      icon: '/img/app_icon_square.webp',
+      badge: '/img/app_icon_square.webp',
       tag: `harmony-test-${Date.now()}`,
       data: {
         test: true,

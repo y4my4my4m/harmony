@@ -16,7 +16,7 @@
       <!-- User Header -->
       <div class="menu-header">
         <Avatar
-          :src="userProfile?.avatar_url || '/default_avatar.png'"
+          :src="userProfile?.avatar_url || '/default_avatar.webp'"
           :alt="displayName"
           size="sm"
         />
@@ -315,7 +315,7 @@ const userProfile = computed(() => {
   return profile || {
     display_name: null,
     username: 'Unknown User',
-    avatar_url: '/default_avatar.png'
+    avatar_url: '/default_avatar.webp'
   };
 });
 
