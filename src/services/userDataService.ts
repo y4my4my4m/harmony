@@ -154,6 +154,51 @@ class UserDataService extends EventTarget {
       debug.warn('⚠️ Failed to save custom status to localStorage:', error)
     }
   }
+
+  /**
+   * Parse custom_status JSONB from database to CustomUserStatus format
+   */
+  private parseCustomStatus(customStatusJson: any): CustomUserStatus | undefined {
+    if (!customStatusJson) return undefined
+
+    try {
+      // If it's already an object (from JSONB), use it directly
+      // If it's a string, parse it
+      const status = typeof customStatusJson === 'string' 
+        ? JSON.parse(customStatusJson) 
+        : customStatusJson
+
+      // Check if expired
+      if (status.expires_at || status.expiresAt) {
+        const expiresAt = status.expires_at || status.expiresAt
+        if (new Date(expiresAt) < new Date()) {
+          return undefined // Status has expired
+        }
+      }
+
+      // Convert to CustomUserStatus format
+      const customStatus: CustomUserStatus = {
+        text: status.text || undefined,
+        emoji: status.emoji || undefined,
+        emoji_url: status.emoji_url || undefined,
+        type: status.type || 'custom',
+        expiresAt: status.expires_at || status.expiresAt || undefined,
+        details: status.details || undefined,
+        state: status.state || undefined,
+        setAt: status.set_at || status.setAt || undefined,
+      }
+
+      // Return undefined if status is empty
+      if (!customStatus.text && !customStatus.emoji && !customStatus.emoji_url) {
+        return undefined
+      }
+
+      return customStatus
+    } catch (error) {
+      debug.warn('⚠️ Failed to parse custom status:', error)
+      return undefined
+    }
+  }
   
   /**
    * Setup activity tracking and lifecycle management
@@ -256,7 +301,7 @@ class UserDataService extends EventTarget {
         debug.log('🔄 Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at')
+          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status')
           .eq('id', userId)
           .single()
         profile = profileData
@@ -317,6 +362,33 @@ class UserDataService extends EventTarget {
           }
         }
         
+        // Parse custom status from database
+        let customStatus = this.parseCustomStatus(profile.custom_status)
+        
+        // For current user, try localStorage as backup if database doesn't have it
+        if (!customStatus && profile.id === userId) {
+          const backupStatus = this.getCustomStatusFromLocalStorage()
+          if (backupStatus) {
+            customStatus = backupStatus
+            // Sync backup to database
+            try {
+              await supabase.rpc('set_custom_status', {
+                p_user_id: userId,
+                p_type: backupStatus.type || 'custom',
+                p_text: backupStatus.text || '',
+                p_emoji: backupStatus.emoji || null,
+                p_emoji_url: (backupStatus as any).emoji_url || null,
+                p_details: (backupStatus as any).details || null,
+                p_state: (backupStatus as any).state || null,
+                p_duration_minutes: null,
+              })
+              debug.log('💾 Synced localStorage custom status to database')
+            } catch (syncError) {
+              debug.warn('⚠️ Failed to sync custom status to database:', syncError)
+            }
+          }
+        }
+        
         const userData: UserData = {
           id: profile.id,
           username: profile.username || username,
@@ -333,7 +405,7 @@ class UserDataService extends EventTarget {
             profile.domain === import.meta.env.VITE_DOMAIN
           ),
           status: finalStatus,
-          customStatus: undefined, // Will be loaded separately if exists
+          customStatus: customStatus,
           isOnline: true,
           isMobile: detectMobileDevice(), // Track if user is on mobile
           lastSeen: new Date().toISOString(),
@@ -1101,7 +1173,7 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local')
+        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -1121,7 +1193,7 @@ class UserDataService extends EventTarget {
               profile.domain === import.meta.env.VITE_DOMAIN
             ),
             status: profile.status ?? UserStatus.Offline,
-            customStatus: undefined, // Would need separate table for custom status
+            customStatus: this.parseCustomStatus(profile.custom_status),
             isOnline: false, // Will be updated by presence
             isMobile: false, // Will be updated by presence
             lastSeen: profile.updated_at || new Date().toISOString(),
@@ -1402,31 +1474,36 @@ class UserDataService extends EventTarget {
    */
   async getUserCustomStatus(userId: string): Promise<CustomUserStatus | undefined> {
     // First check local cache
-    const cached = this.users.get(userId)?.customStatus
-    if (cached !== undefined) return cached
-    
-    // Fetch from database
-    try {
-      const { data, error } = await supabase.rpc('get_custom_status', {
-        p_user_id: userId,
-      })
-      
-      if (error || !data) return undefined
-      
-      // Convert to CustomUserStatus format
-      return {
-        text: data.text,
-        emoji: data.emoji,
-        expiresAt: data.expires_at,
-        ...(data.type && { type: data.type }),
-        ...(data.emoji_url && { emoji_url: data.emoji_url }),
-        ...(data.details && { details: data.details }),
-        ...(data.state && { state: data.state }),
-      }
-    } catch (error) {
-      debug.warn('⚠️ Failed to fetch user custom status:', error)
-      return undefined
+    const userData = this.users.get(userId)
+    if (userData?.customStatus !== undefined) {
+      return userData.customStatus
     }
+    
+    // If user data exists but customStatus is undefined, try to load it
+    if (userData) {
+      // Load custom status from database and update cache
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('custom_status')
+          .eq('id', userId)
+          .single()
+        
+        if (profile?.custom_status) {
+          const customStatus = this.parseCustomStatus(profile.custom_status)
+          userData.customStatus = customStatus
+          return customStatus
+        }
+      } catch (error) {
+        debug.warn('⚠️ Failed to fetch user custom status:', error)
+      }
+    } else {
+      // User not in cache, load full profile (which includes custom_status)
+      await this.loadUsersData([userId])
+      return this.users.get(userId)?.customStatus
+    }
+    
+    return undefined
   }
 
   /**

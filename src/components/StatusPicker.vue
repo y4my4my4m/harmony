@@ -17,7 +17,13 @@
           <div class="status-preview" v-if="hasCurrentStatus">
             <div class="preview-label">Current Status</div>
             <div class="preview-content">
-              <span v-if="currentStatus?.emoji" class="preview-emoji">{{ currentStatus.emoji }}</span>
+              <img 
+                v-if="currentStatus?.emoji_url" 
+                :src="currentStatus.emoji_url" 
+                :alt="currentStatus.emoji || 'Emoji'"
+                class="preview-emoji-img"
+              />
+              <span v-else-if="currentStatus?.emoji" class="preview-emoji">{{ currentStatus.emoji }}</span>
               <span class="preview-text">{{ currentStatus?.text }}</span>
             </div>
             <button class="clear-btn" @click="clearStatus">Clear Status</button>
@@ -366,6 +372,13 @@ watch(() => props.isVisible, (visible) => {
 
 .preview-emoji {
   font-size: 20px;
+}
+
+.preview-emoji-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .clear-btn {

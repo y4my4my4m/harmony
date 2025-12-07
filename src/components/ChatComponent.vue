@@ -23,6 +23,7 @@
       @sendReaction="toggleReaction"
       @replyingTo="replyingTo"
       @createThread="handleCreateThread"
+      @showAllThreads="handleShowAllThreads"
     />
     <MessageInput 
       ref="messageInputRef"
@@ -122,6 +123,7 @@
   interface Emits {
     (e: 'sendMessage', content: MessagePart[], replyTo?: string): void;
     (e: 'loadMoreMessages'): void;
+    (e: 'showAllThreads'): void;
   }
 
   const emit = defineEmits<Emits>();
@@ -328,6 +330,10 @@
 
       const handleThreadUpdated = (thread: any) => {
         selectedThread.value = thread;
+      };
+
+      const handleShowAllThreads = () => {
+        emit('showAllThreads');
       };
 
       const toggleReaction = (messageId: string, emoji: Emoji) => {
@@ -550,7 +556,7 @@
 
       const handleSendGif = (gif: Gif) => {
         const gifUrl = gif.media_formats.gif.url;
-        closeGiphy();
+        closeMediaPicker();
         
         if (props.isDM && dmStore.currentConversationId && authStore.session?.user) {
           // Emit for DM
@@ -570,7 +576,11 @@
       };
 
       const handleSendEmoji = async (emoji: Emoji) => {
-        closeEmojiList();
+        if (isPopupForReaction.value) {
+          closeReactionEmoji();
+        } else {
+          closeMediaPicker();
+        }
         
         if (isPopupForReaction.value) {
           if (authStore.session?.user) {

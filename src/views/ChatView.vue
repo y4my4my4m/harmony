@@ -13,6 +13,7 @@
     @load-more-messages="fetchMoreMessages"
     @update:is-at-bottom="isAtBottom = $event"
     @send-message="handleSendMessage"
+    @show-all-threads="handleShowAllThreads"
   />
 </template>
 
@@ -45,6 +46,7 @@ const emit = defineEmits<{
   sendMessage: [message: any]
   toggleLeftSidebar: []
   toggleVoicePanel: []
+  showAllThreads: []
 }>()
 
 // Stores
@@ -152,6 +154,10 @@ const fetchMoreMessages = async () => {
 
 const handleSendMessage = (message: any) => {
   emit('sendMessage', message)
+}
+
+const handleShowAllThreads = () => {
+  emit('showAllThreads')
 }
 
 // Watch for route changes

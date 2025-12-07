@@ -53,7 +53,13 @@
         @click="openStatusPicker"
       >
         <div class="preview-left">
-          <span v-if="currentCustomStatus?.emoji" class="preview-emoji">{{ currentCustomStatus.emoji }}</span>
+          <img 
+            v-if="currentCustomStatus?.emoji_url" 
+            :src="currentCustomStatus.emoji_url" 
+            :alt="currentCustomStatus.emoji || 'Emoji'"
+            class="preview-emoji-img"
+          />
+          <span v-else-if="currentCustomStatus?.emoji" class="preview-emoji">{{ currentCustomStatus.emoji }}</span>
           <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
             <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
           </svg>
@@ -536,6 +542,13 @@ onBeforeUnmount(() => {
   font-size: 20px;
   flex-shrink: 0;
   line-height: 1;
+}
+
+.custom-status-preview .preview-emoji-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .custom-status-preview .emoji-placeholder {

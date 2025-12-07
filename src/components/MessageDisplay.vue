@@ -76,11 +76,11 @@
                     class="system-thread-link"
                     @click="handleOpenThread(message.metadata?.thread_id)"
                   >{{ message.metadata?.thread_name || 'Thread' }}</span>. 
-                  See all 
+                  See 
                   <span 
                     class="system-threads-link"
                     @click="emit('showAllThreads')"
-                  >threads</span>.
+                  >all threads</span>.
                 </div>
               </template>
               <!-- Default system message (join/leave, etc.) -->

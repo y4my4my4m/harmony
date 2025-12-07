@@ -297,5 +297,10 @@ onMounted(() => {
   .channel-description {
     display: none;
   }
+  .pinned-count {
+    top: 0;
+    right: 0px;
+  }
+
 }
 </style>

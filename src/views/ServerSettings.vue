@@ -693,9 +693,6 @@ watch(hasChanges, (newValue) => {
     display: none;
   }
   
-  .server-settings-content {
-    margin-top: 60px; /* Space for mobile nav */
-  }
 
   .server-settings-sidebar {
     position: fixed;

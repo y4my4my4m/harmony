@@ -95,6 +95,7 @@
               :conversation-id="conversationId"
               @send-message="handleSendMessage"
               @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+              @show-all-threads="showAllThreads = true"
             />
           </div>
 
