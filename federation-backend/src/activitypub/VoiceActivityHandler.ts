@@ -504,9 +504,30 @@ export class VoiceActivityHandler {
         },
       });
 
+    // Get server owner's AP ID for signing (actor must match signing key owner)
+    const { data: ownerProfile, error: ownerError } = await supabase
+      .from('profiles')
+      .select('federated_id, username')
+      .eq('id', server.owner)
+      .single();
+    
+    if (ownerError || !ownerProfile) {
+      logger.error(`Failed to get server owner profile for signing: ${ownerError?.message || 'not found'}`);
+      return;
+    }
+
+    if (!ownerProfile.federated_id && !ownerProfile.username) {
+      logger.error(`Server owner ${server.owner} has no federated_id or username - cannot sign VoiceChannelJoinAccept`);
+      return;
+    }
+
+    const ownerApId = ownerProfile.federated_id || 
+      `https://${hostDomain}/users/${ownerProfile.username}`;
+
     // Send VoiceChannelJoinAccept with the token
+    // Use owner's AP ID as actor (must match signing key owner)
     const acceptActivity = this.createVoiceChannelJoinAccept(
-      `https://${hostDomain}/servers/${channel.server_id}`,
+      ownerApId, // Use owner's AP ID instead of server AP ID for proper signing
       actorUrl,
       activity.id,
       wsUrl,

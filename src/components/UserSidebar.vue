@@ -193,6 +193,24 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
+              <!-- Custom Status -->
+              <div 
+                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
+                class="user-custom-status"
+              >
+                <img 
+                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
+                  class="status-emoji-img"
+                />
+                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
+                  {{ getUserCustomStatus(user.id).value?.emoji }}
+                </span>
+                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
+                  {{ getUserCustomStatus(user.id).value?.text }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -248,6 +266,97 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Federated Users -->
+      <div v-if="!isLoadingUsers && groupedUsers.federated.length > 0" class="user-group">
+        <button 
+          @click="toggleGroup('federated')"
+          class="group-header"
+          :class="{ 'group-collapsed': collapsedGroups.federated }"
+        >
+          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+          </svg>
+          <span class="group-title">Federated — {{ groupedUsers.federated.length }}</span>
+        </button>
+        <div v-if="!collapsedGroups.federated" class="user-list">
+          <div 
+            v-for="user in groupedUsers.federated" 
+            :key="user.id" 
+            class="user-item"
+            @click="showUserProfile(user)"
+          >
+            <Avatar
+              :src="getUserAvatarUrl(user.id).value"
+              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
+              size="sm"
+              :status="getStatusForAvatarValue(user.id)"
+              class="user-avatar"
+            />
+            <div class="user-info">
+              <div class="user-name-row">
+                <span 
+                  class="user-name" 
+                  :style="{ color: getUserColor(user.id).value || undefined }"
+                >
+                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                </span>
+                <span 
+                  v-if="!isUserLocal(user.id).value" 
+                  class="federation-badge"
+                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
+                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                  </svg>
+                </span>
+              </div>
+              <!-- Custom Status -->
+              <div 
+                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
+                class="user-custom-status"
+              >
+                <img 
+                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
+                  class="status-emoji-img"
+                />
+                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
+                  {{ getUserCustomStatus(user.id).value?.emoji }}
+                </span>
+                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
+                  {{ getUserCustomStatus(user.id).value?.text }}
+                </span>
+              </div>
+              <span 
+                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
+                class="user-domain"
+              >
+                {{ getUserDomain(user.id).value }}
+              </span>
+              <!-- Custom Status -->
+              <div 
+                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
+                class="user-custom-status"
+              >
+                <img 
+                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
+                  class="status-emoji-img"
+                />
+                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
+                  {{ getUserCustomStatus(user.id).value?.emoji }}
+                </span>
+                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
+                  {{ getUserCustomStatus(user.id).value?.text }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -382,6 +491,7 @@ const collapsedGroups = ref({
   online: false,
   away: false,
   busy: false,
+  federated: false,
   offline: false // Start with offline collapsed
 });
 
@@ -441,20 +551,23 @@ const filteredUsers = computed(() => {
 // Group users by real-time presence first, then by status for present users
 // This ensures:
 // 1. Only users who are actually present (connected via Supabase Realtime) appear as Online/Away/Busy
-// 2. All non-present users appear as Offline, regardless of their persistent database status
-// 3. After page reload, only truly present users are shown as active
-// 4. Professional, scalable real-time presence behavior for modern chat apps
+// 2. Federated users (non-local) who are not present go into their own "federated" category
+// 3. Local users who are not present appear as Offline
+// 4. After page reload, only truly present users are shown as active
+// 5. Professional, scalable real-time presence behavior for modern chat apps
 const groupedUsers = computed(() => {
   const groups = {
     online: [] as User[],
     away: [] as User[],
     busy: [] as User[],
+    federated: [] as User[],
     offline: [] as User[]
   };
 
   filteredUsers.value.forEach((user: User) => {
     // Check if user is actually present in real-time
     const isPresent = isUserOnline(user.id).value;
+    const isLocal = isUserLocal(user.id).value;
     
     if (isPresent) {
       // User is present - group by their preferred status
@@ -475,8 +588,14 @@ const groupedUsers = computed(() => {
           break;
       }
     } else {
-      // User is not present - always show as offline
-      groups.offline.push(user);
+      // User is not present
+      if (!isLocal) {
+        // Federated users go into their own category
+        groups.federated.push(user);
+      } else {
+        // Local users who are not present appear as offline
+        groups.offline.push(user);
+      }
     }
   });
 

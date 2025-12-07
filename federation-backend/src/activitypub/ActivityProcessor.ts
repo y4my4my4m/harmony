@@ -573,15 +573,22 @@ export class ActivityProcessor {
       // Update user profile
       const profileData = actorToProfile(object);
 
+      const updateData: any = {
+        display_name: profileData.display_name,
+        bio: profileData.bio,
+        avatar_url: profileData.avatar,
+        banner_url: profileData.banner,
+        public_key: profileData.public_key,
+      };
+
+      // Include custom_status if present
+      if (profileData.custom_status) {
+        updateData.custom_status = profileData.custom_status;
+      }
+
       await supabase
         .from('profiles')
-        .update({
-          display_name: profileData.display_name,
-          bio: profileData.bio,
-          avatar_url: profileData.avatar,
-          banner_url: profileData.banner,
-          public_key: profileData.public_key,
-        })
+        .update(updateData)
         .eq('federated_id', object.id);
 
       logger.info(`Updated profile: ${object.id}`);

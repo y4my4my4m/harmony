@@ -232,6 +232,7 @@ export function actorToProfile(actor: any): {
   avatar?: string;
   banner?: string;
   color?: string;
+  custom_status?: any;
   public_key?: string;
   federated_id: string;
   inbox_url: string;
@@ -285,6 +286,11 @@ export function actorToProfile(actor: any): {
   // Harmony extension: profile color
   if (actor['harmony:profileColor']) {
     profile.color = actor['harmony:profileColor'];
+  }
+
+  // Harmony extension: custom status (Discord-style status)
+  if (actor['harmony:customStatus']) {
+    profile.custom_status = actor['harmony:customStatus'];
   }
 
   if (actor.publicKey?.publicKeyPem) {

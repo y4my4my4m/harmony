@@ -1,6 +1,7 @@
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
+import { getSupabaseClient } from '../../config/supabase.js';
 
 /**
  * Convert internal post format to ActivityPub Note
@@ -97,6 +98,18 @@ export function profileToActor(profile: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${profile.username}`;
 
+  // Parse custom_status if available
+  let customStatusData = null;
+  if (profile.custom_status) {
+    try {
+      customStatusData = typeof profile.custom_status === 'string' 
+        ? JSON.parse(profile.custom_status) 
+        : profile.custom_status;
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
   const actor: any = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
@@ -171,6 +184,23 @@ export function profileToActor(profile: any): any {
   // Harmony extension: profile color
   if (profile.color) {
     actor['harmony:profileColor'] = profile.color;
+  }
+
+  // Harmony extension: custom status (Discord-style status)
+  if (customStatusData) {
+    // Ensure emoji_url is absolute for federation
+    if (customStatusData.emoji_url && typeof customStatusData.emoji_url === 'string') {
+      // If it's already absolute, keep it; otherwise convert to absolute
+      if (!customStatusData.emoji_url.startsWith('http://') && !customStatusData.emoji_url.startsWith('https://')) {
+        // Relative path - convert to full Supabase URL
+        const supabase = getSupabaseClient();
+        const { data } = supabase.storage
+          .from('emojis')
+          .getPublicUrl(customStatusData.emoji_url);
+        customStatusData.emoji_url = data.publicUrl;
+      }
+    }
+    actor['harmony:customStatus'] = customStatusData;
   }
 
   return actor;

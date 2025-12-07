@@ -692,6 +692,7 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
     }
 
     // Check if any federable fields changed
+    // Note: custom_status is now handled by database trigger (trigger_queue_profile_federation)
     const fieldsChanged = 
       oldProfile.display_name !== newProfile.display_name ||
       oldProfile.bio !== newProfile.bio ||

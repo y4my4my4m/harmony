@@ -13,7 +13,7 @@ import type { FederationJobData } from '../QueueManager.js';
 
 export async function handleProfileJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { profile_id, username, display_name, bio, avatar_url, banner_url } = data;
+  const { profile_id, username, display_name, bio, avatar_url, banner_url, custom_status } = data;
 
   logger.info(`👤 Processing profile update job for: ${username}`);
 
@@ -32,6 +32,30 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
 
     const domain = config.INSTANCE_DOMAIN;
     const actorUrl = `https://${domain}/users/${profile.username}`;
+
+    // Parse custom_status if available
+    let customStatusData = null;
+    if (profile.custom_status) {
+      try {
+        customStatusData = typeof profile.custom_status === 'string' 
+          ? JSON.parse(profile.custom_status) 
+          : profile.custom_status;
+        
+        // Ensure emoji_url is absolute for federation
+        if (customStatusData.emoji_url && typeof customStatusData.emoji_url === 'string') {
+          // If it's already absolute, keep it; otherwise convert to absolute
+          if (!customStatusData.emoji_url.startsWith('http://') && !customStatusData.emoji_url.startsWith('https://')) {
+            // Relative path - convert to full Supabase URL
+            const { data } = supabase.storage
+              .from('emojis')
+              .getPublicUrl(customStatusData.emoji_url);
+            customStatusData.emoji_url = data.publicUrl;
+          }
+        }
+      } catch (e) {
+        logger.debug('Failed to parse custom_status:', e);
+      }
+    }
 
     // Create Update Person activity
     const updateActivity = {
@@ -60,6 +84,10 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
           mediaType: 'image/png',
           url: profile.banner_url
         } : undefined,
+        // Include custom status in federation (Discord-style status)
+        ...(customStatusData ? {
+          'harmony:customStatus': customStatusData
+        } : {}),
         inbox: `${actorUrl}/inbox`,
         outbox: `${actorUrl}/outbox`,
         followers: `${actorUrl}/followers`,

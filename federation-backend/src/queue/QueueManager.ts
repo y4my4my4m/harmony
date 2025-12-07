@@ -27,6 +27,7 @@ import { handleMessageReactionJob } from './handlers/messageReactionHandler.js';
 import { handleBlockJob } from './handlers/blockHandler.js';
 import { handleReportJob } from './handlers/reportHandler.js';
 import { handleProfileJob } from './handlers/profileHandler.js';
+import { handleThreadJob } from './handlers/threadHandler.js';
 import { handlePushNotificationJob } from './handlers/pushNotificationHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
@@ -48,6 +49,7 @@ export type JobType =
   | 'federate-block'
   | 'federate-report'
   | 'federate-profile'
+  | 'federate-thread'                // Thread create/update
   | 'federate-voice-join'            // Voice channel join
   | 'federate-voice-leave'           // Voice channel leave
   | 'send-push-notification'
@@ -284,6 +286,7 @@ class QueueManagerService {
     await registerWithConcurrency('federate-block', createHandler('federate-block', '🚫', handleBlockJob));
     await registerWithConcurrency('federate-report', createHandler('federate-report', '🚩', handleReportJob));
     await registerWithConcurrency('federate-profile', createHandler('federate-profile', '👤', handleProfileJob));
+    await registerWithConcurrency('federate-thread', createHandler('federate-thread', '🧵', handleThreadJob));
     await registerWithConcurrency('federate-voice-join', createHandler('federate-voice-join', '🎤', handleVoiceJoinJob));
     await registerWithConcurrency('federate-voice-leave', createHandler('federate-voice-leave', '🔇', handleVoiceLeaveJob));
     await registerWithConcurrency('send-push-notification', createHandler('send-push-notification', '📱', handlePushNotificationJob as any));

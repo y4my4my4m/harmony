@@ -116,12 +116,20 @@ export async function handleChannelReactionFederation(
     let emojiTags: any[] | undefined;
 
     if (isCustomEmoji) {
-      // Custom emoji - include tag for remote rendering
-      emojiContent = `:${emoji.name}:`;
+      // Custom emoji - use :name@domain: format for federated emojis (Misskey-style)
+      // This ensures remote instances can properly identify and display the emoji
+      if (emoji.domain) {
+        // Federated emoji - use :name@domain: format
+        emojiContent = `:${emoji.name}@${emoji.domain}:`;
+      } else {
+        // Local emoji - use :name: format
+        emojiContent = `:${emoji.name}:`;
+      }
+      
       emojiTags = [{
         type: 'Emoji',
         id: emoji.url,
-        name: `:${emoji.name}:`,
+        name: emojiContent, // Use the full format in the tag name too
         icon: {
           type: 'Image',
           mediaType: 'image/png',
@@ -242,6 +250,20 @@ export async function handleChannelReactionRemoval(
     // Create Undo activity
     const originalLikeId = `${userApId}/likes/${message_id}`;
     
+    // Format emoji content consistently with add reaction
+    let emojiContent: string;
+    if (emoji?.url) {
+      // Custom emoji - use :name@domain: format for federated emojis
+      if (emoji.domain) {
+        emojiContent = `:${emoji.name}@${emoji.domain}:`;
+      } else {
+        emojiContent = `:${emoji.name}:`;
+      }
+    } else {
+      // Unicode emoji
+      emojiContent = emoji?.name || '❤️';
+    }
+    
     const undoActivity = {
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${userApId}/activities/${crypto.randomUUID()}`,
@@ -252,7 +274,7 @@ export async function handleChannelReactionRemoval(
         type: emoji?.url ? 'EmojiReaction' : 'Like',
         actor: userApId,
         object: messageApId,
-        content: emoji?.url ? `:${emoji.name}:` : (emoji?.name || '❤️'),
+        content: emojiContent,
       },
       published: new Date().toISOString(),
     };
