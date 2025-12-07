@@ -190,69 +190,68 @@ const PALETTE_MAPS: Array<Record<string, string>> = [
   
   // Player 3 (index 2): Purple (#7832bf)
   {
-    '203080': '4a1f73', // dark blue → dark purple
-    '0040f0': '7832bf', // mid blue → mid purple
-    '0080f8': '9b5fdf', // bright blue → bright purple
-    '1858b0': '5a2f8a', // dark light blue → dark light purple
-    '50a0f0': '8a4fcf', // mid light blue → mid light purple
-    '78d8f0': 'b87fef', // bright light blue → bright light purple
-    'f04010': 'c85fef'  // accent → purple accent
+    '203080': '601976', // dark blue → dark purple
+    '0040f0': '9f33b3', // mid blue → mid purple
+    '0080f8': 'ca4dd9', // bright blue → bright purple
+    '1858b0': '995a6c', // dark light blue → dark light purple
+    '50a0f0': 'bf8294', // mid light blue → mid light purple
+    '78d8f0': 'e7afbf', // bright light blue → bright light purple
+    'f04010': 'f04010'  // accent → purple accent
   },
   
-  // Player 4 (index 3): Yellow (#f9ca24)
+  // Player 4 (index 3): purple/orange 
   {
-    '203080': '997a00', // dark blue → dark yellow
-    '0040f0': 'f9ca24', // mid blue → mid yellow
-    '0080f8': 'fff26b', // bright blue → bright yellow
-    '1858b0': 'b89a1e', // dark light blue → dark light yellow
-    '50a0f0': 'ffda4f', // mid light blue → mid light yellow
-    '78d8f0': 'ffea7f', // bright light blue → bright light yellow
-    'f04010': 'ffaa00'  // accent → yellow accent
+    '203080': '403850', // dark blue → dark yellow
+    '0040f0': '5040b0', // mid blue → mid yellow
+    '0080f8': '5868e8', // bright blue → bright yellow
+    '1858b0': 'd85800', // dark light blue → dark light yellow
+    '50a0f0': 'f88000', // mid light blue → mid light yellow
+    '78d8f0': 'f8c000', // bright light blue → bright light yellow
+    'f04010': 'f04010'  // accent → yellow accent
   },
   
-  // Player 5 (index 4): Magenta/Pink (#b83275)
+  // Player 5 (index 4): Green
   {
-    '203080': '6f1e47', // dark blue → dark magenta
-    '0040f0': 'b83275', // mid blue → mid magenta
-    '0080f8': 'e85ba8', // bright blue → bright magenta
-    '1858b0': '8a2f5a', // dark light blue → dark light magenta
-    '50a0f0': 'c85a9a', // mid light blue → mid light magenta
-    '78d8f0': 'f08fca', // bright light blue → bright light magenta
-    'f04010': 'ff6ba8'  // accent → magenta accent
+    '203080': '085028', // dark blue → dark magenta
+    '0040f0': '209050', // mid blue → mid magenta
+    '0080f8': '18b050', // bright blue → bright magenta
+    '1858b0': '20b878', // dark light blue → dark light magenta
+    '50a0f0': '60d0a8', // mid light blue → mid light magenta
+    '78d8f0': 'c0f0e0', // bright light blue → bright light magenta
+    'f04010': 'f04010'  // accent → magenta accent
   },
-  
-  // Player 6 (index 5): Green (#2ec91c)
+  // Player 6 (index 5): Light Blue
   {
-    '203080': '007a2a', // dark blue → dark green
-    '0040f0': '3acc5c', // mid blue → mid green
-    '0080f8': '6bff8a', // bright blue → bright green
-    '1858b0': '1e9a3a', // dark light blue → dark light green
-    '50a0f0': '4fef7a', // mid light blue → mid light green
-    '78d8f0': '7fffaa', // bright light blue → bright light green
-    'f04010': '4fff5a'  // accent → green accent
+    '203080': '2868b0', // dark blue → dark light blue
+    '0040f0': '50a0f0', // mid blue → mid light blue
+    '0080f8': '78d8f0', // bright blue → bright light blue
+    '1858b0': '8868b8', // dark light blue → dark light light blue
+    '50a0f0': 'b090e0', // mid light blue → mid light light blue
+    '78d8f0': 'f0c8f8', // bright light blue → bright light light blue
+    'f04010': 'f04010'  // accent → light blue accent
   },
   
   // Player 7 (index 6): Black (#020203)
   {
-    '203080': '020203', // dark blue → black
-    '0040f0': '202020', // mid blue → dark gray
-    '0080f8': '404040', // bright blue → mid gray
-    '1858b0': '151515', // dark light blue → dark gray
-    '50a0f0': '303030', // mid light blue → gray
-    '78d8f0': '505050', // bright light blue → light gray
-    'f04010': '404040'  // accent → gray accent
+    '203080': '3d3d3d', // dark blue → black
+    '0040f0': '5f5f5f', // mid blue → dark gray
+    '0080f8': '858585', // bright blue → mid gray
+    '1858b0': 'c06808', // dark light blue → dark gray
+    '50a0f0': 'e09810', // mid light blue → gray
+    '78d8f0': 'e8c808', // bright light blue → light gray
+    'f04010': 'f04010'  // accent → gray accent
   },
-  
   // Player 8 (index 7): Light Gray/White (#e5e4f2)
   {
-    '203080': '8a8a9a', // dark blue → dark gray
-    '0040f0': 'b8b8c8', // mid blue → mid gray
-    '0080f8': 'e5e4f2', // bright blue → light gray
-    '1858b0': '9a9aaa', // dark light blue → gray
-    '50a0f0': 'c8c8d8', // mid light blue → light gray
-    '78d8f0': 'f5f5ff', // bright light blue → white
-    'f04010': 'd8d8e8'  // accent → light gray accent
+    '203080': '602078', // dark blue → dark gray
+    '0040f0': '7040b8', // mid blue → mid gray
+    '0080f8': 'a080f8', // bright blue → light gray
+    '1858b0': '608840', // dark light blue → gray
+    '50a0f0': '78d048', // mid light blue → light gray
+    '78d8f0': 'd0e098', // bright light blue → white
+    'f04010': 'f04010'  // accent → light gray accent
   }
+  
 ]
 
 // Sound effects - using actual Megaman X sounds from Scratch project
