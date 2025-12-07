@@ -275,6 +275,7 @@
       :channel-id="voiceStore.currentChannelId || voiceStore.optimisticChannelId || ''"
       :user-id="voiceStore.localState.userId || authStore.session?.user?.id || ''"
       :participants="voiceStore.allParticipants.map(p => ({ userId: p.userId, username: (p as any).username || 'Player' }))"
+      @close="easterEggService.deactivate()"
     />
   </Teleport>
 </template>
@@ -566,10 +567,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       debug.log('🎮 [Konami] Activating Megaman game mode!')
       easterEggService.activate('megaman', currentUserId)
       
-      // Auto-deactivate after 30 seconds
-      setTimeout(() => {
-        easterEggService.deactivate()
-      }, 30000)
+      // No auto-deactivate - users can close manually with X button
     }
 
     // Initialize easter egg service when channel changes

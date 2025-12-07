@@ -1,5 +1,8 @@
 <template>
   <div v-if="isActive" class="megaman-game-overlay">
+    <button class="close-button" @click="closeGame" title="Close game">
+      <Icon name="x" />
+    </button>
     <canvas ref="canvasRef" class="megaman-canvas" />
   </div>
 </template>
@@ -8,6 +11,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
+import Icon from '@/components/common/Icon.vue'
 
 interface Props {
   isActive: boolean
@@ -17,6 +21,10 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  close: []
+}>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let canvas: HTMLCanvasElement | null = null
@@ -107,6 +115,9 @@ let gameStartTime = 0
 let showIntro = true
 const introFrame = ref(0)
 const introFrameTime = ref(0)
+const gameCanvasWidth = ref(360) // Minimum 360
+const gameCanvasHeight = ref(240) // Minimum 240
+const playerResolutions = ref<Map<string, { width: number; height: number }>>(new Map())
 
 // Constants
 const GRAVITY = 0.8
@@ -884,10 +895,9 @@ function gameLoop(currentTime: number) {
   lastFrameTime = currentTime
   const deltaSeconds = deltaTime / 1000 // Convert to seconds
   
-  // Get actual canvas dimensions (accounting for DPR scaling)
-  const dpr = window.devicePixelRatio || 1
-  const canvasWidth = canvas.width / dpr
-  const canvasHeight = canvas.height / dpr
+  // Get actual canvas dimensions (using synced resolution)
+  const canvasWidth = gameCanvasWidth.value
+  const canvasHeight = gameCanvasHeight.value
   const floorY = canvasHeight - 20 // Floor is 20px from bottom
   const wallLeft = 0
   const wallRight = canvasWidth
@@ -916,7 +926,10 @@ function gameLoop(currentTime: number) {
     }
   }
   
-  // Clear canvas (only if not showing intro)
+  // Always clear canvas first (proper z-buffer clearing)
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+  
+  // Draw background (only if not showing intro)
   if (!showIntro || Date.now() - gameStartTime >= 2000) {
     ctx.fillStyle = 'rgba(26, 26, 46, 0.9)' // Semi-transparent
     ctx.fillRect(0, 0, canvasWidth, canvasHeight)
@@ -1354,20 +1367,6 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     ctx.save()
     
-    // Apply palette swap (color tint) for different players
-    if (player.color !== '#ff6b6b') { // Default color - no swap needed
-      // Convert hex color to RGB
-      const hex = player.color.replace('#', '')
-      const r = parseInt(hex.substr(0, 2), 16) / 255
-      const g = parseInt(hex.substr(2, 2), 16) / 255
-      const b = parseInt(hex.substr(4, 2), 16) / 255
-      
-      // Apply color overlay using composite operation
-      ctx.globalCompositeOperation = 'multiply'
-      ctx.fillStyle = player.color
-      ctx.globalAlpha = 0.3
-    }
-    
     // Handle hit state - flash effect
     const now = Date.now()
     const isInvulnerable = now < player.invulnerableUntil
@@ -1380,24 +1379,77 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       }
     }
     
-    // Flip horizontally if facing left
-    if (player.facing === 'left') {
-      ctx.scale(-1, 1)
-      ctx.drawImage(
-        spriteImg,
-        -player.x - drawWidth, // Adjust for flipped position
-        player.y,
-        drawWidth,
-        drawHeight
-      )
+    // Apply palette swap (color tint) for different players - preserve transparency
+    if (player.color !== '#ff6b6b') { // Default color - no swap needed
+      // Draw sprite to offscreen canvas for color manipulation
+      const offscreenCanvas = document.createElement('canvas')
+      offscreenCanvas.width = drawWidth
+      offscreenCanvas.height = drawHeight
+      const offscreenCtx = offscreenCanvas.getContext('2d')
+      
+      if (offscreenCtx) {
+        // Draw sprite to offscreen (handle flipping)
+        if (player.facing === 'left') {
+          offscreenCtx.scale(-1, 1)
+          offscreenCtx.drawImage(spriteImg, -drawWidth, 0, drawWidth, drawHeight)
+        } else {
+          offscreenCtx.drawImage(spriteImg, 0, 0, drawWidth, drawHeight)
+        }
+        
+        // Get image data
+        const imageData = offscreenCtx.getImageData(0, 0, drawWidth, drawHeight)
+        const data = imageData.data
+        
+        // Convert player color to RGB
+        const hex = player.color.replace('#', '')
+        const targetR = parseInt(hex.substr(0, 2), 16)
+        const targetG = parseInt(hex.substr(2, 2), 16)
+        const targetB = parseInt(hex.substr(4, 2), 16)
+        
+        // Apply color tint while preserving transparency
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 0) { // Only process non-transparent pixels
+            // Blend with target color (60% original, 40% target for subtle tint)
+            data[i] = Math.floor(data[i] * 0.6 + targetR * 0.4)     // R
+            data[i + 1] = Math.floor(data[i + 1] * 0.6 + targetG * 0.4) // G
+            data[i + 2] = Math.floor(data[i + 2] * 0.6 + targetB * 0.4) // B
+            // Alpha stays the same
+          }
+        }
+        
+        // Put modified image data back
+        offscreenCtx.putImageData(imageData, 0, 0)
+        
+        // Draw tinted sprite to main canvas
+        if (player.facing === 'left') {
+          ctx.scale(-1, 1)
+          ctx.drawImage(offscreenCanvas, -player.x - drawWidth, player.y)
+          ctx.scale(-1, 1) // Reset
+        } else {
+          ctx.drawImage(offscreenCanvas, player.x, player.y)
+        }
+      }
     } else {
-      ctx.drawImage(
-        spriteImg,
-        player.x,
-        player.y,
-        drawWidth,
-        drawHeight
-      )
+      // Draw sprite normally (no tint)
+      if (player.facing === 'left') {
+        ctx.scale(-1, 1)
+        ctx.drawImage(
+          spriteImg,
+          -player.x - drawWidth, // Adjust for flipped position
+          player.y,
+          drawWidth,
+          drawHeight
+        )
+        ctx.scale(-1, 1) // Reset
+      } else {
+        ctx.drawImage(
+          spriteImg,
+          player.x,
+          player.y,
+          drawWidth,
+          drawHeight
+        )
+      }
     }
     
     // Reset composite operation
@@ -1545,22 +1597,68 @@ function setupRealtimeListener() {
     // Don't update local player from remote updates
     if (userId === props.userId) return
     
-    const player = players.value.get(userId)
-    if (player) {
-      player.x = x
-      player.y = y
-      player.facing = facing
-      player.state = state
-      player.velocityX = velocityX
-      player.velocityY = velocityY
-      player.isShooting = isShooting || false
-      player.isCharging = isCharging || false
-      player.chargeLevel = chargeLevel || 0
-      player.onWall = onWall || false
-      player.wallSide = wallSide || null
-      if (health !== undefined) player.health = health
-      if (maxHealth !== undefined) player.maxHealth = maxHealth
+    let player = players.value.get(userId)
+    
+    // Create player if they don't exist (for late joiners)
+    if (!player) {
+      const canvasHeight = gameCanvasHeight.value
+      const floorY = canvasHeight - 20
+      const canvasWidth = gameCanvasWidth.value
+      const randomX = 50 + Math.random() * (canvasWidth - 150)
+      
+      // Find color index for this user
+      const participantIndex = props.participants.findIndex(p => p.userId === userId)
+      const colorIndex = participantIndex >= 0 ? participantIndex : players.value.size
+      
+      player = {
+        userId,
+        x: randomX,
+        y: floorY - 64,
+        facing: 'right',
+        state: 'idle',
+        velocityX: 0,
+        velocityY: 0,
+        onGround: true,
+        onWall: false,
+        wallSide: null,
+        color: PLAYER_COLORS[colorIndex % PLAYER_COLORS.length],
+        isShooting: false,
+        isCharging: false,
+        chargeLevel: 0,
+        chargeStartTime: 0,
+        lastShotTime: 0,
+        dashCooldown: 0,
+        canDash: true,
+        health: 100,
+        maxHealth: 100,
+        hitTime: 0,
+        invulnerableUntil: 0,
+        canWallJump: false,
+        smokeEffects: []
+      }
+      
+      players.value.set(userId, player)
+      currentFrame.value.set(userId, 0)
+      frameTime.value.set(userId, 0)
+      chargeFrame.value.set(userId, 0)
+      
+      debug.log(`🎮 Created remote player: ${userId}`)
     }
+    
+    // Update player state
+    player.x = x
+    player.y = y
+    player.facing = facing
+    player.state = state
+    player.velocityX = velocityX
+    player.velocityY = velocityY
+    player.isShooting = isShooting || false
+    player.isCharging = isCharging || false
+    player.chargeLevel = chargeLevel || 0
+    player.onWall = onWall || false
+    player.wallSide = wallSide || null
+    if (health !== undefined) player.health = health
+    if (maxHealth !== undefined) player.maxHealth = maxHealth
   })
   
   gameChannel.on('broadcast', { event: 'player-damaged' }, (payload) => {
@@ -1570,6 +1668,31 @@ function setupRealtimeListener() {
     if (player) {
       player.health = health
     }
+  })
+  
+  gameChannel.on('broadcast', { event: 'resolution-request' }, (payload) => {
+    const { userId, width, height } = payload.payload
+    playerResolutions.value.set(userId, { width, height })
+    updateCanvasSize()
+    
+    // Respond with our resolution using the same channel
+    if (gameChannel) {
+      gameChannel.send({
+        type: 'broadcast',
+        event: 'resolution-response',
+        payload: {
+          userId: props.userId,
+          width: Math.max(360, window.innerWidth),
+          height: Math.max(240, window.innerHeight)
+        }
+      })
+    }
+  })
+  
+  gameChannel.on('broadcast', { event: 'resolution-response' }, (payload) => {
+    const { userId, width, height } = payload.payload
+    playerResolutions.value.set(userId, { width, height })
+    updateCanvasSize()
   })
   
   gameChannel.on('broadcast', { event: 'bullet-fired' }, (payload) => {
@@ -1608,22 +1731,74 @@ watch(() => props.isActive, (active) => {
   }
 })
 
+function updateCanvasSize() {
+  if (playerResolutions.value.size === 0) {
+    gameCanvasWidth.value = Math.max(360, window.innerWidth)
+    gameCanvasHeight.value = Math.max(240, window.innerHeight)
+    return
+  }
+  
+  // Find minimum resolution
+  let minWidth = Infinity
+  let minHeight = Infinity
+  
+  playerResolutions.value.forEach((res) => {
+    minWidth = Math.min(minWidth, res.width)
+    minHeight = Math.min(minHeight, res.height)
+  })
+  
+  // Apply minimums
+  gameCanvasWidth.value = Math.max(360, minWidth)
+  gameCanvasHeight.value = Math.max(240, minHeight)
+  
+  // Update canvas if it exists
+  if (canvas && ctx) {
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = gameCanvasWidth.value * dpr
+    canvas.height = gameCanvasHeight.value * dpr
+    ctx.scale(dpr, dpr)
+    canvas.style.width = `${gameCanvasWidth.value}px`
+    canvas.style.height = `${gameCanvasHeight.value}px`
+  }
+}
+
+function requestPlayerResolutions() {
+  // Store our own resolution first
+  playerResolutions.value.set(props.userId, {
+    width: Math.max(360, window.innerWidth),
+    height: Math.max(240, window.innerHeight)
+  })
+  
+  // Update canvas size based on minimum resolution
+  updateCanvasSize()
+  
+  // Broadcast our resolution using gameChannel (after it's set up)
+  // This will be called after setupRealtimeListener, so gameChannel should exist
+  if (gameChannel) {
+    gameChannel.send({
+      type: 'broadcast',
+      event: 'resolution-request',
+      payload: {
+        userId: props.userId,
+        width: Math.max(360, window.innerWidth),
+        height: Math.max(240, window.innerHeight)
+      }
+    })
+  }
+}
+
 function initializeCanvas() {
   if (!canvasRef.value) return
   
   canvas = canvasRef.value
   ctx = canvas.getContext('2d')
   
-  // Set canvas size to match overlay size (full overlay)
-  const overlay = canvasRef.value.closest('.megaman-game-overlay')
-  let canvasWidth = window.innerWidth
-  let canvasHeight = window.innerHeight
+  // Request window resolution from all players
+  requestPlayerResolutions()
   
-  if (overlay) {
-    const rect = overlay.getBoundingClientRect()
-    canvasWidth = rect.width || window.innerWidth
-    canvasHeight = rect.height || window.innerHeight
-  }
+  // Use synced canvas dimensions (will be updated when resolutions are received)
+  const canvasWidth = gameCanvasWidth.value
+  const canvasHeight = gameCanvasHeight.value
   
   // Scale for high DPI displays
   const dpr = window.devicePixelRatio || 1
@@ -1669,23 +1844,32 @@ function stopGame() {
   lastFrameTime = 0
 }
 
-  onMounted(() => {
-    if (props.isActive) {
-      initializeCanvas()
-      // Start game loop immediately
-      startGame()
-      // Then initialize players and load assets
-      initializePlayers()
-      loadAnimations().then(() => {
-        debug.log('🎮 Animations and sprites loaded')
-      })
-      setupRealtimeListener()
-    }
-  })
+onMounted(() => {
+  if (props.isActive) {
+    initializeCanvas()
+    setupRealtimeListener() // Setup listener first so gameChannel is available
+    // Start game loop immediately
+    startGame()
+    // Then initialize players and load assets
+    initializePlayers()
+    loadAnimations().then(() => {
+      debug.log('🎮 Animations and sprites loaded')
+    })
+    // Request resolutions after channel is set up
+    setTimeout(() => {
+      requestPlayerResolutions()
+    }, 100)
+  }
+})
 
 onUnmounted(() => {
   stopGame()
 })
+
+function closeGame() {
+  stopGame()
+  emit('close')
+}
 </script>
 
 <style scoped>
