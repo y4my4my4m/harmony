@@ -328,6 +328,7 @@ import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { useReactionsStore } from '@/stores/useReactions';
 
 // --- PROPS & EMITS ---
 const props = defineProps({
@@ -354,6 +355,7 @@ const serverChannelStore = useServerChannelStore();
 const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
+const reactionsStore = useReactionsStore();
 const { isCurrentUserServerOwner } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const { 
@@ -667,6 +669,21 @@ watch(() => props.messages, (newMessages) => {
         debug.error('Error ensuring user profiles are available:', error);
       });
     }, 0);
+  }
+
+  // Batch fetch reactions for all messages (avoid N+1 queries)
+  if (newMessages.length > 0) {
+    // Filter out temp/optimistic messages
+    const realMessageIds = newMessages
+      .filter(msg => !msg.id.startsWith('temp-') && !msg.sending)
+      .map(msg => msg.id);
+    
+    if (realMessageIds.length > 0) {
+      // Batch fetch reactions for all messages at once
+      reactionsStore.fetchMultipleMessageReactions(realMessageIds).catch(error => {
+        debug.error('Error batch fetching reactions:', error);
+      });
+    }
   }
 
   if (newMessages.length > 0) {
