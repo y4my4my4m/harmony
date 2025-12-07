@@ -4,23 +4,37 @@ import { supabase } from '@/supabase'
  * Normalizes avatar URL to ensure consistent display across the application
  * Handles both full URLs and path-only formats
  * Always returns the proper public URL for Supabase storage paths with optimization
- * 
- * @param avatarUrl - The avatar URL (can be local path, Supabase URL, or remote/federated URL)
- * @param size - Desired size for optimization (only applies to local Supabase storage)
- * @param isLocalUser - Whether this is a local user (true) or remote/federated user (false). If undefined, will try to detect.
  */
-export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256, isLocalUser?: boolean): string {
+export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
   // Return default avatar if no URL provided or if it's not a string
   if (!avatarUrl || typeof avatarUrl !== 'string') {
     return '/default_avatar.webp'
   }
 
-  // If it's already a full URL (http/https)
+  // If it's already a full URL, check if it's a Supabase storage URL
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
-    // Check if this is OUR Supabase storage URL (local user)
+    // Check if this is a Supabase storage URL for avatars
     const pathMatch = avatarUrl.match(/\/storage\/v1\/object\/public\/avatars\/(.+)$/)
     if (pathMatch) {
-      // This is a local user's Supabase storage URL - optimize it
+      // ✅ CRITICAL: Check if this is a REMOTE URL (federated user from another instance)
+      // If the URL domain doesn't match our local Supabase URL, it's a remote user
+      // We should NOT transform it - return as-is (or add size params if not present)
+      const urlObj = new URL(avatarUrl)
+      const localSupabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+      const localSupabaseHost = localSupabaseUrl ? new URL(localSupabaseUrl).hostname : ''
+      
+      // If the URL is from a different domain, it's a remote/federated user
+      if (localSupabaseHost && urlObj.hostname !== localSupabaseHost) {
+        // Remote URL - return as-is (it already has the correct domain)
+        // Optionally add size params if not present
+        if (!avatarUrl.includes('width=') && !avatarUrl.includes('height=')) {
+          const separator = avatarUrl.includes('?') ? '&' : '?'
+          return `${avatarUrl}${separator}width=${size}&height=${size}&resize=contain&quality=80`
+        }
+        return avatarUrl
+      }
+      
+      // Local Supabase URL - extract path and use local storage transformation
       const avatarPath = pathMatch[1]
       const { data } = supabase.storage
         .from('avatars')
@@ -29,27 +43,17 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
         })
       return data.publicUrl
     }
-    // External/remote URL (federated user) - return as-is, don't transform
-    // This could be from another ActivityPub instance, Mastodon, etc.
+    // External URLs (not Supabase storage) - return as-is
     return avatarUrl
   }
 
-  // If isLocalUser is explicitly false, this is a remote user with an unexpected format
-  // Return as-is or default
-  if (isLocalUser === false) {
-    // Remote user with non-URL format - might be a path from their instance
-    // Return default since we can't resolve it
-    return '/default_avatar.webp'
-  }
-
-  // If it's a Supabase storage path (local user - contains user ID folder structure)
-  // Only process if we know it's local OR if isLocalUser is undefined (assume local for backward compat)
-  if (avatarUrl.includes('/') && !avatarUrl.startsWith('/') && (isLocalUser === true || isLocalUser === undefined)) {
+  // If it's a Supabase storage path (contains user ID folder structure)
+  if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
     // Use public URL since avatars bucket is now public
     const { data } = supabase.storage
       .from('avatars')
       .getPublicUrl(avatarUrl, {
-        transform: { width: size, height: size, resize: 'contain', quality: 80 }
+        transform: { width: 256, height: 256, resize: 'contain', quality: 80 }
       })
 
     return data.publicUrl
