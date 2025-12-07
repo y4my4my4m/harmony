@@ -432,7 +432,7 @@ class ThreadService {
           thread_id: threadId,
           user_id: profileId,
         }, {
-          onConflict: 'thread_members_unique',
+          onConflict: 'thread_id,user_id',
         })
 
       if (error) throw error

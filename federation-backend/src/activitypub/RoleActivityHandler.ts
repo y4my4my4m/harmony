@@ -222,7 +222,7 @@ export async function handleRoleActivity(
             role_id: role.id,
             server_id: role.server_id,
           }, {
-            onConflict: 'user_roles_unique',
+            onConflict: 'user_id,role_id',
           });
 
         if (error) {

@@ -86,12 +86,12 @@ router.get(
     if (!page && !cursor) {
       // Query activities where user's federated_id is in to_addresses or cc_addresses
       // Use PostgreSQL array contains operator (cs) via or() filter
-      // Escape the federated_id for use in filter string and format as JSON array
+      // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
       const escapedId = user.federated_id.replace(/"/g, '\\"');
       let countQuery = supabase
         .from('ap_activities')
         .select('*', { count: 'exact', head: true })
-        .or(`to_addresses.cs.["${escapedId}"],cc_addresses.cs.["${escapedId}"]`)
+        .or(`to_addresses.cs.{"${escapedId}"},cc_addresses.cs.{"${escapedId}"}`)
         .eq('is_local', false);
 
       // Apply type filter to count if specified
@@ -115,12 +115,12 @@ router.get(
     // Build paginated query
     // Query activities where user's federated_id is in to_addresses or cc_addresses
     // Use PostgreSQL array contains operator (cs) via or() filter
-    // Escape the federated_id for use in filter string and format as JSON array
+    // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
     const escapedId = user.federated_id.replace(/"/g, '\\"');
     let query = supabase
       .from('ap_activities')
       .select('id, ap_id, ap_type, activity_data, created_at')
-      .or(`to_addresses.cs.["${escapedId}"],cc_addresses.cs.["${escapedId}"]`)
+      .or(`to_addresses.cs.{"${escapedId}"},cc_addresses.cs.{"${escapedId}"}`)
       .eq('is_local', false)
       .order('created_at', { ascending: false })
       .limit(limit + 1);
