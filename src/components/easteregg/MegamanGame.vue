@@ -37,6 +37,7 @@ interface Player {
   userId: string
   x: number
   y: number
+  playerIndex: number
   facing: 'left' | 'right'
   state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'dashJumping' | 'wallCling' | 'wallKick' | 'hit' | 'dead'
   velocityX: number
@@ -163,9 +164,10 @@ const PLAYER_COLORS = [
 // Palette maps for color swapping - maps actual source colors to target player colors
 // Source colors: 203080, 0040f0, 0080f8, 1858b0, 50a0f0, 78d8f0, f04010
 // Edit these HEX values to fine-tune each player's palette
-const PALETTE_MAPS: Record<string, Record<string, string>> = {
-  // Player 1: Red (#ff6b6b) - stays as original blue Megaman (no swap)
-  'ff6b6b': {
+// Indexed by player index (0 = Player 1, 1 = Player 2, etc.)
+const PALETTE_MAPS: Array<Record<string, string>> = [
+  // Player 1 (index 0): Red (#ff6b6b) - stays as original blue Megaman (no swap)
+  {
     '203080': '203080', // dark blue → dark blue (unchanged)
     '0040f0': '0040f0', // mid blue → mid blue (unchanged)
     '0080f8': '0080f8', // bright blue → bright blue (unchanged)
@@ -175,19 +177,19 @@ const PALETTE_MAPS: Record<string, Record<string, string>> = {
     'f04010': 'f04010'  // accent → accent (unchanged)
   },
   
-  // Player 2: Dark Red (#cd3c41)
-  'cd3c41': {
-    '203080': '5a0000', // dark blue → dark red
-    '0040f0': '9a2e2e', // mid blue → mid red
-    '0080f8': 'cd3c41', // bright blue → bright red
-    '1858b0': '7a1e1e', // dark light blue → dark light red
-    '50a0f0': 'b83232', // mid light blue → mid light red
-    '78d8f0': 'e85a5a', // bright light blue → bright light red
-    'f04010': 'ff6b6b'  // accent → red accent
+  // Player 2 (index 1): Dark Red (#cd3c41)
+  {
+    '203080': '96050b', // dark blue → dark red
+    '0040f0': 'df3030', // mid blue → mid red
+    '0080f8': 'f75757', // bright blue → bright red
+    '1858b0': '666699', // dark light blue → dark light red
+    '50a0f0': '9999cc', // mid light blue → mid light red
+    '78d8f0': 'ccccff', // bright light blue → bright light red
+    'f04010': 'f04010'  // accent → red accent
   },
   
-  // Player 3: Purple (#7832bf)
-  '7832bf': {
+  // Player 3 (index 2): Purple (#7832bf)
+  {
     '203080': '4a1f73', // dark blue → dark purple
     '0040f0': '7832bf', // mid blue → mid purple
     '0080f8': '9b5fdf', // bright blue → bright purple
@@ -197,8 +199,8 @@ const PALETTE_MAPS: Record<string, Record<string, string>> = {
     'f04010': 'c85fef'  // accent → purple accent
   },
   
-  // Player 4: Yellow (#f9ca24)
-  'f9ca24': {
+  // Player 4 (index 3): Yellow (#f9ca24)
+  {
     '203080': '997a00', // dark blue → dark yellow
     '0040f0': 'f9ca24', // mid blue → mid yellow
     '0080f8': 'fff26b', // bright blue → bright yellow
@@ -208,8 +210,8 @@ const PALETTE_MAPS: Record<string, Record<string, string>> = {
     'f04010': 'ffaa00'  // accent → yellow accent
   },
   
-  // Player 5: Magenta/Pink (#b83275)
-  'b83275': {
+  // Player 5 (index 4): Magenta/Pink (#b83275)
+  {
     '203080': '6f1e47', // dark blue → dark magenta
     '0040f0': 'b83275', // mid blue → mid magenta
     '0080f8': 'e85ba8', // bright blue → bright magenta
@@ -219,8 +221,8 @@ const PALETTE_MAPS: Record<string, Record<string, string>> = {
     'f04010': 'ff6ba8'  // accent → magenta accent
   },
   
-  // Player 6: Green (#2ec91c)
-  '2ec91c': {
+  // Player 6 (index 5): Green (#2ec91c)
+  {
     '203080': '007a2a', // dark blue → dark green
     '0040f0': '3acc5c', // mid blue → mid green
     '0080f8': '6bff8a', // bright blue → bright green
@@ -230,8 +232,8 @@ const PALETTE_MAPS: Record<string, Record<string, string>> = {
     'f04010': '4fff5a'  // accent → green accent
   },
   
-  // Player 7: Black (#020203)
-  '020203': {
+  // Player 7 (index 6): Black (#020203)
+  {
     '203080': '020203', // dark blue → black
     '0040f0': '202020', // mid blue → dark gray
     '0080f8': '404040', // bright blue → mid gray
@@ -241,8 +243,8 @@ const PALETTE_MAPS: Record<string, Record<string, string>> = {
     'f04010': '404040'  // accent → gray accent
   },
   
-  // Player 8: Light Gray/White (#e5e4f2)
-  'e5e4f2': {
+  // Player 8 (index 7): Light Gray/White (#e5e4f2)
+  {
     '203080': '8a8a9a', // dark blue → dark gray
     '0040f0': 'b8b8c8', // mid blue → mid gray
     '0080f8': 'e5e4f2', // bright blue → light gray
@@ -251,7 +253,7 @@ const PALETTE_MAPS: Record<string, Record<string, string>> = {
     '78d8f0': 'f5f5ff', // bright light blue → white
     'f04010': 'd8d8e8'  // accent → light gray accent
   }
-}
+]
 
 // Sound effects - using actual Megaman X sounds from Scratch project
 const soundPaths = {
@@ -741,6 +743,7 @@ function initializePlayers() {
       onWall: false,
       wallSide: null,
       color: PLAYER_COLORS[index % PLAYER_COLORS.length],
+      playerIndex: index % PLAYER_COLORS.length,
       isShooting: false,
       isCharging: false,
       chargeLevel: 0,
@@ -2018,9 +2021,11 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     // Apply palette swap for different players - Megaman style (replace blues with player color)
     // Player 1 (first color) stays as original blue Megaman - no palette swap
-    const playerColorHex = player.color.replace('#', '').toLowerCase()
-    const isPlayer1 = playerColorHex === PLAYER_COLORS[0].replace('#', '').toLowerCase()
-    const palette = isPlayer1 ? null : PALETTE_MAPS[playerColorHex]
+    // const playerColorHex = player.color.replace('#', '').toLowerCase()
+    // const isPlayer1 = playerColorHex === PLAYER_COLORS[0].replace('#', '').toLowerCase()
+    // const palette = isPlayer1 ? null : PALETTE_MAPS[playerColorHex]
+
+    const palette = PALETTE_MAPS[player.playerIndex]
     
     if (palette) {
       // Draw sprite to offscreen canvas for color manipulation
@@ -2039,7 +2044,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         
         // Apply explicit color mapping with tolerance for slight color variations
         // First, build a tolerance map for faster lookups
-        const tolerance = 15 // Allow ±15 RGB difference for matching
+        const tolerance = 1 // Allow ±15 RGB difference for matching
         const sourceColors = Object.keys(palette)
         const sourceColorRgb = sourceColors.map(hex => ({
           hex,
@@ -2326,6 +2331,7 @@ function setupRealtimeListener() {
         onWall: onWall || false,
         wallSide: wallSide || null,
         color: PLAYER_COLORS[colorIndex % PLAYER_COLORS.length],
+        playerIndex: colorIndex % PLAYER_COLORS.length,
         isShooting: isShooting || false,
         isCharging: isCharging || false,
         chargeLevel: chargeLevel || 0,
