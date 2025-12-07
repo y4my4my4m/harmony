@@ -10,7 +10,7 @@
     >
       
       <!-- Main container -->
-      <div class="voice-container" :class="[voiceStore.layoutMode, { 'maximized': voiceStore.viewMode === 'maximized', 'fullscreen-mode': voiceStore.viewMode === 'fullscreen' }]">
+      <div class="voice-container" :class="[voiceStore.layoutMode, { 'maximized': voiceStore.viewMode === 'maximized', 'fullscreen-mode': voiceStore.viewMode === 'fullscreen', 'rainbow-party': easterEggState.isActive && easterEggState.type === 'rainbow-party', 'screen-shake': easterEggState.isActive && easterEggState.type === 'rainbow-party' }]">
         <!-- Header -->
         <div class="voice-header">
           <div class="channel-info">
@@ -262,6 +262,11 @@
     <SpatialAudioPanel 
       :is-under-overlay="true"
     />
+
+    <!-- Confetti Effect -->
+    <ConfettiEffect 
+      :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'"
+    />
   </Teleport>
 </template>
 
@@ -271,10 +276,15 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
 import { useKeybinds } from '@/composables/useKeybinds';
+import { debug } from '@/utils/debug';
+import { useKonamiCode } from '@/composables/useKonamiCode';
+import { easterEggService } from '@/services/EasterEggService';
+import { useAuthStore } from '@/stores/auth';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
+import ConfettiEffect from './ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Centralized keybind system
@@ -300,10 +310,19 @@ const emit = defineEmits<Emits>();
 
 const voiceStore = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
+const authStore = useAuthStore();
 const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
 const isThumbnailStripCollapsed = ref(false);
+
+// Easter egg state
+const easterEggState = ref({
+  isActive: false,
+  type: null as 'rainbow-party' | 'retro-game' | 'power-up' | null,
+  activatedBy: null as string | null,
+  activatedAt: null as number | null,
+});
 
 // Full window mode is now in the store
 const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
@@ -520,6 +539,59 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     // LIFECYCLE
     // =============================================================================
     
+    // Konami code and easter egg
+    const handleKonamiActivate = () => {
+      // Only activate if 2+ participants are in the call
+      // if (connectionStats.value.total < 2) {
+      //   debug.log('🎮 [Konami] Not enough participants (need 2+, have', connectionStats.value.total, ')')
+      //   return
+      // }
+
+      const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
+      if (!currentUserId) {
+        debug.warn('🎮 [Konami] No user ID available')
+        return
+      }
+
+      debug.log('🎮 [Konami] Activating rainbow party mode!')
+      easterEggService.activate('rainbow-party', currentUserId)
+      
+      // Auto-deactivate after 30 seconds
+      setTimeout(() => {
+        easterEggService.deactivate()
+      }, 30000)
+    }
+
+    // Initialize easter egg service when channel changes
+    const initializeEasterEgg = () => {
+      const channelId = voiceStore.currentChannelId || voiceStore.optimisticChannelId
+      if (channelId) {
+        const currentUserId = voiceStore.localState.userId || authStore.session?.user?.id
+        if (currentUserId) {
+          easterEggService.initialize(channelId, currentUserId)
+          
+          // Subscribe to easter egg state changes (only once)
+          if (!easterEggState.value.activatedBy) {
+            easterEggService.subscribe((state) => {
+              easterEggState.value = state
+            })
+          }
+        }
+      }
+    }
+
+    // Watch for channel changes
+    watch(
+      () => voiceStore.currentChannelId || voiceStore.optimisticChannelId,
+      () => {
+        initializeEasterEgg()
+      },
+      { immediate: true }
+    )
+
+    // Konami code detector
+    const { isActive: konamiActive } = useKonamiCode(handleKonamiActivate)
+
     onMounted(() => {
       isEntering.value = true;
       setTimeout(() => {
@@ -559,6 +631,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       keybinds.unregisterHandler('toggle-screenshare');
       keybinds.unregisterHandler('toggle-voice-settings');
       keybinds.unregisterHandler('exit-fullscreen');
+      
+      // Cleanup easter egg service
+      easterEggService.cleanup();
     });
 </script>
 
@@ -1715,5 +1790,169 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .fullscreen-container.full-window-mode .thumbnail-strip-container {
   display: none !important;
+}
+
+/* ============================================
+   EASTER EGG: RAINBOW PARTY MODE
+   ============================================ */
+
+.voice-container.rainbow-party {
+  animation: rainbow-border 3s linear infinite;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 40px rgba(255, 0, 150, 0.5);
+}
+
+.voice-container.rainbow-party .participant-card {
+  animation: rainbow-glow 2s ease-in-out infinite;
+}
+
+.voice-container.rainbow-party .participant-card :deep(.harmony-voice-card) {
+  border: 3px solid;
+  border-image: linear-gradient(
+    45deg,
+    #ff6b6b,
+    #4ecdc4,
+    #45b7d1,
+    #f9ca24,
+    #f0932b,
+    #eb4d4b,
+    #6c5ce7,
+    #a29bfe
+  ) 1;
+  animation: rainbow-border-rotate 3s linear infinite;
+  box-shadow: 0 0 20px rgba(255, 0, 150, 0.6);
+}
+
+.voice-container.screen-shake {
+  animation: screen-shake 0.5s ease-in-out;
+}
+
+/* Remove screen shake after animation completes */
+.voice-container.screen-shake {
+  animation-fill-mode: forwards;
+}
+
+@keyframes rainbow-border {
+  0% {
+    border-color: #ff6b6b;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(255, 107, 107, 0.5);
+  }
+  14% {
+    border-color: #4ecdc4;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(78, 205, 196, 0.5);
+  }
+  28% {
+    border-color: #45b7d1;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(69, 183, 209, 0.5);
+  }
+  42% {
+    border-color: #f9ca24;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(249, 202, 36, 0.5);
+  }
+  57% {
+    border-color: #f0932b;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(240, 147, 43, 0.5);
+  }
+  71% {
+    border-color: #eb4d4b;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(235, 77, 75, 0.5);
+  }
+  85% {
+    border-color: #6c5ce7;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(108, 92, 231, 0.5);
+  }
+  100% {
+    border-color: #a29bfe;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(162, 155, 254, 0.5);
+  }
+}
+
+@keyframes rainbow-glow {
+  0%, 100% {
+    filter: brightness(1) saturate(1);
+    transform: scale(1);
+  }
+  50% {
+    filter: brightness(1.2) saturate(1.3);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes rainbow-border-rotate {
+  0% {
+    border-image-source: linear-gradient(0deg, #ff6b6b, #4ecdc4, #45b7d1, #f9ca24);
+  }
+  25% {
+    border-image-source: linear-gradient(90deg, #f0932b, #eb4d4b, #6c5ce7, #a29bfe);
+  }
+  50% {
+    border-image-source: linear-gradient(180deg, #ff6b6b, #4ecdc4, #45b7d1, #f9ca24);
+  }
+  75% {
+    border-image-source: linear-gradient(270deg, #f0932b, #eb4d4b, #6c5ce7, #a29bfe);
+  }
+  100% {
+    border-image-source: linear-gradient(360deg, #ff6b6b, #4ecdc4, #45b7d1, #f9ca24);
+  }
+}
+
+@keyframes screen-shake {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  10% {
+    transform: translate(-2px, -2px);
+  }
+  20% {
+    transform: translate(2px, 2px);
+  }
+  30% {
+    transform: translate(-2px, 2px);
+  }
+  40% {
+    transform: translate(2px, -2px);
+  }
+  50% {
+    transform: translate(-1px, -1px);
+  }
+  60% {
+    transform: translate(1px, 1px);
+  }
+  70% {
+    transform: translate(-1px, 1px);
+  }
+  80% {
+    transform: translate(1px, -1px);
+  }
+  90% {
+    transform: translate(0, 0);
+  }
 }
 </style>
