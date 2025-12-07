@@ -293,9 +293,9 @@ import { useAuthStore } from '@/stores/auth';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
-import DeviceSelector from './DeviceSelector.vue';
-import ConfettiEffect from './ConfettiEffect.vue';
-import MegamanGame from './MegamanGame.vue';
+import DeviceSelector from '../easteregg/ConfettiEffect.vue';
+import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
+import MegamanGame from '../easteregg/MegamanGame.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Centralized keybind system

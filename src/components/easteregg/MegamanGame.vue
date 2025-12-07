@@ -241,11 +241,18 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
   try {
     initializeSounds()
     
-    // For looping sounds, check if already playing
+    // For looping sounds, stop any existing sound first to ensure clean restart
     if (loop || soundName === 'chargeLoop') {
       const currentSound = playingSounds.get(soundName)
-      if (currentSound && !currentSound.paused) {
-        return // Already playing, don't restart
+      if (currentSound) {
+        // If already playing, don't restart (let it continue)
+        if (!currentSound.paused) {
+          return
+        }
+        // If paused but still in map, clean it up first
+        currentSound.pause()
+        currentSound.currentTime = 0
+        playingSounds.delete(soundName)
       }
     }
     
@@ -258,36 +265,59 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
         const audio = new Audio(path)
         audio.loop = loop || soundName === 'chargeLoop'
         audio.volume = soundName === 'chargeLoop' ? 0.2 : 0.3 // Quieter for loop
+        
+        // Set up error handler before playing
+        audio.onerror = () => {
+          debug.warn(`🎮 Audio error for ${soundName}:`, path)
+          playingSounds.delete(soundName)
+        }
+        
         const playPromise = audio.play()
         if (playPromise) {
           playPromise.then(() => {
             // Store reference for looping sounds so we can stop them
             if (loop || soundName === 'chargeLoop') {
               playingSounds.set(soundName, audio)
+              debug.log(`🎮 Started playing ${soundName}`)
             }
           }).catch((err) => {
             // Ignore errors - file might not exist or need user interaction
             debug.warn(`Could not play sound ${path}:`, err)
+            playingSounds.delete(soundName)
           })
+        } else {
+          // If play() returns undefined, still store it (some browsers)
+          if (loop || soundName === 'chargeLoop') {
+            playingSounds.set(soundName, audio)
+          }
         }
         // If we successfully created and attempted to play, break
         break
       } catch (e) {
         // Try next path
+        debug.warn(`🎮 Failed to create audio for ${soundName}:`, e)
         continue
       }
     }
   } catch (error) {
-    // Ignore sound errors - sounds are optional
+    debug.warn(`🎮 Error in playSound for ${soundName}:`, error)
   }
 }
 
 function stopSound(soundName: keyof typeof soundPaths) {
   const currentSound = playingSounds.get(soundName)
   if (currentSound) {
-    currentSound.pause()
-    currentSound.currentTime = 0
+    try {
+      currentSound.pause()
+      currentSound.currentTime = 0
+      // Remove all event listeners to prevent memory leaks
+      currentSound.onerror = null
+      currentSound.onended = null
+    } catch (e) {
+      debug.warn(`🎮 Error stopping sound ${soundName}:`, e)
+    }
     playingSounds.delete(soundName)
+    debug.log(`🎮 Stopped ${soundName}`)
   }
 }
 
@@ -524,18 +554,50 @@ async function loadEffectSprites() {
     bubbleImg.onload = () => deathBubbleSprites.value.set(`Bubble${i}.png`, bubbleImg)
   }
   
-  // Load intro/spawn sprites (teleport down animation)
-  for (let i = 1; i <= 7; i++) {
+  // Load intro/spawn sprites (teleport down animation) with actual asset IDs from project.json
+  const introAssetIds = [
+    '062d1319d34873caf1595d5350fa0f95', // Intro1
+    '7eabef48d8ae4ca359b4f2b413c01d3f', // Intro2
+    '397dd48364d7797a1966111ac645499d', // Intro3
+    '51b4931d1cad57ed6f312959345d6e15', // Intro4
+    'e65748ac66ef7a8421589d5eed9ca23b', // Intro5
+    '5f5c15f2c31c879bf52a9d302a5557f7', // Intro6
+    'e9a0864c7c300064114ea52988445b2d', // Intro7
+  ]
+  for (let i = 0; i < introAssetIds.length; i++) {
     const introImg = new Image()
-    introImg.src = `/assets/easteregg/megaman/sprites/intro/Intro${i}.png`
-    introImg.onload = () => readySprites.value.set(`Intro${i}.png`, introImg)
+    introImg.src = `/assets/easteregg/megaman/sprites/${introAssetIds[i]}.png`
+    introImg.onload = () => {
+      readySprites.value.set(`Intro${i + 1}.png`, introImg)
+      debug.log(`🎮 Loaded Intro${i + 1} sprite`)
+    }
+    introImg.onerror = () => debug.warn(`🎮 Failed to load Intro${i + 1} sprite`)
   }
   
-  // Load Ready text sprites
-  for (let i = 0; i <= 12; i++) {
+  // Load Ready text sprites with actual asset IDs from project.json
+  const readyAssetIds = [
+    '3495321c6b96977754d0640a217b0bbb', // Ready0
+    'ab48d7b0004000561df78c2ed1a49097', // Ready1
+    '527415308683c1ae03002b994f62523c', // Ready2
+    '05361c98720aa7b021e7baa040305c96', // Ready3
+    '53916d8af31494b8ad18e43da577f42d', // Ready4
+    '273d250fa24222dfabc193731ece432e', // Ready5
+    '2d99806b4adb3c306337b7b831d7dc9f', // Ready6
+    'c105cc8cfe61d517749eee97dd6a44d4', // Ready7
+    'a34556b9a853e584a69aee58987bea60', // Ready8
+    'cf16acf016e7eccdf36303bc36154417', // Ready9
+    'b80a6838d5f53cddf60be65dc119c25a', // Ready10
+    'ebc29ca008dad4472c2364093628cd0e', // Ready11
+    'd27003a4b30032e3001dfef312fc4c69', // Ready12
+  ]
+  for (let i = 0; i < readyAssetIds.length; i++) {
     const readyImg = new Image()
-    readyImg.src = `/assets/easteregg/megaman/sprites/ready/Ready${i}.png`
-    readyImg.onload = () => readySprites.value.set(`Ready${i}.png`, readyImg)
+    readyImg.src = `/assets/easteregg/megaman/sprites/${readyAssetIds[i]}.png`
+    readyImg.onload = () => {
+      readySprites.value.set(`Ready${i}.png`, readyImg)
+      debug.log(`🎮 Loaded Ready${i} sprite`)
+    }
+    readyImg.onerror = () => debug.warn(`🎮 Failed to load Ready${i} sprite`)
   }
   
   // Load dash effect sprites (size: 200 in project.json = 2x scale)
@@ -610,10 +672,10 @@ function initializePlayers() {
     // Play spawn sound and broadcast position for local player
     if (participant.userId === props.userId) {
       playSound('spawn')
-      // Broadcast initial spawn position after a short delay to ensure channel is ready
-      setTimeout(() => {
-        broadcastPlayerState(player, true)
-      }, 100)
+      // Broadcast initial spawn position multiple times to ensure sync
+      setTimeout(() => broadcastPlayerState(player, true), 50)
+      setTimeout(() => broadcastPlayerState(player, true), 150)
+      setTimeout(() => broadcastPlayerState(player, true), 300)
     }
   })
   
@@ -793,9 +855,13 @@ function handleInput() {
       // Play charge sound on start, then loop continuously
       if (chargeTime < 100) {
         playSound('charge')
-      } else if (chargeTime >= 200 && chargeTime < 300) {
-        // Start charge loop after initial charge sound (only once)
-        playSound('chargeLoop', true) // Loop continuously
+      } else if (chargeTime >= 200) {
+        // Start charge loop after initial charge sound - check if not already playing
+        const currentLoop = playingSounds.get('chargeLoop')
+        if (!currentLoop || currentLoop.paused) {
+          // Only start if not already playing
+          playSound('chargeLoop', true) // Loop continuously
+        }
       }
     }
   }
@@ -1040,6 +1106,8 @@ function broadcastPlayerState(player: Player, force: boolean = false) {
       health: player.health,
       maxHealth: player.maxHealth,
       lastShotTime: player.lastShotTime || 0,
+      isSpawning: player.isSpawning || false, // Sync spawn state
+      spawnY: player.spawnY || 0,
     }
   })
 }
@@ -1063,51 +1131,21 @@ function gameLoop(currentTime: number) {
   const wallLeft = 0
   const wallRight = canvasWidth
   
-  // Draw "READY" text animation (after spawn animation)
-  if (showIntro && gameStartTime > 0 && ctx) {
-    const introTime = Date.now() - gameStartTime
-    // Show Ready text from 800ms (after spawn) to 2500ms
-    if (introTime >= 800 && introTime < 2500) {
-      const readyAnimTime = introTime - 800
-      const readyFrame = Math.min(Math.floor(readyAnimTime / 100), 12)
-      const readySprite = readySprites.value.get(`Ready${readyFrame}.png`)
-      if (readySprite && readySprite.complete && readySprite.naturalWidth > 0) {
-        ctx.save()
-        // Ready sprite uses 2x scale (size: 200 in project.json)
-        const scale = 2.0
-        const readyWidth = readySprite.naturalWidth * scale
-        const readyHeight = readySprite.naturalHeight * scale
-        ctx.drawImage(
-          readySprite,
-          (canvasWidth - readyWidth) / 2,
-          (canvasHeight - readyHeight) / 2,
-          readyWidth,
-          readyHeight
-        )
-        ctx.restore()
-      }
-    } else if (introTime >= 2500) {
-      showIntro = false
-    }
-  }
-  
   // Always clear canvas first (proper z-buffer clearing)
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
   
-  // Draw background (only if not showing intro)
-  if (!showIntro || Date.now() - gameStartTime >= 2000) {
-    ctx.fillStyle = 'rgba(26, 26, 46, 0.9)' // Semi-transparent
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
-    
-    // Draw floor
-    ctx.fillStyle = '#16213e'
-    ctx.fillRect(0, floorY, canvasWidth, canvasHeight - floorY)
-    
-    // Draw walls (for wall sliding)
-    ctx.fillStyle = '#1a2e3a'
-    ctx.fillRect(0, 0, 5, canvasHeight) // Left wall
-    ctx.fillRect(canvasWidth - 5, 0, 5, canvasHeight) // Right wall
-  }
+  // Draw background
+  ctx.fillStyle = 'rgba(26, 26, 46, 0.9)' // Semi-transparent
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+  
+  // Draw floor
+  ctx.fillStyle = '#16213e'
+  ctx.fillRect(0, floorY, canvasWidth, canvasHeight - floorY)
+  
+  // Draw walls (for wall sliding)
+  ctx.fillStyle = '#1a2e3a'
+  ctx.fillRect(0, 0, 5, canvasHeight) // Left wall
+  ctx.fillRect(canvasWidth - 5, 0, 5, canvasHeight) // Right wall
   
   // Debug: Draw player count
   if (players.value.size === 0 && (!showIntro || Date.now() - gameStartTime >= 2000)) {
@@ -1437,6 +1475,34 @@ function gameLoop(currentTime: number) {
     drawPlayer(player, userId, deltaSeconds)
   })
   
+  // Draw "READY" text animation ON TOP of everything (after players)
+  if (showIntro && gameStartTime > 0 && ctx) {
+    const introTime = Date.now() - gameStartTime
+    // Show Ready text from 600ms (after spawn starts) to 2500ms
+    if (introTime >= 600 && introTime < 2500) {
+      const readyAnimTime = introTime - 600
+      const readyFrame = Math.min(Math.floor(readyAnimTime / 130), 12) // ~130ms per frame
+      const readySprite = readySprites.value.get(`Ready${readyFrame}.png`)
+      if (readySprite && readySprite.complete && readySprite.naturalWidth > 0) {
+        ctx.save()
+        // Ready sprite uses 2x scale (size: 200 in project.json)
+        const scale = 2.0
+        const readyWidth = readySprite.naturalWidth * scale
+        const readyHeight = readySprite.naturalHeight * scale
+        ctx.drawImage(
+          readySprite,
+          (canvasWidth - readyWidth) / 2,
+          (canvasHeight - readyHeight) / 2 - 20, // Slightly above center
+          readyWidth,
+          readyHeight
+        )
+        ctx.restore()
+      }
+    } else if (introTime >= 2500) {
+      showIntro = false
+    }
+  }
+  
   animationFrame = requestAnimationFrame(gameLoop)
 }
 
@@ -1598,32 +1664,46 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   }
   
   // Handle spawn animation (teleport down from top of screen)
+  // Megaman X style: Intro1 while falling from sky, then Intro2-7 when landing
   if (player.isSpawning && player.spawnTime) {
     const spawnElapsed = Date.now() - player.spawnTime
-    const spawnDuration = 600 // 600ms for falling from top
+    const fallDuration = 500 // 500ms for falling from top
+    const landDuration = 400 // 400ms for landing animation (Intro2-7)
+    const totalSpawnDuration = fallDuration + landDuration
     
-    if (spawnElapsed < spawnDuration) {
-      // Calculate Y position - fall from top to target
+    if (spawnElapsed < totalSpawnDuration) {
       const targetY = player.spawnY || 200
       const startY = -80 // Start above screen
-      const progress = Math.min(spawnElapsed / spawnDuration, 1)
-      // Ease out for smooth landing
-      const easedProgress = 1 - Math.pow(1 - progress, 2)
-      const currentY = startY + (targetY - startY) * easedProgress
       
-      // Calculate which intro frame to show (1-7)
-      const introFrameIndex = Math.min(Math.floor(progress * 6) + 1, 7)
+      let currentY: number
+      let introFrameIndex: number
+      
+      if (spawnElapsed < fallDuration) {
+        // FALLING PHASE: Use Intro1 (the beam/teleport effect) while falling
+        const fallProgress = spawnElapsed / fallDuration
+        // Fast ease-in for teleport feel
+        const easedProgress = fallProgress * fallProgress * fallProgress
+        currentY = startY + (targetY - startY) * easedProgress
+        introFrameIndex = 1 // Always Intro1 while falling
+      } else {
+        // LANDING PHASE: Cycle through Intro2-7 at ground level
+        currentY = targetY
+        const landElapsed = spawnElapsed - fallDuration
+        const landProgress = landElapsed / landDuration
+        // Intro2-7 = 6 frames during landing
+        introFrameIndex = Math.min(Math.floor(landProgress * 6) + 2, 7)
+      }
+      
       const introSprite = readySprites.value.get(`Intro${introFrameIndex}.png`)
       
       if (introSprite && introSprite.complete && introSprite.naturalWidth > 0) {
         ctx.save()
-        // Use 2x scale like project.json
-        const scale = 1.0 // Sprites are already 2x in source
-        const drawWidth = introSprite.naturalWidth * scale
-        const drawHeight = introSprite.naturalHeight * scale
+        const drawWidth = introSprite.naturalWidth
+        const drawHeight = introSprite.naturalHeight
         
-        // Draw at calculated position
-        ctx.drawImage(introSprite, player.x, currentY, drawWidth, drawHeight)
+        // Center the sprite on player X position
+        const drawX = player.x - drawWidth / 2 + 32 // Offset to center on player
+        ctx.drawImage(introSprite, drawX, currentY - drawHeight + 64, drawWidth, drawHeight)
         ctx.restore()
       }
       return // Don't draw normal player sprite during spawn
@@ -1996,7 +2076,8 @@ function setupRealtimeListener() {
   })
   
   gameChannel.on('broadcast', { event: 'player-update' }, (payload) => {
-    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth } = payload.payload as any
+    const data = payload.payload as any
+    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY } = data
     
     // Don't update local player from remote updates
     if (userId === props.userId) return
@@ -2007,8 +2088,6 @@ function setupRealtimeListener() {
     if (!player) {
       const canvasHeight = gameCanvasHeight.value
       const floorY = canvasHeight - 20
-      const canvasWidth = gameCanvasWidth.value
-      const randomX = 50 + Math.random() * (canvasWidth - 150)
       
       // Find color index for this user
       const participantIndex = props.participants.findIndex(p => p.userId === userId)
@@ -2016,33 +2095,34 @@ function setupRealtimeListener() {
       
       player = {
         userId,
-        x: randomX,
-        y: floorY - 64,
-        facing: 'right',
-        state: 'idle',
-        velocityX: 0,
-        velocityY: 0,
-        onGround: true,
-        onWall: false,
-        wallSide: null,
+        x: x || 100, // USE RECEIVED X, not random!
+        y: y || (floorY - 64), // USE RECEIVED Y!
+        facing: facing || 'right', // USE RECEIVED FACING!
+        state: state || 'idle',
+        velocityX: velocityX || 0,
+        velocityY: velocityY || 0,
+        onGround: state !== 'jumping' && state !== 'falling' && state !== 'dashJumping',
+        onWall: onWall || false,
+        wallSide: wallSide || null,
         color: PLAYER_COLORS[colorIndex % PLAYER_COLORS.length],
-        isShooting: false,
-        isCharging: false,
-        chargeLevel: 0,
+        isShooting: isShooting || false,
+        isCharging: isCharging || false,
+        chargeLevel: chargeLevel || 0,
         chargeStartTime: 0,
         lastShotTime: 0,
         dashCooldown: 0,
         canDash: true,
-        health: 100,
-        maxHealth: 100,
+        health: health || 100,
+        maxHealth: maxHealth || 100,
         hitTime: 0,
         invulnerableUntil: 0,
         canWallJump: false,
         smokeEffects: [],
         lastJumpKeyPressed: false,
         lastDashKeyPressed: false,
-        isSpawning: false, // Remote players don't show spawn locally
-        spawnTime: 0
+        isSpawning: isSpawning || false,
+        spawnTime: isSpawning ? Date.now() : 0,
+        spawnY: spawnY || (floorY - 64)
       } as Player
       
       players.value.set(userId, player)
@@ -2050,14 +2130,14 @@ function setupRealtimeListener() {
       frameTime.value.set(userId, 0)
       chargeFrame.value.set(userId, 0)
       
-      debug.log(`🎮 Created remote player: ${userId}`)
+      debug.log(`🎮 Created remote player: ${userId} at (${player.x}, ${player.y}) facing ${player.facing}`)
     }
     
-    // Update player state
+    // Update player state - ALWAYS update position and facing from network
     if (player) {
       player.x = x
       player.y = y
-      player.facing = facing
+      player.facing = facing // CRITICAL: always update facing direction!
       player.state = state
       player.velocityX = velocityX
       player.velocityY = velocityY
@@ -2068,15 +2148,27 @@ function setupRealtimeListener() {
       player.wallSide = wallSide || null
       if (health !== undefined) player.health = health
       if (maxHealth !== undefined) player.maxHealth = maxHealth
+      
+      // Sync spawn state
+      if (isSpawning !== undefined) {
+        if (isSpawning && !player.isSpawning) {
+          // Player just started spawning
+          player.isSpawning = true
+          player.spawnTime = Date.now()
+          player.spawnY = spawnY || player.y
+        } else if (!isSpawning && player.isSpawning) {
+          // Player finished spawning
+          player.isSpawning = false
+          player.spawnTime = 0
+        }
+      }
+      
       // Update lastShotTime for shooting animation sync
-      const remoteLastShotTime = (payload.payload as any).lastShotTime
+      const remoteLastShotTime = data.lastShotTime
       if (remoteLastShotTime !== undefined && remoteLastShotTime > 0) {
         player.lastShotTime = remoteLastShotTime
         player.isShooting = Date.now() - remoteLastShotTime < 200
       }
-      
-      // Debug: Log facing updates
-      // debug.log(`🎮 Remote player ${userId.substring(0, 6)} facing: ${facing}`)
     }
   })
   
