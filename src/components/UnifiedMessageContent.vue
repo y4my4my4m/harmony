@@ -1154,10 +1154,12 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   z-index: 10;
+  pointer-events: none;
 }
 
 .gif-favorite-button.visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .gif-favorite-button:hover {
