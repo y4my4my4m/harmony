@@ -44,6 +44,8 @@ interface Player {
   lastShotTime: number
   dashCooldown: number
   canDash: boolean
+  health: number
+  maxHealth: number
 }
 
 interface Bullet {
@@ -55,7 +57,11 @@ interface Bullet {
   velocityY: number
   chargeLevel: number // 0-3
   sprite: string | null
+  sprite2: string | null // For Fire1/Fire2 animation
+  chargingSprites: string[] // Buster charging sprites for the projectile
   color: string
+  createdAt: number
+  damage: number
 }
 
 const players = ref<Map<string, Player>>(new Map())
@@ -84,6 +90,8 @@ const animations = ref<Animations | null>(null)
 const spriteImages = ref<Map<string, HTMLImageElement>>(new Map())
 const busterSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const busterData = ref<any>(null)
+const hpBarSprites = ref<Map<string, HTMLImageElement>>(new Map())
+const hpBarData = ref<any>(null)
 const currentFrame = ref<Map<string, number>>(new Map())
 const frameTime = ref<Map<string, number>>(new Map()) // Use time instead of timer
 const chargeFrame = ref<Map<string, number>>(new Map()) // For charge animation
@@ -110,29 +118,27 @@ const PLAYER_COLORS = [
   '#f0932b', '#eb4d4b', '#6c5ce7', '#a29bfe'
 ]
 
-// Sound effects - try multiple possible paths
+// Sound effects - use Web Audio API for better compatibility
 const soundPaths = {
   jump: [
-    '/assets/sounds/easteregg/jump.mp3',
     '/assets/sounds/easteregg/jump.wav',
-    '/assets/sounds/unsorted/jump_1.mp3',
+    '/assets/sounds/easteregg/jump.mp3',
   ],
   shoot: [
-    '/assets/sounds/easteregg/shoot.mp3',
     '/assets/sounds/easteregg/shoot.wav',
-    '/assets/sounds/unsorted/beep_1.mp3',
+    '/assets/sounds/easteregg/shoot.mp3',
   ],
   walk: [
-    '/assets/sounds/easteregg/walk.mp3',
     '/assets/sounds/easteregg/walk.wav',
+    '/assets/sounds/easteregg/walk.mp3',
   ],
   dash: [
-    '/assets/sounds/easteregg/dash.mp3',
     '/assets/sounds/easteregg/dash.wav',
+    '/assets/sounds/easteregg/dash.mp3',
   ],
   charge: [
-    '/assets/sounds/easteregg/charge.mp3',
     '/assets/sounds/easteregg/charge.wav',
+    '/assets/sounds/easteregg/charge.mp3',
   ],
 }
 
@@ -178,62 +184,26 @@ function playSound(soundName: keyof typeof soundPaths) {
   try {
     initializeSounds()
     
-    // Get or create sound from pool
-    if (!soundPool.has(soundName)) {
-      const paths = soundPaths[soundName]
-      const pool: HTMLAudioElement[] = []
-      
-      for (const path of paths) {
-        try {
-          const audio = new Audio(path)
-          audio.volume = 0.3
-          audio.preload = 'auto'
-          pool.push(audio)
-        } catch (e) {
-          // Continue
-        }
-      }
-      
-      if (pool.length > 0) {
-        soundPool.set(soundName, pool)
-      } else {
-        return
+    const paths = soundPaths[soundName]
+    
+    // Try to play sound - create new Audio each time for better reliability
+    for (const path of paths) {
+      try {
+        const audio = new Audio(path)
+        audio.volume = 0.3
+        audio.play().catch((err) => {
+          // Ignore errors - file might not exist or need user interaction
+          debug.warn(`Could not play sound ${path}:`, err)
+        })
+        // If we successfully created and attempted to play, break
+        break
+      } catch (e) {
+        // Try next path
+        continue
       }
     }
-    
-    const pool = soundPool.get(soundName)
-    if (!pool || pool.length === 0) return
-    
-    // Find an available sound (not playing)
-    let sound = pool.find(s => s.paused || s.ended)
-    
-    // If all sounds are playing, create a new one
-    if (!sound) {
-      const paths = soundPaths[soundName]
-      for (const path of paths) {
-        try {
-          const audio = new Audio(path)
-          audio.volume = 0.3
-          pool.push(audio)
-          sound = audio
-          break
-        } catch (e) {
-          // Continue
-        }
-      }
-      
-      if (!sound) {
-        sound = pool[0] // Reuse first one
-      }
-    }
-    
-    // Play sound
-    sound.currentTime = 0
-    sound.play().catch(() => {
-      // Ignore errors (user interaction required, etc.)
-    })
   } catch (error) {
-    // Ignore sound errors
+    // Ignore sound errors - sounds are optional
   }
 }
 
@@ -255,6 +225,7 @@ async function loadAnimations() {
       // Load all sprite images
       await loadSpriteImages()
       await loadBusterSprites()
+      await loadHPBarSprites()
     } else {
       debug.warn('Could not load animations.json:', response.status, response.statusText)
     }
@@ -362,6 +333,58 @@ async function loadBusterSprites() {
   }
 }
 
+// Load HP bar sprites
+async function loadHPBarSprites() {
+  try {
+    const response = await fetch('/assets/easteregg/megaman/sprites/hp_bars.json')
+    if (response.ok) {
+      hpBarData.value = await response.json()
+      debug.log('🎮 Loaded HP bar data:', hpBarData.value)
+      
+      // Load all HP bar sprite images
+      const allHPFrames: Array<{name: string, file: string}> = []
+      
+      for (const frames of Object.values(hpBarData.value)) {
+        if (Array.isArray(frames)) {
+          for (const frame of frames) {
+            allHPFrames.push(frame)
+          }
+        }
+      }
+      
+      debug.log(`🎮 Loading ${allHPFrames.length} HP bar sprite images...`)
+      
+      const loadPromises = allHPFrames.map(frame => {
+        return new Promise<void>((resolve) => {
+          if (hpBarSprites.value.has(frame.file)) {
+            resolve()
+            return
+          }
+          
+          const img = new Image()
+          img.onload = () => {
+            hpBarSprites.value.set(frame.file, img)
+            resolve()
+          }
+          img.onerror = () => {
+            debug.warn(`❌ Failed to load HP bar sprite: ${frame.file}`)
+            resolve()
+          }
+          const spritePath = `/assets/easteregg/megaman/sprites/${frame.file}`
+          img.src = spritePath
+        })
+      })
+      
+      await Promise.all(loadPromises)
+      debug.log(`🎮 Loaded ${hpBarSprites.value.size}/${allHPFrames.length} HP bar sprites`)
+    } else {
+      debug.warn('Could not load hp_bars.json')
+    }
+  } catch (error) {
+    debug.error('Error loading HP bar sprites:', error)
+  }
+}
+
 // Initialize players
 function initializePlayers() {
   players.value.clear()
@@ -375,9 +398,13 @@ function initializePlayers() {
   debug.log(`🎮 Initializing ${props.participants.length} players`)
   
   props.participants.forEach((participant, index) => {
+    // Random spawn position
+    const canvasWidth = canvas ? canvas.width / (window.devicePixelRatio || 1) : 600
+    const randomX = 50 + Math.random() * (canvasWidth - 150)
+    
     const player: Player = {
       userId: participant.userId,
-      x: 50 + index * 120,
+      x: randomX,
       y: floorY - 64,
       facing: 'right',
       state: 'idle',
@@ -393,7 +420,9 @@ function initializePlayers() {
       chargeStartTime: 0,
       lastShotTime: 0,
       dashCooldown: 0,
-      canDash: true
+      canDash: true,
+      health: 100,
+      maxHealth: 100
     }
     
     players.value.set(participant.userId, player)
@@ -499,7 +528,7 @@ function handleInput() {
       localPlayer.isCharging = true
       localPlayer.chargeStartTime = now
       localPlayer.chargeLevel = 0
-      localPlayer.isShooting = true
+      localPlayer.isShooting = true // Show shooting animation while charging
     } else {
       // Update charge level
       const chargeTime = now - localPlayer.chargeStartTime
@@ -580,18 +609,51 @@ function fireBullet(player: Player, chargeLevel: number = 0) {
   
   // Get buster sprite for this charge level
   let spriteFile: string | null = null
+  let spriteFile2: string | null = null // For Fire1/Fire2 animation
+  let chargingSprites: string[] = []
+  let damage = 10
+  
   if (busterData.value) {
     if (chargeLevel === 0 && busterData.value.Buster_LV0) {
-      spriteFile = busterData.value.Buster_LV0[0]?.file || null
+      // Use base Buster_LV0 sprite
+      spriteFile = busterData.value.Buster_LV0.find((f: any) => f.name === 'Buster_LV0')?.file || busterData.value.Buster_LV0[0]?.file || null
+      damage = 10
     } else if (chargeLevel === 1 && busterData.value.Buster_LV1) {
-      // Use Fire1 sprite
-      const fireSprite = busterData.value.Buster_LV1.find((f: any) => f.name.includes('Fire1'))
-      spriteFile = fireSprite?.file || busterData.value.Buster_LV1[0]?.file || null
+      // Use Fire1 and Fire2 for animation
+      const fire1 = busterData.value.Buster_LV1.find((f: any) => f.name.includes('Fire1'))
+      const fire2 = busterData.value.Buster_LV1.find((f: any) => f.name.includes('Fire2'))
+      spriteFile = fire1?.file || null
+      spriteFile2 = fire2?.file || null
+      // Get charging sprites for projectile: Buster_LV1_1 through Buster_LV1_6
+      chargingSprites = busterData.value.Buster_LV1
+        .filter((f: any) => f.name.startsWith('Buster_LV1_') && !f.name.includes('Fire'))
+        .sort((a: any, b: any) => {
+          const numA = parseInt(a.name.match(/_(\d+)/)?.[1] || '0')
+          const numB = parseInt(b.name.match(/_(\d+)/)?.[1] || '0')
+          return numA - numB
+        })
+        .map((f: any) => f.file)
+      damage = 20
     } else if (chargeLevel === 2 && busterData.value.Buster_LV2) {
-      const fireSprite = busterData.value.Buster_LV2.find((f: any) => f.name.includes('Fire1'))
-      spriteFile = fireSprite?.file || busterData.value.Buster_LV2[0]?.file || null
+      // Use Fire1 and Fire2 for animation
+      const fire1 = busterData.value.Buster_LV2.find((f: any) => f.name.includes('Fire1'))
+      const fire2 = busterData.value.Buster_LV2.find((f: any) => f.name.includes('Fire2'))
+      spriteFile = fire1?.file || null
+      spriteFile2 = fire2?.file || null
+      // Get charging sprites for projectile: Buster_LV2_1, Buster_LV2_2, Buster_LV2_3
+      chargingSprites = busterData.value.Buster_LV2
+        .filter((f: any) => f.name.startsWith('Buster_LV2_') && !f.name.includes('Fire'))
+        .sort((a: any, b: any) => {
+          const numA = parseInt(a.name.match(/_(\d+)/)?.[1] || '0')
+          const numB = parseInt(b.name.match(/_(\d+)/)?.[1] || '0')
+          return numA - numB
+        })
+        .map((f: any) => f.file)
+      damage = 35
     } else if (chargeLevel === 3 && busterData.value.Buster_LV3) {
+      // LV3 uses the ball sprite
       spriteFile = busterData.value.Buster_LV3[0]?.file || null
+      damage = 50
     }
   }
   
@@ -604,7 +666,11 @@ function fireBullet(player: Player, chargeLevel: number = 0) {
     velocityY: 0,
     chargeLevel: chargeLevel,
     sprite: spriteFile,
-    color: player.color
+    sprite2: spriteFile2,
+    chargingSprites: chargingSprites,
+    color: player.color,
+    createdAt: Date.now(),
+    damage: damage
   }
   
   bullets.value.set(bulletId, bullet)
@@ -654,6 +720,8 @@ function broadcastPlayerState(player: Player) {
       chargeLevel: player.chargeLevel,
       onWall: player.onWall,
       wallSide: player.wallSide,
+      health: player.health,
+      maxHealth: player.maxHealth,
     }
   })
 }
@@ -699,10 +767,64 @@ function gameLoop(currentTime: number) {
     debug.warn('🎮 No players in game')
   }
   
-  // Update bullets
+  // Update bullets and check collisions
   bullets.value.forEach((bullet, bulletId) => {
     bullet.x += bullet.velocityX * deltaSeconds * 60 // Scale by delta
     bullet.y += bullet.velocityY * deltaSeconds * 60
+    
+    // Check collision with players
+    players.value.forEach((player) => {
+      // Don't hit the shooter
+      if (player.userId === bullet.userId) return
+      
+      // Simple collision detection (bullet center vs player bounds)
+      const bulletSize = 16
+      const playerSize = 64
+      const playerCenterX = player.x + playerSize / 2
+      const playerCenterY = player.y + playerSize / 2
+      const distanceX = Math.abs(bullet.x - playerCenterX)
+      const distanceY = Math.abs(bullet.y - playerCenterY)
+      
+      if (distanceX < (bulletSize + playerSize) / 2 && distanceY < (bulletSize + playerSize) / 2) {
+        // Hit! Apply damage
+        player.health = Math.max(0, player.health - bullet.damage)
+        
+        // Remove bullet
+        bullets.value.delete(bulletId)
+        
+        // Broadcast damage
+        if (props.channelId) {
+          const channel = supabase.channel(`megaman-game:${props.channelId}`)
+          channel.send({
+            type: 'broadcast',
+            event: 'player-damaged',
+            payload: {
+              userId: player.userId,
+              health: player.health,
+              damage: bullet.damage,
+              attackerId: bullet.userId
+            }
+          })
+        }
+        
+        // Play hit sound
+        playSound('shoot') // Use shoot sound for hit
+        
+        // Check if player died
+        if (player.health <= 0) {
+          // Respawn after 2 seconds
+          setTimeout(() => {
+            if (player.health <= 0) {
+              player.health = player.maxHealth
+              player.x = 50 + Math.random() * (canvasWidth - 150)
+              player.y = floorY - 64
+              player.velocityX = 0
+              player.velocityY = 0
+            }
+          }, 2000)
+        }
+      }
+    })
     
     // Remove bullets that go off screen
     if (bullet.x < -20 || bullet.x > canvasWidth + 20 || bullet.y < -20 || bullet.y > canvasHeight + 20) {
@@ -711,8 +833,17 @@ function gameLoop(currentTime: number) {
     
     // Draw bullet using buster sprite
     if (ctx) {
-      if (bullet.sprite && busterSprites.value.has(bullet.sprite)) {
-        const spriteImg = busterSprites.value.get(bullet.sprite)!
+      // Animate Fire1/Fire2 for charged shots
+      let currentSprite = bullet.sprite
+      if (bullet.sprite2 && (bullet.chargeLevel === 1 || bullet.chargeLevel === 2)) {
+        // Alternate between Fire1 and Fire2
+        const animTime = Date.now() - bullet.createdAt
+        const frame = Math.floor(animTime / 100) % 2
+        currentSprite = frame === 0 ? bullet.sprite : bullet.sprite2
+      }
+      
+      if (currentSprite && busterSprites.value.has(currentSprite)) {
+        const spriteImg = busterSprites.value.get(currentSprite)!
         if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
           const spriteWidth = spriteImg.naturalWidth
           const spriteHeight = spriteImg.naturalHeight
@@ -727,6 +858,53 @@ function gameLoop(currentTime: number) {
             drawWidth,
             drawHeight
           )
+          
+          // Draw charging sprites on projectile (for LV1 and LV2)
+          if (bullet.chargingSprites.length > 0 && (bullet.chargeLevel === 1 || bullet.chargeLevel === 2)) {
+            const chargeTime = Date.now() - bullet.createdAt
+            const chargeFrame = Math.floor((chargeTime / 100) % bullet.chargingSprites.length)
+            const chargeSpriteFile = bullet.chargingSprites[chargeFrame]
+            
+            if (chargeSpriteFile && busterSprites.value.has(chargeSpriteFile)) {
+              const chargeSprite = busterSprites.value.get(chargeSpriteFile)!
+              if (chargeSprite && chargeSprite.complete) {
+                const chargeWidth = chargeSprite.naturalWidth * (chargeSprite.naturalWidth > 100 ? 0.5 : 1)
+                const chargeHeight = chargeSprite.naturalHeight * (chargeSprite.naturalHeight > 100 ? 0.5 : 1)
+                ctx.drawImage(
+                  chargeSprite,
+                  bullet.x - chargeWidth / 2,
+                  bullet.y - chargeHeight / 2,
+                  chargeWidth,
+                  chargeHeight
+                )
+              }
+            }
+          }
+          
+          // Draw LV3 trail and flash effects
+          if (bullet.chargeLevel === 3 && busterData.value) {
+            // Trail effect
+            if (busterData.value.Buster_LV3_Trail) {
+              const trailTime = Date.now() - bullet.createdAt
+              const trailFrame = Math.floor((trailTime / 50) % busterData.value.Buster_LV3_Trail.length)
+              const trail = busterData.value.Buster_LV3_Trail[trailFrame]
+              if (trail) {
+                const trailSprite = busterSprites.value.get(trail.file)
+                if (trailSprite && trailSprite.complete) {
+                  const trailWidth = trailSprite.naturalWidth * (trailSprite.naturalWidth > 100 ? 0.5 : 1)
+                  const trailHeight = trailSprite.naturalHeight * (trailSprite.naturalHeight > 100 ? 0.5 : 1)
+                  // Draw trail behind bullet
+                  ctx.drawImage(
+                    trailSprite,
+                    bullet.x - bullet.velocityX * 2 - trailWidth / 2,
+                    bullet.y - trailHeight / 2,
+                    trailWidth,
+                    trailHeight
+                  )
+                }
+              }
+            }
+          }
         } else {
           // Fallback to colored rectangle
           const bulletSize = 8 + bullet.chargeLevel * 4
@@ -800,12 +978,12 @@ function gameLoop(currentTime: number) {
       player.onGround = false
     }
     
-    // Update state based on velocity when in air
+    // Update state based on velocity when in air (charging doesn't change state)
     if (!player.onGround && !player.onWall && (player.state as string) !== 'dashing') {
       if (player.velocityY > 0) {
-        player.state = player.isCharging ? 'shooting' : 'falling'
+        player.state = 'falling'
       } else if (player.velocityY < 0) {
-        player.state = player.isCharging ? 'shooting' : 'jumping'
+        player.state = 'jumping'
       }
     }
     
@@ -849,16 +1027,17 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
     return animations.value.dash || animations.value.walk || []
   }
   
-  // Shooting takes priority - use shoot animation that matches current state
-  if (player.isCharging || player.isShooting) {
+  // Shooting animation when shooting (including while charging)
+  if (player.isShooting || player.isCharging) {
     // Find shooting animation that matches current movement state
     const shootFrames = animations.value.shoot.filter(frame => {
       const name = frame.name.toLowerCase()
-      if (player.state === 'idle' && name.includes('idle')) return true
-      if (player.state === 'walking' && name.includes('run')) return true
-      if (player.state === 'jumping' && name.includes('jump')) return true
-      if (player.state === 'falling' && name.includes('fall')) return true
-      if (player.state === 'dashing' && name.includes('dash')) return true
+      if (player.state === 'idle' && name.includes('idle') && name.includes('fire')) return true
+      if (player.state === 'walking' && name.includes('run') && name.includes('fire')) return true
+      if (player.state === 'jumping' && name.includes('jump') && name.includes('fire')) return true
+      if (player.state === 'falling' && name.includes('fall') && name.includes('fire')) return true
+      if (player.state === 'dashing' && name.includes('dash') && name.includes('fire')) return true
+      if (player.onWall && name.includes('wall') && name.includes('fire')) return true
       return false
     })
     
@@ -866,7 +1045,10 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
       return shootFrames
     }
     // Fallback to idle fire
-    const idleFire = animations.value.shoot.filter(f => f.name.toLowerCase().includes('idle'))
+    const idleFire = animations.value.shoot.filter(f => {
+      const name = f.name.toLowerCase()
+      return name.includes('idle') && name.includes('fire')
+    })
     if (idleFire.length > 0) return idleFire
   }
   
@@ -975,74 +1157,104 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     ctx.restore()
     
-    // Draw charging animation sprite overlay
-    if (player.isCharging && busterData.value) {
-      let chargeFrames: any[] = []
-      let chargeFrameIndex = 0
+    // Draw charging effect (aura around player) - NO buster arm sprites on player
+    if (player.isCharging && busterData.value && busterData.value.Charge_Effect) {
+      const chargeTime = Date.now() - player.chargeStartTime
+      let chargeEffectFrames: any[] = []
+      let effectFrameIndex = 0
       
-      // Get charge frames based on level
-      if (player.chargeLevel >= 1 && busterData.value.Buster_LV1) {
-        // Get non-Fire frames (the charging animation frames)
-        chargeFrames = busterData.value.Buster_LV1.filter((f: any) => 
-          !f.name.includes('Fire') && !f.name.includes('Hit')
-        )
-        // Animate through charge frames
-        const chargeTime = Date.now() - player.chargeStartTime
-        chargeFrameIndex = Math.floor((chargeTime / 100) % chargeFrames.length)
+      // Get charge effect frames based on level
+      if (player.chargeLevel >= 1) {
+        chargeEffectFrames = busterData.value.Charge_Effect.filter((f: any) => 
+          f.name.startsWith('Charge_LV1_')
+        ).sort((a: any, b: any) => {
+          const numA = parseInt(a.name.match(/_(\d+)/)?.[1] || '0')
+          const numB = parseInt(b.name.match(/_(\d+)/)?.[1] || '0')
+          return numA - numB
+        })
+        effectFrameIndex = Math.floor((chargeTime / 150) % chargeEffectFrames.length)
       }
       
-      if (player.chargeLevel >= 2 && busterData.value.Buster_LV2) {
-        chargeFrames = busterData.value.Buster_LV2.filter((f: any) => 
-          !f.name.includes('Fire') && !f.name.includes('Hit')
-        )
-        const chargeTime = Date.now() - player.chargeStartTime
-        chargeFrameIndex = Math.floor((chargeTime / 150) % chargeFrames.length)
+      if (player.chargeLevel >= 2) {
+        chargeEffectFrames = busterData.value.Charge_Effect.filter((f: any) => 
+          f.name.startsWith('Charge_LV2_')
+        ).sort((a: any, b: any) => {
+          const numA = parseInt(a.name.match(/_(\d+)/)?.[1] || '0')
+          const numB = parseInt(b.name.match(/_(\d+)/)?.[1] || '0')
+          return numA - numB
+        })
+        effectFrameIndex = Math.floor((chargeTime / 150) % chargeEffectFrames.length)
       }
       
-      if (player.chargeLevel >= 3 && busterData.value.Buster_LV3) {
-        chargeFrames = busterData.value.Buster_LV3
-        const chargeTime = Date.now() - player.chargeStartTime
-        chargeFrameIndex = Math.floor((chargeTime / 200) % chargeFrames.length)
+      if (player.chargeLevel >= 3) {
+        chargeEffectFrames = busterData.value.Charge_Effect.filter((f: any) => 
+          f.name.startsWith('Charge_LV3_')
+        ).sort((a: any, b: any) => {
+          const numA = parseInt(a.name.match(/_(\d+)/)?.[1] || '0')
+          const numB = parseInt(b.name.match(/_(\d+)/)?.[1] || '0')
+          return numA - numB
+        })
+        effectFrameIndex = Math.floor((chargeTime / 200) % chargeEffectFrames.length)
       }
       
-      // Draw charge sprite overlay
-      if (chargeFrames.length > 0 && chargeFrameIndex < chargeFrames.length) {
-        const chargeFrame = chargeFrames[chargeFrameIndex]
-        const chargeSprite = busterSprites.value.get(chargeFrame.file)
+      // Draw charge effect (glow/aura around player)
+      if (chargeEffectFrames.length > 0 && effectFrameIndex < chargeEffectFrames.length) {
+        const effectFrame = chargeEffectFrames[effectFrameIndex]
+        const effectSprite = busterSprites.value.get(effectFrame.file)
         
-        if (chargeSprite && chargeSprite.complete && chargeSprite.naturalWidth > 0) {
-          const chargeWidth = chargeSprite.naturalWidth
-          const chargeHeight = chargeSprite.naturalHeight
-          const chargeScale = chargeWidth > 100 ? 0.5 : 1
-          const chargeDrawWidth = chargeWidth * chargeScale
-          const chargeDrawHeight = chargeHeight * chargeScale
+        if (effectSprite && effectSprite.complete && effectSprite.naturalWidth > 0) {
+          const effectWidth = effectSprite.naturalWidth
+          const effectHeight = effectSprite.naturalHeight
+          const effectScale = effectWidth > 100 ? 0.5 : 1
+          const effectDrawWidth = effectWidth * effectScale
+          const effectDrawHeight = effectHeight * effectScale
           
-          // Position charge sprite in front of player (arm position)
-          const chargeX = player.facing === 'right' ? player.x + 40 : player.x - 20
-          const chargeY = player.y + 20
+          // Position charge effect centered on player
+          const effectX = player.x + (64 - effectDrawWidth) / 2
+          const effectY = player.y + (64 - effectDrawHeight) / 2
           
-          ctx.save()
-          if (player.facing === 'left') {
-            ctx.scale(-1, 1)
-            ctx.drawImage(
-              chargeSprite,
-              -chargeX - chargeDrawWidth,
-              chargeY,
-              chargeDrawWidth,
-              chargeDrawHeight
-            )
-          } else {
-            ctx.drawImage(
-              chargeSprite,
-              chargeX,
-              chargeY,
-              chargeDrawWidth,
-              chargeDrawHeight
-            )
-          }
-          ctx.restore()
+          ctx.drawImage(
+            effectSprite,
+            effectX,
+            effectY,
+            effectDrawWidth,
+            effectDrawHeight
+          )
         }
       }
+    }
+    
+    // Draw health bar using HP sprites
+    if (ctx && hpBarData.value && hpBarData.value.HP_Bar) {
+      // Calculate HP value (0-32, since HP_Bar has 33 sprites: HP_0 to HP_32)
+      const hpValue = Math.floor((player.health / player.maxHealth) * 32)
+      const hpSpriteName = `HP_${hpValue}`
+      
+      const hpFrame = hpBarData.value.HP_Bar.find((f: any) => f.name === hpSpriteName)
+      if (hpFrame && hpBarSprites.value.has(hpFrame.file)) {
+        const hpSprite = hpBarSprites.value.get(hpFrame.file)!
+        if (hpSprite && hpSprite.complete) {
+          const hpWidth = hpSprite.naturalWidth * (hpSprite.naturalWidth > 100 ? 0.5 : 1)
+          const hpHeight = hpSprite.naturalHeight * (hpSprite.naturalHeight > 100 ? 0.5 : 1)
+          const hpX = player.x + (64 - hpWidth) / 2
+          const hpY = player.y - hpHeight - 5
+          
+          ctx.drawImage(hpSprite, hpX, hpY, hpWidth, hpHeight)
+        }
+      }
+    } else if (ctx) {
+      // Fallback to simple bar if sprites not loaded
+      const barWidth = 60
+      const barHeight = 6
+      const barX = player.x + (64 - barWidth) / 2
+      const barY = player.y - 12
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      ctx.fillRect(barX, barY, barWidth, barHeight)
+      
+      const healthPercent = player.health / player.maxHealth
+      ctx.fillStyle = healthPercent > 0.5 ? '#4ecdc4' : healthPercent > 0.25 ? '#f9ca24' : '#eb4d4b'
+      ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight)
     }
   } else {
     // Draw placeholder if sprite not loaded
@@ -1075,7 +1287,7 @@ function setupRealtimeListener() {
   })
   
   gameChannel.on('broadcast', { event: 'player-update' }, (payload) => {
-    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide } = payload.payload as any
+    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth } = payload.payload as any
     
     // Don't update local player from remote updates
     if (userId === props.userId) return
@@ -1093,6 +1305,17 @@ function setupRealtimeListener() {
       player.chargeLevel = chargeLevel || 0
       player.onWall = onWall || false
       player.wallSide = wallSide || null
+      if (health !== undefined) player.health = health
+      if (maxHealth !== undefined) player.maxHealth = maxHealth
+    }
+  })
+  
+  gameChannel.on('broadcast', { event: 'player-damaged' }, (payload) => {
+    const { userId, health } = payload.payload as any
+    
+    const player = players.value.get(userId)
+    if (player) {
+      player.health = health
     }
   })
   
@@ -1138,9 +1361,16 @@ function initializeCanvas() {
   canvas = canvasRef.value
   ctx = canvas.getContext('2d')
   
-  // Set canvas size - smaller for overlay on voice chat
-  const canvasWidth = 600
-  const canvasHeight = 300
+  // Set canvas size to match overlay size (full overlay)
+  const overlay = canvasRef.value.closest('.megaman-game-overlay')
+  let canvasWidth = window.innerWidth
+  let canvasHeight = window.innerHeight
+  
+  if (overlay) {
+    const rect = overlay.getBoundingClientRect()
+    canvasWidth = rect.width || window.innerWidth
+    canvasHeight = rect.height || window.innerHeight
+  }
   
   // Scale for high DPI displays
   const dpr = window.devicePixelRatio || 1
@@ -1206,13 +1436,15 @@ onUnmounted(() => {
 <style scoped>
 .megaman-game-overlay {
   position: absolute;
-  bottom: 80px; /* Above voice controls */
-  right: 20px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
   z-index: 10003; /* Above voice overlay */
   pointer-events: all;
-  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 .megaman-canvas {
