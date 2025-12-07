@@ -151,13 +151,22 @@ export class SignatureService {
 
   /**
    * Verify an incoming HTTP signature
+   * 
+   * Security model:
+   * 1. Parse signature header to get keyId, signed headers, and signature
+   * 2. Extract actor URL from keyId (e.g., https://remote.server/users/alice#main-key -> https://remote.server/users/alice)
+   * 3. Fetch actor's public key from their server (over HTTPS)
+   * 4. Rebuild the signing string from the signed headers
+   * 5. Verify the signature matches using the public key
+   * 6. Optionally verify the Digest header matches the body hash
    */
   static async verifySignature(
     signature: string,
     headers: Record<string, string>,
     method: string,
-    path: string
-  ): Promise<{ verified: boolean; actorUrl?: string }> {
+    path: string,
+    body?: any
+  ): Promise<{ verified: boolean; actorUrl?: string; error?: string }> {
     try {
       // Parse signature header
       const signatureParts = signature.split(',').reduce((acc, part) => {
@@ -171,18 +180,29 @@ export class SignatureService {
 
       if (!keyId || !signedHeaders || !sig) {
         logger.warn('Missing signature components');
-        return { verified: false };
+        return { verified: false, error: 'Missing signature components' };
       }
 
-      // Extract actor URL from keyId
+      // Extract actor URL from keyId (e.g., https://example.com/users/alice#main-key -> https://example.com/users/alice)
       const actorUrl = keyId.split('#')[0];
 
-      // Fetch actor's public key
+      // Fetch actor's public key from their server
       const publicKey = await this.fetchActorPublicKey(actorUrl);
 
       if (!publicKey) {
         logger.warn(`Could not fetch public key for ${actorUrl}`);
-        return { verified: false };
+        return { verified: false, actorUrl, error: 'Could not fetch public key' };
+      }
+
+      // Verify Digest header if present and body is provided
+      const digestHeader = headers['digest'] || headers['Digest'];
+      if (digestHeader && body) {
+        const expectedDigest = this.createDigest(body);
+        if (digestHeader !== expectedDigest) {
+          logger.warn(`Digest mismatch for ${actorUrl}: expected ${expectedDigest}, got ${digestHeader}`);
+          return { verified: false, actorUrl, error: 'Digest mismatch - body may have been tampered' };
+        }
+        logger.debug(`✅ Digest verified for ${actorUrl}`);
       }
 
       // Rebuild signing string (handle (request-target) specially)
@@ -207,7 +227,7 @@ export class SignatureService {
       
       const signingString = signingParts.join('\n');
 
-      // Verify signature
+      // Verify signature using the actor's public key
       const verify = crypto.createVerify('SHA256');
       verify.update(signingString);
       verify.end();
@@ -219,8 +239,34 @@ export class SignatureService {
       return { verified, actorUrl };
     } catch (error) {
       logger.error('Signature verification error:', error);
-      return { verified: false };
+      return { verified: false, error: String(error) };
     }
+  }
+
+  /**
+   * Verify that the actor in the activity matches the signing key's owner
+   * This prevents an attacker from signing an activity on behalf of another user
+   */
+  static verifyActorMatch(activityActor: string, signingActorUrl: string): boolean {
+    // Normalize URLs for comparison (remove trailing slashes, etc.)
+    const normalizeUrl = (url: string) => {
+      try {
+        const parsed = new URL(url);
+        return `${parsed.protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, '');
+      } catch {
+        return url.replace(/\/$/, '');
+      }
+    };
+
+    const actorNormalized = normalizeUrl(activityActor);
+    const signingNormalized = normalizeUrl(signingActorUrl);
+
+    if (actorNormalized !== signingNormalized) {
+      logger.warn(`Actor mismatch: activity.actor=${activityActor}, signing key owner=${signingActorUrl}`);
+      return false;
+    }
+
+    return true;
   }
 
   /**

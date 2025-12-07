@@ -410,23 +410,53 @@ GRANT EXECUTE ON FUNCTION "public"."aggregate_hourly_metrics"() TO "service_role
 GRANT EXECUTE ON FUNCTION "public"."cleanup_old_metrics"(integer, integer, integer) TO "service_role";
 
 -- =============================================
--- 13. RLS Policies (admin only for writes)
+-- 13. RLS Policies (admin only for reads/writes)
 -- =============================================
 ALTER TABLE "public"."performance_metrics" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."performance_metrics_hourly" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."slow_queries" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."federation_health" ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users to read metrics (for admin dashboard)
+-- Drop existing policies first (makes script idempotent)
+DROP POLICY IF EXISTS "Admins can read metrics" ON "public"."performance_metrics";
+DROP POLICY IF EXISTS "Admins can read hourly metrics" ON "public"."performance_metrics_hourly";
+DROP POLICY IF EXISTS "Admins can read slow queries" ON "public"."slow_queries";
+DROP POLICY IF EXISTS "Admins can read federation health" ON "public"."federation_health";
+
+-- Only admins can read performance metrics (contains sensitive system data)
 CREATE POLICY "Admins can read metrics" ON "public"."performance_metrics"
-    FOR SELECT USING (true);
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM "public"."profiles"
+            WHERE "profiles"."auth_user_id" = auth.uid()
+            AND "profiles"."is_admin" = true
+        )
+    );
 
 CREATE POLICY "Admins can read hourly metrics" ON "public"."performance_metrics_hourly"
-    FOR SELECT USING (true);
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM "public"."profiles"
+            WHERE "profiles"."auth_user_id" = auth.uid()
+            AND "profiles"."is_admin" = true
+        )
+    );
 
 CREATE POLICY "Admins can read slow queries" ON "public"."slow_queries"
-    FOR SELECT USING (true);
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM "public"."profiles"
+            WHERE "profiles"."auth_user_id" = auth.uid()
+            AND "profiles"."is_admin" = true
+        )
+    );
 
 CREATE POLICY "Admins can read federation health" ON "public"."federation_health"
-    FOR SELECT USING (true);
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM "public"."profiles"
+            WHERE "profiles"."auth_user_id" = auth.uid()
+            AND "profiles"."is_admin" = true
+        )
+    );
 

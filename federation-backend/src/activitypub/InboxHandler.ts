@@ -247,21 +247,61 @@ async function handleInbox(
     logger.debug(`Could not check instance block status: ${error}`);
   }
 
-  // Verify HTTP signature (optional but recommended)
+  // ============================================
+  // HTTP Signature Verification (SECURITY CRITICAL)
+  // ============================================
+  // ActivityPub uses HTTP Signatures to authenticate requests.
+  // 1. Remote server signs the request with their private key
+  // 2. We fetch their public key from their actor document (over HTTPS)
+  // 3. We verify the signature matches
+  // 4. We verify the actor in the activity matches the signing key's owner
+  // ============================================
+  
   const signature = req.headers.signature as string;
-  if (signature) {
+  const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+  
+  if (!signature) {
+    if (config.REQUIRE_VALID_SIGNATURES) {
+      logger.warn(`🚫 Rejecting unsigned activity from ${actorUrl}`);
+      res.status(401).json({ error: 'Missing HTTP Signature - all ActivityPub requests must be signed' });
+      return;
+    } else {
+      logger.warn(`⚠️ Accepting unsigned activity from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
+    }
+  } else {
+    // Verify the HTTP signature
     const verification = await SignatureService.verifySignature(
       signature,
       req.headers as Record<string, string>,
       req.method,
-      req.path
+      req.path,
+      activity // Pass body for digest verification
     );
 
     if (!verification.verified) {
-      logger.warn(`⚠️  Signature verification failed for ${activity.actor}`);
-      // Note: Some implementations don't sign properly, so we log but don't reject
+      if (config.REQUIRE_VALID_SIGNATURES) {
+        logger.warn(`🚫 Rejecting activity with invalid signature from ${actorUrl}: ${verification.error}`);
+        res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
+        return;
+      } else {
+        logger.warn(`⚠️ Accepting activity with invalid signature from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
+      }
     } else {
-      logger.info(`✅ Signature verified for ${activity.actor}`);
+      // Verify the actor in the activity matches the signing key's owner
+      // This prevents someone from signing an activity on behalf of another user
+      if (verification.actorUrl && actorUrl) {
+        const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
+        if (!actorMatch) {
+          if (config.REQUIRE_VALID_SIGNATURES) {
+            logger.warn(`🚫 Rejecting activity: actor mismatch. Activity actor: ${actorUrl}, Signing key: ${verification.actorUrl}`);
+            res.status(403).json({ error: 'Actor mismatch - activity.actor must match the signing key owner' });
+            return;
+          } else {
+            logger.warn(`⚠️ Actor mismatch but accepting (REQUIRE_VALID_SIGNATURES=false)`);
+          }
+        }
+      }
+      logger.info(`✅ Signature verified for ${actorUrl}`);
     }
   }
 
@@ -292,7 +332,7 @@ async function handleInbox(
 
   // Store activity in database (idempotent)
   const supabase = getSupabaseClient();
-  const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
+  // actorUrl already extracted above during signature verification
   const originDomain = actorUrl ? new URL(actorUrl).hostname : null;
 
   const { error: storeError } = await supabase.rpc('upsert_ap_activity', {
