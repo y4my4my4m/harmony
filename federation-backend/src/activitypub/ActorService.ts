@@ -1668,13 +1668,20 @@ router.get(
 );
 
 /**
- * Followers collection endpoint
+ * Followers collection endpoint with cursor-based pagination
  * GET /users/:username/followers
+ * Query params:
+ *   - cursor: ID of last item (for cursor-based pagination)
+ *   - page: Page number (legacy, for backwards compatibility)
+ *   - limit: Items per page (default 20, max 100)
  */
 router.get(
   '/users/:username/followers',
   asyncHandler(async (req: Request, res: Response) => {
     const { username } = req.params;
+    const cursor = req.query.cursor as string | undefined;
+    const page = req.query.page as string | undefined;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const supabase = getSupabaseClient();
 
     // Get user
@@ -1689,36 +1696,107 @@ router.get(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get follower count
-    const { count } = await supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('following_id', user.id)
-      .eq('status', 'accepted');
-
-    // Always use HTTPS with instance domain (req.protocol returns http behind nginx proxy)
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const collectionUrl = `${baseUrl}/users/${username}/followers`;
 
-    res.setHeader('Content-Type', 'application/activity+json');
-    res.json({
+    // If no page/cursor, return collection metadata
+    if (!page && !cursor) {
+      const { count } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', user.id)
+        .eq('status', 'accepted');
+
+      res.setHeader('Content-Type', 'application/activity+json');
+      return res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: collectionUrl,
+        type: 'OrderedCollection',
+        totalItems: count || 0,
+        first: `${collectionUrl}?cursor=start&limit=${limit}`,
+      });
+    }
+
+    // Fetch paginated followers
+    let query = supabase
+      .from('follows')
+      .select(`
+        id,
+        created_at,
+        follower:profiles!follows_follower_id_fkey (
+          id,
+          username,
+          domain,
+          federated_id
+        )
+      `)
+      .eq('following_id', user.id)
+      .eq('status', 'accepted')
+      .order('created_at', { ascending: false })
+      .limit(limit + 1); // Fetch one extra to detect if there's more
+
+    // Apply cursor (ID-based for efficient pagination)
+    if (cursor && cursor !== 'start') {
+      const { data: cursorFollow } = await supabase
+        .from('follows')
+        .select('created_at')
+        .eq('id', cursor)
+        .single();
+      
+      if (cursorFollow) {
+        query = query.lt('created_at', cursorFollow.created_at);
+      }
+    } else if (page) {
+      // Legacy page-based pagination
+      const offset = (parseInt(page) - 1) * limit;
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data: follows } = await query;
+    const hasMore = (follows?.length || 0) > limit;
+    const items = (follows || []).slice(0, limit);
+    const lastItem = items[items.length - 1];
+
+    // Build follower actor URLs
+    const orderedItems = items.map((f: any) => {
+      if (f.follower?.federated_id) return f.follower.federated_id;
+      if (f.follower?.domain) return `https://${f.follower.domain}/users/${f.follower.username}`;
+      return `${baseUrl}/users/${f.follower?.username}`;
+    }).filter(Boolean);
+
+    const response: any = {
       '@context': 'https://www.w3.org/ns/activitystreams',
-      id: collectionUrl,
-      type: 'OrderedCollection',
-      totalItems: count || 0,
-      first: `${collectionUrl}?page=1`,
-    });
+      id: cursor ? `${collectionUrl}?cursor=${cursor}&limit=${limit}` : `${collectionUrl}?page=${page || 1}`,
+      type: 'OrderedCollectionPage',
+      partOf: collectionUrl,
+      orderedItems,
+    };
+
+    // Add pagination links
+    if (hasMore && lastItem?.id) {
+      response.next = `${collectionUrl}?cursor=${lastItem.id}&limit=${limit}`;
+    }
+
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.json(response);
   })
 );
 
 /**
- * Following collection endpoint
+ * Following collection endpoint with cursor-based pagination
  * GET /users/:username/following
+ * Query params:
+ *   - cursor: ID of last item (for cursor-based pagination)
+ *   - page: Page number (legacy, for backwards compatibility)
+ *   - limit: Items per page (default 20, max 100)
  */
 router.get(
   '/users/:username/following',
   asyncHandler(async (req: Request, res: Response) => {
     const { username } = req.params;
+    const cursor = req.query.cursor as string | undefined;
+    const page = req.query.page as string | undefined;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const supabase = getSupabaseClient();
 
     // Get user
@@ -1733,25 +1811,87 @@ router.get(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get following count
-    const { count } = await supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('follower_id', user.id)
-      .eq('status', 'accepted');
-
-    // Always use HTTPS with instance domain (req.protocol returns http behind nginx proxy)
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const collectionUrl = `${baseUrl}/users/${username}/following`;
 
-    res.setHeader('Content-Type', 'application/activity+json');
-    res.json({
+    // If no page/cursor, return collection metadata
+    if (!page && !cursor) {
+      const { count } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', user.id)
+        .eq('status', 'accepted');
+
+      res.setHeader('Content-Type', 'application/activity+json');
+      return res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: collectionUrl,
+        type: 'OrderedCollection',
+        totalItems: count || 0,
+        first: `${collectionUrl}?cursor=start&limit=${limit}`,
+      });
+    }
+
+    // Fetch paginated following
+    let query = supabase
+      .from('follows')
+      .select(`
+        id,
+        created_at,
+        following:profiles!follows_following_id_fkey (
+          id,
+          username,
+          domain,
+          federated_id
+        )
+      `)
+      .eq('follower_id', user.id)
+      .eq('status', 'accepted')
+      .order('created_at', { ascending: false })
+      .limit(limit + 1);
+
+    // Apply cursor
+    if (cursor && cursor !== 'start') {
+      const { data: cursorFollow } = await supabase
+        .from('follows')
+        .select('created_at')
+        .eq('id', cursor)
+        .single();
+      
+      if (cursorFollow) {
+        query = query.lt('created_at', cursorFollow.created_at);
+      }
+    } else if (page) {
+      const offset = (parseInt(page) - 1) * limit;
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data: follows } = await query;
+    const hasMore = (follows?.length || 0) > limit;
+    const items = (follows || []).slice(0, limit);
+    const lastItem = items[items.length - 1];
+
+    // Build following actor URLs
+    const orderedItems = items.map((f: any) => {
+      if (f.following?.federated_id) return f.following.federated_id;
+      if (f.following?.domain) return `https://${f.following.domain}/users/${f.following.username}`;
+      return `${baseUrl}/users/${f.following?.username}`;
+    }).filter(Boolean);
+
+    const response: any = {
       '@context': 'https://www.w3.org/ns/activitystreams',
-      id: collectionUrl,
-      type: 'OrderedCollection',
-      totalItems: count || 0,
-      first: `${collectionUrl}?page=1`,
-    });
+      id: cursor ? `${collectionUrl}?cursor=${cursor}&limit=${limit}` : `${collectionUrl}?page=${page || 1}`,
+      type: 'OrderedCollectionPage',
+      partOf: collectionUrl,
+      orderedItems,
+    };
+
+    if (hasMore && lastItem?.id) {
+      response.next = `${collectionUrl}?cursor=${lastItem.id}&limit=${limit}`;
+    }
+
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.json(response);
   })
 );
 

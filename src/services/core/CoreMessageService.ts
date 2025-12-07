@@ -732,10 +732,12 @@ export class CoreMessageService {
       }
 
       // Local channel - use existing query
+      // Filter out thread replies (messages with thread_id) - they only appear in thread view
       let query = supabase
         .from('messages')
         .select('*')
         .eq('channel_id', channelId)
+        .is('thread_id', null)
         .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(limit)

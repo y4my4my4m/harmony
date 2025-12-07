@@ -47,34 +47,34 @@
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
-      <!-- Custom Status Section -->
-      <div class="custom-status-section">
-        <div class="custom-status-label">Set Custom Status</div>
-        <div class="custom-status-input-row">
-          <input 
-            v-model="customStatusText"
-            type="text"
-            class="custom-status-input"
-            placeholder="What's on your mind?"
-            maxlength="128"
-            @keyup.enter="saveCustomStatus"
+      <!-- Custom Status Button - Opens Full Modal -->
+      <div 
+        class="custom-status-preview"
+        @click="openStatusPicker"
+      >
+        <div class="preview-left">
+          <img 
+            v-if="currentCustomStatus?.emoji_url" 
+            :src="currentCustomStatus.emoji_url" 
+            :alt="currentCustomStatus.emoji || 'Emoji'"
+            class="preview-emoji-img"
           />
-          <button 
-            v-if="customStatusText || currentCustomStatus"
-            class="custom-status-btn clear"
-            @click="clearCustomStatus"
-            title="Clear"
-          >✕</button>
-          <button 
-            v-if="customStatusText && customStatusText !== currentCustomStatus?.text"
-            class="custom-status-btn save"
-            @click="saveCustomStatus"
-            title="Save"
-          >✓</button>
+          <span v-else-if="currentCustomStatus?.emoji" class="preview-emoji">{{ currentCustomStatus.emoji }}</span>
+          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
+            <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
+          </svg>
+          <span class="preview-text">{{ currentCustomStatus?.text || 'Set Custom Status' }}</span>
         </div>
-        <div v-if="currentCustomStatus" class="current-custom-status">
-          Currently: {{ currentCustomStatus.text }}
-        </div>
+        <button 
+          v-if="currentCustomStatus" 
+          class="clear-status-btn"
+          @click.stop="clearCustomStatus"
+          title="Clear status"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.3 5.71a1 1 0 00-1.42 0L12 10.59 7.11 5.7A1 1 0 105.7 7.11L10.59 12 5.7 16.89a1 1 0 101.41 1.41L12 13.41l4.89 4.89a1 1 0 001.41-1.41L13.41 12l4.89-4.89a1 1 0 000-1.4z"/>
+          </svg>
+        </button>
       </div>
       
       <div class="status-divider"></div>
@@ -92,6 +92,14 @@
         <span v-if="currentStatus === status.value" class="checkmark">✓</span>
       </div>
     </div>
+    
+    <!-- Status Picker Modal -->
+    <StatusPicker
+      :is-visible="showStatusPicker"
+      :current-status="currentCustomStatus"
+      @close="showStatusPicker = false"
+      @status-updated="handleStatusUpdated"
+    />
   </div>
 </template>
 
@@ -110,6 +118,7 @@ import HeadphonesIcon from '@/components/icons/Headphones.vue'
 import SettingsIcon from '@/components/icons/Settings.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
+import StatusPicker from '@/components/StatusPicker.vue'
 
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const themeStore = useThemeStore()
@@ -138,6 +147,7 @@ const {
 // Custom status state
 const customStatusText = ref('')
 const currentCustomStatus = computed(() => getCustomStatus.value)
+const showStatusPicker = ref(false)
 
 // Add a local reactive status for immediate UI updates
 const localStatus = ref<UserStatus>(UserStatus.Offline)
@@ -291,10 +301,21 @@ const clearCustomStatus = async () => {
   try {
     await clearCustomStatusFn()
     customStatusText.value = ''
+    showStatusDropdown.value = false
     debug.log('✅ Custom status cleared')
   } catch (error) {
     debug.error('❌ Failed to clear custom status:', error)
   }
+}
+
+const openStatusPicker = () => {
+  showStatusDropdown.value = false
+  showStatusPicker.value = true
+}
+
+const handleStatusUpdated = (status: any) => {
+  debug.log('✅ Status updated from picker:', status)
+  showStatusPicker.value = false
 }
 
 const onClickOutside = (event: any) => {
@@ -492,7 +513,77 @@ onBeforeUnmount(() => {
   animation: slideUp 0.15s ease-out;
 }
 
-/* Custom Status Section */
+/* Custom Status Preview - Discord Style */
+.custom-status-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  margin: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.custom-status-preview:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.custom-status-preview .preview-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-status-preview .preview-emoji {
+  font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.custom-status-preview .preview-emoji-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.custom-status-preview .emoji-placeholder {
+  color: var(--text-muted, #72767d);
+  flex-shrink: 0;
+}
+
+.custom-status-preview .preview-text {
+  font-size: 14px;
+  color: var(--text-secondary, #b9bbbe);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clear-status-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted, #72767d);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.clear-status-btn:hover {
+  background: rgba(237, 66, 69, 0.2);
+  color: #ed4245;
+}
+
+/* Custom Status Section - Legacy (can remove if not used) */
 .custom-status-section {
   padding: 8px;
   border-radius: 4px;

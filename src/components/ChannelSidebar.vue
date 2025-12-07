@@ -36,7 +36,7 @@
           <div :key="element.id" class="channel-wrapper">
             <div 
               :class="['channel-item', { 
-                'selected': element.id === currentChannelId,
+                'selected': element.id === currentChannelId && !selectedThreadId,
                 'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
                 'voice-channel': element.type === 1,
                 'voice-connected': element.type === 1 && isUserInVoiceChannel(element.id)
@@ -82,6 +82,18 @@
               :user-ids="getUsersInVoiceChannel(element.id)"
               :call-start-time="getChannelCallStartTime(element.id)"
             />
+            <!-- Active threads under this channel (Discord-style) -->
+            <div 
+              v-for="thread in getChannelActiveThreads(element.id)"
+              :key="thread.id"
+              class="channel-thread-item"
+              :class="{ 'selected': selectedThreadId === thread.id }"
+              @click.stop="openThread(thread)"
+              @contextmenu.stop="openThreadContextMenu($event, thread)"
+            >
+              <div class="thread-branch"></div>
+              <span class="thread-name">{{ thread.name }}</span>
+            </div>
           </div>
         </template>
       </draggable>
@@ -142,7 +154,7 @@
                   <div
                     class="channel-item"
                     :class="{ 
-                      'selected': currentChannelId === channel.id,
+                      'selected': currentChannelId === channel.id && !selectedThreadId,
                       'in-collapsed-category': collapsedCategories.has(category.id),
                       'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
                       'voice-channel': channel.type === 1,
@@ -188,6 +200,18 @@
                     :user-ids="getUsersInVoiceChannel(channel.id)"
                     :call-start-time="getChannelCallStartTime(channel.id)"
                   />
+                  <!-- Active threads under this channel (Discord-style) -->
+                  <div 
+                    v-for="thread in getChannelActiveThreads(channel.id)"
+                    :key="thread.id"
+                    class="channel-thread-item"
+                    :class="{ 'selected': selectedThreadId === thread.id }"
+                    @click.stop="openThread(thread)"
+                    @contextmenu.stop="openThreadContextMenu($event, thread)"
+                  >
+                    <div class="thread-branch"></div>
+                    <span class="thread-name">{{ thread.name }}</span>
+                  </div>
                 </div>
               </template>
               <!-- Empty state for drag target - only show when dragging channels -->
@@ -231,6 +255,22 @@
       @delete-category="handleDeleteCategory"
     />
 
+    <ThreadContextMenu
+      :is-visible="showThreadContextMenu"
+      :position="contextMenuPosition"
+      :thread="selectedThread"
+      :server-id="currentServer?.id"
+      @close="closeContextMenus"
+      @leave="handleLeaveThread"
+      @edit="handleEditThread"
+      @open-split-view="handleOpenSplitView"
+      @close-thread="handleCloseThread"
+      @reopen="handleReopenThread"
+      @lock="handleLockThread"
+      @unlock="handleUnlockThread"
+      @delete="handleDeleteThread"
+    />
+
     <!-- Edit Modals -->
     <ChannelEditModal
       :show="showChannelEditModal"
@@ -267,7 +307,7 @@ import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -292,6 +332,9 @@ import CategoryContextMenu from './CategoryContextMenu.vue';
 import ChannelEditModal from './ChannelEditModal.vue';
 import CategoryEditModal from './CategoryEditModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
+import ThreadContextMenu from './threads/ThreadContextMenu.vue';
+import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
+import { supabase } from '@/supabase';
 
 import draggable from "vuedraggable";
 
@@ -328,6 +371,7 @@ const props = defineProps({
 
 const emit = defineEmits<{
   (e: 'createChannel', categoryId?: string): void
+  (e: 'openThread', thread: ThreadWithDetails): void
 }>();
 
 // State
@@ -335,12 +379,19 @@ const isDropdownOpen = ref(false);
 const showInviteModal = ref(false);
 const isCategoryCreatorOpen = ref(false);
 
+// Threads state - keyed by channel ID
+const channelThreads = ref<Map<string, ThreadWithDetails[]>>(new Map());
+const selectedThreadId = ref<string | null>(null);
+const loadingThreads = ref(false);
+
 // Context menu state
 const showChannelContextMenu = ref(false);
 const showCategoryContextMenu = ref(false);
+const showThreadContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const selectedChannel = ref<Channel | null>(null);
 const selectedCategory = ref<Category | null>(null);
+const selectedThread = ref<ThreadWithDetails | null>(null);
 
 // Modal state
 const showChannelEditModal = ref(false);
@@ -368,6 +419,7 @@ const dragState = ref<DragState>({
 // Stores and Composables
 const serverChannelStore = useServerChannelStore();
 const router = useRouter();
+const route = useRoute();
 const serverUsersStore = useServerUsersStore();
 const voiceChannelStore = useUnifiedVoiceChannelStore();
 const themeStore = useThemeStore();
@@ -605,6 +657,47 @@ const showCategoryCreator = () => isCategoryCreatorOpen.value = !isCategoryCreat
 const openInviteModal = () => showInviteModal.value = true;
 const closeInviteModal = () => showInviteModal.value = false;
 
+// Threads methods
+const loadActiveThreads = async () => {
+  if (!props.currentServer?.id) return;
+  
+  loadingThreads.value = true;
+  try {
+    const threads = await threadService.getServerThreads(props.currentServer.id, { archived: false });
+    // Group threads by channel ID
+    const grouped = new Map<string, ThreadWithDetails[]>();
+    for (const thread of threads) {
+      const channelId = thread.channel_id;
+      if (!grouped.has(channelId)) {
+        grouped.set(channelId, []);
+      }
+      grouped.get(channelId)!.push(thread);
+    }
+    channelThreads.value = grouped;
+  } catch (error) {
+    debug.error('Failed to load threads:', error);
+    channelThreads.value = new Map();
+  } finally {
+    loadingThreads.value = false;
+  }
+};
+
+const getChannelActiveThreads = (channelId: string): ThreadWithDetails[] => {
+  return channelThreads.value.get(channelId) || [];
+};
+
+const openThread = (thread: ThreadWithDetails) => {
+  selectedThreadId.value = thread.id;
+  // Navigate to full thread view
+  router.push({
+    name: 'ThreadView',
+    params: {
+      serverId: props.currentServer.id,
+      threadId: thread.id
+    }
+  });
+};
+
 const createCategory = async (categoryName: string) => {
   try {
     await serverChannelStore.createCategory(categoryName, props.currentServer.id);
@@ -694,6 +787,17 @@ const openCategoryContextMenu = (event: MouseEvent, category: Category) => openC
 const closeContextMenus = () => {
   showChannelContextMenu.value = false;
   showCategoryContextMenu.value = false;
+  showThreadContextMenu.value = false;
+};
+
+// Thread context menu handler
+const openThreadContextMenu = (event: MouseEvent, thread: ThreadWithDetails) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeContextMenus();
+  selectedThread.value = thread;
+  showThreadContextMenu.value = true;
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
 };
 
 const handleInviteUsers = () => openInviteModal();
@@ -755,6 +859,98 @@ const handleDeleteCategory = (category: Category) => {
   showConfirmationModal.value = true;
 };
 
+// Thread context menu action handlers
+const handleLeaveThread = async () => {
+  if (!selectedThread.value) return;
+  try {
+    await threadService.leaveThread(selectedThread.value.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to leave thread:', error);
+  }
+};
+
+const handleEditThread = (thread: ThreadWithDetails) => {
+  // TODO: Implement thread editing modal
+  debug.log('Edit thread:', thread.name);
+};
+
+const handleOpenSplitView = (thread: ThreadWithDetails) => {
+  // TODO: Implement split view functionality
+  debug.log('Open split view for thread:', thread.name);
+};
+
+const handleCloseThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.archiveThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to close thread:', error);
+  }
+};
+
+const handleReopenThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.unarchiveThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to reopen thread:', error);
+  }
+};
+
+const handleLockThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.lockThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to lock thread:', error);
+  }
+};
+
+const handleUnlockThread = async (thread: ThreadWithDetails) => {
+  try {
+    await threadService.unlockThread(thread.id);
+    await loadActiveThreads();
+  } catch (error) {
+    debug.error('Failed to unlock thread:', error);
+  }
+};
+
+const handleDeleteThread = (thread: ThreadWithDetails) => {
+  confirmationConfig.value = {
+    title: 'Delete Thread',
+    message: `Are you sure you want to delete "${thread.name}"?`,
+    secondaryMessage: 'This will permanently delete the thread and all its messages. This action cannot be undone.',
+    confirmButtonText: 'Delete Thread',
+    requireConfirmation: false,
+    confirmationText: thread.name,
+    onConfirm: async () => {
+      try {
+        await threadService.deleteThread(thread.id);
+        await loadActiveThreads();
+        closeConfirmationModal();
+        // Navigate back to channel if we were viewing this thread
+        if (selectedThreadId.value === thread.id) {
+          selectedThreadId.value = null;
+          if (thread.channel_id) {
+            router.push({
+              name: 'ChatChannel',
+              params: {
+                serverId: props.currentServer?.id,
+                channelId: thread.channel_id
+              }
+            });
+          }
+        }
+      } catch (error) {
+        debug.error('Failed to delete thread:', error);
+        closeConfirmationModal();
+      }
+    }
+  };
+  showConfirmationModal.value = true;
+};
+
 const closeChannelEditModal = () => showChannelEditModal.value = false;
 const closeCategoryEditModal = () => showCategoryEditModal.value = false;
 const closeConfirmationModal = () => showConfirmationModal.value = false;
@@ -781,8 +977,68 @@ watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
 
-onMounted(() => document.addEventListener('click', closeContextMenus));
-onUnmounted(() => document.removeEventListener('click', closeContextMenus));
+// Load threads when server changes
+watch(() => props.currentServer?.id, (newServerId) => {
+  if (newServerId) {
+    loadActiveThreads();
+  }
+}, { immediate: true });
+
+// Sync selectedThreadId with route (for thread full view)
+watch(() => route.params.threadId, (threadId) => {
+  if (threadId && typeof threadId === 'string') {
+    selectedThreadId.value = threadId;
+  } else {
+    selectedThreadId.value = null;
+  }
+}, { immediate: true });
+
+// Realtime subscription for threads
+let threadsSubscription: ReturnType<typeof supabase.channel> | null = null;
+
+const setupThreadsSubscription = () => {
+  if (!props.currentServer?.id) return;
+  
+  // Clean up existing subscription
+  if (threadsSubscription) {
+    supabase.removeChannel(threadsSubscription);
+  }
+  
+  // Subscribe to thread changes for this server's channels
+  threadsSubscription = supabase
+    .channel(`threads-${props.currentServer.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'threads'
+      },
+      (payload) => {
+        debug.log('🧵 Thread change detected:', payload.eventType);
+        // Reload threads on any change (INSERT, UPDATE, DELETE)
+        loadActiveThreads();
+      }
+    )
+    .subscribe();
+};
+
+onMounted(() => {
+  document.addEventListener('click', closeContextMenus);
+  setupThreadsSubscription();
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeContextMenus);
+  if (threadsSubscription) {
+    supabase.removeChannel(threadsSubscription);
+  }
+});
+
+// Re-setup subscription when server changes
+watch(() => props.currentServer?.id, () => {
+  setupThreadsSubscription();
+});
 
 
 </script>
@@ -1062,6 +1318,91 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 
 .categories-container {
   flex: 1;
+}
+
+/* Channel Thread Items (Discord-style nested under channels) */
+.channel-thread-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 2px 34px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted, #949BA4);
+  font-size: 14px;
+  transition: all 0.1s ease;
+  position: relative;
+  margin: 0 auto;
+  width: calc(100% - 8px);
+}
+.channel-thread-item .thread-name {
+  padding: 6px;
+  border-radius: 4px;
+  width: 100%;
+}
+.channel-thread-item .thread-name:hover {
+  background: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
+  color: var(--text-normal, #DBDEE1);
+}
+
+.channel-thread-item.selected {
+  color: var(--text-primary, #FFFFFF);
+}
+.channel-thread-item.selected .thread-name {
+  color: var(--text-primary, #FFFFFF);
+  background: var(--background-modifier-selected, rgba(79, 84, 92, 0.6));
+}
+
+/* Thread branch/tree-line - vertical line connecting to parent */
+.channel-thread-item .thread-branch {
+  position: absolute;
+  left: 16px;
+  width: 10px;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Vertical line */
+.channel-thread-item .thread-branch::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 50%;
+  width: 2px;
+  background: var(--text-muted, #4f545c);
+  opacity: 0.5;
+}
+
+/* Horizontal line to text */
+.channel-thread-item .thread-branch::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 2px;
+  background: var(--text-muted, #4f545c);
+  opacity: 0.5;
+  border-radius: 0 2px 2px 0;
+}
+
+/* Last thread item - rounded corner */
+.channel-thread-item:last-of-type .thread-branch::before {
+  border-bottom-left-radius: 4px;
+}
+
+/* Not last - extend vertical line down */
+.channel-thread-item:not(:last-of-type) .thread-branch::before {
+  bottom: 0;
+}
+
+.channel-thread-item .thread-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
 }
 
 /* Global drag feedback */

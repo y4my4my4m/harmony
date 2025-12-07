@@ -39,6 +39,81 @@ We removed over-engineered connection management that was causing issues:
 3. Presence channel broadcasts change
 4. On activity resume → handleActivityResumed() restores status
 
+### 4. Federation Security Model
+
+**How federated authentication works (ActivityPub standard):**
+
+1. **HTTP Signatures** - Every ActivityPub request is signed with the sender's private key
+2. **Public Key Verification** - We fetch the actor's public key from their server (over HTTPS) and verify the signature
+3. **Actor Matching** - The `actor` in the activity must match the signing key's owner (prevents impersonation)
+4. **Digest Verification** - Body hash in `Digest` header must match actual body content
+
+**Two authentication domains:**
+
+| Domain | Authentication | Identity Column | Used By |
+|--------|----------------|-----------------|---------|
+| Local Users | Supabase Auth JWT | `profiles.auth_user_id` | Frontend → Supabase (RLS policies use `auth.uid()`) |
+| Federated Users | HTTP Signatures | `profiles.federated_id` | Remote Server → Federation Backend (service_role bypasses RLS) |
+
+**Key points:**
+- `profiles.id` = UUID, exists for ALL users (local and federated)
+- `profiles.auth_user_id` = Only for LOCAL users (links to `auth.users`)
+- `profiles.federated_id` = ActivityPub actor URL (e.g., `https://remote.server/users/alice`)
+- RLS policies with `auth.uid()` ONLY apply to direct Supabase client calls
+- Federation backend uses `service_role` key → bypasses RLS entirely
+- Federation handlers look up users by `federated_id`, not `auth_user_id`
+
+**Config:**
+- `REQUIRE_VALID_SIGNATURES=true` (default) - Reject unsigned/invalid signature activities
+- `REQUIRE_VALID_SIGNATURES=false` - Development mode, accept all (DANGEROUS in production!)
+
+**Files:**
+- `federation-backend/src/activitypub/SignatureService.ts` - Sign outgoing, verify incoming
+- `federation-backend/src/activitypub/InboxHandler.ts` - Entry point, signature verification
+- `federation-backend/src/config/index.ts` - REQUIRE_VALID_SIGNATURES setting
+
+---
+
+### 5. Rich Presence / Activity Status (Future Enhancements)
+
+**Current state (Dec 2025):** Basic custom status with activity types implemented.
+- ✅ Custom status text + emoji + expiration
+- ✅ Manual activity types: playing, listening, watching, competing, streaming, custom
+- ✅ Federation via ActivityPub actor attachments
+- ✅ Database persistence with `profiles.custom_status` JSONB column
+
+**Future enhancements (require additional work):**
+
+#### A. OAuth-Based Integrations (PWA-Compatible)
+*Fetch "now playing" from external services via their APIs:*
+- **Spotify Integration**: User connects Spotify account, fetch currently playing track
+- **Last.fm Integration**: Scrobbling history / currently listening
+- **YouTube Music / Apple Music**: If APIs available
+- **Implementation**: Store OAuth tokens in DB, background fetch/webhook for "now playing"
+
+#### B. Tauri-Based Automatic Detection (Desktop App Only)
+*Requires Tauri desktop client for OS-level access:*
+- **Game/App Detection**: Enumerate running processes, match against game database
+- **Discord-style Automatic "Playing X"**: Detect games via:
+  - Steam integration (requires Steam API)
+  - Running process names (fuzzy match against known games)
+  - Window titles
+- **Local Media Players**: Detect Spotify desktop, VLC, etc.
+- **Streaming Detection**: Detect OBS/Streamlabs running
+- **Implementation**: Tauri Rust sidecar for process enumeration, IPC to frontend
+
+#### C. Enhanced Status Display
+- **Elapsed Time**: "Playing for 2h 30m"
+- **Party Info**: "In a party with @user1, @user2"
+- **Invite Links**: "Join Game" buttons for supported games
+- **Rich Assets**: Game icons, album art, etc.
+
+**Files involved:**
+- `src/services/userDataService.ts` - setRichPresence(), getUserCustomStatus()
+- `src/types.ts` - CustomUserStatus, RichPresenceStatus types
+- `db_schema/20251207_add_custom_status.sql` - Database schema
+- Future: `src/services/SpotifyIntegration.ts`, `src-tauri/src/activity_detector.rs`
+
 ---
 
 ## Files Simplified
@@ -372,3 +447,16 @@ RLS permission for select and stuff, we can't allow users to fetch more than the
 ---
 
 Some settings (like audio/video preferences or privacy) are only saved in localStorage, we should move them to the database.
+
+---
+
+Clean tables/views
+
+federation_health (table)
+federation_health_metrics (view)
+federation_stats (view)
+performance_metrics (table)
+performance_metrics_hourly (view)
+slow_queries (table)
+
+Also some of those are probably already available via supabase, are we being redundant?

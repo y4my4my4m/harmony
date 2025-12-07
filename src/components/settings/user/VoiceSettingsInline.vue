@@ -864,7 +864,6 @@ onUnmounted(() => {
 
 .video-preview {
   width: 100%;
-  height: 200px;
   background: #000;
   border-radius: 8px;
   overflow: hidden;

@@ -154,6 +154,51 @@ class UserDataService extends EventTarget {
       debug.warn('⚠️ Failed to save custom status to localStorage:', error)
     }
   }
+
+  /**
+   * Parse custom_status JSONB from database to CustomUserStatus format
+   */
+  private parseCustomStatus(customStatusJson: any): CustomUserStatus | undefined {
+    if (!customStatusJson) return undefined
+
+    try {
+      // If it's already an object (from JSONB), use it directly
+      // If it's a string, parse it
+      const status = typeof customStatusJson === 'string' 
+        ? JSON.parse(customStatusJson) 
+        : customStatusJson
+
+      // Check if expired
+      if (status.expires_at || status.expiresAt) {
+        const expiresAt = status.expires_at || status.expiresAt
+        if (new Date(expiresAt) < new Date()) {
+          return undefined // Status has expired
+        }
+      }
+
+      // Convert to CustomUserStatus format
+      const customStatus: CustomUserStatus = {
+        text: status.text || undefined,
+        emoji: status.emoji || undefined,
+        emoji_url: status.emoji_url || undefined,
+        type: status.type || 'custom',
+        expiresAt: status.expires_at || status.expiresAt || undefined,
+        details: status.details || undefined,
+        state: status.state || undefined,
+        setAt: status.set_at || status.setAt || undefined,
+      }
+
+      // Return undefined if status is empty
+      if (!customStatus.text && !customStatus.emoji && !customStatus.emoji_url) {
+        return undefined
+      }
+
+      return customStatus
+    } catch (error) {
+      debug.warn('⚠️ Failed to parse custom status:', error)
+      return undefined
+    }
+  }
   
   /**
    * Setup activity tracking and lifecycle management
@@ -256,7 +301,7 @@ class UserDataService extends EventTarget {
         debug.log('🔄 Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at')
+          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status')
           .eq('id', userId)
           .single()
         profile = profileData
@@ -317,6 +362,33 @@ class UserDataService extends EventTarget {
           }
         }
         
+        // Parse custom status from database
+        let customStatus = this.parseCustomStatus(profile.custom_status)
+        
+        // For current user, try localStorage as backup if database doesn't have it
+        if (!customStatus && profile.id === userId) {
+          const backupStatus = this.getCustomStatusFromLocalStorage()
+          if (backupStatus) {
+            customStatus = backupStatus
+            // Sync backup to database
+            try {
+              await supabase.rpc('set_custom_status', {
+                p_user_id: userId,
+                p_type: backupStatus.type || 'custom',
+                p_text: backupStatus.text || '',
+                p_emoji: backupStatus.emoji || null,
+                p_emoji_url: (backupStatus as any).emoji_url || null,
+                p_details: (backupStatus as any).details || null,
+                p_state: (backupStatus as any).state || null,
+                p_duration_minutes: null,
+              })
+              debug.log('💾 Synced localStorage custom status to database')
+            } catch (syncError) {
+              debug.warn('⚠️ Failed to sync custom status to database:', syncError)
+            }
+          }
+        }
+        
         const userData: UserData = {
           id: profile.id,
           username: profile.username || username,
@@ -326,9 +398,14 @@ class UserDataService extends EventTarget {
           bio: profile.bio,
           color: profile.color,
           domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-          isLocal: profile.is_local || false,
+          // Default to true for local users - is_local defaults to true in DB
+          // Check: is_local explicitly set, OR no domain (local), OR domain matches our instance
+          isLocal: profile.is_local ?? (
+            !profile.domain || 
+            profile.domain === import.meta.env.VITE_DOMAIN
+          ),
           status: finalStatus,
-          customStatus: undefined, // Will be loaded separately if exists
+          customStatus: customStatus,
           isOnline: true,
           isMobile: detectMobileDevice(), // Track if user is on mobile
           lastSeen: new Date().toISOString(),
@@ -564,7 +641,7 @@ class UserDataService extends EventTarget {
       // 🎨 Use color from presence if provided (real-time color sync)
       color: presence.color || existing?.color,
       domain: existing?.domain,
-      isLocal: existing?.isLocal || false,
+      isLocal: existing?.isLocal ?? true,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in global presence with a visible status, so they're online
@@ -616,7 +693,7 @@ class UserDataService extends EventTarget {
       // 🎨 Use color from presence if provided (real-time color sync)
       color: presence.color || existing?.color,
       domain: existing?.domain || import.meta.env.VITE_DOMAIN as string,
-      isLocal: existing?.isLocal || false,
+      isLocal: existing?.isLocal ?? true,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true, // They're in context presence with a visible status, so they're online
@@ -1096,7 +1173,7 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local')
+        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -1110,9 +1187,13 @@ class UserDataService extends EventTarget {
             bio: profile.bio,
             color: profile.color,
             domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-            isLocal: profile.is_local || false,
+            // Default to true for local users - check if domain matches our instance
+            isLocal: profile.is_local ?? (
+              !profile.domain || 
+              profile.domain === import.meta.env.VITE_DOMAIN
+            ),
             status: profile.status ?? UserStatus.Offline,
-            customStatus: undefined, // Would need separate table for custom status
+            customStatus: this.parseCustomStatus(profile.custom_status),
             isOnline: false, // Will be updated by presence
             isMobile: false, // Will be updated by presence
             lastSeen: profile.updated_at || new Date().toISOString(),
@@ -1292,8 +1373,9 @@ class UserDataService extends EventTarget {
   /**
    * Set custom status (Discord-style "Playing X", "Listening to Y", etc.)
    * @param customStatus - The custom status to set, or undefined to clear
+   * @param durationMinutes - Optional duration in minutes (null = forever)
    */
-  async setCustomStatus(customStatus: CustomUserStatus | undefined): Promise<void> {
+  async setCustomStatus(customStatus: CustomUserStatus | undefined, durationMinutes?: number): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
     const userData = this.users.get(this.currentUserId)
@@ -1308,11 +1390,68 @@ class UserDataService extends EventTarget {
     // Save to localStorage for persistence
     this.saveCustomStatusToLocalStorage(customStatus)
     
+    // Persist to database for federation
+    try {
+      if (customStatus) {
+        await supabase.rpc('set_custom_status', {
+          p_user_id: this.currentUserId,
+          p_type: (customStatus as any).type || 'custom',
+          p_text: customStatus.text,
+          p_emoji: customStatus.emoji,
+          p_emoji_url: (customStatus as any).emoji_url,
+          p_details: (customStatus as any).details,
+          p_state: (customStatus as any).state,
+          p_duration_minutes: durationMinutes || null,
+        })
+      } else {
+        await supabase.rpc('clear_custom_status', {
+          p_user_id: this.currentUserId,
+        })
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to persist custom status to database:', error)
+      // Continue - local state is updated
+    }
+    
     // Update presence to broadcast custom status
     await this.updatePresenceStatus(userData.status)
     
     this.emitEvent('custom-status-changed', { userId: this.currentUserId, customStatus })
     debug.log('✅ Custom status updated')
+  }
+
+  /**
+   * Set rich presence status (extended Discord-style with activity types)
+   * @param type - Activity type: 'custom', 'playing', 'listening', 'watching', 'competing', 'streaming'
+   * @param text - Primary status text
+   * @param options - Additional options (emoji, details, state, duration)
+   */
+  async setRichPresence(
+    type: 'custom' | 'playing' | 'listening' | 'watching' | 'competing' | 'streaming',
+    text: string,
+    options?: {
+      emoji?: string
+      emoji_url?: string
+      details?: string
+      state?: string
+      durationMinutes?: number
+    }
+  ): Promise<void> {
+    const customStatus: any = {
+      type,
+      text,
+      emoji: options?.emoji,
+      emoji_url: options?.emoji_url,
+      details: options?.details,
+      state: options?.state,
+    }
+    
+    // Set expiration if duration provided
+    if (options?.durationMinutes) {
+      customStatus.expiresAt = new Date(Date.now() + options.durationMinutes * 60 * 1000).toISOString()
+    }
+    
+    await this.setCustomStatus(customStatus, options?.durationMinutes)
   }
 
   /**
@@ -1328,6 +1467,43 @@ class UserDataService extends EventTarget {
   getCustomStatus(): CustomUserStatus | undefined {
     if (!this.currentUserId) return undefined
     return this.users.get(this.currentUserId)?.customStatus
+  }
+
+  /**
+   * Get custom status for any user (from database)
+   */
+  async getUserCustomStatus(userId: string): Promise<CustomUserStatus | undefined> {
+    // First check local cache
+    const userData = this.users.get(userId)
+    if (userData?.customStatus !== undefined) {
+      return userData.customStatus
+    }
+    
+    // If user data exists but customStatus is undefined, try to load it
+    if (userData) {
+      // Load custom status from database and update cache
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('custom_status')
+          .eq('id', userId)
+          .single()
+        
+        if (profile?.custom_status) {
+          const customStatus = this.parseCustomStatus(profile.custom_status)
+          userData.customStatus = customStatus
+          return customStatus
+        }
+      } catch (error) {
+        debug.warn('⚠️ Failed to fetch user custom status:', error)
+      }
+    } else {
+      // User not in cache, load full profile (which includes custom_status)
+      await this.loadUsersData([userId])
+      return this.users.get(userId)?.customStatus
+    }
+    
+    return undefined
   }
 
   /**

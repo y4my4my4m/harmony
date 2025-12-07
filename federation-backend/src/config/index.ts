@@ -59,6 +59,11 @@ const envSchema = z.object({
   // Use pg-boss for job queue processing (more reliable but slightly higher latency)
   // When true, pg-boss handles DMs and message reactions; DatabaseListener handles channels only
   USE_PGBOSS_QUEUE: z.string().transform(v => v === 'true').default('true'),
+  
+  // Federation Security
+  // When true (default), reject unsigned activities or activities with invalid signatures
+  // Set to 'false' in development to allow testing with unsigned activities
+  REQUIRE_VALID_SIGNATURES: z.string().transform(v => v !== 'false').default('true'),
 });
 
 // Validate and export configuration

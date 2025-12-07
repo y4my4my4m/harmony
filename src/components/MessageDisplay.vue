@@ -57,21 +57,45 @@
           <div class="gap-line"></div>
         </div>
 
-        <!-- System Message (join/leave announcements) -->
+        <!-- System Message (join/leave announcements, thread creation) -->
         <div v-if="message.is_system" class="system-message">
           <div class="system-message-content">
             <div class="system-timestamp" v-html="formatSystemTimestamp(message.created_at)"></div>
             <div class="system-content">
-              <div class="system-icon">👋</div>
-              <div class="system-text">
-                <UnifiedMessageContent 
-                  :content="message.content"
-                  :message-id="message.id"
-                  :is-system="true"
-                  :embed-payloads="message.metadata?.embeds"
-                  @show-user-profile="showUserProfile"
-                />
-              </div>
+              <!-- Thread created system message -->
+              <template v-if="message.metadata?.type === 'thread_created'">
+                <div class="system-icon">🧵</div>
+                <div class="system-text thread-created-text">
+                  <span 
+                    class="system-user-mention"
+                    @click="showUserProfile(message.user_id)"
+                    :style="{ color: getUserColor(message.user_id).value }"
+                  >{{ getUserDisplayName(message.user_id).value }}</span>
+                  started a thread: 
+                  <span 
+                    class="system-thread-link"
+                    @click="handleOpenThread(message.metadata?.thread_id)"
+                  >{{ message.metadata?.thread_name || 'Thread' }}</span>. 
+                  See 
+                  <span 
+                    class="system-threads-link"
+                    @click="emit('showAllThreads')"
+                  >all threads</span>.
+                </div>
+              </template>
+              <!-- Default system message (join/leave, etc.) -->
+              <template v-else>
+                <div class="system-icon">👋</div>
+                <div class="system-text">
+                  <UnifiedMessageContent 
+                    :content="message.content"
+                    :message-id="message.id"
+                    :is-system="true"
+                    :embed-payloads="message.metadata?.embeds"
+                    @show-user-profile="showUserProfile"
+                  />
+                </div>
+              </template>
             </div>
           </div>
           
@@ -133,6 +157,12 @@
               </span>
               <span class="timestamp">
                 {{ formatTimestamp(message.created_at) }}
+                <!-- Pin indicator -->
+                <span 
+                  v-if="message.is_pinned" 
+                  class="pin-indicator"
+                  title="Pinned message"
+                >📌</span>
                 <!-- Encryption indicators -->
                 <span 
                   v-if="message.decrypted" 
@@ -212,6 +242,7 @@
         <div class="message-actions" v-if="hoveredMessageId === message.id">
           <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
           <div class="action-btn" @click="replyTo(message)"><ReplyIcon/></div>
+          <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(message)" title="Create Thread"><ThreadIcon/></div>
           <div class="action-btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
           <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
           <div class="action-btn" @click="openContextMenu(message, $event)"><MoreIcon/></div>
@@ -224,6 +255,14 @@
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
           @open-emoji-picker="handleOpenEmojiPicker"
+        />
+        
+        <!-- Thread Indicator (if this message started a thread) - hidden in thread view -->
+        <ThreadIndicator
+          v-if="!props.hideThreadActions && getThreadForMessage(message.id)"
+          :thread="getThreadForMessage(message.id)"
+          @open="openThread"
+          class="message-thread-indicator"
         />
       </div>
         </template>
@@ -296,6 +335,17 @@
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
   />
+
+  <!-- Delete Message Confirmation Modal (for messages with threads) -->
+  <ConfirmationModal
+    :show="showDeleteConfirmModal"
+    title="Delete Message"
+    :message="`This message has a thread attached: '${deleteConfirmConfig.threadName}'`"
+    secondary-message="Deleting this message will permanently delete the thread and all its replies. This action cannot be undone."
+    confirm-button-text="Delete Message & Thread"
+    @close="cancelDeleteMessage"
+    @confirm="confirmDeleteMessage"
+  />
 </template>
 
 <script setup lang="ts">
@@ -319,12 +369,17 @@ import InviteModal from '@/components/InviteModal.vue';
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
+import ThreadIcon from '@/components/icons/Thread.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
+import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import { threadService } from '@/services/ThreadService';
+import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
@@ -345,9 +400,14 @@ const props = defineProps({
   },
   channelId: String,
   conversationId: String,
+  // Hide thread creation button (for use inside thread views)
+  hideThreadActions: {
+    type: Boolean,
+    default: false
+  },
 });
 
-const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom']);
+const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads']);
 
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
@@ -371,10 +431,61 @@ const {
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
 
+// Thread data cache - map message ID -> thread data
+const threadsByMessageId = ref<Map<string, ThreadWithDetails>>(new Map());
+const loadingThreads = ref(false);
+
+// Fetch threads for the current channel
+const loadChannelThreads = async () => {
+  if (!props.channelId) {
+    threadsByMessageId.value.clear();
+    return;
+  }
+  
+  loadingThreads.value = true;
+  try {
+    const threads = await threadService.getThreadsForChannel(props.channelId);
+    threadsByMessageId.value.clear();
+    threads.forEach(thread => {
+      if (thread.parent_message_id) {
+        threadsByMessageId.value.set(thread.parent_message_id, thread);
+      }
+    });
+  } catch (error) {
+    debug.error('Failed to load threads:', error);
+  } finally {
+    loadingThreads.value = false;
+  }
+};
+
+// Get thread for a message (if this message started a thread)
+const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined => {
+  return threadsByMessageId.value.get(messageId);
+};
+
+// Open a thread
+const openThread = (thread: ThreadWithDetails) => {
+  emit('createThread', { thread } as any);
+};
+
+// Open a thread by ID (for system messages)
+const handleOpenThread = async (threadId?: string) => {
+  if (!threadId) return;
+  
+  try {
+    const thread = await threadService.getThread(threadId);
+    if (thread) {
+      emit('createThread', { thread } as any);
+    }
+  } catch (error) {
+    debug.error('Failed to open thread:', error);
+  }
+};
+
 // Encryption capability check (cached - only updates when service state changes)
 const canDecryptMessages = ref(false);
 
-// Check encryption status once on mount
+// Check encryption status once on mount and load threads
 onMounted(async () => {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
@@ -382,6 +493,14 @@ onMounted(async () => {
   } catch {
     canDecryptMessages.value = false;
   }
+  
+  // Load threads for initial channel
+  loadChannelThreads();
+});
+
+// Reload threads when channel changes
+watch(() => props.channelId, () => {
+  loadChannelThreads();
 });
 
 // Fetch bot data from database
@@ -564,6 +683,14 @@ const bufferDistance = ref(0);
 const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
+
+// Delete confirmation modal state
+const showDeleteConfirmModal = ref(false);
+const deleteConfirmConfig = ref({
+  messageId: '',
+  hasThread: false,
+  threadName: '',
+});
 
 // Context menu state
 const contextMenuVisible = ref(false);
@@ -1301,9 +1428,47 @@ const cancelEdit = () => {
 };
 
 const deleteMessage = (messageId: string) => {
+  // Check if message has a thread
+  const thread = getThreadForMessage(messageId);
+  
+  if (thread) {
+    // Show confirmation modal for messages with threads
+    deleteConfirmConfig.value = {
+      messageId,
+      hasThread: true,
+      threadName: thread.name || 'this thread',
+    };
+    showDeleteConfirmModal.value = true;
+  } else {
+    // No thread, delete directly
+    triggerDestructive();
+    chatStore.deleteMessage(messageId);
+  }
+};
+
+const confirmDeleteMessage = async () => {
+  const { messageId } = deleteConfirmConfig.value;
+  
   // Haptic feedback for destructive action
   triggerDestructive();
-  chatStore.deleteMessage(messageId);
+  
+  // Delete the message (cascade will delete the thread)
+  await chatStore.deleteMessage(messageId);
+  
+  // Clear thread from local cache
+  threadsByMessageId.value.delete(messageId);
+  
+  // Close the modal
+  showDeleteConfirmModal.value = false;
+};
+
+const cancelDeleteMessage = () => {
+  showDeleteConfirmModal.value = false;
+  deleteConfirmConfig.value = {
+    messageId: '',
+    hasThread: false,
+    threadName: '',
+  };
 };
 
 const openEmojiReactor = (message: Message, event: MouseEvent) => {
@@ -1357,6 +1522,11 @@ const handleReplyClick = async (replyMessageId: string) => {
   if (!chatStore.currentChannelId) return;
   const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
   if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
+};
+
+// Thread Logic
+const createThread = (message: Message) => {
+  emit('createThread', message);
 };
 
 const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
@@ -1762,6 +1932,19 @@ const closeInviteModal = () => {
   margin-left: 0.35rem;
   vertical-align: baseline;
   line-height: 1.375;
+}
+
+/* Pin indicator */
+.pin-indicator {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.8;
+  cursor: help;
+}
+
+/* Thread action button */
+.thread-btn {
+  color: var(--harmony-primary);
 }
 
 /* Compact message (no header) */
@@ -2184,6 +2367,35 @@ const closeInviteModal = () => {
 
 .system-text :deep(.system-message-content) {
   color: inherit !important;
+}
+
+/* Thread created system message */
+.thread-created-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.system-user-mention {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.system-user-mention:hover {
+  text-decoration: underline;
+}
+
+.system-thread-link,
+.system-threads-link {
+  color: var(--text-link, #00aff4);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.system-thread-link:hover,
+.system-threads-link:hover {
+  text-decoration: underline;
 }
 
 .system-timestamp {

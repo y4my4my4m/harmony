@@ -120,6 +120,24 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
+              <!-- Custom Status -->
+              <div 
+                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
+                class="user-custom-status"
+              >
+                <img 
+                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
+                  class="status-emoji-img"
+                />
+                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
+                  {{ getUserCustomStatus(user.id).value?.emoji }}
+                </span>
+                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
+                  {{ getUserCustomStatus(user.id).value?.text }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -348,6 +366,7 @@ const {
   getUserStatus,
   isUserLocal,
   getUserDomain,
+  getUserCustomStatus,
 } = useUserData();
 
 // Component state
@@ -774,6 +793,30 @@ const closeInviteModal = () => {
 
 .user-groups::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.15);
+}
+
+.user-custom-status {
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.status-emoji-img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.status-text {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .offline-user {

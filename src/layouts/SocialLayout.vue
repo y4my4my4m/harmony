@@ -12,7 +12,6 @@
         :instance-domain="instanceDomain"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
-        @toggle-voice-panel="$emit('toggleVoicePanel')"
         @toggle-search="handleToggleSearch"
         @switch-feed="handleSwitchFeed"
         @refresh-timeline="$emit('refreshTimeline')"

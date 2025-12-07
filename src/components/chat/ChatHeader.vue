@@ -30,11 +30,24 @@
 
     <div class="header-actions">
       <button 
-        class="action-btn voice-btn"
-        @click="$emit('toggle-voice-panel')"
-        title="Join voice channel"
+        v-if="pinnedCount > 0"
+        class="action-btn pinned-btn"
+        :class="{ 'has-pins': pinnedCount > 0 }"
+        @click="handlePinnedClick"
+        :title="`${pinnedCount} pinned message${pinnedCount !== 1 ? 's' : ''}`"
       >
-        <Icon name="phone" :size="16" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,2L15.09,8.26L22,9.27L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9.27L8.91,8.26L12,2Z"/>
+        </svg>
+        <span v-if="pinnedCount > 0" class="pinned-count">{{ pinnedCount }}</span>
+      </button>
+      
+      <button 
+        class="action-btn threads-btn"
+        @click="handleThreadsClick"
+        title="View all threads"
+      >
+        <Icon name="thread" :size="16" />
       </button>
       
       <button 
@@ -66,9 +79,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
+import { messageService } from '@/services'
 
 // Props
 interface Props {
@@ -83,18 +97,37 @@ const props = defineProps<Props>()
 // Emits
 const emit = defineEmits<{
   'toggle-left-sidebar': []
-  'toggle-voice-panel': []
   'toggle-right-sidebar': []
   'toggle-search': []
+  'show-pinned': []
+  'show-threads': []
 }>()
 
 // State
 const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
+const pinnedCount = ref(0)
 
 // Methods
+const loadPinnedCount = async () => {
+  if (!props.channel?.id) return
+  try {
+    pinnedCount.value = await messageService.getPinnedCount(props.channel.id)
+  } catch (error) {
+    console.error('Failed to load pinned count:', error)
+  }
+}
+
+const handlePinnedClick = () => {
+  emit('show-pinned')
+}
+
 const handleSearchClick = () => {
   emit('toggle-search')
+}
+
+const handleThreadsClick = () => {
+  emit('show-threads')
 }
 
 const handleMembersClick = () => {
@@ -105,6 +138,14 @@ const handleMembersClick = () => {
 const handleMoreClick = () => {
   showOptionsMenu.value = !showOptionsMenu.value
 }
+
+watch(() => props.channel?.id, () => {
+  loadPinnedCount()
+})
+
+onMounted(() => {
+  loadPinnedCount()
+})
 </script>
 
 <style scoped>
@@ -214,6 +255,29 @@ const handleMoreClick = () => {
   background: var(--background-secondary);
 }
 
+.pinned-btn {
+  position: relative;
+}
+
+.pinned-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--harmony-primary);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.pinned-btn.has-pins {
+  color: var(--harmony-primary);
+}
+
 
 /* Mobile styles */
 @media (max-width: 768px) {
@@ -233,5 +297,10 @@ const handleMoreClick = () => {
   .channel-description {
     display: none;
   }
+  .pinned-count {
+    top: 0;
+    right: 0px;
+  }
+
 }
 </style>

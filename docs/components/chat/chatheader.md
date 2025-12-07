@@ -126,7 +126,6 @@ This component exposes no public methods.
   <ChatHeader
     :channel="undefined"
     @toggle-left-sidebar="handleToggle-left-sidebar"
-    @toggle-voice-panel="handleToggle-voice-panel"
     @toggle-right-sidebar="handleToggle-right-sidebar"
     @toggle-search="handleToggle-search" />
 </template>

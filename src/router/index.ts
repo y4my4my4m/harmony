@@ -74,6 +74,15 @@ const router = createRouter({
             serverId: route.params.serverId as string,
             channelId: route.params.channelId as string
           })
+        },
+        {
+          path: ':serverId/thread/:threadId',
+          name: 'ThreadView',
+          component: () => import('@/views/ThreadFullView.vue'),
+          props: route => ({
+            serverId: route.params.serverId as string,
+            threadId: route.params.threadId as string
+          })
         }
       ]
     },

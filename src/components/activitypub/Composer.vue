@@ -293,25 +293,16 @@
           </div>
         </div>
 
-        <!-- Emoji Picker -->
+        <!-- Unified Media Picker (GIFs + Emoji) -->
         <Teleport to="body">
-          <EmojiPopup
-            v-if="showEmojiPicker"
-            @sendEmoji="handleEmojiInsert"
-            :closeEmojiList="() => showEmojiPicker = false"
-            :position="'above'"
-            :triggerElement="emojiTriggerRef || undefined"
-          />
-        </Teleport>
-
-        <!-- GIF Picker -->
-        <Teleport to="body">
-          <GifComponent
-            v-if="showGiphyPicker"
+          <MediaPickerPopup
+            v-if="showMediaPicker"
             @sendGif="handleGifInsert"
-            :closeGiphy="() => showGiphyPicker = false"
+            @sendEmoji="handleEmojiInsert"
+            :closePopup="() => showMediaPicker = false"
             :position="'above'"
-            :triggerElement="gifTriggerRef || undefined"
+            :triggerElement="mediaPickerTriggerRef || undefined"
+            :initialTab="mediaPickerInitialTab"
           />
         </Teleport>
       </div>
@@ -334,8 +325,7 @@ import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 // Components
 import MonyContent from './MonyContent.vue';
 import MonyMediaUpload from './MonyMediaUpload.vue';
-import EmojiPopup from '@/components/EmojiPopup.vue';
-import GifComponent from '@/components/GifComponent.vue';
+import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
 import GifIcon from '@/components/icons/Gif.vue';
 import EmojiUI from '@/components/EmojiUI.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -376,6 +366,7 @@ const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
+const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTriggerRef.value);
 const isPosting = ref(false);
 const isDragging = ref(false);
 
@@ -386,8 +377,12 @@ const visibility = ref<Post['visibility']>(props.defaultVisibility || 'public');
 const isSensitive = ref(false);
 const showContentWarning = ref(false);
 const showVisibilityMenu = ref(false);
-const showEmojiPicker = ref(false);
-const showGiphyPicker = ref(false);
+const showMediaPicker = ref(false);
+const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs');
+
+// Legacy computed for compatibility
+const showEmojiPicker = computed(() => showMediaPicker.value && mediaPickerInitialTab.value === 'emoji');
+const showGiphyPicker = computed(() => showMediaPicker.value && mediaPickerInitialTab.value === 'gifs');
 const isDraft = ref(false);
 const mediaAttachments = ref<any[]>([]);
 
@@ -626,23 +621,20 @@ const closeVisibilityMenu = () => {
 };
 
 const toggleVisibilityMenu = () => {
-  showEmojiPicker.value = false;
-  showGiphyPicker.value = false;
+  showMediaPicker.value = false;
   showVisibilityMenu.value = !showVisibilityMenu.value;
 };
 
 const toggleEmojiPicker = () => {
-  const wasOpen = showEmojiPicker.value;
   showVisibilityMenu.value = false;
-  showGiphyPicker.value = false;
-  showEmojiPicker.value = !wasOpen;
+  mediaPickerInitialTab.value = 'emoji';
+  showMediaPicker.value = !showMediaPicker.value;
 };
 
 const toggleGifPicker = () => {
-  const wasOpen = showGiphyPicker.value;
   showVisibilityMenu.value = false;
-  showEmojiPicker.value = false;
-  showGiphyPicker.value = !wasOpen;
+  mediaPickerInitialTab.value = 'gifs';
+  showMediaPicker.value = !showMediaPicker.value;
 };
 
 const handleOverlayClick = () => {
@@ -653,18 +645,17 @@ const handleOverlayClick = () => {
 
 const handleEmojiInsert = (emoji: any) => {
   actions.insertEmoji(emoji);
-  showEmojiPicker.value = false;
+  showMediaPicker.value = false;
 };
 
 const handleGifInsert = (gif: any) => {
   actions.insertGif(gif);
-  showGiphyPicker.value = false;
+  showMediaPicker.value = false;
 };
 
 const handleClose = () => {
   // Close all pickers
-  showEmojiPicker.value = false;
-  showGiphyPicker.value = false;
+  showMediaPicker.value = false;
   showVisibilityMenu.value = false;
   
   if (content.value.trim() && !isPosting.value) {
@@ -684,8 +675,7 @@ const resetComposer = () => {
   isSensitive.value = false;
   showContentWarning.value = false;
   showVisibilityMenu.value = false;
-  showEmojiPicker.value = false;
-  showGiphyPicker.value = false;
+  showMediaPicker.value = false;
   isDraft.value = false;
   
   mediaAttachments.value.forEach(media => {

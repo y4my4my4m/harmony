@@ -126,7 +126,13 @@ export interface UserData {
 export interface CustomUserStatus {
   text: string           // The status text
   emoji?: string         // Optional emoji (can be custom emoji ID or unicode)
+  emoji_url?: string     // URL for custom emoji image
   expiresAt?: string     // When the status expires (ISO date string)
+  // Rich presence fields
+  type?: 'custom' | 'playing' | 'listening' | 'watching' | 'competing' | 'streaming'
+  details?: string       // Additional details (e.g., game name, song name)
+  state?: string         // Current state (e.g., "In Queue", "Playing Solo")
+  setAt?: string         // When the status was set
 }
 
 export interface UserContext {
@@ -284,6 +290,7 @@ export interface Message {
   updated_at?: Date; // Timestamp when message was last edited
   channel_id?: string;
   conversation_id?: string; // for DMs
+  thread_id?: string; // for thread messages
   user_id?: string; // Optional - for user messages
   bot_id?: string; // Optional - for bot messages
   content: MessagePart[];
@@ -304,22 +311,116 @@ export interface Message {
     embeds?: Record<string, EmbedPayload>;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
+  // Pinning
+  is_pinned?: boolean;
+  pinned_at?: string;
+  pinned_by?: string;
 }
 
-// should probably start to put these in their own files
+// =============================================
+// ROLE AND PERMISSION TYPES
+// Full implementation in src/services/RoleService.ts
+// =============================================
+
+// Legacy Role interface for backwards compatibility
 export interface Role {
-  id: number;
+  id: string;
   name: string;
-  permissions: Permission[];
+  permissions: string[];
   color: string;
+  position?: number;
+  hoist?: boolean;
+  mentionable?: boolean;
 }
 
+// Legacy Permission enum - use Permission from RoleService for new code
 export enum Permission {
-  VIEW_CHANNEL,
-  SEND_MESSAGE,
-  MANAGE_MESSAGES,
-  MANAGE_CHANNEL,
-  // Add more permissions as needed
+  VIEW_CHANNEL = 'VIEW_CHANNEL',
+  SEND_MESSAGE = 'SEND_MESSAGES',
+  MANAGE_MESSAGES = 'MANAGE_MESSAGES',
+  MANAGE_CHANNEL = 'MANAGE_CHANNELS',
+}
+
+// =============================================
+// THREAD TYPES
+// Discord-style threaded conversations
+// =============================================
+
+export interface Thread {
+  id: string;
+  channel_id: string;
+  parent_message_id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+  archived: boolean;
+  archived_at?: string;
+  auto_archive_duration: number; // minutes: 60, 1440, 4320, 10080
+  locked: boolean;
+  message_count: number;
+  member_count: number;
+  last_message_id?: string;
+  last_message_at?: string;
+  ap_id?: string;
+  federation_status?: 'pending' | 'synced' | 'failed';
+  federation_metadata?: Record<string, any>;
+}
+
+export interface ThreadMember {
+  id: string;
+  thread_id: string;
+  user_id: string;
+  joined_at: string;
+  last_read_message_id?: string;
+  flags?: number;
+}
+
+export interface ThreadMessage extends Message {
+  thread_id: string;
+}
+
+// =============================================
+// PINNED MESSAGE TYPES
+// =============================================
+
+export interface PinnedMessage {
+  id: string;
+  message_id: string;
+  channel_id?: string;
+  conversation_id?: string;
+  pinned_by: string;
+  pinned_at: string;
+  message?: Message;
+}
+
+// =============================================
+// CUSTOM STATUS / RICH PRESENCE TYPES
+// =============================================
+
+export type ActivityType = 'custom' | 'playing' | 'listening' | 'watching' | 'competing' | 'streaming';
+
+export interface RichPresenceStatus {
+  type: ActivityType;
+  text: string;
+  emoji?: string;
+  emoji_url?: string;
+  details?: string; // e.g., game name, song name
+  state?: string; // e.g., "In Queue", "Playing Solo"
+  timestamps?: {
+    start?: string;
+    end?: string;
+  };
+  assets?: {
+    large_image?: string;
+    large_text?: string;
+    small_image?: string;
+    small_text?: string;
+  };
+  party?: {
+    id?: string;
+    size?: [number, number]; // [current, max]
+  };
+  expires_at?: string;
 }
 export interface Gif {
   id: string;

@@ -16,6 +16,10 @@ import { interactionService, InteractionService } from './InteractionService'
 import { profileService, ProfileService } from './ProfileService'
 import { notificationService, NotificationService } from './NotificationService'
 import { activityPubService, ActivityPubService } from './activityPubService'
+import { roleService } from './RoleService'
+import { threadService } from './ThreadService'
+import { loggingService, log } from './LoggingService'
+import { gifService } from './GifService'
 import { debug } from '@/utils/debug'
 
 // Re-export services and types
@@ -45,6 +49,37 @@ export type {
 // Legacy services (to be migrated)
 export { activityPubService, ActivityPubService } from './activityPubService'
 
+// Role and permission services
+export { roleService } from './RoleService'
+export type { 
+  ServerRole, 
+  UserRole, 
+  ChannelPermissionOverride,
+  CreateRoleParams,
+  UpdateRoleParams 
+} from './RoleService'
+export { Permission, PERMISSION_CATEGORIES, PERMISSION_DESCRIPTIONS } from './RoleService'
+
+// Permissions service (uses RoleService)
+export * from './permissionsService'
+
+// Thread service
+export { threadService } from './ThreadService'
+export type {
+  CreateThreadParams,
+  UpdateThreadParams,
+  ThreadWithDetails,
+  ThreadMessagesResult
+} from './ThreadService'
+
+// Logging service
+export { loggingService, log } from './LoggingService'
+export type { LogLevel, LogCategory, LogEntry, LoggingConfig } from './LoggingService'
+
+// GIF service
+export { gifService, GifService } from './GifService'
+export type { GifFavorite, FavoriteGif } from './GifService'
+
 // Service aggregator for easy access
 export const services = {
   posts: postService,
@@ -52,6 +87,10 @@ export const services = {
   interactions: interactionService,
   profiles: profileService,
   notifications: notificationService,
+  roles: roleService,
+  threads: threadService,
+  logging: loggingService,
+  gifs: gifService,
   // Legacy
   activityPub: activityPubService
 } as const

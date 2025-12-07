@@ -21,7 +21,6 @@
         :current-view="currentView"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
-        @toggle-voice-panel="$emit('toggleVoicePanel')"
         @toggle-search="handleToggleSearch"
       />
     </div>
@@ -61,9 +60,10 @@
             :server="currentServer"
             :is-mobile="isMobile"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
-            @toggle-voice-panel="$emit('toggleVoicePanel')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
             @toggle-search="handleToggleSearch"
+            @show-pinned="showPinnedMessages = true"
+            @show-threads="showAllThreads = true"
           />
           <div v-else class="chat-placeholder-header">
             <div class="header-content">
@@ -95,7 +95,7 @@
               :conversation-id="conversationId"
               @send-message="handleSendMessage"
               @toggle-left-sidebar="$emit('toggleLeftSidebar')"
-              @toggle-voice-panel="$emit('toggleVoicePanel')"
+              @show-all-threads="showAllThreads = true"
             />
           </div>
 
@@ -133,6 +133,33 @@
       @close="showSearchModal = false"
       @message-click="handleSearchMessageClick"
     />
+    
+    <!-- Pinned Messages Popup -->
+    <PinnedMessagesPopup
+      :is-visible="showPinnedMessages"
+      :channel-id="currentChannelId"
+      :conversation-id="props.conversationId"
+      @close="showPinnedMessages = false"
+      @jump-to-message="handleJumpToMessage"
+    />
+    
+    <!-- All Threads Modal -->
+    <AllThreadsModal
+      :is-visible="showAllThreads"
+      :channel-id="currentChannelId"
+      :server-id="currentServer?.id"
+      @close="showAllThreads = false"
+      @select-thread="handleSelectThread"
+    />
+    
+    <!-- Thread View Sidebar -->
+    <ThreadView
+      :is-visible="showThreadView"
+      :thread-id="selectedThreadId"
+      :initial-thread="selectedThread"
+      @close="closeThreadView"
+      @thread-updated="handleThreadUpdated"
+    />
   </div>
 </template>
 
@@ -148,6 +175,9 @@ import NoServersSplash from '@/components/NoServersSplash.vue'
 import CreateChannel from '@/components/CreateChannel.vue'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
 import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
+import PinnedMessagesPopup from '@/components/PinnedMessagesPopup.vue'
+import AllThreadsModal from '@/components/threads/AllThreadsModal.vue'
+import ThreadView from '@/components/threads/ThreadView.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
@@ -207,6 +237,11 @@ const { getCurrentUser } = useUserData()
 // State
 const showCreateChannelForm = ref(false)
 const currentCategoryId = ref<string | undefined>()
+const showPinnedMessages = ref(false)
+const showAllThreads = ref(false)
+const showThreadView = ref(false)
+const selectedThreadId = ref<string | undefined>()
+const selectedThread = ref<any>(null)
 
 // Computed
 const servers = computed(() => serverChannelStore.servers)
@@ -306,6 +341,30 @@ const handleSearchMessageClick = (message: any, searchQuery?: string) => {
       }
     })
   }
+}
+
+const handleJumpToMessage = (messageId: string) => {
+  // Scroll to message in current channel/conversation
+  // The chat store handles message jumping via query params
+  const currentQuery = { ...route.query, messageId }
+  router.replace({ query: currentQuery })
+}
+
+// Thread handlers
+const handleSelectThread = (thread: any) => {
+  selectedThreadId.value = thread.id
+  selectedThread.value = thread
+  showThreadView.value = true
+}
+
+const closeThreadView = () => {
+  showThreadView.value = false
+  selectedThreadId.value = undefined
+  selectedThread.value = null
+}
+
+const handleThreadUpdated = (thread: any) => {
+  selectedThread.value = thread
 }
 
 // Keyboard shortcut handler (Ctrl+K / Cmd+K)

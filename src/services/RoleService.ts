@@ -1,0 +1,755 @@
+import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
+
+// =============================================
+// Permission Definitions (Discord-style)
+// =============================================
+
+export enum Permission {
+  // General Permissions
+  ADMINISTRATOR = 'ADMINISTRATOR',
+  VIEW_CHANNEL = 'VIEW_CHANNEL',
+  MANAGE_CHANNELS = 'MANAGE_CHANNELS',
+  MANAGE_ROLES = 'MANAGE_ROLES',
+  MANAGE_EMOJIS = 'MANAGE_EMOJIS',
+  VIEW_AUDIT_LOG = 'VIEW_AUDIT_LOG',
+  MANAGE_WEBHOOKS = 'MANAGE_WEBHOOKS',
+  MANAGE_SERVER = 'MANAGE_SERVER',
+
+  // Membership Permissions
+  CREATE_INVITE = 'CREATE_INVITE',
+  CHANGE_NICKNAME = 'CHANGE_NICKNAME',
+  MANAGE_NICKNAMES = 'MANAGE_NICKNAMES',
+  KICK_MEMBERS = 'KICK_MEMBERS',
+  BAN_MEMBERS = 'BAN_MEMBERS',
+  TIMEOUT_MEMBERS = 'TIMEOUT_MEMBERS',
+
+  // Text Channel Permissions
+  SEND_MESSAGES = 'SEND_MESSAGES',
+  SEND_MESSAGES_IN_THREADS = 'SEND_MESSAGES_IN_THREADS',
+  CREATE_PUBLIC_THREADS = 'CREATE_PUBLIC_THREADS',
+  CREATE_PRIVATE_THREADS = 'CREATE_PRIVATE_THREADS',
+  EMBED_LINKS = 'EMBED_LINKS',
+  ATTACH_FILES = 'ATTACH_FILES',
+  ADD_REACTIONS = 'ADD_REACTIONS',
+  USE_EXTERNAL_EMOJIS = 'USE_EXTERNAL_EMOJIS',
+  MENTION_EVERYONE = 'MENTION_EVERYONE',
+  MANAGE_MESSAGES = 'MANAGE_MESSAGES',
+  READ_MESSAGE_HISTORY = 'READ_MESSAGE_HISTORY',
+  SEND_TTS_MESSAGES = 'SEND_TTS_MESSAGES',
+  PIN_MESSAGES = 'PIN_MESSAGES',
+
+  // Voice Channel Permissions
+  CONNECT = 'CONNECT',
+  SPEAK = 'SPEAK',
+  STREAM = 'STREAM',
+  USE_VAD = 'USE_VAD',
+  PRIORITY_SPEAKER = 'PRIORITY_SPEAKER',
+  MUTE_MEMBERS = 'MUTE_MEMBERS',
+  DEAFEN_MEMBERS = 'DEAFEN_MEMBERS',
+  MOVE_MEMBERS = 'MOVE_MEMBERS',
+}
+
+// Permission categories for UI grouping
+export const PERMISSION_CATEGORIES = {
+  general: {
+    name: 'General Server Permissions',
+    permissions: [
+      Permission.VIEW_CHANNEL,
+      Permission.MANAGE_CHANNELS,
+      Permission.MANAGE_ROLES,
+      Permission.MANAGE_EMOJIS,
+      Permission.VIEW_AUDIT_LOG,
+      Permission.MANAGE_WEBHOOKS,
+      Permission.MANAGE_SERVER,
+    ],
+  },
+  membership: {
+    name: 'Membership Permissions',
+    permissions: [
+      Permission.CREATE_INVITE,
+      Permission.CHANGE_NICKNAME,
+      Permission.MANAGE_NICKNAMES,
+      Permission.KICK_MEMBERS,
+      Permission.BAN_MEMBERS,
+      Permission.TIMEOUT_MEMBERS,
+    ],
+  },
+  text: {
+    name: 'Text Channel Permissions',
+    permissions: [
+      Permission.SEND_MESSAGES,
+      Permission.SEND_MESSAGES_IN_THREADS,
+      Permission.CREATE_PUBLIC_THREADS,
+      Permission.CREATE_PRIVATE_THREADS,
+      Permission.EMBED_LINKS,
+      Permission.ATTACH_FILES,
+      Permission.ADD_REACTIONS,
+      Permission.USE_EXTERNAL_EMOJIS,
+      Permission.MENTION_EVERYONE,
+      Permission.MANAGE_MESSAGES,
+      Permission.READ_MESSAGE_HISTORY,
+      Permission.SEND_TTS_MESSAGES,
+      Permission.PIN_MESSAGES,
+    ],
+  },
+  voice: {
+    name: 'Voice Channel Permissions',
+    permissions: [
+      Permission.CONNECT,
+      Permission.SPEAK,
+      Permission.STREAM,
+      Permission.USE_VAD,
+      Permission.PRIORITY_SPEAKER,
+      Permission.MUTE_MEMBERS,
+      Permission.DEAFEN_MEMBERS,
+      Permission.MOVE_MEMBERS,
+    ],
+  },
+  dangerous: {
+    name: 'Dangerous Permissions',
+    permissions: [Permission.ADMINISTRATOR],
+  },
+} as const
+
+// Permission descriptions for UI
+export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
+  [Permission.ADMINISTRATOR]: 'Members with this permission have every permission and can bypass channel-specific permissions.',
+  [Permission.VIEW_CHANNEL]: 'Allows members to view channels and see their content.',
+  [Permission.MANAGE_CHANNELS]: 'Allows members to create, edit, and delete channels.',
+  [Permission.MANAGE_ROLES]: 'Allows members to create, edit, and delete roles lower than their highest role.',
+  [Permission.MANAGE_EMOJIS]: 'Allows members to add, edit, and remove custom emojis.',
+  [Permission.VIEW_AUDIT_LOG]: 'Allows members to view the server audit log.',
+  [Permission.MANAGE_WEBHOOKS]: 'Allows members to create, edit, and delete webhooks.',
+  [Permission.MANAGE_SERVER]: 'Allows members to change server name, icon, and other settings.',
+  [Permission.CREATE_INVITE]: 'Allows members to create invites to the server.',
+  [Permission.CHANGE_NICKNAME]: 'Allows members to change their own nickname.',
+  [Permission.MANAGE_NICKNAMES]: 'Allows members to change the nicknames of other members.',
+  [Permission.KICK_MEMBERS]: 'Allows members to remove other members from the server.',
+  [Permission.BAN_MEMBERS]: 'Allows members to permanently ban other members from the server.',
+  [Permission.TIMEOUT_MEMBERS]: 'Allows members to timeout other members, preventing them from sending messages.',
+  [Permission.SEND_MESSAGES]: 'Allows members to send messages in text channels.',
+  [Permission.SEND_MESSAGES_IN_THREADS]: 'Allows members to send messages in threads.',
+  [Permission.CREATE_PUBLIC_THREADS]: 'Allows members to create public threads.',
+  [Permission.CREATE_PRIVATE_THREADS]: 'Allows members to create private threads.',
+  [Permission.EMBED_LINKS]: 'Allows members to embed links that display previews.',
+  [Permission.ATTACH_FILES]: 'Allows members to upload files and images.',
+  [Permission.ADD_REACTIONS]: 'Allows members to add reactions to messages.',
+  [Permission.USE_EXTERNAL_EMOJIS]: 'Allows members to use emojis from other servers.',
+  [Permission.MENTION_EVERYONE]: 'Allows members to use @everyone and @here mentions.',
+  [Permission.MANAGE_MESSAGES]: 'Allows members to delete and pin messages from other members.',
+  [Permission.READ_MESSAGE_HISTORY]: 'Allows members to read previous messages in a channel.',
+  [Permission.SEND_TTS_MESSAGES]: 'Allows members to send text-to-speech messages.',
+  [Permission.PIN_MESSAGES]: 'Allows members to pin messages in channels.',
+  [Permission.CONNECT]: 'Allows members to connect to voice channels.',
+  [Permission.SPEAK]: 'Allows members to speak in voice channels.',
+  [Permission.STREAM]: 'Allows members to share their screen in voice channels.',
+  [Permission.USE_VAD]: 'Allows members to use voice activity detection instead of push-to-talk.',
+  [Permission.PRIORITY_SPEAKER]: 'Allows members to be more easily heard when speaking.',
+  [Permission.MUTE_MEMBERS]: 'Allows members to mute other members in voice channels.',
+  [Permission.DEAFEN_MEMBERS]: 'Allows members to deafen other members in voice channels.',
+  [Permission.MOVE_MEMBERS]: 'Allows members to move other members between voice channels.',
+}
+
+// =============================================
+// Role Types
+// =============================================
+
+export interface ServerRole {
+  id: string
+  server_id: string
+  name: string
+  color: string
+  hoist: boolean
+  mentionable: boolean
+  position: number
+  permissions: Record<Permission, boolean>
+  icon_url?: string
+  unicode_emoji?: string
+  is_default?: boolean
+  is_admin?: boolean
+  member_count?: number
+  created_at: string
+  updated_at: string
+  ap_id?: string
+  federation_metadata?: Record<string, any>
+}
+
+export interface UserRole {
+  id: string
+  user_id: string
+  role_id: string
+  server_id: string
+  assigned_at: string
+  assigned_by?: string
+}
+
+export interface ChannelPermissionOverride {
+  id: string
+  channel_id: string
+  target_type: 'role' | 'user'
+  target_id: string
+  allow: Record<Permission, boolean>
+  deny: Record<Permission, boolean>
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateRoleParams {
+  server_id: string
+  name: string
+  color?: string
+  hoist?: boolean
+  mentionable?: boolean
+  permissions?: Partial<Record<Permission, boolean>>
+  icon_url?: string
+  unicode_emoji?: string
+}
+
+export interface UpdateRoleParams {
+  name?: string
+  color?: string
+  hoist?: boolean
+  mentionable?: boolean
+  position?: number
+  permissions?: Record<Permission, boolean> | string[]
+  icon_url?: string
+  unicode_emoji?: string
+}
+
+// =============================================
+// Role Service Class
+// =============================================
+
+class RoleService {
+  private roleCache = new Map<string, ServerRole[]>() // serverId -> roles
+  private userRolesCache = new Map<string, string[]>() // `${userId}-${serverId}` -> roleIds
+  private permissionCache = new Map<string, Record<Permission, boolean>>() // `${userId}-${serverId}-${channelId?}` -> permissions
+
+  // =============================================
+  // Role CRUD Operations
+  // =============================================
+
+  /**
+   * Get all roles for a server
+   */
+  async getServerRoles(serverId: string, forceRefresh = false): Promise<ServerRole[]> {
+    if (!forceRefresh && this.roleCache.has(serverId)) {
+      return this.roleCache.get(serverId)!
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('server_roles')
+        .select(`
+          *,
+          member_count:user_roles(count)
+        `)
+        .eq('server_id', serverId)
+        .order('position', { ascending: false })
+
+      if (error) throw error
+
+      const roles = (data || []).map((r: any) => ({
+        ...r,
+        member_count: r.member_count?.[0]?.count || 0,
+      })) as ServerRole[]
+      this.roleCache.set(serverId, roles)
+      return roles
+    } catch (error) {
+      debug.error('Failed to fetch server roles:', error)
+      return []
+    }
+  }
+
+  /**
+   * Alias for getServerRoles for component compatibility
+   */
+  async getRolesForServer(serverId: string): Promise<ServerRole[]> {
+    return this.getServerRoles(serverId)
+  }
+
+  /**
+   * Get a specific role by ID
+   */
+  async getRole(roleId: string): Promise<ServerRole | null> {
+    try {
+      const { data, error } = await supabase
+        .from('server_roles')
+        .select('*')
+        .eq('id', roleId)
+        .single()
+
+      if (error) throw error
+      return data as ServerRole
+    } catch (error) {
+      debug.error('Failed to fetch role:', error)
+      return null
+    }
+  }
+
+  /**
+   * Create a new role
+   */
+  async createRole(serverId: string, params: Partial<CreateRoleParams>): Promise<ServerRole | null> {
+    try {
+      // Get highest position for new role
+      const roles = await this.getServerRoles(serverId)
+      const maxPosition = Math.max(...roles.map(r => r.position), 0)
+
+      const { data, error } = await supabase
+        .from('server_roles')
+        .insert({
+          server_id: serverId,
+          name: params.name || 'New Role',
+          color: params.color || '#99AAB5',
+          hoist: params.hoist || false,
+          mentionable: params.mentionable || false,
+          position: maxPosition + 1,
+          permissions: params.permissions || {},
+          icon_url: params.icon_url,
+          unicode_emoji: params.unicode_emoji,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Invalidate cache
+      this.roleCache.delete(serverId)
+
+      return data as ServerRole
+    } catch (error) {
+      debug.error('Failed to create role:', error)
+      return null
+    }
+  }
+
+  /**
+   * Update an existing role
+   */
+  async updateRole(roleId: string, params: UpdateRoleParams): Promise<ServerRole | null> {
+    try {
+      const { data, error } = await supabase
+        .from('server_roles')
+        .update(params)
+        .eq('id', roleId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      const role = data as ServerRole
+      // Invalidate caches
+      this.roleCache.delete(role.server_id)
+      this.permissionCache.clear()
+
+      return role
+    } catch (error) {
+      debug.error('Failed to update role:', error)
+      return null
+    }
+  }
+
+  /**
+   * Delete a role
+   */
+  async deleteRole(roleId: string): Promise<boolean> {
+    try {
+      // Get role first for cache invalidation
+      const role = await this.getRole(roleId)
+      if (!role) return false
+
+      if (role.is_default) {
+        debug.error('Cannot delete @everyone role')
+        return false
+      }
+
+      const { error } = await supabase
+        .from('server_roles')
+        .delete()
+        .eq('id', roleId)
+
+      if (error) throw error
+
+      // Invalidate caches
+      this.roleCache.delete(role.server_id)
+      this.permissionCache.clear()
+
+      return true
+    } catch (error) {
+      debug.error('Failed to delete role:', error)
+      return false
+    }
+  }
+
+  /**
+   * Reorder roles (update positions)
+   */
+  async reorderRoles(serverId: string, rolePositions: { id: string; position: number }[]): Promise<boolean> {
+    try {
+      // Use a transaction via RPC or multiple updates
+      for (const { id, position } of rolePositions) {
+        const { error } = await supabase
+          .from('server_roles')
+          .update({ position })
+          .eq('id', id)
+          .eq('server_id', serverId)
+
+        if (error) throw error
+      }
+
+      // Invalidate cache
+      this.roleCache.delete(serverId)
+      this.permissionCache.clear()
+
+      return true
+    } catch (error) {
+      debug.error('Failed to reorder roles:', error)
+      return false
+    }
+  }
+
+  // =============================================
+  // User Role Assignments
+  // =============================================
+
+  /**
+   * Get roles assigned to a user in a server
+   */
+  async getUserRoles(userId: string, serverId: string): Promise<ServerRole[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select(`
+          role_id,
+          server_roles (*)
+        `)
+        .eq('user_id', userId)
+        .eq('server_id', serverId)
+
+      if (error) throw error
+
+      const roles = (data || [])
+        .map((ur: any) => ur.server_roles)
+        .filter(Boolean) as ServerRole[]
+
+      // Cache the role IDs
+      const cacheKey = `${userId}-${serverId}`
+      this.userRolesCache.set(cacheKey, roles.map(r => r.id))
+
+      return roles.sort((a, b) => b.position - a.position)
+    } catch (error) {
+      debug.error('Failed to fetch user roles:', error)
+      return []
+    }
+  }
+
+  /**
+   * Get all members with a specific role
+   */
+  async getRoleMembers(roleId: string): Promise<{ id: string; username: string; display_name?: string; avatar_url?: string }[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select(`
+          user_id,
+          assigned_at,
+          profiles:user_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          )
+        `)
+        .eq('role_id', roleId)
+
+      if (error) throw error
+      
+      return (data || []).map((ur: any) => ({
+        id: ur.user_id,
+        username: ur.profiles?.username || 'Unknown',
+        display_name: ur.profiles?.display_name,
+        avatar_url: ur.profiles?.avatar_url,
+      }))
+    } catch (error) {
+      debug.error('Failed to fetch role members:', error)
+      return []
+    }
+  }
+
+  /**
+   * Assign a role to a user
+   */
+  async assignRole(userId: string, roleId: string, serverId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: userId,
+          role_id: roleId,
+          server_id: serverId,
+        })
+
+      if (error) throw error
+
+      // Invalidate caches
+      this.userRolesCache.delete(`${userId}-${serverId}`)
+      this.permissionCache.clear()
+
+      return true
+    } catch (error: any) {
+      // Ignore duplicate key errors (role already assigned)
+      if (error.code === '23505') {
+        return true
+      }
+      debug.error('Failed to assign role:', error)
+      return false
+    }
+  }
+
+  /**
+   * Remove a role from a user
+   */
+  async removeRole(userId: string, roleId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('role_id', roleId)
+        .select('server_id')
+        .single()
+
+      if (error && error.code !== 'PGRST116') throw error
+
+      if (data) {
+        // Invalidate caches
+        this.userRolesCache.delete(`${userId}-${data.server_id}`)
+        this.permissionCache.clear()
+      }
+
+      return true
+    } catch (error) {
+      debug.error('Failed to remove role:', error)
+      return false
+    }
+  }
+
+  // =============================================
+  // Permission Calculations
+  // =============================================
+
+  /**
+   * Get effective permissions for a user in a server/channel
+   * Uses the database function for proper calculation
+   */
+  async getUserPermissions(
+    userId: string,
+    serverId: string,
+    channelId?: string
+  ): Promise<Record<Permission, boolean>> {
+    const cacheKey = `${userId}-${serverId}-${channelId || 'server'}`
+
+    if (this.permissionCache.has(cacheKey)) {
+      return this.permissionCache.get(cacheKey)!
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_user_permissions', {
+        p_user_id: userId,
+        p_server_id: serverId,
+        p_channel_id: channelId || null,
+      })
+
+      if (error) throw error
+
+      const permissions = (data || {}) as Record<Permission, boolean>
+      this.permissionCache.set(cacheKey, permissions)
+
+      return permissions
+    } catch (error) {
+      debug.error('Failed to get user permissions:', error)
+      return {} as Record<Permission, boolean>
+    }
+  }
+
+  /**
+   * Check if a user has a specific permission
+   */
+  async hasPermission(
+    userId: string,
+    serverId: string,
+    permission: Permission,
+    channelId?: string
+  ): Promise<boolean> {
+    const permissions = await this.getUserPermissions(userId, serverId, channelId)
+    return permissions[permission] === true || permissions[Permission.ADMINISTRATOR] === true
+  }
+
+  /**
+   * Check multiple permissions at once
+   */
+  async hasPermissions(
+    userId: string,
+    serverId: string,
+    requiredPermissions: Permission[],
+    channelId?: string
+  ): Promise<boolean> {
+    const permissions = await this.getUserPermissions(userId, serverId, channelId)
+
+    if (permissions[Permission.ADMINISTRATOR]) return true
+
+    return requiredPermissions.every(p => permissions[p] === true)
+  }
+
+  // =============================================
+  // Channel Permission Overrides
+  // =============================================
+
+  /**
+   * Get permission overrides for a channel
+   */
+  async getChannelOverrides(channelId: string): Promise<ChannelPermissionOverride[]> {
+    try {
+      const { data, error } = await supabase
+        .from('channel_permission_overrides')
+        .select('*')
+        .eq('channel_id', channelId)
+
+      if (error) throw error
+      return (data || []) as ChannelPermissionOverride[]
+    } catch (error) {
+      debug.error('Failed to fetch channel overrides:', error)
+      return []
+    }
+  }
+
+  /**
+   * Set permission override for a channel
+   */
+  async setChannelOverride(
+    channelId: string,
+    targetType: 'role' | 'user',
+    targetId: string,
+    allow: Partial<Record<Permission, boolean>>,
+    deny: Partial<Record<Permission, boolean>>
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('channel_permission_overrides')
+        .upsert({
+          channel_id: channelId,
+          target_type: targetType,
+          target_id: targetId,
+          allow,
+          deny,
+        }, {
+          onConflict: 'channel_id,target_type,target_id',
+        })
+
+      if (error) throw error
+
+      // Invalidate permission cache
+      this.permissionCache.clear()
+
+      return true
+    } catch (error) {
+      debug.error('Failed to set channel override:', error)
+      return false
+    }
+  }
+
+  /**
+   * Delete a channel permission override
+   */
+  async deleteChannelOverride(overrideId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('channel_permission_overrides')
+        .delete()
+        .eq('id', overrideId)
+
+      if (error) throw error
+
+      this.permissionCache.clear()
+      return true
+    } catch (error) {
+      debug.error('Failed to delete channel override:', error)
+      return false
+    }
+  }
+
+  // =============================================
+  // Helper Methods
+  // =============================================
+
+  /**
+   * Get the highest role for a user (for display purposes)
+   */
+  async getHighestRole(userId: string, serverId: string): Promise<ServerRole | null> {
+    const roles = await this.getUserRoles(userId, serverId)
+    return roles.length > 0 ? roles[0] : null
+  }
+
+  /**
+   * Get display color for a user (from highest hoisted role)
+   */
+  async getUserColor(userId: string, serverId: string): Promise<string | null> {
+    const roles = await this.getUserRoles(userId, serverId)
+    const hoistedRole = roles.find(r => r.hoist && r.color !== '#99AAB5')
+    return hoistedRole?.color || null
+  }
+
+  /**
+   * Check if user can manage another user (based on role hierarchy)
+   */
+  async canManageUser(
+    managerId: string,
+    targetId: string,
+    serverId: string
+  ): Promise<boolean> {
+    // Get both users' highest roles
+    const [managerRoles, targetRoles] = await Promise.all([
+      this.getUserRoles(managerId, serverId),
+      this.getUserRoles(targetId, serverId),
+    ])
+
+    const managerHighest = managerRoles[0]?.position || 0
+    const targetHighest = targetRoles[0]?.position || 0
+
+    return managerHighest > targetHighest
+  }
+
+  /**
+   * Clear all caches
+   */
+  clearCache(): void {
+    this.roleCache.clear()
+    this.userRolesCache.clear()
+    this.permissionCache.clear()
+  }
+
+  /**
+   * Clear cache for a specific server
+   */
+  clearServerCache(serverId: string): void {
+    this.roleCache.delete(serverId)
+    // Clear user role caches for this server
+    for (const key of this.userRolesCache.keys()) {
+      if (key.endsWith(`-${serverId}`)) {
+        this.userRolesCache.delete(key)
+      }
+    }
+    // Clear permission caches for this server
+    for (const key of this.permissionCache.keys()) {
+      if (key.includes(serverId)) {
+        this.permissionCache.delete(key)
+      }
+    }
+  }
+}
+
+// Export singleton instance
+export const roleService = new RoleService()
+
