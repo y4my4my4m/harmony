@@ -121,7 +121,7 @@ const serverInitial = computed(() => {
 // Check if server has a custom icon (not the default fallback)
 const hasCustomIcon = computed(() => {
   const iconUrl = serverData.value?.icon_url;
-  return iconUrl && iconUrl !== '/default_server.png';
+  return iconUrl && iconUrl !== '/default_server.webp';
 });
 
 async function loadInviteData() {

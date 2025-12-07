@@ -152,7 +152,7 @@ export const useServerStore = defineStore('server', {
         }
 
         // Also delete server icon from storage if it exists
-        if (server.icon && server.icon !== '/default_server.png') {
+        if (server.icon && server.icon !== '/default_server.webp') {
           try {
             const iconPath = server.icon.split('/').pop();
             if (iconPath) {

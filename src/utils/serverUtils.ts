@@ -3,12 +3,12 @@ import { supabase } from '@/supabase'
 /**
  * Normalizes server URL to ensure consistent display across the application
  * Handles both full URLs and path-only formats
- * Always returns the proper public URL for Supabase storage paths
+ * Always returns the proper public URL for Supabase storage paths with optimization
  */
-export function getServerIconUrl(serverUrl: string | null | undefined): string {
+export function getServerIconUrl(serverUrl: string | null | undefined, size: number = 96): string {
   // Return default server if no URL provided or if it's not a string
   if (!serverUrl || typeof serverUrl !== 'string') {
-    return '/default_server.png'
+    return '/default_server.webp'
   }
 
   // If it's a blob URL (from file selection preview), return as-is
@@ -16,18 +16,30 @@ export function getServerIconUrl(serverUrl: string | null | undefined): string {
     return serverUrl
   }
 
-  // If it's already a full URL (starts with http/https), return as-is
-  // This handles external URLs and already-processed Supabase URLs
+  // If it's already a full URL, check if it's a Supabase storage URL that needs transformation
   if (serverUrl.startsWith('http://') || serverUrl.startsWith('https://')) {
+    // Check if this is a Supabase storage URL for server_icons
+    const pathMatch = serverUrl.match(/\/storage\/v1\/object\/public\/server_icons\/(.+)$/)
+    if (pathMatch) {
+      // Extract the path and use Supabase storage transformation
+      const serverIconPath = pathMatch[1]
+      const { data } = supabase.storage
+        .from('server_icons')
+        .getPublicUrl(serverIconPath, {
+          transform: { width: size, height: size, resize: 'contain', quality: 80 }
+        })
+      return data.publicUrl
+    }
+    // External URLs (not Supabase storage) - return as-is
     return serverUrl
   }
 
-  // If it's a Supabase storage path (contains user ID folder structure)
+  // If it's a Supabase storage path (contains folder structure)
   if (serverUrl.includes('/') && !serverUrl.startsWith('/')) {
     const { data } = supabase.storage
       .from('server_icons')
       .getPublicUrl(serverUrl, {
-        transform: { width: 96, height: 96, resize: 'contain', quality: 80 }
+        transform: { width: size, height: size, resize: 'contain', quality: 80 }
       })
 
     return data.publicUrl
@@ -39,7 +51,7 @@ export function getServerIconUrl(serverUrl: string | null | undefined): string {
   }
 
   // If it's just a filename or doesn't match expected patterns, return default
-  return '/default_server.png'
+  return '/default_server.webp'
 }
 
 /**

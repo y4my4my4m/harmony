@@ -172,7 +172,7 @@ const formatMemberCount = (count?: number): string => {
 
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
-  img.src = '/default_server.png'
+  img.src = '/default_server.webp'
 }
 
 const handleJoin = () => {

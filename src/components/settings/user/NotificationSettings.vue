@@ -901,7 +901,7 @@ const createTestNotificationData = (type: NotificationType) => {
     server_invite: {
       title: 'Test Server Invite',
       message: 'You were invited to join a server',
-      avatar: '/default_server.png'
+      avatar: '/default_server.webp'
     },
     friend_request: {
       title: 'Test Friend Request',
@@ -911,12 +911,12 @@ const createTestNotificationData = (type: NotificationType) => {
     server_update: {
       title: 'Test Server Update',
       message: 'A server has been updated',
-      avatar: '/default_server.png'
+      avatar: '/default_server.webp'
     },
     emoji_added: {
       title: 'Test Emoji Added',
       message: 'A new emoji was added to the server',
-      avatar: '/default_server.png'
+      avatar: '/default_server.webp'
     },
     activitypub_follow: {
       title: 'Test ActivityPub Follow',
