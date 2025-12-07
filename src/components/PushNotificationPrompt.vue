@@ -173,8 +173,10 @@ const closeBanner = () => {
 }
 
 onMounted(async () => {
-  // Initialize push system first
-  await initialize()
+  // Only initialize push system if PWA (to avoid unnecessary VAPID fetch)
+  if (isPWA()) {
+    await initialize()
+  }
   
   // Wait a bit after app load to not overwhelm user
   setTimeout(() => {
