@@ -1,34 +1,31 @@
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, reactive } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
 import { authContextService } from '@/services/AuthContextService'
+import { roleService, Permission, type ServerRole } from '@/services/RoleService'
 import type { Server } from '@/types'
 import { debug } from '@/utils/debug'
 
-export enum ServerPermission {
-  MANAGE_SERVER = 'MANAGE_SERVER',
-  MANAGE_CHANNELS = 'MANAGE_CHANNELS',
-  MANAGE_EMOJIS = 'MANAGE_EMOJIS',
-  MANAGE_ROLES = 'MANAGE_ROLES',
-  VIEW_AUDIT_LOG = 'VIEW_AUDIT_LOG',
-  KICK_MEMBERS = 'KICK_MEMBERS',
-  BAN_MEMBERS = 'BAN_MEMBERS',
-  CREATE_INVITE = 'CREATE_INVITE',
-  MANAGE_MESSAGES = 'MANAGE_MESSAGES',
-  MODERATE_MEMBERS = 'MODERATE_MEMBERS'
-}
+// Re-export Permission enum as ServerPermission for backwards compatibility
+export { Permission as ServerPermission } from '@/services/RoleService'
 
-export interface UserRole {
+export interface UserRoleInfo {
   id: string
   name: string
-  permissions: ServerPermission[]
+  permissions: Permission[]
   isOwner: boolean
   isModerator: boolean
   isAdmin: boolean
   color?: string
   position: number
+  roles: ServerRole[]
 }
+
+// Cache for user permissions per server
+const permissionsCache = reactive<Map<string, Record<Permission, boolean>>>(new Map())
+const rolesCache = reactive<Map<string, ServerRole[]>>(new Map())
+const loadingStates = reactive<Map<string, boolean>>(new Map())
 
 export function useServerPermissions() {
   const authStore = useAuthStore()
@@ -49,7 +46,6 @@ export function useServerPermissions() {
     if (isFetchingProfileId.value) return
     isFetchingProfileId.value = true
     try {
-      // Use AuthContextService which caches the auth -> profile ID mapping
       const context = await authContextService.getCurrentContext()
       if (context.isAuthenticated) {
         fetchedProfileId.value = context.profileId
@@ -67,6 +63,59 @@ export function useServerPermissions() {
   const currentProfileId = computed(() => getCurrentUser.value?.id || fetchedProfileId.value)
   const currentServer = computed(() => serverChannelStore.currentServer)
 
+  // Get cache key for user+server
+  const getCacheKey = (userId: string, serverId: string) => `${userId}-${serverId}`
+
+  // Load permissions for a user in a server
+  const loadPermissions = async (userId: string, serverId: string): Promise<Record<Permission, boolean>> => {
+    const cacheKey = getCacheKey(userId, serverId)
+    
+    // Check cache first
+    if (permissionsCache.has(cacheKey)) {
+      return permissionsCache.get(cacheKey)!
+    }
+
+    // Check if already loading
+    if (loadingStates.get(cacheKey)) {
+      // Wait a bit and check cache again
+      await new Promise(resolve => setTimeout(resolve, 100))
+      if (permissionsCache.has(cacheKey)) {
+        return permissionsCache.get(cacheKey)!
+      }
+    }
+
+    loadingStates.set(cacheKey, true)
+
+    try {
+      const permissions = await roleService.getUserPermissions(userId, serverId)
+      permissionsCache.set(cacheKey, permissions)
+      return permissions
+    } catch (error) {
+      debug.error('Failed to load permissions:', error)
+      return {} as Record<Permission, boolean>
+    } finally {
+      loadingStates.set(cacheKey, false)
+    }
+  }
+
+  // Load roles for a user in a server
+  const loadUserRoles = async (userId: string, serverId: string): Promise<ServerRole[]> => {
+    const cacheKey = getCacheKey(userId, serverId)
+    
+    if (rolesCache.has(cacheKey)) {
+      return rolesCache.get(cacheKey)!
+    }
+
+    try {
+      const roles = await roleService.getUserRoles(userId, serverId)
+      rolesCache.set(cacheKey, roles)
+      return roles
+    } catch (error) {
+      debug.error('Failed to load user roles:', error)
+      return []
+    }
+  }
+
   // Check if user is the server owner
   const isServerOwner = (serverId: string, profileId?: string): boolean => {
     if (!profileId) return false
@@ -80,49 +129,101 @@ export function useServerPermissions() {
     return isServerOwner(currentServer.value.id, currentProfileId.value)
   })
 
-  // For now, we'll use a simple role system based on server ownership
-  // This can be extended to use a proper roles table in the future
-  const getUserRole = (serverId: string, profileId?: string): UserRole => {
+  // Get user role info (combines owner status with database roles)
+  const getUserRole = (serverId: string, profileId?: string): UserRoleInfo => {
+    if (!profileId) {
+      return {
+        id: 'guest',
+        name: 'Guest',
+        permissions: [],
+        isOwner: false,
+        isModerator: false,
+        isAdmin: false,
+        position: -1,
+        roles: []
+      }
+    }
+
     const isOwner = isServerOwner(serverId, profileId)
-    
+    const cacheKey = getCacheKey(profileId, serverId)
+    const cachedRoles = rolesCache.get(cacheKey) || []
+    const cachedPermissions = permissionsCache.get(cacheKey) || {}
+
+    // If owner, return owner role
     if (isOwner) {
       return {
         id: 'owner',
         name: 'Owner',
-        permissions: Object.values(ServerPermission),
+        permissions: Object.values(Permission),
         isOwner: true,
         isModerator: true,
         isAdmin: true,
         color: '#f1c40f',
-        position: 1000
+        position: 1000,
+        roles: cachedRoles
       }
     }
 
-    // TODO: In the future, fetch actual roles from database
-    // For now, all non-owners are regular members
+    // Get highest role from cache
+    const highestRole = cachedRoles[0]
+    const isAdmin = cachedPermissions[Permission.ADMINISTRATOR] === true
+    const isModerator = isAdmin || 
+      cachedPermissions[Permission.KICK_MEMBERS] === true ||
+      cachedPermissions[Permission.BAN_MEMBERS] === true ||
+      cachedPermissions[Permission.MANAGE_MESSAGES] === true
+
+    // Convert cached permissions to array
+    const permissionsList = Object.entries(cachedPermissions)
+      .filter(([_, value]) => value === true)
+      .map(([key]) => key as Permission)
+
     return {
-      id: 'member',
-      name: 'Member',
-      permissions: [ServerPermission.CREATE_INVITE],
+      id: highestRole?.id || 'member',
+      name: highestRole?.name || 'Member',
+      permissions: permissionsList,
       isOwner: false,
-      isModerator: false,
-      isAdmin: false,
-      position: 0
+      isModerator,
+      isAdmin,
+      color: highestRole?.color,
+      position: highestRole?.position || 0,
+      roles: cachedRoles
     }
   }
 
-  // Check if user has a specific permission
+  // Check if user has a specific permission (sync from cache)
   const hasPermission = (
     serverId: string, 
     profileId: string, 
-    permission: ServerPermission
+    permission: Permission
   ): boolean => {
-    const role = getUserRole(serverId, profileId)
-    return role.permissions.includes(permission)
+    const isOwner = isServerOwner(serverId, profileId)
+    if (isOwner) return true
+
+    const cacheKey = getCacheKey(profileId, serverId)
+    const permissions = permissionsCache.get(cacheKey)
+    
+    if (!permissions) {
+      // Trigger async load, return false for now
+      loadPermissions(profileId, serverId)
+      return false
+    }
+
+    return permissions[Permission.ADMINISTRATOR] === true || permissions[permission] === true
+  }
+
+  // Async version for accurate permission checking
+  const hasPermissionAsync = async (
+    serverId: string,
+    profileId: string,
+    permission: Permission,
+    channelId?: string
+  ): Promise<boolean> => {
+    if (isServerOwner(serverId, profileId)) return true
+    return roleService.hasPermission(profileId, serverId, permission, channelId)
   }
 
   // Check if current user has a specific permission
-  const hasCurrentUserPermission = (permission: ServerPermission): boolean => {
+  const hasCurrentUserPermission = (permission: Permission): boolean => {
     if (!currentProfileId.value || !currentServer.value) return false
     return hasPermission(currentServer.value.id, currentProfileId.value, permission)
   }
@@ -130,21 +231,24 @@ export function useServerPermissions() {
   // Check if server is local (not federated)
   const isLocalServer = computed(() => {
     if (!currentServer.value) return false
-    // If is_local_server is explicitly false, it's a remote server
     return currentServer.value.is_local_server !== false
   })
 
   // Server settings permissions (only for local servers)
   const canManageServer = computed(() => 
-    isLocalServer.value && hasCurrentUserPermission(ServerPermission.MANAGE_SERVER)
+    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_SERVER)
   )
 
   const canManageChannels = computed(() => 
-    isLocalServer.value && hasCurrentUserPermission(ServerPermission.MANAGE_CHANNELS)
+    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_CHANNELS)
   )
 
   const canManageEmojis = computed(() => 
-    isLocalServer.value && hasCurrentUserPermission(ServerPermission.MANAGE_EMOJIS)
+    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_EMOJIS)
+  )
+
+  const canManageRoles = computed(() =>
+    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_ROLES)
   )
 
   const canViewServerSettings = computed(() => {
@@ -154,7 +258,26 @@ export function useServerPermissions() {
 
   // Check if user can perform destructive actions
   const canPerformDestructiveActions = computed(() => 
-    isCurrentUserServerOwner.value || hasCurrentUserPermission(ServerPermission.MANAGE_SERVER)
+    isCurrentUserServerOwner.value || hasCurrentUserPermission(Permission.MANAGE_SERVER)
+  )
+
+  // Message moderation permissions
+  const canManageMessages = computed(() =>
+    hasCurrentUserPermission(Permission.MANAGE_MESSAGES)
+  )
+
+  const canPinMessages = computed(() =>
+    hasCurrentUserPermission(Permission.PIN_MESSAGES) || hasCurrentUserPermission(Permission.MANAGE_MESSAGES)
+  )
+
+  const canCreateThreads = computed(() =>
+    hasCurrentUserPermission(Permission.CREATE_PUBLIC_THREADS) || hasCurrentUserPermission(Permission.CREATE_PRIVATE_THREADS)
+  )
+
+  const canModerateMembers = computed(() =>
+    hasCurrentUserPermission(Permission.KICK_MEMBERS) || 
+    hasCurrentUserPermission(Permission.BAN_MEMBERS) ||
+    hasCurrentUserPermission(Permission.TIMEOUT_MEMBERS)
   )
 
   // Specific permission checks for UI components
@@ -169,7 +292,8 @@ export function useServerPermissions() {
     canManageCrossServerEmojis: canManageServer.value,
     canViewSettings: canViewServerSettings.value,
     canSaveChanges: canManageServer.value,
-    canDeleteServer: isCurrentUserServerOwner.value
+    canDeleteServer: isCurrentUserServerOwner.value,
+    canManageRoles: canManageRoles.value
   }))
 
   const channelPermissions = computed(() => ({
@@ -192,7 +316,7 @@ export function useServerPermissions() {
   // Helper to check permissions for any server
   const checkServerPermission = (
     serverId: string, 
-    permission: ServerPermission, 
+    permission: Permission, 
     userId?: string
   ): boolean => {
     const targetProfileId = userId || currentProfileId.value
@@ -200,9 +324,55 @@ export function useServerPermissions() {
     return hasPermission(serverId, targetProfileId, permission)
   }
 
+  // Initialize permissions for current user when server changes
+  watch([currentProfileId, currentServer], async ([profileId, server]) => {
+    if (!profileId || !server) return
+    
+    // Preload permissions and roles
+    await Promise.all([
+      loadPermissions(profileId, server.id),
+      loadUserRoles(profileId, server.id)
+    ])
+  }, { immediate: true })
+
+  // Clear cache for a server (call when roles change)
+  const clearServerCache = (serverId: string) => {
+    for (const key of permissionsCache.keys()) {
+      if (key.endsWith(`-${serverId}`)) {
+        permissionsCache.delete(key)
+      }
+    }
+    for (const key of rolesCache.keys()) {
+      if (key.endsWith(`-${serverId}`)) {
+        rolesCache.delete(key)
+      }
+    }
+    roleService.clearServerCache(serverId)
+  }
+
+  // Refresh permissions for current user
+  const refreshPermissions = async () => {
+    if (!currentProfileId.value || !currentServer.value) return
+    
+    const cacheKey = getCacheKey(currentProfileId.value, currentServer.value.id)
+    permissionsCache.delete(cacheKey)
+    rolesCache.delete(cacheKey)
+    
+    await Promise.all([
+      loadPermissions(currentProfileId.value, currentServer.value.id),
+      loadUserRoles(currentProfileId.value, currentServer.value.id)
+    ])
+  }
+
+  // Get all roles for a server
+  const getServerRoles = async (serverId: string): Promise<ServerRole[]> => {
+    return roleService.getServerRoles(serverId)
+  }
+
   return {
     // Permission checks
     hasPermission,
+    hasPermissionAsync,
     hasCurrentUserPermission,
     checkServerPermission,
     
@@ -213,19 +383,32 @@ export function useServerPermissions() {
     // Role management
     getUserRole,
     getCurrentUserRole,
+    getServerRoles,
+    loadUserRoles,
     
     // Computed permissions
     canManageServer,
     canManageChannels,
     canManageEmojis,
+    canManageRoles,
     canViewServerSettings,
     canPerformDestructiveActions,
+    canManageMessages,
+    canPinMessages,
+    canCreateThreads,
+    canModerateMembers,
     
     // Component-specific permissions
     serverSettingsPermissions,
     channelPermissions,
     
+    // Cache management
+    clearServerCache,
+    refreshPermissions,
+    
     // Enums and types
-    ServerPermission
+    Permission,
+    // Backwards compatibility alias
+    ServerPermission: Permission
   }
 }

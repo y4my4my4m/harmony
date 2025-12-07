@@ -39,6 +39,46 @@ We removed over-engineered connection management that was causing issues:
 3. Presence channel broadcasts change
 4. On activity resume → handleActivityResumed() restores status
 
+### 4. Rich Presence / Activity Status (Future Enhancements)
+
+**Current state (Dec 2025):** Basic custom status with activity types implemented.
+- ✅ Custom status text + emoji + expiration
+- ✅ Manual activity types: playing, listening, watching, competing, streaming, custom
+- ✅ Federation via ActivityPub actor attachments
+- ✅ Database persistence with `profiles.custom_status` JSONB column
+
+**Future enhancements (require additional work):**
+
+#### A. OAuth-Based Integrations (PWA-Compatible)
+*Fetch "now playing" from external services via their APIs:*
+- **Spotify Integration**: User connects Spotify account, fetch currently playing track
+- **Last.fm Integration**: Scrobbling history / currently listening
+- **YouTube Music / Apple Music**: If APIs available
+- **Implementation**: Store OAuth tokens in DB, background fetch/webhook for "now playing"
+
+#### B. Tauri-Based Automatic Detection (Desktop App Only)
+*Requires Tauri desktop client for OS-level access:*
+- **Game/App Detection**: Enumerate running processes, match against game database
+- **Discord-style Automatic "Playing X"**: Detect games via:
+  - Steam integration (requires Steam API)
+  - Running process names (fuzzy match against known games)
+  - Window titles
+- **Local Media Players**: Detect Spotify desktop, VLC, etc.
+- **Streaming Detection**: Detect OBS/Streamlabs running
+- **Implementation**: Tauri Rust sidecar for process enumeration, IPC to frontend
+
+#### C. Enhanced Status Display
+- **Elapsed Time**: "Playing for 2h 30m"
+- **Party Info**: "In a party with @user1, @user2"
+- **Invite Links**: "Join Game" buttons for supported games
+- **Rich Assets**: Game icons, album art, etc.
+
+**Files involved:**
+- `src/services/userDataService.ts` - setRichPresence(), getUserCustomStatus()
+- `src/types.ts` - CustomUserStatus, RichPresenceStatus types
+- `db_schema/20251207_add_custom_status.sql` - Database schema
+- Future: `src/services/SpotifyIntegration.ts`, `src-tauri/src/activity_detector.rs`
+
 ---
 
 ## Files Simplified

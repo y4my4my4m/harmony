@@ -1292,8 +1292,9 @@ class UserDataService extends EventTarget {
   /**
    * Set custom status (Discord-style "Playing X", "Listening to Y", etc.)
    * @param customStatus - The custom status to set, or undefined to clear
+   * @param durationMinutes - Optional duration in minutes (null = forever)
    */
-  async setCustomStatus(customStatus: CustomUserStatus | undefined): Promise<void> {
+  async setCustomStatus(customStatus: CustomUserStatus | undefined, durationMinutes?: number): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
     const userData = this.users.get(this.currentUserId)
@@ -1308,11 +1309,68 @@ class UserDataService extends EventTarget {
     // Save to localStorage for persistence
     this.saveCustomStatusToLocalStorage(customStatus)
     
+    // Persist to database for federation
+    try {
+      if (customStatus) {
+        await supabase.rpc('set_custom_status', {
+          p_user_id: this.currentUserId,
+          p_type: (customStatus as any).type || 'custom',
+          p_text: customStatus.text,
+          p_emoji: customStatus.emoji,
+          p_emoji_url: (customStatus as any).emoji_url,
+          p_details: (customStatus as any).details,
+          p_state: (customStatus as any).state,
+          p_duration_minutes: durationMinutes || null,
+        })
+      } else {
+        await supabase.rpc('clear_custom_status', {
+          p_user_id: this.currentUserId,
+        })
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to persist custom status to database:', error)
+      // Continue - local state is updated
+    }
+    
     // Update presence to broadcast custom status
     await this.updatePresenceStatus(userData.status)
     
     this.emitEvent('custom-status-changed', { userId: this.currentUserId, customStatus })
     debug.log('✅ Custom status updated')
+  }
+
+  /**
+   * Set rich presence status (extended Discord-style with activity types)
+   * @param type - Activity type: 'custom', 'playing', 'listening', 'watching', 'competing', 'streaming'
+   * @param text - Primary status text
+   * @param options - Additional options (emoji, details, state, duration)
+   */
+  async setRichPresence(
+    type: 'custom' | 'playing' | 'listening' | 'watching' | 'competing' | 'streaming',
+    text: string,
+    options?: {
+      emoji?: string
+      emoji_url?: string
+      details?: string
+      state?: string
+      durationMinutes?: number
+    }
+  ): Promise<void> {
+    const customStatus: any = {
+      type,
+      text,
+      emoji: options?.emoji,
+      emoji_url: options?.emoji_url,
+      details: options?.details,
+      state: options?.state,
+    }
+    
+    // Set expiration if duration provided
+    if (options?.durationMinutes) {
+      customStatus.expiresAt = new Date(Date.now() + options.durationMinutes * 60 * 1000).toISOString()
+    }
+    
+    await this.setCustomStatus(customStatus, options?.durationMinutes)
   }
 
   /**
@@ -1328,6 +1386,38 @@ class UserDataService extends EventTarget {
   getCustomStatus(): CustomUserStatus | undefined {
     if (!this.currentUserId) return undefined
     return this.users.get(this.currentUserId)?.customStatus
+  }
+
+  /**
+   * Get custom status for any user (from database)
+   */
+  async getUserCustomStatus(userId: string): Promise<CustomUserStatus | undefined> {
+    // First check local cache
+    const cached = this.users.get(userId)?.customStatus
+    if (cached !== undefined) return cached
+    
+    // Fetch from database
+    try {
+      const { data, error } = await supabase.rpc('get_custom_status', {
+        p_user_id: userId,
+      })
+      
+      if (error || !data) return undefined
+      
+      // Convert to CustomUserStatus format
+      return {
+        text: data.text,
+        emoji: data.emoji,
+        expiresAt: data.expires_at,
+        ...(data.type && { type: data.type }),
+        ...(data.emoji_url && { emoji_url: data.emoji_url }),
+        ...(data.details && { details: data.details }),
+        ...(data.state && { state: data.state }),
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to fetch user custom status:', error)
+      return undefined
+    }
   }
 
   /**

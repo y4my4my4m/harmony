@@ -1,25 +1,14 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { roleService, Permission, type ServerRole } from './RoleService'
 
-export enum ServerPermission {
-  ADMINISTRATOR = 'administrator',
-  MANAGE_SERVER = 'manage_server',
-  MANAGE_CHANNELS = 'manage_channels',
-  MANAGE_ROLES = 'manage_roles',
-  CREATE_INVITES = 'create_invites',
-  MANAGE_INVITES = 'manage_invites',
-  KICK_MEMBERS = 'kick_members',
-  BAN_MEMBERS = 'ban_members',
-  MODERATE_MESSAGES = 'moderate_messages',
-  SEND_MESSAGES = 'send_messages',
-  USE_VOICE = 'use_voice',
-  MUTE_MEMBERS = 'mute_members',
-  DEAFEN_MEMBERS = 'deafen_members'
-}
+// Re-export Permission from RoleService for backwards compatibility
+export { Permission as ServerPermission } from './RoleService'
 
 export interface ServerSettings {
   id: string
   server_id: string
+  default_role_id?: string
   invite_permissions: {
     who_can_create: 'everyone' | 'roles' | 'administrators'
     allowed_roles?: string[]
@@ -28,6 +17,11 @@ export interface ServerSettings {
     allow_temporary: boolean
     max_uses_limit: number // 0 = no limit
   }
+  moderation_settings?: {
+    auto_mod_enabled: boolean
+    spam_filter: boolean
+    link_filter: boolean
+  }
   created_at?: string
   updated_at?: string
 }
@@ -35,64 +29,46 @@ export interface ServerSettings {
 export interface UserPermissions {
   userId: string
   serverId: string
-  permissions: ServerPermission[]
-  roles: string[]
+  permissions: Permission[]
+  roles: ServerRole[]
   isOwner: boolean
   isAdmin: boolean
 }
 
+/**
+ * Get comprehensive user permissions for a server
+ * Uses the new role-based permission system
+ */
 async function getUserPermissions(userId: string, serverId: string): Promise<UserPermissions> {
   try {
-    // Get user's roles and direct permissions
-    const { data: userServer, error: userServerError } = await supabase
-      .from('user_servers')
-      .select(`
-        *,
-        roles:server_roles(*)
-      `)
-      .eq('user_id', userId)
-      .eq('server_id', serverId)
-      .single()
-
-    if (userServerError) throw userServerError
-
-    // Get server owner
+    // Get user's roles
+    const roles = await roleService.getUserRoles(userId, serverId)
+    
+    // Get effective permissions from database function
+    const permissionFlags = await roleService.getUserPermissions(userId, serverId)
+    
+    // Check if user is server owner
     const { data: server, error: serverError } = await supabase
       .from('servers')
-      .select('created_by')
+      .select('owner')
       .eq('id', serverId)
       .single()
 
     if (serverError) throw serverError
 
-    const isOwner = server.created_by === userId
-    const roles = userServer.roles || []
-    
-    // Collect all permissions from roles
-    let permissions: ServerPermission[] = []
-    
-    if (isOwner) {
-      // Server owner has all permissions
-      permissions = Object.values(ServerPermission)
-    } else {
-      // Collect permissions from roles
-      roles.forEach((role: any) => {
-        if (role.permissions) {
-          permissions = [...permissions, ...role.permissions]
-        }
-      })
-      
-      // Remove duplicates
-      permissions = [...new Set(permissions)]
-    }
+    const isOwner = server.owner === userId
+    const isAdmin = isOwner || permissionFlags[Permission.ADMINISTRATOR] === true
 
-    const isAdmin = isOwner || permissions.includes(ServerPermission.ADMINISTRATOR)
+    // Convert permission flags to array of Permission enums
+    const permissions = Object.entries(permissionFlags)
+      .filter(([_, value]) => value === true)
+      .map(([key]) => key as Permission)
 
     return {
       userId,
       serverId,
       permissions,
-      roles: roles.map((r: any) => r.id),
+      roles,
       isOwner,
       isAdmin
     }
@@ -101,7 +77,7 @@ async function getUserPermissions(userId: string, serverId: string): Promise<Use
     return {
       userId,
       serverId,
-      permissions: [ServerPermission.SEND_MESSAGES], // Default basic permission
+      permissions: [Permission.SEND_MESSAGES, Permission.VIEW_CHANNEL], // Default basic permissions
       roles: [],
       isOwner: false,
       isAdmin: false
@@ -109,6 +85,33 @@ async function getUserPermissions(userId: string, serverId: string): Promise<Use
   }
 }
 
+/**
+ * Check if user has a specific permission
+ */
+async function hasPermission(
+  userId: string,
+  serverId: string,
+  permission: Permission,
+  channelId?: string
+): Promise<boolean> {
+  return roleService.hasPermission(userId, serverId, permission, channelId)
+}
+
+/**
+ * Check if user has all specified permissions
+ */
+async function hasPermissions(
+  userId: string,
+  serverId: string,
+  permissions: Permission[],
+  channelId?: string
+): Promise<boolean> {
+  return roleService.hasPermissions(userId, serverId, permissions, channelId)
+}
+
+/**
+ * Get server settings
+ */
 async function getServerSettings(serverId: string): Promise<ServerSettings | null> {
   try {
     const { data, error } = await supabase
@@ -130,6 +133,9 @@ async function getServerSettings(serverId: string): Promise<ServerSettings | nul
   }
 }
 
+/**
+ * Update server settings
+ */
 async function updateServerSettings(serverId: string, settings: Partial<ServerSettings>): Promise<boolean> {
   try {
     const { error } = await supabase
@@ -137,6 +143,8 @@ async function updateServerSettings(serverId: string, settings: Partial<ServerSe
       .upsert({
         server_id: serverId,
         ...settings,
+      }, {
+        onConflict: 'server_id',
       })
 
     if (error) throw error
@@ -147,6 +155,9 @@ async function updateServerSettings(serverId: string, settings: Partial<ServerSe
   }
 }
 
+/**
+ * Get default server settings
+ */
 function getDefaultServerSettings(serverId: string): ServerSettings {
   return {
     id: '',
@@ -159,41 +170,47 @@ function getDefaultServerSettings(serverId: string): ServerSettings {
       allow_temporary: true,
       max_uses_limit: 0 // no limit
     },
+    moderation_settings: {
+      auto_mod_enabled: false,
+      spam_filter: false,
+      link_filter: false,
+    }
   }
 }
 
+/**
+ * Check if user can create invites
+ */
 async function canUserCreateInvites(userId: string, serverId: string): Promise<boolean> {
   try {
-    //  PLACEHOLDER until we create userpermissions and server roles and server settings tables
-    return true;
-    /// TODO: Implement proper permission checks
-    const [userPermissions, serverSettings] = await Promise.all([
-      getUserPermissions(userId, serverId),
-      getServerSettings(serverId)
-    ])
+    // Check if user has CREATE_INVITE permission
+    const canCreate = await roleService.hasPermission(userId, serverId, Permission.CREATE_INVITE)
+    if (canCreate) return true
+
+    // Check server settings for additional rules
+    const serverSettings = await getServerSettings(serverId)
+    const userPerms = await getUserPermissions(userId, serverId)
 
     // Server owner and admins can always create invites
-    if (userPermissions.isOwner || userPermissions.isAdmin) {
+    if (userPerms.isOwner || userPerms.isAdmin) {
       return true
     }
 
-    // Check if user has explicit create invites permission
-    if (userPermissions.permissions.includes(ServerPermission.CREATE_INVITES)) {
+    if (!serverSettings) {
+      // Default: everyone can create invites
       return true
     }
 
-    // Use default settings if no custom settings exist
-    const settings = serverSettings || getDefaultServerSettings(serverId)
-    const invitePerms = settings.invite_permissions
+    const invitePerms = serverSettings.invite_permissions
 
     switch (invitePerms.who_can_create) {
       case 'everyone':
         return true
       case 'administrators':
-        return userPermissions.isAdmin
+        return userPerms.isAdmin
       case 'roles':
         return invitePerms.allowed_roles?.some(roleId => 
-          userPermissions.roles.includes(roleId)
+          userPerms.roles.some(r => r.id === roleId)
         ) || false
       default:
         return false
@@ -204,6 +221,9 @@ async function canUserCreateInvites(userId: string, serverId: string): Promise<b
   }
 }
 
+/**
+ * Get invite constraints for a user
+ */
 async function getInviteConstraints(userId: string, serverId: string): Promise<{
   canCreate: boolean
   maxExpiration: number // minutes, 0 = no limit
@@ -212,22 +232,6 @@ async function getInviteConstraints(userId: string, serverId: string): Promise<{
   defaultExpiration: number
 }> {
   try {
-
-    //  PLACEHOLDER until we create userpermissions and server roles and server settings tables
-  
-    return {
-      canCreate: true,
-      maxExpiration: 0,
-      allowTemporary: true,
-      maxUses: 0,
-      defaultExpiration: 1440
-    }
-    /// TODO: Implement proper permission checks
-    const [userPermissions, serverSettings] = await Promise.all([
-      getUserPermissions(userId, serverId),
-      getServerSettings(serverId)
-    ])
-
     const canCreate = await canUserCreateInvites(userId, serverId)
     
     if (!canCreate) {
@@ -240,11 +244,16 @@ async function getInviteConstraints(userId: string, serverId: string): Promise<{
       }
     }
 
+    const [userPerms, serverSettings] = await Promise.all([
+      getUserPermissions(userId, serverId),
+      getServerSettings(serverId)
+    ])
+
     const settings = serverSettings || getDefaultServerSettings(serverId)
     const invitePerms = settings.invite_permissions
 
     // Admins can bypass some restrictions
-    const isAdmin = userPermissions.isAdmin || userPermissions.isOwner
+    const isAdmin = userPerms.isAdmin || userPerms.isOwner
 
     return {
       canCreate: true,
@@ -265,12 +274,60 @@ async function getInviteConstraints(userId: string, serverId: string): Promise<{
   }
 }
 
+/**
+ * Check if user can manage messages (edit/delete others' messages, pin)
+ */
+async function canManageMessages(userId: string, serverId: string, channelId?: string): Promise<boolean> {
+  return roleService.hasPermission(userId, serverId, Permission.MANAGE_MESSAGES, channelId)
+}
+
+/**
+ * Check if user can pin messages
+ */
+async function canPinMessages(userId: string, serverId: string, channelId?: string): Promise<boolean> {
+  // Check for PIN_MESSAGES or MANAGE_MESSAGES permission
+  const [canPin, canManage] = await Promise.all([
+    roleService.hasPermission(userId, serverId, Permission.PIN_MESSAGES, channelId),
+    roleService.hasPermission(userId, serverId, Permission.MANAGE_MESSAGES, channelId),
+  ])
+  return canPin || canManage
+}
+
+/**
+ * Check if user can create threads
+ */
+async function canCreateThreads(userId: string, serverId: string, channelId?: string): Promise<boolean> {
+  const [canPublic, canPrivate] = await Promise.all([
+    roleService.hasPermission(userId, serverId, Permission.CREATE_PUBLIC_THREADS, channelId),
+    roleService.hasPermission(userId, serverId, Permission.CREATE_PRIVATE_THREADS, channelId),
+  ])
+  return canPublic || canPrivate
+}
+
+/**
+ * Check if user can kick/ban members
+ */
+async function canModerateMembers(userId: string, serverId: string): Promise<boolean> {
+  const [canKick, canBan, canTimeout] = await Promise.all([
+    roleService.hasPermission(userId, serverId, Permission.KICK_MEMBERS),
+    roleService.hasPermission(userId, serverId, Permission.BAN_MEMBERS),
+    roleService.hasPermission(userId, serverId, Permission.TIMEOUT_MEMBERS),
+  ])
+  return canKick || canBan || canTimeout
+}
+
 export {
   getUserPermissions,
+  hasPermission,
+  hasPermissions,
   getServerSettings,
   updateServerSettings,
   getDefaultServerSettings,
   canUserCreateInvites,
   getInviteConstraints,
+  canManageMessages,
+  canPinMessages,
+  canCreateThreads,
+  canModerateMembers,
   type UserPermissions
 }

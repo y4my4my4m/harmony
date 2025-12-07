@@ -371,6 +371,180 @@ export class MessageService {
   }
 
   // =====================================================
+  // MESSAGE PINNING
+  // =====================================================
+
+  /**
+   * Pin a message in a channel or DM
+   */
+  async pinMessage(messageId: string): Promise<boolean> {
+    try {
+      debug.log(`📌 Pinning message: ${messageId}`)
+
+      const { data, error } = await supabase.rpc('pin_message', {
+        p_message_id: messageId,
+      })
+
+      if (error) {
+        debug.error('Failed to pin message:', error)
+        throw this.createError('PIN_FAILED', error.message)
+      }
+
+      debug.log(`✅ Message pinned successfully: ${messageId}`)
+      return true
+    } catch (error) {
+      debug.error('❌ Failed to pin message:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Unpin a message
+   */
+  async unpinMessage(messageId: string): Promise<boolean> {
+    try {
+      debug.log(`📌 Unpinning message: ${messageId}`)
+
+      const { data, error } = await supabase.rpc('unpin_message', {
+        p_message_id: messageId,
+      })
+
+      if (error) {
+        debug.error('Failed to unpin message:', error)
+        throw this.createError('UNPIN_FAILED', error.message)
+      }
+
+      debug.log(`✅ Message unpinned successfully: ${messageId}`)
+      return true
+    } catch (error) {
+      debug.error('❌ Failed to unpin message:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get pinned messages for a channel
+   */
+  async getPinnedChannelMessages(channelId: string): Promise<Message[]> {
+    try {
+      debug.log(`📌 Loading pinned messages for channel: ${channelId}`)
+
+      const { data, error } = await supabase.rpc('get_pinned_messages', {
+        p_channel_id: channelId,
+        p_conversation_id: null,
+      })
+
+      if (error) {
+        debug.error('Failed to load pinned messages:', error)
+        throw this.createError('LOAD_PINS_FAILED', error.message)
+      }
+
+      // Transform to Message type
+      const messages = (data || []).map((m: any) => ({
+        id: m.id,
+        created_at: new Date(m.created_at),
+        channel_id: m.channel_id,
+        conversation_id: m.conversation_id,
+        user_id: m.user_id,
+        content: m.content,
+        reply_to: m.reply_to,
+        is_pinned: m.is_pinned,
+        metadata: {
+          ...m.metadata,
+          pinned_at: m.pinned_at,
+          pinned_by: m.pinned_by,
+          author: {
+            username: m.author_username,
+            display_name: m.author_display_name,
+            avatar_url: m.author_avatar_url,
+            color: m.author_color,
+          },
+          pinner: {
+            username: m.pinner_username,
+            display_name: m.pinner_display_name,
+          },
+        },
+      }))
+
+      debug.log(`✅ Loaded ${messages.length} pinned messages`)
+      return messages
+    } catch (error) {
+      debug.error('❌ Failed to load pinned messages:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get pinned messages for a DM conversation
+   */
+  async getPinnedDMMessages(conversationId: string): Promise<Message[]> {
+    try {
+      debug.log(`📌 Loading pinned messages for DM: ${conversationId}`)
+
+      const { data, error } = await supabase.rpc('get_pinned_messages', {
+        p_channel_id: null,
+        p_conversation_id: conversationId,
+      })
+
+      if (error) {
+        debug.error('Failed to load pinned DM messages:', error)
+        throw this.createError('LOAD_PINS_FAILED', error.message)
+      }
+
+      // Transform to Message type (same as channel)
+      const messages = (data || []).map((m: any) => ({
+        id: m.id,
+        created_at: new Date(m.created_at),
+        channel_id: m.channel_id,
+        conversation_id: m.conversation_id,
+        user_id: m.user_id,
+        content: m.content,
+        reply_to: m.reply_to,
+        is_pinned: m.is_pinned,
+        metadata: {
+          ...m.metadata,
+          pinned_at: m.pinned_at,
+          pinned_by: m.pinned_by,
+          author: {
+            username: m.author_username,
+            display_name: m.author_display_name,
+            avatar_url: m.author_avatar_url,
+            color: m.author_color,
+          },
+          pinner: {
+            username: m.pinner_username,
+            display_name: m.pinner_display_name,
+          },
+        },
+      }))
+
+      debug.log(`✅ Loaded ${messages.length} pinned DM messages`)
+      return messages
+    } catch (error) {
+      debug.error('❌ Failed to load pinned DM messages:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get pinned message count
+   */
+  async getPinnedCount(channelId?: string, conversationId?: string): Promise<number> {
+    try {
+      const { data, error } = await supabase.rpc('count_pinned_messages', {
+        p_channel_id: channelId || null,
+        p_conversation_id: conversationId || null,
+      })
+
+      if (error) throw error
+      return data || 0
+    } catch (error) {
+      debug.error('Failed to get pinned count:', error)
+      return 0
+    }
+  }
+
+  // =====================================================
   // UTILITY METHODS (PRESERVED)
   // =====================================================
 
