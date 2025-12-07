@@ -407,6 +407,21 @@
       
       <div class="setting-item">
         <div class="setting-info">
+          <h4 class="setting-label">Strip tracking parameters from URLs</h4>
+          <p class="setting-description">
+            Automatically remove tracking parameters (like ?si=...) from URLs in your messages for YouTube, X/Twitter, TikTok, Instagram, and Facebook.
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.stripUrlTrackers"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
           <h4 class="setting-label">Use data to improve Harmony</h4>
           <p class="setting-description">
             Allow Harmony to use your data to improve the service.
@@ -533,6 +548,7 @@ import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import QRCode from 'qrcode'
+import { isUrlTrackingStrippingEnabled, setUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -599,6 +615,7 @@ const settings = ref({
   allowFriendRequests: true,
   allowFriendRequestsFromServerMembers: true,
   friendRequestSetting: 'everyone' as 'everyone' | 'friends-of-friends' | 'server-members' | 'no-one',
+  stripUrlTrackers: true, // Default ON
   allowDataCollection: false,
   allowPersonalization: false,
 })
@@ -617,6 +634,9 @@ const onSettingChange = () => {
 }
 
 const saveSettings = () => {
+  // Save URL tracker stripping setting to localStorage
+  setUrlTrackingStrippingEnabled(settings.value.stripUrlTrackers)
+  
   emit('update-privacy', settings.value)
   originalSettings.value = { ...settings.value }
 }
@@ -1021,6 +1041,10 @@ const copyRecoveryCodes = async () => {
 onMounted(() => {
   // Load privacy settings from server
   // TODO: Implement actual loading logic
+  
+  // Load URL tracker stripping setting from localStorage
+  settings.value.stripUrlTrackers = isUrlTrackingStrippingEnabled()
+  originalSettings.value = { ...settings.value }
   
   // Check 2FA status
   check2FAStatus()

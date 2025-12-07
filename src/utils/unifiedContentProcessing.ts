@@ -11,6 +11,7 @@ import { getEmoji } from '@/services/emojiService';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
 import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
+import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 
 // Support both UUID-based emojis (legacy) and shortcode emojis (new)
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
@@ -411,6 +412,7 @@ export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
 
 /**
  * Parse text for URLs and emojis
+ * URL tracking parameter stripping is handled here to cover the entire app (ActivityPub, DMs, chat, etc.)
  */
 async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
@@ -420,6 +422,9 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   let lastIndex = 0;
   let match;
   
+  // Check if URL tracking stripping is enabled (respects user privacy setting)
+  const shouldStripTrackers = isUrlTrackingStrippingEnabled();
+  
   while ((match = urlRegex.exec(text)) !== null) {
     // Add text before URL
     if (match.index > lastIndex) {
@@ -427,8 +432,15 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
       parts.push(...await parseTextForEmojis(textBefore, emojiDataMap));
     }
     
-    // Add URL
-    parts.push({ type: 'url', url: match[0], preview: true });
+    // Strip tracking parameters if enabled (respects user privacy setting)
+    let url = match[0];
+    if (shouldStripTrackers) {
+      url = stripTrackingParameters(url);
+    }
+    
+    // Add URL (cleaned if setting enabled)
+    parts.push({ type: 'url', url, preview: true });
+    // Use original match length for index calculation (we're parsing original text)
     lastIndex = match.index + match[0].length;
   }
   

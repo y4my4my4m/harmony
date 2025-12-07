@@ -261,6 +261,8 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue || '';
+        // URL tracking parameter stripping is handled in unifiedContentProcessing.ts
+        // This covers the entire app (ActivityPub, DMs, chat, etc.)
         // Pass reply message ID as third parameter
         emit('sendMessage', content, attachedFiles.value, props.replyMessageId || undefined);
         // Haptic feedback on message send
