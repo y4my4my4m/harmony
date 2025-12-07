@@ -155,6 +155,42 @@
           </div>
         </div>
 
+        <!-- Endpoint Health Stats -->
+        <div class="federation-section" v-if="federationStats">
+          <div class="section-header">
+            <h3>Endpoint Health</h3>
+            <div class="health-indicator" :class="getEndpointHealthClass(federationStats.endpoint_health)">
+              {{ federationStats.endpoint_health.success_rate }}% success rate
+            </div>
+          </div>
+          <div class="federation-stats">
+            <div class="stat-card">
+              <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.total_endpoints) }}</div>
+              <div class="stat-label">Total Endpoints</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" :class="{ 'error-text': federationStats.endpoint_health.dead_endpoints > 0 }">
+                {{ formatNumber(federationStats.endpoint_health.dead_endpoints) }}
+              </div>
+              <div class="stat-label">Dead Endpoints</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.healthy_endpoints) }}</div>
+              <div class="stat-label">Healthy</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.endpoints_with_failures) }}</div>
+              <div class="stat-label">With Failures</div>
+            </div>
+          </div>
+          <div class="endpoint-details" v-if="federationStats.endpoint_health.dead_endpoints > 0">
+            <div class="warning-banner">
+              <Icon name="alert-triangle" :size="16" />
+              <span>{{ federationStats.endpoint_health.dead_endpoints }} endpoint(s) marked as dead and removed from follows</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Instance Management -->
         <div class="federation-section">
           <div class="section-controls">
@@ -777,7 +813,7 @@ import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
-import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult } from '@/services/AdminService'
+import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 
 const authStore = useAuthStore()
@@ -822,6 +858,7 @@ const instanceStats = ref<InstanceStats>({
   recently_discovered: 0
 })
 
+const federationStats = ref<FederationStats | null>(null)
 const federatedInstances = ref<FederatedInstance[]>([])
 const discoveredInstances = ref<{ domain: string; user_count: number; interaction_count: number }[]>([])
 const discoveryResult = ref<InstanceSearchResult | null>(null)
@@ -1005,7 +1042,8 @@ const loadInitialData = async () => {
       loadInstanceConfig(),
       loadRecentActivity(),
       loadInstanceStats(),
-      loadFederatedInstances()
+      loadFederatedInstances(),
+      loadFederationStats()
     ])
   } catch (error) {
     debug.error('Failed to load admin data:', error)
@@ -1342,13 +1380,29 @@ const refreshFederationData = async () => {
   try {
     await Promise.all([
       loadInstanceStats(),
-      loadFederatedInstances()
+      loadFederatedInstances(),
+      loadFederationStats()
     ])
   } catch (error) {
     debug.error('Failed to refresh federation data:', error)
   } finally {
     loadingStates.value.federationStats = false
   }
+}
+
+const loadFederationStats = async () => {
+  try {
+    const stats = await adminService.getFederationStats()
+    federationStats.value = stats
+  } catch (error) {
+    debug.error('Failed to load federation stats:', error)
+  }
+}
+
+const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
+  if (health.dead_endpoints > 0) return 'error'
+  if (health.success_rate < 80) return 'warning'
+  return 'healthy'
 }
 
 const loadInstanceStats = async () => {
@@ -1927,6 +1981,59 @@ const handleAddInstance = () => {
 
 .federation-section:last-child {
   border-bottom: none;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header h3 {
+  margin: 0;
+}
+
+.health-indicator {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.health-indicator.healthy {
+  background: rgba(0, 255, 136, 0.2);
+  color: #00ff88;
+}
+
+.health-indicator.warning {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.health-indicator.error {
+  background: rgba(255, 69, 58, 0.2);
+  color: #ff453a;
+}
+
+.endpoint-details {
+  margin-top: 16px;
+}
+
+.warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  color: #ffc107;
+  font-size: 14px;
+}
+
+.error-text {
+  color: #ff453a;
 }
 
 .federation-stats {

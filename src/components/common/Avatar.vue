@@ -104,10 +104,10 @@ const sizeMap: Record<AvatarSize, number> = {
   mini: 16,
   xs: 24,
   sm: 48, // should be 40px but 48 looks better because power of two value properly resize
-  md: 48,
-  lg: 64,
-  xl: 96,
-  '2xl': 128
+  md: 96,
+  lg: 128,
+  xl: 156,
+  '2xl': 256
 }
 
 // Computed

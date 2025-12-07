@@ -22,6 +22,15 @@ export interface FederationStats {
   successful_deliveries: number;
   failed_deliveries: number;
   active_instances: number;
+  endpoint_health: {
+    total_endpoints: number;
+    dead_endpoints: number;
+    healthy_endpoints: number;
+    endpoints_with_failures: number;
+    total_failures: number;
+    total_successes: number;
+    success_rate: number;
+  };
 }
 
 export interface AdminUser {
@@ -184,19 +193,41 @@ class AdminService {
         pendingResult,
         successfulResult,
         failedResult,
-        instancesResult
+        instancesResult,
+        endpointHealthResult
       ] = await Promise.all([
         supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
         supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
-        supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_blocked', false)
+        supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_blocked', false),
+        supabase.from('federation_endpoint_health').select('*')
       ]);
+
+      // Calculate endpoint health metrics
+      const endpoints = endpointHealthResult.data || [];
+      const totalEndpoints = endpoints.length;
+      const deadEndpoints = endpoints.filter(e => e.is_dead).length;
+      const healthyEndpoints = endpoints.filter(e => !e.is_dead && e.consecutive_failures === 0).length;
+      const endpointsWithFailures = endpoints.filter(e => e.consecutive_failures > 0).length;
+      const totalFailures = endpoints.reduce((sum, e) => sum + (e.total_failures || 0), 0);
+      const totalSuccesses = endpoints.reduce((sum, e) => sum + (e.total_successes || 0), 0);
+      const totalAttempts = totalFailures + totalSuccesses;
+      const successRate = totalAttempts > 0 ? Math.round((totalSuccesses / totalAttempts) * 100) : 100;
 
       return {
         pending_deliveries: pendingResult.count || 0,
         successful_deliveries: successfulResult.count || 0,
         failed_deliveries: failedResult.count || 0,
-        active_instances: instancesResult.count || 0
+        active_instances: instancesResult.count || 0,
+        endpoint_health: {
+          total_endpoints: totalEndpoints,
+          dead_endpoints: deadEndpoints,
+          healthy_endpoints: healthyEndpoints,
+          endpoints_with_failures: endpointsWithFailures,
+          total_failures: totalFailures,
+          total_successes: totalSuccesses,
+          success_rate: successRate
+        }
       };
     } catch (error) {
       debug.error('Failed to get federation stats:', error);
@@ -205,7 +236,16 @@ class AdminService {
         pending_deliveries: 0,
         successful_deliveries: 0,
         failed_deliveries: 0,
-        active_instances: 0
+        active_instances: 0,
+        endpoint_health: {
+          total_endpoints: 0,
+          dead_endpoints: 0,
+          healthy_endpoints: 0,
+          endpoints_with_failures: 0,
+          total_failures: 0,
+          total_successes: 0,
+          success_rate: 100
+        }
       };
     }
   }

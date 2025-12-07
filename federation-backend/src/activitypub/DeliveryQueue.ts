@@ -118,6 +118,56 @@ export class DeliveryQueue {
   }
 
   /**
+   * Check if an endpoint is marked as dead
+   * Returns false if no record exists (endpoint not yet tracked)
+   */
+  private static async isEndpointDead(endpointUrl: string): Promise<boolean> {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('federation_endpoint_health')
+        .select('is_dead')
+        .eq('endpoint_url', endpointUrl)
+        .maybeSingle();
+      
+      // If no record exists, endpoint is not dead (just not tracked yet)
+      if (error || !data) {
+        return false;
+      }
+      
+      return data.is_dead === true;
+    } catch (error) {
+      // On any error, assume endpoint is not dead to avoid blocking deliveries
+      logger.warn(`Error checking endpoint health for ${endpointUrl}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Update endpoint health tracking
+   */
+  private static async updateEndpointHealth(
+    endpointUrl: string,
+    domain: string,
+    success: boolean,
+    httpStatus?: number,
+    errorMessage?: string
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.rpc('update_endpoint_health', {
+      p_endpoint_url: endpointUrl,
+      p_domain: domain,
+      p_success: success,
+      p_http_status: httpStatus || null,
+      p_error_message: errorMessage || null,
+    });
+
+    if (error) {
+      logger.warn(`Failed to update endpoint health for ${endpointUrl}:`, error);
+    }
+  }
+
+  /**
    * Deliver directly without queue management (for immediate delivery)
    */
   private static async deliverActivityDirect(
@@ -125,9 +175,18 @@ export class DeliveryQueue {
     targetInbox: string,
     senderId: string
   ): Promise<boolean> {
+    // Check if endpoint is dead before attempting delivery
+    const isDead = await this.isEndpointDead(targetInbox);
+    if (isDead) {
+      logger.info(`⏭️ Skipping delivery to dead endpoint: ${targetInbox}`);
+      return false;
+    }
+
+    const targetDomain = new URL(targetInbox).hostname;
+
     try {
       // Sign the request
-      const { headers, digest } = await SignatureService.signRequest(
+      const { headers } = await SignatureService.signRequest(
         targetInbox,
         'POST',
         activityData,
@@ -145,13 +204,26 @@ export class DeliveryQueue {
       });
 
       if (response.ok || response.status === 202) {
+        // Update health tracking on success
+        await this.updateEndpointHealth(targetInbox, targetDomain, true, response.status);
         logger.info(`✅ Delivered to ${targetInbox} (${response.status})`);
         return true;
       } else {
+        // Update health tracking on failure
+        await this.updateEndpointHealth(
+          targetInbox,
+          targetDomain,
+          false,
+          response.status,
+          `HTTP ${response.status}`
+        );
         logger.warn(`❌ Failed to deliver to ${targetInbox}: ${response.status}`);
         return false;
       }
     } catch (error) {
+      // Update health tracking on network error
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.updateEndpointHealth(targetInbox, targetDomain, false, undefined, errorMessage);
       logger.error(`❌ Delivery error to ${targetInbox}:`, error);
       return false;
     }
@@ -162,6 +234,24 @@ export class DeliveryQueue {
    */
   private static async deliverActivity(item: QueueItem): Promise<boolean> {
     const supabase = getSupabaseClient();
+
+    // Check if endpoint is dead before attempting delivery
+    const isDead = await this.isEndpointDead(item.target_inbox_url);
+    if (isDead) {
+      logger.info(`⏭️ Skipping delivery to dead endpoint: ${item.target_inbox_url}`);
+      // Mark queue item as failed since endpoint is dead
+      await supabase
+        .from('federation_delivery_queue')
+        .update({
+          status: 'failed',
+          last_attempt_at: new Date().toISOString(),
+          last_error: 'Endpoint marked as dead',
+        })
+        .eq('id', item.id);
+      return false;
+    }
+
+    const targetDomain = new URL(item.target_inbox_url).hostname;
 
     try {
       // Resolve sender_id if missing (legacy items don't have it)
@@ -191,7 +281,7 @@ export class DeliveryQueue {
       }
 
       // Sign the request
-      const { headers, digest } = await SignatureService.signRequest(
+      const { headers } = await SignatureService.signRequest(
         item.target_inbox_url,
         'POST',
         item.activity_data,
@@ -209,26 +299,48 @@ export class DeliveryQueue {
       });
 
       if (response.ok || response.status === 202) {
-        // Success - mark as delivered
+        // Success - mark as delivered and update health
         await supabase
           .from('federation_delivery_queue')
           .update({
             status: 'delivered',
             last_attempt_at: new Date().toISOString(),
+            http_status_code: response.status,
           })
           .eq('id', item.id);
+
+        await this.updateEndpointHealth(
+          item.target_inbox_url,
+          targetDomain,
+          true,
+          response.status
+        );
 
         logger.info(`✅ Delivered to ${item.target_inbox_url} (${response.status})`);
         return true;
       } else {
-        // Failed but might retry
-        await this.handleDeliveryFailure(item, `HTTP ${response.status}`);
+        // Failed - update health tracking and handle failure
+        await this.updateEndpointHealth(
+          item.target_inbox_url,
+          targetDomain,
+          false,
+          response.status,
+          `HTTP ${response.status}`
+        );
+        await this.handleDeliveryFailure(item, `HTTP ${response.status}`, response.status);
         logger.warn(`❌ Failed to deliver to ${item.target_inbox_url}: ${response.status}`);
         return false;
       }
     } catch (error) {
       // Network error or other exception
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.updateEndpointHealth(
+        item.target_inbox_url,
+        targetDomain,
+        false,
+        undefined,
+        errorMessage
+      );
       await this.handleDeliveryFailure(item, errorMessage);
       logger.error(`❌ Delivery error to ${item.target_inbox_url}:`, error);
       return false;
@@ -240,7 +352,8 @@ export class DeliveryQueue {
    */
   private static async handleDeliveryFailure(
     item: QueueItem,
-    errorMessage: string
+    errorMessage: string,
+    httpStatus?: number
   ): Promise<void> {
     const supabase = getSupabaseClient();
     const newAttempts = item.attempts + 1;
@@ -254,6 +367,7 @@ export class DeliveryQueue {
           last_attempt_at: new Date().toISOString(),
           attempts: newAttempts,
           last_error: errorMessage,
+          http_status_code: httpStatus,
         })
         .eq('id', item.id);
 
@@ -271,6 +385,7 @@ export class DeliveryQueue {
           last_attempt_at: new Date().toISOString(),
           next_attempt_at: nextRetry.toISOString(),
           last_error: errorMessage,
+          http_status_code: httpStatus,
         })
         .eq('id', item.id);
 
@@ -347,13 +462,23 @@ export class DeliveryQueue {
     }
 
     // Enqueue deliveries (one per unique inbox)
+    // Skip dead endpoints to avoid unnecessary retries
     let enqueued = 0;
+    let skipped = 0;
     let sharedInboxCount = 0;
     let individualInboxCount = 0;
     
     for (const [inbox, { type }] of inboxMap) {
+      // Check if endpoint is dead before enqueueing
+      const isDead = await this.isEndpointDead(inbox);
+      if (isDead) {
+        logger.info(`⏭️ Skipping dead endpoint in broadcast: ${inbox}`);
+        skipped++;
+        continue;
+      }
+
       await this.enqueue(activityData, inbox, userId);
-        enqueued++;
+      enqueued++;
       
       if (type === 'shared') {
         sharedInboxCount++;
@@ -365,7 +490,8 @@ export class DeliveryQueue {
     logger.info(
       `Enqueued broadcast to ${enqueued} inboxes ` +
       `(${sharedInboxCount} shared, ${individualInboxCount} individual) ` +
-      `for ${follows.length} remote followers`
+      `for ${follows.length} remote followers` +
+      (skipped > 0 ? ` (${skipped} dead endpoints skipped)` : '')
     );
   }
 
