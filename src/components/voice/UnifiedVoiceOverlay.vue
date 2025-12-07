@@ -854,6 +854,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 
+
 .voice-container.maximized .participants-container {
   padding: 12px 16px;
   min-height: 0;
@@ -1432,8 +1433,17 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     gap: 4px;
   }
   
-  /* Only show essential header buttons on mobile */
-  .layout-btn:not(.spatial-btn),
+  /* Show layout toggle buttons on mobile */
+  .layout-btn[title="Grid view"],
+  .layout-btn[title="Speaker view"] {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+  
+  /* Hide maximize button on mobile */
+  .layout-btn[title="Maximize"],
   .minimize-btn {
     display: none;
   }
@@ -1462,6 +1472,28 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   
   .participants-grid.grid-single {
     grid-template-columns: 1fr;
+  }
+  
+  .participants-grid.grid-duo {
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(180px, auto);
+  }
+  
+  .participants-grid.grid-quad {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: minmax(160px, auto);
+  }
+  
+  .participants-grid.grid-six {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: minmax(140px, auto);
+  }
+  
+  .participants-grid.grid-nine,
+  .participants-grid.grid-large,
+  .participants-grid.grid-gallery {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: minmax(120px, auto);
   }
   
   .featured-card {

@@ -856,6 +856,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0; /* Prevent container from shrinking */
 }
 
 .avatar-wrapper {
@@ -876,6 +877,7 @@ watch(
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-shrink: 0; /* Prevent avatar from shrinking */
 }
 
 .avatar-frame.speaking {
