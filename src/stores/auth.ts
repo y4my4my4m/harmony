@@ -5,7 +5,6 @@ import { updateUserStatus } from '@/services/ProfileService';
 import { useChatStore } from '@/stores/useChat';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
-import router from '@/router';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -203,6 +202,8 @@ export const useAuthStore = defineStore('auth', {
           
           const currentPath = window.location.pathname;
           if (currentPath !== '/reset-password') {
+            // Dynamic import to avoid circular dependency with router
+            const { default: router } = await import('@/router');
             router.push('/reset-password');
           }
           return;
@@ -475,7 +476,8 @@ export const useAuthStore = defineStore('auth', {
       supabase.auth.signOut();
       this.session = null;
 
-      // Redirect to login page
+      // Redirect to login page (dynamic import to avoid circular dependency)
+      const { default: router } = await import('@/router');
       router.push('/login');
     },
 
