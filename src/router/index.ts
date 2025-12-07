@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import LoginView from '@/views/LoginView.vue';
-import RegisterView from '@/views/RegisterView.vue';
+// Lazy load LoginView and RegisterView to avoid circular dependency with auth store
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -19,12 +18,12 @@ const router = createRouter({
     {
       path: '/login',
       name: 'Login',
-      component: LoginView,
+      component: () => import('@/views/LoginView.vue'),
     },
     {
       path: '/register',
       name: 'Register',
-      component: RegisterView
+      component: () => import('@/views/RegisterView.vue')
     },
     {
       path: '/reset-password',
