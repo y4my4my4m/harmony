@@ -165,12 +165,19 @@ const emit = defineEmits<{
   switchToChat: []
 }>()
 
-// State
+// State - Initialize refs properly
 const isAppInitialized = ref(false)
 const hasServersLoaded = ref(false)
 
-// Computed
-const isAppReady = computed(() => isAppInitialized.value && hasServersLoaded.value)
+// Computed - Safely access ref values
+const isAppReady = computed(() => {
+  try {
+    return isAppInitialized.value === true && hasServersLoaded.value === true
+  } catch (error) {
+    debug.error('Error accessing isAppInitialized or hasServersLoaded:', error)
+    return false
+  }
+})
 
 // Detect if we're on a DM route
 const isDMRoute = computed(() => {
@@ -335,8 +342,8 @@ const initializeApp = async () => {
     debug.log('✅ UserData initialized with profile data (avatar, color, banner, status should all be available)')
     
     // Mark app as ready NOW - userData is initialized with full profile data
-    hasServersLoaded.value = true
-    isAppInitialized.value = true
+    hasServersLoaded.value = true;
+    isAppInitialized.value = true;
     
     // Continue loading other data in background (non-blocking)
     (async () => {

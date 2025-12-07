@@ -73,6 +73,51 @@
         </div>
       </div>
 
+      <!-- System Health -->
+      <div class="admin-module health-module">
+        <div class="module-header">
+          <Icon name="health" :size="20" />
+          <h2>System Health</h2>
+          <div class="health-indicator" :class="healthStatus.class">
+            {{ healthStatus.text }}
+          </div>
+        </div>
+        <div class="health-metrics">
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Database</span>
+              <div class="metric-status healthy"></div>
+            </div>
+            <div class="metric-value">{{ systemHealth.database.responseTime }}ms</div>
+            <div class="metric-detail">{{ systemHealth.database.connections }} connections</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Federation Queue</span>
+              <div class="metric-status" :class="systemHealth.federation.status"></div>
+            </div>
+            <div class="metric-value">{{ systemHealth.federation.pending }}</div>
+            <div class="metric-detail">pending deliveries</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Storage</span>
+              <div class="metric-status healthy"></div>
+            </div>
+            <div class="metric-value">{{ systemHealth.storage.used }}%</div>
+            <div class="metric-detail">{{ systemHealth.storage.total }} total</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header">
+              <span>Memory</span>
+              <div class="metric-status warning"></div>
+            </div>
+            <div class="metric-value">{{ systemHealth.memory.used }}%</div>
+            <div class="metric-detail">{{ systemHealth.memory.total }} available</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Federation Management -->
       <div class="admin-module federation-module">
         <div class="module-header">
@@ -448,51 +493,6 @@
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- System Health -->
-      <div class="admin-module health-module">
-        <div class="module-header">
-          <Icon name="health" :size="20" />
-          <h2>System Health</h2>
-          <div class="health-indicator" :class="healthStatus.class">
-            {{ healthStatus.text }}
-          </div>
-        </div>
-        <div class="health-metrics">
-          <div class="metric-card">
-            <div class="metric-header">
-              <span>Database</span>
-              <div class="metric-status healthy"></div>
-            </div>
-            <div class="metric-value">{{ systemHealth.database.responseTime }}ms</div>
-            <div class="metric-detail">{{ systemHealth.database.connections }} connections</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-header">
-              <span>Federation Queue</span>
-              <div class="metric-status" :class="systemHealth.federation.status"></div>
-            </div>
-            <div class="metric-value">{{ systemHealth.federation.pending }}</div>
-            <div class="metric-detail">pending deliveries</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-header">
-              <span>Storage</span>
-              <div class="metric-status healthy"></div>
-            </div>
-            <div class="metric-value">{{ systemHealth.storage.used }}%</div>
-            <div class="metric-detail">{{ systemHealth.storage.total }} total</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-header">
-              <span>Memory</span>
-              <div class="metric-status warning"></div>
-            </div>
-            <div class="metric-value">{{ systemHealth.memory.used }}%</div>
-            <div class="metric-detail">{{ systemHealth.memory.total }} available</div>
           </div>
         </div>
       </div>
@@ -2669,6 +2669,15 @@ const handleAddInstance = () => {
 }
 
 @media (max-width: 768px) {
+  .admin-grid {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .admin-module {
+    max-width: calc(100vw - 32px);
+  }
   .admin-panel {
     padding: 16px;
   }
