@@ -2182,6 +2182,7 @@ const handleAddInstance = () => {
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
+  width:100%;
 }
 
 .status-indicator.ok {
