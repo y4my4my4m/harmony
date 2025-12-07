@@ -72,7 +72,6 @@ export class SignatureService {
           .upsert({
             user_id: userId,
             private_key: keys.privateKey,
-            created_at: new Date().toISOString()
           });
         
         if (privateKeyError) {

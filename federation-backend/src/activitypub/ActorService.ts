@@ -1669,7 +1669,6 @@ router.post(
         .upsert({
           user_id: user_id,
           private_key: keys.privateKey,
-          created_at: new Date().toISOString()
         });
 
       if (privateKeyError) {
@@ -1747,7 +1746,6 @@ router.get(
           .upsert({
             user_id: profile.id,
             private_key: keys.privateKey,
-            created_at: new Date().toISOString()
           });
 
         if (!privateKeyError) {

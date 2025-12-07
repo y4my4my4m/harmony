@@ -1350,6 +1350,102 @@ class AdminService {
       return [];
     }
   }
+
+  // ============================================================================
+  // FEDERATION MAINTENANCE
+  // ============================================================================
+
+  /**
+   * Get key consistency report for local users
+   * Returns users with missing or inconsistent key pairs
+   */
+  async getKeyConsistencyReport(): Promise<{
+    users_missing_keys: number;
+    users_with_inconsistent_keys: number;
+    inconsistent_users: Array<{
+      user_id: string;
+      username: string;
+      has_public_key: boolean;
+      has_private_key: boolean;
+    }>;
+    status: 'ok' | 'needs_attention';
+  }> {
+    try {
+      // Call the federation backend health endpoint
+      const response = await fetch('/api/federation/health/key-consistency');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch key consistency: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      return {
+        users_missing_keys: data.users_missing_keys || 0,
+        users_with_inconsistent_keys: data.users_with_inconsistent_keys || 0,
+        inconsistent_users: data.inconsistent_users || [],
+        status: (data.users_missing_keys === 0 && data.users_with_inconsistent_keys === 0) 
+          ? 'ok' 
+          : 'needs_attention',
+      };
+    } catch (error) {
+      debug.error('Failed to get key consistency report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trigger a maintenance task via the federation backend
+   * @param task - The maintenance task to run
+   */
+  async triggerMaintenanceTask(
+    task: 'keygen-sweep' | 'cleanup-orphans'
+  ): Promise<{ success: boolean; job_id?: string; message: string }> {
+    try {
+      const response = await fetch('/api/federation/health/maintenance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ task }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to trigger maintenance: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      debug.log(`Maintenance task '${task}' triggered:`, data);
+      
+      return {
+        success: true,
+        job_id: data.job_id,
+        message: data.message || `Maintenance task '${task}' has been queued`,
+      };
+    } catch (error) {
+      debug.error('Failed to trigger maintenance task:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Run key generation sweep - generates missing keys for local users
+   */
+  async runKeyGenerationSweep(): Promise<{ success: boolean; message: string }> {
+    return this.triggerMaintenanceTask('keygen-sweep');
+  }
+
+  /**
+   * Run orphan cleanup - fixes inconsistent key states
+   */
+  async runOrphanedKeyCleanup(): Promise<{ success: boolean; message: string }> {
+    return this.triggerMaintenanceTask('cleanup-orphans');
+  }
 }
 
 // Export singleton instance

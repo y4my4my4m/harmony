@@ -191,6 +191,69 @@
           </div>
         </div>
 
+        <!-- Federation Maintenance -->
+        <div class="federation-section">
+          <div class="section-header-row">
+            <h3>Federation Maintenance</h3>
+            <button @click="refreshKeyConsistency" class="action-btn" :disabled="loadingStates.keyConsistency">
+              <Icon name="refresh-cw" :size="16" />
+            </button>
+          </div>
+          
+          <!-- Key Consistency Report -->
+          <div class="maintenance-status" v-if="keyConsistency">
+            <div class="status-indicator" :class="keyConsistency.status">
+              <Icon :name="keyConsistency.status === 'ok' ? 'check-circle' : 'alert-triangle'" :size="16" />
+              <span v-if="keyConsistency.status === 'ok'">All local users have valid key pairs</span>
+              <span v-else>
+                {{ keyConsistency.users_missing_keys }} user(s) missing keys, 
+                {{ keyConsistency.users_with_inconsistent_keys }} with inconsistent state
+              </span>
+            </div>
+          </div>
+          
+          <!-- Maintenance Actions -->
+          <div class="maintenance-actions">
+            <div class="maintenance-card">
+              <div class="maintenance-info">
+                <h4>Key Generation Sweep</h4>
+                <p>Generate missing RSA keys for local users who don't have them</p>
+              </div>
+              <button 
+                @click="runKeyGenerationSweep" 
+                class="action-btn primary"
+                :disabled="loadingStates.keySweep"
+              >
+                <Icon v-if="loadingStates.keySweep" name="loader" :size="16" class="spin" />
+                <Icon v-else name="key" :size="16" />
+                Run Sweep
+              </button>
+            </div>
+            
+            <div class="maintenance-card">
+              <div class="maintenance-info">
+                <h4>Orphan Cleanup</h4>
+                <p>Fix users with inconsistent key states (public without private or vice versa)</p>
+              </div>
+              <button 
+                @click="runOrphanCleanup" 
+                class="action-btn"
+                :disabled="loadingStates.orphanCleanup"
+              >
+                <Icon v-if="loadingStates.orphanCleanup" name="loader" :size="16" class="spin" />
+                <Icon v-else name="trash-2" :size="16" />
+                Run Cleanup
+              </button>
+            </div>
+          </div>
+          
+          <!-- Scheduled Jobs Info -->
+          <div class="scheduled-info">
+            <Icon name="clock" :size="14" />
+            <span>Maintenance jobs run automatically: Key sweep at 03:00 UTC, Orphan cleanup at 04:00 UTC</span>
+          </div>
+        </div>
+
         <!-- Instance Management -->
         <div class="federation-section">
           <div class="section-controls">
@@ -873,8 +936,24 @@ const addAsTrusted = ref(false)
 const loadingStates = ref({
   federationStats: false,
   instances: false,
-  discovering: false
+  discovering: false,
+  keyConsistency: false,
+  keySweep: false,
+  orphanCleanup: false,
 })
+
+// Key consistency state
+const keyConsistency = ref<{
+  users_missing_keys: number;
+  users_with_inconsistent_keys: number;
+  inconsistent_users: Array<{
+    user_id: string;
+    username: string;
+    has_public_key: boolean;
+    has_private_key: boolean;
+  }>;
+  status: 'ok' | 'needs_attention';
+} | null>(null)
 
 // User servers modal
 const showServersModal = ref(false)
@@ -1043,7 +1122,8 @@ const loadInitialData = async () => {
       loadRecentActivity(),
       loadInstanceStats(),
       loadFederatedInstances(),
-      loadFederationStats()
+      loadFederationStats(),
+      refreshKeyConsistency()
     ])
   } catch (error) {
     debug.error('Failed to load admin data:', error)
@@ -1403,6 +1483,53 @@ const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
   if (health.dead_endpoints > 0) return 'error'
   if (health.success_rate < 80) return 'warning'
   return 'healthy'
+}
+
+// Federation maintenance methods
+const refreshKeyConsistency = async () => {
+  loadingStates.value.keyConsistency = true
+  try {
+    keyConsistency.value = await adminService.getKeyConsistencyReport()
+  } catch (error) {
+    debug.error('Failed to load key consistency:', error)
+  } finally {
+    loadingStates.value.keyConsistency = false
+  }
+}
+
+const runKeyGenerationSweep = async () => {
+  loadingStates.value.keySweep = true
+  try {
+    const result = await adminService.runKeyGenerationSweep()
+    if (result.success) {
+      debug.log('Key generation sweep queued:', result.message)
+      // Refresh consistency after a short delay to see results
+      setTimeout(() => refreshKeyConsistency(), 3000)
+    } else {
+      debug.error('Key generation sweep failed:', result.message)
+    }
+  } catch (error) {
+    debug.error('Failed to run key sweep:', error)
+  } finally {
+    loadingStates.value.keySweep = false
+  }
+}
+
+const runOrphanCleanup = async () => {
+  loadingStates.value.orphanCleanup = true
+  try {
+    const result = await adminService.runOrphanedKeyCleanup()
+    if (result.success) {
+      debug.log('Orphan cleanup queued:', result.message)
+      setTimeout(() => refreshKeyConsistency(), 3000)
+    } else {
+      debug.error('Orphan cleanup failed:', result.message)
+    }
+  } catch (error) {
+    debug.error('Failed to run orphan cleanup:', error)
+  } finally {
+    loadingStates.value.orphanCleanup = false
+  }
 }
 
 const loadInstanceStats = async () => {
@@ -2030,6 +2157,98 @@ const handleAddInstance = () => {
   border-radius: 8px;
   color: #ffc107;
   font-size: 14px;
+}
+
+/* Federation Maintenance Styles */
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header-row h3 {
+  margin: 0;
+}
+
+.maintenance-status {
+  margin-bottom: 20px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.status-indicator.ok {
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  color: #00ff88;
+}
+
+.status-indicator.needs_attention {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  color: #ffc107;
+}
+
+.maintenance-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.maintenance-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.maintenance-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.maintenance-info p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.maintenance-card .action-btn.primary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.scheduled-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .error-text {

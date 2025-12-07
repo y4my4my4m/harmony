@@ -29,6 +29,7 @@ import { handleReportJob } from './handlers/reportHandler.js';
 import { handleProfileJob } from './handlers/profileHandler.js';
 import { handlePushNotificationJob } from './handlers/pushNotificationHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
+import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
 
 // Job types
 export type JobType = 
@@ -50,7 +51,8 @@ export type JobType =
   | 'federate-voice-join'            // Voice channel join
   | 'federate-voice-leave'           // Voice channel leave
   | 'send-push-notification'
-  | 'sweep-pending';
+  | 'sweep-pending'
+  | 'maintenance';                   // Scheduled maintenance tasks
 
 // Job data interface
 export interface FederationJobData {
@@ -182,6 +184,7 @@ class QueueManagerService {
       'federate-voice-join',
       'federate-voice-leave',
       'send-push-notification',
+      'maintenance',
     ];
 
     for (const queueName of queueNames) {
@@ -284,8 +287,53 @@ class QueueManagerService {
     await registerWithConcurrency('federate-voice-join', createHandler('federate-voice-join', '🎤', handleVoiceJoinJob));
     await registerWithConcurrency('federate-voice-leave', createHandler('federate-voice-leave', '🔇', handleVoiceLeaveJob));
     await registerWithConcurrency('send-push-notification', createHandler('send-push-notification', '📱', handlePushNotificationJob as any));
+    await registerWithConcurrency('maintenance', createHandler('maintenance', '🔧', handleMaintenanceJob as any));
 
     logger.info(`✅ All job handlers registered (${WORKERS_PER_QUEUE} workers per queue)`);
+    
+    // Schedule daily maintenance jobs
+    await this.scheduleMaintenanceJobs();
+  }
+
+  /**
+   * Schedule recurring maintenance jobs
+   * 
+   * Uses pg-boss cron scheduling for reliable daily execution
+   */
+  private async scheduleMaintenanceJobs(): Promise<void> {
+    if (!this.boss) throw new Error('pg-boss not initialized');
+
+    try {
+      // Schedule key generation sweep - runs daily at 3:00 AM UTC
+      // This catches any users who slipped through without keys
+      await this.boss.schedule(
+        'maintenance',
+        '0 3 * * *', // Cron: 3:00 AM UTC every day
+        { task: 'keygen-sweep', triggered_by: 'scheduled' },
+        {
+          tz: 'UTC',
+        }
+      );
+      logger.info('📅 Scheduled daily keygen-sweep at 03:00 UTC');
+
+      // Schedule orphan cleanup - runs daily at 4:00 AM UTC  
+      // This fixes any inconsistent key states
+      await this.boss.schedule(
+        'maintenance',
+        '0 4 * * *', // Cron: 4:00 AM UTC every day
+        { task: 'cleanup-orphans', triggered_by: 'scheduled' },
+        {
+          tz: 'UTC',
+        }
+      );
+      logger.info('📅 Scheduled daily cleanup-orphans at 04:00 UTC');
+
+    } catch (error: any) {
+      // Schedule already exists is fine
+      if (!error.message?.includes('already scheduled')) {
+        logger.warn('⚠️ Failed to schedule maintenance jobs:', error.message);
+      }
+    }
   }
 
   /**
