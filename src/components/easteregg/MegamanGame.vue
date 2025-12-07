@@ -72,6 +72,7 @@ interface Player {
   targetX?: number // Target position from network
   targetY?: number // Target position from network
   lastNetworkUpdate?: number // Timestamp of last network update
+  dashFrameProgress?: number // Dash animation progress (0.0 to 1.0) for deltaTime-based animation
 }
 
 interface Bullet {
@@ -147,10 +148,10 @@ const WALL_JUMP_Y = -12
 const WALL_SLIDE_SPEED = 1.5 // Slide down slowly (positive = down)
 const WALK_SPEED = 3
 const DASH_SPEED = 10
-const DASH_DURATION = 200 // ms
+const DASH_DURATION = 300 // ms
 const DASH_COOLDOWN = 500 // ms
 const FRAME_DURATION = 200 // ms per frame (slower animation)
-const BULLET_SPEED = 8
+const BULLET_SPEED = 12
 const CHARGE_TIME_LV1 = 500 // ms
 const CHARGE_TIME_LV2 = 1500 // ms
 const CHARGE_TIME_LV3 = 3000 // ms
@@ -845,6 +846,9 @@ function handleKeyUp(event: KeyboardEvent) {
       localPlayer.chargeLevel = 0
       localPlayer.chargeLoopStarted = false // Reset loop flag
       localPlayer.isShooting = false
+      
+      // Broadcast charge release to network
+      broadcastPlayerState(localPlayer, true)
     } else {
       // Very quick tap without charging state
       fireBullet(localPlayer, 0)
@@ -854,6 +858,9 @@ function handleKeyUp(event: KeyboardEvent) {
     // Always stop charge loop when releasing space (clean up)
     stopSound('chargeLoop')
     localPlayer.chargeStartTime = 0
+    
+    // Always broadcast when releasing charge (even if not charging)
+    broadcastPlayerState(localPlayer, true)
   }
   
   handleInput()
@@ -866,25 +873,11 @@ function handleInput() {
   const now = Date.now()
   
   // Dash (Shift) - single press, not hold, Megaman X style
+  // Only trigger dash on key press (not while holding)
   const dashKeyPressed = keys.value.has('ShiftLeft') || keys.value.has('ShiftRight')
   const wasDashKeyPressed = localPlayer.lastDashKeyPressed || false
-  localPlayer.lastDashKeyPressed = dashKeyPressed
   
-  if (dashKeyPressed && !wasDashKeyPressed && localPlayer.canDash && now - localPlayer.dashCooldown >= DASH_COOLDOWN) {
-    if (localPlayer.onGround && localPlayer.state !== 'dashing') {
-      localPlayer.state = 'dashing'
-      localPlayer.dashStartTime = now
-      localPlayer.isDashJumping = false
-      localPlayer.velocityX = localPlayer.facing === 'right' ? DASH_SPEED : -DASH_SPEED
-      localPlayer.velocityY = 0 // Stay on ground during dash
-      localPlayer.canDash = false
-      localPlayer.dashCooldown = now
-      playSound('dash')
-      broadcastPlayerState(localPlayer, true)
-    }
-  }
-  
-  // Handle dash state - check for dash-jump first
+  // Handle dash state FIRST - check if dash should end
   if (localPlayer.state === 'dashing') {
     const dashElapsed = now - (localPlayer.dashStartTime || now)
     
@@ -913,8 +906,10 @@ function handleInput() {
       return // Jump takes over from dash
     }
     
+    // Dash ends automatically after DASH_DURATION - not holdable
+    // Force end dash after duration, regardless of input
     if (dashElapsed >= DASH_DURATION) {
-      // End dash smoothly - keep some momentum if still holding direction
+      // End dash - transition to next state based on input
       const holdingLeft = keys.value.has('ArrowLeft')
       const holdingRight = keys.value.has('ArrowRight')
       if ((holdingLeft && localPlayer.facing === 'left') || (holdingRight && localPlayer.facing === 'right')) {
@@ -924,12 +919,47 @@ function handleInput() {
         localPlayer.state = 'idle'
         localPlayer.velocityX = 0
       }
-      localPlayer.canDash = true
+      // Clear dash state completely - IMPORTANT: clear before setting canDash
+      localPlayer.dashStartTime = 0 // Clear dash start time so animation doesn't keep showing dash frames
+      localPlayer.dashFrameProgress = 0 // Clear dash frame progress
       localPlayer.isDashJumping = false
+      // Set canDash AFTER clearing dash state to prevent immediate re-trigger
+      // Also ensure we don't allow dash if shift is still held
+      localPlayer.canDash = true
+      broadcastPlayerState(localPlayer, true)
+      // Update lastDashKeyPressed BEFORE returning to prevent re-trigger
+      localPlayer.lastDashKeyPressed = dashKeyPressed
+      // Return here to prevent processing dash trigger logic below
+      return
+    } else {
+      // Still dashing - broadcast state
+      broadcastPlayerState(localPlayer, true)
     }
-    broadcastPlayerState(localPlayer, true)
     localPlayer.lastJumpKeyPressed = keys.value.has('ArrowUp')
+    localPlayer.lastDashKeyPressed = dashKeyPressed // Update while dashing
     return // Don't process other movement during dash
+  }
+  
+  // Update lastDashKeyPressed for next frame (only if not dashing)
+  localPlayer.lastDashKeyPressed = dashKeyPressed
+  
+  // Only allow dash if NOT currently dashing and key was just pressed
+  // This prevents holding shift from re-triggering dash
+  // CRITICAL: !wasDashKeyPressed means key was NOT pressed last frame, so this is a new press
+  if (dashKeyPressed && !wasDashKeyPressed && localPlayer.canDash && 
+      localPlayer.onGround && (localPlayer.state as string) !== 'dashing' && 
+      now - localPlayer.dashCooldown >= DASH_COOLDOWN) {
+      localPlayer.state = 'dashing'
+      localPlayer.dashStartTime = now
+      localPlayer.dashFrameProgress = 0 // Reset dash frame progress
+      localPlayer.isDashJumping = false
+    localPlayer.velocityX = localPlayer.facing === 'right' ? DASH_SPEED : -DASH_SPEED
+    localPlayer.velocityY = 0 // Stay on ground during dash
+    localPlayer.canDash = false
+    localPlayer.dashCooldown = now
+    playSound('dash')
+    broadcastPlayerState(localPlayer, true)
+    return // Don't process other input during dash start
   }
   
   // Charging (hold Space) - only update charge, don't fire here
@@ -1529,12 +1559,25 @@ function gameLoop(currentTime: number) {
       }
       
       // Ground collision for remote players (prevent falling through floor)
-      if (player.y >= floorY - 64) {
+      // But respect spawn animation - don't snap to floor during spawn
+      if (!player.isSpawning && player.y >= floorY - 64) {
         player.y = floorY - 64
         if (player.velocityY !== undefined && player.velocityY > 0) {
           player.velocityY = 0
         }
         player.onGround = true
+      } else if (player.isSpawning) {
+        // During spawn, use spawnY as floor limit
+        const spawnFloorY = player.spawnY || (floorY - 64)
+        if (player.y >= spawnFloorY) {
+          player.y = spawnFloorY
+          if (player.velocityY !== undefined && player.velocityY > 0) {
+            player.velocityY = 0
+          }
+          player.onGround = true
+        } else {
+          player.onGround = false
+        }
       } else {
         player.onGround = false
       }
@@ -1704,7 +1747,7 @@ function gameLoop(currentTime: number) {
 }
 
 // Get current animation frames based on player state
-function getAnimationFrames(player: Player): AnimationFrame[] {
+function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFrame[] {
   if (!animations.value) {
     debug.warn('🎮 Animations not loaded yet')
     return []
@@ -1787,10 +1830,56 @@ function getAnimationFrames(player: Player): AnimationFrame[] {
         return dashFireFrames
       }
     }
-    // Normal dash animation
+    // Normal dash animation: frame1 -> frame2 (hold) -> frame1 (end)
     const dashFrames = animations.value.dash || []
-    if (dashFrames.length > 0) {
-      return dashFrames // Return Dash1 and Dash2 frames
+    if (dashFrames.length >= 2) {
+      // Check if dashStartTime is valid (not 0 or undefined)
+      if (!player.dashStartTime || player.dashStartTime === 0) {
+        // Dash just started or dash ended - show frame1
+        return [dashFrames[0]]
+      }
+      
+      // Use deltaTime-based frame counter for smoother animation
+      // Track dash frame progress (0.0 to 1.0)
+      if (!player.dashFrameProgress) {
+        player.dashFrameProgress = 0
+      }
+      
+      // Increment dash frame progress using deltaTime
+      if (deltaSeconds !== undefined) {
+        const dashDurationSeconds = DASH_DURATION / 1000 // Convert to seconds
+        player.dashFrameProgress += deltaSeconds / dashDurationSeconds
+        
+        // Clamp to 1.0 (dash complete)
+        if (player.dashFrameProgress >= 1.0) {
+          player.dashFrameProgress = 1.0
+          // Dash ended - return to normal animation
+          return animations.value.idle || []
+        }
+      } else {
+        // Fallback to timestamp-based if deltaSeconds not provided
+        const dashElapsed = Date.now() - player.dashStartTime
+        const dashDuration = DASH_DURATION
+        if (dashElapsed >= dashDuration) {
+          return animations.value.idle || []
+        }
+        player.dashFrameProgress = dashElapsed / dashDuration
+      }
+      
+      // First 25% (0.0 to 0.25): frame1 (start)
+      if (player.dashFrameProgress < 0.25) {
+        return [dashFrames[0]] // Dash1
+      } 
+      // Middle 50% (0.25 to 0.75): hold frame2
+      else if (player.dashFrameProgress < .75) {
+        return [dashFrames[1]] // Dash2 - held for most of dash
+      } 
+      // Last 25% (0.75 to 1.0): frame1 (end)
+      else {
+        return [dashFrames[0]] // Dash1 for end
+      }
+    } else if (dashFrames.length > 0) {
+      return dashFrames
     }
     // Fallback to walk if dash not available
     return animations.value.walk || []
@@ -1922,7 +2011,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     }
   }
   
-  const frames = getAnimationFrames(player)
+  const frames = getAnimationFrames(player, deltaSeconds)
   
   // Don't draw placeholder - wait for sprites to load
   if (frames.length === 0 || !animations.value) {
@@ -1931,23 +2020,29 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
   
   // Update frame timer using delta time
   // Walking animation is twice as fast
-  // Dash animation should be faster too (cycle through Dash1/Dash2 quickly)
-  const isWalking = player.state === 'walking' && !player.isCharging
-  const isDashing = player.state === 'dashing'
-  const frameDuration = isWalking ? FRAME_DURATION / 2 : (isDashing ? FRAME_DURATION / 3 : FRAME_DURATION) // Dash cycles 3x faster
-  
-  const currentTime = frameTime.value.get(userId) || 0
-  const newTime = currentTime + (deltaSeconds * 1000) // Add delta in ms
-  frameTime.value.set(userId, newTime)
-  
-  if (newTime >= frameDuration) {
-    const current = currentFrame.value.get(userId) || 0
-    const next = (current + 1) % frames.length
-    currentFrame.value.set(userId, next)
-    frameTime.value.set(userId, 0) // Reset timer
+  // Dash animation uses time-based frame selection (not cycling), so skip timer for dash
+  let frameIndex = 0
+  if (player.state === 'dashing') {
+    // Dash uses time-based selection in getAnimationFrames, so always use first (and only) frame
+    frameIndex = 0
+  } else {
+    const isWalking = player.state === 'walking' && !player.isCharging
+    const frameDuration = isWalking ? FRAME_DURATION / 2 : FRAME_DURATION
+    
+    const currentTime = frameTime.value.get(userId) || 0
+    const newTime = currentTime + (deltaSeconds * 1000) // Add delta in ms
+    frameTime.value.set(userId, newTime)
+    
+    if (newTime >= frameDuration) {
+      const current = currentFrame.value.get(userId) || 0
+      const next = (current + 1) % frames.length
+      currentFrame.value.set(userId, next)
+      frameTime.value.set(userId, 0) // Reset timer
+    }
+    
+    frameIndex = currentFrame.value.get(userId) || 0
   }
   
-  const frameIndex = currentFrame.value.get(userId) || 0
   const frame = frames[frameIndex]
   
   if (!frame) {
