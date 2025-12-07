@@ -160,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
@@ -175,6 +175,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { debug } from '@/utils/debug'
+import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
@@ -238,6 +239,7 @@ const showOptions = ref(false)
 const messageText = ref('')
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
+const threadSubscription = ref<(() => void) | null>(null)
 
 // Format helpers
 const formatDate = (date: string | Date) => {
@@ -582,6 +584,100 @@ const handleCancelReply = (value: string) => {
   }
 }
 
+// Setup realtime subscription for thread messages
+const setupRealtimeSubscription = () => {
+  if (!thread.value?.id) return
+
+  // Clean up existing subscription
+  if (threadSubscription.value) {
+    threadSubscription.value()
+    threadSubscription.value = null
+  }
+
+  const channelName = `thread-messages-${thread.value.id}`
+  
+  threadSubscription.value = realtimeConnectionManager.subscribeToTable({
+    channelName,
+    table: 'messages',
+    filter: `thread_id=eq.${thread.value.id}`,
+    
+    // Handle new messages
+    onInsert: async (payload) => {
+      const payloadNew = payload.new as any
+      
+      // Skip if already in messages (optimistic update)
+      if (messages.value.some(m => m.id === payloadNew.id)) {
+        return
+      }
+      
+      // Only add if it's for this thread
+      if (payloadNew.thread_id === thread.value?.id) {
+        const newMessage: Message = {
+          id: payloadNew.id,
+          created_at: new Date(payloadNew.created_at),
+          channel_id: payloadNew.channel_id,
+          conversation_id: payloadNew.conversation_id,
+          user_id: payloadNew.user_id,
+          bot_id: payloadNew.bot_id,
+          content: payloadNew.content,
+          reactions: payloadNew.reactions,
+          reply_to: payloadNew.reply_to,
+          is_system: payloadNew.is_system,
+          updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
+          metadata: payloadNew.metadata || null,
+          encrypted: payloadNew.encrypted || false,
+          encryption_metadata: payloadNew.encryption_metadata || null,
+          thread_id: payloadNew.thread_id,
+        }
+        
+        messages.value.push(newMessage)
+        await nextTick()
+        scrollToBottom()
+        debug.log('📝 Thread message added via realtime:', newMessage.id)
+      }
+    },
+    
+    // Handle message updates (edits, soft deletes)
+    onUpdate: async (payload) => {
+      const payloadNew = payload.new as any
+      
+      // Handle soft delete
+      if (payloadNew.is_deleted) {
+        const index = messages.value.findIndex(m => m.id === payloadNew.id)
+        if (index !== -1) {
+          messages.value.splice(index, 1)
+          debug.log('🗑️ Thread message soft-deleted via realtime:', payloadNew.id)
+        }
+        return
+      }
+      
+      // Handle message edits
+      const index = messages.value.findIndex(m => m.id === payloadNew.id)
+      if (index !== -1) {
+        messages.value[index] = {
+          ...messages.value[index],
+          content: payloadNew.content,
+          updated_at: payloadNew.updated_at ? new Date(payloadNew.updated_at) : undefined,
+          metadata: payloadNew.metadata || null,
+        }
+        debug.log('🔄 Thread message updated via realtime:', payloadNew.id)
+      }
+    },
+    
+    // Handle hard deletes
+    onDelete: (payload) => {
+      const payloadOld = payload.old as any
+      const index = messages.value.findIndex(m => m.id === payloadOld.id)
+      if (index !== -1) {
+        messages.value.splice(index, 1)
+        debug.log('🗑️ Thread message deleted via realtime:', payloadOld.id)
+      }
+    },
+  })
+  
+  debug.log(`📡 Subscribed to thread messages: ${channelName}`)
+}
+
 // Watch for threadId changes
 watch(() => props.threadId, () => {
   if (props.threadId) {
@@ -589,8 +685,29 @@ watch(() => props.threadId, () => {
   }
 }, { immediate: true })
 
+// Setup realtime when thread is loaded
+watch(() => thread.value?.id, (threadId) => {
+  if (threadId) {
+    setupRealtimeSubscription()
+  } else {
+    // Clean up subscription when thread is unloaded
+    if (threadSubscription.value) {
+      threadSubscription.value()
+      threadSubscription.value = null
+    }
+  }
+})
+
 onMounted(() => {
   // Focus will be handled by MessageInput component
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (threadSubscription.value) {
+    threadSubscription.value()
+    threadSubscription.value = null
+  }
 })
 </script>
 
