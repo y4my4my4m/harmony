@@ -1779,6 +1779,8 @@ router.get(
     const actor = profileToActor(profile);
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Allow remote servers to cache actor for 5 minutes, reducing redundant fetches
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(actor);
   })
 );
@@ -1862,6 +1864,8 @@ router.get(
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Allow remote servers to cache featured posts for 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: featuredUrl,
@@ -1913,6 +1917,8 @@ router.get(
         .eq('status', 'accepted');
 
       res.setHeader('Content-Type', 'application/activity+json');
+      // Allow remote servers to cache followers collection for 5 minutes
+      res.setHeader('Cache-Control', 'public, max-age=300');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: collectionUrl,
@@ -1983,6 +1989,8 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Allow remote servers to cache followers page for 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(response);
   })
 );
@@ -2028,6 +2036,8 @@ router.get(
         .eq('status', 'accepted');
 
       res.setHeader('Content-Type', 'application/activity+json');
+      // Allow remote servers to cache following collection for 5 minutes
+      res.setHeader('Cache-Control', 'public, max-age=300');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: collectionUrl,
@@ -2096,6 +2106,8 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Allow remote servers to cache following page for 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(response);
   })
 );

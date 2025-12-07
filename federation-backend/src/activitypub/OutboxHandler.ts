@@ -64,6 +64,8 @@ router.get(
       const { count } = await countQuery;
 
       res.setHeader('Content-Type', 'application/activity+json');
+      // Allow remote servers to cache outbox collection for 5 minutes
+      res.setHeader('Cache-Control', 'public, max-age=300');
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: outboxUrl,
@@ -174,6 +176,8 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Allow remote servers to cache outbox page for 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(response);
   })
 );

@@ -549,6 +549,7 @@ const formatTimestamp = (date: Date | string) => {
 
 
 const close = () => {
+  cleanupSubscription() // Unsubscribe when closing
   emit('close')
 }
 
@@ -715,18 +716,14 @@ const handleCancelReply = (value: string) => {
   }
 }
 
-// Watch for visibility changes
-watch(() => props.isVisible, (visible) => {
-  if (visible) {
-    loadThread()
+// Clean up subscription helper (defined before use)
+const cleanupSubscription = () => {
+  if (threadSubscription.value) {
+    threadSubscription.value()
+    threadSubscription.value = null
+    debug.log('📡 Unsubscribed from thread messages')
   }
-})
-
-watch(() => props.threadId, () => {
-  if (props.isVisible) {
-    loadThread()
-  }
-})
+}
 
 // Setup realtime subscription for thread messages
 const setupRealtimeSubscription = () => {
@@ -822,16 +819,39 @@ const setupRealtimeSubscription = () => {
   debug.log(`📡 Subscribed to thread messages: ${channelName}`)
 }
 
-// Setup realtime when thread is loaded
-watch(() => thread.value?.id, (threadId) => {
-  if (threadId && props.isVisible) {
+// Watch for visibility changes
+watch(() => props.isVisible, (visible) => {
+  if (visible) {
+    loadThread()
+  } else {
+    // When thread becomes invisible, cleanup subscription immediately
+    cleanupSubscription()
+  }
+})
+
+watch(() => props.threadId, () => {
+  if (props.isVisible) {
+    loadThread()
+  }
+})
+
+// Setup realtime when thread is loaded AND visible
+watch(() => [thread.value?.id, props.isVisible] as const, ([threadId, isVisible]) => {
+  if (threadId && isVisible) {
     setupRealtimeSubscription()
   } else {
-    // Clean up subscription when thread is unloaded
-    if (threadSubscription.value) {
-      threadSubscription.value()
-      threadSubscription.value = null
-    }
+    // Clean up subscription when thread is unloaded or becomes invisible
+    cleanupSubscription()
+  }
+}, { immediate: true })
+
+// Also watch isVisible separately to unsubscribe immediately when closed
+watch(() => props.isVisible, (isVisible) => {
+  if (!isVisible) {
+    cleanupSubscription()
+  } else if (thread.value?.id) {
+    // If becoming visible and thread is loaded, subscribe
+    setupRealtimeSubscription()
   }
 })
 
@@ -843,10 +863,7 @@ onMounted(() => {
 
 // Cleanup on unmount
 onUnmounted(() => {
-  if (threadSubscription.value) {
-    threadSubscription.value()
-    threadSubscription.value = null
-  }
+  cleanupSubscription()
 })
 </script>
 

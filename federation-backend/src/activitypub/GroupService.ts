@@ -206,7 +206,9 @@ router.get(
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
-    res.setHeader('Cache-Control', 'max-age=300'); // Cache for 5 minutes
+    // Server info (name, channels, member count) - cache for 60 seconds
+    // Balances freshness with efficiency for federated discovery
+    res.setHeader('Cache-Control', 'public, max-age=60');
     res.json(group);
   })
 );
@@ -251,6 +253,8 @@ router.get(
       : 'harmony:TextChannel';
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Channel metadata changes rarely - cache for 60 seconds
+    res.setHeader('Cache-Control', 'public, max-age=60');
     res.json({
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -309,6 +313,9 @@ router.get(
         .eq('is_deleted', false);
 
       res.setHeader('Content-Type', 'application/activity+json');
+      // Short cache for message collection metadata - real-time messages are PUSHED
+      // This cache helps when many instances backfill simultaneously
+      res.setHeader('Cache-Control', 'public, max-age=10');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: messagesUrl,
@@ -354,6 +361,9 @@ router.get(
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Short cache for message pages - balances near-real-time feel with efficiency
+    // Real-time messages are PUSHED, this is for backfill/sync
+    res.setHeader('Cache-Control', 'public, max-age=10');
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${messagesUrl}?page=${page}`,
@@ -404,6 +414,8 @@ router.get(
         .eq('status', 'accepted');
 
       res.setHeader('Content-Type', 'application/activity+json');
+      // Member count doesn't change frequently - cache for 60 seconds
+      res.setHeader('Cache-Control', 'public, max-age=60');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: membersUrl,
@@ -438,6 +450,8 @@ router.get(
     }).filter(Boolean);
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Member list changes occasionally - cache for 60 seconds
+    res.setHeader('Cache-Control', 'public, max-age=60');
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${membersUrl}?page=${page}`,
@@ -481,6 +495,8 @@ router.get(
         .eq('is_deleted', false);
 
       res.setHeader('Content-Type', 'application/activity+json');
+      // Server outbox is for backfill - short cache for efficiency
+      res.setHeader('Cache-Control', 'public, max-age=15');
       return res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: outboxUrl,
@@ -551,6 +567,8 @@ router.get(
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Server outbox pages - short cache for backfill efficiency
+    res.setHeader('Cache-Control', 'public, max-age=15');
     res.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: `${outboxUrl}?page=${page}`,

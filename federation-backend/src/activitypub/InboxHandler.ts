@@ -102,6 +102,8 @@ router.get(
       const { count } = await countQuery;
 
       res.setHeader('Content-Type', 'application/activity+json');
+      // Allow caching for 5 minutes
+      res.setHeader('Cache-Control', 'public, max-age=300');
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: inboxUrl,
@@ -203,6 +205,8 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
+    // Allow caching for 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(response);
   })
 );
