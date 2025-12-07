@@ -164,7 +164,7 @@ router.get(
     };
 
     // Add pagination links
-    if (hasMore && lastItem) {
+    if (hasMore && lastItem?.id) {
       response.next = `${outboxUrl}?cursor=${lastItem.id}&limit=${limit}`;
     }
 

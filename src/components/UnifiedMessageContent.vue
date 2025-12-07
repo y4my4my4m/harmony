@@ -1142,7 +1142,7 @@ export default defineComponent({
   position: absolute;
   top: 8px;
   right: 8px;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.5);
   border: none;
   padding: 6px;
   border-radius: 4px;

@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import type { Thread, ThreadMember, Message } from '@/types'
+import { authContextService } from '@/services/AuthContextService'
 
 // =============================================
 // Thread Types
@@ -128,18 +129,20 @@ class ThreadService {
       }
 
       // Check if current user is a member
-      const { data: { user } } = await supabase.auth.getUser()
       let isMember = false
-      
-      if (user) {
+      try {
+        const profileId = await authContextService.getCurrentProfileId()
         const { data: membership } = await supabase
           .from('thread_members')
           .select('id')
           .eq('thread_id', threadId)
-          .eq('user_id', user.id)
+          .eq('user_id', profileId)
           .maybeSingle()
         
         isMember = !!membership
+      } catch {
+        // User not authenticated or profile not found
+        isMember = false
       }
 
       const thread: ThreadWithDetails = {
@@ -271,8 +274,7 @@ class ThreadService {
    */
   async getUserThreads(serverId?: string): Promise<ThreadWithDetails[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return []
+      const profileId = await authContextService.getCurrentProfileId()
 
       const { data, error } = await supabase
         .from('thread_members')
@@ -290,7 +292,7 @@ class ThreadService {
             )
           )
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', profileId)
 
       if (error) throw error
 
@@ -422,16 +424,15 @@ class ThreadService {
    */
   async joinThread(threadId: string): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return false
+      const profileId = await authContextService.getCurrentProfileId()
 
       const { error } = await supabase
         .from('thread_members')
         .upsert({
           thread_id: threadId,
-          user_id: user.id,
+          user_id: profileId,
         }, {
-          onConflict: 'thread_id,user_id',
+          onConflict: 'thread_members_unique',
         })
 
       if (error) throw error
@@ -449,14 +450,13 @@ class ThreadService {
    */
   async leaveThread(threadId: string): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return false
+      const profileId = await authContextService.getCurrentProfileId()
 
       const { error } = await supabase
         .from('thread_members')
         .delete()
         .eq('thread_id', threadId)
-        .eq('user_id', user.id)
+        .eq('user_id', profileId)
 
       if (error) throw error
 
@@ -506,8 +506,7 @@ class ThreadService {
    */
   async markThreadAsRead(threadId: string, lastMessageId: string): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return false
+      const profileId = await authContextService.getCurrentProfileId()
 
       const { error } = await supabase
         .from('thread_members')
@@ -516,7 +515,7 @@ class ThreadService {
           last_read_at: new Date().toISOString(),
         })
         .eq('thread_id', threadId)
-        .eq('user_id', user.id)
+        .eq('user_id', profileId)
 
       if (error) throw error
 
@@ -533,14 +532,13 @@ class ThreadService {
    */
   async setThreadMuted(threadId: string, muted: boolean): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return false
+      const profileId = await authContextService.getCurrentProfileId()
 
       const { error } = await supabase
         .from('thread_members')
         .update({ muted })
         .eq('thread_id', threadId)
-        .eq('user_id', user.id)
+        .eq('user_id', profileId)
 
       if (error) throw error
 
@@ -631,8 +629,7 @@ class ThreadService {
     replyTo?: string
   ): Promise<Message | null> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return null
+      const profileId = await authContextService.getCurrentProfileId()
 
       // Get channel_id from thread
       const thread = await this.getThread(threadId)
@@ -641,7 +638,7 @@ class ThreadService {
       const insertData: any = {
         thread_id: threadId,
         channel_id: thread.channel_id,
-        user_id: user.id,
+        user_id: profileId,
         content,
       }
       
@@ -718,15 +715,14 @@ class ThreadService {
    */
   async getUnreadCount(threadId: string): Promise<number> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return 0
+      const profileId = await authContextService.getCurrentProfileId()
 
       // Get last read position
       const { data: membership } = await supabase
         .from('thread_members')
         .select('last_read_at')
         .eq('thread_id', threadId)
-        .eq('user_id', user.id)
+        .eq('user_id', profileId)
         .single()
 
       if (!membership?.last_read_at) {

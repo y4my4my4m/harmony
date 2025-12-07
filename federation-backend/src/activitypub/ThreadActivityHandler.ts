@@ -243,7 +243,7 @@ export async function handleThreadActivity(
             thread_id: thread.id,
             user_id: user.id,
           }, {
-            onConflict: 'thread_id,user_id',
+            onConflict: 'thread_members_unique',
           });
 
         if (error) {

@@ -1773,7 +1773,7 @@ router.get(
     };
 
     // Add pagination links
-    if (hasMore && lastItem) {
+    if (hasMore && lastItem?.id) {
       response.next = `${collectionUrl}?cursor=${lastItem.id}&limit=${limit}`;
     }
 
@@ -1886,7 +1886,7 @@ router.get(
       orderedItems,
     };
 
-    if (hasMore && lastItem) {
+    if (hasMore && lastItem?.id) {
       response.next = `${collectionUrl}?cursor=${lastItem.id}&limit=${limit}`;
     }
 
