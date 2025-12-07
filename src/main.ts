@@ -78,49 +78,48 @@ app.directive('click-outside', ClickOutsideDirective);
 app.directive('haptic', vHaptic);
 
 async function initializeApp() {
-  // Mount the app IMMEDIATELY - don't wait for non-critical services
-  app.use(router).mount('#app')
-  
-  // Initialize critical auth first (needed for routing)
   try {
+    // Initialize PWA features first for better UX (mostly synchronous)
+    await pwaManager.initialize()
+    debug.log('🚀 PWA Manager initialized')
+    
+    // Initialize auth store first to check for existing sessions (CRITICAL - must be before mount)
     const authStore = useAuthStore()
     await authStore.initializeAuth()
     debug.log('✅ Auth initialized')
-  } catch (error) {
-    debug.error('❌ Error initializing auth:', error)
-  }
-  
-  // Initialize non-critical services in background (don't block rendering)
-  Promise.all([
-    // PWA features - mostly synchronous setup, can run in parallel
-    pwaManager.initialize().then(() => {
-      debug.log('🚀 PWA Manager initialized')
-    }).catch(err => {
-      debug.error('❌ PWA Manager initialization failed:', err)
-    }),
     
-    // Service worker - can be slow, run in background
-    serviceWorkerManager.initialize().then(swSupported => {
-      debug.log('🔔 Service Worker supported:', swSupported)
-      
-      // Request notification permission in background (non-blocking)
-      if (swSupported) {
-        // Don't await - let it happen in background
-        serviceWorkerManager.requestNotificationPermission().catch(err => {
-          debug.warn('⚠️ Notification permission request failed:', err)
-        })
-      }
-    }).catch(err => {
-      debug.error('❌ Service Worker initialization failed:', err)
+    // Mount the app AFTER auth is initialized (so router guard has correct auth state)
+    app.use(router).mount('#app')
+    
+    // Initialize non-critical services in background (don't block rendering)
+    Promise.all([
+      // Service worker - can be slow, run in background
+      serviceWorkerManager.initialize().then(swSupported => {
+        debug.log('🔔 Service Worker supported:', swSupported)
+        
+        // Request notification permission in background (non-blocking)
+        if (swSupported) {
+          // Don't await - let it happen in background
+          serviceWorkerManager.requestNotificationPermission().catch(err => {
+            debug.warn('⚠️ Notification permission request failed:', err)
+          })
+        }
+      }).catch(err => {
+        debug.error('❌ Service Worker initialization failed:', err)
+      })
+    ]).catch(err => {
+      debug.error('❌ Error initializing background services:', err)
     })
-  ]).catch(err => {
-    debug.error('❌ Error initializing background services:', err)
-  })
-  
-  // Start reaction cache management
-  // TODO: revisit reactionCacheManager
-  // reactionCacheManager.startCleanup()
-  // debug.log('🎯 Reaction cache manager started')
+    
+    // Start reaction cache management
+    // TODO: revisit reactionCacheManager
+    // reactionCacheManager.startCleanup()
+    // debug.log('🎯 Reaction cache manager started')
+  } catch (error) {
+    debug.error('❌ Error initializing app:', error)
+    // Still mount the app even if initialization fails
+    app.use(router).mount('#app')
+  }
 }
 
 // Initialize the application

@@ -36,6 +36,9 @@ const sharedBridgedUsersPending = new Map<string, Promise<BridgedUser[]>>();
 const bridgeBotCheckCache = new Map<string, { hasBridge: boolean; timestamp: number }>();
 const BRIDGE_BOT_CHECK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Pending requests deduplication - prevents multiple concurrent requests for same server
+const bridgeBotCheckPending = new Map<string, Promise<boolean>>();
+
 // Check if cache entry is still valid
 function isCacheValid(entry: CachedBridgedUsers | undefined): boolean {
   if (!entry) return false;
@@ -299,7 +302,8 @@ export function useAutoSuggest(
         }
       }
       
-      // Add bridged Discord users
+      // Add bridged Discord users (only if loaded)
+      // Note: Bridge bot check happens lazily in handleInput when user types @
       for (const bridgedUser of bridgedUsers.value) {
         // Skip if we've already seen this user (by Discord ID)
         const bridgedKey = `discord:${bridgedUser.id}`;
@@ -417,7 +421,7 @@ export function useAutoSuggest(
   let currentSearchAbortController: AbortController | null = null;
   let currentSearchQuery = '';
   
-  // Check if server has bridge bots installed (with server-level caching)
+  // Check if server has bridge bots installed (with server-level caching and request deduplication)
   const hasBridgeBots = async (serverId: string | null): Promise<boolean> => {
     if (!serverId) {
       return false;
@@ -429,42 +433,60 @@ export function useAutoSuggest(
       return cached.hasBridge;
     }
     
-    try {
-      const { data, error } = await supabase
-        .from('bot_server_permissions')
-        .select(`
-          bot:bots(
-            id,
-            bot_type
-          )
-        `)
-        .eq('server_id', serverId)
-        .eq('is_active', true);
-      
-      if (error) {
-        debug.warn('🌉 Failed to check for bridge bots:', error);
-        // Cache negative result to avoid repeated failed queries
+    // Check if there's already a pending request for this server
+    const pendingRequest = bridgeBotCheckPending.get(serverId);
+    if (pendingRequest) {
+      debug.log(`🌉 Bridge bot check already pending for server ${serverId}, reusing request`);
+      return pendingRequest;
+    }
+    
+    // Create new request and store it
+    const requestPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('bot_server_permissions')
+          .select(`
+            bot:bots(
+              id,
+              bot_type
+            )
+          `)
+          .eq('server_id', serverId)
+          .eq('is_active', true);
+        
+        if (error) {
+          debug.warn('🌉 Failed to check for bridge bots:', error);
+          // Cache negative result to avoid repeated failed queries
+          bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
+          return false;
+        }
+        
+        // Filter for bridge bots in the result
+        const bridgeBots = (data || []).filter((perm: any) => perm.bot?.bot_type === 'bridge');
+        const hasBridge = bridgeBots.length > 0;
+        
+        // Cache the result (per server, not per channel)
+        bridgeBotCheckCache.set(serverId, { hasBridge, timestamp: Date.now() });
+        
+        if (hasBridge) {
+          debug.log(`🌉 Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
+        }
+        return hasBridge;
+      } catch (error) {
+        debug.warn('🌉 Error checking for bridge bots:', error);
+        // Cache negative result
         bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
         return false;
+      } finally {
+        // Remove from pending map when done
+        bridgeBotCheckPending.delete(serverId);
       }
-      
-      // Filter for bridge bots in the result
-      const bridgeBots = data?.filter(perm => perm.bot?.bot_type === 'bridge') || [];
-      const hasBridge = bridgeBots.length > 0;
-      
-      // Cache the result (per server, not per channel)
-      bridgeBotCheckCache.set(serverId, { hasBridge, timestamp: Date.now() });
-      
-      if (hasBridge) {
-        debug.log(`🌉 Server ${serverId} has ${bridgeBots.length} bridge bot(s)`);
-      }
-      return hasBridge;
-    } catch (error) {
-      debug.warn('🌉 Error checking for bridge bots:', error);
-      // Cache negative result
-      bridgeBotCheckCache.set(serverId, { hasBridge: false, timestamp: Date.now() });
-      return false;
-    }
+    })();
+    
+    // Store the pending request
+    bridgeBotCheckPending.set(serverId, requestPromise);
+    
+    return requestPromise;
   };
 
   // Fetch bridged users from bot-gateway for current channel
@@ -719,7 +741,39 @@ export function useAutoSuggest(
           position: calculateCursorPosition()
         };
         
+        // LAZY: Check for bridge bots only when user actually types @ (not on server change)
+        if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
+          const serverId = serverChannelStore.currentServerId;
+          const channelId = serverChannelStore.currentChannelId;
+          
+          // Check if server has bridge bots (lazy - only when @ is typed)
+          checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
+            // Only fetch bridged users if server has bridge bots and we haven't loaded them yet
+            if (hasBridge && channelId && channelId !== bridgedUsersChannelId.value) {
+              fetchBridgedUsers(channelId);
+            }
+          }).catch(err => {
+            debug.warn('Failed to check bridge bots:', err);
+          });
+        }
+        
         debug.log('[DEBUG] State set to active:', state.value);
+
+        // LAZY: Check for bridge bots only when user actually types @ (not on server change)
+        if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
+          const serverId = serverChannelStore.currentServerId;
+          const channelId = serverChannelStore.currentChannelId;
+          
+          // Check if server has bridge bots (lazy - only when @ is typed)
+          checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
+            // Only fetch bridged users if server has bridge bots and we haven't loaded them yet
+            if (hasBridge && channelId && channelId !== bridgedUsersChannelId.value) {
+              fetchBridgedUsers(channelId);
+            }
+          }).catch(err => {
+            debug.warn('Failed to check bridge bots:', err);
+          });
+        }
 
         // Trigger ActivityPub user search if needed
         if (trigger.type === 'mention' && finalConfig.mode === 'activitypub') {
@@ -892,46 +946,46 @@ export function useAutoSuggest(
   });
   
   // Track current server's bridge bot status (cached per server)
+  // LAZY: Only check when user actually types @ (not on server change)
   const currentServerHasBridgeBots = ref<boolean | null>(null);
   const currentServerIdForBridgeCheck = ref<string | null>(null);
-
-  // Watch server changes to check for bridge bots (server-level check, cached)
-  watch(() => serverChannelStore.currentServerId, async (newServerId) => {
-    if (newServerId !== currentServerIdForBridgeCheck.value) {
-      currentServerIdForBridgeCheck.value = newServerId;
+  
+  // Lazy check for bridge bots - only when user starts typing a mention
+  const checkBridgeBotsIfNeeded = async (serverId: string | null) => {
+    if (!serverId) {
+      currentServerHasBridgeBots.value = false;
+      return false;
+    }
+    
+    // If we already checked this server, use cached result
+    if (currentServerIdForBridgeCheck.value === serverId && currentServerHasBridgeBots.value !== null) {
+      return currentServerHasBridgeBots.value;
+    }
+    
+    // Only check if we haven't checked this server yet
+    if (currentServerIdForBridgeCheck.value !== serverId) {
+      currentServerIdForBridgeCheck.value = serverId;
       // Check if this server has bridge bots (cached per server)
-      currentServerHasBridgeBots.value = await hasBridgeBots(newServerId);
-      
-      // Clear bridged users when switching servers
+      currentServerHasBridgeBots.value = await hasBridgeBots(serverId);
+    }
+    
+    return currentServerHasBridgeBots.value || false;
+  };
+
+  // LAZY: Don't check bridge bots on channel change - only when user types @
+  // Clear bridged users when channel changes (but don't fetch until needed)
+  watch(() => serverChannelStore.currentChannelId, (newChannelId) => {
+    if (newChannelId !== bridgedUsersChannelId.value) {
+      bridgedUsersLoaded.value = false;
       bridgedUsers.value = [];
       bridgedUsersChannelId.value = null;
-      bridgedUsersLoaded.value = false;
-    }
-  }, { immediate: true });
-
-  // Fetch bridged users when channel changes (only if server has bridge bots)
-  // Note: Even if server has bridge bots, not all channels have bridge mappings
-  // The bot-gateway API will tell us if this specific channel has a bridge
-  watch(() => serverChannelStore.currentChannelId, async (newChannelId) => {
-    if (newChannelId && newChannelId !== bridgedUsersChannelId.value) {
-      bridgedUsersLoaded.value = false;
-      bridgedUsers.value = [];
-      
-      // Only fetch if server has bridge bots (server-level check, cached)
-      // The API call will check if this specific channel has a bridge mapping
-      if (currentServerHasBridgeBots.value === true) {
-        debug.log(`🌉 Channel changed to ${newChannelId}, checking for bridged users...`);
-        fetchBridgedUsers(newChannelId);
-      } else if (currentServerHasBridgeBots.value === false) {
-        // Server has no bridge bots - set empty result immediately (no API call needed)
-        bridgedUsers.value = [];
-        bridgedUsersChannelId.value = newChannelId;
-        bridgedUsersLoaded.value = true;
-        sharedBridgedUsersCache.set(newChannelId, { users: [], timestamp: Date.now() });
+      // Reset bridge bot check when channel changes (will re-check when @ is typed)
+      if (serverChannelStore.currentServerId !== currentServerIdForBridgeCheck.value) {
+        currentServerHasBridgeBots.value = null;
+        currentServerIdForBridgeCheck.value = null;
       }
-      // If currentServerHasBridgeBots.value is null, we're still checking, wait for it
     }
-  }, { immediate: true }); // Run immediately to fetch on mount
+  });
 
   // Watch window resize to reposition suggestions
   if (typeof window !== 'undefined') {

@@ -1,310 +1,230 @@
+/**
+ * Server Membership Service
+ * Centralized service for server membership queries with caching
+ * Prevents duplicate queries to user_servers table
+ */
+
 import { supabase } from '@/supabase'
-import { useToast } from 'vue-toastification'
-import type { RealtimeChannel } from '@supabase/supabase-js'
-import { useServerUsersStore } from '@/stores/useServerUsers'
-import { useServerChannelStore } from '@/stores/useServerChannel'
 import { debug } from '@/utils/debug'
 
-// Types for server membership events
-export interface ServerMembershipEvent {
-  id: string
-  server_id: string
-  user_id: string
-  event_type: 'join' | 'leave' | 'kick' | 'ban'
-  initiated_by?: string
-  metadata: Record<string, any>
-  created_at: string
-}
+// Cache for member counts (server_id -> count)
+const memberCountCache = new Map<string, { count: number; timestamp: number }>()
+const MEMBER_COUNT_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-export interface MembershipChangePayload {
-  type: 'user_joined' | 'user_left'
-  server_id: string
-  user_id: string
-  event_id: string
-  timestamp: string
+// Cache for user membership checks (userId-serverId -> boolean)
+const membershipCache = new Map<string, { isMember: boolean; timestamp: number }>()
+const MEMBERSHIP_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
+
+// Pending requests to prevent duplicate concurrent queries
+const pendingMemberCountRequests = new Map<string, Promise<number>>()
+const pendingMembershipChecks = new Map<string, Promise<boolean>>()
+
+/**
+ * Get member count for a server (with caching and deduplication)
+ */
+export async function getServerMemberCount(serverId: string, forceRefresh = false): Promise<number> {
+  if (!serverId) return 0
+
+  // Check cache first
+  if (!forceRefresh) {
+    const cached = memberCountCache.get(serverId)
+    if (cached && Date.now() - cached.timestamp < MEMBER_COUNT_CACHE_TTL) {
+      return cached.count
+    }
+  }
+
+  // Check if request is already pending
+  const pendingKey = `count-${serverId}`
+  const pendingRequest = pendingMemberCountRequests.get(pendingKey)
+  if (pendingRequest) {
+    debug.log(`📊 Member count request already pending for server ${serverId}, reusing`)
+    return pendingRequest
+  }
+
+  // Create new request
+  const requestPromise = (async () => {
+    try {
+      const { count, error } = await supabase
+        .from('user_servers')
+        .select('*', { count: 'exact', head: true })
+        .eq('server_id', serverId)
+
+      if (error) {
+        debug.error(`❌ Failed to get member count for server ${serverId}:`, error)
+        return 0
+      }
+
+      const memberCount = count || 0
+
+      // Cache the result
+      memberCountCache.set(serverId, { count: memberCount, timestamp: Date.now() })
+
+      return memberCount
+    } catch (error) {
+      debug.error(`❌ Error getting member count for server ${serverId}:`, error)
+      return 0
+    } finally {
+      // Remove from pending map
+      pendingMemberCountRequests.delete(pendingKey)
+    }
+  })()
+
+  // Store pending request
+  pendingMemberCountRequests.set(pendingKey, requestPromise)
+
+  return requestPromise
 }
 
 /**
- * Professional server membership service similar to Discord
- * Handles real-time user join/leave events, system messages, and user list updates
+ * Batch get member counts for multiple servers (more efficient)
  */
-export class ServerMembershipService {
-  private static instance: ServerMembershipService
-  private membershipChannels = new Map<string, RealtimeChannel>()
-  private pgNotifyChannel: RealtimeChannel | null = null
-  
-  private constructor() {}
+export async function getServerMemberCounts(serverIds: string[]): Promise<Map<string, number>> {
+  const results = new Map<string, number>()
 
-  static getInstance(): ServerMembershipService {
-    if (!ServerMembershipService.instance) {
-      ServerMembershipService.instance = new ServerMembershipService()
-    }
-    return ServerMembershipService.instance
-  }
-
-  /**
-   * Initialize membership tracking for a server
-   */
-  async subscribeToServerMembership(serverId: string): Promise<void> {
-    // Clean up existing subscription for this server
-    const existingChannel = this.membershipChannels.get(serverId)
-    if (existingChannel) {
-      await supabase.removeChannel(existingChannel)
-    }
-
-    // Subscribe to membership events for this server
-    const membershipChannel = supabase
-      .channel(`server-membership-${serverId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'server_membership_events',
-          filter: `server_id=eq.${serverId}`
-        },
-        async (payload) => {
-          const event = payload.new as ServerMembershipEvent
-          await this.handleMembershipEvent(event)
-        }
-      )
-      .subscribe((status) => {
-        debug.log(`🔔 Server membership subscription for ${serverId}:`, status)
-        
-        if (status === 'CHANNEL_ERROR') {
-          debug.error('❌ Membership subscription error, retrying in 5s...')
-          setTimeout(() => {
-            this.subscribeToServerMembership(serverId)
-          }, 5000)
-        }
-      })
-
-    this.membershipChannels.set(serverId, membershipChannel)
-  }
-
-  /**
-   * Initialize global membership notifications (PostgreSQL NOTIFY)
-   */
-  async subscribeToGlobalMembershipChanges(): Promise<void> {
-    if (this.pgNotifyChannel) {
-      await supabase.removeChannel(this.pgNotifyChannel)
-    }
-
-    this.pgNotifyChannel = supabase
-      .channel('server-membership-global')
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'server_membership_events' 
-        },
-        async (payload) => {
-          const event = payload.new as ServerMembershipEvent
-          await this.handleRealTimeMembershipChange(event)
-        }
-      )
-      .subscribe((status) => {
-        debug.log('🌐 Global membership subscription:', status)
-      })
-  }
-
-  /**
-   * Handle membership events (join/leave)
-   */
-  private async handleMembershipEvent(event: ServerMembershipEvent): Promise<void> {
-    const serverUsersStore = useServerUsersStore()
-    const serverChannelStore = useServerChannelStore()
-    
-    debug.log('👥 Membership event:', event)
-
-    try {
-      switch (event.event_type) {
-        case 'join':
-          await this.handleUserJoined(event)
-          break
-        case 'leave':
-          await this.handleUserLeft(event)
-          break
-        case 'kick':
-        case 'ban':
-          await this.handleUserRemoved(event)
-          break
-      }
-    } catch (error) {
-      debug.error('❌ Error handling membership event:', error)
+  // Filter out servers we already have cached
+  const uncachedServerIds: string[] = []
+  for (const serverId of serverIds) {
+    const cached = memberCountCache.get(serverId)
+    if (cached && Date.now() - cached.timestamp < MEMBER_COUNT_CACHE_TTL) {
+      results.set(serverId, cached.count)
+    } else {
+      uncachedServerIds.push(serverId)
     }
   }
 
-  /**
-   * Handle real-time membership changes via PostgreSQL NOTIFY
-   */
-  private async handleRealTimeMembershipChange(event: ServerMembershipEvent): Promise<void> {
-    const serverUsersStore = useServerUsersStore()
-    
-    // Fetch the user profile immediately to update the user list
-    if (event.event_type === 'join') {
-      try {
-        await serverUsersStore.fetchUserProfiles([event.user_id])
-        debug.log(`✅ User profile fetched for new member: ${event.user_id}`)
-      } catch (error) {
-        debug.error('❌ Error fetching new user profile:', error)
-      }
-    }
+  // If all were cached, return early
+  if (uncachedServerIds.length === 0) {
+    return results
   }
 
-  /**
-   * Handle user joined event
-   */
-  private async handleUserJoined(event: ServerMembershipEvent): Promise<void> {
-    const serverUsersStore = useServerUsersStore()
-    const serverChannelStore = useServerChannelStore()
-    
-    // Fetch user profile and add to user list
-    await serverUsersStore.fetchUserProfiles([event.user_id])
-    
-    // If this is the current server, refresh the server users
-    if (serverChannelStore.currentServerId === event.server_id) {
-      debug.log(`🎉 User ${event.user_id} joined current server`)
-      
-      // You could add additional UI feedback here like:
-      // - Show a toast notification
-      // - Play a sound
-      // - Add visual feedback
+  // Batch query for uncached servers
+  try {
+    const { data, error } = await supabase
+      .from('user_servers')
+      .select('server_id')
+      .in('server_id', uncachedServerIds)
+
+    if (error) {
+      debug.error('❌ Failed to batch get member counts:', error)
+      // Return cached results only
+      return results
     }
+
+    // Count members per server
+    const counts = new Map<string, number>()
+    for (const item of data || []) {
+      counts.set(item.server_id, (counts.get(item.server_id) || 0) + 1)
+    }
+
+    // Cache results and add to return map
+    const now = Date.now()
+    for (const serverId of uncachedServerIds) {
+      const count = counts.get(serverId) || 0
+      memberCountCache.set(serverId, { count, timestamp: now })
+      results.set(serverId, count)
+    }
+  } catch (error) {
+    debug.error('❌ Error batch getting member counts:', error)
   }
 
-  /**
-   * Handle user left event
-   */
-  private async handleUserLeft(event: ServerMembershipEvent): Promise<void> {
-    const serverUsersStore = useServerUsersStore()
-    const serverChannelStore = useServerChannelStore()
-    
-    // If this is the current server, we might want to remove from user list
-    if (serverChannelStore.currentServerId === event.server_id) {
-      debug.log(`👋 User ${event.user_id} left current server`)
-      
-      // Clean up user from voice channels if they were in any
-      await serverUsersStore.leaveAllVoiceChannels(event.server_id, event.user_id)
-      
-      // You could add additional cleanup here
-    }
-  }
-
-  /**
-   * Handle user removed (kicked/banned) event
-   */
-  private async handleUserRemoved(event: ServerMembershipEvent): Promise<void> {
-    debug.log(`🚫 User ${event.user_id} was ${event.event_type} from server ${event.server_id}`)
-    
-    // Handle similar to user left but with different messaging
-    await this.handleUserLeft(event)
-  }
-
-  /**
-   * Manually trigger a user join (for testing or manual invites)
-   */
-  async triggerUserJoin(serverId: string, userId: string): Promise<boolean> {
-    const toast = useToast();
-    
-    try {
-      const { error } = await supabase
-        .from('user_servers')
-        .insert([{ 
-          server_id: serverId, 
-          user_id: userId,
-          created_at: new Date().toISOString()
-        }])
-
-      if (error) {
-        // Handle duplicate membership gracefully
-        if (error.code === '23505') { // Unique constraint violation
-          debug.log(`✅ User ${userId} is already a member of server ${serverId}`)
-          toast.info("User is already a member of this server")
-          return true; // Consider it successful since the desired state is achieved
-        }
-        throw error
-      }
-      
-      debug.log(`✅ User ${userId} manually added to server ${serverId}`)
-      toast.success("User successfully added to server")
-      return true
-    } catch (error) {
-      debug.error('❌ Error manually adding user to server:', error)
-      toast.error("Failed to add user to server")
-      return false
-    }
-  }
-
-  /**
-   * Manually trigger a user leave
-   */
-  async triggerUserLeave(serverId: string, userId: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('user_servers')
-        .delete()
-        .eq('server_id', serverId)
-        .eq('user_id', userId)
-
-      if (error) throw error
-      
-      debug.log(`✅ User ${userId} manually removed from server ${serverId}`)
-      return true
-    } catch (error) {
-      debug.error('❌ Error manually removing user from server:', error)
-      return false
-    }
-  }
-
-  /**
-   * Get membership history for a server
-   */
-  async getMembershipHistory(serverId: string, limit: number = 50): Promise<ServerMembershipEvent[]> {
-    try {
-      const { data, error } = await supabase
-        .from('server_membership_events')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (error) throw error
-      return data || []
-    } catch (error) {
-      debug.error('❌ Error fetching membership history:', error)
-      return []
-    }
-  }
-
-  /**
-   * Clean up subscriptions for a server
-   */
-  async unsubscribeFromServer(serverId: string): Promise<void> {
-    const channel = this.membershipChannels.get(serverId)
-    if (channel) {
-      await supabase.removeChannel(channel)
-      this.membershipChannels.delete(serverId)
-    }
-  }
-
-  /**
-   * Clean up all subscriptions
-   */
-  async cleanup(): Promise<void> {
-    // Clean up all server membership channels
-    for (const channel of this.membershipChannels.values()) {
-      await supabase.removeChannel(channel)
-    }
-    this.membershipChannels.clear()
-
-    // Clean up global channel
-    if (this.pgNotifyChannel) {
-      await supabase.removeChannel(this.pgNotifyChannel)
-      this.pgNotifyChannel = null
-    }
-  }
+  return results
 }
 
-// Export singleton instance
-export const serverMembershipService = ServerMembershipService.getInstance()
+/**
+ * Check if a user is a member of a server (with caching)
+ */
+export async function isUserMemberOfServer(
+  userId: string,
+  serverId: string,
+  forceRefresh = false
+): Promise<boolean> {
+  if (!userId || !serverId) return false
+
+  const cacheKey = `${userId}-${serverId}`
+
+  // Check cache first
+  if (!forceRefresh) {
+    const cached = membershipCache.get(cacheKey)
+    if (cached && Date.now() - cached.timestamp < MEMBERSHIP_CACHE_TTL) {
+      return cached.isMember
+    }
+  }
+
+  // Check if request is already pending
+  const pendingRequest = pendingMembershipChecks.get(cacheKey)
+  if (pendingRequest) {
+    debug.log(`📊 Membership check already pending for ${userId}-${serverId}, reusing`)
+    return pendingRequest
+  }
+
+  // Create new request
+  const requestPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_servers')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('server_id', serverId)
+        .maybeSingle()
+
+      if (error) {
+        debug.error(`❌ Failed to check membership for ${userId}-${serverId}:`, error)
+        return false
+      }
+
+      const isMember = !!data
+
+      // Cache the result
+      membershipCache.set(cacheKey, { isMember, timestamp: Date.now() })
+
+      return isMember
+    } catch (error) {
+      debug.error(`❌ Error checking membership for ${userId}-${serverId}:`, error)
+      return false
+    } finally {
+      // Remove from pending map
+      pendingMembershipChecks.delete(cacheKey)
+    }
+  })()
+
+  // Store pending request
+  pendingMembershipChecks.set(cacheKey, requestPromise)
+
+  return requestPromise
+}
+
+/**
+ * Invalidate cache for a server (call when membership changes)
+ */
+export function invalidateServerCache(serverId: string): void {
+  memberCountCache.delete(serverId)
+  // Also invalidate all membership checks for this server
+  for (const key of membershipCache.keys()) {
+    if (key.endsWith(`-${serverId}`)) {
+      membershipCache.delete(key)
+    }
+  }
+  debug.log(`🗑️ Invalidated cache for server ${serverId}`)
+}
+
+/**
+ * Invalidate cache for a user (call when user joins/leaves servers)
+ */
+export function invalidateUserCache(userId: string): void {
+  // Invalidate all membership checks for this user
+  for (const key of membershipCache.keys()) {
+    if (key.startsWith(`${userId}-`)) {
+      membershipCache.delete(key)
+    }
+  }
+  debug.log(`🗑️ Invalidated membership cache for user ${userId}`)
+}
+
+/**
+ * Clear all caches (use sparingly)
+ */
+export function clearAllCaches(): void {
+  memberCountCache.clear()
+  membershipCache.clear()
+  debug.log('🗑️ Cleared all server membership caches')
+}

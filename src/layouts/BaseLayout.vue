@@ -255,7 +255,8 @@ const handleGlobalCallDecline = async () => {
 // Only loads what's needed for the current route instead of everything
 const initializeApp = async () => {
   try {
-    // Wait for auth to be ready if session is null
+    // Auth is already initialized in main.ts before mount, so session should be ready
+    // But add a small safety delay in case of race conditions
     if (!authStore.session) {
       await new Promise(resolve => setTimeout(resolve, 100))
     }

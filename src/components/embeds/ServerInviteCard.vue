@@ -173,22 +173,15 @@ async function loadInviteData() {
       return;
     }
 
-    // Step 3: Get member count
-    const { count: memberCount } = await supabase
-      .from('user_servers')
-      .select('*', { count: 'exact', head: true })
-      .eq('server_id', server.id);
+    // Step 3: Get member count (use centralized service with caching)
+    const { getServerMemberCount, isUserMemberOfServer } = await import('@/services/serverMembershipService')
+    const memberCount = await getServerMemberCount(server.id);
+    serverData.value.member_count = memberCount;
 
-    // Step 4: Check if current user is already a member
+    // Step 4: Check if current user is already a member (use centralized service)
     if (authStore.session?.user?.id) {
-      const { data: membership } = await supabase
-        .from('user_servers')
-        .select('id')
-        .eq('user_id', authStore.session.user.id)
-        .eq('server_id', server.id)
-        .single();
-      
-      isJoined.value = !!membership;
+      const isMember = await isUserMemberOfServer(authStore.session.user.id, server.id);
+      isJoined.value = isMember;
     }
 
     // Use getServerIconUrl to construct the full icon URL from the relative path

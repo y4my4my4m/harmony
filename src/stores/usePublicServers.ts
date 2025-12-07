@@ -185,23 +185,21 @@ export const usePublicServersStore = defineStore('publicServers', {
             }
           ];
         } else {
-          // Process the data and get member counts separately for better reliability
-          this.servers = await Promise.all((data || []).map(async server => {
-            let memberCount = 0
-            
-            // Try to get member count, but don't fail if it doesn't work
-            try {
-              const { count } = await supabase
-                .from('user_servers')
-                .select('*', { count: 'exact', head: true })
-                .eq('server_id', server.id)
-              
-              memberCount = count || 0
-            } catch (memberError) {
-              debug.warn(`⚠️ Could not get member count for server ${server.id}:`, memberError)
-              // Use a random number between 1-50 as fallback for demo purposes
-              memberCount = Math.floor(Math.random() * 50) + 1
-            }
+          // Process the data and get member counts using batch query (more efficient)
+          const serverList = data || []
+          
+          // Batch fetch member counts for all servers at once (single query instead of N queries)
+          let memberCounts = new Map<string, number>()
+          try {
+            const { getServerMemberCounts } = await import('@/services/serverMembershipService')
+            memberCounts = await getServerMemberCounts(serverList.map(s => s.id))
+          } catch (memberError) {
+            debug.warn('⚠️ Could not batch get member counts:', memberError)
+          }
+          
+          // Process servers with cached member counts
+          this.servers = serverList.map(server => {
+            const memberCount = memberCounts.get(server.id) || 0
 
             return {
               ...server,
@@ -211,7 +209,7 @@ export const usePublicServersStore = defineStore('publicServers', {
               last_activity: new Date().toISOString(),
               allow_cross_server_emojis: server.allow_cross_server_emojis || false
             }
-          }))
+          })
         }
 
         this.hasLoaded = true
