@@ -77,6 +77,9 @@ interface Player {
   // Interpolation for remote players
   targetX?: number // Target position from network
   targetY?: number // Target position from network
+  lastTargetX?: number // Previous target for smooth interpolation
+  lastTargetY?: number // Previous target for smooth interpolation
+  targetUpdateTime?: number // When target was last updated
   lastNetworkUpdate?: number // Timestamp of last network update
   dashFrameProgress?: number // Dash animation progress (0.0 to 1.0) for deltaTime-based animation
   // Player info
@@ -1509,13 +1512,9 @@ function initializePlayers() {
     
     debug.log(`🎮 Created player: ${participant.userId} at (${player.x}, ${player.y})`)
     
-    // Play spawn sound and broadcast position for local player
+    // Play spawn sound for local player
     if (participant.userId === props.userId) {
       playSound('spawn')
-      // Broadcast initial spawn position multiple times to ensure sync
-      setTimeout(() => broadcastPlayerState(player, true), 50)
-      setTimeout(() => broadcastPlayerState(player, true), 150)
-      setTimeout(() => broadcastPlayerState(player, true), 300)
     }
   })
   
@@ -1729,9 +1728,6 @@ function handleKeyUp(event: KeyboardEvent) {
     if (chargeLoopManager.isPlaying()) {
       stopSound('chargeLoop')
     }
-    
-    // Broadcast charge release to network
-    broadcastPlayerState(localPlayer, true)
   }
   
   handleInput()
@@ -1789,7 +1785,6 @@ function handleInput() {
         frame: 0,
         createdAt: Date.now()
       })
-      broadcastPlayerState(localPlayer, true)
       localPlayer.lastJumpKeyPressed = jumpKeyPressed
       return // Jump takes over from dash
     }
@@ -1814,14 +1809,10 @@ function handleInput() {
       // Set canDash AFTER clearing dash state to prevent immediate re-trigger
       // Also ensure we don't allow dash if shift is still held
       localPlayer.canDash = true
-      broadcastPlayerState(localPlayer, true)
       // Update lastDashKeyPressed BEFORE returning to prevent re-trigger
       localPlayer.lastDashKeyPressed = dashKeyPressed
       // Return here to prevent processing dash trigger logic below
       return
-    } else {
-      // Still dashing - broadcast state
-      broadcastPlayerState(localPlayer, true)
     }
     localPlayer.lastJumpKeyPressed = keys.value.has('ArrowUp')
     localPlayer.lastDashKeyPressed = dashKeyPressed // Update while dashing
@@ -1846,7 +1837,6 @@ function handleInput() {
     localPlayer.canDash = false
     localPlayer.dashCooldown = now
     playSound('dash')
-    broadcastPlayerState(localPlayer, true)
     return // Don't process other input during dash start
   }
   
@@ -2055,10 +2045,6 @@ function handleInput() {
       }
     }
     
-    // Broadcast immediately if facing changed (force broadcast)
-    if (previousFacing !== localPlayer.facing) {
-      broadcastPlayerState(localPlayer, true)
-    }
   } else if ((localPlayer.state as string) !== 'dashing') {
     // Regular movement (not dashing, and not dash jumping)
     if (localPlayer.onGround) {
@@ -2111,10 +2097,6 @@ function handleInput() {
       }
     }
     
-    // Broadcast immediately if facing changed (force broadcast)
-    if (previousFacing !== localPlayer.facing) {
-      broadcastPlayerState(localPlayer, true)
-    }
   }
   
   // Jump (ArrowUp) - only on key press, not hold
@@ -2180,8 +2162,6 @@ function handleInput() {
           localPlayer.state = localPlayer.velocityY < 0 ? 'jumping' : 'falling'
         }
       }, 200)
-      
-      broadcastPlayerState(localPlayer, true)
     } else if (localPlayer.onGround && !localPlayer.onWall) {
       // Ground jump - only if actually on ground AND not on wall
       localPlayer.velocityY = JUMP_STRENGTH
@@ -2199,9 +2179,6 @@ function handleInput() {
   }
   
   // Note: No walk sound in Megaman X - only jump, dash, shoot, charge sounds
-  
-  // Broadcast player state
-  broadcastPlayerState(localPlayer)
 }
 
 // Fire a bullet (uncharged or charged)
@@ -2327,96 +2304,55 @@ function fireChargedShot(player: Player) {
   }
 }
 
-// Broadcast player state to other participants
-let lastBroadcastPayload: Record<string, any> | null = null
+// Batched tick system - send all player states in one event
+let lastTickTime = 0
+const TICK_INTERVAL = 64 // ~20 ticks per second (1000ms / 20 = 50ms)
 
-function broadcastPlayerState(player: Player, force: boolean = false) {
+function broadcastGameTick() {
   if (!props.channelId || !gameChannel) return
   
-  // Don't broadcast state updates during hit/death animations (unless forced)
-  // This prevents overwriting animation states on remote clients
-  if (!force && (player.state === 'hit' || player.state === 'dead')) {
-    const now = Date.now()
-    const elapsed = now - player.hitTime
-    
-    // If hit animation is still playing (< 500ms), don't broadcast state updates
-    if (player.state === 'hit' && elapsed < 500) {
-      return
-    }
-    
-    // If death animation is still playing (< 1350ms), don't broadcast state updates
-    if (player.state === 'dead' && elapsed < 1350) {
-      return
-    }
-    
-    // Animation complete - allow broadcast (e.g., for respawn)
-  }
+  const now = Date.now()
+  if (now - lastTickTime < TICK_INTERVAL) return
+  lastTickTime = now
+  
+  // Build tick payload with all player states
+  const localPlayer = players.value.get(props.userId)
+  if (!localPlayer) return
   
   // Ensure facing is always valid ('left' or 'right')
-  const facingValue = (player.facing === 'left' || player.facing === 'right') ? player.facing : 'right'
+  const facingValue = (localPlayer.facing === 'left' || localPlayer.facing === 'right') ? localPlayer.facing : 'right'
   
-  // Build current payload
-  const currentPayload = {
-    userId: player.userId,
-    x: player.x,
-    y: player.y,
-    facing: facingValue,
-    state: player.state,
-    velocityX: player.velocityX,
-    velocityY: player.velocityY,
-    isShooting: player.isShooting,
-    isCharging: player.isCharging,
-    chargeLevel: player.chargeLevel,
-    onWall: player.onWall,
-    wallSide: player.wallSide,
-    health: player.health,
-    maxHealth: player.maxHealth,
-    lastShotTime: player.lastShotTime || 0,
-    isSpawning: player.isSpawning || false,
-    spawnY: player.spawnY || 0,
-    spawnX: player.x,
-    color: player.color,
-    playerIndex: player.playerIndex,
-  }
-  
-  // Check if state has changed from last broadcast
-  if (!force && lastBroadcastPayload !== null) {
-    const hasChanged = 
-      lastBroadcastPayload.userId !== currentPayload.userId ||
-      lastBroadcastPayload.x !== currentPayload.x ||
-      lastBroadcastPayload.y !== currentPayload.y ||
-      lastBroadcastPayload.facing !== currentPayload.facing ||
-      lastBroadcastPayload.state !== currentPayload.state ||
-      lastBroadcastPayload.velocityX !== currentPayload.velocityX ||
-      lastBroadcastPayload.velocityY !== currentPayload.velocityY ||
-      lastBroadcastPayload.isShooting !== currentPayload.isShooting ||
-      lastBroadcastPayload.isCharging !== currentPayload.isCharging ||
-      lastBroadcastPayload.chargeLevel !== currentPayload.chargeLevel ||
-      lastBroadcastPayload.onWall !== currentPayload.onWall ||
-      lastBroadcastPayload.wallSide !== currentPayload.wallSide ||
-      lastBroadcastPayload.health !== currentPayload.health ||
-      lastBroadcastPayload.maxHealth !== currentPayload.maxHealth ||
-      lastBroadcastPayload.lastShotTime !== currentPayload.lastShotTime ||
-      lastBroadcastPayload.isSpawning !== currentPayload.isSpawning ||
-      lastBroadcastPayload.spawnY !== currentPayload.spawnY ||
-      lastBroadcastPayload.spawnX !== currentPayload.spawnX ||
-      lastBroadcastPayload.color !== currentPayload.color ||
-      lastBroadcastPayload.playerIndex !== currentPayload.playerIndex
-    
-    // Skip broadcast if nothing changed
-    if (!hasChanged) {
-      return
+  const tickPayload = {
+    userId: props.userId,
+    timestamp: now,
+    player: {
+      x: localPlayer.x,
+      y: localPlayer.y,
+      facing: facingValue,
+      state: localPlayer.state,
+      velocityX: localPlayer.velocityX,
+      velocityY: localPlayer.velocityY,
+      isShooting: localPlayer.isShooting,
+      isCharging: localPlayer.isCharging,
+      chargeLevel: localPlayer.chargeLevel,
+      onWall: localPlayer.onWall,
+      wallSide: localPlayer.wallSide,
+      health: localPlayer.health,
+      maxHealth: localPlayer.maxHealth,
+      lastShotTime: localPlayer.lastShotTime || 0,
+      isSpawning: localPlayer.isSpawning || false,
+      spawnY: localPlayer.spawnY || 0,
+      hitTime: localPlayer.hitTime || 0,
+      color: localPlayer.color,
+      playerIndex: localPlayer.playerIndex,
     }
   }
   
-  // Store current payload as last broadcast
-  lastBroadcastPayload = { ...currentPayload }
-  
-  // Use the existing gameChannel instead of creating a new one
+  // Send single tick event with all state
   gameChannel.send({
     type: 'broadcast',
-    event: 'player-update',
-    payload: currentPayload
+    event: 'game-tick',
+    payload: tickPayload
   })
 }
 
@@ -2665,29 +2601,16 @@ function gameLoop(currentTime: number) {
         // Remove bullet immediately (both locally and for all players)
         bullets.value.delete(bulletId)
         
-        // Broadcast bullet removal to all players
+        // Remove bullet - all clients process hits locally, so just remove locally
+        bullets.value.delete(bulletId)
+        
+        // Broadcast bullet removal to all players (so they remove it too)
         if (gameChannel) {
           gameChannel.send({
             type: 'broadcast',
             event: 'bullet-removed',
             payload: {
               bulletId: bulletId
-            }
-          })
-        }
-        
-        // Broadcast damage with hit state
-        if (gameChannel) {
-          gameChannel.send({
-            type: 'broadcast',
-            event: 'player-damaged',
-            payload: {
-              userId: player.userId,
-              health: player.health,
-              damage: bullet.damage,
-              attackerId: bullet.userId,
-              hitTime: now, // Include hitTime for hit animation sync
-              state: player.state // Include state for hit animation
             }
           })
         }
@@ -2713,37 +2636,20 @@ function gameLoop(currentTime: number) {
             shooter.kills = (shooter.kills || 0) + 1
           }
           
-          // Broadcast death state
-          broadcastPlayerState(player, true)
-          
-          // Broadcast death event with timestamp for synchronized respawn
-          if (gameChannel) {
+          // Broadcast kill event (for score tracking only)
+          if (gameChannel && bullet.userId !== player.userId) {
             gameChannel.send({
               type: 'broadcast',
-              event: 'player-died',
+              event: 'player-killed',
               payload: {
-                userId: player.userId,
-                health: player.health,
-                deathTime: now, // Include timestamp for synchronized respawn
-                killerId: bullet.userId // Include killer for score tracking
+                killerId: bullet.userId,
+                victimId: player.userId
               }
             })
-            
-            // Broadcast kill event
-            if (bullet.userId !== player.userId) {
-              gameChannel.send({
-                type: 'broadcast',
-                event: 'player-killed',
-                payload: {
-                  killerId: bullet.userId,
-                  victimId: player.userId
-                }
-              })
-            }
           }
           
           // Respawn after 3 seconds with spawn animation (only for local player)
-          // Remote players will respawn via network event
+          // Remote players will respawn via network tick
           if (player.userId === props.userId) {
             setTimeout(() => {
               if (player.health <= 0) {
@@ -2765,25 +2671,6 @@ function gameLoop(currentTime: number) {
                 player.spawnY = floorY - 64 // Target Y position
                 player.invulnerableUntil = Date.now() + 2000 // Extra invulnerability on respawn
                 playSound('spawn') // Teleport down sound
-                
-                // Broadcast respawn with spawn position
-                broadcastPlayerState(player, true)
-                
-                // Broadcast respawn event
-                if (gameChannel) {
-                  gameChannel.send({
-                    type: 'broadcast',
-                    event: 'player-respawned',
-                    payload: {
-                      userId: player.userId,
-                      x: spawnX,
-                      y: -100,
-                      spawnY: floorY - 64,
-                      health: player.maxHealth,
-                      maxHealth: player.maxHealth
-                    }
-                  })
-                }
               }
             }, 3000)
           }
@@ -2793,7 +2680,7 @@ function gameLoop(currentTime: number) {
             if (player.state === 'hit' && player.health > 0) {
               player.state = player.velocityX !== 0 ? 'walking' : 'idle'
             }
-          }, 300)
+          }, 500) // Match hit animation duration
         }
       }
     })
@@ -2935,6 +2822,9 @@ function gameLoop(currentTime: number) {
     }
   })
   
+  // Broadcast game tick (all player states in one event)
+  broadcastGameTick()
+  
   // Update and draw players
   players.value.forEach((player, userId) => {
     const isLocalPlayer = userId === props.userId
@@ -2948,40 +2838,64 @@ function gameLoop(currentTime: number) {
         player.velocityY += GRAVITY * deltaSeconds * 60
       }
     } else {
-      // REMOTE PLAYERS: Apply physics locally based on network velocity for smooth movement
-      // This makes them move smoothly every frame, not just when network updates arrive
-      if (!player.onGround && !player.onWall && player.velocityY !== undefined) {
-        // Apply gravity to remote players based on their state
-        if (player.state !== 'wallCling') {
-          player.velocityY += GRAVITY * deltaSeconds * 60
-        }
-      }
-      
-      // Apply velocity to remote player position every frame (smooth movement)
-      if (player.velocityX !== undefined && player.velocityY !== undefined) {
-        player.x += player.velocityX * deltaSeconds * 60
-        player.y += player.velocityY * deltaSeconds * 60
-      }
-      
-      // Snap to network position if difference is large (correction for drift)
-      // Use tighter threshold for smoother correction
-      if (player.targetX !== undefined && player.targetY !== undefined && player.lastNetworkUpdate) {
-        const timeSinceUpdate = Date.now() - player.lastNetworkUpdate
-        // Only correct if update is recent (within 100ms) and difference is significant
-        if (timeSinceUpdate < 100) {
-          const dx = Math.abs(player.targetX - player.x)
-          const dy = Math.abs(player.targetY - player.y)
-          // Snap if difference is large (teleport correction) or interpolate if small
-          if (dx > 20 || dy > 20) {
-            // Large difference - snap immediately (network correction)
-            player.x = player.targetX
-            player.y = player.targetY
-          } else if (dx > 1 || dy > 1) {
-            // Small difference - smooth interpolation
-            const interpolationSpeed = 0.5 // Faster interpolation
-            player.x += (player.targetX - player.x) * interpolationSpeed
-            player.y += (player.targetY - player.y) * interpolationSpeed
+      // REMOTE PLAYERS: Smooth interpolation towards network position
+      // Use time-based interpolation for smooth movement between network ticks
+      if (player.targetX !== undefined && player.targetY !== undefined && player.targetUpdateTime) {
+        const now = Date.now()
+        const timeSinceUpdate = now - player.targetUpdateTime
+        const tickInterval = 128 // Match TICK_INTERVAL
+        
+        // Calculate interpolation factor based on time since last update
+        // At tickInterval, we should be at target (1.0), before that we interpolate
+        const t = Math.min(1.0, timeSinceUpdate / tickInterval)
+        
+        // Use smooth interpolation (ease-out for more natural movement)
+        // Ease-out cubic: starts fast, ends slow
+        const smoothT = 1 - Math.pow(1 - t, 3)
+        
+        // Interpolate current position towards target
+        const dx = player.targetX - player.x
+        const dy = player.targetY - player.y
+        
+        // If difference is very large, snap immediately (teleport correction)
+        if (Math.abs(dx) > 100 || Math.abs(dy) > 100) {
+          player.x = player.targetX
+          player.y = player.targetY
+          if (player.lastTargetX === undefined) {
+            player.lastTargetX = player.targetX
+            player.lastTargetY = player.targetY
           }
+        } else {
+          // Smooth interpolation towards target
+          player.x += dx * smoothT * 0.3 // Smooth interpolation speed (0.3 = 30% per frame when t=1)
+          player.y += dy * smoothT * 0.3
+          
+          // Also apply velocity for more natural movement prediction
+          if (player.velocityX !== undefined && player.velocityY !== undefined) {
+            // Apply velocity as prediction (helps with smoothness)
+            const velocityInfluence = 0.2 // How much velocity affects position
+            player.x += player.velocityX * deltaSeconds * 60 * velocityInfluence
+            player.y += player.velocityY * deltaSeconds * 60 * velocityInfluence
+          }
+        }
+        
+        // Apply physics for natural movement (gravity, etc.)
+        if (!player.onGround && !player.onWall && player.velocityY !== undefined) {
+          // Apply gravity to remote players based on their state
+          if (player.state !== 'wallCling') {
+            player.velocityY += GRAVITY * deltaSeconds * 60
+          }
+        }
+      } else {
+        // Fallback: apply physics if no target (shouldn't happen, but safety)
+        if (!player.onGround && !player.onWall && player.velocityY !== undefined) {
+          if (player.state !== 'wallCling') {
+            player.velocityY += GRAVITY * deltaSeconds * 60
+          }
+        }
+        if (player.velocityX !== undefined && player.velocityY !== undefined) {
+          player.x += player.velocityX * deltaSeconds * 60
+          player.y += player.velocityY * deltaSeconds * 60
         }
       }
       
@@ -4214,9 +4128,12 @@ function setupRealtimeListener() {
     config: { broadcast: { self: false } }
   })
   
-  gameChannel.on('broadcast', { event: 'player-update' }, (payload) => {
+  gameChannel.on('broadcast', { event: 'game-tick' }, (payload) => {
     const data = payload.payload as any
-    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY, spawnX, color, playerIndex } = data
+    const { userId, timestamp, player: playerData } = data
+    if (!playerData) return
+    
+    const { x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY, spawnX, hitTime, color, playerIndex } = playerData
     
     // Don't update local player from remote updates
     if (userId === props.userId) return
@@ -4292,6 +4209,9 @@ function setupRealtimeListener() {
         // Initialize interpolation targets
         targetX: initialX,
         targetY: y || (floorY - 64),
+        lastTargetX: initialX,
+        lastTargetY: y || (floorY - 64),
+        targetUpdateTime: Date.now(),
         lastNetworkUpdate: Date.now(),
         username: remoteUsername,
         profilePicture: remoteProfilePicture,
@@ -4359,22 +4279,27 @@ function setupRealtimeListener() {
         }
       
       // Store network position as target for interpolation (smooth movement)
-      // Remote players will interpolate towards this while applying physics locally
+      // Update previous target before setting new target for smooth interpolation
       if (x !== undefined && x !== null) {
-        player.targetX = x
-        // Snap immediately if difference is very large (teleport correction)
-        if (Math.abs(player.x - x) > 100) {
-          player.x = x
+        // Store current target as previous before updating
+        if (player.targetX !== undefined) {
+          player.lastTargetX = player.targetX
+        } else {
+          player.lastTargetX = player.x
         }
+        player.targetX = x
       }
       if (y !== undefined && y !== null) {
-        player.targetY = y
-        // Snap immediately if difference is very large (teleport correction)
-        if (Math.abs(player.y - y) > 100) {
-          player.y = y
+        // Store current target as previous before updating
+        if (player.targetY !== undefined) {
+          player.lastTargetY = player.targetY
+        } else {
+          player.lastTargetY = player.y
         }
+        player.targetY = y
       }
       player.lastNetworkUpdate = Date.now()
+      player.targetUpdateTime = Date.now() // Track when target was updated for interpolation
       
       // Update state and velocity from network (controls the physics)
       // BUT: Don't overwrite hit/death states until animations complete
@@ -4389,13 +4314,18 @@ function setupRealtimeListener() {
           if (hitElapsed < 500) {
             // Hit animation still playing - don't overwrite state
             // But allow transition to 'dead' if health is 0
-            if (state === 'dead' && player.health <= 0) {
+            if (state === 'dead' && (player.health <= 0 || health <= 0)) {
               player.state = 'dead'
-              player.hitTime = now // Update hitTime for death animation
+              // Use network hitTime if provided, otherwise use current time
+              player.hitTime = hitTime && hitTime > 0 ? hitTime : now
             }
           } else {
             // Hit animation complete - allow state update
             player.state = state
+            // Update hitTime if provided and state is hit/dead
+            if ((state === 'hit' || state === 'dead') && hitTime && hitTime > 0) {
+              player.hitTime = hitTime
+            }
           }
         }
         // If player is in dead state, only allow state change after death animation completes (1350ms)
@@ -4413,13 +4343,12 @@ function setupRealtimeListener() {
           // Allow state update, but prioritize hit/dead states from network
           if (state === 'hit' || state === 'dead') {
             player.state = state
-            // If state is hit or dead, we need hitTime - use current time if not provided
-            if (state === 'hit' || state === 'dead') {
-              // hitTime should come from player-damaged or player-died events
-              // But if we're getting it here, use current time
-              if (!player.hitTime || player.hitTime === 0) {
-                player.hitTime = now
-              }
+            // If state is hit or dead, use network hitTime if provided
+            if (hitTime && hitTime > 0) {
+              player.hitTime = hitTime
+            } else if (!player.hitTime || player.hitTime === 0) {
+              // Fallback: use current time if no hitTime provided
+              player.hitTime = now
             }
           } else {
             player.state = state
@@ -4464,86 +4393,17 @@ function setupRealtimeListener() {
       }
       
       // Update lastShotTime for shooting animation sync
-      const remoteLastShotTime = data.lastShotTime
+      const remoteLastShotTime = playerData.lastShotTime
       if (remoteLastShotTime !== undefined && remoteLastShotTime > 0) {
         player.lastShotTime = remoteLastShotTime
         player.isShooting = Date.now() - remoteLastShotTime < 200
       }
-    }
-  })
-  
-  gameChannel.on('broadcast', { event: 'player-damaged' }, (payload) => {
-    const { userId, health, hitTime, state } = payload.payload as any
-    
-    const player = players.value.get(userId)
-    if (player) {
-      player.health = health
       
-      // Sync hit state and hitTime for hit animation (only if not dead)
-      if (state === 'hit' && health > 0 && hitTime) {
-        player.state = 'hit'
+      // Sync hitTime if provided (for hit/death animations)
+      if (hitTime !== undefined && hitTime > 0) {
         player.hitTime = hitTime
-        player.invulnerableUntil = hitTime + 1000 // 1 second invulnerability
-        
-        // Return to previous state after hit animation (300ms)
-        setTimeout(() => {
-          const hitPlayer = players.value.get(userId)
-          if (hitPlayer && hitPlayer.state === 'hit' && hitPlayer.health > 0) {
-            hitPlayer.state = hitPlayer.velocityX !== 0 ? 'walking' : 'idle'
-          }
-        }, 300)
       }
     }
-  })
-  
-  gameChannel.on('broadcast', { event: 'player-died' }, (payload) => {
-    const { userId, health, deathTime } = payload.payload as any
-    
-    const player = players.value.get(userId)
-    if (!player) return
-    
-    // Don't process death for local player (handled locally)
-    if (userId === props.userId) return
-    
-    // Set death state
-    player.health = health || 0
-    player.state = 'dead'
-    player.hitTime = deathTime || Date.now()
-    
-    // Respawn after 3 seconds (synchronized with death time)
-    // If respawn event doesn't come, trigger default respawn
-    const respawnDelay = 3000
-    const timeSinceDeath = Date.now() - (deathTime || Date.now())
-    const remainingDelay = Math.max(0, respawnDelay - timeSinceDeath)
-    
-    const respawnTimeout = setTimeout(() => {
-      const respawnPlayer = players.value.get(userId)
-      if (respawnPlayer && respawnPlayer.health <= 0 && respawnPlayer.state === 'dead') {
-        // Respawn event didn't come, trigger default respawn
-        const canvasHeight = gameCanvasHeight.value
-        const floorY = canvasHeight - 20
-        const canvasWidth = gameCanvasWidth.value
-        
-        // Random spawn X position
-        const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
-        
-        respawnPlayer.health = respawnPlayer.maxHealth
-        respawnPlayer.x = spawnX
-        respawnPlayer.y = -100 // Start above screen for spawn animation
-        respawnPlayer.velocityX = 0
-        respawnPlayer.velocityY = 0
-        respawnPlayer.state = 'idle'
-        respawnPlayer.isSpawning = true
-        respawnPlayer.spawnTime = Date.now()
-        respawnPlayer.spawnY = floorY - 64
-        respawnPlayer.invulnerableUntil = Date.now() + 2000
-        
-        debug.log(`🎮 Default respawn for remote player ${userId.substring(0, 6)} at (${spawnX}, ${floorY - 64})`)
-      }
-    }, remainingDelay)
-    
-    // Store timeout so we can clear it if respawn event comes
-    ;(player as any).respawnTimeout = respawnTimeout
   })
   
   gameChannel.on('broadcast', { event: 'player-respawned' }, (payload) => {
