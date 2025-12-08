@@ -39,7 +39,7 @@ interface Player {
   y: number
   playerIndex: number
   facing: 'left' | 'right'
-  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'dashJumping' | 'wallCling' | 'wallKick' | 'hit' | 'dead' | 'wallSlide'
+  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'dashJumping' | 'wallCling' | 'wallKick' | 'wallSlide' | 'hit' | 'dead'  // Note: wallKick is valid state
   velocityX: number
   velocityY: number
   onGround: boolean
@@ -91,6 +91,7 @@ interface Bullet {
   color: string
   createdAt: number
   damage: number
+  facing: 'left' | 'right' // Direction bullet is traveling for sprite flipping
 }
 
 const players = ref<Map<string, Player>>(new Map())
@@ -308,6 +309,8 @@ const soundPaths = {
 const soundPool: Map<string, HTMLAudioElement[]> = new Map()
 const playingSounds: Map<string, HTMLAudioElement> = new Map() // Track currently playing looping sounds
 let soundsInitialized = false
+let chargeLoopLastStartTime = 0 // Debounce charge loop starts
+const CHARGE_LOOP_DEBOUNCE = 500 // Minimum ms between charge loop starts
 
 function initializeSounds() {
   if (soundsInitialized) return
@@ -347,15 +350,44 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
   try {
     initializeSounds()
     
-    // For looping sounds, stop any existing sound first to ensure clean restart
-    if (loop || soundName === 'chargeLoop') {
+    // Special handling for charge loop - debounce rapid restarts
+    if (soundName === 'chargeLoop') {
+      const now = Date.now()
+      
+      // Check if charge loop is already playing
+      const currentSound = playingSounds.get('chargeLoop')
+      if (currentSound && !currentSound.paused && !currentSound.ended) {
+        debug.log(`🔊 playSound(chargeLoop): Already playing, returning existing`)
+        return currentSound // Already playing, don't restart
+      }
+      
+      // Debounce: prevent starting charge loop too quickly after last start
+      const timeSinceLastStart = now - chargeLoopLastStartTime
+      if (timeSinceLastStart < CHARGE_LOOP_DEBOUNCE) {
+        debug.log(`🔊 playSound(chargeLoop): Debounced - only ${timeSinceLastStart}ms since last start`)
+        return null // Too soon, don't start
+      }
+      
+      // Clean up any existing stopped/paused charge loop
+      if (currentSound) {
+        debug.log(`🔊 playSound(chargeLoop): Cleaning up existing sound`)
+        try {
+          currentSound.pause()
+          currentSound.currentTime = 0
+          currentSound.loop = false
+        } catch (e) {}
+        playingSounds.delete('chargeLoop')
+      }
+      
+      debug.log(`🔊 playSound(chargeLoop): Starting new loop sound`)
+      chargeLoopLastStartTime = now
+    } else if (loop) {
+      // For other looping sounds, stop existing first
       const currentSound = playingSounds.get(soundName)
       if (currentSound) {
-        // If already playing and we're trying to start the same loop, don't restart (let it continue)
-        if (!currentSound.paused && soundName === 'chargeLoop') {
-          return currentSound // Already playing charge loop, don't restart
+        if (!currentSound.paused) {
+          return currentSound // Already playing
         }
-        // If paused or different sound, clean it up first
         currentSound.pause()
         currentSound.currentTime = 0
         playingSounds.delete(soundName)
@@ -369,38 +401,35 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
     for (const path of paths) {
       try {
         const audio = new Audio(path)
-        audio.loop = loop || soundName === 'chargeLoop'
-        audio.volume = soundName === 'chargeLoop' ? 0.2 : 0.3 // Quieter for loop
+        const isLoopSound = loop || soundName === 'chargeLoop'
+        audio.loop = isLoopSound
+        audio.volume = soundName === 'chargeLoop' ? 0.2 : 0.3
         
-        // Set up error handler before playing
+        // For looping sounds, add to map IMMEDIATELY to prevent race conditions
+        if (isLoopSound) {
+          playingSounds.set(soundName, audio)
+        }
+        
+        // Set up error handler
         audio.onerror = () => {
           debug.warn(`🎮 Audio error for ${soundName}:`, path)
-          playingSounds.delete(soundName)
+          if (isLoopSound) {
+            playingSounds.delete(soundName)
+          }
         }
         
         const playPromise = audio.play()
         if (playPromise) {
-          playPromise.then(() => {
-            // Store reference for looping sounds so we can stop them
-            if (loop || soundName === 'chargeLoop') {
-              playingSounds.set(soundName, audio)
-              debug.log(`🎮 Started playing ${soundName}`)
-            }
-          }).catch((err) => {
-            // Ignore errors - file might not exist or need user interaction
+          playPromise.catch((err) => {
             debug.warn(`Could not play sound ${path}:`, err)
-            playingSounds.delete(soundName)
+            if (isLoopSound) {
+              playingSounds.delete(soundName)
+            }
           })
-        } else {
-          // If play() returns undefined, still store it (some browsers)
-          if (loop || soundName === 'chargeLoop') {
-            playingSounds.set(soundName, audio)
-          }
         }
-        // Return the audio element so caller can use it (e.g., for onended event)
+        
         return audio
       } catch (e) {
-        // Try next path
         debug.warn(`🎮 Failed to create audio for ${soundName}:`, e)
         continue
       }
@@ -413,21 +442,44 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
 
 function stopSound(soundName: keyof typeof soundPaths) {
   const currentSound = playingSounds.get(soundName)
+  if (soundName === 'chargeLoop') {
+    debug.log(`🔊 stopSound(chargeLoop): Called`, {
+      soundExists: !!currentSound,
+      soundPaused: currentSound?.paused,
+      soundEnded: currentSound?.ended,
+      soundLoop: currentSound?.loop
+    })
+  }
+  
   if (currentSound) {
     try {
       // Remove all event listeners first to prevent callbacks
       currentSound.onerror = null
       currentSound.onended = null
+      currentSound.onplay = null
+      // Disable loop FIRST to ensure it stops
+      currentSound.loop = false
       // Stop the sound
       currentSound.pause()
       currentSound.currentTime = 0
-      // Disable loop to ensure it stops
-      currentSound.loop = false
+      // Mute as extra safety
+      currentSound.volume = 0
     } catch (e) {
       debug.warn(`🎮 Error stopping sound ${soundName}:`, e)
     }
     playingSounds.delete(soundName)
-    debug.log(`🎮 Stopped ${soundName}`)
+    
+    if (soundName === 'chargeLoop') {
+      debug.log(`🔊 stopSound(chargeLoop): Sound removed from map, still in map:`, playingSounds.has('chargeLoop'))
+    }
+  } else if (soundName === 'chargeLoop') {
+    debug.log(`🔊 stopSound(chargeLoop): No sound found in map`)
+  }
+  
+  // For charge loop, also reset the debounce timer to allow restart after proper stop
+  if (soundName === 'chargeLoop') {
+    chargeLoopLastStartTime = 0
+    debug.log(`🔊 stopSound(chargeLoop): Debounce timer reset`)
   }
 }
 
@@ -862,6 +914,20 @@ function handleKeyUp(event: KeyboardEvent) {
     const now = Date.now()
     const chargeTime = now - localPlayer.chargeStartTime
     
+    // DEBUG: Log charge state on key release
+    const loopPlaying = playingSounds.has('chargeLoop')
+    const initialSoundExists = !!localPlayer.initialChargeSound
+    const initialSoundPlaying = localPlayer.initialChargeSound && !localPlayer.initialChargeSound.paused
+    debug.log(`🔊 SPACE RELEASED - Charge State:`, {
+      isCharging: localPlayer.isCharging,
+      chargeLoopStarted: localPlayer.chargeLoopStarted,
+      loopPlaying: loopPlaying,
+      initialSoundExists: initialSoundExists,
+      initialSoundPlaying: initialSoundPlaying,
+      chargeLevel: localPlayer.chargeLevel,
+      chargeTime: chargeTime
+    })
+    
     // IMMEDIATELY stop ALL charge-related sounds when releasing space
     stopSound('chargeLoop')
     stopSound('charge') // Also stop initial charge sound via sound pool
@@ -884,6 +950,14 @@ function handleKeyUp(event: KeyboardEvent) {
     const wasCharging = localPlayer.isCharging
     const previousChargeLevel = localPlayer.chargeLevel
     localPlayer.chargeStartTime = 0
+    
+    // DEBUG: Log after cleanup
+    debug.log(`🔊 SPACE RELEASED - After Cleanup:`, {
+      isCharging: localPlayer.isCharging,
+      chargeLoopStarted: localPlayer.chargeLoopStarted,
+      loopStillPlaying: playingSounds.has('chargeLoop'),
+      initialSoundCleared: !localPlayer.initialChargeSound
+    })
     
     if (wasCharging && chargeTime > 0) {
       // Fire based on charge level
@@ -954,13 +1028,21 @@ function handleInput() {
     const wasJumpKeyPressed = localPlayer.lastJumpKeyPressed || false
     
     if (jumpKeyPressed && !wasJumpKeyPressed) {
-      // Perform dash-jump - keep horizontal dash momentum and jump
+      // Perform dash-jump - PRESERVE horizontal dash momentum and jump
+      // Save the dash velocity BEFORE changing state
+      const dashVelocityX = localPlayer.velocityX
+      
       localPlayer.state = 'dashJumping'
       localPlayer.isDashJumping = true
       localPlayer.velocityY = JUMP_STRENGTH
-      // Keep dash horizontal velocity (faster than normal walk)
+      // EXPLICITLY preserve the dash horizontal velocity
+      localPlayer.velocityX = dashVelocityX
       localPlayer.onGround = false
       localPlayer.canDash = true // Reset dash for when you land
+      // Clear dash start time so dash duration check doesn't affect us
+      localPlayer.dashStartTime = 0
+      localPlayer.dashFrameProgress = 0
+      
       playSound('jump')
       // Add smoke effect
       localPlayer.smokeEffects.push({
@@ -1034,30 +1116,50 @@ function handleInput() {
   // CRITICAL: Only process charging if Space key is actually pressed (not from network state)
   const spaceKeyPressed = keys.value.has('Space')
   
-  // ALWAYS check for stale charge state first - clean up if space not pressed
+  // ALWAYS check for stale charge state FIRST - clean up if space not pressed
+  // This runs EVERY FRAME to ensure we catch key releases
   if (!spaceKeyPressed) {
-    // Space not pressed - immediately stop all charge-related audio and state
+    // Space NOT pressed - IMMEDIATELY stop all charge-related audio and state
+    // This is the most important cleanup path
     if (localPlayer.isCharging || localPlayer.chargeLoopStarted || playingSounds.has('chargeLoop') || localPlayer.initialChargeSound) {
+      // DEBUG: Log when we detect stale charge state
+      debug.log(`🔊 handleInput: Space NOT pressed but charge state active - cleaning up`, {
+        isCharging: localPlayer.isCharging,
+        chargeLoopStarted: localPlayer.chargeLoopStarted,
+        loopPlaying: playingSounds.has('chargeLoop'),
+        initialSoundExists: !!localPlayer.initialChargeSound
+      })
+      
+      // Stop charge loop immediately
       stopSound('chargeLoop')
+      
       // Stop and clean up initial charge sound
       if (localPlayer.initialChargeSound) {
         try {
           localPlayer.initialChargeSound.pause()
           localPlayer.initialChargeSound.currentTime = 0
-          localPlayer.initialChargeSound.onended = null // Remove handler to prevent delayed loop start
+          localPlayer.initialChargeSound.onended = null // CRITICAL: Remove handler to prevent delayed loop start
+          localPlayer.initialChargeSound.loop = false
+          localPlayer.initialChargeSound.volume = 0
         } catch (e) {
           // Ignore errors
         }
         localPlayer.initialChargeSound = undefined
       }
+      
+      // Reset all charge state
       localPlayer.isCharging = false
       localPlayer.chargeLoopStarted = false
       localPlayer.chargeStartTime = 0
+      localPlayer.chargeLevel = 0
+      
+      debug.log(`🔊 handleInput: After cleanup - loop still playing:`, playingSounds.has('chargeLoop'))
     }
+    // Don't process any charging logic when space not pressed
   } else {
     // Space IS pressed - handle charging
     if (!localPlayer.isCharging) {
-      // Starting a new charge - stop any existing loop first
+      // Starting a new charge - clean up any stale audio first
       stopSound('chargeLoop')
       if (localPlayer.initialChargeSound) {
         try {
@@ -1066,11 +1168,12 @@ function handleInput() {
         } catch (e) {}
         localPlayer.initialChargeSound = undefined
       }
+      
       localPlayer.isCharging = true
       localPlayer.chargeStartTime = now
       localPlayer.chargeLevel = 0
-      localPlayer.chargeLoopStarted = false // Reset loop flag
-      localPlayer.isShooting = true // Show shooting animation while charging
+      localPlayer.chargeLoopStarted = false
+      localPlayer.isShooting = true
     } else {
       // Update charge level
       const chargeTime = now - localPlayer.chargeStartTime
@@ -1082,37 +1185,46 @@ function handleInput() {
         localPlayer.chargeLevel = 1
       }
       
-      // Play charge sound on start, then loop continuously
-      // Megaman X behavior: Initial charge sound plays once, when it finishes, loop starts
-      // Only play initial charge sound if we're actually going to charge (chargeTime >= 200ms)
-      // Don't play for quick taps that will just fire uncharged bullets
-      if (chargeTime >= 200 && !localPlayer.initialChargeSound && !localPlayer.chargeLoopStarted) {
-        // Initial charge sound - play once (only if actually charging, not quick tap)
+      // Play initial charge sound, then loop - only if charging long enough (300ms)
+      // This prevents sound from playing for quick taps
+      if (chargeTime >= 300 && !localPlayer.initialChargeSound && !localPlayer.chargeLoopStarted && !playingSounds.has('chargeLoop')) {
+        debug.log(`🔊 Starting initial charge sound at ${chargeTime}ms`)
         const chargeSound = playSound('charge')
         if (chargeSound) {
           localPlayer.initialChargeSound = chargeSound
-          // Create a closure to capture the current charge start time
           const chargeStartTimeSnapshot = localPlayer.chargeStartTime
-          // When initial charge sound ends, start the loop ONLY if still valid
+          
           chargeSound.onended = () => {
-            // Robust check: Only start loop if ALL conditions are met
-            // 1. Player still exists and is charging
-            // 2. Space key is still pressed
-            // 3. Charge start time hasn't changed (same charge session)
-            // 4. Loop hasn't already started
-            // 5. Game is still active
-            if (localPlayer.isCharging && 
-                keys.value.has('Space') && 
-                localPlayer.chargeStartTime === chargeStartTimeSnapshot &&
-                !localPlayer.chargeLoopStarted && 
-                !playingSounds.has('chargeLoop') &&
-                props.isActive) {
-              // Start the loop
+            // TRIPLE CHECK all conditions before starting loop
+            // This callback might fire after space is released
+            const stillCharging = localPlayer.isCharging
+            const spaceStillPressed = keys.value.has('Space')
+            const sameChargeSession = localPlayer.chargeStartTime === chargeStartTimeSnapshot
+            const loopNotStarted = !localPlayer.chargeLoopStarted && !playingSounds.has('chargeLoop')
+            const gameActive = props.isActive
+            
+            debug.log(`🔊 Initial charge sound ended - checking loop start:`, {
+              stillCharging,
+              spaceStillPressed,
+              sameChargeSession,
+              loopNotStarted,
+              gameActive,
+              willStartLoop: stillCharging && spaceStillPressed && sameChargeSession && loopNotStarted && gameActive
+            })
+            
+            if (stillCharging && spaceStillPressed && sameChargeSession && loopNotStarted && gameActive) {
+              debug.log(`🔊 Starting charge loop`)
               const loopSound = playSound('chargeLoop', true)
               if (loopSound) {
                 localPlayer.chargeLoopStarted = true
+                debug.log(`🔊 Charge loop started successfully`)
+              } else {
+                debug.warn(`🔊 Failed to start charge loop`)
               }
+            } else {
+              debug.log(`🔊 Charge loop NOT started - conditions not met`)
             }
+            
             // Always clear reference
             if (localPlayer.initialChargeSound === chargeSound) {
               localPlayer.initialChargeSound = undefined
@@ -1146,35 +1258,46 @@ function handleInput() {
         }
       }
     } else if (isInAir && !localPlayer.isWallJumping) {
-      // Air control - Megaman X allows some air control but with momentum
-      // For regular jumps, allow full air control
-      // For dash jumps, preserve more horizontal momentum
+      // Air control - Megaman X style
+      // Dash jumps preserve horizontal momentum almost completely
+      // Regular jumps have full air control
       const isDashJump = localPlayer.isDashJumping || localPlayer.state === 'dashJumping'
-      const airControlFactor = isDashJump ? 0.3 : 1.0 // Less control during dash jump
       
-      if (keys.value.has('ArrowLeft')) {
-        if (isDashJump) {
-          // Dash jump: blend toward walk speed but preserve some dash momentum
-          localPlayer.velocityX = localPlayer.velocityX * (1 - airControlFactor * 0.1) + (-WALK_SPEED * airControlFactor * 0.1)
-        } else {
+      if (isDashJump) {
+        // DASH JUMP: Preserve momentum, only allow minor direction influence
+        // Player can slightly adjust direction but keeps most of their dash speed
+        if (keys.value.has('ArrowLeft')) {
+          localPlayer.facing = 'left'
+          // Only very slightly influence velocity (0.5% per frame)
+          if (localPlayer.velocityX > 0) {
+            // Moving right, pressing left - very slight slowdown
+            localPlayer.velocityX *= 0.998
+          }
+        } else if (keys.value.has('ArrowRight')) {
+          localPlayer.facing = 'right'
+          if (localPlayer.velocityX < 0) {
+            // Moving left, pressing right - very slight slowdown
+            localPlayer.velocityX *= 0.998
+          }
+        }
+        // No input = full momentum preservation (do nothing to velocityX)
+        // Dash momentum is maintained until landing
+      } else {
+        // REGULAR JUMP: Full air control like original Megaman
+        if (keys.value.has('ArrowLeft')) {
           localPlayer.velocityX = -WALK_SPEED
-        }
-        localPlayer.facing = 'left'
-      } else if (keys.value.has('ArrowRight')) {
-        if (isDashJump) {
-          localPlayer.velocityX = localPlayer.velocityX * (1 - airControlFactor * 0.1) + (WALK_SPEED * airControlFactor * 0.1)
-        } else {
+          localPlayer.facing = 'left'
+        } else if (keys.value.has('ArrowRight')) {
           localPlayer.velocityX = WALK_SPEED
-        }
-        localPlayer.facing = 'right'
-      } else if (!isDashJump) {
-        // No input and not dash jumping - gradually slow down (air friction)
-        localPlayer.velocityX *= 0.95
-        if (Math.abs(localPlayer.velocityX) < 0.1) {
-          localPlayer.velocityX = 0
+          localPlayer.facing = 'right'
+        } else {
+          // No input - gradually slow down (air friction)
+          localPlayer.velocityX *= 0.92
+          if (Math.abs(localPlayer.velocityX) < 0.1) {
+            localPlayer.velocityX = 0
+          }
         }
       }
-      // Dash jump preserves horizontal momentum when no input
     } else if (localPlayer.isWallJumping) {
       // During wall jump, allow direction change but preserve kick momentum for a short time
       const kickTime = Date.now() - (localPlayer.wallKickTime || 0)
@@ -1380,7 +1503,8 @@ function fireBullet(player: Player, chargeLevel: number = 0) {
     chargingSprites: chargingSprites,
     color: player.color,
     createdAt: Date.now(),
-    damage: damage
+    damage: damage,
+    facing: player.facing
   }
   
   bullets.value.set(bulletId, bullet)
@@ -1669,13 +1793,27 @@ function gameLoop(currentTime: number) {
           const drawWidth = spriteWidth * scale
           const drawHeight = spriteHeight * scale
           
-          ctx.drawImage(
-            spriteImg,
-            bullet.x - drawWidth / 2,
-            bullet.y - drawHeight / 2,
-            drawWidth,
-            drawHeight
-          )
+          // Flip bullet sprite when facing left
+          ctx.save()
+          if (bullet.facing === 'left') {
+            ctx.scale(-1, 1)
+            ctx.drawImage(
+              spriteImg,
+              -bullet.x - drawWidth / 2,
+              bullet.y - drawHeight / 2,
+              drawWidth,
+              drawHeight
+            )
+          } else {
+            ctx.drawImage(
+              spriteImg,
+              bullet.x - drawWidth / 2,
+              bullet.y - drawHeight / 2,
+              drawWidth,
+              drawHeight
+            )
+          }
+          ctx.restore()
           
           // Draw charging sprites on projectile (for LV1 and LV2)
           if (bullet.chargingSprites.length > 0 && (bullet.chargeLevel === 1 || bullet.chargeLevel === 2)) {
@@ -1688,13 +1826,27 @@ function gameLoop(currentTime: number) {
               if (chargeSprite && chargeSprite.complete) {
                 const chargeWidth = chargeSprite.naturalWidth * (chargeSprite.naturalWidth > 100 ? 0.5 : 1)
                 const chargeHeight = chargeSprite.naturalHeight * (chargeSprite.naturalHeight > 100 ? 0.5 : 1)
-                ctx.drawImage(
-                  chargeSprite,
-                  bullet.x - chargeWidth / 2,
-                  bullet.y - chargeHeight / 2,
-                  chargeWidth,
-                  chargeHeight
-                )
+                // Flip charge effect when facing left
+                ctx.save()
+                if (bullet.facing === 'left') {
+                  ctx.scale(-1, 1)
+                  ctx.drawImage(
+                    chargeSprite,
+                    -bullet.x - chargeWidth / 2,
+                    bullet.y - chargeHeight / 2,
+                    chargeWidth,
+                    chargeHeight
+                  )
+                } else {
+                  ctx.drawImage(
+                    chargeSprite,
+                    bullet.x - chargeWidth / 2,
+                    bullet.y - chargeHeight / 2,
+                    chargeWidth,
+                    chargeHeight
+                  )
+                }
+                ctx.restore()
               }
             }
           }
@@ -1711,14 +1863,27 @@ function gameLoop(currentTime: number) {
                 if (trailSprite && trailSprite.complete) {
                   const trailWidth = trailSprite.naturalWidth * (trailSprite.naturalWidth > 100 ? 0.5 : 1)
                   const trailHeight = trailSprite.naturalHeight * (trailSprite.naturalHeight > 100 ? 0.5 : 1)
-                  // Draw trail behind bullet
-                  ctx.drawImage(
-                    trailSprite,
-                    bullet.x - bullet.velocityX * 2 - trailWidth / 2,
-                    bullet.y - trailHeight / 2,
-                    trailWidth,
-                    trailHeight
-                  )
+                  // Draw trail behind bullet (flip when facing left)
+                  ctx.save()
+                  if (bullet.facing === 'left') {
+                    ctx.scale(-1, 1)
+                    ctx.drawImage(
+                      trailSprite,
+                      -bullet.x + bullet.velocityX * 2 - trailWidth / 2,
+                      bullet.y - trailHeight / 2,
+                      trailWidth,
+                      trailHeight
+                    )
+                  } else {
+                    ctx.drawImage(
+                      trailSprite,
+                      bullet.x - bullet.velocityX * 2 - trailWidth / 2,
+                      bullet.y - trailHeight / 2,
+                      trailWidth,
+                      trailHeight
+                    )
+                  }
+                  ctx.restore()
                 }
               }
             }
@@ -1972,7 +2137,7 @@ function gameLoop(currentTime: number) {
           }
         }
         // Wall jumping state - transitions based on velocity
-        else if (player.isWallJumping && player.state !== 'wallKick') {
+        else if (player.isWallJumping && (player.state as string) !== 'wallKick') {
           if (player.velocityY > 0.5) {
             player.state = 'falling'
           } else {
@@ -2625,8 +2790,16 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         // Put modified image data back
         offscreenCtx.putImageData(imageData, 0, 0)
         
-        // Draw tinted sprite to main canvas (flip here based on facing direction)
-        if (player.facing === 'left') {
+        // Draw tinted sprite to main canvas (flip based on state)
+        // Wall cling sprites: flip based on facing direction (which is set based on wall side)
+        // - Left wall: facing = 'right' (away from wall) = don't flip
+        // - Right wall: facing = 'left' (away from wall) = flip
+        // Other sprites: flip based on facing direction
+        const shouldFlip = (player.state === 'wallCling' || player.onWall) 
+          ? player.facing === 'right'  // Use facing direction (which is already set correctly for wall cling)
+          : player.facing === 'left'    // Regular flip for left-facing
+        
+        if (shouldFlip) {
           ctx.scale(-1, 1)
           ctx.drawImage(offscreenCanvas, -player.x - drawWidth, player.y)
           ctx.scale(-1, 1) // Reset
@@ -2636,7 +2809,15 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       }
     } else {
       // Draw sprite normally (no tint)
-      if (player.facing === 'left') {
+      // Wall cling sprites: flip based on facing direction (which is set based on wall side)
+      // - Left wall: facing = 'right' (away from wall) = don't flip
+      // - Right wall: facing = 'left' (away from wall) = flip
+      // Other sprites: flip based on facing direction
+      const shouldFlip = (player.state === 'wallCling' || player.onWall) 
+        ? player.facing === 'right'  // Use facing direction (which is already set correctly for wall cling)
+        : player.facing === 'left'    // Regular flip for left-facing
+      
+      if (shouldFlip) {
         ctx.scale(-1, 1)
         ctx.drawImage(
           spriteImg,
