@@ -2351,7 +2351,7 @@ function gameLoop(currentTime: number) {
     const scorePadding = 8
     
     // Background for score area
-    ctx!.fillStyle = 'rgba(0, 0, 0, 0.8)'
+    ctx!.fillStyle = 'rgba(0, 0, 0, 0.2)'
     ctx!.fillRect(0, 0, canvasWidth, scoreHeight + scorePadding * 2)
     
     // Get sorted players by kills (descending)
@@ -2364,7 +2364,7 @@ function gameLoop(currentTime: number) {
       ctx!.textAlign = 'left'
       ctx!.textBaseline = 'middle'
       
-      let xOffset = scorePadding
+      let xOffset = scorePadding + 64
       const itemSpacing = 12
       
       sortedPlayers.forEach((player) => {
@@ -2928,11 +2928,11 @@ function gameLoop(currentTime: number) {
       }
       
       // Boundary collision for remote players
-      if (player.x < 0) {
-        player.x = 0
+      if (player.x < 48) {
+        player.x = 48
       }
-      if (player.x > canvasWidth - 64) {
-        player.x = canvasWidth - 64
+      if (player.x > canvasWidth - 96) {
+        player.x = canvasWidth - 96
       }
     }
     
@@ -3189,11 +3189,11 @@ function gameLoop(currentTime: number) {
       
       // Boundary collision (only for local player)
       // Don't auto-cling to walls on collision - require pressing toward wall
-      if (player.x < 0) {
-        player.x = 0
+      if (player.x < 48) {
+        player.x = 48
       }
-      if (player.x > canvasWidth - 64) {
-        player.x = canvasWidth - 64
+      if (player.x > canvasWidth - 96) {
+        player.x = canvasWidth - 96
       }
     }
     // Remote players: position/state come from network, no physics applied
