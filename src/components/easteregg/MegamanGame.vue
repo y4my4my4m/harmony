@@ -1429,7 +1429,7 @@ function initializePlayers() {
     const canvasWidth = canvas ? canvas.width / (window.devicePixelRatio || 1) : 600
     // Random X position between 50 and canvasWidth - 114 (leaving some margin)
     const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
-    const targetY = floorY - 64 // Where player will land
+    const targetY = floorY - 106 // Where player will land
     
     // Assign color: use existing assignment, colorAssignments from host, or fallback
     let playerColor: string
@@ -2333,7 +2333,7 @@ function gameLoop(currentTime: number) {
   // Get actual canvas dimensions (using synced resolution)
   const canvasWidth = gameCanvasWidth.value
   const canvasHeight = gameCanvasHeight.value
-  const floorY = canvasHeight - 20 // Floor is 20px from bottom
+  const floorY = canvasHeight - 64 // Floor is 20px from bottom
   const wallLeft = 0
   const wallRight = canvasWidth
   
@@ -2388,7 +2388,7 @@ function gameLoop(currentTime: number) {
   }
   
   // Draw floor using sprite
-  const floorHeight = canvasHeight - floorY
+  const floorHeight = canvasHeight - floorY 
   if (floorSprite.value && floorSprite.value.complete) {
     // Tile the floor sprite across the width
     const floorTileWidth = floorSprite.value.naturalWidth
@@ -2403,7 +2403,7 @@ function gameLoop(currentTime: number) {
   }
   
   // Draw walls using sprite
-  const wallWidth = 16
+  const wallWidth = 64
   if (wallSprite.value && wallSprite.value.complete) {
     // Left wall
     const wallHeight = wallSprite.value.naturalHeight
@@ -2937,9 +2937,9 @@ function gameLoop(currentTime: number) {
     }
     
     // Wall detection (only for local player - remote players get wall state from network)
-    const wallThreshold = 16 // Match wall width for proper collision
+    const wallThreshold = 54 // Match wall width for proper collision
     const isNearLeftWall = player.x <= wallLeft + wallThreshold
-    const isNearRightWall = player.x >= wallRight - wallThreshold - 64
+    const isNearRightWall = player.x >= wallRight - (wallThreshold * 2) // actually should fix the sprite's anchor point but whatever, work around...
     
     // Only apply wall detection and collision to LOCAL player
     // Remote players use network-synced wall state but still apply physics
