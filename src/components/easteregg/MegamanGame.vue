@@ -134,6 +134,21 @@ const colorAssignments = ref<Map<string, { color: string; playerIndex: number }>
 const itemSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const itemData = ref<any>(null)
 
+// Background sprite
+const backgroundSprite = ref<HTMLImageElement | null>(null)
+
+// Use WebP format for smaller file sizes (set to false to use original PNGs)
+const USE_WEBP_SPRITES = true
+
+// Helper to convert sprite path to WebP if enabled
+function getSpriteUrl(basePath: string, file: string): string {
+  if (USE_WEBP_SPRITES && file.endsWith('.png')) {
+    const webpFile = file.replace('.png', '.webp')
+    return `${basePath}/webp/${webpFile}`
+  }
+  return `${basePath}/${file}`
+}
+
 // Sprite loading - individual images
 interface AnimationFrame {
   name: string
@@ -298,48 +313,49 @@ const PALETTE_MAPS: Array<Record<string, string>> = [
 ]
 
 // Sound effects - using actual Megaman X sounds from Scratch project
+// Using OGG format for smaller file sizes (originals kept as .wav in same folder)
 const soundPaths = {
   jump: [
-    '/assets/easteregg/x_jump.wav',
+    '/assets/easteregg/ogg/x_jump.ogg',
   ],
   shoot: [
-    '/assets/easteregg/x_buster.wav',
+    '/assets/easteregg/ogg/x_buster.ogg',
   ],
   shootLv1: [
-    '/assets/easteregg/x_buster_lv1.wav',
+    '/assets/easteregg/ogg/x_buster_lv1.ogg',
   ],
   shootLv2: [
-    '/assets/easteregg/x_buster_lv2.wav',
+    '/assets/easteregg/ogg/x_buster_lv2.ogg',
   ],
   shootLv3: [
-    '/assets/easteregg/x_buster_lv3.wav',
+    '/assets/easteregg/ogg/x_buster_lv3.ogg',
   ],
   land: [
-    '/assets/easteregg/x_land.wav',
+    '/assets/easteregg/ogg/x_land.ogg',
   ],
   dash: [
-    '/assets/easteregg/x_dash.wav',
+    '/assets/easteregg/ogg/x_dash.ogg',
   ],
   charge: [
-    '/assets/easteregg/x_charge.wav',
+    '/assets/easteregg/ogg/x_charge.ogg',
   ],
   chargeLoop: [
-    '/assets/easteregg/x_charge_loop.wav',
+    '/assets/easteregg/ogg/x_charge_loop.ogg',
   ],
   damage: [
-    '/assets/easteregg/x_damage.wav',
+    '/assets/easteregg/ogg/x_damage.ogg',
   ],
   hit: [
-    '/assets/easteregg/buster_hit.wav',
+    '/assets/easteregg/ogg/buster_hit.ogg',
   ],
   death: [
-    '/assets/easteregg/x_loselife.wav',
+    '/assets/easteregg/ogg/x_loselife.ogg',
   ],
   spawn: [
-    '/assets/easteregg/x_teleportdown.wav',
+    '/assets/easteregg/ogg/x_teleportdown.ogg',
   ],
   energyFill: [
-    '/assets/easteregg/energy_fill.wav',
+    '/assets/easteregg/ogg/energy_fill.ogg',
   ],
 }
 
@@ -847,8 +863,7 @@ async function loadSpriteImages() {
         debug.warn(`❌ Failed to load sprite: ${frame.file}`)
         resolve()
       }
-      const spritePath = `/assets/easteregg/megaman/sprites/${frame.file}`
-      img.src = spritePath
+      img.src = getSpriteUrl('/assets/easteregg/megaman/sprites', frame.file)
     })
   })
   
@@ -894,8 +909,7 @@ async function loadBusterSprites() {
             debug.warn(`❌ Failed to load buster sprite: ${frame.file}`)
             resolve()
           }
-          const spritePath = `/assets/easteregg/megaman/sprites/${frame.file}`
-          img.src = spritePath
+          img.src = getSpriteUrl('/assets/easteregg/megaman/sprites', frame.file)
         })
       })
       
@@ -946,8 +960,7 @@ async function loadHPBarSprites() {
             debug.warn(`❌ Failed to load HP bar sprite: ${frame.file}`)
             resolve()
           }
-          const spritePath = `/assets/easteregg/megaman/sprites/${frame.file}`
-          img.src = spritePath
+          img.src = getSpriteUrl('/assets/easteregg/megaman/sprites', frame.file)
         })
       })
       
@@ -966,50 +979,48 @@ async function loadEffectSprites() {
   // Load smoke sprites (from named files)
   for (let i = 1; i <= 6; i++) {
     const smokeImg = new Image()
-    smokeImg.src = `/assets/easteregg/megaman/sprites/effects/Smoke${i}.png`
+    smokeImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites/effects', `Smoke${i}.png`)
     smokeImg.onload = () => smokeSprites.value.set(`Smoke${i}.png`, smokeImg)
   }
   
   // Load hit sprites
-  const hitFiles = [
-    // Hit sprites (Hit1-Hit10) from project.json
-    { name: '158a6fc8342580dad99bcd0cc3da6f5d.png', path: '/assets/easteregg/megaman/sprites/158a6fc8342580dad99bcd0cc3da6f5d.png' }, // Hit1
-    { name: '49d8234616dc6d46d1d29ae6a10b6b5f.png', path: '/assets/easteregg/megaman/sprites/49d8234616dc6d46d1d29ae6a10b6b5f.png' }, // Hit2
-    { name: '5b0a9bbe83f883e0e648f3cffda96839.png', path: '/assets/easteregg/megaman/sprites/5b0a9bbe83f883e0e648f3cffda96839.png' }, // Hit3
-    { name: '5f4eacbd8a13fe907a24e9dd4b366ca8.png', path: '/assets/easteregg/megaman/sprites/5f4eacbd8a13fe907a24e9dd4b366ca8.png' }, // Hit4
-    { name: 'ee5b4945c2685f318106f951a537a73c.png', path: '/assets/easteregg/megaman/sprites/ee5b4945c2685f318106f951a537a73c.png' }, // Hit5
-    { name: '91a9950186deed6b06296ec179d17a24.png', path: '/assets/easteregg/megaman/sprites/91a9950186deed6b06296ec179d17a24.png' }, // Hit6
-    { name: 'a37bb271560e365e9eac949ac675c009.png', path: '/assets/easteregg/megaman/sprites/a37bb271560e365e9eac949ac675c009.png' }, // Hit7
-    { name: '68a9b48294eab02f64a9aacec96b76c6.png', path: '/assets/easteregg/megaman/sprites/68a9b48294eab02f64a9aacec96b76c6.png' }, // Hit8
-    { name: '4fd717ba3385c8d6d76ea1df21e2b245.png', path: '/assets/easteregg/megaman/sprites/4fd717ba3385c8d6d76ea1df21e2b245.png' }, // Hit9
-    { name: '399f62bacb879833ca499c139e9a4461.png', path: '/assets/easteregg/megaman/sprites/399f62bacb879833ca499c139e9a4461.png' }, // Hit10
-    // Also load the armor hit sprite with original name for backwards compat
-    { name: 'aabdd8a0c4b70511511ef63327f01483.png', path: '/assets/easteregg/megaman/sprites/aabdd8a0c4b70511511ef63327f01483.png' },
+  const hitFileNames = [
+    '158a6fc8342580dad99bcd0cc3da6f5d.png', // Hit1
+    '49d8234616dc6d46d1d29ae6a10b6b5f.png', // Hit2
+    '5b0a9bbe83f883e0e648f3cffda96839.png', // Hit3
+    '5f4eacbd8a13fe907a24e9dd4b366ca8.png', // Hit4
+    'ee5b4945c2685f318106f951a537a73c.png', // Hit5
+    '91a9950186deed6b06296ec179d17a24.png', // Hit6
+    'a37bb271560e365e9eac949ac675c009.png', // Hit7
+    '68a9b48294eab02f64a9aacec96b76c6.png', // Hit8
+    '4fd717ba3385c8d6d76ea1df21e2b245.png', // Hit9
+    '399f62bacb879833ca499c139e9a4461.png', // Hit10
+    'aabdd8a0c4b70511511ef63327f01483.png', // Armor hit (backwards compat)
   ]
   // Build hit animation frames from hit sprites (Hit1-Hit10, excluding armor sprite)
   const hitAnimationFrames: AnimationFrame[] = []
-  for (let i = 0; i < hitFiles.length - 1; i++) { // Exclude last one (armor sprite)
-    const hit = hitFiles[i]
+  for (let i = 0; i < hitFileNames.length - 1; i++) { // Exclude last one (armor sprite)
+    const fileName = hitFileNames[i]
     hitAnimationFrames.push({ 
       name: `Hit${i + 1}`, 
-      file: hit.name 
+      file: fileName 
     })
     
     const hitImg = new Image()
-    hitImg.src = hit.path
+    hitImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites', fileName)
     hitImg.onload = () => {
-      hitSprites.value.set(hit.name, hitImg)
-      spriteImages.value.set(hit.name, hitImg) // Also add to sprite images for getAnimationFrames
+      hitSprites.value.set(fileName, hitImg)
+      spriteImages.value.set(fileName, hitImg) // Also add to sprite images for getAnimationFrames
     }
   }
   
   // Also load the armor hit sprite (backwards compat)
-  const armorHit = hitFiles[hitFiles.length - 1]
+  const armorHitFileName = hitFileNames[hitFileNames.length - 1]
   const armorHitImg = new Image()
-  armorHitImg.src = armorHit.path
+  armorHitImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites', armorHitFileName)
   armorHitImg.onload = () => {
-    hitSprites.value.set(armorHit.name, armorHitImg)
-    spriteImages.value.set(armorHit.name, armorHitImg)
+    hitSprites.value.set(armorHitFileName, armorHitImg)
+    spriteImages.value.set(armorHitFileName, armorHitImg)
   }
   
   // Add hit frames to animations if not already present
@@ -1021,22 +1032,22 @@ async function loadEffectSprites() {
   }
   
   // Load death sprites (Death1-Death3) from project.json
-  const deathFiles = [
-    { name: '9bac76cd3cca6342e5e1f3dc7fee5ac8.png', path: '/assets/easteregg/megaman/sprites/9bac76cd3cca6342e5e1f3dc7fee5ac8.png' }, // Death1
-    { name: 'f1f7bf17578b56bf022ee33081cc5c1a.png', path: '/assets/easteregg/megaman/sprites/f1f7bf17578b56bf022ee33081cc5c1a.png' }, // Death2
-    { name: '169c783f60359234fad5ec797d0cc9c9.png', path: '/assets/easteregg/megaman/sprites/169c783f60359234fad5ec797d0cc9c9.png' }, // Death3
+  const deathFileNames = [
+    '9bac76cd3cca6342e5e1f3dc7fee5ac8.png', // Death1
+    'f1f7bf17578b56bf022ee33081cc5c1a.png', // Death2
+    '169c783f60359234fad5ec797d0cc9c9.png', // Death3
   ]
-  for (const death of deathFiles) {
+  for (const fileName of deathFileNames) {
     const deathImg = new Image()
-    deathImg.src = death.path
+    deathImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites', fileName)
     // Store in spriteImages so getAnimationFrames can find them
-    deathImg.onload = () => spriteImages.value.set(death.name, deathImg)
+    deathImg.onload = () => spriteImages.value.set(fileName, deathImg)
   }
   
   // Load death bubble sprites
   for (let i = 1; i <= 5; i++) {
     const bubbleImg = new Image()
-    bubbleImg.src = `/assets/easteregg/megaman/sprites/death/Bubble${i}.png`
+    bubbleImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites/death', `Bubble${i}.png`)
     bubbleImg.onload = () => deathBubbleSprites.value.set(`Bubble${i}.png`, bubbleImg)
   }
   
@@ -1052,7 +1063,7 @@ async function loadEffectSprites() {
   ]
   for (let i = 0; i < introAssetIds.length; i++) {
     const introImg = new Image()
-    introImg.src = `/assets/easteregg/megaman/sprites/${introAssetIds[i]}.png`
+    introImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites', `${introAssetIds[i]}.png`)
     introImg.onload = () => {
       readySprites.value.set(`Intro${i + 1}.png`, introImg)
       debug.log(`🎮 Loaded Intro${i + 1} sprite`)
@@ -1078,7 +1089,7 @@ async function loadEffectSprites() {
   ]
   for (let i = 0; i < readyAssetIds.length; i++) {
     const readyImg = new Image()
-    readyImg.src = `/assets/easteregg/megaman/sprites/${readyAssetIds[i]}.png`
+    readyImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites', `${readyAssetIds[i]}.png`)
     readyImg.onload = () => {
       readySprites.value.set(`Ready${i}.png`, readyImg)
       debug.log(`🎮 Loaded Ready${i} sprite`)
@@ -1089,7 +1100,7 @@ async function loadEffectSprites() {
   // Load dash effect sprites (size: 200 in project.json = 2x scale)
   for (let i = 1; i <= 4; i++) {
     const dashEffectImg = new Image()
-    dashEffectImg.src = `/assets/easteregg/megaman/sprites/effects/Dash_Effect${i}.png`
+    dashEffectImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites/effects', `Dash_Effect${i}.png`)
     dashEffectImg.onload = () => dashEffectSprites.value.set(`Dash_Effect${i}.png`, dashEffectImg)
   }
   
@@ -1140,6 +1151,17 @@ async function loadItemSprites() {
       
       await Promise.all(loadPromises)
       debug.log(`🎮 Loaded ${itemSprites.value.size}/${allItemFrames.length} item sprites`)
+      
+      // Load background sprite
+      const bgImg = new Image()
+      bgImg.onload = () => {
+        backgroundSprite.value = bgImg
+        debug.log('🎮 Loaded background sprite')
+      }
+      bgImg.onerror = () => {
+        debug.warn('❌ Failed to load background sprite')
+      }
+      bgImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites', 'Factory_Back.png')
     } else {
       debug.warn('Could not load items.json')
     }
@@ -1264,8 +1286,9 @@ function spawnHealthPickup() {
 function checkPickupCollision(player: Player, pickup: HealthPickup): boolean {
   const playerWidth = 64
   const playerHeight = 64
-  const pickupWidth = pickup.type === 'HP_Large' ? 32 : 20
-  const pickupHeight = pickup.type === 'HP_Large' ? 32 : 24
+  // Pickup sizes after 0.5x scaling: HP_Large=16x12, HP_Small=10x8
+  const pickupWidth = pickup.type === 'HP_Large' ? 16 : 10
+  const pickupHeight = pickup.type === 'HP_Large' ? 12 : 8
   
   return (
     player.x < pickup.x + pickupWidth &&
@@ -2251,19 +2274,91 @@ function gameLoop(currentTime: number) {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
   
   // Draw background
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)' // Semi-transparent
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+  if (backgroundSprite.value && backgroundSprite.value.complete) {
+    // Draw the Factory_Back scaled to fit canvas, preserving aspect ratio
+    const bg = backgroundSprite.value
+    const bgAspect = bg.naturalWidth / bg.naturalHeight
+    const canvasAspect = canvasWidth / canvasHeight
+    let drawWidth, drawHeight, drawX, drawY
+    
+    if (canvasAspect > bgAspect) {
+      // Canvas is wider - fit to width
+      drawWidth = canvasWidth
+      drawHeight = canvasWidth / bgAspect
+      drawX = 0
+      drawY = (canvasHeight - drawHeight) / 2
+    } else {
+      // Canvas is taller - fit to height
+      drawHeight = canvasHeight
+      drawWidth = canvasHeight * bgAspect
+      drawX = (canvasWidth - drawWidth) / 2
+      drawY = 0
+    }
+    
+    ctx.drawImage(bg, drawX, drawY, drawWidth, drawHeight)
+    // Add slight dark overlay for better visibility
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+  } else {
+    // Fallback gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight)
+    gradient.addColorStop(0, '#1a1a2e')
+    gradient.addColorStop(0.5, '#16213e')
+    gradient.addColorStop(1, '#0f3460')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+  }
   
-  // Draw floor
-  ctx.fillStyle = '#16213e'
-  ctx.fillRect(0, floorY, canvasWidth, canvasHeight - floorY)
+  // Draw floor with MMX-style industrial look
+  const floorHeight = canvasHeight - floorY
+  // Main floor body
+  ctx.fillStyle = '#2a3f5f'
+  ctx.fillRect(0, floorY, canvasWidth, floorHeight)
+  // Top edge highlight
+  ctx.fillStyle = '#4a6f9f'
+  ctx.fillRect(0, floorY, canvasWidth, 3)
+  // Top edge shadow
+  ctx.fillStyle = '#1a2f4f'
+  ctx.fillRect(0, floorY + 3, canvasWidth, 2)
+  // Metal grid lines
+  ctx.fillStyle = '#3a5f8f'
+  for (let x = 0; x < canvasWidth; x += 16) {
+    ctx.fillRect(x, floorY + 6, 2, floorHeight - 6)
+  }
   
-  // Draw walls (for wall sliding)
-  ctx.fillStyle = '#1a2e3a'
-  ctx.fillRect(0, 0, 5, canvasHeight) // Left wall
-  ctx.fillRect(canvasWidth - 5, 0, 5, canvasHeight) // Right wall
+  // Draw walls with MMX-style industrial look
+  const wallWidth = 8
+  // Left wall
+  ctx.fillStyle = '#2a3f5f'
+  ctx.fillRect(0, 0, wallWidth, canvasHeight)
+  ctx.fillStyle = '#4a6f9f'
+  ctx.fillRect(wallWidth - 2, 0, 2, canvasHeight) // Right edge highlight
+  ctx.fillStyle = '#1a2f4f'
+  ctx.fillRect(0, 0, 2, canvasHeight) // Left edge shadow
+  // Metal rivets on left wall
+  ctx.fillStyle = '#5a7faf'
+  for (let y = 10; y < canvasHeight - 10; y += 24) {
+    ctx.beginPath()
+    ctx.arc(wallWidth / 2, y, 2, 0, Math.PI * 2)
+    ctx.fill()
+  }
   
-  // Update and draw platforms
+  // Right wall
+  ctx.fillStyle = '#2a3f5f'
+  ctx.fillRect(canvasWidth - wallWidth, 0, wallWidth, canvasHeight)
+  ctx.fillStyle = '#4a6f9f'
+  ctx.fillRect(canvasWidth - wallWidth, 0, 2, canvasHeight) // Left edge highlight
+  ctx.fillStyle = '#1a2f4f'
+  ctx.fillRect(canvasWidth - 2, 0, 2, canvasHeight) // Right edge shadow
+  // Metal rivets on right wall
+  ctx.fillStyle = '#5a7faf'
+  for (let y = 10; y < canvasHeight - 10; y += 24) {
+    ctx.beginPath()
+    ctx.arc(canvasWidth - wallWidth / 2, y, 2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  
+  // Update and draw platforms with MMX-style industrial look
   if (ctx) {
     platforms.value.forEach(platform => {
       // Update moving platforms
@@ -2279,13 +2374,45 @@ function gameLoop(currentTime: number) {
         }
       }
       
-      // Draw platform
-      ctx!.fillStyle = platform.type === 'moving' ? '#2d5a7b' : '#1e4d6b'
+      const isMoving = platform.type === 'moving'
+      
+      // Main platform body
+      ctx!.fillStyle = isMoving ? '#3a5a7a' : '#2a4a6a'
       ctx!.fillRect(platform.x, platform.y, platform.width, platform.height)
       
-      // Draw platform edge highlight
-      ctx!.fillStyle = platform.type === 'moving' ? '#4a8ab0' : '#3a7a9a'
-      ctx!.fillRect(platform.x, platform.y, platform.width, 3)
+      // Top edge highlight (bright)
+      ctx!.fillStyle = isMoving ? '#6a9aca' : '#5a8aba'
+      ctx!.fillRect(platform.x, platform.y, platform.width, 2)
+      
+      // Top edge secondary highlight
+      ctx!.fillStyle = isMoving ? '#4a7a9a' : '#3a6a8a'
+      ctx!.fillRect(platform.x, platform.y + 2, platform.width, 1)
+      
+      // Bottom edge shadow
+      ctx!.fillStyle = '#1a2a3a'
+      ctx!.fillRect(platform.x, platform.y + platform.height - 2, platform.width, 2)
+      
+      // Left edge highlight
+      ctx!.fillStyle = isMoving ? '#5a8aaa' : '#4a7a9a'
+      ctx!.fillRect(platform.x, platform.y, 2, platform.height)
+      
+      // Right edge shadow
+      ctx!.fillStyle = '#1a3a4a'
+      ctx!.fillRect(platform.x + platform.width - 2, platform.y, 2, platform.height)
+      
+      // Metal grid lines on platform surface
+      ctx!.fillStyle = isMoving ? '#4a7a9a' : '#3a6a8a'
+      for (let x = platform.x + 8; x < platform.x + platform.width - 4; x += 12) {
+        ctx!.fillRect(x, platform.y + 3, 1, platform.height - 5)
+      }
+      
+      // Moving platform indicator (glowing edges)
+      if (isMoving) {
+        const glowIntensity = Math.sin(Date.now() / 200) * 0.3 + 0.7
+        ctx!.fillStyle = `rgba(100, 180, 255, ${glowIntensity * 0.5})`
+        ctx!.fillRect(platform.x - 1, platform.y - 1, platform.width + 2, 2)
+        ctx!.fillRect(platform.x - 1, platform.y + platform.height - 1, platform.width + 2, 2)
+      }
     })
   }
   
@@ -2310,26 +2437,28 @@ function gameLoop(currentTime: number) {
           const frame = itemFrames[pickup.animFrame]
           const sprite = itemSprites.value.get(frame.file)
           
-          if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-            // Scale based on original bitmap resolution (2x in Scratch)
-            const scale = sprite.naturalWidth > 20 ? 1 : 2
-            const drawWidth = sprite.naturalWidth * scale
-            const drawHeight = sprite.naturalHeight * scale
-            
-            ctx!.drawImage(sprite, pickup.x, pickup.y, drawWidth, drawHeight)
-          } else {
-            // Fallback: draw colored rectangle
-            ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
-            const size = pickup.type === 'HP_Large' ? 24 : 16
-            ctx!.fillRect(pickup.x, pickup.y, size, size)
-          }
+        if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+          // All item sprites are at 2x resolution (bitmapResolution: 2), so scale by 0.5
+          const scale = 0.5
+          const drawWidth = sprite.naturalWidth * scale
+          const drawHeight = sprite.naturalHeight * scale
+          
+          ctx!.drawImage(sprite, pickup.x, pickup.y, drawWidth, drawHeight)
+        } else {
+          // Fallback: draw colored rectangle (matching scaled sprite sizes)
+          ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
+          const w = pickup.type === 'HP_Large' ? 16 : 10
+          const h = pickup.type === 'HP_Large' ? 12 : 8
+          ctx!.fillRect(pickup.x, pickup.y, w, h)
         }
-      } else {
-        // Fallback: draw colored rectangle
-        ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
-        const size = pickup.type === 'HP_Large' ? 24 : 16
-        ctx!.fillRect(pickup.x, pickup.y, size, size)
       }
+    } else {
+      // Fallback: draw colored rectangle (matching scaled sprite sizes)
+      ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
+      const w = pickup.type === 'HP_Large' ? 16 : 10
+      const h = pickup.type === 'HP_Large' ? 12 : 8
+      ctx!.fillRect(pickup.x, pickup.y, w, h)
+    }
       
       // Remove pickups after 30 seconds
       if (now - pickup.createdAt > 30000) {
