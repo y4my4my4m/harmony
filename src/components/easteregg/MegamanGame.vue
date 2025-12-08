@@ -725,44 +725,43 @@ function initializePlayers() {
   
   debug.log(`🎮 Initializing ${props.participants.length} players`)
   
+  // Ensure local player is always created, even if not in participants yet
+  const allParticipants = [...props.participants]
+  const localPlayerExists = allParticipants.some(p => p.userId === props.userId)
+  if (!localPlayerExists && props.userId) {
+    allParticipants.push({ userId: props.userId })
+  }
+  
   // Get colors already used by existing players
   const usedColors = new Set<string>()
   players.value.forEach((existingPlayer) => {
     usedColors.add(existingPlayer.color)
   })
   
-  props.participants.forEach((participant, index) => {
+  allParticipants.forEach((participant, index) => {
     // Spawn positions - random X position for each player
     const canvasWidth = canvas ? canvas.width / (window.devicePixelRatio || 1) : 600
     // Random X position between 50 and canvasWidth - 114 (leaving some margin)
     const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
     const targetY = floorY - 64 // Where player will land
     
-    // Assign unique color - use hash of userId to get consistent but random color
-    // This ensures each player gets a consistent color but it's not always the same order
-    let hash = 0
-    for (let i = 0; i < participant.userId.length; i++) {
-      hash = ((hash << 5) - hash) + participant.userId.charCodeAt(i)
-      hash = hash & hash // Convert to 32-bit integer
-    }
-    // Start with a color based on hash, then find first available
-    let startIndex = Math.abs(hash) % PLAYER_COLORS.length
-    let playerColor = PLAYER_COLORS[startIndex]
-    let playerIndex = startIndex
+    // Assign unique color - randomly select from available colors (not used by other players)
+    const availableColors = PLAYER_COLORS.filter(color => !usedColors.has(color))
+    let playerColor: string
+    let playerIndex: number
     
-    // If that color is used, find first available
-    if (usedColors.has(playerColor)) {
-      for (let i = 0; i < PLAYER_COLORS.length; i++) {
-        const candidateIndex = (startIndex + i) % PLAYER_COLORS.length
-        const candidateColor = PLAYER_COLORS[candidateIndex]
-        if (!usedColors.has(candidateColor)) {
-          playerColor = candidateColor
-          playerIndex = candidateIndex
-          break
-        }
-      }
+    if (availableColors.length > 0) {
+      // Randomly pick from available colors
+      const randomIndex = Math.floor(Math.random() * availableColors.length)
+      playerColor = availableColors[randomIndex]
+      playerIndex = PLAYER_COLORS.indexOf(playerColor)
+      usedColors.add(playerColor) // Mark as used
+    } else {
+      // Fallback: all colors used (shouldn't happen with 8 colors max), pick randomly
+      const randomIndex = Math.floor(Math.random() * PLAYER_COLORS.length)
+      playerColor = PLAYER_COLORS[randomIndex]
+      playerIndex = randomIndex
     }
-    usedColors.add(playerColor) // Mark this color as used
     
     debug.log(`🎮 Player ${index} (${participant.userId.substring(0, 6)}) spawning at x=${spawnX} with color ${playerColor}`)
     
@@ -858,6 +857,7 @@ function handleKeyUp(event: KeyboardEvent) {
     
     // Always stop charge loop when releasing space (clean up)
     stopSound('chargeLoop')
+    localPlayer.chargeLoopStarted = false // Reset flag immediately
     
     if (localPlayer.isCharging) {
       // Fire based on charge level
@@ -1096,11 +1096,26 @@ function handleInput() {
     // Jump key just pressed (not held)
     if (localPlayer.onWall && localPlayer.wallSide) {
       // Wall kick/jump - Megaman X style: kick off wall, can re-grab to climb
-      // Wall kick - jump up and slightly away from wall (can return to wall for climbing)
+      // Wall kick - jump up and in the direction the player is pressing (left/right)
       localPlayer.velocityY = -14 // Strong upward kick
-      // Kick away from wall - but not too far so player can return
-      localPlayer.velocityX = localPlayer.wallSide === 'left' ? 5 : -5
-      localPlayer.facing = localPlayer.wallSide === 'left' ? 'right' : 'left'
+      
+      // Check which direction player is pressing - allow directional control
+      const pressingLeft = keys.value.has('ArrowLeft')
+      const pressingRight = keys.value.has('ArrowRight')
+      
+      if (pressingLeft) {
+        // Jump left
+        localPlayer.velocityX = -8 // Jump left with more speed
+        localPlayer.facing = 'left'
+      } else if (pressingRight) {
+        // Jump right
+        localPlayer.velocityX = 8 // Jump right with more speed
+        localPlayer.facing = 'right'
+      } else {
+        // No direction pressed - kick away from wall (default behavior)
+        localPlayer.velocityX = localPlayer.wallSide === 'left' ? 5 : -5
+        localPlayer.facing = localPlayer.wallSide === 'left' ? 'right' : 'left'
+      }
       localPlayer.onWall = false
       const previousWallSide = localPlayer.wallSide
       localPlayer.wallSide = null
@@ -2589,15 +2604,21 @@ function setupRealtimeListener() {
         }
       })
       
-      // Pick first available color
-      let playerColor = PLAYER_COLORS[0]
-      let playerIndex = 0
-      for (let i = 0; i < PLAYER_COLORS.length; i++) {
-        if (!usedColors.has(PLAYER_COLORS[i])) {
-          playerColor = PLAYER_COLORS[i]
-          playerIndex = i
-          break
-        }
+      // Randomly pick from available colors (not used by other players)
+      const availableColors = PLAYER_COLORS.filter(color => !usedColors.has(color))
+      let playerColor: string
+      let playerIndex: number
+      
+      if (availableColors.length > 0) {
+        // Randomly pick from available colors
+        const randomIndex = Math.floor(Math.random() * availableColors.length)
+        playerColor = availableColors[randomIndex]
+        playerIndex = PLAYER_COLORS.indexOf(playerColor)
+      } else {
+        // Fallback: all colors used (shouldn't happen with 8 colors max), pick randomly
+        const randomIndex = Math.floor(Math.random() * PLAYER_COLORS.length)
+        playerColor = PLAYER_COLORS[randomIndex]
+        playerIndex = randomIndex
       }
       
       // Use spawnX if provided (for initial spawn), otherwise use received x
