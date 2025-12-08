@@ -71,6 +71,10 @@ export default defineConfig({
             // Other node_modules
             return 'vendor'
           }
+          // Megaman easter egg game - separate chunk (only loads after konami activation)
+          if (id.includes('/easteregg/megaman/') || id.includes('/components/easteregg/MegamanGame')) {
+            return 'megaman-game'
+          }
           // Route-based chunks
           if (id.includes('/views/')) {
             const viewName = id.match(/\/views\/([^/]+)\.vue/)?.[1]
