@@ -12,12 +12,13 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import Icon from '@/components/common/Icon.vue'
+import { useUserData } from '@/composables/useUserData'
 
 interface Props {
   isActive: boolean
   channelId: string
   userId: string
-  participants: Array<{ userId: string; username?: string }>
+  participants: Array<{ userId: string; username?: string }> // username is optional, we use useUserData for actual data
 }
 
 const props = defineProps<Props>()
@@ -25,6 +26,9 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
 }>()
+
+// Get user data composable for usernames and profile pictures
+const { getUserDisplayName, getUserAvatarUrl } = useUserData()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let canvas: HTMLCanvasElement | null = null
@@ -75,6 +79,10 @@ interface Player {
   targetY?: number // Target position from network
   lastNetworkUpdate?: number // Timestamp of last network update
   dashFrameProgress?: number // Dash animation progress (0.0 to 1.0) for deltaTime-based animation
+  // Player info
+  username?: string
+  profilePicture?: string
+  kills: number // Kill count for score
 }
 
 interface Bullet {
@@ -129,10 +137,18 @@ let lastPickupSpawnTime = 0
 const PICKUP_SPAWN_INTERVAL = 8000 // Spawn a pickup every 8 seconds
 const MAX_PICKUPS = 5 // Maximum pickups on screen
 const colorAssignments = ref<Map<string, { color: string; playerIndex: number }>>(new Map()) // Store color assignments from host
+const showPlayerNames = ref(true) // Toggle with P key
+let gameStartTimestamp = 0 // For syncing moving platforms
 
 // Item sprites
 const itemSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const itemData = ref<any>(null)
+
+// Level sprites
+const floorSprite = ref<HTMLImageElement | null>(null)
+const wallSprite = ref<HTMLImageElement | null>(null)
+const platformSprite = ref<HTMLImageElement | null>(null)
+const profilePictures = ref<Map<string, HTMLImageElement>>(new Map())
 
 // Use WebP format for smaller file sizes (set to false to use original PNGs)
 const USE_WEBP_SPRITES = true
@@ -822,12 +838,43 @@ async function loadAnimations() {
       await loadHPBarSprites()
       await loadEffectSprites()
       await loadItemSprites()
+      await loadLevelSprites()
     } else {
       debug.warn('Could not load animations.json:', response.status, response.statusText)
     }
   } catch (error) {
     debug.error('Error loading animations:', error)
   }
+}
+
+// Load level sprites (floor, wall, platform)
+async function loadLevelSprites() {
+  // Load floor sprite
+  const floorImg = new Image()
+  floorImg.onload = () => {
+    floorSprite.value = floorImg
+    debug.log('🎮 Loaded floor sprite')
+  }
+  floorImg.onerror = () => debug.warn('❌ Failed to load floor sprite')
+  floorImg.src = '/assets/easteregg/megaman/sprites/webp/levels/floor.webp'
+  
+  // Load wall sprite
+  const wallImg = new Image()
+  wallImg.onload = () => {
+    wallSprite.value = wallImg
+    debug.log('🎮 Loaded wall sprite')
+  }
+  wallImg.onerror = () => debug.warn('❌ Failed to load wall sprite')
+  wallImg.src = '/assets/easteregg/megaman/sprites/webp/levels/wall.webp'
+  
+  // Load platform sprite
+  const platformImg = new Image()
+  platformImg.onload = () => {
+    platformSprite.value = platformImg
+    debug.log('🎮 Loaded platform sprite')
+  }
+  platformImg.onerror = () => debug.warn('❌ Failed to load platform sprite')
+  platformImg.src = '/assets/easteregg/megaman/sprites/webp/levels/platform.webp'
 }
 
 // Load all sprite images
@@ -1181,23 +1228,23 @@ function initializePlatforms() {
   const canvasWidth = gameCanvasWidth.value
   const canvasHeight = gameCanvasHeight.value
   const floorY = canvasHeight - 20
-  const platformHeight = 20 // Taller platforms
+  const platformHeight = 24 // Taller platforms
   
   // Create platforms at varying heights - more spread out on Y axis
   const platformConfigs = [
     // Low level platforms (just above floor)
-    { x: 30, y: floorY - 70, width: 90, height: platformHeight },
-    { x: canvasWidth - 120, y: floorY - 70, width: 90, height: platformHeight },
+    { x: 192, y: floorY - 170, width: 256, height: platformHeight },
+    { x: canvasWidth - 256 - 196, y: floorY - 170, width: 256, height: platformHeight },
     
     // Mid level platforms
-    { x: canvasWidth / 2 - 55, y: floorY - 140, width: 110, height: platformHeight },
+    { x: canvasWidth / 2 - 128, y: floorY - 140, width: 256, height: platformHeight },
     
     // High level platforms
-    { x: 25, y: floorY - 210, width: 70, height: platformHeight },
-    { x: canvasWidth - 95, y: floorY - 210, width: 70, height: platformHeight },
+    { x: 265, y: floorY - 320, width: 256/2, height: platformHeight },
+    { x: canvasWidth - 230 - 210, y: floorY - 320, width: 256/2, height: platformHeight },
     
     // Top level platform
-    { x: canvasWidth / 2 - 40, y: floorY - 280, width: 80, height: platformHeight },
+    { x: canvasWidth / 2 - 64, y: floorY - 380, width: 128, height: platformHeight },
   ]
   
   platformConfigs.forEach((config, index) => {
@@ -1211,39 +1258,10 @@ function initializePlatforms() {
     })
   })
   
-  // Add moving platforms at different heights
-  platforms.value.push({
-    id: 'moving-1',
-    x: canvasWidth / 4,
-    y: floorY - 105,
-    width: 80,
-    height: platformHeight,
-    type: 'moving',
-    moveDirection: 'horizontal',
-    moveSpeed: 1.2,
-    moveRange: 60,
-    startX: canvasWidth / 4,
-    startY: floorY - 105
-  })
-  
-  platforms.value.push({
-    id: 'moving-2',
-    x: canvasWidth * 3 / 4 - 40,
-    y: floorY - 175,
-    width: 80,
-    height: platformHeight,
-    type: 'moving',
-    moveDirection: 'vertical',
-    moveSpeed: 0.8,
-    moveRange: 40,
-    startX: canvasWidth * 3 / 4 - 40,
-    startY: floorY - 175
-  })
-  
   debug.log(`🎮 Initialized ${platforms.value.length} platforms`)
 }
 
-// Spawn a health pickup at random position
+// Spawn a health pickup at random position (only on ground/platforms)
 function spawnHealthPickup() {
   if (healthPickups.value.size >= MAX_PICKUPS) return
   
@@ -1251,24 +1269,22 @@ function spawnHealthPickup() {
   const canvasHeight = gameCanvasHeight.value
   const floorY = canvasHeight - 20
   
-  // Random position (avoid edges)
-  const x = 30 + Math.random() * (canvasWidth - 60)
-  
-  // Spawn on floor or on a random platform
-  let y = floorY - 20 // Default to floor
+  let x: number
+  let y: number
   
   // 50% chance to spawn on a platform if platforms exist
   if (platforms.value.length > 0 && Math.random() > 0.5) {
+    // Spawn on a random platform
     const platform = platforms.value[Math.floor(Math.random() * platforms.value.length)]
-    y = platform.y - 20
-    // Center on platform
-    const platformCenterX = platform.x + platform.width / 2
-    // Clamp within platform bounds
-    const clampedX = Math.max(platform.x + 5, Math.min(platformCenterX, platform.x + platform.width - 25))
-    // Only use this position if it's valid
-    if (clampedX >= platform.x && clampedX <= platform.x + platform.width - 20) {
-      // Use platform position
-    }
+    // Random X position within platform bounds (leave some margin)
+    const margin = 10
+    x = platform.x + margin + Math.random() * (platform.width - margin * 2)
+    // Y position on top of platform
+    y = platform.y - 20 // 20px above platform top
+  } else {
+    // Spawn on floor
+    x = 30 + Math.random() * (canvasWidth - 60)
+    y = floorY - 20 // 20px above floor
   }
   
   // Random type: 70% small (2 HP), 30% large (10 HP)
@@ -1288,6 +1304,22 @@ function spawnHealthPickup() {
   
   healthPickups.value.set(pickup.id, pickup)
   debug.log(`🎮 Spawned ${type} pickup at (${x.toFixed(0)}, ${y.toFixed(0)})`)
+  
+  // Broadcast pickup spawn to all players (only host should spawn)
+  if (gameChannel) {
+    gameChannel.send({
+      type: 'broadcast',
+      event: 'pickup-spawned',
+      payload: {
+        pickupId: pickup.id,
+        x: pickup.x,
+        y: pickup.y,
+        type: pickup.type,
+        healAmount: pickup.healAmount,
+        createdAt: pickup.createdAt
+      }
+    })
+  }
 }
 
 // Check collision between player and pickup
@@ -1420,6 +1452,10 @@ function initializePlayers() {
     
     debug.log(`🎮 Player ${index} (${participant.userId.substring(0, 6)}) spawning at x=${spawnX} with color ${playerColor}`)
     
+    // Get username and profile picture from useUserData composable
+    const username = getUserDisplayName(participant.userId).value || `Player ${index + 1}`
+    const profilePictureUrl = getUserAvatarUrl(participant.userId).value || undefined
+    
     const player: Player = {
       userId: participant.userId,
       x: spawnX,
@@ -1452,8 +1488,24 @@ function initializePlayers() {
       dashStartTime: 0,
       isSpawning: true, // Start with spawn animation
       spawnTime: Date.now(),
-      spawnY: targetY // Target Y position
+      spawnY: targetY, // Target Y position
+      username: username,
+      profilePicture: profilePictureUrl,
+      kills: 0
     } as Player
+    
+    // Load profile picture if available
+    if (profilePictureUrl) {
+      const profileImg = new Image()
+      profileImg.crossOrigin = 'anonymous'
+      profileImg.onload = () => {
+        profilePictures.value.set(player.userId, profileImg)
+      }
+      profileImg.onerror = () => {
+        debug.warn(`Failed to load profile picture for ${player.userId}`)
+      }
+      profileImg.src = profilePictureUrl
+    }
     
     players.value.set(participant.userId, player)
     currentFrame.value.set(participant.userId, 0)
@@ -1482,6 +1534,13 @@ function handleKeyDown(event: KeyboardEvent) {
   // Use arrow keys, space, and shift
   const key = event.code
   keys.value.add(key)
+  
+  // Toggle player names with P key
+  if (key === 'KeyP') {
+    showPlayerNames.value = !showPlayerNames.value
+    event.preventDefault()
+    return
+  }
   
   // Prevent default for game keys
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space', 'ShiftLeft', 'ShiftRight'].includes(key)) {
@@ -2285,148 +2344,145 @@ function gameLoop(currentTime: number) {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
   ctx.fillRect(0, 0, canvasWidth, canvasHeight)
   
-  // Draw floor with MMX-style industrial look
+  // Draw score system at top
+  if (ctx) {
+    const scoreY = 10
+    const scoreHeight = 30
+    const scorePadding = 8
+    
+    // Background for score area
+    ctx!.fillStyle = 'rgba(0, 0, 0, 0.8)'
+    ctx!.fillRect(0, 0, canvasWidth, scoreHeight + scorePadding * 2)
+    
+    // Get sorted players by kills (descending)
+    const sortedPlayers = Array.from(players.value.values())
+      .filter(p => p.username) // Only show players with usernames
+      .sort((a, b) => (b.kills || 0) - (a.kills || 0))
+    
+    if (sortedPlayers.length > 0) {
+      ctx!.font = 'bold 14px sans-serif'
+      ctx!.textAlign = 'left'
+      ctx!.textBaseline = 'middle'
+      
+      let xOffset = scorePadding
+      const itemSpacing = 12
+      
+      sortedPlayers.forEach((player) => {
+        const kills = player.kills || 0
+        const name = player.username || `Player ${player.playerIndex + 1}`
+        const text = `${name}: ${kills}`
+        
+        // Draw colored indicator
+        ctx!.fillStyle = player.color
+        ctx!.fillRect(xOffset, scoreY + scorePadding, 4, 16)
+        
+        // Draw text
+        ctx!.fillStyle = '#ffffff'
+        ctx!.fillText(text, xOffset + 8, scoreY + scorePadding + 8)
+        
+        // Measure and advance
+        const textWidth = ctx!.measureText(text).width
+        xOffset += textWidth + itemSpacing + 8
+      })
+    }
+  }
+  
+  // Draw floor using sprite
   const floorHeight = canvasHeight - floorY
-  // Main floor body
-  ctx.fillStyle = '#2a3f5f'
-  ctx.fillRect(0, floorY, canvasWidth, floorHeight)
-  // Top edge highlight
-  ctx.fillStyle = '#4a6f9f'
-  ctx.fillRect(0, floorY, canvasWidth, 3)
-  // Top edge shadow
-  ctx.fillStyle = '#1a2f4f'
-  ctx.fillRect(0, floorY + 3, canvasWidth, 2)
-  // Metal grid lines
-  ctx.fillStyle = '#3a5f8f'
-  for (let x = 0; x < canvasWidth; x += 16) {
-    ctx.fillRect(x, floorY + 6, 2, floorHeight - 6)
+  if (floorSprite.value && floorSprite.value.complete) {
+    // Tile the floor sprite across the width
+    const floorTileWidth = floorSprite.value.naturalWidth
+    for (let x = 0; x < canvasWidth; x += floorTileWidth) {
+      const drawWidth = Math.min(floorTileWidth, canvasWidth - x)
+      ctx.drawImage(floorSprite.value, 0, 0, drawWidth, floorSprite.value.naturalHeight, x, floorY, drawWidth, floorHeight)
+    }
+  } else {
+    // Fallback
+    ctx.fillStyle = '#2a3f5f'
+    ctx.fillRect(0, floorY, canvasWidth, floorHeight)
   }
   
-  // Draw walls with MMX-style industrial look - thicker walls
+  // Draw walls using sprite
   const wallWidth = 16
-  // Left wall
-  ctx.fillStyle = '#2a3f5f'
-  ctx.fillRect(0, 0, wallWidth, canvasHeight)
-  ctx.fillStyle = '#4a6f9f'
-  ctx.fillRect(wallWidth - 2, 0, 2, canvasHeight) // Right edge highlight
-  ctx.fillStyle = '#1a2f4f'
-  ctx.fillRect(0, 0, 2, canvasHeight) // Left edge shadow
-  // Metal rivets on left wall
-  ctx.fillStyle = '#5a7faf'
-  for (let y = 10; y < canvasHeight - 10; y += 24) {
-    ctx.beginPath()
-    ctx.arc(wallWidth / 2, y, 3, 0, Math.PI * 2)
-    ctx.fill()
+  if (wallSprite.value && wallSprite.value.complete) {
+    // Left wall
+    const wallHeight = wallSprite.value.naturalHeight
+    const wallTileHeight = wallHeight
+    for (let y = 0; y < canvasHeight; y += wallTileHeight) {
+      const drawHeight = Math.min(wallTileHeight, canvasHeight - y)
+      ctx.drawImage(wallSprite.value, 0, 0, wallSprite.value.naturalWidth, drawHeight, 0, y, wallWidth, drawHeight)
+    }
+    
+    // Right wall (flipped horizontally)
+    ctx.save()
+    ctx.scale(-1, 1)
+    for (let y = 0; y < canvasHeight; y += wallTileHeight) {
+      const drawHeight = Math.min(wallTileHeight, canvasHeight - y)
+      ctx.drawImage(wallSprite.value, 0, 0, wallSprite.value.naturalWidth, drawHeight, -canvasWidth, y, wallWidth, drawHeight)
+    }
+    ctx.restore()
+  } else {
+    // Fallback
+    ctx.fillStyle = '#2a3f5f'
+    ctx.fillRect(0, 0, wallWidth, canvasHeight)
+    ctx.fillRect(canvasWidth - wallWidth, 0, wallWidth, canvasHeight)
   }
-  // Vertical detail line
-  ctx.fillStyle = '#3a5f8f'
-  ctx.fillRect(wallWidth - 5, 0, 1, canvasHeight)
   
-  // Right wall
-  ctx.fillStyle = '#2a3f5f'
-  ctx.fillRect(canvasWidth - wallWidth, 0, wallWidth, canvasHeight)
-  ctx.fillStyle = '#4a6f9f'
-  ctx.fillRect(canvasWidth - wallWidth, 0, 2, canvasHeight) // Left edge highlight
-  ctx.fillStyle = '#1a2f4f'
-  ctx.fillRect(canvasWidth - 2, 0, 2, canvasHeight) // Right edge shadow
-  // Metal rivets on right wall
-  ctx.fillStyle = '#5a7faf'
-  for (let y = 10; y < canvasHeight - 10; y += 24) {
-    ctx.beginPath()
-    ctx.arc(canvasWidth - wallWidth / 2, y, 3, 0, Math.PI * 2)
-    ctx.fill()
-  }
-  // Vertical detail line
-  ctx.fillStyle = '#3a5f8f'
-  ctx.fillRect(canvasWidth - wallWidth + 4, 0, 1, canvasHeight)
-  
-  // Update and draw platforms with MMX-style tile look
+  // Update and draw platforms using sprite
   if (ctx) {
     platforms.value.forEach(platform => {
-      // Update moving platforms
+      // Update moving platforms - use gameStartTimestamp for sync
       if (platform.type === 'moving' && platform.startX !== undefined && platform.startY !== undefined) {
-        const time = Date.now() / 1000 // Time in seconds
+        const timeSinceStart = (Date.now() - gameStartTimestamp) / 1000 // Time in seconds since game start
         const moveRange = platform.moveRange || 50
         const moveSpeed = platform.moveSpeed || 1
         
         if (platform.moveDirection === 'horizontal') {
-          platform.x = platform.startX + Math.sin(time * moveSpeed) * moveRange
+          platform.x = platform.startX + Math.sin(timeSinceStart * moveSpeed) * moveRange
         } else if (platform.moveDirection === 'vertical') {
-          platform.y = platform.startY + Math.sin(time * moveSpeed) * moveRange
+          platform.y = platform.startY + Math.sin(timeSinceStart * moveSpeed) * moveRange
         }
       }
       
-      const isMoving = platform.type === 'moving'
-      const tileSize = 16 // Size of each tile segment
-      const tilesX = Math.ceil(platform.width / tileSize)
-      
-      // Draw platform as tiled segments for sprite-like appearance
-      for (let i = 0; i < tilesX; i++) {
-        const tileX = platform.x + i * tileSize
-        const tileWidth = Math.min(tileSize, platform.x + platform.width - tileX)
-        const isLeftEdge = i === 0
-        const isRightEdge = i === tilesX - 1
+      // Draw platform using sprite
+      if (platformSprite.value && platformSprite.value.complete) {
+        const spriteWidth = platformSprite.value.naturalWidth
+        const spriteHeight = platformSprite.value.naturalHeight
+        const tilesX = Math.ceil(platform.width / spriteWidth)
         
-        // Main tile body with gradient-like effect
-        ctx!.fillStyle = isMoving ? '#3a6080' : '#2a4a68'
-        ctx!.fillRect(tileX, platform.y, tileWidth, platform.height)
-        
-        // Top surface (brighter)
-        ctx!.fillStyle = isMoving ? '#5a90c0' : '#4a80b0'
-        ctx!.fillRect(tileX, platform.y, tileWidth, 4)
-        
-        // Top highlight line
-        ctx!.fillStyle = isMoving ? '#7ab0e0' : '#6aa0d0'
-        ctx!.fillRect(tileX, platform.y, tileWidth, 2)
-        
-        // Mid section detail
-        ctx!.fillStyle = isMoving ? '#4a7090' : '#3a5a78'
-        ctx!.fillRect(tileX, platform.y + 6, tileWidth, platform.height - 10)
-        
-        // Bottom shadow
-        ctx!.fillStyle = '#1a2a38'
-        ctx!.fillRect(tileX, platform.y + platform.height - 4, tileWidth, 4)
-        
-        // Tile separator lines (vertical)
-        if (!isRightEdge) {
-          ctx!.fillStyle = '#1a3048'
-          ctx!.fillRect(tileX + tileWidth - 1, platform.y + 2, 1, platform.height - 4)
+        // Tile the platform sprite
+        for (let i = 0; i < tilesX; i++) {
+          const tileX = platform.x + i * spriteWidth
+          const tileWidth = Math.min(spriteWidth, platform.x + platform.width - tileX)
+          ctx!.drawImage(
+            platformSprite.value,
+            0, 0, tileWidth, spriteHeight,
+            tileX, platform.y, tileWidth, platform.height
+          )
         }
         
-        // Edge highlights
-        if (isLeftEdge) {
-          ctx!.fillStyle = isMoving ? '#6aa0c0' : '#5a90b0'
-          ctx!.fillRect(platform.x, platform.y, 2, platform.height)
+        // Moving platform glow effect
+        if (platform.type === 'moving') {
+          const glowIntensity = Math.sin(Date.now() / 200) * 0.3 + 0.7
+          ctx!.fillStyle = `rgba(100, 200, 255, ${glowIntensity * 0.3})`
+          ctx!.fillRect(platform.x - 1, platform.y - 1, platform.width + 2, 2)
+          ctx!.fillRect(platform.x - 1, platform.y + platform.height - 1, platform.width + 2, 2)
         }
-        if (isRightEdge) {
-          ctx!.fillStyle = '#1a2a38'
-          ctx!.fillRect(platform.x + platform.width - 2, platform.y, 2, platform.height)
-        }
-        
-        // Rivet/bolt details on each tile
-        if (tileWidth >= 12) {
-          ctx!.fillStyle = isMoving ? '#7ab0d0' : '#6aa0c0'
-          ctx!.beginPath()
-          ctx!.arc(tileX + tileWidth / 2, platform.y + platform.height / 2, 2, 0, Math.PI * 2)
-          ctx!.fill()
-        }
-      }
-      
-      // Moving platform glow effect
-      if (isMoving) {
-        const glowIntensity = Math.sin(Date.now() / 200) * 0.3 + 0.7
-        ctx!.fillStyle = `rgba(100, 200, 255, ${glowIntensity * 0.4})`
-        ctx!.fillRect(platform.x - 1, platform.y - 1, platform.width + 2, 2)
-        ctx!.fillRect(platform.x - 1, platform.y + platform.height - 1, platform.width + 2, 2)
-        ctx!.fillRect(platform.x - 1, platform.y, 2, platform.height)
-        ctx!.fillRect(platform.x + platform.width - 1, platform.y, 2, platform.height)
+      } else {
+        // Fallback
+        ctx!.fillStyle = platform.type === 'moving' ? '#3a6080' : '#2a4a68'
+        ctx!.fillRect(platform.x, platform.y, platform.width, platform.height)
       }
     })
   }
   
-  // Spawn health pickups periodically
+  // Spawn health pickups periodically (only host spawns)
   const now = Date.now()
-  if (now - lastPickupSpawnTime > PICKUP_SPAWN_INTERVAL) {
+  // Check if we're the host (first player alphabetically)
+  const sortedParticipants = [...props.participants].sort((a, b) => a.userId.localeCompare(b.userId))
+  const isHost = sortedParticipants.length > 0 && sortedParticipants[0].userId === props.userId
+  
+  if (isHost && now - lastPickupSpawnTime > PICKUP_SPAWN_INTERVAL) {
     spawnHealthPickup()
     lastPickupSpawnTime = now
   }
@@ -2443,11 +2499,26 @@ function gameLoop(currentTime: number) {
         const itemFrames = itemData.value[pickup.type]
         if (itemFrames && itemFrames.length > pickup.animFrame) {
           const frame = itemFrames[pickup.animFrame]
-          const sprite = itemSprites.value.get(frame.file)
-          
-        if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-          // Draw items at their original size (no scaling)
-          ctx!.drawImage(sprite, pickup.x, pickup.y)
+          if (frame && frame.file) {
+            const sprite = itemSprites.value.get(frame.file)
+            
+            if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+              // Draw items at their original size (no scaling)
+              ctx!.drawImage(sprite, pickup.x, pickup.y)
+            } else {
+              // Fallback: draw colored rectangle
+              ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
+              const w = pickup.type === 'HP_Large' ? 32 : 20
+              const h = pickup.type === 'HP_Large' ? 24 : 16
+              ctx!.fillRect(pickup.x, pickup.y, w, h)
+            }
+          } else {
+            // Frame is undefined or missing file property
+            ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
+            const w = pickup.type === 'HP_Large' ? 32 : 20
+            const h = pickup.type === 'HP_Large' ? 24 : 16
+            ctx!.fillRect(pickup.x, pickup.y, w, h)
+          }
         } else {
           // Fallback: draw colored rectangle
           ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
@@ -2455,14 +2526,13 @@ function gameLoop(currentTime: number) {
           const h = pickup.type === 'HP_Large' ? 24 : 16
           ctx!.fillRect(pickup.x, pickup.y, w, h)
         }
+      } else {
+        // Fallback: draw colored rectangle
+        ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
+        const w = pickup.type === 'HP_Large' ? 32 : 20
+        const h = pickup.type === 'HP_Large' ? 24 : 16
+        ctx!.fillRect(pickup.x, pickup.y, w, h)
       }
-    } else {
-      // Fallback: draw colored rectangle
-      ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
-      const w = pickup.type === 'HP_Large' ? 32 : 20
-      const h = pickup.type === 'HP_Large' ? 24 : 16
-      ctx!.fillRect(pickup.x, pickup.y, w, h)
-    }
       
       // Remove pickups after 30 seconds
       if (now - pickup.createdAt > 30000) {
@@ -2555,6 +2625,12 @@ function gameLoop(currentTime: number) {
           }
           playSound('death') // Use X_LoseLife sound for death
           
+          // Increment kill count for shooter
+          const shooter = players.value.get(bullet.userId)
+          if (shooter && shooter.userId !== player.userId) {
+            shooter.kills = (shooter.kills || 0) + 1
+          }
+          
           // Broadcast death state
           broadcastPlayerState(player, true)
           
@@ -2566,9 +2642,22 @@ function gameLoop(currentTime: number) {
               payload: {
                 userId: player.userId,
                 health: player.health,
-                deathTime: now // Include timestamp for synchronized respawn
+                deathTime: now, // Include timestamp for synchronized respawn
+                killerId: bullet.userId // Include killer for score tracking
               }
             })
+            
+            // Broadcast kill event
+            if (bullet.userId !== player.userId) {
+              gameChannel.send({
+                type: 'broadcast',
+                event: 'player-killed',
+                payload: {
+                  killerId: bullet.userId,
+                  victimId: player.userId
+                }
+              })
+            }
           }
           
           // Respawn after 3 seconds with spawn animation (only for local player)
@@ -2934,14 +3023,37 @@ function gameLoop(currentTime: number) {
       // Store previous Y for platform collision detection
       const prevY = player.y
       
+      // Check if player is on a vertical moving platform (before applying physics)
+      let onVerticalPlatform: Platform | null = null
+      if (player.onGround) {
+        for (const platform of platforms.value) {
+          if (platform.type === 'moving' && platform.moveDirection === 'vertical') {
+            const playerCenterX = player.x + 32
+            const isWithinPlatformX = playerCenterX > platform.x && playerCenterX < platform.x + platform.width
+            const isOnPlatformY = Math.abs((player.y + 64) - platform.y) < 5
+            if (isWithinPlatformX && isOnPlatformY) {
+              onVerticalPlatform = platform
+              break
+            }
+          }
+        }
+      }
+      
       // Apply velocity to position (local player - remote players already handled above)
-      player.x += player.velocityX * deltaSeconds * 60
-      player.y += player.velocityY * deltaSeconds * 60
+      // Skip gravity if on vertical moving platform
+      if (!onVerticalPlatform) {
+        player.x += player.velocityX * deltaSeconds * 60
+        player.y += player.velocityY * deltaSeconds * 60
+      } else {
+        // On vertical platform - only apply horizontal movement
+        player.x += player.velocityX * deltaSeconds * 60
+        // Y position will be set by platform collision check
+      }
       
       // Platform collision (check before ground collision)
       const collidedPlatform = checkPlatformCollision(player, prevY)
-      if (collidedPlatform && player.velocityY >= 0) {
-        if (!player.onGround) {
+      if (collidedPlatform && (player.velocityY >= 0 || onVerticalPlatform)) {
+        if (!player.onGround && !onVerticalPlatform) {
           // Just landed on platform - play land sound
           playSound('land')
           player.isDashJumping = false
@@ -2960,21 +3072,15 @@ function gameLoop(currentTime: number) {
             }
           }, 150)
         }
+        
+        // Position player on platform
         player.y = collidedPlatform.y - 64
         player.velocityY = 0
         player.onGround = true
         player.onWall = false
         player.wallSide = null
         
-        // Move with horizontal moving platform
-        if (collidedPlatform.type === 'moving' && collidedPlatform.moveDirection === 'horizontal') {
-          // Platform velocity approximation
-          const time = Date.now() / 1000
-          const moveSpeed = collidedPlatform.moveSpeed || 1
-          const moveRange = collidedPlatform.moveRange || 50
-          const platformVelocity = Math.cos(time * moveSpeed) * moveSpeed * moveRange * 0.016 // ~60fps
-          player.x += platformVelocity
-        }
+        // Don't move player with horizontal moving platforms - let them slide off naturally
       }
       // Ground collision (local player)
       else if (player.y >= floorY - 64) {
@@ -3877,6 +3983,49 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight)
     }
     
+    // Draw player name with profile picture (if enabled)
+    if (showPlayerNames.value && ctx) {
+      const nameY = player.y - 190
+      const name = player.username || `Player ${player.playerIndex + 1}`
+      
+      // Measure text width
+      ctx.font = '12px sans-serif'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      const textMetrics = ctx.measureText(name)
+      const textWidth = textMetrics.width
+      const textHeight = 16
+      const padding = 4
+      const profileSize = 16
+      const totalWidth = textWidth + profileSize + padding * 3
+      const nameX = player.x + (64 - totalWidth) / 2 
+      
+      // Draw background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
+      ctx.fillRect(nameX - padding, nameY - textHeight / 2 - padding, totalWidth, textHeight + padding * 2)
+      
+      // Draw profile picture
+      const profileImg = profilePictures.value.get(player.userId)
+      if (profileImg && profileImg.complete) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(nameX + profileSize / 2, nameY, profileSize / 2, 0, Math.PI * 2)
+        ctx.clip()
+        ctx.drawImage(profileImg, nameX, nameY - profileSize / 2, profileSize, profileSize)
+        ctx.restore()
+      } else {
+        // Fallback: colored circle
+        ctx.fillStyle = player.color
+        ctx.beginPath()
+        ctx.arc(nameX + profileSize / 2, nameY, profileSize / 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      
+      // Draw name text
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(name, nameX + profileSize + padding, nameY)
+    }
+    
     // Draw smoke effects (size: 200 in project.json = 2x scale)
     if (player.smokeEffects.length > 0 && ctx) {
       player.smokeEffects = player.smokeEffects.filter(smoke => {
@@ -3977,6 +4126,10 @@ function setupRealtimeListener() {
       // Use spawnX if provided (for initial spawn), otherwise use received x
       const initialX = spawnX !== undefined && spawnX !== null ? spawnX : (x || 100)
       
+      // Get username and profile picture from useUserData
+      const remoteUsername = getUserDisplayName(userId).value || `Player ${assignedPlayerIndex + 1}`
+      const remoteProfilePicture = getUserAvatarUrl(userId).value || undefined
+      
       player = {
         userId,
         x: initialX, // USE RECEIVED spawnX or X, not random!
@@ -4011,8 +4164,24 @@ function setupRealtimeListener() {
         // Initialize interpolation targets
         targetX: initialX,
         targetY: y || (floorY - 64),
-        lastNetworkUpdate: Date.now()
+        lastNetworkUpdate: Date.now(),
+        username: remoteUsername,
+        profilePicture: remoteProfilePicture,
+        kills: 0
       } as Player
+      
+      // Load profile picture if available
+      if (remoteProfilePicture) {
+        const profileImg = new Image()
+        profileImg.crossOrigin = 'anonymous'
+        profileImg.onload = () => {
+          profilePictures.value.set(userId, profileImg)
+        }
+        profileImg.onerror = () => {
+          debug.warn(`Failed to load profile picture for ${userId}`)
+        }
+        profileImg.src = remoteProfilePicture
+      }
       
       players.value.set(userId, player)
       currentFrame.value.set(userId, 0)
@@ -4022,22 +4191,44 @@ function setupRealtimeListener() {
       debug.log(`🎮 Created remote player: ${userId} at (${player.x}, ${player.y}) facing ${player.facing}`)
     }
     
-    // Update player state - ALWAYS update position and facing from network
-    // Remote players should use network data, not local physics
-    if (player) {
-      // ALWAYS update facing immediately from network (critical for visual sync)
-      // facing should always be 'left' or 'right'
-      if (facing === 'left' || facing === 'right') {
-        // Always update facing - don't check if changed, just update it
-        if (player.facing !== facing) {
-          debug.log(`🎮 Remote player ${userId.substring(0, 6)} facing changed: ${player.facing} -> ${facing}`)
+      // Update player state - ALWAYS update position and facing from network
+      // Remote players should use network data, not local physics
+      if (player) {
+        // Update username and profile picture from useUserData (in case they changed)
+        const updatedUsername = getUserDisplayName(userId).value
+        const updatedProfilePicture = getUserAvatarUrl(userId).value
+        if (updatedUsername && updatedUsername !== player.username) {
+          player.username = updatedUsername
         }
-        player.facing = facing // Always set from network
-      } else if (facing !== undefined && facing !== null) {
-        // Fallback: if facing is provided but invalid, log warning and use default
-        debug.warn(`🎮 Invalid facing value for player ${userId}: ${facing}, defaulting to 'right'`)
-        player.facing = 'right'
-      }
+        if (updatedProfilePicture && updatedProfilePicture !== player.profilePicture) {
+          player.profilePicture = updatedProfilePicture
+          // Reload profile picture
+          if (updatedProfilePicture) {
+            const profileImg = new Image()
+            profileImg.crossOrigin = 'anonymous'
+            profileImg.onload = () => {
+              profilePictures.value.set(userId, profileImg)
+            }
+            profileImg.onerror = () => {
+              debug.warn(`Failed to load updated profile picture for ${userId}`)
+            }
+            profileImg.src = updatedProfilePicture
+          }
+        }
+        
+        // ALWAYS update facing immediately from network (critical for visual sync)
+        // facing should always be 'left' or 'right'
+        if (facing === 'left' || facing === 'right') {
+          // Always update facing - don't check if changed, just update it
+          if (player.facing !== facing) {
+            debug.log(`🎮 Remote player ${userId.substring(0, 6)} facing changed: ${player.facing} -> ${facing}`)
+          }
+          player.facing = facing // Always set from network
+        } else if (facing !== undefined && facing !== null) {
+          // Fallback: if facing is provided but invalid, log warning and use default
+          debug.warn(`🎮 Invalid facing value for player ${userId}: ${facing}, defaulting to 'right'`)
+          player.facing = 'right'
+        }
       
       // Store network position as target for interpolation (smooth movement)
       // Remote players will interpolate towards this while applying physics locally
@@ -4286,6 +4477,50 @@ function setupRealtimeListener() {
     }
   })
   
+  gameChannel.on('broadcast', { event: 'pickup-spawned' }, (payload) => {
+    const { pickupId, x, y, type, healAmount, createdAt } = payload.payload as {
+      pickupId: string
+      x: number
+      y: number
+      type: 'HP_Small' | 'HP_Large'
+      healAmount: number
+      createdAt: number
+    }
+    
+    // Don't add if we already have it (prevent duplicates)
+    if (healthPickups.value.has(pickupId)) return
+    
+    const pickup: HealthPickup = {
+      id: pickupId,
+      x,
+      y,
+      type,
+      healAmount,
+      createdAt,
+      animFrame: 0
+    }
+    
+    healthPickups.value.set(pickupId, pickup)
+  })
+  
+  gameChannel.on('broadcast', { event: 'game-start-timestamp' }, (payload) => {
+    const { timestamp } = payload.payload as { timestamp: number }
+    // Sync game start timestamp for moving platforms
+    if (gameStartTimestamp === 0 || timestamp < gameStartTimestamp) {
+      gameStartTimestamp = timestamp
+    }
+  })
+  
+  gameChannel.on('broadcast', { event: 'player-killed' }, (payload) => {
+    const { killerId, victimId } = payload.payload as { killerId: string; victimId: string }
+    
+    // Increment kill count for killer
+    const killer = players.value.get(killerId)
+    if (killer) {
+      killer.kills = (killer.kills || 0) + 1
+    }
+  })
+  
   gameChannel.subscribe()
 }
 
@@ -4390,6 +4625,7 @@ function startGame() {
   if (animationFrame) return
   lastFrameTime = performance.now()
   gameStartTime = Date.now()
+  gameStartTimestamp = Date.now() // For syncing moving platforms
   showIntro = true
   lastPickupSpawnTime = Date.now()
   
@@ -4398,6 +4634,17 @@ function startGame() {
   
   // Initialize platforms
   initializePlatforms()
+  
+  // Broadcast game start timestamp for platform sync
+  if (gameChannel) {
+    gameChannel.send({
+      type: 'broadcast',
+      event: 'game-start-timestamp',
+      payload: {
+        timestamp: gameStartTimestamp
+      }
+    })
+  }
   
   // Initialize players after a short delay to show intro first
   setTimeout(() => {
