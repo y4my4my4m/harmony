@@ -1926,7 +1926,7 @@ function gameLoop(currentTime: number) {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
   
   // Draw background
-  ctx.fillStyle = 'rgba(26, 26, 46, 0.9)' // Semi-transparent
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)' // Semi-transparent
   ctx.fillRect(0, 0, canvasWidth, canvasHeight)
   
   // Draw floor
@@ -3763,8 +3763,9 @@ function closeGame() {
 }
 
 .megaman-canvas {
-  background: rgba(26, 26, 46, 0.95);
+  /* background: rgba(26, 26, 46, 0.95); */
   border: 2px solid #4ecdc4;
+  backdrop-filter: blur(10px);
   box-shadow: 0 0 20px rgba(78, 205, 196, 0.6);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
