@@ -265,6 +265,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
+import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { useKeybinds, type KeybindModifiers } from '@/composables/useKeybinds';
 import Icon from '@/components/common/Icon.vue';
 
@@ -390,6 +391,11 @@ const recordKey = (key: string, modifiers: KeybindModifiers) => {
   isRecordingKeybind.value = false;
 };
 
+// Cancel keybind recording
+const cancelRecordingKeybind = () => {
+  isRecordingKeybind.value = false;
+};
+
 const updateReleaseDelay = () => {
   keybinds.setReleaseDelay(localReleaseDelay.value);
 };
@@ -399,55 +405,91 @@ watch(releaseDelay, (newValue) => {
   localReleaseDelay.value = newValue;
 }, { immediate: true });
 
-// Get available devices
+// Get available devices and apply stored settings
 const getDevices = async () => {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     inputDevices.value = devices.filter(d => d.kind === 'audioinput');
     outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
     videoDevices.value = devices.filter(d => d.kind === 'videoinput');
+    
+    debug.log('🎛️ [VoiceSettingsInline] Enumerated devices:', {
+      inputs: inputDevices.value.length,
+      outputs: outputDevices.value.length,
+      videos: videoDevices.value.length
+    });
 
-    // Set defaults if not already set
-    if (!selectedInputDevice.value && inputDevices.value.length > 0) {
-      selectedInputDevice.value = inputDevices.value[0].deviceId;
-    }
-    if (!selectedOutputDevice.value && outputDevices.value.length > 0) {
-      selectedOutputDevice.value = outputDevices.value[0].deviceId;
-    }
-    if (!selectedVideoDevice.value && videoDevices.value.length > 0) {
-      selectedVideoDevice.value = videoDevices.value[0].deviceId;
-    }
+    // Now that we have devices, load and validate stored settings
+    await loadStoredSettings();
   } catch (error) {
     debug.error('Error getting devices:', error);
   }
 };
 
-// Load stored settings
-const loadStoredSettings = () => {
+// Load stored settings - called AFTER devices are enumerated
+const loadStoredSettings = async () => {
   try {
-    // Load from WebRTC service first (most up-to-date)
-    const currentConstraints = unifiedWebRTC.getAudioConstraints();
-    echoCancellation.value = currentConstraints.echoCancellation;
-    noiseSuppression.value = currentConstraints.noiseSuppression;
-    autoGainControl.value = currentConstraints.autoGainControl;
+    // Load from centralized VoiceSettingsService
+    const settings = VoiceSettingsService.getAll();
+    const constraints = VoiceSettingsService.getAudioConstraints();
     
-    // Then load other settings from localStorage
-    const stored = localStorage.getItem('harmony-voice-settings');
-    if (stored) {
-      const settings = JSON.parse(stored);
-      
-      // Load other settings if they exist
-      if (settings.inputVolume !== undefined) inputVolume.value = settings.inputVolume;
-      if (settings.outputVolume !== undefined) outputVolume.value = settings.outputVolume;
-      if (settings.selectedInputDevice) selectedInputDevice.value = settings.selectedInputDevice;
-      if (settings.selectedOutputDevice) selectedOutputDevice.value = settings.selectedOutputDevice;
-      if (settings.selectedVideoDevice) selectedVideoDevice.value = settings.selectedVideoDevice;
-      if (settings.videoQuality) videoQuality.value = settings.videoQuality;
-      if (settings.frameRate) frameRate.value = settings.frameRate;
+    // Apply audio constraints
+    echoCancellation.value = constraints.echoCancellation;
+    noiseSuppression.value = constraints.noiseSuppression;
+    autoGainControl.value = constraints.autoGainControl;
+    
+    // Apply volume settings
+    if (settings.inputVolume !== undefined) inputVolume.value = settings.inputVolume;
+    if (settings.outputVolume !== undefined) outputVolume.value = settings.outputVolume;
+    if (settings.videoQuality) videoQuality.value = settings.videoQuality;
+    if (settings.frameRate) frameRate.value = settings.frameRate;
+    
+    // Validate and apply device selections
+    // Only select stored device if it exists in current device list
+    const storedInputDevice = settings.selectedInputDevice;
+    const storedOutputDevice = settings.selectedOutputDevice;
+    const storedVideoDevice = settings.selectedVideoDevice;
+    
+    // Check if stored input device exists
+    if (storedInputDevice && inputDevices.value.some(d => d.deviceId === storedInputDevice)) {
+      selectedInputDevice.value = storedInputDevice;
+      debug.log('🎤 [VoiceSettingsInline] Using stored input device:', storedInputDevice);
+    } else if (inputDevices.value.length > 0) {
+      // Fallback to first available device
+      selectedInputDevice.value = inputDevices.value[0].deviceId;
+      if (storedInputDevice) {
+        debug.warn('⚠️ [VoiceSettingsInline] Stored input device not found, using default');
+        VoiceSettingsService.setInputDevice(selectedInputDevice.value);
+      }
     }
     
-    debug.log('🎛️ [VoiceSettingsInline] Loaded settings - Audio constraints:', currentConstraints);
-    debug.log('🎛️ [VoiceSettingsInline] Loaded localStorage settings:', stored ? JSON.parse(stored) : 'None');
+    // Check if stored output device exists
+    if (storedOutputDevice && outputDevices.value.some(d => d.deviceId === storedOutputDevice)) {
+      selectedOutputDevice.value = storedOutputDevice;
+      debug.log('🔊 [VoiceSettingsInline] Using stored output device:', storedOutputDevice);
+    } else if (outputDevices.value.length > 0) {
+      // Fallback to first available device
+      selectedOutputDevice.value = outputDevices.value[0].deviceId;
+      if (storedOutputDevice) {
+        debug.warn('⚠️ [VoiceSettingsInline] Stored output device not found, using default');
+        VoiceSettingsService.setOutputDevice(selectedOutputDevice.value);
+      }
+    }
+    
+    // Check if stored video device exists
+    if (storedVideoDevice && videoDevices.value.some(d => d.deviceId === storedVideoDevice)) {
+      selectedVideoDevice.value = storedVideoDevice;
+      debug.log('📹 [VoiceSettingsInline] Using stored video device:', storedVideoDevice);
+    } else if (videoDevices.value.length > 0) {
+      // Fallback to first available device
+      selectedVideoDevice.value = videoDevices.value[0].deviceId;
+      if (storedVideoDevice) {
+        debug.warn('⚠️ [VoiceSettingsInline] Stored video device not found, using default');
+        VoiceSettingsService.setVideoDevice(selectedVideoDevice.value);
+      }
+    }
+    
+    debug.log('🎛️ [VoiceSettingsInline] Loaded settings:', settings);
   } catch (error) {
     debug.warn('⚠️ Failed to load stored settings:', error);
   }
@@ -605,21 +647,20 @@ const updateVideoSettings = () => {
 
 const saveSettings = () => {
   try {
-    const settings = {
-      selectedInputDevice: selectedInputDevice.value,
-      selectedOutputDevice: selectedOutputDevice.value,
-      selectedVideoDevice: selectedVideoDevice.value,
+    VoiceSettingsService.updateMany({
+      selectedInputDevice: selectedInputDevice.value || null,
+      selectedOutputDevice: selectedOutputDevice.value || null,
+      selectedVideoDevice: selectedVideoDevice.value || null,
       inputVolume: inputVolume.value,
       outputVolume: outputVolume.value,
       echoCancellation: echoCancellation.value,
       noiseSuppression: noiseSuppression.value,
       autoGainControl: autoGainControl.value,
-      videoQuality: videoQuality.value,
+      videoQuality: videoQuality.value as '480p' | '720p' | '1080p',
       frameRate: frameRate.value
-    };
+    });
 
-    localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
-    debug.log('💾 [VoiceSettingsInline] Saved settings:', settings);
+    debug.log('💾 [VoiceSettingsInline] Saved settings via VoiceSettingsService');
   } catch (error) {
     debug.warn('⚠️ Failed to save settings:', error);
   }
@@ -631,8 +672,8 @@ watch(selectedVideoDevice, updateVideoPreview);
 // Lifecycle
 onMounted(() => {
   debug.log('🎛️ [VoiceSettingsInline] Component mounted, loading settings...');
+  // getDevices() now also loads stored settings after enumerating devices
   getDevices();
-  loadStoredSettings();
   navigator.mediaDevices.addEventListener('devicechange', getDevices);
   // Add keybind recording listeners (keyboard + mouse)
   window.addEventListener('keydown', handleKeybindKeydown);

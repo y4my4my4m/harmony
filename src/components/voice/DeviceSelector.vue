@@ -109,6 +109,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
+import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import Icon from '@/components/common/Icon.vue';
 
 interface Props {
@@ -180,11 +181,29 @@ const loadDevices = async () => {
     outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
     videoDevices.value = devices.filter(d => d.kind === 'videoinput');
 
-    // Get currently selected devices
-    const selected = webrtcManager.getSelectedDevices();
-    selectedInputDevice.value = selected.inputDevice;
-    selectedOutputDevice.value = selected.outputDevice;
-    selectedVideoDevice.value = selected.videoDevice;
+    // Get currently selected devices from VoiceSettingsService (persisted)
+    const storedDevices = VoiceSettingsService.getDevices();
+    
+    // Validate stored input device exists
+    if (storedDevices.inputDevice && inputDevices.value.some(d => d.deviceId === storedDevices.inputDevice)) {
+      selectedInputDevice.value = storedDevices.inputDevice;
+    } else if (inputDevices.value.length > 0) {
+      selectedInputDevice.value = inputDevices.value[0].deviceId;
+    }
+    
+    // Validate stored output device exists
+    if (storedDevices.outputDevice && outputDevices.value.some(d => d.deviceId === storedDevices.outputDevice)) {
+      selectedOutputDevice.value = storedDevices.outputDevice;
+    } else if (outputDevices.value.length > 0) {
+      selectedOutputDevice.value = outputDevices.value[0].deviceId;
+    }
+    
+    // Validate stored video device exists
+    if (storedDevices.videoDevice && videoDevices.value.some(d => d.deviceId === storedDevices.videoDevice)) {
+      selectedVideoDevice.value = storedDevices.videoDevice;
+    } else if (videoDevices.value.length > 0) {
+      selectedVideoDevice.value = videoDevices.value[0].deviceId;
+    }
   } catch (error) {
     console.error('Failed to enumerate devices:', error);
   }

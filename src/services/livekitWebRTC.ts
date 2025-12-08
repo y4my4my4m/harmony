@@ -36,6 +36,7 @@ import {
 } from 'livekit-client';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
+import { VoiceSettingsService } from './VoiceSettingsService';
 
 // =============================================================================
 // FEDERATED IDENTITY HELPERS
@@ -1927,29 +1928,28 @@ export class LiveKitWebRTCService {
   // =============================================================================
   
   /**
-   * Load audio settings from localStorage
+   * Load audio settings from centralized VoiceSettingsService
    */
   private loadAudioSettings(): void {
     try {
-      const settings = localStorage.getItem('harmony_audio_settings');
-      if (settings) {
-        const parsed = JSON.parse(settings);
-        this.selectedInputDevice = parsed.inputDevice || null;
-        this.selectedOutputDevice = parsed.outputDevice || null;
-        this.selectedVideoDevice = parsed.videoDevice || null;
-        
-        if (parsed.echoCancellation !== undefined) {
-          this.audioConstraints.echoCancellation = parsed.echoCancellation;
-        }
-        if (parsed.noiseSuppression !== undefined) {
-          this.audioConstraints.noiseSuppression = parsed.noiseSuppression;
-        }
-        if (parsed.autoGainControl !== undefined) {
-          this.audioConstraints.autoGainControl = parsed.autoGainControl;
-        }
-      }
+      const settings = VoiceSettingsService.getAll();
+      const devices = VoiceSettingsService.getDevices();
+      const constraints = VoiceSettingsService.getAudioConstraints();
+      
+      this.selectedInputDevice = devices.inputDevice;
+      this.selectedOutputDevice = devices.outputDevice;
+      this.selectedVideoDevice = devices.videoDevice;
+      
+      this.audioConstraints.echoCancellation = constraints.echoCancellation;
+      this.audioConstraints.noiseSuppression = constraints.noiseSuppression;
+      this.audioConstraints.autoGainControl = constraints.autoGainControl;
+      
+      debug.log('🎛️ [LiveKit] Loaded audio settings from VoiceSettingsService:', {
+        devices,
+        constraints
+      });
     } catch (error) {
-      debug.warn('⚠️ [LiveKit] Failed to load audio settings');
+      debug.warn('⚠️ [LiveKit] Failed to load audio settings:', error);
     }
   }
   
@@ -1969,10 +1969,12 @@ export class LiveKitWebRTCService {
    */
   async updateInputDevice(deviceId: string): Promise<void> {
     this.selectedInputDevice = deviceId;
+    VoiceSettingsService.setInputDevice(deviceId);
     
     if (this.room?.localParticipant) {
       // Switch active microphone
       await this.room.switchActiveDevice('audioinput', deviceId);
+      debug.log('🎤 [LiveKit] Switched input device to:', deviceId);
     }
   }
   
@@ -1981,10 +1983,12 @@ export class LiveKitWebRTCService {
    */
   async updateOutputDevice(deviceId: string): Promise<void> {
     this.selectedOutputDevice = deviceId;
+    VoiceSettingsService.setOutputDevice(deviceId);
     
     if (this.room) {
       // Switch audio output
       await this.room.switchActiveDevice('audiooutput', deviceId);
+      debug.log('🔊 [LiveKit] Switched output device to:', deviceId);
     }
   }
   
@@ -1993,10 +1997,12 @@ export class LiveKitWebRTCService {
    */
   async updateVideoDevice(deviceId: string): Promise<void> {
     this.selectedVideoDevice = deviceId;
+    VoiceSettingsService.setVideoDevice(deviceId);
     
     if (this.room?.localParticipant && this.localMediaState.isVideoEnabled) {
       // Switch active camera
       await this.room.switchActiveDevice('videoinput', deviceId);
+      debug.log('📹 [LiveKit] Switched video device to:', deviceId);
     }
   }
   

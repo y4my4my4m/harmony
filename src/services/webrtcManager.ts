@@ -16,6 +16,7 @@
 
 import { livekitWebRTC, type UserMediaState, type LiveKitConfig } from './livekitWebRTC';
 import { unifiedWebRTC } from './unifiedWebRTC';
+import { VoiceSettingsService } from './VoiceSettingsService';
 import { debug } from '@/utils/debug';
 
 // =============================================================================
@@ -490,37 +491,53 @@ class WebRTCManagerService implements WebRTCManager {
    * Update input device
    */
   async updateInputDevice(deviceId: string): Promise<void> {
+    // Always save to VoiceSettingsService first
+    VoiceSettingsService.setInputDevice(deviceId);
+    
     if (this.activeService === 'livekit') {
       await livekitWebRTC.updateInputDevice(deviceId);
     } else if (this.activeService === 'p2p') {
       await unifiedWebRTC.updateInputDevice(deviceId);
     }
+    
+    debug.log('🎤 [WebRTCManager] Updated input device:', deviceId);
   }
   
   /**
    * Update output device
    */
   async updateOutputDevice(deviceId: string): Promise<void> {
+    // Always save to VoiceSettingsService first
+    VoiceSettingsService.setOutputDevice(deviceId);
+    
     if (this.activeService === 'livekit') {
       await livekitWebRTC.updateOutputDevice(deviceId);
     } else if (this.activeService === 'p2p') {
       await unifiedWebRTC.updateOutputDevice(deviceId);
     }
+    
+    debug.log('🔊 [WebRTCManager] Updated output device:', deviceId);
   }
   
   /**
    * Update video device
    */
   async updateVideoDevice(deviceId: string): Promise<void> {
+    // Always save to VoiceSettingsService first
+    VoiceSettingsService.setVideoDevice(deviceId);
+    
     if (this.activeService === 'livekit') {
       await livekitWebRTC.updateVideoDevice(deviceId);
     } else if (this.activeService === 'p2p') {
       await unifiedWebRTC.updateVideoDevice(deviceId);
     }
+    
+    debug.log('📹 [WebRTCManager] Updated video device:', deviceId);
   }
   
   /**
    * Get selected devices
+   * Falls back to VoiceSettingsService when no active connection
    */
   getSelectedDevices(): { inputDevice: string | null; outputDevice: string | null; videoDevice: string | null } {
     if (this.activeService === 'livekit') {
@@ -528,7 +545,8 @@ class WebRTCManagerService implements WebRTCManager {
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.getSelectedDevices();
     }
-    return { inputDevice: null, outputDevice: null, videoDevice: null };
+    // Fallback to VoiceSettingsService when no active service
+    return VoiceSettingsService.getDevices();
   }
   
   // =============================================================================

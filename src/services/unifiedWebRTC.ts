@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { debug } from '@/utils/debug'
+import { debug } from '@/utils/debug';
+import { VoiceSettingsService } from './VoiceSettingsService';
 
 // Lazy load encryption service to avoid loading native modules in browser
 let webrtcEncryptionService: any = null
@@ -87,7 +88,6 @@ export class UnifiedWebRTCService {
   // Audio context for level monitoring
   private audioContext: AudioContext | null = null;
   private localAudioAnalyser: AnalyserNode | null = null;
-  private lastAudioLevelBroadcast: number = 0;
   
   // Audio constraints settings
   private audioConstraints = {
@@ -1136,6 +1136,7 @@ export class UnifiedWebRTCService {
       
       const dataArray = new Uint8Array(this.localAudioAnalyser.frequencyBinCount);
       
+      let lastBroadcast = 0;
       const updateLevel = () => {
         if (this.localAudioAnalyser && this.audioContext?.state === 'running') {
           this.localAudioAnalyser.getByteFrequencyData(dataArray);
@@ -1148,14 +1149,11 @@ export class UnifiedWebRTCService {
           
           this.emit('audio-level', { userId: this.currentUserId, level: average });
           
-          // Broadcast audio level to other users once per second (1000ms interval)
-          // This is sufficient for audio level indicators and prevents rate limiting
+          // Broadcast audio level to other users every 100ms if speaking
           const now = Date.now();
-          const timeSinceLastBroadcast = now - this.lastAudioLevelBroadcast;
-          
-          if (timeSinceLastBroadcast >= 1000) {
+          if ((average > 20 || now - lastBroadcast > 1000) && now - lastBroadcast > 100) {
             this.broadcastAudioLevel();
-            this.lastAudioLevelBroadcast = now;
+            lastBroadcast = now;
           }
           
           // Broadcast media state if speaking state changed (for other peers)
@@ -1674,65 +1672,64 @@ export class UnifiedWebRTCService {
   // AUDIO SETTINGS MANAGEMENT
   // =============================================================================
 
-  private getSelectedDevices(): { inputDevice?: string; outputDevice?: string; videoDevice?: string } {
+  /**
+   * Get selected devices
+   */
+  getSelectedDevices(): { inputDevice: string | null; outputDevice: string | null; videoDevice: string | null } {
     return {
-      inputDevice: this.selectedInputDevice || undefined,
-      outputDevice: this.selectedOutputDevice || undefined,
-      videoDevice: this.selectedVideoDevice || undefined
+      inputDevice: this.selectedInputDevice,
+      outputDevice: this.selectedOutputDevice,
+      videoDevice: this.selectedVideoDevice
     };
   }
 
   private loadAudioSettings(): void {
     try {
-      const stored = localStorage.getItem('harmony-voice-settings');
-      if (stored) {
-        const settings = JSON.parse(stored);
-        
-        // Load audio constraints
-        if (settings.audioConstraints) {
-          this.audioConstraints = {
-            ...this.audioConstraints,
-            ...settings.audioConstraints
-          };
-          debug.log('🎛️ Loaded audio settings:', this.audioConstraints);
-        }
-        
-        // Load device settings
-        this.selectedInputDevice = settings.selectedInputDevice || null;
-        this.selectedOutputDevice = settings.selectedOutputDevice || null;
-        this.selectedVideoDevice = settings.selectedVideoDevice || null;
-        debug.log('🎛️ Loaded device settings:', {
-          input: this.selectedInputDevice,
-          output: this.selectedOutputDevice,
-          video: this.selectedVideoDevice
-        });
-      }
+      const devices = VoiceSettingsService.getDevices();
+      const constraints = VoiceSettingsService.getAudioConstraints();
+      
+      // Load audio constraints
+      this.audioConstraints = {
+        ...this.audioConstraints,
+        echoCancellation: constraints.echoCancellation,
+        noiseSuppression: constraints.noiseSuppression,
+        autoGainControl: constraints.autoGainControl,
+      };
+      debug.log('🎛️ [P2P] Loaded audio settings:', this.audioConstraints);
+      
+      // Load device settings
+      this.selectedInputDevice = devices.inputDevice;
+      this.selectedOutputDevice = devices.outputDevice;
+      this.selectedVideoDevice = devices.videoDevice;
+      debug.log('🎛️ [P2P] Loaded device settings:', devices);
     } catch (error) {
-      debug.warn('⚠️ Failed to load audio settings:', error);
+      debug.warn('⚠️ [P2P] Failed to load audio settings:', error);
     }
   }
 
   private saveAudioSettings(): void {
     try {
-      const existing = localStorage.getItem('harmony-voice-settings');
-      const settings = existing ? JSON.parse(existing) : {};
-      
       // Save audio constraints
-      settings.audioConstraints = {
+      VoiceSettingsService.setAudioConstraints({
         echoCancellation: this.audioConstraints.echoCancellation,
         noiseSuppression: this.audioConstraints.noiseSuppression,
         autoGainControl: this.audioConstraints.autoGainControl
-      };
+      });
       
       // Save device settings
-      settings.selectedInputDevice = this.selectedInputDevice;
-      settings.selectedOutputDevice = this.selectedOutputDevice;
-      settings.selectedVideoDevice = this.selectedVideoDevice;
+      if (this.selectedInputDevice) {
+        VoiceSettingsService.setInputDevice(this.selectedInputDevice);
+      }
+      if (this.selectedOutputDevice) {
+        VoiceSettingsService.setOutputDevice(this.selectedOutputDevice);
+      }
+      if (this.selectedVideoDevice) {
+        VoiceSettingsService.setVideoDevice(this.selectedVideoDevice);
+      }
       
-      localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
-      debug.log('💾 Saved audio and device settings');
+      debug.log('💾 [P2P] Saved audio and device settings via VoiceSettingsService');
     } catch (error) {
-      debug.warn('⚠️ Failed to save audio settings:', error);
+      debug.warn('⚠️ [P2P] Failed to save audio settings:', error);
     }
   }
 
