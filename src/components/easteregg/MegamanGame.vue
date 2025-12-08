@@ -137,7 +137,8 @@ let lastPickupSpawnTime = 0
 const PICKUP_SPAWN_INTERVAL = 8000 // Spawn a pickup every 8 seconds
 const MAX_PICKUPS = 5 // Maximum pickups on screen
 const colorAssignments = ref<Map<string, { color: string; playerIndex: number }>>(new Map()) // Store color assignments from host
-const showPlayerNames = ref(true) // Toggle with P key
+// Display mode: 0 = normal, 1 = hide names, 2 = hide health bars, 3 = fixed health bar positions + names (bar + player), 4 = fixed health bar positions + names (bar only)
+const displayMode = ref(0) // Cycle with P key
 let gameStartTimestamp = 0 // For syncing moving platforms
 
 // Item sprites
@@ -1267,7 +1268,7 @@ function spawnHealthPickup() {
   
   const canvasWidth = gameCanvasWidth.value
   const canvasHeight = gameCanvasHeight.value
-  const floorY = canvasHeight - 20
+  const floorY = canvasHeight - 64
   
   let x: number
   let y: number
@@ -1527,20 +1528,105 @@ function initializePlayers() {
   debug.log(`🎮 Total players: ${players.value.size}`)
 }
 
+// Helper function to calculate fixed health bar position based on corner pattern
+// Pattern: player1 bottom-left, player2 bottom-right, player3 top-left, player4 top-right,
+//          player5 bottom-left next to player1, player6 bottom-right next to player2, etc.
+function getFixedHealthBarPosition(playerIndex: number, totalPlayers: number, barWidth: number, barHeight: number, canvasWidth: number, canvasHeight: number): { x: number; y: number } {
+  const cornerIndex = playerIndex % 4 // 0=bottom-left, 1=bottom-right, 2=top-left, 3=top-right
+  const stackIndex = Math.floor(playerIndex / 4) // Which stack in this corner (0, 1, 2...)
+  const spacing = 8 // Space between stacked bars
+  const margin = 12 // Margin from screen edges
+  
+  let x: number, y: number
+  
+  if (cornerIndex === 0) {
+    // Bottom-left
+    x = margin
+    y = canvasHeight - margin - barHeight - spacing - (stackIndex * (barHeight + spacing))
+  } else if (cornerIndex === 1) {
+    // Bottom-right
+    x = canvasWidth - margin - barWidth
+    y = canvasHeight - margin - barHeight -spacing - (stackIndex * (barHeight + spacing))
+  } else if (cornerIndex === 2) {
+    // Top-left
+    x = margin
+    y = margin + (stackIndex * (barHeight + spacing))
+  } else {
+    // Top-right
+    x = canvasWidth - margin - barWidth
+    y = margin + (stackIndex * (barHeight + spacing))
+  }
+  
+  return { x, y }
+}
+
+// Helper function to draw player name label
+function drawNameLabel(name: string, x: number, y: number, ctx: CanvasRenderingContext2D, userId: string, playerColor: string, profilePictures: Map<string, HTMLImageElement>, alignRight: boolean = false) {
+  // Measure text width
+  ctx.font = '12px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  const textMetrics = ctx.measureText(name)
+  const textWidth = textMetrics.width
+  const textHeight = 16
+  const padding = 4
+  const profileSize = 16
+  const totalWidth = textWidth + profileSize + padding * 3
+  
+  let nameX: number
+  let bgX: number
+  if (alignRight) {
+    // For right alignment, x is the right edge of the label (including padding)
+    bgX = x - totalWidth - padding
+    nameX = bgX + padding
+  } else {
+    // For left alignment, x is the left edge of the label (before padding)
+    bgX = x - padding
+    nameX = x
+  }
+  
+  // Draw background
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
+  ctx.fillRect(bgX, y - textHeight / 2 - padding, totalWidth + padding * 2, textHeight + padding * 2)
+  
+  // Draw profile picture
+  const profileImg = profilePictures.get(userId)
+  if (profileImg && profileImg.complete) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(nameX + profileSize / 2, y, profileSize / 2, 0, Math.PI * 2)
+    ctx.clip()
+    ctx.drawImage(profileImg, nameX, y - profileSize / 2, profileSize, profileSize)
+    ctx.restore()
+  } else {
+    // Fallback: colored circle
+    ctx.fillStyle = playerColor
+    ctx.beginPath()
+    ctx.arc(nameX + profileSize / 2, y, profileSize / 2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  
+  // Draw name text
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText(name, nameX + profileSize + padding, y)
+}
+
 // Handle keyboard input
 function handleKeyDown(event: KeyboardEvent) {
   if (!props.isActive) return
   
   // Use arrow keys, space, and shift
   const key = event.code
-  keys.value.add(key)
   
-  // Toggle player names with P key
-  if (key === 'KeyP') {
-    showPlayerNames.value = !showPlayerNames.value
+  // Cycle display mode with P key (only on first press, not while held)
+  if (key === 'KeyP' && !keys.value.has('KeyP')) {
+    displayMode.value = (displayMode.value + 1) % 5
     event.preventDefault()
+    keys.value.add(key)
     return
   }
+  
+  keys.value.add(key)
   
   // Prevent default for game keys
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space', 'ShiftLeft', 'ShiftRight'].includes(key)) {
@@ -3950,7 +4036,8 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     }
     
     // Draw health bar using HP sprites
-    if (ctx && hpBarData.value && hpBarData.value.HP_Bar) {
+    // Mode 0,1: follow player, Mode 2: hidden, Mode 3,4: fixed positions
+    if (displayMode.value !== 2 && ctx && hpBarData.value && hpBarData.value.HP_Bar) {
       // Calculate HP value (0-32, since HP_Bar has 33 sprites: HP_0 to HP_32)
       const hpValue = Math.floor((player.health / player.maxHealth) * 32)
       const hpSpriteName = `HP_${hpValue}`
@@ -3962,18 +4049,46 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
           // Make health bar taller - use full height, scale width if needed
           const hpWidth = hpSprite.naturalWidth * (hpSprite.naturalWidth > 100 ? 0.5 : 1)
           const hpHeight = hpSprite.naturalHeight * (hpSprite.naturalHeight > 50 ? 1.0 : 2) // Make taller
-          const hpX = player.x + (64 - hpWidth) / 2
-          const hpY = player.y - hpHeight - 5
+          
+          let hpX: number, hpY: number
+          if (displayMode.value === 3 || displayMode.value === 4) {
+            // Fixed position in corners/edges
+            const sortedPlayers = Array.from(players.value.values()).sort((a, b) => a.playerIndex - b.playerIndex)
+            const playerIndexInSorted = sortedPlayers.findIndex(p => p.userId === player.userId)
+            const canvasWidth = gameCanvasWidth.value
+            const canvasHeight = gameCanvasHeight.value
+            const pos = getFixedHealthBarPosition(playerIndexInSorted, sortedPlayers.length, hpWidth, hpHeight, canvasWidth, canvasHeight)
+            hpX = pos.x
+            hpY = pos.y
+          } else {
+            // Follow player position
+            hpX = player.x + (64 - hpWidth) / 2
+            hpY = player.y - hpHeight - 5
+          }
           
           ctx.drawImage(hpSprite, hpX, hpY, hpWidth, hpHeight)
         }
       }
-    } else if (ctx) {
+    } else if (displayMode.value !== 2 && ctx) {
       // Fallback to simple bar if sprites not loaded
       const barWidth = 60
       const barHeight = 12 // Make taller
-      const barX = player.x + (64 - barWidth) / 2
-      const barY = player.y - 18
+      
+      let barX: number, barY: number
+      if (displayMode.value === 3 || displayMode.value === 4) {
+        // Fixed position in corners/edges
+        const sortedPlayers = Array.from(players.value.values()).sort((a, b) => a.playerIndex - b.playerIndex)
+        const playerIndexInSorted = sortedPlayers.findIndex(p => p.userId === player.userId)
+        const canvasWidth = gameCanvasWidth.value
+        const canvasHeight = gameCanvasHeight.value
+        const pos = getFixedHealthBarPosition(playerIndexInSorted, sortedPlayers.length, barWidth, barHeight, canvasWidth, canvasHeight)
+        barX = pos.x
+        barY = pos.y
+      } else {
+        // Follow player position
+        barX = player.x + (64 - barWidth) / 2
+        barY = player.y - 18
+      }
       
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
       ctx.fillRect(barX, barY, barWidth, barHeight)
@@ -3983,47 +4098,82 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight)
     }
     
-    // Draw player name with profile picture (if enabled)
-    if (showPlayerNames.value && ctx) {
-      const nameY = player.y - 190
+    // Draw player name with profile picture
+    // Mode 0: show name above player
+    // Mode 1,2: hide names
+    // Mode 3: show name both next to health bar AND above player (repositioned down)
+    // Mode 4: show name only next to health bar
+    if (ctx) {
       const name = player.username || `Player ${player.playerIndex + 1}`
       
-      // Measure text width
-      ctx.font = '12px sans-serif'
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
-      const textMetrics = ctx.measureText(name)
-      const textWidth = textMetrics.width
-      const textHeight = 16
-      const padding = 4
-      const profileSize = 16
-      const totalWidth = textWidth + profileSize + padding * 3
-      const nameX = player.x + (64 - totalWidth) / 2 
-      
-      // Draw background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-      ctx.fillRect(nameX - padding, nameY - textHeight / 2 - padding, totalWidth, textHeight + padding * 2)
-      
-      // Draw profile picture
-      const profileImg = profilePictures.value.get(player.userId)
-      if (profileImg && profileImg.complete) {
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(nameX + profileSize / 2, nameY, profileSize / 2, 0, Math.PI * 2)
-        ctx.clip()
-        ctx.drawImage(profileImg, nameX, nameY - profileSize / 2, profileSize, profileSize)
-        ctx.restore()
-      } else {
-        // Fallback: colored circle
-        ctx.fillStyle = player.color
-        ctx.beginPath()
-        ctx.arc(nameX + profileSize / 2, nameY, profileSize / 2, 0, Math.PI * 2)
-        ctx.fill()
+      if (displayMode.value === 0) {
+        // Normal mode: show name above player
+        const nameY = player.y - 190
+        drawNameLabel(name, player.x + 32, nameY, ctx, player.userId, player.color, profilePictures.value, false)
+      } else if (displayMode.value === 3) {
+        // Fixed bars mode: show name both next to bar AND above player (repositioned down)
+        // Name next to health bar
+        const sortedPlayers = Array.from(players.value.values()).sort((a, b) => a.playerIndex - b.playerIndex)
+        const playerIndexInSorted = sortedPlayers.findIndex(p => p.userId === player.userId)
+        const canvasWidth = gameCanvasWidth.value
+        const canvasHeight = gameCanvasHeight.value
+        
+        // Get health bar position to place name next to it
+        const barWidth = 60
+        const barHeight = 12
+        const barPos = getFixedHealthBarPosition(playerIndexInSorted, sortedPlayers.length, barWidth, barHeight, canvasWidth, canvasHeight)
+        
+        // Position name to the right of the health bar (or left if on right side)
+        const cornerIndex = playerIndexInSorted % 4
+        let nameX: number, nameY: number
+        let alignRight = false
+        if (cornerIndex === 0 || cornerIndex === 2) {
+          // Left side: name to the right of bar
+          nameX = barPos.x + barWidth + 5
+          nameY = barPos.y + barHeight / 2
+        } else {
+          // Right side: name to the left of bar
+          nameX = barPos.x - 5
+          nameY = barPos.y + barHeight / 2
+          alignRight = true
+        }
+        
+        // Draw name next to health bar
+        drawNameLabel(name, nameX, nameY, ctx, player.userId, player.color, profilePictures.value, alignRight)
+        
+        // Also show name above player (repositioned down a bit from normal)
+        const nameYAbovePlayer = player.y - 50 // Repositioned down from -190 to -50
+        drawNameLabel(name, player.x + 32, nameYAbovePlayer, ctx, player.userId, player.color, profilePictures.value, false)
+      } else if (displayMode.value === 4) {
+        // Fixed bars mode: show name only next to health bar
+        const sortedPlayers = Array.from(players.value.values()).sort((a, b) => a.playerIndex - b.playerIndex)
+        const playerIndexInSorted = sortedPlayers.findIndex(p => p.userId === player.userId)
+        const canvasWidth = gameCanvasWidth.value
+        const canvasHeight = gameCanvasHeight.value
+        
+        // Get health bar position to place name next to it
+        const barWidth = 60
+        const barHeight = 12
+        const barPos = getFixedHealthBarPosition(playerIndexInSorted, sortedPlayers.length, barWidth, barHeight, canvasWidth, canvasHeight)
+        
+        // Position name to the right of the health bar (or left if on right side)
+        const cornerIndex = playerIndexInSorted % 4
+        let nameX: number, nameY: number
+        let alignRight = false
+        if (cornerIndex === 0 || cornerIndex === 2) {
+          // Left side: name to the right of bar
+          nameX = barPos.x + barWidth + 5
+          nameY = barPos.y + barHeight / 2
+        } else {
+          // Right side: name to the left of bar
+          nameX = barPos.x - 5
+          nameY = barPos.y + barHeight / 2
+          alignRight = true
+        }
+        
+        // Draw name next to health bar
+        drawNameLabel(name, nameX, nameY, ctx, player.userId, player.color, profilePictures.value, alignRight)
       }
-      
-      // Draw name text
-      ctx.fillStyle = '#ffffff'
-      ctx.fillText(name, nameX + profileSize + padding, nameY)
     }
     
     // Draw smoke effects (size: 200 in project.json = 2x scale)
