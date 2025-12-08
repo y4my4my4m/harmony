@@ -1539,12 +1539,50 @@ function handleInput() {
     }
   }
   
-  // Movement with arrow keys (not during dash or dashJumping)
+  // Movement with arrow keys
   // Megaman X has air control but with some momentum preservation
   const previousFacing = localPlayer.facing
   const isInAir = !localPlayer.onGround && !localPlayer.onWall
+  const isDashJump = localPlayer.isDashJumping || localPlayer.state === 'dashJumping'
   
-  if ((localPlayer.state as string) !== 'dashing' && (localPlayer.state as string) !== 'dashJumping') {
+  // Handle dash jump air control separately (runs even during dashJumping state)
+  if (isDashJump && isInAir && !localPlayer.isWallJumping) {
+    // DASH JUMP: Allow gradual direction change mid-air by applying opposite force
+    // Player can change direction, but it gradually shifts velocity (like applying opposite force)
+    if (keys.value.has('ArrowLeft')) {
+      localPlayer.facing = 'left'
+      // Apply leftward force gradually - slows down rightward momentum and accelerates leftward
+      if (localPlayer.velocityX > 0) {
+        // Moving right, pressing left - apply opposite force to slow down and reverse
+        localPlayer.velocityX = Math.max(-WALK_SPEED, localPlayer.velocityX - 0.6)
+      } else if (localPlayer.velocityX > -WALK_SPEED) {
+        // Already moving left but not at max - accelerate leftward
+        localPlayer.velocityX = Math.max(-WALK_SPEED, localPlayer.velocityX - 0.4)
+      }
+    } else if (keys.value.has('ArrowRight')) {
+      localPlayer.facing = 'right'
+      // Apply rightward force gradually - slows down leftward momentum and accelerates rightward
+      if (localPlayer.velocityX < 0) {
+        // Moving left, pressing right - apply opposite force to slow down and reverse
+        localPlayer.velocityX = Math.min(WALK_SPEED, localPlayer.velocityX + 0.6)
+      } else if (localPlayer.velocityX < WALK_SPEED) {
+        // Already moving right but not at max - accelerate rightward
+        localPlayer.velocityX = Math.min(WALK_SPEED, localPlayer.velocityX + 0.4)
+      }
+    } else {
+      // No input - gradually slow down (air friction), but slower than regular jump to preserve momentum
+      localPlayer.velocityX *= 0.95
+      if (Math.abs(localPlayer.velocityX) < 0.1) {
+        localPlayer.velocityX = 0
+      }
+    }
+    
+    // Broadcast immediately if facing changed (force broadcast)
+    if (previousFacing !== localPlayer.facing) {
+      broadcastPlayerState(localPlayer, true)
+    }
+  } else if ((localPlayer.state as string) !== 'dashing') {
+    // Regular movement (not dashing, and not dash jumping)
     if (localPlayer.onGround) {
       // Ground movement - full control
       if (keys.value.has('ArrowLeft')) {
@@ -1562,44 +1600,18 @@ function handleInput() {
         }
       }
     } else if (isInAir && !localPlayer.isWallJumping) {
-      // Air control - Megaman X style
-      // Dash jumps preserve horizontal momentum almost completely
-      // Regular jumps have full air control
-      const isDashJump = localPlayer.isDashJumping || localPlayer.state === 'dashJumping'
-      
-      if (isDashJump) {
-        // DASH JUMP: Preserve momentum, only allow minor direction influence
-        // Player can slightly adjust direction but keeps most of their dash speed
-        if (keys.value.has('ArrowLeft')) {
-          localPlayer.facing = 'left'
-          // Only very slightly influence velocity (0.5% per frame)
-          if (localPlayer.velocityX > 0) {
-            // Moving right, pressing left - very slight slowdown
-            localPlayer.velocityX *= 0.998
-          }
-        } else if (keys.value.has('ArrowRight')) {
-          localPlayer.facing = 'right'
-          if (localPlayer.velocityX < 0) {
-            // Moving left, pressing right - very slight slowdown
-            localPlayer.velocityX *= 0.998
-          }
-        }
-        // No input = full momentum preservation (do nothing to velocityX)
-        // Dash momentum is maintained until landing
+      // REGULAR JUMP: Full air control like original Megaman
+      if (keys.value.has('ArrowLeft')) {
+        localPlayer.velocityX = -WALK_SPEED
+        localPlayer.facing = 'left'
+      } else if (keys.value.has('ArrowRight')) {
+        localPlayer.velocityX = WALK_SPEED
+        localPlayer.facing = 'right'
       } else {
-        // REGULAR JUMP: Full air control like original Megaman
-        if (keys.value.has('ArrowLeft')) {
-          localPlayer.velocityX = -WALK_SPEED
-          localPlayer.facing = 'left'
-        } else if (keys.value.has('ArrowRight')) {
-          localPlayer.velocityX = WALK_SPEED
-          localPlayer.facing = 'right'
-        } else {
-          // No input - gradually slow down (air friction)
-          localPlayer.velocityX *= 0.92
-          if (Math.abs(localPlayer.velocityX) < 0.1) {
-            localPlayer.velocityX = 0
-          }
+        // No input - gradually slow down (air friction)
+        localPlayer.velocityX *= 0.92
+        if (Math.abs(localPlayer.velocityX) < 0.1) {
+          localPlayer.velocityX = 0
         }
       }
     } else if (localPlayer.isWallJumping) {
