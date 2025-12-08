@@ -1,341 +1,351 @@
 <template>
-  <div class="auth-wrapper" @mousemove="updateBackgroundRotation" :style="authStyles">
-    <!-- Background Elements -->
-    <div class="bg-overlay"></div>
-    <div class="bg-particles">
-      <div 
-        v-for="particle in particles" 
-        :key="particle.id" 
-        class="particle" 
-        :style="{
-          left: particle.left,
-          top: particle.top,
-          'animation-delay': particle.delay,
-          'animation-duration': particle.duration,
-          width: particle.size,
-          height: particle.size,
-          transform: `translate(${particle.parallaxX}px, ${particle.parallaxY}px)`
-        }"
-      ></div>
-    </div>
+  <div class="auth-wrapper" @mousemove="handleMouseMove" :style="authStyles">
+    <!-- Animated gradient overlay -->
+    <div class="bg-gradient-overlay"></div>
+    <div class="bg-noise"></div>
 
     <!-- Main Auth Container -->
     <div class="auth-container">
-      <!-- Left Panel - Branding -->
+      <!-- Branding Section (Desktop) -->
       <div class="auth-branding">
         <div class="brand-content">
           <div class="logo-container" @click="themeStore.testAudio('ui_click')">
             <img src="/icon_3d.png" alt="Harmony Logo" class="brand-logo" />
-            <div class="logo-glow"></div>
+            <div class="logo-pulse"></div>
           </div>
+          
           <h1 class="brand-title">
-            <span class="harmony-logo">
+            <span class="harmony-text" @mouseenter="isHoveringTitle = true" @mouseleave="isHoveringTitle = false">
               <span 
                 v-for="(letter, index) in instanceNameLetters" 
                 :key="index"
                 class="letter" 
-                :data-letter="letter"
-                :style="{
-                  '--cursor-offset-x': letterTransforms[index] ? `${letterTransforms[index].x}px` : '0px',
-                  '--cursor-offset-y': letterTransforms[index] ? `${letterTransforms[index].y}px` : '0px'
+                :style="{ 
+                  '--letter-index': index,
+                  '--offset-x': letterOffsets[index]?.x || 0,
+                  '--offset-y': letterOffsets[index]?.y || 0
                 }"
-              >
-                {{ letter }}
-              </span>
+              >{{ letter }}</span>
             </span>
           </h1>
-          <p class="brand-subtitle">
-            {{ instanceDescription }}
-          </p>
           
-          <!-- Feature highlights -->
-          <div class="features-preview">
-            <div class="feature-item">
-              <div class="feature-icon">💬</div>
-              <span>Real-time messaging</span>
+          <p class="brand-tagline">{{ instanceDescription }}</p>
+          
+          <!-- Feature Pills -->
+          <div class="feature-pills">
+            <div class="pill">
+              <span class="pill-icon">💬</span>
+              <span>{{ $t('auth.features.realTimeMessaging') }}</span>
             </div>
-            <div class="feature-item">
-              <div class="feature-icon">🎮</div>
-              <span>Gaming communities</span>
+            <div class="pill">
+              <span class="pill-icon">🌐</span>
+              <span>{{ $t('auth.features.federated') || 'Federated' }}</span>
             </div>
-            <div class="feature-item">
-              <div class="feature-icon">🎵</div>
-              <span>Voice channels</span>
+            <div class="pill">
+              <span class="pill-icon">🔒</span>
+              <span>{{ $t('auth.features.endToEnd') || 'E2E Encrypted' }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Right Panel - Auth Form -->
+      <!-- Auth Form Panel -->
       <div class="auth-panel">
-        <div class="auth-form-container"  @mouseenter="onAuthPanelHover(true)" @mouseleave="onAuthPanelHover(false)" :class="{ 'hovered': isAuthPanelHovered }">
-          <!-- Form Header -->
-          <div class="form-header">
-            <h2 class="form-title">
-              {{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}
-            </h2>
-            <p class="form-subtitle">
-              {{ isLogin ? $t('auth.welcomeBackSubtitle') : $t('auth.createAccountSubtitle') }}
-            </p>
+        <div 
+          class="auth-card" 
+          :class="{ 'loading-state': isLoading, 'card-focused': isCardFocused }"
+          @focusin="isCardFocused = true"
+          @focusout="isCardFocused = false"
+        >
+          <!-- Mobile Logo -->
+          <div class="mobile-logo">
+            <img src="/icon_3d.png" alt="Harmony" />
+            <h1 class="mobile-title">{{ instanceName }}</h1>
           </div>
 
-          <!-- Auth Form -->
+          <!-- Form Header -->
+          <div class="form-header">
+            <h2>{{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}</h2>
+            <p>{{ isLogin ? $t('auth.welcomeBackSubtitle') : $t('auth.createAccountSubtitle') }}</p>
+          </div>
+
+          <!-- OAuth Providers -->
+          <div class="oauth-section">
+            <button 
+              v-for="provider in oauthProviders" 
+              :key="provider.id"
+              class="oauth-btn"
+              :class="[`oauth-${provider.id}`, { 'loading': oauthLoading === provider.id }]"
+              @click="handleOAuthLogin(provider.id)"
+              :disabled="isLoading || oauthLoading !== null"
+            >
+              <span class="oauth-icon" v-html="provider.icon"></span>
+              <span class="oauth-label">{{ $t(`auth.oauth.${provider.id}`) || `Continue with ${provider.name}` }}</span>
+              <span v-if="oauthLoading === provider.id" class="oauth-spinner"></span>
+            </button>
+          </div>
+
+          <!-- Divider -->
+          <div class="divider">
+            <span>{{ $t('auth.orContinueWith') || 'or' }}</span>
+          </div>
+
+          <!-- Email/Password Form -->
           <form @submit.prevent="handleSubmit" class="auth-form">
-            <div class="input-group">
-              <label class="input-label">{{ $t('auth.email') }}</label>
-              <div class="input-container">
-                <input 
-                  v-model="email" 
-                  type="email" 
-                  class="form-input"
-                  :class="{ 'error': emailError, 'focused': emailFocused }"
-                  @focus="emailFocused = true"
-                  @blur="emailFocused = false; validateEmail()"
-                  @input="emailError = ''"
-                  required
-                  autocomplete="email"
-                />
-                <div class="input-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-                  </svg>
-                </div>
-              </div>
-              <span v-if="emailError" class="error-message">{{ emailError }}</span>
+            <div class="input-group" :class="{ 'focused': emailFocused, 'has-value': email, 'error': emailError }">
+              <input 
+                v-model="email" 
+                type="email" 
+                id="email"
+                placeholder=" "
+                @focus="emailFocused = true"
+                @blur="emailFocused = false; validateEmail()"
+                @input="emailError = ''"
+                required
+                autocomplete="email"
+              />
+              <label for="email">{{ $t('auth.email') }}</label>
+              <div class="input-line"></div>
+              <span v-if="emailError" class="error-text">{{ emailError }}</span>
             </div>
 
-            <div class="input-group">
-              <label class="input-label">{{ $t('auth.password') }}</label>
-              <div class="input-container">
-                <input 
-                  v-model="password" 
-                  :type="showPassword ? 'text' : 'password'"
-                  class="form-input"
-                  :class="{ 'error': passwordError, 'focused': passwordFocused }"
-                  @focus="passwordFocused = true"
-                  @blur="passwordFocused = false; validatePassword()"
-                  @input="passwordError = ''"
-                  required
-                  :autocomplete="isLogin ? 'current-password' : 'new-password'"
-                />
-                <button 
-                  type="button" 
-                  class="password-toggle"
-                  @click="showPassword = !showPassword"
-                >
-                  <svg v-if="showPassword" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
-                  </svg>
-                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                  </svg>
-                </button>
-              </div>
-              <span v-if="passwordError" class="error-message">{{ passwordError }}</span>
+            <div class="input-group" :class="{ 'focused': passwordFocused, 'has-value': password, 'error': passwordError }">
+              <input 
+                v-model="password" 
+                :type="showPassword ? 'text' : 'password'"
+                id="password"
+                placeholder=" "
+                @focus="passwordFocused = true"
+                @blur="passwordFocused = false; validatePassword()"
+                @input="passwordError = ''"
+                required
+                :autocomplete="isLogin ? 'current-password' : 'new-password'"
+              />
+              <label for="password">{{ $t('auth.password') }}</label>
+              <button 
+                type="button" 
+                class="password-toggle"
+                @click="showPassword = !showPassword"
+                tabindex="-1"
+              >
+                <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+              <div class="input-line"></div>
+              <span v-if="passwordError" class="error-text">{{ passwordError }}</span>
             </div>
 
-            <!-- Remember me / Forgot password for login -->
+            <!-- Login Options -->
             <div v-if="isLogin" class="form-options">
-              <label class="checkbox-container">
+              <label class="remember-me">
                 <input type="checkbox" v-model="rememberMe" />
-                <span class="checkmark"></span>
-                {{ $t('auth.rememberMe') }}
+                <span class="checkbox-visual"></span>
+                <span>{{ $t('auth.rememberMe') }}</span>
               </label>
-              <button type="button" class="link-button" @click="showForgotPasswordModal = true">{{ $t('auth.forgotPassword') }}</button>
+              <button type="button" class="forgot-link" @click="showForgotPasswordModal = true">
+                {{ $t('auth.forgotPassword') }}
+              </button>
             </div>
 
             <!-- Submit Button -->
             <button 
               type="submit" 
               class="submit-btn"
-              :class="{ 'loading': isLoading }"
               :disabled="isLoading"
             >
-              <span v-if="!isLoading">{{ isLogin ? $t('auth.logIn') : $t('auth.createAccountButton') }}</span>
-              <div v-else class="loading-spinner"></div>
-            </button>
-
-            <!-- Divider -->
-            <div class="divider">
-              <span>{{ isLogin ? $t('auth.dontHaveAccount') : $t('auth.alreadyHaveAccount') }}</span>
-            </div>
-
-            <!-- Switch Mode Button -->
-            <button 
-              type="button" 
-              class="switch-mode-btn"
-              @click="toggleMode"
-            >
-              {{ isLogin ? $t('auth.register') : $t('auth.logIn') }}
+              <span v-if="!isLoading" class="btn-text">
+                {{ isLogin ? $t('auth.logIn') : $t('auth.createAccountButton') }}
+              </span>
+              <span v-else class="btn-loader">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+              </span>
             </button>
           </form>
 
-          <!-- Terms for registration -->
-          <p v-if="!isLogin" class="terms-text">
-            By registering, you agree to our 
-            <a href="#" class="link">Terms of Service</a> and 
-            <a href="#" class="link">Privacy Policy</a>
+          <!-- Switch Mode -->
+          <div class="switch-mode">
+            <span>{{ isLogin ? $t('auth.dontHaveAccount') : $t('auth.alreadyHaveAccount') }}</span>
+            <button type="button" @click="toggleMode">
+              {{ isLogin ? $t('auth.register') : $t('auth.logIn') }}
+            </button>
+          </div>
+
+          <!-- Terms -->
+          <p v-if="!isLogin" class="terms">
+            {{ $t('auth.termsPrefix') || 'By registering, you agree to our' }}
+            <a href="/terms" target="_blank">{{ $t('auth.termsOfService') || 'Terms of Service' }}</a>
+            {{ $t('auth.and') || 'and' }}
+            <a href="/privacy" target="_blank">{{ $t('auth.privacyPolicy') || 'Privacy Policy' }}</a>
           </p>
         </div>
-      </div>
-    </div>
-
-    <!-- Loading overlay -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="loading-content">
-        <div class="loading-spinner large"></div>
-        <p>{{ isLogin ? $t('auth.signingIn') : $t('auth.creatingAccount') }}</p>
       </div>
     </div>
 
     <!-- Forgot Password Modal -->
-    <div v-if="showForgotPasswordModal" class="modal-overlay" @click="showForgotPasswordModal = false">
-      <div class="modal-content" @click.stop>
-        <button class="modal-close" @click="showForgotPasswordModal = false" aria-label="Close">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
-          </svg>
-        </button>
-        
-        <h3 class="modal-title">{{ $t('auth.resetYourPassword') }}</h3>
-        <p class="modal-description">
-          {{ forgotPasswordStep === 1 
-            ? $t('auth.enterEmailForReset')
-            : $t('auth.checkEmailForReset')
-          }}
-        </p>
-
-        <form v-if="forgotPasswordStep === 1" @submit.prevent="handleForgotPassword" class="modal-form">
-          <div class="input-group">
-            <label class="input-label">Email Address</label>
-            <input 
-              v-model="forgotPasswordEmail" 
-              type="email" 
-              class="form-input"
-              :class="{ 'error': forgotPasswordError }"
-              placeholder="your.email@example.com"
-              required
-              autocomplete="email"
-            />
-            <span v-if="forgotPasswordError" class="error-message">{{ forgotPasswordError }}</span>
-          </div>
-
-          <div class="modal-actions">
-            <button 
-              type="submit" 
-              class="submit-btn"
-              :disabled="forgotPasswordLoading || !forgotPasswordEmail"
-            >
-              <span v-if="!forgotPasswordLoading">{{ $t('auth.sendResetLink') }}</span>
-              <div v-else class="loading-spinner"></div>
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showForgotPasswordModal" class="modal-backdrop" @click.self="showForgotPasswordModal = false">
+          <div class="modal-card reset-modal">
+            <button class="modal-close" @click="showForgotPasswordModal = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
             </button>
-            <button 
-              type="button" 
-              class="cancel-btn"
-              @click="showForgotPasswordModal = false"
-            >
-              {{ $t('common.cancel') }}
-            </button>
-          </div>
-        </form>
 
-        <div v-else class="modal-success">
-          <div class="success-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" fill="#43b581" opacity="0.2"/>
-              <path d="M9 12l2 2 4-4" stroke="#43b581" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <div v-if="forgotPasswordStep === 1" class="modal-content">
+              <!-- Decorative header -->
+              <div class="modal-header-decoration">
+                <div class="decoration-ring"></div>
+                <div class="decoration-ring delay"></div>
+                <div class="modal-icon-wrapper">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                  </svg>
+                </div>
+              </div>
+
+              <h3>{{ $t('auth.resetYourPassword') }}</h3>
+              <p class="modal-description">{{ $t('auth.enterEmailForReset') }}</p>
+
+              <form @submit.prevent="handleForgotPassword" class="modal-form">
+                <div class="input-group modal-input" :class="{ 'focused': forgotEmailFocused, 'has-value': forgotPasswordEmail, 'error': forgotPasswordError }">
+                  <input 
+                    v-model="forgotPasswordEmail" 
+                    type="email"
+                    id="forgot-email"
+                    placeholder=" "
+                    @focus="forgotEmailFocused = true"
+                    @blur="forgotEmailFocused = false"
+                    required
+                    autocomplete="email"
+                  />
+                  <label for="forgot-email">{{ $t('auth.email') }}</label>
+                  <div class="input-line"></div>
+                  <span v-if="forgotPasswordError" class="error-text">{{ forgotPasswordError }}</span>
+                </div>
+
+                <div class="modal-actions stacked">
+                  <button type="submit" class="btn-primary" :disabled="forgotPasswordLoading || !forgotPasswordEmail">
+                    <span v-if="!forgotPasswordLoading">{{ $t('auth.sendResetLink') }}</span>
+                    <span v-else class="btn-loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+                  </button>
+                  <button type="button" class="btn-text-only" @click="showForgotPasswordModal = false">
+                    {{ $t('auth.backToLogin') || 'Back to login' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div v-else class="modal-content success">
+              <div class="success-animation">
+                <div class="success-ring"></div>
+                <div class="success-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </div>
+              </div>
+              <h3>{{ $t('auth.checkEmail') }}</h3>
+              <p class="modal-description">
+                {{ $t('auth.checkEmailForReset') }}
+              </p>
+              <div class="email-preview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                <span>{{ forgotPasswordEmail }}</span>
+              </div>
+              <button class="btn-primary full-width" @click="closeForgotPasswordModal">
+                {{ $t('auth.gotIt') }}
+              </button>
+            </div>
           </div>
-          <p class="success-message">
-            Password reset email sent to <strong>{{ forgotPasswordEmail }}</strong>
-          </p>
-          <button 
-            class="submit-btn"
-            @click="closeForgotPasswordModal"
-          >
-            {{ $t('auth.gotIt') }}
-          </button>
         </div>
-      </div>
-    </div>
+      </Transition>
+    </Teleport>
 
-    <!-- 2FA Verification Modal -->
-    <div v-if="show2FAModal" class="modal-overlay" @click="close2FAModal">
-      <div class="modal-content" @click.stop>
-        <button class="modal-close" @click="close2FAModal" aria-label="Close">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
-          </svg>
-        </button>
-        
-        <div class="twofa-header">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color: #5865f2;">
-            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" fill="currentColor"/>
-          </svg>
-          <h3 class="modal-title">{{ $t('auth.twoFactorAuth') }}</h3>
-        </div>
-        
-        <p class="modal-description">
-          {{ useRecoveryCode ? $t('auth.enterRecoveryCode') : $t('auth.enter6DigitCode') }}
-        </p>
-
-        <form @submit.prevent="handle2FAVerification" class="modal-form">
-          <div class="input-group">
-            <label class="input-label">{{ useRecoveryCode ? $t('auth.recoveryCode') : $t('auth.verificationCode') }}</label>
-            <input 
-              v-model="twoFactorCode" 
-              type="text"
-              class="form-input twofa-code-input"
-              :class="{ 'error': twoFactorError }"
-              :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
-              :maxlength="useRecoveryCode ? 8 : 6"
-              :pattern="useRecoveryCode ? '[A-Z0-9]*' : '[0-9]*'"
-              :inputmode="useRecoveryCode ? 'text' : 'numeric'"
-              autocomplete="one-time-code"
-              autofocus
-              @input="handleCodeInput"
-            />
-            <span v-if="twoFactorError" class="error-message">{{ twoFactorError }}</span>
-          </div>
-
-          <div class="modal-actions">
-            <button 
-              type="submit" 
-              class="submit-btn"
-              :class="{ 'loading': twoFactorLoading }"
-              :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length !== 8 : twoFactorCode.length !== 6)"
-            >
-              <span v-if="!twoFactorLoading">{{ $t('auth.verify') }}</span>
-              <div v-else class="loading-spinner"></div>
+    <!-- 2FA Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="show2FAModal" class="modal-backdrop" @click.self="close2FAModal">
+          <div class="modal-card">
+            <button class="modal-close" @click="close2FAModal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
             </button>
-            <button 
-              type="button" 
-              class="cancel-btn"
-              @click="close2FAModal"
-              :disabled="twoFactorLoading"
-            >
-              {{ $t('common.cancel') }}
-            </button>
-          </div>
-        </form>
 
-        <div class="modal-help-text">
-          <button 
-            type="button" 
-            class="link-button"
-            @click="toggleRecoveryCodeMode"
-            :disabled="twoFactorLoading"
-          >
-            {{ useRecoveryCode ? $t('auth.useAuthenticatorCode') : $t('auth.useRecoveryCode') }}
-          </button>
+            <div class="modal-content">
+              <div class="modal-icon shield">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>
+              </div>
+              <h3>{{ $t('auth.twoFactorAuth') }}</h3>
+              <p class="modal-description">{{ useRecoveryCode ? $t('auth.enterRecoveryCode') : $t('auth.enter6DigitCode') }}</p>
+
+              <form @submit.prevent="handle2FAVerification" class="modal-form">
+                <div class="code-input-container">
+                  <input 
+                    v-model="twoFactorCode"
+                    type="text"
+                    class="code-input"
+                    :class="{ 'error': twoFactorError }"
+                    :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
+                    :maxlength="useRecoveryCode ? 8 : 6"
+                    :inputmode="useRecoveryCode ? 'text' : 'numeric'"
+                    autocomplete="one-time-code"
+                    autofocus
+                    @input="handleCodeInput"
+                  />
+                  <span v-if="twoFactorError" class="error-text centered">{{ twoFactorError }}</span>
+                </div>
+
+                <div class="modal-actions">
+                  <button type="button" class="btn-secondary" @click="close2FAModal" :disabled="twoFactorLoading">
+                    {{ $t('common.cancel') }}
+                  </button>
+                  <button 
+                    type="submit" 
+                    class="btn-primary" 
+                    :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length !== 8 : twoFactorCode.length !== 6)"
+                  >
+                    <span v-if="!twoFactorLoading">{{ $t('auth.verify') }}</span>
+                    <span v-else class="btn-loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+                  </button>
+                </div>
+
+                <button 
+                  type="button" 
+                  class="toggle-recovery" 
+                  @click="toggleRecoveryCodeMode"
+                  :disabled="twoFactorLoading"
+                >
+                  {{ useRecoveryCode ? $t('auth.useAuthenticatorCode') : $t('auth.useRecoveryCode') }}
+                </button>
+              </form>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -344,6 +354,7 @@ import { useToast } from 'vue-toastification'
 import { supabase } from '@/supabase'
 import { getRandomLoginBackground } from '@/utils/backgroundUtils'
 import { adminService } from '@/services/AdminService'
+import type { Provider } from '@supabase/supabase-js'
 
 // Props
 interface Props {
@@ -360,12 +371,33 @@ const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const toast = useToast()
 
+// OAuth Providers Configuration (removed Apple - requires paid $99/year developer account)
+const oauthProviders = [
+  {
+    id: 'google',
+    name: 'Google',
+    icon: `<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>`
+  },
+  {
+    id: 'twitch',
+    name: 'Twitch',
+    icon: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>`
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    icon: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>`
+  }
+]
+
 // Reactive state
 const email = ref('')
 const password = ref('')
 const rememberMe = ref(false)
 const showPassword = ref(false)
 const isLoading = ref(false)
+const oauthLoading = ref<string | null>(null)
+const isCardFocused = ref(false)
 
 // Focus states
 const emailFocused = ref(false)
@@ -378,9 +410,10 @@ const passwordError = ref('')
 // Forgot password state
 const showForgotPasswordModal = ref(false)
 const forgotPasswordEmail = ref('')
-const forgotPasswordStep = ref(1) // 1 = input email, 2 = success
+const forgotPasswordStep = ref(1)
 const forgotPasswordLoading = ref(false)
 const forgotPasswordError = ref('')
+const forgotEmailFocused = ref(false)
 
 // 2FA state
 const show2FAModal = ref(false)
@@ -391,115 +424,80 @@ const pendingFactorId = ref('')
 const pendingChallengeId = ref('')
 const useRecoveryCode = ref(false)
 
-// Background
+// Background & effects
 const randomBg = ref('')
-const bgRotation = ref(0)
-const bgParallaxX = ref(0)
-const bgParallaxY = ref(0)
-const particles = ref<Array<{
-  id: number
-  left: string
-  top: string
-  delay: string
-  duration: string
-  size: string
-  parallaxX: number
-  parallaxY: number
-}>>([])
-
-// Letter effects
-const letterElements = ref<HTMLElement[]>([])
-const letterTransforms = ref<Record<number, { x: number; y: number }>>({})
-
-// Auth panel hover effect
-const isAuthPanelHovered = ref(false)
+const mouseX = ref(0)
+const mouseY = ref(0)
+const bgOffsetX = ref(0)
+const bgOffsetY = ref(0)
+const isHoveringTitle = ref(false)
+const letterOffsets = ref<Record<number, { x: number; y: number }>>({})
 
 // Instance branding
 const instanceName = ref('Harmony')
-const instanceDescription = ref('Connect, communicate, and create together in perfect harmony')
+const instanceDescription = ref('Connect, communicate, and create together')
 const instanceNameLetters = computed(() => instanceName.value.split(''))
 
-// Computed
+// Computed styles
 const authStyles = computed(() => ({
-  '--random-bg': randomBg.value,
-  '--bg-rotation': `${bgRotation.value}deg`,
-  '--bg-parallax-x': `${bgParallaxX.value}px`,
-  '--bg-parallax-y': `${bgParallaxY.value}px`,
-  '--auth-blur': isAuthPanelHovered.value ? '15px' : '2px'
+  '--bg-image': randomBg.value,
+  '--mouse-x': `${mouseX.value}px`,
+  '--mouse-y': `${mouseY.value}px`,
+  '--bg-offset-x': `${bgOffsetX.value}px`,
+  '--bg-offset-y': `${bgOffsetY.value}px`,
+  '--blur-amount': isCardFocused.value ? '12px' : '4px',
 }))
 
-// Methods
-const initializeParticles = () => {
-  particles.value = Array.from({ length: 8 }, (_, i) => ({
-    id: i,
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-    delay: `${Math.random() * 3}s`,
-    duration: `${4 + Math.random() * 4}s`,
-    size: `${4 + Math.random() * 6}px`,
-    parallaxX: 0,
-    parallaxY: 0
-  }))
+// Mouse tracking with subtle parallax
+const handleMouseMove = (e: MouseEvent) => {
+  mouseX.value = e.clientX
+  mouseY.value = e.clientY
+  
+  // Subtle parallax on background
+  const centerX = window.innerWidth / 2
+  const centerY = window.innerHeight / 2
+  bgOffsetX.value = (e.clientX - centerX) * 0.015
+  bgOffsetY.value = (e.clientY - centerY) * 0.015
+  
+  if (isHoveringTitle.value) {
+    updateLetterOffsets(e)
+  }
 }
 
-const updateBackgroundRotation = (event: MouseEvent) => {
-  const x = event.clientX - window.innerWidth / 2
-  const y = event.clientY - window.innerHeight / 2
-  const angle = Math.atan2(y, x) * (180 / Math.PI)
-  bgRotation.value = angle
-
-  // Add parallax effect for background
-  const parallaxStrength = -10
-  bgParallaxX.value = (x / window.innerWidth) * parallaxStrength
-  bgParallaxY.value = (y / window.innerHeight) * parallaxStrength
-
-  // Update particle parallax
-  particles.value.forEach((particle, index) => {
-    const strength = (index % 3 + 1) * 5 // Different strengths for depth
-    particle.parallaxX = (x / window.innerWidth) * strength
-    particle.parallaxY = (y / window.innerHeight) * strength
-  })
-
-  // Update letter positions (scared effect)
-  updateLetterPositions(event)
-}
-
-const updateLetterPositions = (event: MouseEvent) => {
-  letterElements.value.forEach((letter, index) => {
-    if (!letter) return
-
+const updateLetterOffsets = (e: MouseEvent) => {
+  const letters = document.querySelectorAll('.letter')
+  letters.forEach((letter, index) => {
     const rect = letter.getBoundingClientRect()
-    const letterCenterX = rect.left + rect.width / 2
-    const letterCenterY = rect.top + rect.height / 2
-
-    const deltaX = event.clientX - letterCenterX
-    const deltaY = event.clientY - letterCenterY
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
-
-    // Increased effect radius and strength for better responsiveness
-    const effectRadius = 250
-    const maxOffset = 100
-
-    if (distance < effectRadius && distance > 0) {
-      const force = Math.pow((effectRadius - distance) / effectRadius, 1.5) // Ease-out curve
-      const offsetX = -(deltaX / distance) * force * maxOffset
-      const offsetY = -(deltaY / distance) * force * maxOffset
-
-      letterTransforms.value[index] = {
-        x: offsetX,
-        y: offsetY
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    
+    const dx = e.clientX - centerX
+    const dy = e.clientY - centerY
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    const maxDistance = 150
+    const maxOffset = 30
+    
+    if (distance < maxDistance) {
+      const force = (maxDistance - distance) / maxDistance
+      letterOffsets.value[index] = {
+        x: -(dx / distance) * force * maxOffset,
+        y: -(dy / distance) * force * maxOffset
       }
     } else {
-      letterTransforms.value[index] = { x: 0, y: 0 }
+      letterOffsets.value[index] = { x: 0, y: 0 }
     }
   })
 }
 
-const initializeLetterElements = async () => {
-  await nextTick()
-  letterElements.value = Array.from(document.querySelectorAll('.letter')) as HTMLElement[]
-}
+// Reset letter offsets when not hovering
+watch(isHoveringTitle, (hovering) => {
+  if (!hovering) {
+    letterOffsets.value = {}
+  }
+})
 
+// Validation
 const validateEmail = () => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!email.value) {
@@ -521,6 +519,33 @@ const validatePassword = () => {
   }
 }
 
+// OAuth Login
+const handleOAuthLogin = async (providerId: string) => {
+  oauthLoading.value = providerId
+  
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: providerId as Provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: providerId === 'google' ? {
+          access_type: 'offline',
+          prompt: 'consent',
+        } : undefined
+      }
+    })
+    
+    if (error) throw error
+    
+    // The browser will redirect to the OAuth provider
+  } catch (error: any) {
+    debug.error('OAuth error:', error)
+    toast.error(error.message || `Failed to sign in with ${providerId}`)
+    oauthLoading.value = null
+  }
+}
+
+// Email/Password Submit
 const handleSubmit = async () => {
   validateEmail()
   validatePassword()
@@ -533,11 +558,9 @@ const handleSubmit = async () => {
   
   try {
     if (props.isLogin) {
-      // Use authStore.login which handles 2FA detection
       const result = await authStore.login(email.value, password.value)
       
       if (result.requires2FA) {
-        // User has 2FA enabled, show verification modal
         pendingFactorId.value = result.factorId!
         pendingChallengeId.value = result.challengeId!
         show2FAModal.value = true
@@ -545,7 +568,6 @@ const handleSubmit = async () => {
         return
       }
 
-      // No 2FA, login successful
       toast.success('Welcome back!')
     } else {
       await authStore.register(email.value, password.value)
@@ -560,6 +582,7 @@ const handleSubmit = async () => {
   }
 }
 
+// 2FA Verification
 const handle2FAVerification = async () => {
   const expectedLength = useRecoveryCode.value ? 8 : 6
   if (twoFactorCode.value.length !== expectedLength) {
@@ -567,21 +590,11 @@ const handle2FAVerification = async () => {
     return
   }
 
-  debug.log('🔐 Starting 2FA verification...')
-  debug.log('Factor ID:', pendingFactorId.value)
-  debug.log('Challenge ID:', pendingChallengeId.value)
-  debug.log('Code length:', twoFactorCode.value.length)
-  debug.log('Using recovery code:', useRecoveryCode.value)
-
   twoFactorLoading.value = true
   twoFactorError.value = ''
 
   try {
     if (useRecoveryCode.value) {
-      // Verify recovery code
-      debug.log('📞 Verifying recovery code...')
-      
-      // Get the current session (should be at AAL1)
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
       
@@ -595,53 +608,29 @@ const handle2FAVerification = async () => {
       })
 
       if (error) throw error
-
       if (!isValid) {
         throw new Error('Invalid or already used recovery code')
       }
 
-      debug.log('✅ Recovery code verified successfully!')
-      
-      // Unenroll the TOTP factor since they lost access to their authenticator
-      // This makes the AAL1 session sufficient and allows them to log in
       await supabase.auth.mfa.unenroll({ factorId: pendingFactorId.value })
       
-      // Refresh the session - it should now be sufficient without AAL2
       const { data: refreshedSession } = await supabase.auth.getSession()
       authStore.session = refreshedSession.session
       
-      debug.log('🔓 2FA has been disabled due to recovery code usage')
-      
       show2FAModal.value = false
-      toast.warning('Welcome back! Please re-enable Two-Factor Authentication in your settings.', {
-        timeout: 8000
-      })
-      
-      // Redirect to privacy settings so they can re-enable 2FA
+      toast.warning('Welcome back! Please re-enable Two-Factor Authentication in your settings.', { timeout: 8000 })
       router.push('/settings/privacy')
     } else {
-      // Use authStore.verify2FA with challenge ID
-      debug.log('📞 Calling authStore.verify2FA...')
-      await authStore.verify2FA(
-        pendingFactorId.value, 
-        pendingChallengeId.value,
-        twoFactorCode.value
-      )
-      
-      debug.log('✅ 2FA verification successful!')
-      
+      await authStore.verify2FA(pendingFactorId.value, pendingChallengeId.value, twoFactorCode.value)
       show2FAModal.value = false
       toast.success('Welcome back!')
-      
-      // Redirect to chat after successful 2FA verification
       router.push('/chat')
     }
   } catch (error: any) {
-    debug.error('❌ 2FA verification error:', error)
-    twoFactorError.value = error.message || `Invalid ${useRecoveryCode.value ? 'recovery' : 'verification'} code. Please try again.`
+    debug.error('2FA verification error:', error)
+    twoFactorError.value = error.message || `Invalid ${useRecoveryCode.value ? 'recovery' : 'verification'} code`
   } finally {
     twoFactorLoading.value = false
-    debug.log('🏁 2FA verification finished')
   }
 }
 
@@ -653,7 +642,6 @@ const toggleRecoveryCodeMode = () => {
 
 const handleCodeInput = () => {
   twoFactorError.value = ''
-  // Auto-uppercase recovery codes
   if (useRecoveryCode.value) {
     twoFactorCode.value = twoFactorCode.value.toUpperCase()
   }
@@ -668,6 +656,7 @@ const close2FAModal = () => {
   useRecoveryCode.value = false
 }
 
+// Forgot Password
 const handleForgotPassword = async () => {
   forgotPasswordError.value = ''
   
@@ -686,20 +675,13 @@ const handleForgotPassword = async () => {
 
   try {
     const { error } = await authStore.resetPassword(forgotPasswordEmail.value)
-    
     if (error) throw error
-
-    // Show success step
     forgotPasswordStep.value = 2
   } catch (error: any) {
     debug.error('Password reset error:', error)
-    
-    // Supabase returns error even if email doesn't exist (for security)
-    // But we'll still show success to prevent email enumeration
     if (error.message?.includes('SMTP') || error.message?.includes('email')) {
       forgotPasswordError.value = 'Email service not configured. Please contact support.'
     } else {
-      // Still show as success to prevent user enumeration
       forgotPasswordStep.value = 2
     }
   } finally {
@@ -715,12 +697,7 @@ const closeForgotPasswordModal = () => {
 }
 
 const toggleMode = () => {
-  const route = props.isLogin ? '/register' : '/login'
-  router.push(route)
-}
-
-const onAuthPanelHover = (isHovered: boolean) => {
-  isAuthPanelHovered.value = isHovered
+  router.push(props.isLogin ? '/register' : '/login')
 }
 
 // Load instance branding
@@ -729,83 +706,87 @@ const loadInstanceBranding = async () => {
     const config = await adminService.getInstanceConfig()
     if (config?.instance) {
       instanceName.value = config.instance.name || 'Harmony'
-      instanceDescription.value = config.instance.description || 'Connect, communicate, and create together in perfect harmony'
+      instanceDescription.value = config.instance.description || 'Connect, communicate, and create together'
     }
   } catch (error) {
     debug.warn('Failed to load instance branding, using defaults:', error)
-    // Fallbacks are already set in ref defaults
   }
 }
 
 // Lifecycle
 onMounted(async () => {
   randomBg.value = await getRandomLoginBackground()
-  initializeParticles()
   await loadInstanceBranding()
-  await initializeLetterElements()
 })
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* ========================================
+   CSS Variables & Base Styles
+   ======================================== */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
 
 .auth-wrapper {
-  min-height: 100vh;
-  background: var(--random-bg) center center;
-  background-size: cover;
-  background-attachment: fixed;
+  --primary: #6366f1;
+  --primary-hover: #818cf8;
+  --primary-glow: rgba(99, 102, 241, 0.4);
+  --surface: rgba(17, 17, 23, 0.92);
+  --surface-light: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(99, 102, 241, 0.5);
+  --text: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.6);
+  --text-dim: rgba(255, 255, 255, 0.4);
+  --error: #ef4444;
+  --success: #22c55e;
   
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-image) center/cover no-repeat fixed;
+  background-position: calc(50% + var(--bg-offset-x, 0px)) calc(50% + var(--bg-offset-y, 0px));
   position: relative;
-  /* Remove overflow: hidden to allow backdrop-filter to work properly */
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  /* Apply parallax to the background image itself */
-  background-position: calc(50% + var(--bg-parallax-x)) calc(50% + var(--bg-parallax-y));
-}
-
-.bg-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.7) 0%,
-    rgba(0, 0, 0, 0.4) 50%,
-    rgba(0, 0, 0, 0.8) 100%
-  );
-  backdrop-filter: blur(var(--auth-blur, 2px));
-  transition: backdrop-filter 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1;
-  pointer-events: none;
-}
-
-.bg-particles {
-  position: absolute;
-  inset: 0;
   overflow: hidden;
+}
+
+/* ========================================
+   Background Effects
+   ======================================== */
+.bg-gradient-overlay {
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse 80% 50% at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+      rgba(99, 102, 241, 0.12) 0%, 
+      transparent 50%),
+    linear-gradient(135deg, 
+      rgba(0, 0, 0, 0.7) 0%, 
+      rgba(0, 0, 0, 0.4) 50%, 
+      rgba(0, 0, 0, 0.8) 100%);
+  backdrop-filter: blur(var(--blur-amount, 4px));
+  pointer-events: none;
+  transition: backdrop-filter 0.5s ease;
+}
+
+.bg-noise {
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
   pointer-events: none;
 }
 
-.particle {
-  position: absolute;
-  width: var(--size);
-  height: var(--size);
-  background: linear-gradient(45deg, #5865f2, #7289da);
-  border-radius: 50%;
-  opacity: 0.6;
-  animation: float var(--duration) ease-in-out infinite var(--delay);
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.6; }
-  50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
-}
-
+/* ========================================
+   Layout
+   ======================================== */
 .auth-container {
   position: relative;
   z-index: 10;
   min-height: 100vh;
+  width: 100%;
   display: flex;
-  width: 100vw;
-  margin: 0;
 }
 
 .auth-branding {
@@ -813,249 +794,169 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
-  position: relative;
+  padding: 48px;
 }
 
 .brand-content {
   text-align: center;
-  max-width: 400px;
+  max-width: 420px;
 }
 
 .logo-container {
   position: relative;
   display: inline-block;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   cursor: pointer;
-  transition: transform 0.3s ease;
-}
-
-.logo-container:hover {
-  transform: scale(1.05);
 }
 
 .brand-logo {
-  width: 120px;
-  height: 120px;
-  position: relative;
-  z-index: 2;
-  filter: drop-shadow(0 10px 30px rgba(88, 101, 242, 0.3));
+  width: 100px;
+  height: 100px;
+  filter: drop-shadow(0 8px 24px rgba(99, 102, 241, 0.3));
+  transition: transform 0.3s ease;
 }
 
-.logo-glow {
+.logo-container:hover .brand-logo {
+  transform: scale(1.05) rotate(-3deg);
+}
+
+.logo-pulse {
   position: absolute;
-  inset: -20px;
-  background: radial-gradient(circle, rgba(88, 101, 242, 0.4) 0%, transparent 70%);
+  inset: -16px;
   border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
+  background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+  animation: pulse 3s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.1); }
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 0.7; }
 }
 
 .brand-title {
-  font-size: 3.5rem;
+  font-size: 3rem;
   font-weight: 700;
-  margin: 0 0 16px;
-  line-height: 1;
+  margin: 0 0 12px;
+  line-height: 1.1;
 }
 
-.harmony-logo {
+.harmony-text {
   display: inline-block;
-  overflow: visible;
-  position: relative;
 }
 
 .letter {
   display: inline-block;
-  font-size: 3.5rem;
-  font-weight: 700;
-  position: relative;
-  background: linear-gradient(135deg, #5865f2 0%, #7289da 30%, #ed4245 60%, #5865f2 100%);
-  background-size: 300% 300%;
+  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: letterWave 4s ease-in-out infinite;
-  text-shadow: 0 0 30px rgba(88, 101, 242, 0.5);
-  transform-origin: center;
-  cursor: pointer;
-  /* Add smooth transitions for the scared effect */
-  transition: transform 0.1s ease-out;
-  will-change: transform;
-}
-
-.letter::before {
-  content: attr(data-letter);
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: -1;
-}
-
-.letter:hover::before {
-  opacity: 0.2;
+  transition: transform 0.15s ease-out;
+  transform: translate(
+    calc(var(--offset-x, 0) * 1px), 
+    calc(var(--offset-y, 0) * 1px)
+  );
 }
 
 .letter:hover {
-  transform: scale(1.1) rotate(5deg);
-  filter: drop-shadow(0 0 20px rgba(88, 101, 242, 0.8));
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
-.letter:nth-child(1) { 
-  animation-delay: 0s; 
-  --hover-color: #5865f2;
-}
-.letter:nth-child(2) { 
-  animation-delay: 0.2s; 
-  --hover-color: #7289da;
-}
-.letter:nth-child(3) { 
-  animation-delay: 0.4s; 
-  --hover-color: #ed4245;
-}
-.letter:nth-child(4) { 
-  animation-delay: 0.6s; 
-  --hover-color: #57f287;
-}
-.letter:nth-child(5) { 
-  animation-delay: 0.8s; 
-  --hover-color: #fee75c;
-}
-.letter:nth-child(6) { 
-  animation-delay: 1s; 
-  --hover-color: #eb459e;
-}
-.letter:nth-child(7) { 
-  animation-delay: 1.2s; 
-  --hover-color: #5865f2;
-}
-
-@keyframes letterWave {
-  0%, 100% { 
-    transform: translateY(0px) rotate(0deg) scale(1) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
-    background-position: 0% 50%;
-  }
-  25% { 
-    transform: translateY(-8px) rotate(2deg) scale(1.05) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
-    background-position: 50% 0%;
-  }
-  50% { 
-    transform: translateY(0px) rotate(0deg) scale(1) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
-    background-position: 100% 50%;
-  }
-  75% { 
-    transform: translateY(-4px) rotate(-1deg) scale(1.02) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
-    background-position: 50% 100%;
-  }
-}
-
-.brand-subtitle {
+.brand-tagline {
   font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.8);
-  margin: 0 0 48px;
+  color: var(--text-muted);
+  margin: 0 0 40px;
   line-height: 1.5;
 }
 
-.features-preview {
+.feature-pills {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  text-align: left;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
 }
 
-.feature-item {
+.pill {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
 }
 
-.feature-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateX(8px);
+.pill:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-focus);
+  color: var(--text);
+  transform: translateY(-2px);
 }
 
-.feature-icon {
-  font-size: 1.5rem;
+.pill-icon {
+  font-size: 1rem;
 }
 
+/* ========================================
+   Auth Panel & Card
+   ======================================== */
 .auth-panel {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: 32px;
 }
 
-.auth-form-container {
+.auth-card {
   width: 100%;
-  max-width: 400px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
+  max-width: 420px;
+  background: var(--surface);
+  backdrop-filter: blur(40px);
+  border: 1px solid var(--border);
+  border-radius: 24px;
   padding: 40px;
   box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 32px 64px rgba(0, 0, 0, 0.4);
+  transition: all 0.4s ease;
 }
 
-.auth-form-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  opacity: 0;
-  transition: opacity 0.6s ease;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.auth-form-container.hovered {
-  transform: translateY(-8px) scale(1.02);
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(30px);
+.auth-card:hover,
+.auth-card.card-focused {
+  border-color: rgba(99, 102, 241, 0.2);
   box-shadow: 
-    0 40px 80px rgba(88, 101, 242, 0.15),
-    0 20px 40px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 0 60px rgba(88, 101, 242, 0.1);
-  border-color: rgba(88, 101, 242, 0.2);
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 32px 64px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(99, 102, 241, 0.08);
 }
 
-.auth-form-container.hovered::before {
-  opacity: 1;
+.auth-card.loading-state {
+  pointer-events: none;
+  opacity: 0.7;
 }
 
-.auth-form-container > * {
-  position: relative;
-  z-index: 2;
+.mobile-logo {
+  display: none;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.mobile-logo img {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 8px;
+}
+
+.mobile-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
 }
 
 .form-header {
@@ -1063,199 +964,109 @@ onMounted(async () => {
   margin-bottom: 32px;
 }
 
-.form-title {
+.form-header h2 {
   font-size: 1.75rem;
   font-weight: 600;
-  color: #2c2f36;
+  color: var(--text);
   margin: 0 0 8px;
 }
 
-.form-subtitle {
+.form-header p {
   font-size: 0.95rem;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
-.auth-form {
+/* ========================================
+   OAuth Buttons
+   ======================================== */
+.oauth-section {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  margin-bottom: 24px;
 }
 
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.input-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #374151;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.input-container {
-  position: relative;
-}
-
-.form-input {
-  width: 100%;
-  padding: 12px 16px;
-  padding-right: 48px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  font-size: 1rem;
-  background: #ffffff;
-  color: #1f2937;
-  transition: all 0.2s ease;
-  outline: none;
-}
-
-.form-input:focus,
-.form-input.focused {
-  border-color: #5865f2;
-  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
-}
-
-.form-input.error {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-}
-
-.input-icon {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-  pointer-events: none;
-}
-
-.password-toggle {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: color 0.2s ease;
-}
-
-.password-toggle:hover {
-  color: #5865f2;
-}
-
-.error-message {
-  font-size: 0.8rem;
-  color: #ef4444;
-  margin-top: 4px;
-}
-
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 8px 0;
-}
-
-.checkbox-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.875rem;
-  color: #6b7280;
-  cursor: pointer;
-}
-
-.checkbox-container input[type="checkbox"] {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #d1d5db;
-  border-radius: 4px;
-  position: relative;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.checkbox-container input[type="checkbox"]:checked {
-  background: var(--harmony-primary);
-  border-color: #5865f2;
-}
-
-.checkbox-container input[type="checkbox"]:checked::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
-  font-size: 10px;
-  font-weight: bold;
-}
-
-.link-button {
-  background: none;
-  border: none;
-  color: #5865f2;
-  font-size: 0.875rem;
-  cursor: pointer;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.link-button:hover {
-  color: #4752c4;
-  text-decoration: underline;
-}
-
-.submit-btn {
-  width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #5865f2 0%, #7289da 100%);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
+.oauth-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
 }
 
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(88, 101, 242, 0.4);
+.oauth-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-focus);
+  transform: translateY(-1px);
 }
 
-.submit-btn:disabled {
-  opacity: 0.7;
+.oauth-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.oauth-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
-.submit-btn.loading {
-  pointer-events: none;
+.oauth-btn.loading {
+  color: transparent;
 }
 
+.oauth-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.oauth-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+
+.oauth-spinner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Provider-specific styles */
+.oauth-google:hover { border-color: #4285F4; }
+.oauth-twitch:hover { border-color: #9146FF; }
+.oauth-github:hover { border-color: #fff; }
+
+.oauth-twitch .oauth-icon { color: #9146FF; }
+.oauth-github .oauth-icon { color: #fff; }
+
+/* ========================================
+   Divider
+   ======================================== */
 .divider {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 24px 0 16px;
-  font-size: 0.875rem;
-  color: #9ca3af;
+  margin-bottom: 24px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .divider::before,
@@ -1263,329 +1074,759 @@ onMounted(async () => {
   content: '';
   flex: 1;
   height: 1px;
-  background: #e5e7eb;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
 }
 
-.switch-mode-btn {
+/* ========================================
+   Form Inputs - with autofill fix
+   ======================================== */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-group {
+  position: relative;
+}
+
+.input-group input {
   width: 100%;
-  padding: 12px;
+  padding: 16px 16px 16px 0;
   background: transparent;
-  color: #5865f2;
-  border: 2px solid #5865f2;
-  border-radius: 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
   font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s ease;
+  caret-color: var(--primary);
 }
 
-.switch-mode-btn:hover {
-  background: var(--harmony-primary);
-  color: white;
-  transform: translateY(-1px);
+/* Fix browser autofill styling */
+.input-group input:-webkit-autofill,
+.input-group input:-webkit-autofill:hover,
+.input-group input:-webkit-autofill:focus,
+.input-group input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(17, 17, 23, 1) inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  transition: background-color 5000s ease-in-out 0s;
+  font-size: 1rem;
 }
 
-.terms-text {
-  font-size: 0.8rem;
-  color: #9ca3af;
+.input-group input:focus {
+  border-color: var(--primary);
+}
+
+.input-group label {
+  position: absolute;
+  left: 0;
+  top: 16px;
+  font-size: 1rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+/* Label moves up when focused, has value, or autofilled */
+.input-group.focused label,
+.input-group.has-value label,
+.input-group input:not(:placeholder-shown) + label {
+  top: -8px;
+  font-size: 0.75rem;
+  color: var(--primary);
+}
+
+.input-group.error label {
+  color: var(--error);
+}
+
+.input-group.error input {
+  border-color: var(--error);
+}
+
+.input-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+.input-group.focused .input-line {
+  width: 100%;
+}
+
+.error-text {
+  position: absolute;
+  bottom: -20px;
+  left: 0;
+  font-size: 0.75rem;
+  color: var(--error);
+}
+
+.error-text.centered {
+  position: static;
   text-align: center;
-  margin-top: 20px;
-  line-height: 1.4;
+  margin-top: 8px;
 }
 
-.link {
-  color: #5865f2;
-  text-decoration: none;
+.password-toggle {
+  position: absolute;
+  right: 0;
+  top: 12px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.2s ease;
 }
 
-.link:hover {
-  text-decoration: underline;
+.password-toggle:hover {
+  color: var(--text);
 }
 
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #40444b;
-  border-top: 2px solid #5865f2;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.password-toggle svg {
+  width: 20px;
+  height: 20px;
 }
 
-.loading-spinner.large {
-  width: 40px;
-  height: 40px;
-  border-width: 4px;
+/* ========================================
+   Form Options
+   ======================================== */
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
-.loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+.remember-me input {
+  display: none;
+}
+
+.checkbox-visual {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  transition: all 0.2s ease;
 }
 
-.loading-content {
-  text-align: center;
-  color: white;
+.remember-me input:checked + .checkbox-visual {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.remember-me input:checked + .checkbox-visual::after {
+  content: '';
+  width: 10px;
+  height: 6px;
+  border: 2px solid #fff;
+  border-top: none;
+  border-right: none;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.forgot-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: var(--primary-hover);
+}
+
+/* ========================================
+   Submit Button
+   ======================================== */
+.submit-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.submit-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px var(--primary-glow);
+}
+
+.submit-btn:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-loader {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  gap: 6px;
+  justify-content: center;
 }
 
-/* Modal Styles */
-.modal-overlay {
+.btn-loader .dot {
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-radius: 50%;
+  animation: bounce 1.4s ease-in-out infinite;
+}
+
+.btn-loader .dot:nth-child(2) { animation-delay: 0.16s; }
+.btn-loader .dot:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* ========================================
+   Switch Mode & Terms
+   ======================================== */
+.switch-mode {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.switch-mode button {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: color 0.2s ease;
+}
+
+.switch-mode button:hover {
+  color: var(--primary-hover);
+}
+
+.terms {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 20px;
+  line-height: 1.5;
+}
+
+.terms a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.terms a:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
+   Modals - Base Styles
+   ======================================== */
+.modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  animation: fadeIn 0.2s ease-out;
+  padding: 20px;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.modal-content {
-  background: var(--h-chat, #2f3136);
-  border-radius: 8px;
-  padding: 32px;
-  max-width: 440px;
-  width: 90%;
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 40px;
+  max-width: 420px;
+  width: 100%;
   position: relative;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5);
 }
 
 .modal-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px;
+  top: 20px;
+  right: 20px;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: all 0.15s ease;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--border-focus);
 }
 
-.modal-title {
-  font-size: 24px;
+.modal-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modal-content {
+  text-align: center;
+}
+
+.modal-content h3 {
+  font-size: 1.5rem;
   font-weight: 600;
-  color: #ffffff;
-  margin: 0 0 12px 0;
+  color: var(--text);
+  margin: 0 0 8px;
 }
 
 .modal-description {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0 0 24px 0;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin: 0 0 28px;
+  line-height: 1.6;
 }
 
 .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
+}
+
+/* ========================================
+   Reset Password Modal - Enhanced
+   ======================================== */
+.reset-modal {
+  max-width: 440px;
+  padding: 48px 40px;
+}
+
+.modal-header-decoration {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+}
+
+.decoration-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  opacity: 0.2;
+  animation: ringPulse 2s ease-out infinite;
+}
+
+.decoration-ring.delay {
+  animation-delay: 1s;
+}
+
+@keyframes ringPulse {
+  0% { transform: scale(1); opacity: 0.3; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.modal-icon-wrapper {
+  position: absolute;
+  inset: 8px;
+  background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.modal-icon-wrapper svg {
+  width: 32px;
+  height: 32px;
+}
+
+.modal-input {
+  text-align: left;
+}
+
+.modal-actions.stacked {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-text-only {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 8px;
+  transition: color 0.2s ease;
+}
+
+.btn-text-only:hover {
+  color: var(--text);
+}
+
+/* Success state */
+.success-animation {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+}
+
+.success-ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--success);
+  border-radius: 50%;
+  animation: successRing 0.6s ease-out;
+}
+
+@keyframes successRing {
+  0% { transform: scale(0); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.success-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--success);
+  animation: checkDraw 0.4s ease-out 0.3s both;
+}
+
+.success-icon svg {
+  width: 40px;
+  height: 40px;
+}
+
+@keyframes checkDraw {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.email-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.email-preview svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.email-preview span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========================================
+   Standard Modal Styles
+   ======================================== */
+.modal-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  background: var(--surface-light);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
+
+.modal-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.modal-icon.shield {
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .modal-actions {
   display: flex;
   gap: 12px;
-  margin-top: 8px;
 }
 
-.cancel-btn {
+.btn-primary,
+.btn-secondary {
   flex: 1;
-  padding: 12px;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
-.cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
+  border: none;
+  color: #fff;
 }
 
-.modal-success {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px var(--primary-glow);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary.full-width {
+  width: 100%;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-light);
+  color: var(--text);
+}
+
+/* 2FA Code Input */
+.code-input-container {
   text-align: center;
-  gap: 20px;
 }
 
-.success-icon {
-  animation: scaleIn 0.4s ease-out;
-}
-
-@keyframes scaleIn {
-  from {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.success-message {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.success-message strong {
-  color: #ffffff;
-  word-break: break-all;
-}
-
-/* 2FA Modal Styles */
-.twofa-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.twofa-code-input {
-  font-size: 24px;
-  letter-spacing: 0.5em;
+.code-input {
+  width: 100%;
+  padding: 16px;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 1.75rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: 0.3em;
   text-align: center;
-  font-family: 'Courier New', monospace;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s ease;
 }
 
-.modal-help-text {
-  font-size: 12px;
-  color: #72767d;
-  text-align: center;
-  margin: 16px 0 0 0;
+.code-input:focus {
+  border-color: var(--primary);
 }
 
-/* Responsive Design */
+.code-input.error {
+  border-color: var(--error);
+}
+
+.code-input::placeholder {
+  color: var(--text-dim);
+  letter-spacing: 0.3em;
+}
+
+.toggle-recovery {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.toggle-recovery:hover:not(:disabled) {
+  color: var(--primary);
+}
+
+/* ========================================
+   Modal Transitions
+   ======================================== */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-enter-active .modal-card,
+.modal-leave-active .modal-card {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .modal-card,
+.modal-leave-to .modal-card {
+  transform: scale(0.95) translateY(10px);
+  opacity: 0;
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   Responsive Design - Mobile
+   ======================================== */
 @media (max-width: 1024px) {
   .auth-container {
     flex-direction: column;
   }
   
   .auth-branding {
-    padding: 32px 20px;
+    padding: 40px 24px 24px;
   }
   
   .brand-title {
     font-size: 2.5rem;
   }
   
-  .features-preview {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+  .brand-tagline {
+    margin-bottom: 24px;
   }
   
-  .feature-item {
-    flex: 0 1 auto;
+  .feature-pills {
+    gap: 8px;
+  }
+  
+  .pill {
+    padding: 8px 12px;
+    font-size: 0.8rem;
   }
 }
 
 @media (max-width: 768px) {
-  .auth-wrapper {
-    min-height: 100vh;
-  }
-  
   .auth-branding {
-    padding: 20px;
-    min-height: auto;
-  }
-  
-  .brand-title {
-    font-size: 2rem;
-  }
-  
-  .brand-logo {
-    width: 80px;
-    height: 80px;
+    display: none;
   }
   
   .auth-panel {
-    padding: 10px;
+    padding: 0;
+    align-items: flex-start;
   }
   
-  .auth-form-container {
-    padding: 32px 24px;
+  .auth-card {
+    max-width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+    padding: 60px 24px 40px;
+    display: flex;
+    flex-direction: column;
   }
   
-  .features-preview {
-    display: none;
+  .mobile-logo {
+    display: block;
   }
-  .brand-subtitle {
-    margin-bottom: 0;
-    padding-bottom: 0;
+  
+  .form-header {
+    margin-bottom: 28px;
+  }
+  
+  .form-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .form-header p {
+    font-size: 0.9rem;
+  }
+  
+  .oauth-section {
+    gap: 10px;
+  }
+  
+  .oauth-btn {
+    padding: 14px 16px;
+  }
+  
+  .switch-mode {
+    margin-top: auto;
+    padding-top: 24px;
+  }
+  
+  .modal-card {
+    margin: 0;
+    max-width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  
+  .reset-modal {
+    padding: 40px 24px;
   }
 }
 
 @media (max-width: 480px) {
-  .auth-form-container {
-    padding: 24px 20px;
-    margin: 0 8px;
-    border-radius: 16px;
-  }
-  .auth-branding,
-  .auth-panel {
-    padding: 0;
-  }
-
-  .auth-panel {
-    align-items: flex-start;
-  }
-  
-  .form-title {
-    font-size: 1.5rem;
+  .auth-card {
+    padding: 48px 20px 32px;
   }
   
   .form-options {
@@ -1593,13 +1834,24 @@ onMounted(async () => {
     align-items: flex-start;
     gap: 12px;
   }
-
-  .brand-subtitle,
-  .brand-logo {
-    display: none;
+  
+  .forgot-link {
+    align-self: flex-start;
   }
-  .divider {
-    margin: 0;
+}
+
+/* Safe area insets for notched phones */
+@supports (padding-top: env(safe-area-inset-top)) {
+  @media (max-width: 768px) {
+    .auth-card {
+      padding-top: calc(60px + env(safe-area-inset-top));
+      padding-bottom: calc(40px + env(safe-area-inset-bottom));
+    }
+    
+    .modal-card {
+      padding-top: calc(40px + env(safe-area-inset-top));
+      padding-bottom: calc(40px + env(safe-area-inset-bottom));
+    }
   }
 }
 </style>

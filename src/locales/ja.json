@@ -86,7 +86,27 @@
     "recoveryCode": "リカバリーコード",
     "signingIn": "サインイン中...",
     "creatingAccount": "アカウントを作成中...",
+    "orContinueWith": "または",
+    "termsPrefix": "登録することで、",
+    "termsOfService": "利用規約",
+    "and": "および",
+    "privacyPolicy": "プライバシーポリシー",
+    "oauth": {
+      "google": "Google で続ける",
+      "twitch": "Twitch で続ける",
+      "github": "GitHub で続ける"
+    },
+    "callback": {
+      "signingIn": "ログイン中...",
+      "pleaseWait": "認証を完了しています。しばらくお待ちください。",
+      "error": "認証に失敗しました",
+      "tryAgain": "再試行",
+      "success": "ようこそ！",
+      "redirecting": "リダイレクトしています..."
+    },
     "features": {
+      "federated": "分散型",
+      "endToEnd": "E2E暗号化",
       "realTimeMessaging": "リアルタイムメッセージング",
       "gamingCommunities": "ゲームコミュニティ",
       "voiceChannels": "ボイスチャンネル"

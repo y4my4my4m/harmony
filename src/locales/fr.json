@@ -86,7 +86,27 @@
     "recoveryCode": "Code de récupération",
     "signingIn": "Connexion en cours...",
     "creatingAccount": "Création de votre compte...",
+    "orContinueWith": "ou",
+    "termsPrefix": "En vous inscrivant, vous acceptez nos",
+    "termsOfService": "Conditions d'utilisation",
+    "and": "et notre",
+    "privacyPolicy": "Politique de confidentialité",
+    "oauth": {
+      "google": "Continuer avec Google",
+      "twitch": "Continuer avec Twitch",
+      "github": "Continuer avec GitHub"
+    },
+    "callback": {
+      "signingIn": "Connexion en cours...",
+      "pleaseWait": "Veuillez patienter pendant que nous terminons votre authentification.",
+      "error": "Échec de l'authentification",
+      "tryAgain": "Réessayer",
+      "success": "Bienvenue !",
+      "redirecting": "Redirection en cours..."
+    },
     "features": {
+      "federated": "Fédéré",
+      "endToEnd": "Chiffré E2E",
       "realTimeMessaging": "Messagerie en temps réel",
       "gamingCommunities": "Communautés de jeux",
       "voiceChannels": "Canaux vocaux"
