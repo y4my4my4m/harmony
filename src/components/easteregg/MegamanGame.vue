@@ -134,17 +134,21 @@ const colorAssignments = ref<Map<string, { color: string; playerIndex: number }>
 const itemSprites = ref<Map<string, HTMLImageElement>>(new Map())
 const itemData = ref<any>(null)
 
-// Background sprite
-const backgroundSprite = ref<HTMLImageElement | null>(null)
-
 // Use WebP format for smaller file sizes (set to false to use original PNGs)
 const USE_WEBP_SPRITES = true
+const SPRITES_BASE = '/assets/easteregg/megaman/sprites'
 
 // Helper to convert sprite path to WebP if enabled
+// WebP files are in /sprites/webp/ folder structure mirroring the original
 function getSpriteUrl(basePath: string, file: string): string {
   if (USE_WEBP_SPRITES && file.endsWith('.png')) {
     const webpFile = file.replace('.png', '.webp')
-    return `${basePath}/webp/${webpFile}`
+    // Extract the subfolder relative to sprites base
+    const relPath = basePath.replace(SPRITES_BASE, '').replace(/^\//, '')
+    if (relPath) {
+      return `${SPRITES_BASE}/webp/${relPath}/${webpFile}`
+    }
+    return `${SPRITES_BASE}/webp/${webpFile}`
   }
   return `${basePath}/${file}`
 }
@@ -979,8 +983,13 @@ async function loadEffectSprites() {
   // Load smoke sprites (from named files)
   for (let i = 1; i <= 6; i++) {
     const smokeImg = new Image()
-    smokeImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites/effects', `Smoke${i}.png`)
-    smokeImg.onload = () => smokeSprites.value.set(`Smoke${i}.png`, smokeImg)
+    const smokeUrl = getSpriteUrl('/assets/easteregg/megaman/sprites/effects', `Smoke${i}.png`)
+    smokeImg.onload = () => {
+      smokeSprites.value.set(`Smoke${i}.png`, smokeImg)
+      debug.log(`🎮 Loaded Smoke${i} sprite from ${smokeUrl}`)
+    }
+    smokeImg.onerror = () => debug.warn(`❌ Failed to load Smoke${i} from ${smokeUrl}`)
+    smokeImg.src = smokeUrl
   }
   
   // Load hit sprites
@@ -1100,8 +1109,13 @@ async function loadEffectSprites() {
   // Load dash effect sprites (size: 200 in project.json = 2x scale)
   for (let i = 1; i <= 4; i++) {
     const dashEffectImg = new Image()
-    dashEffectImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites/effects', `Dash_Effect${i}.png`)
-    dashEffectImg.onload = () => dashEffectSprites.value.set(`Dash_Effect${i}.png`, dashEffectImg)
+    const dashUrl = getSpriteUrl('/assets/easteregg/megaman/sprites/effects', `Dash_Effect${i}.png`)
+    dashEffectImg.onload = () => {
+      dashEffectSprites.value.set(`Dash_Effect${i}.png`, dashEffectImg)
+      debug.log(`🎮 Loaded Dash_Effect${i} sprite from ${dashUrl}`)
+    }
+    dashEffectImg.onerror = () => debug.warn(`❌ Failed to load Dash_Effect${i} from ${dashUrl}`)
+    dashEffectImg.src = dashUrl
   }
   
   debug.log('🎮 Loaded effect sprites')
@@ -1152,16 +1166,7 @@ async function loadItemSprites() {
       await Promise.all(loadPromises)
       debug.log(`🎮 Loaded ${itemSprites.value.size}/${allItemFrames.length} item sprites`)
       
-      // Load background sprite
-      const bgImg = new Image()
-      bgImg.onload = () => {
-        backgroundSprite.value = bgImg
-        debug.log('🎮 Loaded background sprite')
-      }
-      bgImg.onerror = () => {
-        debug.warn('❌ Failed to load background sprite')
-      }
-      bgImg.src = getSpriteUrl('/assets/easteregg/megaman/sprites', 'Factory_Back.png')
+      // Background sprite loading removed - using simple overlay instead
     } else {
       debug.warn('Could not load items.json')
     }
@@ -1176,20 +1181,23 @@ function initializePlatforms() {
   const canvasWidth = gameCanvasWidth.value
   const canvasHeight = gameCanvasHeight.value
   const floorY = canvasHeight - 20
+  const platformHeight = 20 // Taller platforms
   
-  // Create some static platforms at varying heights
+  // Create platforms at varying heights - more spread out on Y axis
   const platformConfigs = [
-    // Left side platforms
-    { x: 30, y: floorY - 80, width: 80, height: 12 },
-    { x: 20, y: floorY - 160, width: 60, height: 12 },
+    // Low level platforms (just above floor)
+    { x: 30, y: floorY - 70, width: 90, height: platformHeight },
+    { x: canvasWidth - 120, y: floorY - 70, width: 90, height: platformHeight },
     
-    // Center platforms
-    { x: canvasWidth / 2 - 50, y: floorY - 120, width: 100, height: 12 },
-    { x: canvasWidth / 2 - 30, y: floorY - 200, width: 60, height: 12 },
+    // Mid level platforms
+    { x: canvasWidth / 2 - 55, y: floorY - 140, width: 110, height: platformHeight },
     
-    // Right side platforms
-    { x: canvasWidth - 110, y: floorY - 80, width: 80, height: 12 },
-    { x: canvasWidth - 80, y: floorY - 160, width: 60, height: 12 },
+    // High level platforms
+    { x: 25, y: floorY - 210, width: 70, height: platformHeight },
+    { x: canvasWidth - 95, y: floorY - 210, width: 70, height: platformHeight },
+    
+    // Top level platform
+    { x: canvasWidth / 2 - 40, y: floorY - 280, width: 80, height: platformHeight },
   ]
   
   platformConfigs.forEach((config, index) => {
@@ -1203,33 +1211,33 @@ function initializePlatforms() {
     })
   })
   
-  // Add 1-2 moving platforms
+  // Add moving platforms at different heights
   platforms.value.push({
     id: 'moving-1',
     x: canvasWidth / 4,
-    y: floorY - 100,
-    width: 70,
-    height: 12,
+    y: floorY - 105,
+    width: 80,
+    height: platformHeight,
     type: 'moving',
     moveDirection: 'horizontal',
-    moveSpeed: 1.5,
-    moveRange: 80,
+    moveSpeed: 1.2,
+    moveRange: 60,
     startX: canvasWidth / 4,
-    startY: floorY - 100
+    startY: floorY - 105
   })
   
   platforms.value.push({
     id: 'moving-2',
-    x: canvasWidth * 3 / 4 - 35,
-    y: floorY - 140,
-    width: 70,
-    height: 12,
+    x: canvasWidth * 3 / 4 - 40,
+    y: floorY - 175,
+    width: 80,
+    height: platformHeight,
     type: 'moving',
     moveDirection: 'vertical',
-    moveSpeed: 1,
-    moveRange: 50,
-    startX: canvasWidth * 3 / 4 - 35,
-    startY: floorY - 140
+    moveSpeed: 0.8,
+    moveRange: 40,
+    startX: canvasWidth * 3 / 4 - 40,
+    startY: floorY - 175
   })
   
   debug.log(`🎮 Initialized ${platforms.value.length} platforms`)
@@ -1286,9 +1294,9 @@ function spawnHealthPickup() {
 function checkPickupCollision(player: Player, pickup: HealthPickup): boolean {
   const playerWidth = 64
   const playerHeight = 64
-  // Pickup sizes after 0.5x scaling: HP_Large=16x12, HP_Small=10x8
-  const pickupWidth = pickup.type === 'HP_Large' ? 16 : 10
-  const pickupHeight = pickup.type === 'HP_Large' ? 12 : 8
+  // Original sprite sizes: HP_Large=32x24, HP_Small=20x16
+  const pickupWidth = pickup.type === 'HP_Large' ? 32 : 20
+  const pickupHeight = pickup.type === 'HP_Large' ? 24 : 16
   
   return (
     player.x < pickup.x + pickupWidth &&
@@ -2273,41 +2281,9 @@ function gameLoop(currentTime: number) {
   // Always clear canvas first (proper z-buffer clearing)
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
   
-  // Draw background
-  if (backgroundSprite.value && backgroundSprite.value.complete) {
-    // Draw the Factory_Back scaled to fit canvas, preserving aspect ratio
-    const bg = backgroundSprite.value
-    const bgAspect = bg.naturalWidth / bg.naturalHeight
-    const canvasAspect = canvasWidth / canvasHeight
-    let drawWidth, drawHeight, drawX, drawY
-    
-    if (canvasAspect > bgAspect) {
-      // Canvas is wider - fit to width
-      drawWidth = canvasWidth
-      drawHeight = canvasWidth / bgAspect
-      drawX = 0
-      drawY = (canvasHeight - drawHeight) / 2
-    } else {
-      // Canvas is taller - fit to height
-      drawHeight = canvasHeight
-      drawWidth = canvasHeight * bgAspect
-      drawX = (canvasWidth - drawWidth) / 2
-      drawY = 0
-    }
-    
-    ctx.drawImage(bg, drawX, drawY, drawWidth, drawHeight)
-    // Add slight dark overlay for better visibility
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
-  } else {
-    // Fallback gradient background
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight)
-    gradient.addColorStop(0, '#1a1a2e')
-    gradient.addColorStop(0.5, '#16213e')
-    gradient.addColorStop(1, '#0f3460')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
-  }
+  // Draw background - simple semi-transparent overlay
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight)
   
   // Draw floor with MMX-style industrial look
   const floorHeight = canvasHeight - floorY
@@ -2326,8 +2302,8 @@ function gameLoop(currentTime: number) {
     ctx.fillRect(x, floorY + 6, 2, floorHeight - 6)
   }
   
-  // Draw walls with MMX-style industrial look
-  const wallWidth = 8
+  // Draw walls with MMX-style industrial look - thicker walls
+  const wallWidth = 16
   // Left wall
   ctx.fillStyle = '#2a3f5f'
   ctx.fillRect(0, 0, wallWidth, canvasHeight)
@@ -2339,9 +2315,12 @@ function gameLoop(currentTime: number) {
   ctx.fillStyle = '#5a7faf'
   for (let y = 10; y < canvasHeight - 10; y += 24) {
     ctx.beginPath()
-    ctx.arc(wallWidth / 2, y, 2, 0, Math.PI * 2)
+    ctx.arc(wallWidth / 2, y, 3, 0, Math.PI * 2)
     ctx.fill()
   }
+  // Vertical detail line
+  ctx.fillStyle = '#3a5f8f'
+  ctx.fillRect(wallWidth - 5, 0, 1, canvasHeight)
   
   // Right wall
   ctx.fillStyle = '#2a3f5f'
@@ -2354,11 +2333,14 @@ function gameLoop(currentTime: number) {
   ctx.fillStyle = '#5a7faf'
   for (let y = 10; y < canvasHeight - 10; y += 24) {
     ctx.beginPath()
-    ctx.arc(canvasWidth - wallWidth / 2, y, 2, 0, Math.PI * 2)
+    ctx.arc(canvasWidth - wallWidth / 2, y, 3, 0, Math.PI * 2)
     ctx.fill()
   }
+  // Vertical detail line
+  ctx.fillStyle = '#3a5f8f'
+  ctx.fillRect(canvasWidth - wallWidth + 4, 0, 1, canvasHeight)
   
-  // Update and draw platforms with MMX-style industrial look
+  // Update and draw platforms with MMX-style tile look
   if (ctx) {
     platforms.value.forEach(platform => {
       // Update moving platforms
@@ -2375,43 +2357,69 @@ function gameLoop(currentTime: number) {
       }
       
       const isMoving = platform.type === 'moving'
+      const tileSize = 16 // Size of each tile segment
+      const tilesX = Math.ceil(platform.width / tileSize)
       
-      // Main platform body
-      ctx!.fillStyle = isMoving ? '#3a5a7a' : '#2a4a6a'
-      ctx!.fillRect(platform.x, platform.y, platform.width, platform.height)
-      
-      // Top edge highlight (bright)
-      ctx!.fillStyle = isMoving ? '#6a9aca' : '#5a8aba'
-      ctx!.fillRect(platform.x, platform.y, platform.width, 2)
-      
-      // Top edge secondary highlight
-      ctx!.fillStyle = isMoving ? '#4a7a9a' : '#3a6a8a'
-      ctx!.fillRect(platform.x, platform.y + 2, platform.width, 1)
-      
-      // Bottom edge shadow
-      ctx!.fillStyle = '#1a2a3a'
-      ctx!.fillRect(platform.x, platform.y + platform.height - 2, platform.width, 2)
-      
-      // Left edge highlight
-      ctx!.fillStyle = isMoving ? '#5a8aaa' : '#4a7a9a'
-      ctx!.fillRect(platform.x, platform.y, 2, platform.height)
-      
-      // Right edge shadow
-      ctx!.fillStyle = '#1a3a4a'
-      ctx!.fillRect(platform.x + platform.width - 2, platform.y, 2, platform.height)
-      
-      // Metal grid lines on platform surface
-      ctx!.fillStyle = isMoving ? '#4a7a9a' : '#3a6a8a'
-      for (let x = platform.x + 8; x < platform.x + platform.width - 4; x += 12) {
-        ctx!.fillRect(x, platform.y + 3, 1, platform.height - 5)
+      // Draw platform as tiled segments for sprite-like appearance
+      for (let i = 0; i < tilesX; i++) {
+        const tileX = platform.x + i * tileSize
+        const tileWidth = Math.min(tileSize, platform.x + platform.width - tileX)
+        const isLeftEdge = i === 0
+        const isRightEdge = i === tilesX - 1
+        
+        // Main tile body with gradient-like effect
+        ctx!.fillStyle = isMoving ? '#3a6080' : '#2a4a68'
+        ctx!.fillRect(tileX, platform.y, tileWidth, platform.height)
+        
+        // Top surface (brighter)
+        ctx!.fillStyle = isMoving ? '#5a90c0' : '#4a80b0'
+        ctx!.fillRect(tileX, platform.y, tileWidth, 4)
+        
+        // Top highlight line
+        ctx!.fillStyle = isMoving ? '#7ab0e0' : '#6aa0d0'
+        ctx!.fillRect(tileX, platform.y, tileWidth, 2)
+        
+        // Mid section detail
+        ctx!.fillStyle = isMoving ? '#4a7090' : '#3a5a78'
+        ctx!.fillRect(tileX, platform.y + 6, tileWidth, platform.height - 10)
+        
+        // Bottom shadow
+        ctx!.fillStyle = '#1a2a38'
+        ctx!.fillRect(tileX, platform.y + platform.height - 4, tileWidth, 4)
+        
+        // Tile separator lines (vertical)
+        if (!isRightEdge) {
+          ctx!.fillStyle = '#1a3048'
+          ctx!.fillRect(tileX + tileWidth - 1, platform.y + 2, 1, platform.height - 4)
+        }
+        
+        // Edge highlights
+        if (isLeftEdge) {
+          ctx!.fillStyle = isMoving ? '#6aa0c0' : '#5a90b0'
+          ctx!.fillRect(platform.x, platform.y, 2, platform.height)
+        }
+        if (isRightEdge) {
+          ctx!.fillStyle = '#1a2a38'
+          ctx!.fillRect(platform.x + platform.width - 2, platform.y, 2, platform.height)
+        }
+        
+        // Rivet/bolt details on each tile
+        if (tileWidth >= 12) {
+          ctx!.fillStyle = isMoving ? '#7ab0d0' : '#6aa0c0'
+          ctx!.beginPath()
+          ctx!.arc(tileX + tileWidth / 2, platform.y + platform.height / 2, 2, 0, Math.PI * 2)
+          ctx!.fill()
+        }
       }
       
-      // Moving platform indicator (glowing edges)
+      // Moving platform glow effect
       if (isMoving) {
         const glowIntensity = Math.sin(Date.now() / 200) * 0.3 + 0.7
-        ctx!.fillStyle = `rgba(100, 180, 255, ${glowIntensity * 0.5})`
+        ctx!.fillStyle = `rgba(100, 200, 255, ${glowIntensity * 0.4})`
         ctx!.fillRect(platform.x - 1, platform.y - 1, platform.width + 2, 2)
         ctx!.fillRect(platform.x - 1, platform.y + platform.height - 1, platform.width + 2, 2)
+        ctx!.fillRect(platform.x - 1, platform.y, 2, platform.height)
+        ctx!.fillRect(platform.x + platform.width - 1, platform.y, 2, platform.height)
       }
     })
   }
@@ -2438,25 +2446,21 @@ function gameLoop(currentTime: number) {
           const sprite = itemSprites.value.get(frame.file)
           
         if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-          // All item sprites are at 2x resolution (bitmapResolution: 2), so scale by 0.5
-          const scale = 0.5
-          const drawWidth = sprite.naturalWidth * scale
-          const drawHeight = sprite.naturalHeight * scale
-          
-          ctx!.drawImage(sprite, pickup.x, pickup.y, drawWidth, drawHeight)
+          // Draw items at their original size (no scaling)
+          ctx!.drawImage(sprite, pickup.x, pickup.y)
         } else {
-          // Fallback: draw colored rectangle (matching scaled sprite sizes)
+          // Fallback: draw colored rectangle
           ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
-          const w = pickup.type === 'HP_Large' ? 16 : 10
-          const h = pickup.type === 'HP_Large' ? 12 : 8
+          const w = pickup.type === 'HP_Large' ? 32 : 20
+          const h = pickup.type === 'HP_Large' ? 24 : 16
           ctx!.fillRect(pickup.x, pickup.y, w, h)
         }
       }
     } else {
-      // Fallback: draw colored rectangle (matching scaled sprite sizes)
+      // Fallback: draw colored rectangle
       ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
-      const w = pickup.type === 'HP_Large' ? 16 : 10
-      const h = pickup.type === 'HP_Large' ? 12 : 8
+      const w = pickup.type === 'HP_Large' ? 32 : 20
+      const h = pickup.type === 'HP_Large' ? 24 : 16
       ctx!.fillRect(pickup.x, pickup.y, w, h)
     }
       
@@ -2844,7 +2848,7 @@ function gameLoop(currentTime: number) {
     }
     
     // Wall detection (only for local player - remote players get wall state from network)
-    const wallThreshold = 8 // Slightly more forgiving wall detection
+    const wallThreshold = 16 // Match wall width for proper collision
     const isNearLeftWall = player.x <= wallLeft + wallThreshold
     const isNearRightWall = player.x >= wallRight - wallThreshold - 64
     
@@ -3007,25 +3011,24 @@ function gameLoop(currentTime: number) {
       // Check health pickup collection (local player only)
       healthPickups.value.forEach((pickup, pickupId) => {
         if (checkPickupCollision(player, pickup)) {
-          // Only collect if not at full health
-          if (player.health < player.maxHealth) {
-            player.health = Math.min(player.maxHealth, player.health + pickup.healAmount)
-            healthPickups.value.delete(pickupId)
-            playSound('energyFill')
-            debug.log(`🎮 Player collected ${pickup.type} (+${pickup.healAmount} HP, now ${player.health}/${player.maxHealth})`)
-            
-            // Broadcast pickup collection
-            if (gameChannel) {
-              gameChannel.send({
-                type: 'broadcast',
-                event: 'pickup-collected',
-                payload: {
-                  pickupId,
-                  userId: player.userId,
-                  health: player.health
-                }
-              })
-            }
+          // Always collect the pickup, heal up to max HP
+          const prevHealth = player.health
+          player.health = Math.min(player.maxHealth, player.health + pickup.healAmount)
+          healthPickups.value.delete(pickupId)
+          playSound('energyFill')
+          debug.log(`🎮 Player collected ${pickup.type} (+${player.health - prevHealth} HP, now ${player.health}/${player.maxHealth})`)
+          
+          // Broadcast pickup collection
+          if (gameChannel) {
+            gameChannel.send({
+              type: 'broadcast',
+              event: 'pickup-collected',
+              payload: {
+                pickupId,
+                userId: player.userId,
+                health: player.health
+              }
+            })
           }
         }
       })
@@ -3099,12 +3102,11 @@ function gameLoop(currentTime: number) {
     // Show Ready text from 600ms (after spawn starts) to 2500ms
     if (introTime >= 600 && introTime < 2500) {
       const readyAnimTime = introTime - 600
-      const readyFrame = Math.min(Math.floor(readyAnimTime / 130), 12) // ~130ms per frame
+      const readyFrame = Math.min(Math.floor(readyAnimTime / 60), 12) // ~130ms per frame
       const readySprite = readySprites.value.get(`Ready${readyFrame}.png`)
       if (readySprite && readySprite.complete && readySprite.naturalWidth > 0) {
         ctx.save()
-        // Ready sprite uses 2x scale (size: 200 in project.json)
-        const scale = 2.0
+        const scale = 1.0
         const readyWidth = readySprite.naturalWidth * scale
         const readyHeight = readySprite.naturalHeight * scale
         ctx.drawImage(
@@ -3885,10 +3887,9 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         const smokeFrame = Math.min(Math.floor(age / 66), 5) // 6 smoke frames, no loop
         const smokeSprite = smokeSprites.value.get(`Smoke${smokeFrame + 1}.png`)
         if (smokeSprite && smokeSprite.complete && ctx) {
-          // 2x scale like project.json (size: 200)
-          const scale = 2.0
-          const smokeWidth = smokeSprite.naturalWidth * scale
-          const smokeHeight = smokeSprite.naturalHeight * scale
+          // bitmapResolution=2 + size=200 in Scratch = 1.0 effective scale
+          const smokeWidth = smokeSprite.naturalWidth
+          const smokeHeight = smokeSprite.naturalHeight
           ctx.globalAlpha = 1 - (age / 400) // Fade out
           ctx.drawImage(smokeSprite, smoke.x - smokeWidth/2, smoke.y - smokeHeight/2, smokeWidth, smokeHeight)
           ctx.globalAlpha = 1.0
