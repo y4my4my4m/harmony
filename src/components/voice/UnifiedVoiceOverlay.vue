@@ -582,8 +582,10 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     watch(() => easterEggState.value.isActive, (isActive) => {
       if (!isActive && easterEggState.value.type === 'rainbow-party') {
         konamiEnabled.value = true // Re-enable konami code detection
-        // Re-initialize konami detector
-        konamiDetector = useKonamiCode(handleKonamiActivate)
+        // Reset the existing konami detector (don't recreate - composables must be called at top level)
+        if (konamiDetector) {
+          konamiDetector.reset()
+        }
         debug.log('🎮 [Konami] Rainbow party closed, re-enabling konami code detection')
       }
     })

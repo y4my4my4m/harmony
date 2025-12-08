@@ -175,6 +175,7 @@ class EasterEggService {
       this.channel = null
     }
     this.channelName = null
+    this.listeners.clear() // Clear all listeners to prevent memory leaks
     this.deactivate(false) // Reset state without broadcasting
     debug.log('🎮 [EasterEgg] Cleaned up')
   }
