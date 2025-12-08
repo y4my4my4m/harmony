@@ -376,13 +376,23 @@ export class UnifiedWebRTCService {
   /**
    * Join a voice channel - Discord-like experience
    */
-  async joinChannel(channelId: string, userId: string): Promise<boolean> {
+  async joinChannel(channelId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
     debug.log('🎯 Joining voice channel:', channelId, 'as user:', userId);
     
     try {
+      // Check for cancellation
+      if (abortSignal?.aborted) {
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       // Clean previous connection
       if (this.channelId) {
         await this.leaveChannel();
+      }
+      
+      // Check for cancellation after cleanup
+      if (abortSignal?.aborted) {
+        throw new DOMException('Connection cancelled', 'AbortError');
       }
       
       this.channelId = channelId;
@@ -392,27 +402,58 @@ export class UnifiedWebRTCService {
       // 1. Get audio stream immediately (Discord always starts with audio)
       await this.initializeLocalAudio();
       
+      // Check for cancellation after getting audio
+      if (abortSignal?.aborted) {
+        await this.leaveChannel();
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       // 2. Setup signaling before announcing presence
       await this.setupSignaling();
+      
+      // Check for cancellation after setting up signaling
+      if (abortSignal?.aborted) {
+        await this.leaveChannel();
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
       
       // 3. Request current channel state from existing users
       await this.requestChannelState();
       
+      // Check for cancellation after requesting state
+      if (abortSignal?.aborted) {
+        await this.leaveChannel();
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       // 4. Announce our presence after state sync
       setTimeout(() => {
-        this.broadcastMessage({
-          type: 'user-joined',
-          from: userId,
-          data: { mediaState: this.localMediaState },
-          timestamp: Date.now()
-        });
+        if (!abortSignal?.aborted) {
+          this.broadcastMessage({
+            type: 'user-joined',
+            from: userId,
+            data: { mediaState: this.localMediaState },
+            timestamp: Date.now()
+          });
+        }
       }, 200);
+      
+      // Final cancellation check
+      if (abortSignal?.aborted) {
+        await this.leaveChannel();
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
       
       this.emit('channel-joined', { channelId, userId });
       this.emit('local-state-changed', this.localMediaState);
       
       return true;
     } catch (error) {
+      // Check if this was a cancellation
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        debug.log('🚫 [P2P] Connection cancelled');
+        throw error; // Re-throw to propagate cancellation
+      }
       debug.error('❌ Failed to join channel:', error);
       this.emit('error', error);
       return false;

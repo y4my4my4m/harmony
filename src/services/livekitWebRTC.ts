@@ -486,13 +486,23 @@ export class LiveKitWebRTCService {
   /**
    * Join a voice channel using LiveKit SFU
    */
-  async joinChannel(channelId: string, userId: string, roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel'): Promise<boolean> {
+  async joinChannel(channelId: string, userId: string, roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel', abortSignal?: AbortSignal): Promise<boolean> {
     debug.log('🎯 [LiveKit] Joining voice channel:', channelId, 'as user:', userId);
     
     try {
+      // Check for cancellation
+      if (abortSignal?.aborted) {
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       // Clean previous connection
       if (this.room) {
         await this.leaveChannel();
+      }
+      
+      // Check for cancellation after cleanup
+      if (abortSignal?.aborted) {
+        throw new DOMException('Connection cancelled', 'AbortError');
       }
       
       this.channelId = channelId;
@@ -506,6 +516,11 @@ export class LiveKitWebRTCService {
       
       // Get token from backend
       const tokenResponse = await this.getToken(roomName, roomType);
+      
+      // Check for cancellation after getting token
+      if (abortSignal?.aborted) {
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
       
       // Create room with options
       this.room = new Room({
@@ -528,13 +543,31 @@ export class LiveKitWebRTCService {
         // },
       });
       
+      // Check for cancellation after connecting
+      if (abortSignal?.aborted) {
+        await this.leaveChannel();
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       debug.log('✅ [LiveKit] Connected to room:', roomName);
       
       // Sync existing participants (they don't trigger ParticipantConnected event)
       await this.syncExistingParticipants();
       
+      // Check for cancellation after syncing participants
+      if (abortSignal?.aborted) {
+        await this.leaveChannel();
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       // Publish local audio track
       await this.publishLocalAudio();
+      
+      // Final cancellation check
+      if (abortSignal?.aborted) {
+        await this.leaveChannel();
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
       
       this.emit('channel-joined', { channelId, userId });
       this.emit('local-state-changed', this.localMediaState);
@@ -544,6 +577,11 @@ export class LiveKitWebRTCService {
       
       return true;
     } catch (error) {
+      // Check if this was a cancellation
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        debug.log('🚫 [LiveKit] Connection cancelled');
+        throw error; // Re-throw to propagate cancellation
+      }
       debug.error('❌ [LiveKit] Failed to join channel:', error);
       this.emit('error', error);
       return false;

@@ -182,16 +182,35 @@ class WebRTCManagerService implements WebRTCManager {
   async joinChannel(
     channelId: string,
     userId: string,
-    roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel'
+    roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel',
+    abortSignal?: AbortSignal
   ): Promise<boolean> {
     debug.log(`🎯 [WebRTCManager] Joining channel: ${channelId} as: ${userId}`);
+    
+    // Check for cancellation before starting
+    if (abortSignal?.aborted) {
+      debug.log('🚫 [WebRTCManager] Connection cancelled before starting');
+      return false;
+    }
     
     // Leave any existing connection
     if (this.activeService) {
       await this.leaveChannel();
     }
     
+    // Check for cancellation after cleanup
+    if (abortSignal?.aborted) {
+      debug.log('🚫 [WebRTCManager] Connection cancelled after cleanup');
+      return false;
+    }
+    
     const useSFU = await this.shouldUseSFU();
+    
+    // Check for cancellation after checking SFU availability
+    if (abortSignal?.aborted) {
+      debug.log('🚫 [WebRTCManager] Connection cancelled after SFU check');
+      return false;
+    }
     
     if (useSFU) {
       // Try LiveKit first
@@ -201,7 +220,17 @@ class WebRTCManagerService implements WebRTCManager {
       this.activeService = 'livekit';
       
       try {
-        const success = await livekitWebRTC.joinChannel(channelId, userId, roomType);
+        const success = await livekitWebRTC.joinChannel(channelId, userId, roomType, abortSignal);
+        
+        // Check for cancellation after LiveKit join attempt
+        if (abortSignal?.aborted) {
+          if (success) {
+            await livekitWebRTC.leaveChannel();
+          }
+          this.activeService = null;
+          debug.log('🚫 [WebRTCManager] Connection cancelled after LiveKit join');
+          return false;
+        }
         
         if (success) {
           debug.log('✅ [WebRTCManager] Connected via LiveKit SFU');
@@ -211,6 +240,12 @@ class WebRTCManagerService implements WebRTCManager {
         // Connection failed, reset activeService
         this.activeService = null;
       } catch (error) {
+        // Check if this was a cancellation
+        if (error instanceof Error && error.name === 'AbortError') {
+          this.activeService = null;
+          debug.log('🚫 [WebRTCManager] LiveKit connection cancelled');
+          return false;
+        }
         debug.warn('⚠️ [WebRTCManager] LiveKit connection failed:', error);
         this.activeService = null;
       }
@@ -225,12 +260,28 @@ class WebRTCManagerService implements WebRTCManager {
       debug.log('🔄 [WebRTCManager] Falling back to P2P...');
     }
     
+    // Check for cancellation before trying P2P
+    if (abortSignal?.aborted) {
+      debug.log('🚫 [WebRTCManager] Connection cancelled before P2P attempt');
+      return false;
+    }
+    
     // Use P2P (unifiedWebRTC)
     // Set activeService BEFORE joining so events are forwarded during connection
     this.activeService = 'p2p';
     
     try {
-      const success = await unifiedWebRTC.joinChannel(channelId, userId);
+      const success = await unifiedWebRTC.joinChannel(channelId, userId, abortSignal);
+      
+      // Check for cancellation after P2P join attempt
+      if (abortSignal?.aborted) {
+        if (success) {
+          await unifiedWebRTC.leaveChannel();
+        }
+        this.activeService = null;
+        debug.log('🚫 [WebRTCManager] Connection cancelled after P2P join');
+        return false;
+      }
       
       if (success) {
         debug.log('✅ [WebRTCManager] Connected via P2P');
@@ -239,6 +290,12 @@ class WebRTCManagerService implements WebRTCManager {
       
       this.activeService = null;
     } catch (error) {
+      // Check if this was a cancellation
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.activeService = null;
+        debug.log('🚫 [WebRTCManager] P2P connection cancelled');
+        return false;
+      }
       debug.error('❌ [WebRTCManager] P2P connection failed:', error);
       this.activeService = null;
       this.emit('error', error);

@@ -49,6 +49,7 @@ interface VoiceChannelState {
   
   // Connection state to prevent double-joining
   isConnecting: boolean;
+  connectionAbortController: AbortController | null; // For cancelling connection attempts
   
   // Optimistic UI state - show UI immediately while connecting
   optimisticChannelId: string | null;
@@ -103,6 +104,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     currentServerId: null,
     isConnected: false,
     isConnecting: false,
+    connectionAbortController: null,
     currentChannelName: null,
     sessionStartTime: null,
     callStartTime: null,
@@ -316,6 +318,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return true;
         }
         
+        // Create abort controller for this connection attempt
+        this.connectionAbortController = new AbortController();
+        const abortSignal = this.connectionAbortController.signal;
+        
         // Set optimistic state IMMEDIATELY for instant UI feedback
         // This happens before any async operations
         const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
@@ -350,14 +356,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         if (isRemoteServer) {
           debug.log('🌐 Joining federated voice channel, waiting for token exchange...');
-          return await this.joinFederatedVoiceChannel(channelId, serverId, userId);
+          return await this.joinFederatedVoiceChannel(channelId, serverId, userId, abortSignal);
         }
         
         // Local server join flow
-        return await this.joinLocalVoiceChannel(channelId, serverId, userId);
+        return await this.joinLocalVoiceChannel(channelId, serverId, userId, abortSignal);
       } catch (error) {
+        // Check if this was a cancellation
+        if (error instanceof Error && error.name === 'AbortError') {
+          debug.log('🚫 Connection attempt cancelled by user');
+          return false;
+        }
+        
         debug.error('❌ Failed to join voice channel:', error);
         this.isConnecting = false; // Reset on failure
+        this.connectionAbortController = null;
         // Clear optimistic state on failure
         this.optimisticChannelId = null;
         this.optimisticServerId = null;
@@ -369,7 +382,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     /**
      * Join a local (non-federated) voice channel
      */
-    async joinLocalVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
+    async joinLocalVoiceChannel(channelId: string, serverId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       
@@ -379,6 +392,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         throw new Error('Failed to update server presence');
       }
       
+      // Check for cancellation before proceeding
+      if (abortSignal?.aborted) {
+        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       // Setup WebRTC event listeners before joining
       this.setupWebRTCListeners();
       
@@ -386,7 +405,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
       
       // Join WebRTC channel (uses LiveKit SFU or P2P based on config)
-      const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType);
+      // Pass abort signal to allow cancellation
+      const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType, abortSignal);
+      
+      // Check for cancellation after join attempt
+      if (abortSignal?.aborted) {
+        if (webrtcSuccess) {
+          // If we connected but then cancelled, leave immediately
+          await webrtcManager.leaveChannel();
+        }
+        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
       if (!webrtcSuccess) {
         // Rollback server presence
         await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
@@ -394,6 +425,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
+      
+      // Final cancellation check before marking as connected
+      if (abortSignal?.aborted) {
+        await webrtcManager.leaveChannel();
+        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        throw new DOMException('Connection cancelled', 'AbortError');
+      }
       
       // Update store state
       this.currentChannelId = channelId;
@@ -404,6 +442,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.currentChannelName = channel ? channel.name : 'Voice Channel';
       this.isConnected = true;
       this.isConnecting = false; // Connection attempt complete
+      this.connectionAbortController = null; // Clear abort controller on success
       this.sessionStartTime = new Date(); // Track when user joined
       
       // Clear optimistic state - real connection is established
@@ -469,11 +508,37 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * This triggers a VoiceChannelJoin activity to be sent via ActivityPub,
      * and waits for the VoiceChannelJoinAccept response with the LiveKit token.
      */
-    async joinFederatedVoiceChannel(channelId: string, serverId: string, userId: string): Promise<boolean> {
+    async joinFederatedVoiceChannel(channelId: string, serverId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       
       return new Promise((resolve, reject) => {
+        // Check for cancellation before starting
+        if (abortSignal?.aborted) {
+          reject(new DOMException('Connection cancelled', 'AbortError'));
+          return;
+        }
+        
+        // Set up abort listener
+        const abortHandler = () => {
+          debug.log('🚫 Federated connection attempt cancelled');
+          if (this.pendingFederatedJoin?.timeout) {
+            clearTimeout(this.pendingFederatedJoin.timeout);
+          }
+          this.pendingFederatedJoin = null;
+          this.cleanupFederatedSubscription();
+          this.isConnecting = false;
+          this.connectionAbortController = null;
+          this.optimisticChannelId = null;
+          this.optimisticServerId = null;
+          this.optimisticChannelName = null;
+          reject(new DOMException('Connection cancelled', 'AbortError'));
+        };
+        
+        if (abortSignal) {
+          abortSignal.addEventListener('abort', abortHandler);
+        }
+        
         // Set up listener for federated voice token
         const channelName = `federated-voice:${userId}`;
         
@@ -482,6 +547,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.federatedTokenSubscription = supabase
           .channel(channelName)
           .on('broadcast', { event: 'voice-token-received' }, async (payload) => {
+            // Check for cancellation before processing token
+            if (abortSignal?.aborted) {
+              abortHandler();
+              return;
+            }
+            
             debug.log('✅ Received federated voice token:', payload);
             
             // Clear pending state and timeout
@@ -489,6 +560,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               clearTimeout(this.pendingFederatedJoin.timeout);
             }
             this.pendingFederatedJoin = null;
+            
+            // Remove abort listener since we're proceeding
+            if (abortSignal) {
+              abortSignal.removeEventListener('abort', abortHandler);
+            }
             
             // Extract token data
             const { livekitUrl, token, roomName } = payload.payload;
@@ -499,6 +575,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               
               // Connect to remote LiveKit via webrtcManager (which will set activeService='livekit')
               const success = await webrtcManager.joinWithToken(livekitUrl, token, channelId, userId);
+              
+              // Check for cancellation after connection
+              if (abortSignal?.aborted) {
+                if (success) {
+                  await webrtcManager.leaveChannel();
+                }
+                abortHandler();
+                return;
+              }
               
               if (!success) {
                 throw new Error('Failed to connect to remote LiveKit server');
@@ -513,6 +598,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               this.currentChannelName = channel ? channel.name : 'Voice Channel';
               this.isConnected = true;
               this.isConnecting = false; // Connection attempt complete
+              this.connectionAbortController = null; // Clear abort controller on success
               this.sessionStartTime = new Date();
               this.callStartTime = new Date();
               
@@ -598,11 +684,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           }
         })();
         
-        // Set timeout for token response (30 seconds)
+        // Set timeout for token response (20 seconds, reduced from 30)
         const timeout = setTimeout(() => {
+          // Check if already cancelled
+          if (abortSignal?.aborted) {
+            return; // Already handled by abort handler
+          }
+          
           debug.error('❌ Timeout waiting for federated voice token');
+          if (abortSignal) {
+            abortSignal.removeEventListener('abort', abortHandler);
+          }
           this.pendingFederatedJoin = null;
           this.isConnecting = false; // Reset on timeout
+          this.connectionAbortController = null;
           // Clear optimistic state on timeout
           this.optimisticChannelId = null;
           this.optimisticServerId = null;
@@ -610,7 +705,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.cleanupFederatedSubscription();
           serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
           reject(new Error('Timeout waiting for voice connection to remote server'));
-        }, 30000);
+        }, 20000);
         
         this.pendingFederatedJoin = { channelId, serverId, timeout };
       });
@@ -635,6 +730,50 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const serverUsersStore = useServerUsersStore();
         const themeStore = useThemeStore();
 
+        // If we're connecting, cancel the connection attempt
+        if (this.isConnecting && this.connectionAbortController) {
+          debug.log('🚫 Cancelling ongoing connection attempt...');
+          
+          // Save optimistic values before clearing them (for presence rollback)
+          const optimisticChannelId = this.optimisticChannelId;
+          const optimisticServerId = this.optimisticServerId;
+          
+          // Abort the connection attempt
+          this.connectionAbortController.abort();
+          this.connectionAbortController = null;
+          this.isConnecting = false;
+          
+          // Clean up optimistic state
+          this.optimisticChannelId = null;
+          this.optimisticServerId = null;
+          this.optimisticChannelName = null;
+          
+          // Clean up federated subscription if active
+          this.cleanupFederatedSubscription();
+          if (this.pendingFederatedJoin?.timeout) {
+            clearTimeout(this.pendingFederatedJoin.timeout);
+            this.pendingFederatedJoin = null;
+          }
+          
+          // If we had started presence, roll it back
+          if (optimisticChannelId && optimisticServerId) {
+            const userId = authStore.session?.user?.id;
+            if (userId) {
+              await serverUsersStore.leaveVoiceChannel(
+                optimisticServerId,
+                optimisticChannelId,
+                userId
+              );
+            }
+          }
+          
+          // Leave WebRTC if it was partially connected
+          await webrtcManager.leaveChannel();
+          
+          debug.log('✅ Connection attempt cancelled');
+          return true;
+        }
+
         if (!this.currentChannelId || !authStore.session?.user) {
           return true;
         }
@@ -651,6 +790,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (this.pendingFederatedJoin?.timeout) {
           clearTimeout(this.pendingFederatedJoin.timeout);
           this.pendingFederatedJoin = null;
+        }
+        
+        // Clear abort controller if it exists
+        if (this.connectionAbortController) {
+          this.connectionAbortController = null;
         }
         
         // Clear saved voice channel state (user manually left)
@@ -1810,6 +1954,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.currentServerId = null;
       this.isConnected = false;
       this.isConnecting = false;
+      this.connectionAbortController = null;
       this.sessionStartTime = null;
       this.callStartTime = null;
       this.allUsers = [];
