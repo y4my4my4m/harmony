@@ -1535,33 +1535,33 @@ function getFixedHealthBarPosition(playerIndex: number, totalPlayers: number, ba
   const cornerIndex = playerIndex % 4 // 0=bottom-left, 1=bottom-right, 2=top-left, 3=top-right
   const stackIndex = Math.floor(playerIndex / 4) // Which stack in this corner (0, 1, 2...)
   const spacing = 8 // Space between stacked bars
-  const margin = 12 // Margin from screen edges
+  const margin = 8 // Margin from screen edges
   
   let x: number, y: number
   
-  if (cornerIndex === 0) {
+  if (cornerIndex === 2) {
     // Bottom-left
     x = margin
     y = canvasHeight - margin - barHeight - spacing - (stackIndex * (barHeight + spacing))
-  } else if (cornerIndex === 1) {
+  } else if (cornerIndex === 3) {
     // Bottom-right
     x = canvasWidth - margin - barWidth
-    y = canvasHeight - margin - barHeight -spacing - (stackIndex * (barHeight + spacing))
-  } else if (cornerIndex === 2) {
+    y = canvasHeight - margin - barHeight - spacing - (stackIndex * (barHeight + spacing))
+  } else if (cornerIndex === 0) {
     // Top-left
     x = margin
-    y = margin + (stackIndex * (barHeight + spacing))
+    y = margin + (barHeight/2) + spacing + (stackIndex * (barHeight + spacing))
   } else {
     // Top-right
     x = canvasWidth - margin - barWidth
-    y = margin + (stackIndex * (barHeight + spacing))
+    y = margin + (barHeight/2) + spacing + (stackIndex * (barHeight + spacing))
   }
   
   return { x, y }
 }
 
 // Helper function to draw player name label
-function drawNameLabel(name: string, x: number, y: number, ctx: CanvasRenderingContext2D, userId: string, playerColor: string, profilePictures: Map<string, HTMLImageElement>, alignRight: boolean = false) {
+function drawNameLabel(name: string, x: number, y: number, ctx: CanvasRenderingContext2D, userId: string, playerColor: string, profilePictures: Map<string, HTMLImageElement>, alignRight: boolean = false, pictureOnly: boolean = false) {
   // Measure text width
   ctx.font = '12px sans-serif'
   ctx.textAlign = 'left'
@@ -1570,7 +1570,7 @@ function drawNameLabel(name: string, x: number, y: number, ctx: CanvasRenderingC
   const textWidth = textMetrics.width
   const textHeight = 16
   const padding = 4
-  const profileSize = 16
+  const profileSize = 24
   const totalWidth = textWidth + profileSize + padding * 3
   
   let nameX: number
@@ -1586,8 +1586,10 @@ function drawNameLabel(name: string, x: number, y: number, ctx: CanvasRenderingC
   }
   
   // Draw background
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-  ctx.fillRect(bgX, y - textHeight / 2 - padding, totalWidth + padding * 2, textHeight + padding * 2)
+  if (!pictureOnly) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
+    ctx.fillRect(bgX, y - textHeight / 2 - padding, totalWidth + padding * 2, textHeight + padding * 2)
+  }
   
   // Draw profile picture
   const profileImg = profilePictures.get(userId)
@@ -1606,6 +1608,7 @@ function drawNameLabel(name: string, x: number, y: number, ctx: CanvasRenderingC
     ctx.fill()
   }
   
+  if (pictureOnly) return;
   // Draw name text
   ctx.fillStyle = '#ffffff'
   ctx.fillText(name, nameX + profileSize + padding, y)
@@ -4099,19 +4102,20 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     }
     
     // Draw player name with profile picture
-    // Mode 0: show name above player
+    // Mode 0: show name under player
     // Mode 1,2: hide names
-    // Mode 3: show name both next to health bar AND above player (repositioned down)
+    // Mode 3: show name both next to health bar AND under player
     // Mode 4: show name only next to health bar
     if (ctx) {
       const name = player.username || `Player ${player.playerIndex + 1}`
       
       if (displayMode.value === 0) {
-        // Normal mode: show name above player
-        const nameY = player.y - 190
-        drawNameLabel(name, player.x + 32, nameY, ctx, player.userId, player.color, profilePictures.value, false)
+        // Normal mode: show name under player (lower and more to the left)
+        const nameYUnderPlayer = player.y + 64 + 24 // Positioned lower under the player
+        const nameXUnderPlayer = player.x - 8  // Positioned more to the left
+        drawNameLabel(name, nameXUnderPlayer, nameYUnderPlayer, ctx, player.userId, player.color, profilePictures.value, false)
       } else if (displayMode.value === 3) {
-        // Fixed bars mode: show name both next to bar AND above player (repositioned down)
+        // Fixed bars mode: show name both next to bar AND under player
         // Name next to health bar
         const sortedPlayers = Array.from(players.value.values()).sort((a, b) => a.playerIndex - b.playerIndex)
         const playerIndexInSorted = sortedPlayers.findIndex(p => p.userId === player.userId)
@@ -4128,22 +4132,21 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         let nameX: number, nameY: number
         let alignRight = false
         if (cornerIndex === 0 || cornerIndex === 2) {
-          // Left side: name to the right of bar
-          nameX = barPos.x + barWidth + 5
-          nameY = barPos.y + barHeight / 2
+          nameX = barPos.x + 3
+          nameY = barPos.y + 60
         } else {
-          // Right side: name to the left of bar
-          nameX = barPos.x - 5
-          nameY = barPos.y + barHeight / 2
+          nameX = barPos.x + barWidth * 2 - 5
+          nameY = barPos.y + 60
           alignRight = true
         }
         
         // Draw name next to health bar
-        drawNameLabel(name, nameX, nameY, ctx, player.userId, player.color, profilePictures.value, alignRight)
+        drawNameLabel(name, nameX, nameY, ctx, player.userId, player.color, profilePictures.value, alignRight, true)
         
-        // Also show name above player (repositioned down a bit from normal)
-        const nameYAbovePlayer = player.y - 50 // Repositioned down from -190 to -50
-        drawNameLabel(name, player.x + 32, nameYAbovePlayer, ctx, player.userId, player.color, profilePictures.value, false)
+        // Also show name under the player (lower and more to the left)
+        const nameYUnderPlayer = player.y + 64 + 24 // Positioned lower under the player
+        const nameXUnderPlayer = player.x - 8 // Positioned more to the left
+        drawNameLabel(name, nameXUnderPlayer, nameYUnderPlayer, ctx, player.userId, player.color, profilePictures.value, false)
       } else if (displayMode.value === 4) {
         // Fixed bars mode: show name only next to health bar
         const sortedPlayers = Array.from(players.value.values()).sort((a, b) => a.playerIndex - b.playerIndex)
@@ -4161,18 +4164,17 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         let nameX: number, nameY: number
         let alignRight = false
         if (cornerIndex === 0 || cornerIndex === 2) {
-          // Left side: name to the right of bar
-          nameX = barPos.x + barWidth + 5
-          nameY = barPos.y + barHeight / 2
+          nameX = barPos.x + 3
+          nameY = barPos.y + 60
         } else {
-          // Right side: name to the left of bar
-          nameX = barPos.x - 5
-          nameY = barPos.y + barHeight / 2
+
+          nameX = barPos.x + barWidth * 2 - 5
+          nameY = barPos.y + 60
           alignRight = true
         }
         
         // Draw name next to health bar
-        drawNameLabel(name, nameX, nameY, ctx, player.userId, player.color, profilePictures.value, alignRight)
+        drawNameLabel(name, nameX, nameY, ctx, player.userId, player.color, profilePictures.value, alignRight, true)
       }
     }
     
