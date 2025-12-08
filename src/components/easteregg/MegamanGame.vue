@@ -118,12 +118,7 @@ interface Platform {
   y: number
   width: number
   height: number
-  type: 'static' | 'moving'
-  moveDirection?: 'horizontal' | 'vertical'
-  moveSpeed?: number
-  moveRange?: number // How far it moves from starting position
-  startX?: number // Original position for moving platforms
-  startY?: number
+  type: 'static'
 }
 
 const players = ref<Map<string, Player>>(new Map())
@@ -139,7 +134,6 @@ const MAX_PICKUPS = 5 // Maximum pickups on screen
 const colorAssignments = ref<Map<string, { color: string; playerIndex: number }>>(new Map()) // Store color assignments from host
 // Display mode: 0 = normal, 1 = hide names, 2 = hide health bars, 3 = fixed health bar positions + names (bar + player), 4 = fixed health bar positions + names (bar only)
 const displayMode = ref(0) // Cycle with P key
-let gameStartTimestamp = 0 // For syncing moving platforms
 
 // Item sprites
 const itemSprites = ref<Map<string, HTMLImageElement>>(new Map())
@@ -2517,22 +2511,9 @@ function gameLoop(currentTime: number) {
     ctx.fillRect(canvasWidth - wallWidth, 0, wallWidth, canvasHeight)
   }
   
-  // Update and draw platforms using sprite
+  // Draw platforms using sprite
   if (ctx) {
     platforms.value.forEach(platform => {
-      // Update moving platforms - use gameStartTimestamp for sync
-      if (platform.type === 'moving' && platform.startX !== undefined && platform.startY !== undefined) {
-        const timeSinceStart = (Date.now() - gameStartTimestamp) / 1000 // Time in seconds since game start
-        const moveRange = platform.moveRange || 50
-        const moveSpeed = platform.moveSpeed || 1
-        
-        if (platform.moveDirection === 'horizontal') {
-          platform.x = platform.startX + Math.sin(timeSinceStart * moveSpeed) * moveRange
-        } else if (platform.moveDirection === 'vertical') {
-          platform.y = platform.startY + Math.sin(timeSinceStart * moveSpeed) * moveRange
-        }
-      }
-      
       // Draw platform using sprite
       if (platformSprite.value && platformSprite.value.complete) {
         const spriteWidth = platformSprite.value.naturalWidth
@@ -2550,16 +2531,9 @@ function gameLoop(currentTime: number) {
           )
         }
         
-        // Moving platform glow effect
-        if (platform.type === 'moving') {
-          const glowIntensity = Math.sin(Date.now() / 200) * 0.3 + 0.7
-          ctx!.fillStyle = `rgba(100, 200, 255, ${glowIntensity * 0.3})`
-          ctx!.fillRect(platform.x - 1, platform.y - 1, platform.width + 2, 2)
-          ctx!.fillRect(platform.x - 1, platform.y + platform.height - 1, platform.width + 2, 2)
-        }
       } else {
         // Fallback
-        ctx!.fillStyle = platform.type === 'moving' ? '#3a6080' : '#2a4a68'
+        ctx!.fillStyle = '#2a4a68'
         ctx!.fillRect(platform.x, platform.y, platform.width, platform.height)
       }
     })
@@ -3112,37 +3086,14 @@ function gameLoop(currentTime: number) {
       // Store previous Y for platform collision detection
       const prevY = player.y
       
-      // Check if player is on a vertical moving platform (before applying physics)
-      let onVerticalPlatform: Platform | null = null
-      if (player.onGround) {
-        for (const platform of platforms.value) {
-          if (platform.type === 'moving' && platform.moveDirection === 'vertical') {
-            const playerCenterX = player.x + 32
-            const isWithinPlatformX = playerCenterX > platform.x && playerCenterX < platform.x + platform.width
-            const isOnPlatformY = Math.abs((player.y + 64) - platform.y) < 5
-            if (isWithinPlatformX && isOnPlatformY) {
-              onVerticalPlatform = platform
-              break
-            }
-          }
-        }
-      }
-      
       // Apply velocity to position (local player - remote players already handled above)
-      // Skip gravity if on vertical moving platform
-      if (!onVerticalPlatform) {
-        player.x += player.velocityX * deltaSeconds * 60
-        player.y += player.velocityY * deltaSeconds * 60
-      } else {
-        // On vertical platform - only apply horizontal movement
-        player.x += player.velocityX * deltaSeconds * 60
-        // Y position will be set by platform collision check
-      }
+      player.x += player.velocityX * deltaSeconds * 60
+      player.y += player.velocityY * deltaSeconds * 60
       
       // Platform collision (check before ground collision)
       const collidedPlatform = checkPlatformCollision(player, prevY)
-      if (collidedPlatform && (player.velocityY >= 0 || onVerticalPlatform)) {
-        if (!player.onGround && !onVerticalPlatform) {
+      if (collidedPlatform && player.velocityY >= 0) {
+        if (!player.onGround) {
           // Just landed on platform - play land sound
           playSound('land')
           player.isDashJumping = false
@@ -3169,7 +3120,7 @@ function gameLoop(currentTime: number) {
         player.onWall = false
         player.wallSide = null
         
-        // Don't move player with horizontal moving platforms - let them slide off naturally
+        // Player stays on platform naturally
       }
       // Ground collision (local player)
       else if (player.y >= floorY - 64) {
@@ -3341,6 +3292,14 @@ function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFra
   // Handle death state - first show Death1-3, then fade out with bubbles
   if (player.state === 'dead') {
     const deathElapsed = Date.now() - player.hitTime
+    
+    // Death animation duration: 600ms (Death1-3) + 750ms (5 bubbles at 150ms each) = 1350ms total
+    const deathAnimationDuration = 1350
+    
+    // If death animation is complete, return empty array to hide sprite
+    if (deathElapsed >= deathAnimationDuration) {
+      return []
+    }
     
     // First 600ms: Show Death1-3 animation
     if (deathElapsed < 600) {
@@ -3734,7 +3693,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     }
     
     // Clamp frame index to valid range for current animation
-    if (frameIndex >= frames.length) {
+    if (frames.length > 0 && frameIndex >= frames.length) {
       if (isWallCling) {
         // Wall cling: clamp to last frame (no looping)
         frameIndex = frames.length - 1
@@ -3757,17 +3716,15 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     lastAnimationType.value.set(userId, currentAnimType)
   }
   
+  // If no frames (e.g., death animation complete), don't draw sprite
+  if (frames.length === 0) {
+    return
+  }
+  
   const frame = frames[frameIndex]
   
+  // If no frame, don't draw sprite
   if (!frame) {
-    // No frame available - try to show idle as fallback
-    const idleFrames = animations.value?.idle || []
-    if (idleFrames.length > 0) {
-      const fallbackSprite = spriteImages.value.get(idleFrames[0].file)
-      if (fallbackSprite && fallbackSprite.complete && ctx) {
-        ctx.drawImage(fallbackSprite, player.x, player.y, 64, 64)
-      }
-    }
     return
   }
   
@@ -4655,14 +4612,6 @@ function setupRealtimeListener() {
     healthPickups.value.set(pickupId, pickup)
   })
   
-  gameChannel.on('broadcast', { event: 'game-start-timestamp' }, (payload) => {
-    const { timestamp } = payload.payload as { timestamp: number }
-    // Sync game start timestamp for moving platforms
-    if (gameStartTimestamp === 0 || timestamp < gameStartTimestamp) {
-      gameStartTimestamp = timestamp
-    }
-  })
-  
   gameChannel.on('broadcast', { event: 'player-killed' }, (payload) => {
     const { killerId, victimId } = payload.payload as { killerId: string; victimId: string }
     
@@ -4693,10 +4642,37 @@ watch(() => props.isActive, (active) => {
   }
 })
 
+// Watch for participants changes to remove disconnected players
+watch(() => props.participants, (newParticipants, oldParticipants) => {
+  if (!oldParticipants || !props.isActive) return
+  
+  // Find players that are no longer in participants
+  const currentParticipantIds = new Set(newParticipants.map(p => p.userId))
+  const oldParticipantIds = new Set(oldParticipants.map(p => p.userId))
+  
+  // Remove players that are no longer in participants (but keep local player)
+  players.value.forEach((player, userId) => {
+    if (userId !== props.userId && !currentParticipantIds.has(userId) && oldParticipantIds.has(userId)) {
+      debug.log(`🎮 Removing disconnected player: ${userId.substring(0, 6)}`)
+      players.value.delete(userId)
+      // Also clean up related data
+      profilePictures.value.delete(userId)
+      colorAssignments.value.delete(userId)
+      playerResolutions.value.delete(userId)
+      currentFrame.value.delete(userId)
+      lastAnimationType.value.delete(userId)
+    }
+  })
+}, { deep: true })
+
 function updateCanvasSize() {
   if (playerResolutions.value.size === 0) {
     gameCanvasWidth.value = Math.max(360, window.innerWidth)
     gameCanvasHeight.value = Math.max(240, window.innerHeight)
+    // Re-initialize platforms when canvas size changes
+    if (props.isActive) {
+      initializePlatforms()
+    }
     return
   }
   
@@ -4721,6 +4697,11 @@ function updateCanvasSize() {
     ctx.scale(dpr, dpr)
     canvas.style.width = `${gameCanvasWidth.value}px`
     canvas.style.height = `${gameCanvasHeight.value}px`
+  }
+  
+  // Re-initialize platforms when canvas size changes (so they're canvas-relative)
+  if (props.isActive) {
+    initializePlatforms()
   }
 }
 
@@ -4777,7 +4758,6 @@ function startGame() {
   if (animationFrame) return
   lastFrameTime = performance.now()
   gameStartTime = Date.now()
-  gameStartTimestamp = Date.now() // For syncing moving platforms
   showIntro = true
   lastPickupSpawnTime = Date.now()
   
@@ -4786,17 +4766,6 @@ function startGame() {
   
   // Initialize platforms
   initializePlatforms()
-  
-  // Broadcast game start timestamp for platform sync
-  if (gameChannel) {
-    gameChannel.send({
-      type: 'broadcast',
-      event: 'game-start-timestamp',
-      payload: {
-        timestamp: gameStartTimestamp
-      }
-    })
-  }
   
   // Initialize players after a short delay to show intro first
   setTimeout(() => {
@@ -4933,8 +4902,13 @@ function closeGame() {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   display: block;
-  position: relative;
+  position: fixed;
   z-index: 10003;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  margin: auto;
 }
 
 .close-button {
