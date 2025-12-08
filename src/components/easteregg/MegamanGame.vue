@@ -305,12 +305,208 @@ const soundPaths = {
   ],
 }
 
+// Audio Manager for charge loop - handles all lifecycle cleanly
+class ChargeLoopManager {
+  private currentAudio: HTMLAudioElement | null = null
+  private lastStartTime: number = 0
+  private readonly DEBOUNCE_MS = 500
+  
+  start(audioPath: string): HTMLAudioElement | null {
+    const now = Date.now()
+    
+    // Debounce rapid starts
+    if (now - this.lastStartTime < this.DEBOUNCE_MS) {
+      debug.log(`🔊 ChargeLoopManager: Debounced start (${now - this.lastStartTime}ms since last)`)
+      return this.currentAudio
+    }
+    
+    // Stop any existing audio first
+    this.stop()
+    
+    try {
+      const audio = new Audio(audioPath)
+      audio.loop = true
+      audio.volume = 0.2
+      
+      // Store reference IMMEDIATELY - before play() resolves
+      // This ensures we can stop it even if play() is still pending
+      this.currentAudio = audio
+      this.lastStartTime = now
+      
+      debug.log(`🔊 ChargeLoopManager: Created audio, stored reference`, {
+        src: audioPath,
+        loop: audio.loop,
+        volume: audio.volume
+      })
+      
+      // Set up error handler
+      audio.onerror = () => {
+        debug.warn(`🔊 ChargeLoopManager: Audio error`)
+        // Don't clear reference on error - we still need to stop it
+      }
+      
+      // Start playing
+      const playPromise = audio.play()
+      if (playPromise) {
+        playPromise.then(() => {
+          debug.log(`🔊 ChargeLoopManager: Play promise resolved - audio should be playing`)
+          // Verify it's still our audio
+          if (this.currentAudio === audio) {
+            debug.log(`🔊 ChargeLoopManager: Reference still valid`)
+          } else {
+            debug.warn(`🔊 ChargeLoopManager: Reference changed during play!`)
+          }
+        }).catch((err) => {
+          debug.warn(`🔊 ChargeLoopManager: Play failed:`, err)
+          // Keep reference so we can still stop it if needed
+        })
+      } else {
+        debug.log(`🔊 ChargeLoopManager: play() returned undefined (some browsers)`)
+      }
+      
+      return audio
+    } catch (e) {
+      debug.warn(`🔊 ChargeLoopManager: Failed to create audio:`, e)
+      this.currentAudio = null
+      return null
+    }
+  }
+  
+  stop(): void {
+    let stoppedCount = 0
+    
+    // Stop tracked audio
+    if (this.currentAudio) {
+      try {
+        const audio = this.currentAudio
+        debug.log(`🔊 ChargeLoopManager: Stopping tracked audio`, {
+          paused: audio.paused,
+          ended: audio.ended,
+          loop: audio.loop,
+          readyState: audio.readyState,
+          src: audio.src.substring(audio.src.lastIndexOf('/') + 1)
+        })
+        
+        // Remove all handlers FIRST to prevent any callbacks
+        audio.onerror = null
+        audio.onended = null
+        audio.onplay = null
+        
+        // Stop the audio - multiple methods for maximum reliability
+        // Order matters: disable loop first, then pause, then reset
+        audio.loop = false
+        
+        // Pause even if it hasn't started playing yet
+        audio.pause().catch((e) => {
+          debug.warn(`🔊 ChargeLoopManager: Pause error (may not have started):`, e)
+        })
+        
+        audio.currentTime = 0
+        audio.volume = 0
+        
+        // Force stop by removing src (nuclear option)
+        try {
+          const originalSrc = audio.src
+          audio.src = ''
+          audio.load()
+          debug.log(`🔊 ChargeLoopManager: Cleared audio src`)
+        } catch (e) {
+          // Some browsers don't allow this, that's okay
+          debug.log(`🔊 ChargeLoopManager: Could not clear src (expected in some browsers)`)
+        }
+        
+        // Double-check it's stopped
+        if (!audio.paused || audio.ended) {
+          debug.warn(`🔊 ChargeLoopManager: Audio still playing after stop attempt!`, {
+            paused: audio.paused,
+            ended: audio.ended
+          })
+        }
+        
+        stoppedCount++
+        debug.log(`🔊 ChargeLoopManager: Tracked audio stopped`)
+      } catch (e) {
+        debug.warn(`🔊 ChargeLoopManager: Error stopping tracked audio:`, e)
+      }
+      
+      this.currentAudio = null
+    } else {
+      debug.log(`🔊 ChargeLoopManager: No tracked audio to stop`)
+    }
+    
+    // NUCLEAR OPTION: Search DOM for ANY playing charge loop audio
+    // This catches cases where the reference was lost
+    try {
+      const allAudios = document.querySelectorAll('audio')
+      debug.log(`🔊 ChargeLoopManager: Searching ${allAudios.length} audio elements in DOM`)
+      
+      allAudios.forEach((audio) => {
+        const src = audio.src || ''
+        const isChargeLoop = src.includes('x_charge_loop') || src.includes('charge_loop')
+        const isPlaying = !audio.paused && !audio.ended && audio.loop
+        
+        if (isChargeLoop && isPlaying) {
+          debug.log(`🔊 ChargeLoopManager: Found playing charge loop in DOM:`, {
+            src: src.substring(src.lastIndexOf('/') + 1),
+            paused: audio.paused,
+            ended: audio.ended,
+            loop: audio.loop,
+            volume: audio.volume
+          })
+          
+          try {
+            // Remove handlers
+            audio.onerror = null
+            audio.onended = null
+            audio.onplay = null
+            
+            // Stop it
+            audio.loop = false
+            audio.pause()
+            audio.currentTime = 0
+            audio.volume = 0
+            
+            // Nuclear: clear src
+            try {
+              audio.src = ''
+              audio.load()
+            } catch (e) {}
+            
+            stoppedCount++
+            debug.log(`🔊 ChargeLoopManager: Stopped DOM audio`)
+          } catch (e) {
+            debug.warn(`🔊 ChargeLoopManager: Error stopping DOM audio:`, e)
+          }
+        }
+      })
+    } catch (e) {
+      debug.warn(`🔊 ChargeLoopManager: Error searching DOM:`, e)
+    }
+    
+    debug.log(`🔊 ChargeLoopManager: Total stopped: ${stoppedCount}`)
+    this.lastStartTime = 0
+  }
+  
+  isPlaying(): boolean {
+    return this.currentAudio !== null && 
+           !this.currentAudio.paused && 
+           !this.currentAudio.ended
+  }
+  
+  getAudio(): HTMLAudioElement | null {
+    return this.currentAudio
+  }
+  
+  cleanup(): void {
+    this.stop()
+  }
+}
+
 // Create sound pool for better performance
 const soundPool: Map<string, HTMLAudioElement[]> = new Map()
-const playingSounds: Map<string, HTMLAudioElement> = new Map() // Track currently playing looping sounds
+const playingSounds: Map<string, HTMLAudioElement> = new Map() // Track currently playing looping sounds (non-charge-loop)
+const chargeLoopManager = new ChargeLoopManager() // Dedicated manager for charge loop
 let soundsInitialized = false
-let chargeLoopLastStartTime = 0 // Debounce charge loop starts
-const CHARGE_LOOP_DEBOUNCE = 500 // Minimum ms between charge loop starts
 
 function initializeSounds() {
   if (soundsInitialized) return
@@ -350,37 +546,10 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
   try {
     initializeSounds()
     
-    // Special handling for charge loop - debounce rapid restarts
+    // Special handling for charge loop - use dedicated manager
     if (soundName === 'chargeLoop') {
-      const now = Date.now()
-      
-      // Check if charge loop is already playing
-      const currentSound = playingSounds.get('chargeLoop')
-      if (currentSound && !currentSound.paused && !currentSound.ended) {
-        debug.log(`🔊 playSound(chargeLoop): Already playing, returning existing`)
-        return currentSound // Already playing, don't restart
-      }
-      
-      // Debounce: prevent starting charge loop too quickly after last start
-      const timeSinceLastStart = now - chargeLoopLastStartTime
-      if (timeSinceLastStart < CHARGE_LOOP_DEBOUNCE) {
-        debug.log(`🔊 playSound(chargeLoop): Debounced - only ${timeSinceLastStart}ms since last start`)
-        return null // Too soon, don't start
-      }
-      
-      // Clean up any existing stopped/paused charge loop
-      if (currentSound) {
-        debug.log(`🔊 playSound(chargeLoop): Cleaning up existing sound`)
-        try {
-          currentSound.pause()
-          currentSound.currentTime = 0
-          currentSound.loop = false
-        } catch (e) {}
-        playingSounds.delete('chargeLoop')
-      }
-      
-      debug.log(`🔊 playSound(chargeLoop): Starting new loop sound`)
-      chargeLoopLastStartTime = now
+      const path = soundPaths.chargeLoop[0]
+      return chargeLoopManager.start(path)
     } else if (loop) {
       // For other looping sounds, stop existing first
       const currentSound = playingSounds.get(soundName)
@@ -405,12 +574,8 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
         audio.loop = isLoopSound
         audio.volume = soundName === 'chargeLoop' ? 0.2 : 0.3
         
-        // For looping sounds, add to map IMMEDIATELY to prevent race conditions
-        if (isLoopSound) {
-          playingSounds.set(soundName, audio)
-        }
-        
-        // Set up error handler
+        // For looping sounds (except chargeLoop which uses manager), add to map AFTER we successfully start playing
+        // Set up error handler FIRST
         audio.onerror = () => {
           debug.warn(`🎮 Audio error for ${soundName}:`, path)
           if (isLoopSound) {
@@ -420,12 +585,23 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
         
         const playPromise = audio.play()
         if (playPromise) {
-          playPromise.catch((err) => {
+          playPromise.then(() => {
+            // Only add to map AFTER play succeeds
+            if (isLoopSound) {
+              playingSounds.set(soundName, audio)
+              debug.log(`🔊 playSound: Successfully started ${soundName}, added to map`)
+            }
+          }).catch((err) => {
             debug.warn(`Could not play sound ${path}:`, err)
             if (isLoopSound) {
               playingSounds.delete(soundName)
             }
           })
+        } else {
+          // If play() returns undefined (some browsers), still add to map
+          if (isLoopSound) {
+            playingSounds.set(soundName, audio)
+          }
         }
         
         return audio
@@ -441,16 +617,15 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
 }
 
 function stopSound(soundName: keyof typeof soundPaths) {
-  const currentSound = playingSounds.get(soundName)
+  // Use dedicated manager for charge loop
   if (soundName === 'chargeLoop') {
-    debug.log(`🔊 stopSound(chargeLoop): Called`, {
-      soundExists: !!currentSound,
-      soundPaused: currentSound?.paused,
-      soundEnded: currentSound?.ended,
-      soundLoop: currentSound?.loop
-    })
+    debug.log(`🔊 stopSound(chargeLoop): Called via manager`)
+    chargeLoopManager.stop()
+    return
   }
   
+  // For other sounds, use the normal method
+  const currentSound = playingSounds.get(soundName)
   if (currentSound) {
     try {
       // Remove all event listeners first to prevent callbacks
@@ -468,18 +643,6 @@ function stopSound(soundName: keyof typeof soundPaths) {
       debug.warn(`🎮 Error stopping sound ${soundName}:`, e)
     }
     playingSounds.delete(soundName)
-    
-    if (soundName === 'chargeLoop') {
-      debug.log(`🔊 stopSound(chargeLoop): Sound removed from map, still in map:`, playingSounds.has('chargeLoop'))
-    }
-  } else if (soundName === 'chargeLoop') {
-    debug.log(`🔊 stopSound(chargeLoop): No sound found in map`)
-  }
-  
-  // For charge loop, also reset the debounce timer to allow restart after proper stop
-  if (soundName === 'chargeLoop') {
-    chargeLoopLastStartTime = 0
-    debug.log(`🔊 stopSound(chargeLoop): Debounce timer reset`)
   }
 }
 
@@ -915,7 +1078,7 @@ function handleKeyUp(event: KeyboardEvent) {
     const chargeTime = now - localPlayer.chargeStartTime
     
     // DEBUG: Log charge state on key release
-    const loopPlaying = playingSounds.has('chargeLoop')
+    const loopPlaying = chargeLoopManager.isPlaying()
     const initialSoundExists = !!localPlayer.initialChargeSound
     const initialSoundPlaying = localPlayer.initialChargeSound && !localPlayer.initialChargeSound.paused
     debug.log(`🔊 SPACE RELEASED - Charge State:`, {
@@ -955,7 +1118,7 @@ function handleKeyUp(event: KeyboardEvent) {
     debug.log(`🔊 SPACE RELEASED - After Cleanup:`, {
       isCharging: localPlayer.isCharging,
       chargeLoopStarted: localPlayer.chargeLoopStarted,
-      loopStillPlaying: playingSounds.has('chargeLoop'),
+      loopStillPlaying: chargeLoopManager.isPlaying(),
       initialSoundCleared: !localPlayer.initialChargeSound
     })
     
@@ -988,7 +1151,7 @@ function handleKeyUp(event: KeyboardEvent) {
     localPlayer.chargeLevel = 0
     
     // Double-check charge loop is stopped (belt and suspenders)
-    if (playingSounds.has('chargeLoop')) {
+    if (chargeLoopManager.isPlaying()) {
       stopSound('chargeLoop')
     }
     
@@ -1005,7 +1168,7 @@ function handleInput() {
   
   // Safety check: Stop charge loop if player is dead or in invalid state
   if (localPlayer.state === 'dead' || localPlayer.state === 'hit') {
-    if (localPlayer.isCharging || playingSounds.has('chargeLoop')) {
+    if (localPlayer.isCharging || chargeLoopManager.isPlaying()) {
       stopSound('chargeLoop')
       localPlayer.isCharging = false
       localPlayer.chargeLoopStarted = false
@@ -1118,42 +1281,28 @@ function handleInput() {
   
   // ALWAYS check for stale charge state FIRST - clean up if space not pressed
   // This runs EVERY FRAME to ensure we catch key releases
+  // BUT: Don't call stopSound here - that's handled by handleKeyUp
+  // Just reset the flags so handleKeyUp knows to stop the sound
   if (!spaceKeyPressed) {
-    // Space NOT pressed - IMMEDIATELY stop all charge-related audio and state
-    // This is the most important cleanup path
-    if (localPlayer.isCharging || localPlayer.chargeLoopStarted || playingSounds.has('chargeLoop') || localPlayer.initialChargeSound) {
-      // DEBUG: Log when we detect stale charge state
-      debug.log(`🔊 handleInput: Space NOT pressed but charge state active - cleaning up`, {
-        isCharging: localPlayer.isCharging,
-        chargeLoopStarted: localPlayer.chargeLoopStarted,
-        loopPlaying: playingSounds.has('chargeLoop'),
-        initialSoundExists: !!localPlayer.initialChargeSound
-      })
-      
-      // Stop charge loop immediately
-      stopSound('chargeLoop')
-      
-      // Stop and clean up initial charge sound
-      if (localPlayer.initialChargeSound) {
-        try {
-          localPlayer.initialChargeSound.pause()
-          localPlayer.initialChargeSound.currentTime = 0
-          localPlayer.initialChargeSound.onended = null // CRITICAL: Remove handler to prevent delayed loop start
-          localPlayer.initialChargeSound.loop = false
-          localPlayer.initialChargeSound.volume = 0
-        } catch (e) {
-          // Ignore errors
-        }
-        localPlayer.initialChargeSound = undefined
-      }
-      
-      // Reset all charge state
+    // Space NOT pressed - reset charge flags (actual sound stopping happens in handleKeyUp)
+    // This prevents the charge state from persisting, but doesn't clear audio references
+    if (localPlayer.isCharging || localPlayer.chargeLoopStarted) {
+      // Just reset flags - don't stop sound here (handleKeyUp will do that)
       localPlayer.isCharging = false
       localPlayer.chargeLoopStarted = false
       localPlayer.chargeStartTime = 0
       localPlayer.chargeLevel = 0
       
-      debug.log(`🔊 handleInput: After cleanup - loop still playing:`, playingSounds.has('chargeLoop'))
+      // Clean up initial charge sound reference (but don't stop it - let handleKeyUp do that)
+      if (localPlayer.initialChargeSound) {
+        // Remove the onended handler to prevent loop from starting
+        try {
+          localPlayer.initialChargeSound.onended = null
+        } catch (e) {
+          // Ignore errors
+        }
+        localPlayer.initialChargeSound = undefined
+      }
     }
     // Don't process any charging logic when space not pressed
   } else {
@@ -1200,7 +1349,7 @@ function handleInput() {
             const stillCharging = localPlayer.isCharging
             const spaceStillPressed = keys.value.has('Space')
             const sameChargeSession = localPlayer.chargeStartTime === chargeStartTimeSnapshot
-            const loopNotStarted = !localPlayer.chargeLoopStarted && !playingSounds.has('chargeLoop')
+            const loopNotStarted = !localPlayer.chargeLoopStarted && !chargeLoopManager.isPlaying()
             const gameActive = props.isActive
             
             debug.log(`🔊 Initial charge sound ended - checking loop start:`, {
@@ -1213,7 +1362,7 @@ function handleInput() {
             })
             
             if (stillCharging && spaceStillPressed && sameChargeSession && loopNotStarted && gameActive) {
-              debug.log(`🔊 Starting charge loop`)
+              debug.log(`🔊 Starting charge loop via manager`)
               const loopSound = playSound('chargeLoop', true)
               if (loopSound) {
                 localPlayer.chargeLoopStarted = true
@@ -3365,6 +3514,9 @@ function stopGame() {
     }
   })
   playingSounds.clear()
+  
+  // Clean up charge loop manager
+  chargeLoopManager.cleanup()
   
   // Clean up player charge states
   players.value.forEach((player) => {
