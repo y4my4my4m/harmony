@@ -39,7 +39,7 @@ interface Player {
   y: number
   playerIndex: number
   facing: 'left' | 'right'
-  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'dashJumping' | 'wallCling' | 'wallKick' | 'hit' | 'dead'
+  state: 'idle' | 'walking' | 'jumping' | 'falling' | 'landing' | 'shooting' | 'dashing' | 'dashJumping' | 'wallCling' | 'wallKick' | 'hit' | 'dead' | 'wallSlide'
   velocityX: number
   velocityY: number
   onGround: boolean
@@ -145,13 +145,13 @@ const gameCanvasWidth = ref(360) // Minimum 360
 const gameCanvasHeight = ref(240) // Minimum 240
 const playerResolutions = ref<Map<string, { width: number; height: number }>>(new Map())
 
-// Constants
-const GRAVITY = 0.8
-const JUMP_STRENGTH = -15
-const WALL_JUMP_X = 6
-const WALL_JUMP_Y = -12
-const WALL_SLIDE_SPEED = 3.5 // Slide down faster (positive = down)
-const WALK_SPEED = 3
+// Constants - Megaman X authentic physics
+const GRAVITY = 0.6 // Slightly less gravity for floatier jumps like MMX
+const JUMP_STRENGTH = -14 // Slightly lower jump for better control
+const WALL_JUMP_X = 7 // Horizontal kick-off speed
+const WALL_JUMP_Y = -13 // Wall jump vertical strength
+const WALL_SLIDE_SPEED = 2.0 // Slower wall slide like real MMX
+const WALK_SPEED = 3.5 // Slightly faster walk
 const DASH_SPEED = 10
 const DASH_DURATION = 350 // ms
 const DASH_COOLDOWN = 500 // ms
@@ -160,6 +160,7 @@ const BULLET_SPEED = 12
 const CHARGE_TIME_LV1 = 500 // ms
 const CHARGE_TIME_LV2 = 1500 // ms
 const CHARGE_TIME_LV3 = 3000 // ms
+const WALL_CLING_GRACE_PERIOD = 100 // ms - time to re-grab wall after wall jump
 
 // Player colors for differentiation
 const PLAYER_COLORS = [
@@ -861,29 +862,38 @@ function handleKeyUp(event: KeyboardEvent) {
     const now = Date.now()
     const chargeTime = now - localPlayer.chargeStartTime
     
-    // Always stop charge loop when releasing space (clean up)
+    // IMMEDIATELY stop ALL charge-related sounds when releasing space
     stopSound('chargeLoop')
-    // Stop initial charge sound if it's still playing
+    stopSound('charge') // Also stop initial charge sound via sound pool
+    
+    // Clean up initial charge sound reference
     if (localPlayer.initialChargeSound) {
       try {
         localPlayer.initialChargeSound.pause()
         localPlayer.initialChargeSound.currentTime = 0
+        localPlayer.initialChargeSound.onended = null // Remove callback to prevent late loop start
+        localPlayer.initialChargeSound.loop = false
       } catch (e) {
         // Ignore errors
       }
       localPlayer.initialChargeSound = undefined
     }
-    localPlayer.chargeLoopStarted = false // Reset flag immediately
     
-    if (localPlayer.isCharging) {
+    // Reset all charge state flags
+    localPlayer.chargeLoopStarted = false
+    const wasCharging = localPlayer.isCharging
+    const previousChargeLevel = localPlayer.chargeLevel
+    localPlayer.chargeStartTime = 0
+    
+    if (wasCharging && chargeTime > 0) {
       // Fire based on charge level
-      if (chargeTime >= CHARGE_TIME_LV1) {
+      if (chargeTime >= CHARGE_TIME_LV1 && previousChargeLevel >= 1) {
         // Charged shot
         fireChargedShot(localPlayer)
         // Play appropriate charge level sound
-        if (localPlayer.chargeLevel >= 3) {
+        if (previousChargeLevel >= 3) {
           playSound('shootLv3')
-        } else if (localPlayer.chargeLevel >= 2) {
+        } else if (previousChargeLevel >= 2) {
           playSound('shootLv2')
         } else {
           playSound('shootLv1')
@@ -893,25 +903,22 @@ function handleKeyUp(event: KeyboardEvent) {
         fireBullet(localPlayer, 0)
         playSound('shoot')
       }
-      
-      localPlayer.isCharging = false
-      localPlayer.chargeLevel = 0
-      localPlayer.chargeLoopStarted = false // Reset loop flag
-      // Don't clear isShooting here - let fireBullet manage it (for shooting animation)
-      
-      // Broadcast charge release to network
-      broadcastPlayerState(localPlayer, true)
     } else {
       // Very quick tap without charging state
       fireBullet(localPlayer, 0)
       playSound('shoot')
     }
     
-    // Always stop charge loop when releasing space (clean up)
-    stopSound('chargeLoop')
-    localPlayer.chargeStartTime = 0
+    // Clear charging state after firing
+    localPlayer.isCharging = false
+    localPlayer.chargeLevel = 0
     
-    // Always broadcast when releasing charge (even if not charging)
+    // Double-check charge loop is stopped (belt and suspenders)
+    if (playingSounds.has('chargeLoop')) {
+      stopSound('chargeLoop')
+    }
+    
+    // Broadcast charge release to network
     broadcastPlayerState(localPlayer, true)
   }
   
@@ -1027,10 +1034,38 @@ function handleInput() {
   // CRITICAL: Only process charging if Space key is actually pressed (not from network state)
   const spaceKeyPressed = keys.value.has('Space')
   
-  if (spaceKeyPressed) {
+  // ALWAYS check for stale charge state first - clean up if space not pressed
+  if (!spaceKeyPressed) {
+    // Space not pressed - immediately stop all charge-related audio and state
+    if (localPlayer.isCharging || localPlayer.chargeLoopStarted || playingSounds.has('chargeLoop') || localPlayer.initialChargeSound) {
+      stopSound('chargeLoop')
+      // Stop and clean up initial charge sound
+      if (localPlayer.initialChargeSound) {
+        try {
+          localPlayer.initialChargeSound.pause()
+          localPlayer.initialChargeSound.currentTime = 0
+          localPlayer.initialChargeSound.onended = null // Remove handler to prevent delayed loop start
+        } catch (e) {
+          // Ignore errors
+        }
+        localPlayer.initialChargeSound = undefined
+      }
+      localPlayer.isCharging = false
+      localPlayer.chargeLoopStarted = false
+      localPlayer.chargeStartTime = 0
+    }
+  } else {
+    // Space IS pressed - handle charging
     if (!localPlayer.isCharging) {
       // Starting a new charge - stop any existing loop first
       stopSound('chargeLoop')
+      if (localPlayer.initialChargeSound) {
+        try {
+          localPlayer.initialChargeSound.pause()
+          localPlayer.initialChargeSound.onended = null
+        } catch (e) {}
+        localPlayer.initialChargeSound = undefined
+      }
       localPlayer.isCharging = true
       localPlayer.chargeStartTime = now
       localPlayer.chargeLevel = 0
@@ -1049,112 +1084,119 @@ function handleInput() {
       
       // Play charge sound on start, then loop continuously
       // Megaman X behavior: Initial charge sound plays once, when it finishes, loop starts
-      // Only play initial charge sound if we're actually going to charge (chargeTime >= 150ms)
-      // Don't play for quick taps that will just fire uncharged bullets (< 150ms)
-      if (chargeTime >= 150 && !localPlayer.initialChargeSound && !localPlayer.chargeLoopStarted) {
+      // Only play initial charge sound if we're actually going to charge (chargeTime >= 200ms)
+      // Don't play for quick taps that will just fire uncharged bullets
+      if (chargeTime >= 200 && !localPlayer.initialChargeSound && !localPlayer.chargeLoopStarted) {
         // Initial charge sound - play once (only if actually charging, not quick tap)
         const chargeSound = playSound('charge')
         if (chargeSound) {
           localPlayer.initialChargeSound = chargeSound
-          // When initial charge sound ends, start the loop
+          // Create a closure to capture the current charge start time
+          const chargeStartTimeSnapshot = localPlayer.chargeStartTime
+          // When initial charge sound ends, start the loop ONLY if still valid
           chargeSound.onended = () => {
-            // Check if still charging when sound ends (Space still pressed)
-            // Only start loop if we're still charging and Space is still pressed
-            if (localPlayer.isCharging && keys.value.has('Space') && !playingSounds.has('chargeLoop')) {
-              // Start the loop - it will loop automatically via audio.loop = true
+            // Robust check: Only start loop if ALL conditions are met
+            // 1. Player still exists and is charging
+            // 2. Space key is still pressed
+            // 3. Charge start time hasn't changed (same charge session)
+            // 4. Loop hasn't already started
+            // 5. Game is still active
+            if (localPlayer.isCharging && 
+                keys.value.has('Space') && 
+                localPlayer.chargeStartTime === chargeStartTimeSnapshot &&
+                !localPlayer.chargeLoopStarted && 
+                !playingSounds.has('chargeLoop') &&
+                props.isActive) {
+              // Start the loop
               const loopSound = playSound('chargeLoop', true)
               if (loopSound) {
-                localPlayer.chargeLoopStarted = true // Mark that we've started the loop
+                localPlayer.chargeLoopStarted = true
               }
             }
-            localPlayer.initialChargeSound = undefined // Clear reference
+            // Always clear reference
+            if (localPlayer.initialChargeSound === chargeSound) {
+              localPlayer.initialChargeSound = undefined
+            }
           }
         }
-      }
-    }
-  } else {
-    // Space not pressed - if we were charging, stop the loop immediately
-    // This handles the case where Space is released but handleKeyUp hasn't fired yet
-    // Also handles network state desync - if isCharging is true but Space isn't pressed, stop it
-    if (localPlayer.isCharging || playingSounds.has('chargeLoop')) {
-      stopSound('chargeLoop')
-      // Stop initial charge sound if it's still playing
-      if (localPlayer.initialChargeSound) {
-        try {
-          localPlayer.initialChargeSound.pause()
-          localPlayer.initialChargeSound.currentTime = 0
-        } catch (e) {
-          // Ignore errors
-        }
-        localPlayer.initialChargeSound = undefined
-      }
-      localPlayer.isCharging = false // Also reset charging state
-      localPlayer.chargeLoopStarted = false // Reset flag
-      localPlayer.chargeStartTime = 0 // Reset charge start time
-    }
-  }
-  
-  // Continuous check: if loop is playing but Space is not pressed, stop it
-  // This ensures the loop stops immediately when Space is released, even if handleKeyUp hasn't fired
-  // Check this every frame regardless of whether we're in the charging block
-  if (playingSounds.has('chargeLoop')) {
-    // Stop if Space is not pressed OR if the player is not charging
-    if (!keys.value.has('Space') || !localPlayer.isCharging) {
-      stopSound('chargeLoop')
-      localPlayer.chargeLoopStarted = false
-      localPlayer.isCharging = false
-      localPlayer.chargeStartTime = 0
-      // Stop initial charge sound if it's still playing
-      if (localPlayer.initialChargeSound) {
-        try {
-          localPlayer.initialChargeSound.pause()
-          localPlayer.initialChargeSound.currentTime = 0
-          localPlayer.initialChargeSound.onended = null // Remove handler
-        } catch (e) {
-          // Ignore errors
-        }
-        localPlayer.initialChargeSound = undefined
       }
     }
   }
   
   // Movement with arrow keys (not during dash or dashJumping)
-  // Physics-like: Don't override velocityX while in the air - preserve momentum
-  // This is especially important for dash jumps to maintain horizontal dash speed
+  // Megaman X has air control but with some momentum preservation
   const previousFacing = localPlayer.facing
-  // Note: We already return early if dashing, so this check is just for safety
-  // Also exclude dashJumping to preserve horizontal dash momentum during dash jump
   const isInAir = !localPlayer.onGround && !localPlayer.onWall
   
   if ((localPlayer.state as string) !== 'dashing' && (localPlayer.state as string) !== 'dashJumping') {
-    // Only apply movement input when on ground - preserve momentum while in air
-    if (!isInAir) {
+    if (localPlayer.onGround) {
+      // Ground movement - full control
       if (keys.value.has('ArrowLeft')) {
         localPlayer.velocityX = -WALK_SPEED
         localPlayer.facing = 'left'
-        if (localPlayer.onGround) {
-          localPlayer.state = 'walking' // Always show walking when moving, even while charging
-        }
+        localPlayer.state = 'walking'
       } else if (keys.value.has('ArrowRight')) {
         localPlayer.velocityX = WALK_SPEED
         localPlayer.facing = 'right'
-        if (localPlayer.onGround) {
-          localPlayer.state = 'walking' // Always show walking when moving, even while charging
-        }
+        localPlayer.state = 'walking'
       } else {
         localPlayer.velocityX = 0
-        if (localPlayer.onGround && localPlayer.state !== 'jumping' && localPlayer.state !== 'falling' && localPlayer.state !== 'landing' && (localPlayer.state as string) !== 'dashing') {
-          localPlayer.state = localPlayer.isCharging ? 'idle' : 'idle' // Don't use 'shooting' state while charging
+        if (localPlayer.state !== 'landing') {
+          localPlayer.state = 'idle'
+        }
+      }
+    } else if (isInAir && !localPlayer.isWallJumping) {
+      // Air control - Megaman X allows some air control but with momentum
+      // For regular jumps, allow full air control
+      // For dash jumps, preserve more horizontal momentum
+      const isDashJump = localPlayer.isDashJumping || localPlayer.state === 'dashJumping'
+      const airControlFactor = isDashJump ? 0.3 : 1.0 // Less control during dash jump
+      
+      if (keys.value.has('ArrowLeft')) {
+        if (isDashJump) {
+          // Dash jump: blend toward walk speed but preserve some dash momentum
+          localPlayer.velocityX = localPlayer.velocityX * (1 - airControlFactor * 0.1) + (-WALK_SPEED * airControlFactor * 0.1)
+        } else {
+          localPlayer.velocityX = -WALK_SPEED
+        }
+        localPlayer.facing = 'left'
+      } else if (keys.value.has('ArrowRight')) {
+        if (isDashJump) {
+          localPlayer.velocityX = localPlayer.velocityX * (1 - airControlFactor * 0.1) + (WALK_SPEED * airControlFactor * 0.1)
+        } else {
+          localPlayer.velocityX = WALK_SPEED
+        }
+        localPlayer.facing = 'right'
+      } else if (!isDashJump) {
+        // No input and not dash jumping - gradually slow down (air friction)
+        localPlayer.velocityX *= 0.95
+        if (Math.abs(localPlayer.velocityX) < 0.1) {
+          localPlayer.velocityX = 0
+        }
+      }
+      // Dash jump preserves horizontal momentum when no input
+    } else if (localPlayer.isWallJumping) {
+      // During wall jump, allow direction change but preserve kick momentum for a short time
+      const kickTime = Date.now() - (localPlayer.wallKickTime || 0)
+      if (kickTime > 150) {
+        // After brief kick phase, allow some air control
+        if (keys.value.has('ArrowLeft')) {
+          localPlayer.facing = 'left'
+          if (localPlayer.velocityX > -WALK_SPEED) {
+            localPlayer.velocityX -= 0.5 // Gradual acceleration
+          }
+        } else if (keys.value.has('ArrowRight')) {
+          localPlayer.facing = 'right'
+          if (localPlayer.velocityX < WALK_SPEED) {
+            localPlayer.velocityX += 0.5
+          }
         }
       }
     }
-    // While in air: preserve existing velocityX (don't override) - physics-like behavior
     
     // Broadcast immediately if facing changed (force broadcast)
     if (previousFacing !== localPlayer.facing) {
-      // Force immediate broadcast on facing change
       broadcastPlayerState(localPlayer, true)
-      debug.log(`🎮 Facing changed to ${localPlayer.facing}, broadcasting immediately`)
     }
   }
   
@@ -1167,36 +1209,46 @@ function handleInput() {
   if (jumpKeyPressed && !wasJumpKeyPressed) {
     // Jump key just pressed (not held)
     if (localPlayer.onWall && localPlayer.wallSide) {
-      // Wall kick/jump - Megaman X style: kick off wall, can re-grab to climb
-      // Wall kick - jump up and in the direction the player is pressing (left/right)
-      localPlayer.velocityY = -14 // Strong upward kick
+      // Wall kick/jump - Megaman X style: kick off wall in direction AWAY from wall
+      // In real MMX, wall jump always kicks you away from the wall with consistent force
+      const previousWallSide = localPlayer.wallSide
       
-      // Check which direction player is pressing - allow directional control
+      // Calculate kick direction - ALWAYS away from wall (authentic MMX behavior)
+      // Player can influence with directional input but base kick is always away
       const pressingLeft = keys.value.has('ArrowLeft')
       const pressingRight = keys.value.has('ArrowRight')
       
-      if (pressingLeft) {
-        // Jump left
-        localPlayer.velocityX = -8 // Jump left with more speed
-        localPlayer.facing = 'left'
-      } else if (pressingRight) {
-        // Jump right
-        localPlayer.velocityX = 8 // Jump right with more speed
-        localPlayer.facing = 'right'
-      } else {
-        // No direction pressed - kick away from wall (default behavior)
-        localPlayer.velocityX = localPlayer.wallSide === 'left' ? 5 : -5
-        localPlayer.facing = localPlayer.wallSide === 'left' ? 'right' : 'left'
+      // Base kick velocity away from wall
+      let kickX = previousWallSide === 'left' ? WALL_JUMP_X : -WALL_JUMP_X
+      
+      // Allow player to slightly reduce horizontal momentum if pressing toward wall
+      // but never let them stay on the same wall (authentic MMX feel)
+      if ((pressingLeft && previousWallSide === 'left') || 
+          (pressingRight && previousWallSide === 'right')) {
+        // Pressing toward wall - reduced kick but still away from wall
+        kickX = kickX * 0.5
+      } else if ((pressingLeft && previousWallSide === 'right') || 
+                 (pressingRight && previousWallSide === 'left')) {
+        // Pressing away from wall - full kick with slight boost
+        kickX = kickX * 1.2
       }
+      
+      localPlayer.velocityX = kickX
+      localPlayer.velocityY = WALL_JUMP_Y
+      // Face the direction we're jumping (away from wall)
+      localPlayer.facing = previousWallSide === 'left' ? 'right' : 'left'
+      
+      // Clear wall state
       localPlayer.onWall = false
-      const previousWallSide = localPlayer.wallSide
       localPlayer.wallSide = null
       localPlayer.canWallJump = false
-      localPlayer.state = 'wallKick' // Use wall kick state for animation
-      localPlayer.isWallJumping = true // Mark as wall jumping to preserve jump animation
+      localPlayer.onGround = false
+      localPlayer.state = 'wallKick'
+      localPlayer.isWallJumping = true
       localPlayer.wallKickTime = Date.now()
+      
       playSound('jump')
-      broadcastPlayerState(localPlayer, true) // Force broadcast wall jump with facing change
+      
       // Add smoke effect at kick position
       localPlayer.smokeEffects.push({
         x: previousWallSide === 'left' ? localPlayer.x : localPlayer.x + 64,
@@ -1204,14 +1256,15 @@ function handleInput() {
         frame: 0,
         createdAt: Date.now()
       })
-      // After wall kick animation (200ms), switch to jumping
-      // Keep jump animation until re-attaching to wall
+      
+      // After wall kick animation (200ms), switch to jumping/falling based on velocity
       setTimeout(() => {
-        if (localPlayer.state === 'wallKick' && !localPlayer.onWall) {
-          localPlayer.state = 'jumping'
+        if (localPlayer.state === 'wallKick' && !localPlayer.onWall && !localPlayer.onGround) {
+          localPlayer.state = localPlayer.velocityY < 0 ? 'jumping' : 'falling'
         }
       }, 200)
-      broadcastPlayerState(localPlayer, true) // Force broadcast wall kick
+      
+      broadcastPlayerState(localPlayer, true)
     } else if (localPlayer.onGround && !localPlayer.onWall) {
       // Ground jump - only if actually on ground AND not on wall
       localPlayer.velocityY = JUMP_STRENGTH
@@ -1771,57 +1824,87 @@ function gameLoop(currentTime: number) {
     }
     
     // Wall detection (only for local player - remote players get wall state from network)
-    const wallThreshold = 5
+    const wallThreshold = 8 // Slightly more forgiving wall detection
     const isNearLeftWall = player.x <= wallLeft + wallThreshold
     const isNearRightWall = player.x >= wallRight - wallThreshold - 64
     
     // Only apply wall detection and collision to LOCAL player
     // Remote players use network-synced wall state but still apply physics
     if (isLocalPlayer) {
-      if ((isNearLeftWall || isNearRightWall) && !player.onGround) {
-        // Check if player is moving towards wall
+      // Check for wall cling grace period (can't re-grab same wall immediately after wall jump)
+      const timeSinceWallKick = Date.now() - (player.wallKickTime || 0)
+      const canGrabWall = timeSinceWallKick > WALL_CLING_GRACE_PERIOD || !player.isWallJumping
+      
+      if ((isNearLeftWall || isNearRightWall) && !player.onGround && canGrabWall) {
+        // Check if player is pressing toward wall
         const isPressingTowardLeft = keys.value.has('ArrowLeft')
         const isPressingTowardRight = keys.value.has('ArrowRight')
         
-          // Wall cling only when pressing toward wall AND falling (velocityY > 0)
-          if ((isPressingTowardLeft && isNearLeftWall) || (isPressingTowardRight && isNearRightWall)) {
-            if (!player.onWall) {
-              // Just touched wall - switch from jump/wallKick to wallCling
-              player.canWallJump = true
-              // If we were jumping or in wallKick state, switch to wallCling
-              if (player.state === 'jumping' || player.state === 'wallKick') {
-                player.state = 'wallCling'
-                player.isWallJumping = false // Clear wall jump flag when re-attaching
-              }
+        // Wall cling when pressing toward wall - authentic MMX behavior
+        const shouldClingLeft = isPressingTowardLeft && isNearLeftWall
+        const shouldClingRight = isPressingTowardRight && isNearRightWall
+        
+        if (shouldClingLeft || shouldClingRight) {
+          const newWallSide = shouldClingLeft ? 'left' : 'right'
+          
+          if (!player.onWall) {
+            // Just touched wall - transition to wall cling
+            player.canWallJump = true
+            player.isWallJumping = false // Clear wall jump flag when grabbing wall
+            player.state = 'wallCling'
+            // Face AWAY from wall when clinging (authentic MMX)
+            player.facing = newWallSide === 'left' ? 'right' : 'left'
+          }
+          
+          player.onWall = true
+          player.wallSide = newWallSide
+          
+          // Wall slide physics - slow descent with gravity
+          // In MMX, wall slide is slow and controlled
+          if (player.velocityY > WALL_SLIDE_SPEED) {
+            // Slow down to wall slide speed
+            player.velocityY = WALL_SLIDE_SPEED
+          } else if (player.velocityY < 0) {
+            // Rising - apply extra gravity to slow ascent quickly
+            player.velocityY += GRAVITY * deltaSeconds * 60 * 2.0
+            if (player.velocityY > WALL_SLIDE_SPEED) {
+              player.velocityY = WALL_SLIDE_SPEED
             }
-            player.onWall = true
-            player.wallSide = isNearLeftWall ? 'left' : 'right'
-            
-            // Wall slide: slow controlled descent, not going up
-            // Only slow down if actually falling (velocityY > 0)
-            if (player.velocityY > 0) {
-              player.velocityY = Math.min(player.velocityY, WALL_SLIDE_SPEED)
-            } else if (player.velocityY < 0) {
-              // Rising - let gravity slow us down naturally, but faster
-              player.velocityY += GRAVITY * deltaSeconds * 60 * 1.5
-            }
-            
-            // Horizontal velocity should be 0 while wall clinging
-            player.velocityX = 0
-            // Ensure we're in wallCling state when on wall
-            if (player.state === 'jumping' || player.state === 'wallKick') {
-              player.state = 'wallCling'
-              player.isWallJumping = false // Clear wall jump flag when re-attaching
-            }
+          } else {
+            // At or below wall slide speed - maintain wall slide speed
+            player.velocityY = WALL_SLIDE_SPEED
+          }
+          
+          // Stop horizontal movement while wall clinging
+          player.velocityX = 0
+          
+          // Ensure wall cling state and facing direction
+          if (player.state !== 'wallCling') {
+            player.state = 'wallCling'
+          }
+          // Always face away from wall when clinging
+          player.facing = player.wallSide === 'left' ? 'right' : 'left'
         } else {
-          // Releasing direction key while on wall - detach and fall
-          player.onWall = false
-          player.wallSide = null
+          // Releasing direction key or pressing away - detach and fall
+          if (player.onWall) {
+            player.onWall = false
+            player.wallSide = null
+            // Transition to falling state
+            if (player.state === 'wallCling') {
+              player.state = 'falling'
+            }
+          }
         }
       } else {
-        player.onWall = false
-        player.wallSide = null
-        player.canWallJump = false
+        // Not near wall or on ground - clear wall state
+        if (player.onWall) {
+          player.onWall = false
+          player.wallSide = null
+          player.canWallJump = false
+          if (player.state === 'wallCling') {
+            player.state = player.velocityY < 0 ? 'jumping' : 'falling'
+          }
+        }
       }
       
       // Apply velocity to position (local player - remote players already handled above)
@@ -1861,46 +1944,60 @@ function gameLoop(currentTime: number) {
       }
       
       // Update state based on velocity when in air (charging doesn't change state)
-      // Keep dashJumping, wallKick, and wallJumping states until landing or state changes
-      if (!player.onGround && !player.onWall && 
-          player.state !== 'dashing' && 
-          player.state !== 'dashJumping' && 
-          player.state !== 'wallKick' &&
-          player.state !== 'hit' &&
-          player.state !== 'dead' &&
-          !player.isWallJumping) { // Don't override state during wall jump
-        if (player.velocityY > 0) {
-          player.state = 'falling'
-        } else if (player.velocityY < 0) {
-          player.state = 'jumping'
+      // Keep special states until they should transition
+      if (!player.onGround && !player.onWall) {
+        // Wall kick transitions to jumping/falling after animation
+        if (player.state === 'wallKick') {
+          const kickTime = Date.now() - (player.wallKickTime || 0)
+          if (kickTime > 200) {
+            player.state = player.velocityY < 0 ? 'jumping' : 'falling'
+          }
+        }
+        // Dash jump transitions to falling when velocity turns positive
+        else if (player.state === 'dashJumping') {
+          if (player.velocityY > 0) {
+            player.state = 'falling'
+            player.isDashJumping = true // Keep momentum indicator
+          }
+        }
+        // Regular air states
+        else if (player.state !== 'dashing' && 
+                 player.state !== 'hit' &&
+                 player.state !== 'dead' &&
+                 !player.isWallJumping) {
+          if (player.velocityY > 0.5) {
+            player.state = 'falling'
+          } else if (player.velocityY < -0.5) {
+            player.state = 'jumping'
+          }
+        }
+        // Wall jumping state - transitions based on velocity
+        else if (player.isWallJumping && player.state !== 'wallKick') {
+          if (player.velocityY > 0.5) {
+            player.state = 'falling'
+          } else {
+            player.state = 'jumping'
+          }
         }
       }
       
       // Clear wall jump flag when landing
-      if (player.onGround && player.isWallJumping) {
-        player.isWallJumping = false
-      }
-      
-      // Dash-jumping transitions: when velocity drops significantly, switch to fall
-      if (player.state === 'dashJumping' && player.velocityY > 2) {
-        player.state = 'falling'
-        player.isDashJumping = true // Keep the momentum indicator
+      if (player.onGround) {
+        if (player.isWallJumping) {
+          player.isWallJumping = false
+        }
+        if (player.isDashJumping) {
+          player.isDashJumping = false
+        }
       }
       
       // Boundary collision (only for local player)
+      // Don't auto-cling to walls on collision - require pressing toward wall
       if (player.x < 0) {
         player.x = 0
-        if (!player.onGround) {
-          player.onWall = true
-          player.wallSide = 'left'
-        }
       }
       if (player.x > canvasWidth - 64) {
         player.x = canvasWidth - 64
-        if (!player.onGround) {
-          player.onWall = true
-          player.wallSide = 'right'
-        }
       }
     }
     // Remote players: position/state come from network, no physics applied
@@ -3070,6 +3167,41 @@ function stopGame() {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   
+  // Stop ALL sounds when exiting game - especially charge loop
+  stopSound('chargeLoop')
+  stopSound('charge')
+  
+  // Stop and clean up all playing sounds
+  playingSounds.forEach((audio, soundName) => {
+    try {
+      audio.pause()
+      audio.currentTime = 0
+      audio.loop = false
+      audio.onended = null
+      audio.onerror = null
+    } catch (e) {
+      // Ignore errors
+    }
+  })
+  playingSounds.clear()
+  
+  // Clean up player charge states
+  players.value.forEach((player) => {
+    player.isCharging = false
+    player.chargeLoopStarted = false
+    player.chargeStartTime = 0
+    if (player.initialChargeSound) {
+      try {
+        player.initialChargeSound.pause()
+        player.initialChargeSound.currentTime = 0
+        player.initialChargeSound.onended = null
+      } catch (e) {
+        // Ignore errors
+      }
+      player.initialChargeSound = undefined
+    }
+  })
+  
   if (gameChannel) {
     gameChannel.unsubscribe()
     gameChannel = null
@@ -3101,6 +3233,20 @@ onUnmounted(() => {
 })
 
 function closeGame() {
+  // Ensure all sounds are stopped before closing
+  stopSound('chargeLoop')
+  stopSound('charge')
+  
+  // Clean up any player charge sounds
+  const localPlayer = players.value.get(props.userId)
+  if (localPlayer?.initialChargeSound) {
+    try {
+      localPlayer.initialChargeSound.pause()
+      localPlayer.initialChargeSound.onended = null
+    } catch (e) {}
+    localPlayer.initialChargeSound = undefined
+  }
+  
   stopGame()
   emit('close')
 }
