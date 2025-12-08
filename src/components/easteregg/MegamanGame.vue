@@ -94,11 +94,45 @@ interface Bullet {
   facing: 'left' | 'right' // Direction bullet is traveling for sprite flipping
 }
 
+interface HealthPickup {
+  id: string
+  x: number
+  y: number
+  type: 'HP_Small' | 'HP_Large' // HP2 or HP10
+  healAmount: number
+  createdAt: number
+  animFrame: number
+}
+
+interface Platform {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  type: 'static' | 'moving'
+  moveDirection?: 'horizontal' | 'vertical'
+  moveSpeed?: number
+  moveRange?: number // How far it moves from starting position
+  startX?: number // Original position for moving platforms
+  startY?: number
+}
+
 const players = ref<Map<string, Player>>(new Map())
 const bullets = ref<Map<string, Bullet>>(new Map())
+const healthPickups = ref<Map<string, HealthPickup>>(new Map())
+const platforms = ref<Platform[]>([])
 const keys = ref<Set<string>>(new Set())
 let bulletIdCounter = 0
+let pickupIdCounter = 0
+let lastPickupSpawnTime = 0
+const PICKUP_SPAWN_INTERVAL = 8000 // Spawn a pickup every 8 seconds
+const MAX_PICKUPS = 5 // Maximum pickups on screen
 const colorAssignments = ref<Map<string, { color: string; playerIndex: number }>>(new Map()) // Store color assignments from host
+
+// Item sprites
+const itemSprites = ref<Map<string, HTMLImageElement>>(new Map())
+const itemData = ref<any>(null)
 
 // Sprite loading - individual images
 interface AnimationFrame {
@@ -303,6 +337,9 @@ const soundPaths = {
   ],
   spawn: [
     '/assets/easteregg/x_teleportdown.wav',
+  ],
+  energyFill: [
+    '/assets/easteregg/energy_fill.wav',
   ],
 }
 
@@ -764,6 +801,7 @@ async function loadAnimations() {
       await loadBusterSprites()
       await loadHPBarSprites()
       await loadEffectSprites()
+      await loadItemSprites()
     } else {
       debug.warn('Could not load animations.json:', response.status, response.statusText)
     }
@@ -1056,6 +1094,207 @@ async function loadEffectSprites() {
   }
   
   debug.log('🎮 Loaded effect sprites')
+}
+
+// Load item sprites (health pickups)
+async function loadItemSprites() {
+  try {
+    const response = await fetch('/assets/easteregg/megaman/sprites/items.json')
+    if (response.ok) {
+      itemData.value = await response.json()
+      debug.log('🎮 Loaded item data:', itemData.value)
+      
+      // Load all item sprite images
+      const allItemFrames: Array<{ name: string; file: string }> = []
+      
+      for (const frames of Object.values(itemData.value)) {
+        if (Array.isArray(frames)) {
+          for (const frame of frames as Array<{ name: string; file: string }>) {
+            allItemFrames.push(frame)
+          }
+        }
+      }
+      
+      debug.log(`🎮 Loading ${allItemFrames.length} item sprite images...`)
+      
+      const loadPromises = allItemFrames.map(frame => {
+        return new Promise<void>((resolve) => {
+          if (itemSprites.value.has(frame.file)) {
+            resolve()
+            return
+          }
+          
+          const img = new Image()
+          img.onload = () => {
+            itemSprites.value.set(frame.file, img)
+            resolve()
+          }
+          img.onerror = () => {
+            debug.warn(`❌ Failed to load item sprite: ${frame.file}`)
+            resolve()
+          }
+          const spritePath = `/assets/easteregg/megaman/sprites/${frame.file}`
+          img.src = spritePath
+        })
+      })
+      
+      await Promise.all(loadPromises)
+      debug.log(`🎮 Loaded ${itemSprites.value.size}/${allItemFrames.length} item sprites`)
+    } else {
+      debug.warn('Could not load items.json')
+    }
+  } catch (error) {
+    debug.error('Error loading item sprites:', error)
+  }
+}
+
+// Initialize platforms
+function initializePlatforms() {
+  platforms.value = []
+  const canvasWidth = gameCanvasWidth.value
+  const canvasHeight = gameCanvasHeight.value
+  const floorY = canvasHeight - 20
+  
+  // Create some static platforms at varying heights
+  const platformConfigs = [
+    // Left side platforms
+    { x: 30, y: floorY - 80, width: 80, height: 12 },
+    { x: 20, y: floorY - 160, width: 60, height: 12 },
+    
+    // Center platforms
+    { x: canvasWidth / 2 - 50, y: floorY - 120, width: 100, height: 12 },
+    { x: canvasWidth / 2 - 30, y: floorY - 200, width: 60, height: 12 },
+    
+    // Right side platforms
+    { x: canvasWidth - 110, y: floorY - 80, width: 80, height: 12 },
+    { x: canvasWidth - 80, y: floorY - 160, width: 60, height: 12 },
+  ]
+  
+  platformConfigs.forEach((config, index) => {
+    platforms.value.push({
+      id: `platform-${index}`,
+      x: config.x,
+      y: config.y,
+      width: config.width,
+      height: config.height,
+      type: 'static'
+    })
+  })
+  
+  // Add 1-2 moving platforms
+  platforms.value.push({
+    id: 'moving-1',
+    x: canvasWidth / 4,
+    y: floorY - 100,
+    width: 70,
+    height: 12,
+    type: 'moving',
+    moveDirection: 'horizontal',
+    moveSpeed: 1.5,
+    moveRange: 80,
+    startX: canvasWidth / 4,
+    startY: floorY - 100
+  })
+  
+  platforms.value.push({
+    id: 'moving-2',
+    x: canvasWidth * 3 / 4 - 35,
+    y: floorY - 140,
+    width: 70,
+    height: 12,
+    type: 'moving',
+    moveDirection: 'vertical',
+    moveSpeed: 1,
+    moveRange: 50,
+    startX: canvasWidth * 3 / 4 - 35,
+    startY: floorY - 140
+  })
+  
+  debug.log(`🎮 Initialized ${platforms.value.length} platforms`)
+}
+
+// Spawn a health pickup at random position
+function spawnHealthPickup() {
+  if (healthPickups.value.size >= MAX_PICKUPS) return
+  
+  const canvasWidth = gameCanvasWidth.value
+  const canvasHeight = gameCanvasHeight.value
+  const floorY = canvasHeight - 20
+  
+  // Random position (avoid edges)
+  const x = 30 + Math.random() * (canvasWidth - 60)
+  
+  // Spawn on floor or on a random platform
+  let y = floorY - 20 // Default to floor
+  
+  // 50% chance to spawn on a platform if platforms exist
+  if (platforms.value.length > 0 && Math.random() > 0.5) {
+    const platform = platforms.value[Math.floor(Math.random() * platforms.value.length)]
+    y = platform.y - 20
+    // Center on platform
+    const platformCenterX = platform.x + platform.width / 2
+    // Clamp within platform bounds
+    const clampedX = Math.max(platform.x + 5, Math.min(platformCenterX, platform.x + platform.width - 25))
+    // Only use this position if it's valid
+    if (clampedX >= platform.x && clampedX <= platform.x + platform.width - 20) {
+      // Use platform position
+    }
+  }
+  
+  // Random type: 70% small (2 HP), 30% large (10 HP)
+  const isLarge = Math.random() > 0.7
+  const type = isLarge ? 'HP_Large' : 'HP_Small'
+  const healAmount = isLarge ? 10 : 2
+  
+  const pickup: HealthPickup = {
+    id: `pickup-${pickupIdCounter++}`,
+    x,
+    y,
+    type,
+    healAmount,
+    createdAt: Date.now(),
+    animFrame: 0
+  }
+  
+  healthPickups.value.set(pickup.id, pickup)
+  debug.log(`🎮 Spawned ${type} pickup at (${x.toFixed(0)}, ${y.toFixed(0)})`)
+}
+
+// Check collision between player and pickup
+function checkPickupCollision(player: Player, pickup: HealthPickup): boolean {
+  const playerWidth = 64
+  const playerHeight = 64
+  const pickupWidth = pickup.type === 'HP_Large' ? 32 : 20
+  const pickupHeight = pickup.type === 'HP_Large' ? 32 : 24
+  
+  return (
+    player.x < pickup.x + pickupWidth &&
+    player.x + playerWidth > pickup.x &&
+    player.y < pickup.y + pickupHeight &&
+    player.y + playerHeight > pickup.y
+  )
+}
+
+// Check collision between player and platform (returns the platform if on top)
+function checkPlatformCollision(player: Player, prevY: number): Platform | null {
+  const playerWidth = 64
+  const playerHeight = 64
+  const playerBottom = player.y + playerHeight
+  const prevPlayerBottom = prevY + playerHeight
+  
+  for (const platform of platforms.value) {
+    // Check if player is above platform and falling onto it
+    const playerCenterX = player.x + playerWidth / 2
+    const isWithinPlatformX = playerCenterX > platform.x && playerCenterX < platform.x + platform.width
+    const wasAbovePlatform = prevPlayerBottom <= platform.y
+    const isNowAtOrBelowPlatform = playerBottom >= platform.y
+    
+    if (isWithinPlatformX && wasAbovePlatform && isNowAtOrBelowPlatform && player.velocityY >= 0) {
+      return platform
+    }
+  }
+  
+  return null
 }
 
 // Initialize players
@@ -2024,6 +2263,81 @@ function gameLoop(currentTime: number) {
   ctx.fillRect(0, 0, 5, canvasHeight) // Left wall
   ctx.fillRect(canvasWidth - 5, 0, 5, canvasHeight) // Right wall
   
+  // Update and draw platforms
+  if (ctx) {
+    platforms.value.forEach(platform => {
+      // Update moving platforms
+      if (platform.type === 'moving' && platform.startX !== undefined && platform.startY !== undefined) {
+        const time = Date.now() / 1000 // Time in seconds
+        const moveRange = platform.moveRange || 50
+        const moveSpeed = platform.moveSpeed || 1
+        
+        if (platform.moveDirection === 'horizontal') {
+          platform.x = platform.startX + Math.sin(time * moveSpeed) * moveRange
+        } else if (platform.moveDirection === 'vertical') {
+          platform.y = platform.startY + Math.sin(time * moveSpeed) * moveRange
+        }
+      }
+      
+      // Draw platform
+      ctx!.fillStyle = platform.type === 'moving' ? '#2d5a7b' : '#1e4d6b'
+      ctx!.fillRect(platform.x, platform.y, platform.width, platform.height)
+      
+      // Draw platform edge highlight
+      ctx!.fillStyle = platform.type === 'moving' ? '#4a8ab0' : '#3a7a9a'
+      ctx!.fillRect(platform.x, platform.y, platform.width, 3)
+    })
+  }
+  
+  // Spawn health pickups periodically
+  const now = Date.now()
+  if (now - lastPickupSpawnTime > PICKUP_SPAWN_INTERVAL) {
+    spawnHealthPickup()
+    lastPickupSpawnTime = now
+  }
+  
+  // Update and draw health pickups
+  if (ctx) {
+    healthPickups.value.forEach((pickup, pickupId) => {
+      // Animate pickup (cycle through 3 frames)
+      const animTime = now - pickup.createdAt
+      pickup.animFrame = Math.floor((animTime / 150) % 3)
+      
+      // Draw pickup sprite
+      if (itemData.value) {
+        const itemFrames = itemData.value[pickup.type]
+        if (itemFrames && itemFrames.length > pickup.animFrame) {
+          const frame = itemFrames[pickup.animFrame]
+          const sprite = itemSprites.value.get(frame.file)
+          
+          if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+            // Scale based on original bitmap resolution (2x in Scratch)
+            const scale = sprite.naturalWidth > 20 ? 1 : 2
+            const drawWidth = sprite.naturalWidth * scale
+            const drawHeight = sprite.naturalHeight * scale
+            
+            ctx!.drawImage(sprite, pickup.x, pickup.y, drawWidth, drawHeight)
+          } else {
+            // Fallback: draw colored rectangle
+            ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
+            const size = pickup.type === 'HP_Large' ? 24 : 16
+            ctx!.fillRect(pickup.x, pickup.y, size, size)
+          }
+        }
+      } else {
+        // Fallback: draw colored rectangle
+        ctx!.fillStyle = pickup.type === 'HP_Large' ? '#00ff00' : '#88ff88'
+        const size = pickup.type === 'HP_Large' ? 24 : 16
+        ctx!.fillRect(pickup.x, pickup.y, size, size)
+      }
+      
+      // Remove pickups after 30 seconds
+      if (now - pickup.createdAt > 30000) {
+        healthPickups.value.delete(pickupId)
+      }
+    })
+  }
+  
   // Debug: Draw player count
   if (players.value.size === 0 && (!showIntro || Date.now() - gameStartTime >= 2000)) {
     ctx.fillStyle = '#fff'
@@ -2484,12 +2798,53 @@ function gameLoop(currentTime: number) {
         }
       }
       
+      // Store previous Y for platform collision detection
+      const prevY = player.y
+      
       // Apply velocity to position (local player - remote players already handled above)
       player.x += player.velocityX * deltaSeconds * 60
       player.y += player.velocityY * deltaSeconds * 60
       
+      // Platform collision (check before ground collision)
+      const collidedPlatform = checkPlatformCollision(player, prevY)
+      if (collidedPlatform && player.velocityY >= 0) {
+        if (!player.onGround) {
+          // Just landed on platform - play land sound
+          playSound('land')
+          player.isDashJumping = false
+          player.canDash = true
+          
+          player.state = 'landing'
+          player.smokeEffects.push({
+            x: player.x + 32,
+            y: collidedPlatform.y,
+            frame: 0,
+            createdAt: Date.now()
+          })
+          setTimeout(() => {
+            if (player.state === 'landing') {
+              player.state = player.velocityX !== 0 ? 'walking' : 'idle'
+            }
+          }, 150)
+        }
+        player.y = collidedPlatform.y - 64
+        player.velocityY = 0
+        player.onGround = true
+        player.onWall = false
+        player.wallSide = null
+        
+        // Move with horizontal moving platform
+        if (collidedPlatform.type === 'moving' && collidedPlatform.moveDirection === 'horizontal') {
+          // Platform velocity approximation
+          const time = Date.now() / 1000
+          const moveSpeed = collidedPlatform.moveSpeed || 1
+          const moveRange = collidedPlatform.moveRange || 50
+          const platformVelocity = Math.cos(time * moveSpeed) * moveSpeed * moveRange * 0.016 // ~60fps
+          player.x += platformVelocity
+        }
+      }
       // Ground collision (local player)
-      if (player.y >= floorY - 64) {
+      else if (player.y >= floorY - 64) {
         if (!player.onGround) {
           // Just landed - play land sound
           playSound('land')
@@ -2519,6 +2874,32 @@ function gameLoop(currentTime: number) {
       } else {
         player.onGround = false
       }
+      
+      // Check health pickup collection (local player only)
+      healthPickups.value.forEach((pickup, pickupId) => {
+        if (checkPickupCollision(player, pickup)) {
+          // Only collect if not at full health
+          if (player.health < player.maxHealth) {
+            player.health = Math.min(player.maxHealth, player.health + pickup.healAmount)
+            healthPickups.value.delete(pickupId)
+            playSound('energyFill')
+            debug.log(`🎮 Player collected ${pickup.type} (+${pickup.healAmount} HP, now ${player.health}/${player.maxHealth})`)
+            
+            // Broadcast pickup collection
+            if (gameChannel) {
+              gameChannel.send({
+                type: 'broadcast',
+                event: 'pickup-collected',
+                payload: {
+                  pickupId,
+                  userId: player.userId,
+                  health: player.health
+                }
+              })
+            }
+          }
+        }
+      })
       
       // Update state based on velocity when in air (charging doesn't change state)
       // Keep special states until they should transition
@@ -3762,6 +4143,19 @@ function setupRealtimeListener() {
     bullets.value.delete(bulletId)
   })
   
+  gameChannel.on('broadcast', { event: 'pickup-collected' }, (payload) => {
+    const { pickupId, userId, health } = payload.payload as { pickupId: string; userId: string; health: number }
+    
+    // Remove pickup for all players
+    healthPickups.value.delete(pickupId)
+    
+    // Update remote player health
+    const player = players.value.get(userId)
+    if (player && userId !== props.userId) {
+      player.health = health
+    }
+  })
+  
   gameChannel.subscribe()
 }
 
@@ -3867,6 +4261,13 @@ function startGame() {
   lastFrameTime = performance.now()
   gameStartTime = Date.now()
   showIntro = true
+  lastPickupSpawnTime = Date.now()
+  
+  // Clear pickups from previous game
+  healthPickups.value.clear()
+  
+  // Initialize platforms
+  initializePlatforms()
   
   // Initialize players after a short delay to show intro first
   setTimeout(() => {
