@@ -267,16 +267,6 @@
     <ConfettiEffect 
       :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'"
     />
-
-    <!-- Megaman Game -->
-    <MegamanGame
-      v-if="easterEggState.isActive && easterEggState.type === 'megaman'"
-      :is-active="easterEggState.isActive && easterEggState.type === 'megaman'"
-      :channel-id="voiceStore.currentChannelId || voiceStore.optimisticChannelId || ''"
-      :user-id="voiceStore.localState.userId || authStore.session?.user?.id || ''"
-      :participants="voiceStore.allParticipants.map(p => ({ userId: p.userId, username: (p as any).username || 'Player' }))"
-      @close="easterEggService.deactivate()"
-    />
   </Teleport>
 </template>
 
@@ -288,14 +278,12 @@ import { useAdaptiveGrid } from '@/composables/useAdaptiveGrid';
 import { useKeybinds } from '@/composables/useKeybinds';
 import { debug } from '@/utils/debug';
 import { useKonamiCode } from '@/composables/useKonamiCode';
-import { easterEggService } from '@/services/EasterEggService';
+import { easterEggService, type EasterEggState } from '@/services/EasterEggService';
 import { useAuthStore } from '@/stores/auth';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
-import DeviceSelector from '../easteregg/ConfettiEffect.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
-import MegamanGame from '../easteregg/MegamanGame.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Centralized keybind system
@@ -328,11 +316,11 @@ const showSettings = ref(false);
 const isThumbnailStripCollapsed = ref(false);
 
 // Easter egg state
-const easterEggState = ref({
+const easterEggState = ref<EasterEggState>({
   isActive: false,
-  type: null as 'rainbow-party' | 'retro-game' | 'power-up' | 'megaman' | null,
-  activatedBy: null as string | null,
-  activatedAt: null as number | null,
+  type: null,
+  activatedBy: null,
+  activatedAt: null,
 });
 
 // Full window mode is now in the store
@@ -572,7 +560,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         return
       }
 
-      debug.log('🎮 [Konami] Activating Megaman game mode!')
+      debug.log('🎮 [Konami] Activating rainbow party!')
       konamiEnabled.value = false // Disable konami code detection
       
       // Stop konami code detector
@@ -580,18 +568,23 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         konamiDetector.reset()
       }
       
-      easterEggService.activate('megaman', currentUserId)
+      easterEggService.activate('rainbow-party', currentUserId)
+      
+      // Auto-deactivate after confetti duration (10 seconds default)
+      setTimeout(() => {
+        easterEggService.deactivate()
+      }, 10000)
       
       // No auto-deactivate - users can close manually with X button
     }
     
-    // Reset konami flag when game closes
+    // Reset konami flag when rainbow party closes
     watch(() => easterEggState.value.isActive, (isActive) => {
-      if (!isActive && easterEggState.value.type === 'megaman') {
+      if (!isActive && easterEggState.value.type === 'rainbow-party') {
         konamiEnabled.value = true // Re-enable konami code detection
         // Re-initialize konami detector
         konamiDetector = useKonamiCode(handleKonamiActivate)
-        debug.log('🎮 [Konami] Game closed, re-enabling konami code detection')
+        debug.log('🎮 [Konami] Rainbow party closed, re-enabling konami code detection')
       }
     })
 

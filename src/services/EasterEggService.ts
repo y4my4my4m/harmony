@@ -9,7 +9,7 @@ import { supabase } from '@/supabase'
 
 export type EasterEggType = 'rainbow-party' | 'retro-game' | 'power-up' | 'megaman'
 
-interface EasterEggState {
+export interface EasterEggState {
   isActive: boolean
   type: EasterEggType | null
   activatedBy: string | null
