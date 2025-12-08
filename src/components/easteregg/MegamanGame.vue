@@ -69,6 +69,7 @@ interface Player {
   isWallJumping?: boolean // True when performing a wall jump (keep jump animation until re-attaching)
   wallKickTime?: number // When wall kick animation started
   chargeLoopStarted?: boolean // Track if charge loop has been started for this charge cycle
+  initialChargeSound?: HTMLAudioElement // Reference to initial charge sound to detect when it ends
   // Interpolation for remote players
   targetX?: number // Target position from network
   targetY?: number // Target position from network
@@ -128,6 +129,7 @@ const hpBarData = ref<any>(null)
 const currentFrame = ref<Map<string, number>>(new Map())
 const frameTime = ref<Map<string, number>>(new Map()) // Use time instead of timer
 const lastAnimationType = ref<Map<string, 'walk' | 'run_fire' | 'other'>>(new Map()) // Track last animation to detect switches
+const lastSwitchFrameMap = ref<Map<string, 'walk' | 'run_fire' | 'other'>>(new Map()) // Track if we've already adjusted frame for current switch
 const lastPlayerStateMap = ref<Map<string, string>>(new Map()) // Track last player state to detect state transitions
 const chargeFrame = ref<Map<string, number>>(new Map()) // For charge animation
 const smokeSprites = ref<Map<string, HTMLImageElement>>(new Map())
@@ -340,7 +342,7 @@ function initializeSounds() {
   soundsInitialized = true
 }
 
-function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
+function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): HTMLAudioElement | null {
   try {
     initializeSounds()
     
@@ -350,7 +352,7 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
       if (currentSound) {
         // If already playing and we're trying to start the same loop, don't restart (let it continue)
         if (!currentSound.paused && soundName === 'chargeLoop') {
-          return // Already playing charge loop, don't restart
+          return currentSound // Already playing charge loop, don't restart
         }
         // If paused or different sound, clean it up first
         currentSound.pause()
@@ -360,7 +362,7 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
     }
     
     const paths = soundPaths[soundName]
-    if (!paths || paths.length === 0) return
+    if (!paths || paths.length === 0) return null
     
     // Try to play sound - create new Audio each time for better reliability
     for (const path of paths) {
@@ -394,8 +396,8 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
             playingSounds.set(soundName, audio)
           }
         }
-        // If we successfully created and attempted to play, break
-        break
+        // Return the audio element so caller can use it (e.g., for onended event)
+        return audio
       } catch (e) {
         // Try next path
         debug.warn(`🎮 Failed to create audio for ${soundName}:`, e)
@@ -405,17 +407,21 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false) {
   } catch (error) {
     debug.warn(`🎮 Error in playSound for ${soundName}:`, error)
   }
+  return null
 }
 
 function stopSound(soundName: keyof typeof soundPaths) {
   const currentSound = playingSounds.get(soundName)
   if (currentSound) {
     try {
-      currentSound.pause()
-      currentSound.currentTime = 0
-      // Remove all event listeners to prevent memory leaks
+      // Remove all event listeners first to prevent callbacks
       currentSound.onerror = null
       currentSound.onended = null
+      // Stop the sound
+      currentSound.pause()
+      currentSound.currentTime = 0
+      // Disable loop to ensure it stops
+      currentSound.loop = false
     } catch (e) {
       debug.warn(`🎮 Error stopping sound ${soundName}:`, e)
     }
@@ -857,6 +863,16 @@ function handleKeyUp(event: KeyboardEvent) {
     
     // Always stop charge loop when releasing space (clean up)
     stopSound('chargeLoop')
+    // Stop initial charge sound if it's still playing
+    if (localPlayer.initialChargeSound) {
+      try {
+        localPlayer.initialChargeSound.pause()
+        localPlayer.initialChargeSound.currentTime = 0
+      } catch (e) {
+        // Ignore errors
+      }
+      localPlayer.initialChargeSound = undefined
+    }
     localPlayer.chargeLoopStarted = false // Reset flag immediately
     
     if (localPlayer.isCharging) {
@@ -881,7 +897,7 @@ function handleKeyUp(event: KeyboardEvent) {
       localPlayer.isCharging = false
       localPlayer.chargeLevel = 0
       localPlayer.chargeLoopStarted = false // Reset loop flag
-      localPlayer.isShooting = false
+      // Don't clear isShooting here - let fireBullet manage it (for shooting animation)
       
       // Broadcast charge release to network
       broadcastPlayerState(localPlayer, true)
@@ -905,6 +921,15 @@ function handleKeyUp(event: KeyboardEvent) {
 function handleInput() {
   const localPlayer = players.value.get(props.userId)
   if (!localPlayer) return
+  
+  // Safety check: Stop charge loop if player is dead or in invalid state
+  if (localPlayer.state === 'dead' || localPlayer.state === 'hit') {
+    if (localPlayer.isCharging || playingSounds.has('chargeLoop')) {
+      stopSound('chargeLoop')
+      localPlayer.isCharging = false
+      localPlayer.chargeLoopStarted = false
+    }
+  }
   
   const now = Date.now()
   
@@ -999,7 +1024,10 @@ function handleInput() {
   }
   
   // Charging (hold Space) - only update charge, don't fire here
-  if (keys.value.has('Space')) {
+  // CRITICAL: Only process charging if Space key is actually pressed (not from network state)
+  const spaceKeyPressed = keys.value.has('Space')
+  
+  if (spaceKeyPressed) {
     if (!localPlayer.isCharging) {
       // Starting a new charge - stop any existing loop first
       stopSound('chargeLoop')
@@ -1019,30 +1047,74 @@ function handleInput() {
         localPlayer.chargeLevel = 1
       }
       
-      // Play charge sound on start, then loop continuously (ONLY ONCE per charge cycle)
-      // Megaman X behavior: Initial charge sound plays once, then loop starts and continues
-      // Since handleInput is called every frame now, we need to be careful about the loop
-      // Only play charge sound if we're actually going to charge (chargeTime >= 150ms)
+      // Play charge sound on start, then loop continuously
+      // Megaman X behavior: Initial charge sound plays once, when it finishes, loop starts
+      // Only play initial charge sound if we're actually going to charge (chargeTime >= 150ms)
       // Don't play for quick taps that will just fire uncharged bullets (< 150ms)
-      // Quick taps are typically < 100ms, so 150ms threshold ensures we only play for actual charges
-      if (chargeTime >= 150 && chargeTime < 200 && !localPlayer.chargeLoopStarted) {
-        // Initial charge sound - play once after 150ms (only if actually charging, not quick tap)
-        playSound('charge')
-        localPlayer.chargeLoopStarted = false // Reset flag when starting new charge
-      } else if (chargeTime >= 250 && !localPlayer.chargeLoopStarted) {
-        // Start charge loop after initial charge sound - ONLY ONCE
-        // Stop any existing loop first to ensure clean start
-        stopSound('chargeLoop')
-        playSound('chargeLoop', true) // Loop continuously until release
-        localPlayer.chargeLoopStarted = true // Mark that we've started the loop
+      if (chargeTime >= 150 && !localPlayer.initialChargeSound && !localPlayer.chargeLoopStarted) {
+        // Initial charge sound - play once (only if actually charging, not quick tap)
+        const chargeSound = playSound('charge')
+        if (chargeSound) {
+          localPlayer.initialChargeSound = chargeSound
+          // When initial charge sound ends, start the loop
+          chargeSound.onended = () => {
+            // Check if still charging when sound ends (Space still pressed)
+            // Only start loop if we're still charging and Space is still pressed
+            if (localPlayer.isCharging && keys.value.has('Space') && !playingSounds.has('chargeLoop')) {
+              // Start the loop - it will loop automatically via audio.loop = true
+              const loopSound = playSound('chargeLoop', true)
+              if (loopSound) {
+                localPlayer.chargeLoopStarted = true // Mark that we've started the loop
+              }
+            }
+            localPlayer.initialChargeSound = undefined // Clear reference
+          }
+        }
       }
     }
   } else {
-    // Space not pressed - if we were charging, stop the loop
+    // Space not pressed - if we were charging, stop the loop immediately
     // This handles the case where Space is released but handleKeyUp hasn't fired yet
-    if (localPlayer.isCharging) {
+    // Also handles network state desync - if isCharging is true but Space isn't pressed, stop it
+    if (localPlayer.isCharging || playingSounds.has('chargeLoop')) {
       stopSound('chargeLoop')
+      // Stop initial charge sound if it's still playing
+      if (localPlayer.initialChargeSound) {
+        try {
+          localPlayer.initialChargeSound.pause()
+          localPlayer.initialChargeSound.currentTime = 0
+        } catch (e) {
+          // Ignore errors
+        }
+        localPlayer.initialChargeSound = undefined
+      }
+      localPlayer.isCharging = false // Also reset charging state
       localPlayer.chargeLoopStarted = false // Reset flag
+      localPlayer.chargeStartTime = 0 // Reset charge start time
+    }
+  }
+  
+  // Continuous check: if loop is playing but Space is not pressed, stop it
+  // This ensures the loop stops immediately when Space is released, even if handleKeyUp hasn't fired
+  // Check this every frame regardless of whether we're in the charging block
+  if (playingSounds.has('chargeLoop')) {
+    // Stop if Space is not pressed OR if the player is not charging
+    if (!keys.value.has('Space') || !localPlayer.isCharging) {
+      stopSound('chargeLoop')
+      localPlayer.chargeLoopStarted = false
+      localPlayer.isCharging = false
+      localPlayer.chargeStartTime = 0
+      // Stop initial charge sound if it's still playing
+      if (localPlayer.initialChargeSound) {
+        try {
+          localPlayer.initialChargeSound.pause()
+          localPlayer.initialChargeSound.currentTime = 0
+          localPlayer.initialChargeSound.onended = null // Remove handler
+        } catch (e) {
+          // Ignore errors
+        }
+        localPlayer.initialChargeSound = undefined
+      }
     }
   }
   
@@ -1171,8 +1243,11 @@ function fireBullet(player: Player, chargeLevel: number = 0) {
   player.lastShotTime = Date.now()
   
   // Clear shooting state after animation duration
+  // For continuous shooting, lastShotTime will keep getting updated, so isShooting stays true
   setTimeout(() => {
-    if (Date.now() - player.lastShotTime >= 200) {
+    const timeSinceLastShot = Date.now() - player.lastShotTime
+    // Only clear if enough time has passed since last shot (allows for continuous shooting)
+    if (timeSinceLastShot >= 200) {
       player.isShooting = false
     }
   }, 200)
@@ -1456,6 +1531,12 @@ function gameLoop(currentTime: number) {
         if (player.health <= 0) {
           player.state = 'dead'
           player.hitTime = now // Set hitTime for death animation
+          // Stop charge loop if player was charging when they died
+          if (player.isCharging) {
+            stopSound('chargeLoop')
+            player.isCharging = false
+            player.chargeLoopStarted = false
+          }
           playSound('death') // Use X_LoseLife sound for death
           
           // Broadcast death event
@@ -2005,9 +2086,28 @@ function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFra
   }
   
   // Shooting animation when shooting (but NOT while charging - charging shows movement animation with charge effect)
-  // Show shooting animation for 200ms after firing
+  // For walking + shooting: show run_fire animation as long as player is walking (even after releasing Space)
+  // For other states: show shooting animation for 200ms after firing
   const timeSinceLastShot = Date.now() - (player.lastShotTime || 0)
-  if ((player.isShooting || timeSinceLastShot < 200) && !player.isCharging) {
+  const wasShootingWhileWalking = player.state === 'walking' && (player.isShooting || timeSinceLastShot < 200)
+  const isActivelyShooting = (player.isShooting || timeSinceLastShot < 200) && !player.isCharging
+  
+  // If walking and was shooting, show run_fire until movement stops (not just until Space is released)
+  if (player.state === 'walking' && wasShootingWhileWalking && !player.isCharging) {
+    // Get run_fire frames that match walk animation
+    const runFireFrames = animations.value.shoot.filter(frame => {
+      const name = frame.name.toLowerCase()
+      return name.includes('run') && name.includes('fire')
+    })
+    
+    if (runFireFrames.length > 0) {
+      // Return run_fire frames - frame index will be preserved by the shared frame timer
+      // The frame timer continues seamlessly, so frame 3 of walk becomes frame 3 of run_fire
+      return runFireFrames
+    }
+  }
+  
+  if (isActivelyShooting) {
     // Dash-jumping + shooting uses Jump_Fire sprites
     if (player.state === 'dashJumping' || player.isDashJumping) {
       const jumpFireFrames = animations.value.shoot.filter(f => 
@@ -2015,23 +2115,6 @@ function getAnimationFrames(player: Player, deltaSeconds?: number): AnimationFra
       )
       if (jumpFireFrames.length > 0) {
         return jumpFireFrames
-      }
-    }
-    
-    // Find shooting animation that matches current movement state
-    // When walking and shooting, use run_fire sprites (same animation as walk, but with gun extended)
-    // IMPORTANT: Preserve frame index when switching between walk and run_fire to avoid jerking
-    if (player.state === 'walking') {
-      // Get run_fire frames that match walk animation
-      const runFireFrames = animations.value.shoot.filter(frame => {
-        const name = frame.name.toLowerCase()
-        return name.includes('run') && name.includes('fire')
-      })
-      
-      if (runFireFrames.length > 0) {
-        // Return run_fire frames - frame index will be preserved by the shared frame timer
-        // The frame timer continues seamlessly, so frame 3 of walk becomes frame 3 of run_fire
-        return runFireFrames
       }
     }
     
@@ -2161,9 +2244,14 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     // Dash uses time-based selection in getAnimationFrames, so always use first (and only) frame
     frameIndex = 0
   } else {
-    const isWalking = player.state === 'walking' && !player.isCharging
-    const isShooting = (player.isShooting || (Date.now() - (player.lastShotTime || 0) < 200)) && !player.isCharging
-    const isWalkOrRunFire = isWalking || (player.state === 'walking' && isShooting)
+    const isWalking = player.state === 'walking' // Don't exclude charging - walking animation should play at normal speed even when charging
+    // Check if player was shooting while walking (isShooting flag or within 200ms of last shot)
+    // For walking: show run_fire as long as walking (even after releasing Space, until movement stops)
+    const timeSinceLastShot = Date.now() - (player.lastShotTime || 0)
+    const wasShootingWhileWalking = player.state === 'walking' && (player.isShooting || timeSinceLastShot < 200)
+    const isWalkOrRunFire = isWalking || (player.state === 'walking' && wasShootingWhileWalking)
+    const isWalkOnly = isWalking && !wasShootingWhileWalking // Walk animation (has Run_Start)
+    const isRunFireOnly = player.state === 'walking' && wasShootingWhileWalking && !player.isCharging // Run_Fire animation (no start frame)
     const isWallCling = player.state === 'wallCling'
     
     // Reset frame to 0 when transitioning to wallCling state (so animation plays from start)
@@ -2176,7 +2264,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     // Determine current animation type
     const currentAnimType: 'walk' | 'run_fire' | 'other' = 
-      (player.state === 'walking' && isShooting) ? 'run_fire' :
+      (player.state === 'walking' && wasShootingWhileWalking && !player.isCharging) ? 'run_fire' :
       (player.state === 'walking') ? 'walk' : 'other'
     
     // Check if we switched between walk and run_fire
@@ -2197,6 +2285,31 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         // Wall cling: advance to next frame but stop at last frame (no looping)
         const next = Math.min(current + 1, frames.length - 1)
         currentFrame.value.set(userId, next)
+      } else if (isWalkOnly) {
+        // Walk animation: Run_Start (frame 0) plays once, then loop Run1-Run10 (frames 1-10)
+        if (current === 0) {
+          // After Run_Start, move to Run1
+          currentFrame.value.set(userId, 1)
+        } else {
+          // Loop Run1-Run10 (frames 1-10), skipping Run_Start
+          const next = ((current - 1) + 1) % 10 + 1 // Loop 1-10
+          currentFrame.value.set(userId, next)
+        }
+      } else if (isRunFireOnly) {
+        // Run_Fire animation: Just loop Run_Fire1-Run_Fire10 (frames 0-9), no start frame
+        const next = (current + 1) % frames.length
+        currentFrame.value.set(userId, next)
+      } else if (isWalkOrRunFire && !isWalkOnly && !isRunFireOnly) {
+        // Walking while charging: use same loop logic as walk (Run_Start plays once, then loop Run1-Run10)
+        // But we're in walk animation, not run_fire, so use walk frame logic
+        if (current === 0) {
+          // After Run_Start, move to Run1
+          currentFrame.value.set(userId, 1)
+        } else {
+          // Loop Run1-Run10 (frames 1-10), skipping Run_Start
+          const next = ((current - 1) + 1) % 10 + 1 // Loop 1-10
+          currentFrame.value.set(userId, next)
+        }
       } else {
         // Other animations: loop using modulo
         const next = (current + 1) % frames.length
@@ -2207,11 +2320,36 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     
     frameIndex = currentFrame.value.get(userId) || 0
     
-    // If we switched between walk and run_fire, advance to next frame immediately
-    // This ensures: walk frame 3 → run_fire frame 4 (next in sequence)
-    if (switchedWalkRunFire && frameIndex < frames.length) {
-      frameIndex = (frameIndex + 1) % frames.length
-      currentFrame.value.set(userId, frameIndex)
+    // If we switched between walk and run_fire, preserve frame continuity
+    // Walk: Run_Start(0), Run1(1)-Run10(10) → Run_Fire: Run_Fire1(0)-Run_Fire10(9)
+    // When switching from walk to run_fire: walk frame 5 (Run5) → run_fire frame 4 (Run_Fire5)
+    // When switching from run_fire to walk: run_fire frame 4 (Run_Fire5) → walk frame 5 (Run5)
+    // Only adjust frame on the FIRST frame of the switch, not every frame
+    if (switchedWalkRunFire) {
+      // Only adjust if we haven't already adjusted for this switch
+      const lastSwitchFrame = lastSwitchFrameMap.value.get(userId)
+      if (lastSwitchFrame !== currentAnimType) {
+        if (lastAnim === 'walk' && currentAnimType === 'run_fire') {
+          // Switching from walk to run_fire
+          // Walk frame 0 (Run_Start) → Run_Fire frame 0 (Run_Fire1)
+          // Walk frame 1-10 (Run1-Run10) → Run_Fire frame 0-9 (Run_Fire1-Run_Fire10)
+          if (frameIndex === 0) {
+            frameIndex = 0 // Run_Start → Run_Fire1
+          } else {
+            frameIndex = frameIndex - 1 // Run1(1) → Run_Fire1(0), Run2(2) → Run_Fire2(1), etc.
+          }
+        } else if (lastAnim === 'run_fire' && currentAnimType === 'walk') {
+          // Switching from run_fire to walk
+          // Run_Fire frame 0-9 → Walk frame 1-10 (skip Run_Start)
+          frameIndex = frameIndex + 1 // Run_Fire1(0) → Run1(1), Run_Fire2(1) → Run2(2), etc.
+          if (frameIndex > 10) frameIndex = 10 // Clamp to Run10
+        }
+        currentFrame.value.set(userId, frameIndex)
+        lastSwitchFrameMap.value.set(userId, currentAnimType) // Remember we've adjusted for this switch
+      }
+    } else {
+      // Not switching, clear the switch tracking
+      lastSwitchFrameMap.value.delete(userId)
     }
     
     // Clamp frame index to valid range for current animation
@@ -2219,6 +2357,14 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
       if (isWallCling) {
         // Wall cling: clamp to last frame (no looping)
         frameIndex = frames.length - 1
+      } else if (isWalkOnly) {
+        // Walk: ensure we're in range 0-10, but after frame 0, loop 1-10
+        if (frameIndex === 0 || frameIndex > 10) {
+          frameIndex = 1 // Loop back to Run1
+        }
+      } else if (isRunFireOnly) {
+        // Run_Fire: just ensure we're in valid range 0-9
+        frameIndex = frameIndex % frames.length
       } else {
         // Other animations: use modulo to loop
         frameIndex = frameIndex % frames.length
@@ -2709,8 +2855,12 @@ function setupRealtimeListener() {
       if (velocityX !== undefined && velocityX !== null) player.velocityX = velocityX
       if (velocityY !== undefined && velocityY !== null) player.velocityY = velocityY
       player.isShooting = isShooting || false
-      player.isCharging = isCharging || false
-      player.chargeLevel = chargeLevel || 0
+      // Only update isCharging for remote players - never update local player from network
+      // This prevents network feedback loops from affecting local player state
+      if (userId !== props.userId) {
+        player.isCharging = isCharging || false
+        player.chargeLevel = chargeLevel || 0
+      }
       player.onWall = onWall || false
       player.wallSide = wallSide || null
       if (health !== undefined) player.health = health
