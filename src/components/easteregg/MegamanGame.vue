@@ -39,8 +39,8 @@ const emit = defineEmits<{
   close: []
 }>()
 
-// Get user data composable for usernames and profile pictures
-const { getUserDisplayName, getUserAvatarUrl } = useUserData()
+// Get user data composable for usernames, profile pictures, and colors
+const { getUserDisplayName, getUserAvatarUrl, getUserColor } = useUserData()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let gameEngine: GameEngine | null = null
@@ -55,10 +55,12 @@ async function initializeGame() {
   const participantsWithData = props.participants.map((participant) => {
     const displayNameRef = getUserDisplayName(participant.userId)
     const avatarUrlRef = getUserAvatarUrl(participant.userId)
+    const colorRef = getUserColor(participant.userId)
     return {
       userId: participant.userId,
       username: displayNameRef.value || participant.username,
       profilePicture: avatarUrlRef.value,
+      userColor: colorRef.value,
     }
   })
 
@@ -123,10 +125,12 @@ watch(() => props.participants, (newParticipants) => {
     const participantsWithData = newParticipants.map((participant) => {
       const displayNameRef = getUserDisplayName(participant.userId)
       const avatarUrlRef = getUserAvatarUrl(participant.userId)
+      const colorRef = getUserColor(participant.userId)
       return {
         userId: participant.userId,
         username: displayNameRef.value || participant.username,
         profilePicture: avatarUrlRef.value,
+        userColor: colorRef.value,
       }
     })
 
