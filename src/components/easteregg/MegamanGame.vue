@@ -2333,6 +2333,25 @@ let lastBroadcastPayload: Record<string, any> | null = null
 function broadcastPlayerState(player: Player, force: boolean = false) {
   if (!props.channelId || !gameChannel) return
   
+  // Don't broadcast state updates during hit/death animations (unless forced)
+  // This prevents overwriting animation states on remote clients
+  if (!force && (player.state === 'hit' || player.state === 'dead')) {
+    const now = Date.now()
+    const elapsed = now - player.hitTime
+    
+    // If hit animation is still playing (< 500ms), don't broadcast state updates
+    if (player.state === 'hit' && elapsed < 500) {
+      return
+    }
+    
+    // If death animation is still playing (< 1350ms), don't broadcast state updates
+    if (player.state === 'dead' && elapsed < 1350) {
+      return
+    }
+    
+    // Animation complete - allow broadcast (e.g., for respawn)
+  }
+  
   // Ensure facing is always valid ('left' or 'right')
   const facingValue = (player.facing === 'left' || player.facing === 'right') ? player.facing : 'right'
   
@@ -4358,7 +4377,55 @@ function setupRealtimeListener() {
       player.lastNetworkUpdate = Date.now()
       
       // Update state and velocity from network (controls the physics)
-      if (state !== undefined && state !== null) player.state = state
+      // BUT: Don't overwrite hit/death states until animations complete
+      if (state !== undefined && state !== null) {
+        const now = Date.now()
+        const isInHitState = player.state === 'hit'
+        const isInDeadState = player.state === 'dead'
+        
+        // If player is in hit state, only allow state change after hit animation completes (500ms)
+        if (isInHitState) {
+          const hitElapsed = now - player.hitTime
+          if (hitElapsed < 500) {
+            // Hit animation still playing - don't overwrite state
+            // But allow transition to 'dead' if health is 0
+            if (state === 'dead' && player.health <= 0) {
+              player.state = 'dead'
+              player.hitTime = now // Update hitTime for death animation
+            }
+          } else {
+            // Hit animation complete - allow state update
+            player.state = state
+          }
+        }
+        // If player is in dead state, only allow state change after death animation completes (1350ms)
+        else if (isInDeadState) {
+          const deathElapsed = now - player.hitTime
+          if (deathElapsed < 1350) {
+            // Death animation still playing - don't overwrite state
+          } else {
+            // Death animation complete - allow state update (e.g., respawn)
+            player.state = state
+          }
+        }
+        // Normal state update (not in hit/death animation)
+        else {
+          // Allow state update, but prioritize hit/dead states from network
+          if (state === 'hit' || state === 'dead') {
+            player.state = state
+            // If state is hit or dead, we need hitTime - use current time if not provided
+            if (state === 'hit' || state === 'dead') {
+              // hitTime should come from player-damaged or player-died events
+              // But if we're getting it here, use current time
+              if (!player.hitTime || player.hitTime === 0) {
+                player.hitTime = now
+              }
+            }
+          } else {
+            player.state = state
+          }
+        }
+      }
       if (velocityX !== undefined && velocityX !== null) player.velocityX = velocityX
       if (velocityY !== undefined && velocityY !== null) player.velocityY = velocityY
       player.isShooting = isShooting || false
