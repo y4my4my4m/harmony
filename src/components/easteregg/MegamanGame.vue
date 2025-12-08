@@ -1916,70 +1916,76 @@ function fireChargedShot(player: Player) {
 }
 
 // Broadcast player state to other participants
-let lastBroadcastTime = 0
-let lastFacing: 'left' | 'right' | null = null
-let lastState: string | null = null
-const BROADCAST_INTERVAL = 16 // Broadcast every ~16ms (~60fps) - minimal throttling for network efficiency
+let lastBroadcastPayload: Record<string, any> | null = null
 
 function broadcastPlayerState(player: Player, force: boolean = false) {
   if (!props.channelId || !gameChannel) return
   
-  const now = Date.now()
-  
   // Ensure facing is always valid ('left' or 'right')
   const facingValue = (player.facing === 'left' || player.facing === 'right') ? player.facing : 'right'
   
-  // Detect critical changes that need immediate broadcast
-  const facingChanged = lastFacing !== null && lastFacing !== facingValue
-  const stateChanged = lastState !== null && lastState !== player.state
-  const isCriticalUpdate = facingChanged || stateChanged || force
-  
-  if (facingChanged) {
-    lastFacing = facingValue
-    debug.log(`🎮 Facing changed to ${facingValue}, forcing immediate broadcast`)
-  } else if (lastFacing === null) {
-    lastFacing = facingValue
+  // Build current payload
+  const currentPayload = {
+    userId: player.userId,
+    x: player.x,
+    y: player.y,
+    facing: facingValue,
+    state: player.state,
+    velocityX: player.velocityX,
+    velocityY: player.velocityY,
+    isShooting: player.isShooting,
+    isCharging: player.isCharging,
+    chargeLevel: player.chargeLevel,
+    onWall: player.onWall,
+    wallSide: player.wallSide,
+    health: player.health,
+    maxHealth: player.maxHealth,
+    lastShotTime: player.lastShotTime || 0,
+    isSpawning: player.isSpawning || false,
+    spawnY: player.spawnY || 0,
+    spawnX: player.x,
+    color: player.color,
+    playerIndex: player.playerIndex,
   }
   
-  if (stateChanged) {
-    lastState = player.state
-  } else if (lastState === null) {
-    lastState = player.state
+  // Check if state has changed from last broadcast
+  if (!force && lastBroadcastPayload !== null) {
+    const hasChanged = 
+      lastBroadcastPayload.userId !== currentPayload.userId ||
+      lastBroadcastPayload.x !== currentPayload.x ||
+      lastBroadcastPayload.y !== currentPayload.y ||
+      lastBroadcastPayload.facing !== currentPayload.facing ||
+      lastBroadcastPayload.state !== currentPayload.state ||
+      lastBroadcastPayload.velocityX !== currentPayload.velocityX ||
+      lastBroadcastPayload.velocityY !== currentPayload.velocityY ||
+      lastBroadcastPayload.isShooting !== currentPayload.isShooting ||
+      lastBroadcastPayload.isCharging !== currentPayload.isCharging ||
+      lastBroadcastPayload.chargeLevel !== currentPayload.chargeLevel ||
+      lastBroadcastPayload.onWall !== currentPayload.onWall ||
+      lastBroadcastPayload.wallSide !== currentPayload.wallSide ||
+      lastBroadcastPayload.health !== currentPayload.health ||
+      lastBroadcastPayload.maxHealth !== currentPayload.maxHealth ||
+      lastBroadcastPayload.lastShotTime !== currentPayload.lastShotTime ||
+      lastBroadcastPayload.isSpawning !== currentPayload.isSpawning ||
+      lastBroadcastPayload.spawnY !== currentPayload.spawnY ||
+      lastBroadcastPayload.spawnX !== currentPayload.spawnX ||
+      lastBroadcastPayload.color !== currentPayload.color ||
+      lastBroadcastPayload.playerIndex !== currentPayload.playerIndex
+    
+    // Skip broadcast if nothing changed
+    if (!hasChanged) {
+      return
+    }
   }
   
-  // Minimal throttling - only skip if it's a non-critical update and very recent
-  if (!isCriticalUpdate && now - lastBroadcastTime < BROADCAST_INTERVAL) {
-    return
-  }
-  
-  lastBroadcastTime = now
+  // Store current payload as last broadcast
+  lastBroadcastPayload = { ...currentPayload }
   
   // Use the existing gameChannel instead of creating a new one
   gameChannel.send({
     type: 'broadcast',
     event: 'player-update',
-    payload: {
-      userId: player.userId,
-      x: player.x,
-      y: player.y,
-      facing: facingValue, // Critical: must always be included for proper orientation sync
-      state: player.state,
-      velocityX: player.velocityX,
-      velocityY: player.velocityY,
-      isShooting: player.isShooting,
-      isCharging: player.isCharging,
-      chargeLevel: player.chargeLevel,
-      onWall: player.onWall,
-      wallSide: player.wallSide,
-      health: player.health,
-      maxHealth: player.maxHealth,
-      lastShotTime: player.lastShotTime || 0,
-      isSpawning: player.isSpawning || false, // Sync spawn state
-      spawnY: player.spawnY || 0,
-      spawnX: player.x, // Broadcast spawn X position
-      color: player.color, // Sync player color
-      playerIndex: player.playerIndex, // Sync player index for palette
-    }
+    payload: currentPayload
   })
 }
 
