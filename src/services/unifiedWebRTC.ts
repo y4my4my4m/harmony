@@ -1153,8 +1153,8 @@ export class UnifiedWebRTCService {
           const now = Date.now();
           const timeSinceLastBroadcast = now - this.lastAudioLevelBroadcast;
           
-          if (timeSinceLastBroadcast >= 2500) {
-            this.broadcastAudioLevel();
+          if (timeSinceLastBroadcast >= 1000) {
+            // this.broadcastAudioLevel();
             this.lastAudioLevelBroadcast = now;
           }
           

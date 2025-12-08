@@ -2343,6 +2343,7 @@ function broadcastGameTick() {
       isSpawning: localPlayer.isSpawning || false,
       spawnY: localPlayer.spawnY || 0,
       hitTime: localPlayer.hitTime || 0,
+      dashStartTime: localPlayer.dashStartTime || 0,
       color: localPlayer.color,
       playerIndex: localPlayer.playerIndex,
     }
@@ -2838,20 +2839,19 @@ function gameLoop(currentTime: number) {
         player.velocityY += GRAVITY * deltaSeconds * 60
       }
     } else {
-      // REMOTE PLAYERS: Smooth interpolation towards network position
+      // REMOTE PLAYERS: Responsive interpolation towards network position
       // Use time-based interpolation for smooth movement between network ticks
       if (player.targetX !== undefined && player.targetY !== undefined && player.targetUpdateTime) {
         const now = Date.now()
         const timeSinceUpdate = now - player.targetUpdateTime
-        const tickInterval = 128 // Match TICK_INTERVAL
+        const tickInterval = 64 // Match TICK_INTERVAL (64ms)
         
         // Calculate interpolation factor based on time since last update
         // At tickInterval, we should be at target (1.0), before that we interpolate
         const t = Math.min(1.0, timeSinceUpdate / tickInterval)
         
-        // Use smooth interpolation (ease-out for more natural movement)
-        // Ease-out cubic: starts fast, ends slow
-        const smoothT = 1 - Math.pow(1 - t, 3)
+        // Use linear interpolation for more responsive/snappy movement
+        // (removed ease-out cubic which made it too smooth)
         
         // Interpolate current position towards target
         const dx = player.targetX - player.x
@@ -2866,14 +2866,15 @@ function gameLoop(currentTime: number) {
             player.lastTargetY = player.targetY
           }
         } else {
-          // Smooth interpolation towards target
-          player.x += dx * smoothT * 0.3 // Smooth interpolation speed (0.3 = 30% per frame when t=1)
-          player.y += dy * smoothT * 0.3
+          // More responsive interpolation (0.6 = 60% per frame, linear)
+          // This makes remote players feel snappier, closer to local player responsiveness
+          player.x += dx * t * 0.6
+          player.y += dy * t * 0.6
           
           // Also apply velocity for more natural movement prediction
           if (player.velocityX !== undefined && player.velocityY !== undefined) {
             // Apply velocity as prediction (helps with smoothness)
-            const velocityInfluence = 0.2 // How much velocity affects position
+            const velocityInfluence = 0.3 // Increased from 0.2 for more responsiveness
             player.x += player.velocityX * deltaSeconds * 60 * velocityInfluence
             player.y += player.velocityY * deltaSeconds * 60 * velocityInfluence
           }
@@ -4133,9 +4134,10 @@ function setupRealtimeListener() {
     const { userId, timestamp, player: playerData } = data
     if (!playerData) return
     
-    const { x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY, spawnX, hitTime, color, playerIndex } = playerData
+    const { x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY, spawnX, hitTime, dashStartTime, color, playerIndex } = playerData
     
-    // Don't update local player from remote updates
+    // CRITICAL: Don't update local player from remote updates
+    // Local player processes hits locally and should never have health/state overwritten by network
     if (userId === props.userId) return
     
     let player = players.value.get(userId)
@@ -4303,40 +4305,40 @@ function setupRealtimeListener() {
       
       // Update state and velocity from network (controls the physics)
       // BUT: Don't overwrite hit/death states until animations complete
+      const now = Date.now()
+      const previousState = player.state // Capture before state updates for dash detection
+      const isInHitState = player.state === 'hit'
+      const isInDeadState = player.state === 'dead'
+      const hitElapsed = isInHitState ? now - player.hitTime : 0
+      const deathElapsed = isInDeadState ? now - player.hitTime : 0
+      const isInHitAnimation = isInHitState && hitElapsed < 500
+      const isInDeathAnimation = isInDeadState && deathElapsed < 1350
+      
+      // Protect health during hit/death animations - don't overwrite if animation is playing
+      // This prevents health from reverting during animations
+      if (!isInHitAnimation && !isInDeathAnimation) {
+        if (health !== undefined) player.health = health
+        if (maxHealth !== undefined) player.maxHealth = maxHealth
+      }
+      
       if (state !== undefined && state !== null) {
-        const now = Date.now()
-        const isInHitState = player.state === 'hit'
-        const isInDeadState = player.state === 'dead'
-        
         // If player is in hit state, only allow state change after hit animation completes (500ms)
-        if (isInHitState) {
-          const hitElapsed = now - player.hitTime
-          if (hitElapsed < 500) {
-            // Hit animation still playing - don't overwrite state
-            // But allow transition to 'dead' if health is 0
-            if (state === 'dead' && (player.health <= 0 || health <= 0)) {
-              player.state = 'dead'
-              // Use network hitTime if provided, otherwise use current time
-              player.hitTime = hitTime && hitTime > 0 ? hitTime : now
-            }
-          } else {
-            // Hit animation complete - allow state update
-            player.state = state
-            // Update hitTime if provided and state is hit/dead
-            if ((state === 'hit' || state === 'dead') && hitTime && hitTime > 0) {
+        if (isInHitAnimation) {
+          // Hit animation still playing - don't overwrite state or hitTime
+          // But allow transition to 'dead' if health is 0
+          if (state === 'dead' && (player.health <= 0 || health <= 0)) {
+            player.state = 'dead'
+            // Use network hitTime if provided and newer, otherwise keep current
+            if (hitTime && hitTime > 0 && hitTime > player.hitTime) {
               player.hitTime = hitTime
             }
           }
+          // Otherwise, keep current state and hitTime - don't overwrite during animation
         }
         // If player is in dead state, only allow state change after death animation completes (1350ms)
-        else if (isInDeadState) {
-          const deathElapsed = now - player.hitTime
-          if (deathElapsed < 1350) {
-            // Death animation still playing - don't overwrite state
-          } else {
-            // Death animation complete - allow state update (e.g., respawn)
-            player.state = state
-          }
+        else if (isInDeathAnimation) {
+          // Death animation still playing - don't overwrite state or hitTime
+          // Keep current state until animation completes
         }
         // Normal state update (not in hit/death animation)
         else {
@@ -4366,8 +4368,6 @@ function setupRealtimeListener() {
       }
       player.onWall = onWall || false
       player.wallSide = wallSide || null
-      if (health !== undefined) player.health = health
-      if (maxHealth !== undefined) player.maxHealth = maxHealth
       
       // Sync color and playerIndex from network (for proper palette sync)
       if (color && playerIndex !== undefined && playerIndex >= 0 && playerIndex < PLAYER_COLORS.length) {
@@ -4400,8 +4400,40 @@ function setupRealtimeListener() {
       }
       
       // Sync hitTime if provided (for hit/death animations)
+      // BUT: Don't overwrite hitTime during active animations - it breaks the animation timing
       if (hitTime !== undefined && hitTime > 0) {
-        player.hitTime = hitTime
+        // Only update hitTime if we're not in an active animation
+        // OR if the new hitTime is newer (for new hits)
+        if (!isInHitAnimation && !isInDeathAnimation) {
+          player.hitTime = hitTime
+        } else if (hitTime > player.hitTime) {
+          // New hit during animation - update it (e.g., death during hit animation)
+          player.hitTime = hitTime
+        }
+      }
+      
+      // Sync dashStartTime and detect dash state changes for smoke effects
+      const previousDashStartTime = player.dashStartTime || 0
+      
+      if (dashStartTime !== undefined && dashStartTime > 0) {
+        // Update dashStartTime if it's new or different
+        if (dashStartTime !== previousDashStartTime) {
+          player.dashStartTime = dashStartTime
+          
+          // If player just started dashing (state changed to 'dashing' or dashStartTime is new)
+          if (state === 'dashing' && (previousState !== 'dashing' || dashStartTime > previousDashStartTime)) {
+            // Create smoke effect at dash start position (like local player)
+            player.smokeEffects.push({
+              x: player.x + 32,
+              y: player.y + 64,
+              frame: 0,
+              createdAt: Date.now()
+            })
+          }
+        }
+      } else if (dashStartTime === 0 && player.dashStartTime && player.dashStartTime > 0) {
+        // Dash ended (dashStartTime cleared)
+        player.dashStartTime = 0
       }
     }
   })
