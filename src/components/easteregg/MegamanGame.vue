@@ -154,7 +154,7 @@ const WALL_JUMP_Y = -13 // Wall jump vertical strength
 const WALL_SLIDE_SPEED = 2.0 // Slower wall slide like real MMX
 const WALK_SPEED = 3.5 // Slightly faster walk
 const DASH_SPEED = 10
-const DASH_DURATION = 350 // ms
+const DASH_DURATION = 300 // ms
 const DASH_COOLDOWN = 500 // ms
 const FRAME_DURATION = 200 // ms per frame (slower animation)
 const BULLET_SPEED = 12
@@ -305,13 +305,56 @@ const soundPaths = {
   ],
 }
 
-// Audio Manager for charge loop - handles all lifecycle cleanly
+// Audio Manager for charge loop - handles all lifecycle cleanly with seamless looping
 class ChargeLoopManager {
   private currentAudio: HTMLAudioElement | null = null
+  private audioContext: AudioContext | null = null
+  private sourceNode: AudioBufferSourceNode | null = null
+  private gainNode: GainNode | null = null
+  private audioBuffer: AudioBuffer | null = null
   private lastStartTime: number = 0
   private readonly DEBOUNCE_MS = 500
+  private useWebAudio: boolean = true // Use Web Audio API for seamless looping
   
-  start(audioPath: string): HTMLAudioElement | null {
+  private async loadAudioBuffer(audioPath: string): Promise<AudioBuffer | null> {
+    try {
+      if (!this.audioContext) {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      }
+      
+      const response = await fetch(audioPath)
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = await this.audioContext.decodeAudioData(arrayBuffer)
+      return buffer
+    } catch (e) {
+      debug.warn(`🔊 ChargeLoopManager: Failed to load audio buffer:`, e)
+      return null
+    }
+  }
+  
+  private startWebAudioLoop(buffer: AudioBuffer): void {
+    if (!this.audioContext) return
+    
+    // Create gain node for volume control
+    if (!this.gainNode) {
+      this.gainNode = this.audioContext.createGain()
+      this.gainNode.gain.value = 0.2
+      this.gainNode.connect(this.audioContext.destination)
+    }
+    
+    // Create and start buffer source with seamless looping
+    const source = this.audioContext.createBufferSource()
+    source.buffer = buffer
+    source.loop = true // Seamless loop in Web Audio API
+    source.connect(this.gainNode)
+    
+    source.start(0)
+    this.sourceNode = source
+    
+    debug.log(`🔊 ChargeLoopManager: Started Web Audio seamless loop`)
+  }
+  
+  async start(audioPath: string): Promise<HTMLAudioElement | null> {
     const now = Date.now()
     
     // Debounce rapid starts
@@ -323,26 +366,57 @@ class ChargeLoopManager {
     // Stop any existing audio first
     this.stop()
     
+    // Try Web Audio API first for seamless looping
+    if (this.useWebAudio) {
+      try {
+        // Load audio buffer
+        const buffer = await this.loadAudioBuffer(audioPath)
+        if (buffer) {
+          this.audioBuffer = buffer
+          this.startWebAudioLoop(buffer)
+          this.lastStartTime = now
+          debug.log(`🔊 ChargeLoopManager: Using Web Audio API for seamless looping`)
+          // Return null since we're not using HTMLAudioElement
+          return null
+        } else {
+          // Fallback to HTML5 Audio if Web Audio fails
+          debug.log(`🔊 ChargeLoopManager: Web Audio failed, falling back to HTML5 Audio`)
+          this.useWebAudio = false
+        }
+      } catch (e) {
+        debug.warn(`🔊 ChargeLoopManager: Web Audio error, falling back:`, e)
+        this.useWebAudio = false
+      }
+    }
+    
+    // Fallback to HTML5 Audio with immediate restart for faster looping
     try {
       const audio = new Audio(audioPath)
       audio.loop = true
       audio.volume = 0.2
       
       // Store reference IMMEDIATELY - before play() resolves
-      // This ensures we can stop it even if play() is still pending
       this.currentAudio = audio
       this.lastStartTime = now
       
-      debug.log(`🔊 ChargeLoopManager: Created audio, stored reference`, {
+      debug.log(`🔊 ChargeLoopManager: Created HTML5 audio, stored reference`, {
         src: audioPath,
         loop: audio.loop,
         volume: audio.volume
       })
       
+      // For faster looping: restart immediately when it ends (if loop fails)
+      audio.onended = () => {
+        if (this.currentAudio === audio && !audio.paused) {
+          // Immediately restart for seamless feel
+          audio.currentTime = 0
+          audio.play().catch(() => {})
+        }
+      }
+      
       // Set up error handler
       audio.onerror = () => {
         debug.warn(`🔊 ChargeLoopManager: Audio error`)
-        // Don't clear reference on error - we still need to stop it
       }
       
       // Start playing
@@ -350,18 +424,9 @@ class ChargeLoopManager {
       if (playPromise) {
         playPromise.then(() => {
           debug.log(`🔊 ChargeLoopManager: Play promise resolved - audio should be playing`)
-          // Verify it's still our audio
-          if (this.currentAudio === audio) {
-            debug.log(`🔊 ChargeLoopManager: Reference still valid`)
-          } else {
-            debug.warn(`🔊 ChargeLoopManager: Reference changed during play!`)
-          }
         }).catch((err) => {
           debug.warn(`🔊 ChargeLoopManager: Play failed:`, err)
-          // Keep reference so we can still stop it if needed
         })
-      } else {
-        debug.log(`🔊 ChargeLoopManager: play() returned undefined (some browsers)`)
       }
       
       return audio
@@ -375,7 +440,20 @@ class ChargeLoopManager {
   stop(): void {
     let stoppedCount = 0
     
-    // Stop tracked audio
+    // Stop Web Audio source if using it
+    if (this.sourceNode) {
+      try {
+        debug.log(`🔊 ChargeLoopManager: Stopping Web Audio source`)
+        this.sourceNode.stop()
+        this.sourceNode.disconnect()
+        this.sourceNode = null
+        stoppedCount++
+      } catch (e) {
+        debug.warn(`🔊 ChargeLoopManager: Error stopping Web Audio source:`, e)
+      }
+    }
+    
+    // Stop tracked HTML5 audio
     if (this.currentAudio) {
       try {
         const audio = this.currentAudio
@@ -396,10 +474,12 @@ class ChargeLoopManager {
         // Order matters: disable loop first, then pause, then reset
         audio.loop = false
         
-        // Pause even if it hasn't started playing yet
-        audio.pause().catch((e) => {
-          debug.warn(`🔊 ChargeLoopManager: Pause error (may not have started):`, e)
-        })
+      // Pause even if it hasn't started playing yet
+      try {
+        audio.pause()
+      } catch (e) {
+        debug.warn(`🔊 ChargeLoopManager: Pause error (may not have started):`, e)
+      }
         
         audio.currentTime = 0
         audio.volume = 0
@@ -488,6 +568,11 @@ class ChargeLoopManager {
   }
   
   isPlaying(): boolean {
+    // Check Web Audio source
+    if (this.sourceNode) {
+      return true
+    }
+    // Check HTML5 audio
     return this.currentAudio !== null && 
            !this.currentAudio.paused && 
            !this.currentAudio.ended
@@ -499,6 +584,13 @@ class ChargeLoopManager {
   
   cleanup(): void {
     this.stop()
+    // Clean up Web Audio context
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close().catch(() => {})
+      this.audioContext = null
+    }
+    this.gainNode = null
+    this.audioBuffer = null
   }
 }
 
@@ -546,10 +638,15 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
   try {
     initializeSounds()
     
-    // Special handling for charge loop - use dedicated manager
+    // Special handling for charge loop - use dedicated manager (async, but we fire and forget)
     if (soundName === 'chargeLoop') {
       const path = soundPaths.chargeLoop[0]
-      return chargeLoopManager.start(path)
+      chargeLoopManager.start(path).catch((e) => {
+        debug.warn(`🔊 Failed to start charge loop:`, e)
+      })
+      // Return null since Web Audio API doesn't return HTMLAudioElement
+      // The manager handles everything internally
+      return null
     } else if (loop) {
       // For other looping sounds, stop existing first
       const currentSound = playingSounds.get(soundName)
@@ -570,9 +667,9 @@ function playSound(soundName: keyof typeof soundPaths, loop: boolean = false): H
     for (const path of paths) {
       try {
         const audio = new Audio(path)
-        const isLoopSound = loop || soundName === 'chargeLoop'
+        const isLoopSound = loop
         audio.loop = isLoopSound
-        audio.volume = soundName === 'chargeLoop' ? 0.2 : 0.3
+        audio.volume = 0.3
         
         // For looping sounds (except chargeLoop which uses manager), add to map AFTER we successfully start playing
         // Set up error handler FIRST
@@ -1336,12 +1433,70 @@ function handleInput() {
       
       // Play initial charge sound, then loop - only if charging long enough (300ms)
       // This prevents sound from playing for quick taps
-      if (chargeTime >= 300 && !localPlayer.initialChargeSound && !localPlayer.chargeLoopStarted && !playingSounds.has('chargeLoop')) {
+      // CRITICAL: Check if charge sound is already playing to prevent multiple instances
+      const chargeSoundAlreadyPlaying = localPlayer.initialChargeSound && 
+                                        !localPlayer.initialChargeSound.paused && 
+                                        !localPlayer.initialChargeSound.ended &&
+                                        localPlayer.initialChargeSound.currentTime > 0
+      
+      // Also check DOM for any playing charge sounds (nuclear option)
+      let domChargeSoundPlaying = false
+      try {
+        const allAudios = document.querySelectorAll('audio')
+        allAudios.forEach((audio) => {
+          const src = audio.src || ''
+          if ((src.includes('x_charge') || src.includes('charge')) && 
+              !src.includes('charge_loop') && 
+              !audio.paused && 
+              !audio.ended) {
+            domChargeSoundPlaying = true
+            debug.warn(`🔊 Found playing charge sound in DOM, preventing duplicate`)
+          }
+        })
+      } catch (e) {
+        // Ignore
+      }
+      
+      if (chargeTime >= 300 && 
+          !chargeSoundAlreadyPlaying && 
+          !domChargeSoundPlaying &&
+          !localPlayer.initialChargeSound && 
+          !localPlayer.chargeLoopStarted && 
+          !chargeLoopManager.isPlaying()) {
         debug.log(`🔊 Starting initial charge sound at ${chargeTime}ms`)
-        const chargeSound = playSound('charge')
+        
+        // Stop any existing charge sounds first (safety)
+        stopSound('charge')
+        
+        // Create a temporary audio element to mark that we're creating it
+        // This prevents race conditions where multiple frames try to create it
+        const tempAudio = new Audio() // Dummy to mark as "creating"
+        localPlayer.initialChargeSound = tempAudio as any
+        
+        const chargeSound = playSound('charge', false) // EXPLICITLY set loop to false
         if (chargeSound) {
+          // CRITICAL: Ensure charge sound does NOT loop and only plays once
+          chargeSound.loop = false
+          
+          // Verify it's not already playing (might have been created elsewhere)
+          if (!chargeSound.paused && chargeSound.currentTime > 0.1) {
+            debug.warn(`🔊 Charge sound was already playing, stopping duplicate`)
+            chargeSound.pause()
+            chargeSound.currentTime = 0
+          }
+          
+          // Store reference IMMEDIATELY to prevent duplicate creation
           localPlayer.initialChargeSound = chargeSound
           const chargeStartTimeSnapshot = localPlayer.chargeStartTime
+          
+          debug.log(`🔊 Initial charge sound created`, {
+            loop: chargeSound.loop,
+            paused: chargeSound.paused,
+            currentTime: chargeSound.currentTime
+          })
+          
+          // Remove onended handler if it was set elsewhere (safety)
+          chargeSound.onended = null
           
           chargeSound.onended = () => {
             // TRIPLE CHECK all conditions before starting loop
@@ -2835,6 +2990,14 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
     const drawWidth = spriteWidth * scale
     const drawHeight = spriteHeight * scale
     
+    // For hit sprites: anchor at bottom-center to prevent jumping when sprite height varies
+    // Standard player height is 64px, so anchor hit sprites at bottom
+    const isHitState = player.state === 'hit'
+    const standardPlayerHeight = 64
+    const drawY = isHitState 
+      ? player.y + standardPlayerHeight - drawHeight  // Anchor at bottom
+      : player.y  // Normal anchor at top
+    
     ctx.save()
     
     // Handle invulnerability flash effect (only after hit animation completes)
@@ -2950,10 +3113,10 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         
         if (shouldFlip) {
           ctx.scale(-1, 1)
-          ctx.drawImage(offscreenCanvas, -player.x - drawWidth, player.y)
+          ctx.drawImage(offscreenCanvas, -player.x - drawWidth, drawY)
           ctx.scale(-1, 1) // Reset
         } else {
-          ctx.drawImage(offscreenCanvas, player.x, player.y)
+          ctx.drawImage(offscreenCanvas, player.x, drawY)
         }
       }
     } else {
@@ -2971,7 +3134,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         ctx.drawImage(
           spriteImg,
           -player.x - drawWidth, // Adjust for flipped position
-          player.y,
+          drawY, // Use bottom-anchored Y for hit sprites
           drawWidth,
           drawHeight
         )
@@ -2980,7 +3143,7 @@ function drawPlayer(player: Player, userId: string, deltaSeconds: number) {
         ctx.drawImage(
           spriteImg,
           player.x,
-          player.y,
+          drawY, // Use bottom-anchored Y for hit sprites
           drawWidth,
           drawHeight
         )
