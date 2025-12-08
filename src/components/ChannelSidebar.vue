@@ -1101,7 +1101,7 @@ watch(() => props.currentServer?.id, () => {
   width: calc(100% - 8px);
   font-size: 14px;
   font-weight: 500;
-  color: rgb(173, 173, 173);
+  color: var(--text-secondary, #949BA4);
   position: relative;
   border-radius: 4px;
   margin: 1px 4px;
@@ -1179,7 +1179,7 @@ watch(() => props.currentServer?.id, () => {
   margin: 2px 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: rgb(142, 146, 151);
+  color: var(--text-secondary, #949BA4);
 }
 
 .category-header:hover {
@@ -1328,7 +1328,7 @@ watch(() => props.currentServer?.id, () => {
   padding: 2px 0 2px 34px;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--text-muted, #949BA4);
+  color: var(--text-secondary, #949BA4);
   font-size: 14px;
   transition: all 0.1s ease;
   position: relative;
@@ -1341,8 +1341,7 @@ watch(() => props.currentServer?.id, () => {
   width: 100%;
 }
 .channel-thread-item .thread-name:hover {
-  background: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
-  color: var(--text-normal, #DBDEE1);
+  background: var(--h-sidebar-light);
 }
 
 .channel-thread-item.selected {
@@ -1350,7 +1349,7 @@ watch(() => props.currentServer?.id, () => {
 }
 .channel-thread-item.selected .thread-name {
   color: var(--text-primary, #FFFFFF);
-  background: var(--background-modifier-selected, rgba(79, 84, 92, 0.6));
+  background: var(--h-sidebar-light);
 }
 
 /* Thread branch/tree-line - vertical line connecting to parent */
