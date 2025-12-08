@@ -98,6 +98,7 @@ const players = ref<Map<string, Player>>(new Map())
 const bullets = ref<Map<string, Bullet>>(new Map())
 const keys = ref<Set<string>>(new Set())
 let bulletIdCounter = 0
+const colorAssignments = ref<Map<string, { color: string; playerIndex: number }>>(new Map()) // Store color assignments from host
 
 // Sprite loading - individual images
 interface AnimationFrame {
@@ -947,12 +948,37 @@ async function loadEffectSprites() {
     // Also load the armor hit sprite with original name for backwards compat
     { name: 'aabdd8a0c4b70511511ef63327f01483.png', path: '/assets/easteregg/megaman/sprites/aabdd8a0c4b70511511ef63327f01483.png' },
   ]
-  for (const hit of hitFiles) {
+  // Build hit animation frames from hit sprites (Hit1-Hit10, excluding armor sprite)
+  const hitAnimationFrames: AnimationFrame[] = []
+  for (let i = 0; i < hitFiles.length - 1; i++) { // Exclude last one (armor sprite)
+    const hit = hitFiles[i]
+    hitAnimationFrames.push({ 
+      name: `Hit${i + 1}`, 
+      file: hit.name 
+    })
+    
     const hitImg = new Image()
     hitImg.src = hit.path
     hitImg.onload = () => {
       hitSprites.value.set(hit.name, hitImg)
       spriteImages.value.set(hit.name, hitImg) // Also add to sprite images for getAnimationFrames
+    }
+  }
+  
+  // Also load the armor hit sprite (backwards compat)
+  const armorHit = hitFiles[hitFiles.length - 1]
+  const armorHitImg = new Image()
+  armorHitImg.src = armorHit.path
+  armorHitImg.onload = () => {
+    hitSprites.value.set(armorHit.name, armorHitImg)
+    spriteImages.value.set(armorHit.name, armorHitImg)
+  }
+  
+  // Add hit frames to animations if not already present
+  if (animations.value) {
+    if (!animations.value.hit || animations.value.hit.length === 0) {
+      animations.value.hit = hitAnimationFrames
+      debug.log(`🎮 Added ${hitAnimationFrames.length} hit animation frames`)
     }
   }
   
@@ -1051,11 +1077,50 @@ function initializePlayers() {
     allParticipants.push({ userId: props.userId })
   }
   
-  // Get colors already used by existing players
+  // Sort participants by userId to determine host (first player assigns colors)
+  allParticipants.sort((a, b) => a.userId.localeCompare(b.userId))
+  const isHost = allParticipants.length > 0 && allParticipants[0].userId === props.userId
+  
+  // Get colors already used by existing players (preserve existing assignments)
   const usedColors = new Set<string>()
+  const userIdToColor = new Map<string, string>()
   players.value.forEach((existingPlayer) => {
     usedColors.add(existingPlayer.color)
+    userIdToColor.set(existingPlayer.userId, existingPlayer.color)
   })
+  
+  // If we're the host and don't have color assignments yet, assign random colors
+  if (isHost && colorAssignments.value.size === 0) {
+    const availableColors = [...PLAYER_COLORS]
+    const shuffledColors = [...availableColors].sort(() => Math.random() - 0.5) // Shuffle
+    
+    allParticipants.forEach((participant, index) => {
+      const colorIndex = index % shuffledColors.length
+      const playerColor = shuffledColors[colorIndex]
+      const playerIndex = PLAYER_COLORS.indexOf(playerColor)
+      colorAssignments.value.set(participant.userId, { color: playerColor, playerIndex })
+    })
+    
+    // Broadcast color assignments to all players (with a small delay to ensure channel is ready)
+    setTimeout(() => {
+      if (gameChannel) {
+        const assignments: Record<string, { color: string; playerIndex: number }> = {}
+        colorAssignments.value.forEach((assignment, userId) => {
+          assignments[userId] = assignment
+        })
+        
+        gameChannel.send({
+          type: 'broadcast',
+          event: 'color-assignments',
+          payload: {
+            assignments
+          }
+        })
+        
+        debug.log(`🎮 Host assigned colors:`, assignments)
+      }
+    }, 100)
+  }
   
   allParticipants.forEach((participant, index) => {
     // Spawn positions - random X position for each player
@@ -1064,22 +1129,23 @@ function initializePlayers() {
     const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
     const targetY = floorY - 64 // Where player will land
     
-    // Assign unique color - randomly select from available colors (not used by other players)
-    const availableColors = PLAYER_COLORS.filter(color => !usedColors.has(color))
+    // Assign color: use existing assignment, colorAssignments from host, or fallback
     let playerColor: string
     let playerIndex: number
     
-    if (availableColors.length > 0) {
-      // Randomly pick from available colors
-      const randomIndex = Math.floor(Math.random() * availableColors.length)
-      playerColor = availableColors[randomIndex]
+    // Check if this player already has a color assigned (from existing players)
+    if (userIdToColor.has(participant.userId)) {
+      playerColor = userIdToColor.get(participant.userId)!
       playerIndex = PLAYER_COLORS.indexOf(playerColor)
-      usedColors.add(playerColor) // Mark as used
+    } else if (colorAssignments.value.has(participant.userId)) {
+      // Use color assignment from host
+      const assignment = colorAssignments.value.get(participant.userId)!
+      playerColor = assignment.color
+      playerIndex = assignment.playerIndex
     } else {
-      // Fallback: all colors used (shouldn't happen with 8 colors max), pick randomly
-      const randomIndex = Math.floor(Math.random() * PLAYER_COLORS.length)
-      playerColor = PLAYER_COLORS[randomIndex]
-      playerIndex = randomIndex
+      // Fallback: use index-based assignment (will be updated when host broadcasts)
+      playerIndex = index % PLAYER_COLORS.length
+      playerColor = PLAYER_COLORS[playerIndex]
     }
     
     debug.log(`🎮 Player ${index} (${participant.userId.substring(0, 6)}) spawning at x=${spawnX} with color ${playerColor}`)
@@ -1911,6 +1977,8 @@ function broadcastPlayerState(player: Player, force: boolean = false) {
       isSpawning: player.isSpawning || false, // Sync spawn state
       spawnY: player.spawnY || 0,
       spawnX: player.x, // Broadcast spawn X position
+      color: player.color, // Sync player color
+      playerIndex: player.playerIndex, // Sync player index for palette
     }
   })
 }
@@ -2003,7 +2071,7 @@ function gameLoop(currentTime: number) {
           })
         }
         
-        // Broadcast damage
+        // Broadcast damage with hit state
         if (gameChannel) {
           gameChannel.send({
             type: 'broadcast',
@@ -2012,7 +2080,9 @@ function gameLoop(currentTime: number) {
               userId: player.userId,
               health: player.health,
               damage: bullet.damage,
-              attackerId: bullet.userId
+              attackerId: bullet.userId,
+              hitTime: now, // Include hitTime for hit animation sync
+              state: player.state // Include state for hit animation
             }
           })
         }
@@ -2032,47 +2102,67 @@ function gameLoop(currentTime: number) {
           }
           playSound('death') // Use X_LoseLife sound for death
           
-          // Broadcast death event
+          // Broadcast death state
+          broadcastPlayerState(player, true)
+          
+          // Broadcast death event with timestamp for synchronized respawn
           if (gameChannel) {
             gameChannel.send({
               type: 'broadcast',
               event: 'player-died',
               payload: {
                 userId: player.userId,
-                health: player.health
+                health: player.health,
+                deathTime: now // Include timestamp for synchronized respawn
               }
             })
           }
           
-          // Broadcast death state
-          broadcastPlayerState(player, true)
-          
-          // Respawn after 3 seconds with spawn animation
-          setTimeout(() => {
-            if (player.health <= 0) {
-              const canvasWidth = gameCanvasWidth.value
-              const canvasHeight = gameCanvasHeight.value
-              const floorY = canvasHeight - 20
-              
-              // Random spawn X position
-              const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
-              
-              player.health = player.maxHealth
-              player.x = spawnX
-              player.y = -100 // Start above screen for spawn animation
-              player.velocityX = 0
-              player.velocityY = 0
-              player.state = 'idle'
-              player.isSpawning = true
-              player.spawnTime = Date.now()
-              player.spawnY = floorY - 64 // Target Y position
-              player.invulnerableUntil = Date.now() + 2000 // Extra invulnerability on respawn
-              playSound('spawn') // Teleport down sound
-              
-              // Broadcast respawn with spawn position
-              broadcastPlayerState(player, true)
-            }
-          }, 3000)
+          // Respawn after 3 seconds with spawn animation (only for local player)
+          // Remote players will respawn via network event
+          if (player.userId === props.userId) {
+            setTimeout(() => {
+              if (player.health <= 0) {
+                const canvasWidth = gameCanvasWidth.value
+                const canvasHeight = gameCanvasHeight.value
+                const floorY = canvasHeight - 20
+                
+                // Random spawn X position
+                const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
+                
+                player.health = player.maxHealth
+                player.x = spawnX
+                player.y = -100 // Start above screen for spawn animation
+                player.velocityX = 0
+                player.velocityY = 0
+                player.state = 'idle'
+                player.isSpawning = true
+                player.spawnTime = Date.now()
+                player.spawnY = floorY - 64 // Target Y position
+                player.invulnerableUntil = Date.now() + 2000 // Extra invulnerability on respawn
+                playSound('spawn') // Teleport down sound
+                
+                // Broadcast respawn with spawn position
+                broadcastPlayerState(player, true)
+                
+                // Broadcast respawn event
+                if (gameChannel) {
+                  gameChannel.send({
+                    type: 'broadcast',
+                    event: 'player-respawned',
+                    payload: {
+                      userId: player.userId,
+                      x: spawnX,
+                      y: -100,
+                      spawnY: floorY - 64,
+                      health: player.maxHealth,
+                      maxHealth: player.maxHealth
+                    }
+                  })
+                }
+              }
+            }, 3000)
+          }
         } else {
           // Return to previous state after hit animation
           setTimeout(() => {
@@ -3332,7 +3422,7 @@ function setupRealtimeListener() {
   
   gameChannel.on('broadcast', { event: 'player-update' }, (payload) => {
     const data = payload.payload as any
-    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY, spawnX } = data
+    const { userId, x, y, facing, state, velocityX, velocityY, isShooting, isCharging, chargeLevel, onWall, wallSide, health, maxHealth, isSpawning, spawnY, spawnX, color, playerIndex } = data
     
     // Don't update local player from remote updates
     if (userId === props.userId) return
@@ -3344,29 +3434,27 @@ function setupRealtimeListener() {
       const canvasHeight = gameCanvasHeight.value
       const floorY = canvasHeight - 20
       
-      // Find unique color for this user (not used by other players)
-      const usedColors = new Set<string>()
-      players.value.forEach((existingPlayer) => {
-        if (existingPlayer.userId !== userId) {
-          usedColors.add(existingPlayer.color)
-        }
-      })
-      
-      // Randomly pick from available colors (not used by other players)
-      const availableColors = PLAYER_COLORS.filter(color => !usedColors.has(color))
+      // Use color and playerIndex from network if provided (for proper sync)
+      // Otherwise use color assignments from host, or fallback
       let playerColor: string
-      let playerIndex: number
+      let assignedPlayerIndex: number
       
-      if (availableColors.length > 0) {
-        // Randomly pick from available colors
-        const randomIndex = Math.floor(Math.random() * availableColors.length)
-        playerColor = availableColors[randomIndex]
-        playerIndex = PLAYER_COLORS.indexOf(playerColor)
+      if (color && playerIndex !== undefined && playerIndex >= 0 && playerIndex < PLAYER_COLORS.length) {
+        // Use synced color and index from network
+        playerColor = color
+        assignedPlayerIndex = playerIndex
+        debug.log(`🎮 Using synced color for remote player ${userId.substring(0, 6)}: ${playerColor} (index ${assignedPlayerIndex})`)
+      } else if (colorAssignments.value.has(userId)) {
+        // Use color assignment from host
+        const assignment = colorAssignments.value.get(userId)!
+        playerColor = assignment.color
+        assignedPlayerIndex = assignment.playerIndex
+        debug.log(`🎮 Using host-assigned color for remote player ${userId.substring(0, 6)}: ${playerColor} (index ${assignedPlayerIndex})`)
       } else {
-        // Fallback: all colors used (shouldn't happen with 8 colors max), pick randomly
-        const randomIndex = Math.floor(Math.random() * PLAYER_COLORS.length)
-        playerColor = PLAYER_COLORS[randomIndex]
-        playerIndex = randomIndex
+        // Fallback: temporary assignment (will be updated when host broadcasts)
+        assignedPlayerIndex = 0
+        playerColor = PLAYER_COLORS[0]
+        debug.log(`🎮 Fallback: temporary color for remote player ${userId.substring(0, 6)}: ${playerColor} (will update from host)`)
       }
       
       // Use spawnX if provided (for initial spawn), otherwise use received x
@@ -3384,7 +3472,7 @@ function setupRealtimeListener() {
         onWall: onWall || false,
         wallSide: wallSide || null,
         color: playerColor,
-        playerIndex: playerIndex,
+        playerIndex: assignedPlayerIndex,
         isShooting: isShooting || false,
         isCharging: isCharging || false,
         chargeLevel: chargeLevel || 0,
@@ -3468,6 +3556,15 @@ function setupRealtimeListener() {
       if (health !== undefined) player.health = health
       if (maxHealth !== undefined) player.maxHealth = maxHealth
       
+      // Sync color and playerIndex from network (for proper palette sync)
+      if (color && playerIndex !== undefined && playerIndex >= 0 && playerIndex < PLAYER_COLORS.length) {
+        if (player.color !== color || player.playerIndex !== playerIndex) {
+          debug.log(`🎮 Updating color for remote player ${userId.substring(0, 6)}: ${player.color} -> ${color} (index ${player.playerIndex} -> ${playerIndex})`)
+          player.color = color
+          player.playerIndex = playerIndex
+        }
+      }
+      
       // Sync spawn state
       if (isSpawning !== undefined) {
         if (isSpawning && !player.isSpawning) {
@@ -3492,12 +3589,130 @@ function setupRealtimeListener() {
   })
   
   gameChannel.on('broadcast', { event: 'player-damaged' }, (payload) => {
-    const { userId, health } = payload.payload as any
+    const { userId, health, hitTime, state } = payload.payload as any
     
     const player = players.value.get(userId)
     if (player) {
       player.health = health
+      
+      // Sync hit state and hitTime for hit animation (only if not dead)
+      if (state === 'hit' && health > 0 && hitTime) {
+        player.state = 'hit'
+        player.hitTime = hitTime
+        player.invulnerableUntil = hitTime + 1000 // 1 second invulnerability
+        
+        // Return to previous state after hit animation (300ms)
+        setTimeout(() => {
+          const hitPlayer = players.value.get(userId)
+          if (hitPlayer && hitPlayer.state === 'hit' && hitPlayer.health > 0) {
+            hitPlayer.state = hitPlayer.velocityX !== 0 ? 'walking' : 'idle'
+          }
+        }, 300)
+      }
     }
+  })
+  
+  gameChannel.on('broadcast', { event: 'player-died' }, (payload) => {
+    const { userId, health, deathTime } = payload.payload as any
+    
+    const player = players.value.get(userId)
+    if (!player) return
+    
+    // Don't process death for local player (handled locally)
+    if (userId === props.userId) return
+    
+    // Set death state
+    player.health = health || 0
+    player.state = 'dead'
+    player.hitTime = deathTime || Date.now()
+    
+    // Respawn after 3 seconds (synchronized with death time)
+    // If respawn event doesn't come, trigger default respawn
+    const respawnDelay = 3000
+    const timeSinceDeath = Date.now() - (deathTime || Date.now())
+    const remainingDelay = Math.max(0, respawnDelay - timeSinceDeath)
+    
+    const respawnTimeout = setTimeout(() => {
+      const respawnPlayer = players.value.get(userId)
+      if (respawnPlayer && respawnPlayer.health <= 0 && respawnPlayer.state === 'dead') {
+        // Respawn event didn't come, trigger default respawn
+        const canvasHeight = gameCanvasHeight.value
+        const floorY = canvasHeight - 20
+        const canvasWidth = gameCanvasWidth.value
+        
+        // Random spawn X position
+        const spawnX = Math.max(50, Math.min(canvasWidth - 114, 50 + Math.random() * (canvasWidth - 164)))
+        
+        respawnPlayer.health = respawnPlayer.maxHealth
+        respawnPlayer.x = spawnX
+        respawnPlayer.y = -100 // Start above screen for spawn animation
+        respawnPlayer.velocityX = 0
+        respawnPlayer.velocityY = 0
+        respawnPlayer.state = 'idle'
+        respawnPlayer.isSpawning = true
+        respawnPlayer.spawnTime = Date.now()
+        respawnPlayer.spawnY = floorY - 64
+        respawnPlayer.invulnerableUntil = Date.now() + 2000
+        
+        debug.log(`🎮 Default respawn for remote player ${userId.substring(0, 6)} at (${spawnX}, ${floorY - 64})`)
+      }
+    }, remainingDelay)
+    
+    // Store timeout so we can clear it if respawn event comes
+    ;(player as any).respawnTimeout = respawnTimeout
+  })
+  
+  gameChannel.on('broadcast', { event: 'player-respawned' }, (payload) => {
+    const { userId, x, y, spawnY, health, maxHealth } = payload.payload as any
+    
+    const player = players.value.get(userId)
+    if (!player) return
+    
+    // Don't process respawn for local player (handled locally)
+    if (userId === props.userId) return
+    
+    // Clear any pending respawn timeout
+    if ((player as any).respawnTimeout) {
+      clearTimeout((player as any).respawnTimeout)
+      delete (player as any).respawnTimeout
+    }
+    
+    const canvasHeight = gameCanvasHeight.value
+    const floorY = canvasHeight - 20
+    
+    // Respawn player
+    player.health = health || maxHealth || 100
+    player.maxHealth = maxHealth || 100
+    player.x = x || 100
+    player.y = y || -100 // Start above screen for spawn animation
+    player.velocityX = 0
+    player.velocityY = 0
+    player.state = 'idle'
+    player.isSpawning = true
+    player.spawnTime = Date.now()
+    player.spawnY = spawnY || (floorY - 64)
+    player.invulnerableUntil = Date.now() + 2000 // Extra invulnerability on respawn
+    
+    debug.log(`🎮 Remote player ${userId.substring(0, 6)} respawned at (${player.x}, ${player.y})`)
+  })
+  
+  gameChannel.on('broadcast', { event: 'color-assignments' }, (payload) => {
+    const { assignments } = payload.payload as { assignments: Record<string, { color: string; playerIndex: number }> }
+    
+    // Store color assignments from host
+    Object.entries(assignments).forEach(([userId, assignment]) => {
+      colorAssignments.value.set(userId, assignment)
+      
+      // Update existing players with new color assignments
+      const player = players.value.get(userId)
+      if (player) {
+        player.color = assignment.color
+        player.playerIndex = assignment.playerIndex
+        debug.log(`🎮 Updated color for player ${userId.substring(0, 6)}: ${assignment.color} (index ${assignment.playerIndex})`)
+      }
+    })
+    
+    debug.log(`🎮 Received color assignments from host:`, assignments)
   })
   
   gameChannel.on('broadcast', { event: 'resolution-request' }, (payload) => {
@@ -3777,7 +3992,7 @@ function closeGame() {
 .megaman-canvas {
   /* background: rgba(26, 26, 46, 0.95); */
   border: 2px solid #4ecdc4;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(2px);
   box-shadow: 0 0 20px rgba(78, 205, 196, 0.6);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
