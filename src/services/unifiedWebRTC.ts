@@ -87,6 +87,7 @@ export class UnifiedWebRTCService {
   // Audio context for level monitoring
   private audioContext: AudioContext | null = null;
   private localAudioAnalyser: AnalyserNode | null = null;
+  private lastAudioLevelBroadcast: number = 0;
   
   // Audio constraints settings
   private audioConstraints = {
@@ -1135,7 +1136,6 @@ export class UnifiedWebRTCService {
       
       const dataArray = new Uint8Array(this.localAudioAnalyser.frequencyBinCount);
       
-      let lastBroadcast = 0;
       const updateLevel = () => {
         if (this.localAudioAnalyser && this.audioContext?.state === 'running') {
           this.localAudioAnalyser.getByteFrequencyData(dataArray);
@@ -1148,11 +1148,14 @@ export class UnifiedWebRTCService {
           
           this.emit('audio-level', { userId: this.currentUserId, level: average });
           
-          // Broadcast audio level to other users every 100ms if speaking
+          // Broadcast audio level to other users once per second (1000ms interval)
+          // This is sufficient for audio level indicators and prevents rate limiting
           const now = Date.now();
-          if ((average > 20 || now - lastBroadcast > 1000) && now - lastBroadcast > 100) {
+          const timeSinceLastBroadcast = now - this.lastAudioLevelBroadcast;
+          
+          if (timeSinceLastBroadcast >= 1000) {
             this.broadcastAudioLevel();
-            lastBroadcast = now;
+            this.lastAudioLevelBroadcast = now;
           }
           
           // Broadcast media state if speaking state changed (for other peers)
