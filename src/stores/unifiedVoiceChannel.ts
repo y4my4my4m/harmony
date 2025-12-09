@@ -12,6 +12,7 @@ import { useUserData } from '@/composables/useUserData';
 import { useKeybinds } from '@/composables/useKeybinds';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Module-level variable for cross-tab heartbeat (not reactive)
@@ -339,7 +340,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         // Check cross-tab: prevent joining if another tab is already in a voice channel
-        const activeVoiceSession = localStorage.getItem('harmony-active-voice-session');
+        const activeVoiceSession = userStorage.getItem('active-voice-session');
         if (activeVoiceSession) {
           const session = JSON.parse(activeVoiceSession);
           if (session.tabId !== this.getTabId() && Date.now() - session.timestamp < 5000) {
@@ -1123,7 +1124,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Persist settings
       try {
-        localStorage.setItem('harmony-stream-settings', JSON.stringify(newSettings));
+        userStorage.setItem('stream-settings', JSON.stringify(newSettings));
       } catch (error) {
         debug.warn('Failed to save stream settings:', error);
       }
@@ -1134,7 +1135,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     loadStreamSettings(): void {
       try {
-        const saved = localStorage.getItem('harmony-stream-settings');
+        const saved = userStorage.getItem('stream-settings');
         if (saved) {
           const settings = JSON.parse(saved);
           // Handle -1 (source/native) as valid, only default if truly undefined
@@ -1194,7 +1195,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.userVolumes.forEach((volume, odUserId) => {
           volumeObj[odUserId] = volume;
         });
-        localStorage.setItem('harmony-user-volumes', JSON.stringify(volumeObj));
+        userStorage.setItem('user-volumes', JSON.stringify(volumeObj));
       } catch (error) {
         debug.warn('Failed to save user volumes:', error);
       }
@@ -1209,7 +1210,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.userScreenShareVolumes.forEach((volume, odUserId) => {
           volumeObj[odUserId] = volume;
         });
-        localStorage.setItem('harmony-user-screenshare-volumes', JSON.stringify(volumeObj));
+        userStorage.setItem('user-screenshare-volumes', JSON.stringify(volumeObj));
       } catch (error) {
         debug.warn('Failed to save screenshare volumes:', error);
       }
@@ -1220,7 +1221,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     loadUserVolumes(): void {
       try {
-        const saved = localStorage.getItem('harmony-user-volumes');
+        const saved = userStorage.getItem('user-volumes');
         if (saved) {
           const volumeObj = JSON.parse(saved) as Record<string, number>;
           Object.entries(volumeObj).forEach(([odUserId, volume]) => {
@@ -1238,7 +1239,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     loadScreenShareVolumes(): void {
       try {
-        const saved = localStorage.getItem('harmony-user-screenshare-volumes');
+        const saved = userStorage.getItem('user-screenshare-volumes');
         if (saved) {
           const volumeObj = JSON.parse(saved) as Record<string, number>;
           Object.entries(volumeObj).forEach(([odUserId, volume]) => {
@@ -1645,7 +1646,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           channelId: this.currentChannelId,
           timestamp: Date.now()
         };
-        localStorage.setItem('harmony-active-voice-session', JSON.stringify(activeSession));
+        userStorage.setItem('active-voice-session', JSON.stringify(activeSession));
         
         debug.log('💾 Saved voice channel state for auto-reconnect');
       }
@@ -1666,7 +1667,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             channelId: this.currentChannelId,
             timestamp: Date.now()
           };
-          localStorage.setItem('harmony-active-voice-session', JSON.stringify(activeSession));
+          userStorage.setItem('active-voice-session', JSON.stringify(activeSession));
         }
       }, 2000);
     },
@@ -1686,7 +1687,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     clearVoiceChannelState(): void {
       localStorage.removeItem('voiceChannelState');
-      localStorage.removeItem('harmony-active-voice-session');
+      userStorage.removeItem('active-voice-session');
       this.stopVoiceSessionHeartbeat();
       debug.log('🗑️ Cleared voice channel state');
     },

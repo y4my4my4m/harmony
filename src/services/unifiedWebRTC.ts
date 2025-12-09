@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 
 // Lazy load encryption service to avoid loading native modules in browser
@@ -124,7 +125,7 @@ export class UnifiedWebRTCService {
    */
   private loadStreamQualitySettings(): void {
     try {
-      const saved = localStorage.getItem('harmony-stream-quality');
+      const saved = userStorage.getItem('stream-quality');
       if (saved) {
         const settings = JSON.parse(saved);
         this.streamQualitySettings = {
@@ -144,7 +145,7 @@ export class UnifiedWebRTCService {
    */
   private saveStreamQualitySettings(): void {
     try {
-      localStorage.setItem('harmony-stream-quality', JSON.stringify(this.streamQualitySettings));
+      userStorage.setItem('stream-quality', JSON.stringify(this.streamQualitySettings));
     } catch (error) {
       debug.warn('⚠️ [P2P] Failed to save stream quality settings:', error);
     }

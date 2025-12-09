@@ -36,6 +36,7 @@ import {
 } from 'livekit-client';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 
 // =============================================================================
@@ -1156,7 +1157,7 @@ export class LiveKitWebRTCService {
    */
   loadStreamQualitySettings(): void {
     try {
-      const saved = localStorage.getItem('harmony-stream-settings');
+      const saved = userStorage.getItem('stream-settings');
       if (saved) {
         const settings = JSON.parse(saved);
         this.streamQualitySettings = {

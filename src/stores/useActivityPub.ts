@@ -11,6 +11,7 @@ import { services } from '@/services';
 import router from '@/router';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 // InteractionService removed - using direct database operations
 import type { 
   Post, 
@@ -404,7 +405,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     loadTimelineFromCache() {
       try {
-        const cached = localStorage.getItem('harmony-timeline-cache');
+        const cached = userStorage.getItem('timeline-cache');
         if (!cached) return false;
         
         const { posts, timestamp, hasEverLoaded } = JSON.parse(cached);
@@ -459,7 +460,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           hasEverLoaded: true,
         };
         
-        localStorage.setItem('harmony-timeline-cache', JSON.stringify(cacheData));
+        userStorage.setItem('timeline-cache', JSON.stringify(cacheData));
         this.hasEverLoadedTimeline = true;
         this.timelineCacheTimestamp = Date.now();
         debug.log(`💾 Cached ${lightPosts.length} timeline posts`);
@@ -473,7 +474,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     clearTimelineCache() {
       try {
-        localStorage.removeItem('harmony-timeline-cache');
+        userStorage.removeItem('timeline-cache');
         this.hasEverLoadedTimeline = false;
         this.timelineCacheTimestamp = null;
         debug.log('🗑️ Timeline cache cleared');

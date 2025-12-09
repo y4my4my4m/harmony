@@ -305,9 +305,7 @@ function applySettings(settings: VisualThemeSettings) {
  */
 function saveToLocalStorage(settings: VisualThemeSettings) {
   try {
-    import('@/utils/userScopedStorage').then(({ userStorage }) => {
-      userStorage.setItem('visual-theme', JSON.stringify(settings))
-    })
+    userStorage.setItem('visual-theme', JSON.stringify(settings))
   } catch (error) {
     debug.error('Failed to save theme to localStorage:', error)
   }
