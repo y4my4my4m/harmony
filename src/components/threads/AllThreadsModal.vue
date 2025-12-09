@@ -281,7 +281,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--background-secondary);
+  background: var(--background-tertiary);
   border-radius: 4px;
   padding: 6px 12px;
   flex: 1;
