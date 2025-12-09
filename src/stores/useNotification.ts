@@ -898,7 +898,7 @@ export const useNotificationStore = defineStore('notification', {
           .from('notification_preferences')
           .select('*')
           .eq('user_id', userId)
-          .single()
+          .maybeSingle()
 
         if (error && error.code !== 'PGRST116') {
           debug.error('Error loading preferences:', error)

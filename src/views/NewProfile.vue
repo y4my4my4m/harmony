@@ -290,7 +290,7 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
-import { uploadAvatar } from '@/utils/fileUpload';
+import { uploadAvatar, downloadAndUploadImage } from '@/utils/fileUpload';
 import { uploadBanner } from '@/utils/bannerUtils';
 import { supabase } from '@/supabase';
 
@@ -722,16 +722,31 @@ const createProfile = async () => {
         toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
       }
     } else if (avatarPreview.value && !avatarFile.value && result) {
-      // OAuth avatar URL - set it directly (no upload needed)
-      debug.log('Setting OAuth avatar...');
+      // OAuth avatar URL - download and upload to Supabase storage
+      debug.log('Downloading and uploading OAuth avatar...');
       creationStep.value = 'Setting up avatar...';
       try {
-        await profileStore.updateProfile({
-          avatar_url: avatarPreview.value
-        });
-        debug.log('✅ OAuth avatar set successfully:', avatarPreview.value);
+        const uploadResult = await downloadAndUploadImage(
+          avatarPreview.value,
+          authStore.session.user.id,
+          'avatar'
+        );
+        
+        if (uploadResult.success && uploadResult.url) {
+          // Normalize the URL for storage (convert public URL to storage path if needed)
+          const { normalizeAvatarForStorage } = await import('@/utils/avatarUtils');
+          const normalizedPath = normalizeAvatarForStorage(uploadResult.url) || uploadResult.url;
+          
+          await profileStore.updateProfile({
+            avatar_url: normalizedPath
+          });
+          debug.log('✅ OAuth avatar uploaded successfully:', normalizedPath);
+        } else {
+          debug.error('OAuth avatar upload failed:', uploadResult.error);
+          toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+        }
       } catch (avatarError) {
-        debug.error('Failed to set OAuth avatar:', avatarError);
+        debug.error('Failed to download/upload OAuth avatar:', avatarError);
         toast.warning('Profile created but avatar setup failed. You can update it later in settings.');
       }
     }
