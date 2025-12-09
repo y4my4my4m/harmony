@@ -215,6 +215,31 @@
         </div>
       </div>
     </div>
+    
+    <!-- Participants Dropdown (only shown when not at default position, outside container) -->
+    <div 
+      v-if="currentMode === 'minimized' && !isAtDefaultPosition" 
+      class="participants-dropdown-container"
+      :style="participantsDropdownStyle"
+    >
+      <button 
+        @click.stop="toggleParticipantsDropdown"
+        class="participants-dropdown-btn"
+        :class="{ active: showParticipantsDropdown }"
+        title="Show participants"
+      >
+        <Icon name="chevron-down" :class="{ rotated: showParticipantsDropdown }" />
+      </button>
+      
+      <Transition name="participants-dropdown">
+        <div v-if="showParticipantsDropdown" class="participants-dropdown">
+          <VoiceChannelParticipants 
+            :participants="voiceStore.allParticipants"
+            :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
+          />
+        </div>
+      </Transition>
+    </div>
 
     <!-- Voice Settings Panel -->
     <VoiceSettingsPanel 
@@ -255,6 +280,7 @@ import Avatar from '@/components/common/Avatar.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
+const VoiceChannelParticipants = defineAsyncComponent(() => import('./VoiceChannelParticipants.vue'));
 
 // Centralized keybind system
 const keybinds = useKeybinds();
@@ -280,6 +306,7 @@ const { getUser } = useUserData();
 // =============================================================================
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
+const showParticipantsDropdown = ref(false);
 const minimizedVideoRef = ref<HTMLVideoElement | null>(null);
 const dockVideoRef = ref<HTMLVideoElement | null>(null);
 const minimizedContainerRef = ref<HTMLElement | null>(null);
@@ -336,6 +363,13 @@ const dockMode = computed(() => ({
   'overlay-mode': currentMode.value === 'overlay'
 }));
 
+// Check if dock is at default position
+const isAtDefaultPosition = computed(() => {
+  const leftDiff = Math.abs(minimizedPosition.value.left - DEFAULT_POSITION.left);
+  const bottomDiff = Math.abs(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom);
+  return leftDiff < 1 && bottomDiff < 1;
+});
+
 // Computed style for minimized dock position
 const minimizedPositionStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'minimized') return {};
@@ -343,6 +377,18 @@ const minimizedPositionStyle = computed((): Record<string, string> => {
     left: `${minimizedPosition.value.left}px`,
     bottom: `${minimizedPosition.value.bottom}px`,
     transform: 'none',
+    position: 'fixed',
+  };
+});
+
+// Computed style for participants dropdown (positioned below the dock)
+const participantsDropdownStyle = computed((): Record<string, string> => {
+  if (currentMode.value !== 'minimized') return {};
+  // Position it below the dock, centered
+  return {
+    left: `${minimizedPosition.value.left + 171.5}px`, // 343px / 2 = 171.5px (center of dock)
+    bottom: `${minimizedPosition.value.bottom - 16}px`, // 8px below the dock
+    transform: 'translateX(-50%)',
     position: 'fixed',
   };
 });
@@ -396,6 +442,10 @@ const toggleSettings = () => {
   showSettings.value = !showSettings.value;
 };
 
+const toggleParticipantsDropdown = () => {
+  showParticipantsDropdown.value = !showParticipantsDropdown.value;
+};
+
 const toggleSpatialPanel = () => {
   spatialStore.togglePanel();
 };
@@ -434,7 +484,7 @@ const STORAGE_KEY_MINIMIZED_POSITION = 'voice-dock-minimized-position';
 // Default position (matches CSS default)
 const DEFAULT_POSITION = { left: 10, bottom: 90 };
 // Magnetic snap threshold (pixels) - snap if within this distance
-const SNAP_THRESHOLD = 30;
+const SNAP_THRESHOLD = 80; // Increased from 30 to 80 for better snap range
 // Only enable magnetic snap on desktop (not mobile)
 const isDesktop = computed(() => window.innerWidth > 768);
 
@@ -752,6 +802,9 @@ watch(
 // =============================================================================
 // LIFECYCLE & EVENT LISTENERS
 // =============================================================================
+// Close participants dropdown when clicking outside
+let handleClickOutside: ((e: MouseEvent) => void) | null = null;
+
 onMounted(() => {
   // Start in dock mode ONLY if the store doesn't want overlay visible
   // (e.g., when auto-opening for video detection)
@@ -763,6 +816,18 @@ onMounted(() => {
   
   // Load saved minimized dock position
   loadMinimizedPosition();
+  
+  // Close participants dropdown when clicking outside
+  handleClickOutside = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (showParticipantsDropdown.value && 
+        !target.closest('.participants-dropdown-container') &&
+        !target.closest('.participants-dropdown')) {
+      showParticipantsDropdown.value = false;
+    }
+  };
+  
+  document.addEventListener('click', handleClickOutside);
   
   // Keybind handlers are registered in UnifiedVoiceOverlay when overlay is open
   // When in dock mode (not overlay), we still want these shortcuts to work
@@ -780,6 +845,12 @@ onUnmounted(() => {
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
+  }
+  
+  // Remove click outside listener
+  if (handleClickOutside) {
+    document.removeEventListener('click', handleClickOutside);
+    handleClickOutside = null;
   }
 });
 </script>
@@ -1115,6 +1186,8 @@ onUnmounted(() => {
    ============================================================================= */
 
 .minimized-container {
+  position: relative;
+  z-index: 200;
   /* background: linear-gradient(145deg, #2f3136, #36393f); */
   background: linear-gradient(145deg, #2f313663, #36393f59);
   backdrop-filter: blur(8px);
@@ -1308,6 +1381,107 @@ onUnmounted(() => {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
   color: white;
   border-color: rgba(237, 66, 69, 0.6);
+}
+
+/* Participants Dropdown - positioned outside and below the container */
+.participants-dropdown-container {
+  z-index: 100;
+  pointer-events: none; /* Allow clicks to pass through container, but not button/dropdown */
+}
+
+.participants-dropdown-btn {
+  width: 40px;
+  height: 20px;
+  border-radius: 0 0 10px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-top: none;
+  background: linear-gradient(145deg, #2f313663, #36393f59);
+  backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+  font-size: 10px;
+  pointer-events: auto; /* Button is clickable */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.participants-dropdown-btn:hover:not(.active) {
+  background: linear-gradient(145deg, #36393f63, #40444b59);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(2px);
+}
+
+.participants-dropdown-btn.active {
+  background: linear-gradient(145deg, #36393f, #40444b);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(2px);
+}
+
+.participants-dropdown-btn .rotated {
+  transform: rotate(180deg);
+}
+
+.participants-dropdown {
+  position: absolute;
+  top: 20px; /* Below the button */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: linear-gradient(145deg, #2f3136, #36393f);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  z-index: 101;
+  pointer-events: auto; /* Dropdown is clickable */
+  margin-top: 4px; /* Small gap from button */
+}
+
+/* Dropdown transition - slides down from under */
+.participants-dropdown-enter-active {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.participants-dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.participants-dropdown-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+  max-height: 0;
+  margin-top: 0;
+}
+
+.participants-dropdown-enter-to {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  max-height: 400px;
+  margin-top: 4px;
+}
+
+.participants-dropdown-leave-from {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  max-height: 400px;
+  margin-top: 4px;
+}
+
+.participants-dropdown-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+  max-height: 0;
+  margin-top: 0;
 }
 
 /* =============================================================================
