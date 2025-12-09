@@ -592,6 +592,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 }
 
 .refresh-btn {
+  background: var(--h-chat-light);
   display: flex;
   align-items: center;
   gap: 8px;
