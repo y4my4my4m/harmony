@@ -1432,7 +1432,7 @@ onUnmounted(() => {
 }
 
 .participants-dropdown-btn.active {
-  background: linear-gradient(145deg, #36393f, #40444b);
+  background: linear-gradient(145deg, #36393f63, #40444b59);
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(2px);
@@ -1450,7 +1450,7 @@ onUnmounted(() => {
   width: 300px;
   max-height: 400px;
   overflow-y: auto;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, #2f313663, #36393f59);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 
@@ -1460,6 +1460,10 @@ onUnmounted(() => {
   z-index: 101;
   pointer-events: auto; /* Dropdown is clickable */
   margin-top: 4px; /* Small gap from button */
+}
+
+.participants-dropdown .voice-participants {
+  background: none;
 }
 
 /* Dropdown transition - slides down from under */
