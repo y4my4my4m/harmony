@@ -614,20 +614,32 @@ export const useAuthStore = defineStore('auth', {
     /**
      * Initialize user settings after login
      * Ensures theme and other user-specific settings are loaded for the new user
+     * OPTIMIZED: Loads from localStorage first (instant), then fetches profile in background
      */
     async initializeUserSettings(userId: string) {
       try {
         debug.log('🔄 Initializing user settings for:', userId);
         
-        // First, fetch the user's profile to get appearance_settings
-        const { useProfileStore } = await import('@/stores/useProfile');
-        const profileStore = useProfileStore();
-        await profileStore.fetchProfileByAuthUserId(userId);
-        
-        // Re-initialize the visual theme (will load from profile store or localStorage)
+        // ✅ PERFORMANCE: Initialize theme from localStorage FIRST (instant, synchronous)
+        // This gives immediate visual feedback while profile loads in background
         const { useVisualTheme } = await import('@/composables/useVisualTheme');
         const visualTheme = useVisualTheme();
-        await visualTheme.initialize();
+        
+        // Initialize theme immediately (loads from localStorage first, then Supabase)
+        // This is non-blocking for the UI - theme applies instantly from localStorage
+        const themeInitPromise = visualTheme.initialize();
+        
+        // Fetch profile in parallel (non-blocking)
+        // Theme will use cached profile data if available, or fetch from Supabase
+        const { useProfileStore } = await import('@/stores/useProfile');
+        const profileStore = useProfileStore();
+        const profilePromise = profileStore.fetchProfileByAuthUserId(userId);
+        
+        // Wait for both to complete (but theme already applied from localStorage)
+        await Promise.all([themeInitPromise, profilePromise]);
+        
+        // If profile was fetched and has appearance_settings, theme will have loaded it
+        // If not, theme will have used localStorage (which is fine)
         
         debug.log('✅ User settings initialized');
       } catch (error) {
