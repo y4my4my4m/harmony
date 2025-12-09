@@ -190,10 +190,11 @@
           <button 
             @click.stop="voiceStore.toggleMute"
             class="mini-control-btn"
-            :class="{ muted: voiceStore.localState.isMuted }"
+            :class="{ muted: voiceStore.localState.isMuted || voiceStore.localState.isDeafened }"
             :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
           >
-            <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
+            <MicIcon v-if="!voiceStore.localState.isMuted && !voiceStore.localState.isDeafened" />
+            <MicMutedIcon v-else />
           </button>
           
           <button 
@@ -202,7 +203,7 @@
             :class="{ deafened: voiceStore.localState.isDeafened }"
             :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
           >
-            <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
+            <HeadphonesIcon :isHeadphonesActive="!voiceStore.localState.isDeafened" />
           </button>
           
           <button 
@@ -277,6 +278,9 @@ import { useKeybinds } from '@/composables/useKeybinds';
 import { userStorage } from '@/utils/userScopedStorage';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import MicIcon from '@/components/icons/Mic.vue';
+import MicMutedIcon from '@/components/icons/MicMuted.vue';
+import HeadphonesIcon from '@/components/icons/Headphones.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
