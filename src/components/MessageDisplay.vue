@@ -1981,10 +1981,10 @@ const closeInviteModal = () => {
   top: -16px;
   right: 0;
   display: flex;
-  background-color: #36393f;
-  border: 1px solid #40444b;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
   z-index: 1;
 }
 
@@ -2002,12 +2002,12 @@ const closeInviteModal = () => {
 }
 
 .action-btn:hover {
-  background-color: #40444b;
-  color: var(--text-secondary);
+  background-color: var(--harmony-primary-alpha);
+  color: var(--text-primary);
 }
 
 .action-btn:active {
-  background-color: #2f3136;
+  background-color: var(--background-tertiary-alpha);
   transform: scale(0.95);
 }
 
@@ -2215,7 +2215,7 @@ const closeInviteModal = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
+  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
 }
@@ -2233,7 +2233,7 @@ const closeInviteModal = () => {
 .skeleton-username {
   width: 80px;
   height: 16px;
-  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
+  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2242,7 +2242,7 @@ const closeInviteModal = () => {
 .skeleton-timestamp {
   width: 50px;
   height: 12px;
-  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
+  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2250,7 +2250,7 @@ const closeInviteModal = () => {
 
 .skeleton-text-line {
   height: 14px;
-  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
+  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2345,8 +2345,8 @@ const closeInviteModal = () => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background-color: rgba(88, 101, 242, 0.1);
-  border-left: 4px solid #5865f2;
+  background-color: var(--background-tertiary-alpha);
+  border-left: 4px solid var(--harmony-primary);
   border-radius: 0 4px 4px 0;
   margin-left: 4px;
   font-size: 0.875rem;

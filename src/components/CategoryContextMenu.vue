@@ -82,8 +82,8 @@ const deleteCategory = () => {
 <style scoped>
 .context-menu {
   position: fixed;
-  background: #18191c;
-  border: 1px solid #40444b;
+  background: var(--background-secondary-alpha);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 160px;

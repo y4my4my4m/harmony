@@ -1261,9 +1261,9 @@ export default defineComponent({
   min-height: 40px;
   max-height: 200px;
   padding: 8px 12px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--border-color);  
   border-radius: 8px;
-  background-color: #40444b;
+  background-color: var(--background-secondary-alpha);
   color: var(--text-secondary);
   font-family: inherit;
   font-size: 14px;
@@ -1276,27 +1276,27 @@ export default defineComponent({
 }
 
 .edit-textarea:focus {
-  border-color: #5865f2;
-  background-color: #383c42;
+  border-color: var(--harmony-primary);
+  background-color: var(--background-tertiary-alpha);
 }
 
 .edit-textarea::placeholder {
-  color: #72767d;
+  color: var(--text-secondary);
 }
 
 .edit-actions {
   margin-top: 8px;
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-secondary);
 }
 
 .edit-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-secondary);
 }
 
 .edit-action {
-  color: #00b0f4;
+  color: var(--harmony-primary);
   cursor: pointer;
   font-weight: 500;
 }
