@@ -729,8 +729,12 @@ export class LiveKitWebRTCService {
       
       debug.log('✅ [LiveKit] Published local audio track');
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to publish audio:', error);
-      throw error;
+      // No microphone available - allow joining but force mute
+      debug.warn('⚠️ [LiveKit] No microphone available, joining in muted state:', error);
+      this.localMediaState.isMuted = true;
+      this.localMediaState.isAudioEnabled = false;
+      this.emit('local-state-changed', this.localMediaState);
+      // Don't throw - allow join to continue without audio
     }
   }
   
