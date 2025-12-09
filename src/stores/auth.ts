@@ -272,6 +272,10 @@ export const useAuthStore = defineStore('auth', {
             // Set user-scoped storage for the new user
             userStorage.setCurrentUser(session.user.id);
             this.setupOfflineHandlers(session.user.id);
+            
+            // ✅ CRITICAL: Re-initialize user settings after login
+            // This ensures theme and other settings load for the new user
+            this.initializeUserSettings(session.user.id);
           }
           return;
         }
@@ -604,6 +608,30 @@ export const useAuthStore = defineStore('auth', {
         
       } catch (error) {
         debug.error('❌ Error cleaning up notification system:', error);
+      }
+    },
+
+    /**
+     * Initialize user settings after login
+     * Ensures theme and other user-specific settings are loaded for the new user
+     */
+    async initializeUserSettings(userId: string) {
+      try {
+        debug.log('🔄 Initializing user settings for:', userId);
+        
+        // First, fetch the user's profile to get appearance_settings
+        const { useProfileStore } = await import('@/stores/useProfile');
+        const profileStore = useProfileStore();
+        await profileStore.fetchProfileByAuthUserId(userId);
+        
+        // Re-initialize the visual theme (will load from profile store or localStorage)
+        const { useVisualTheme } = await import('@/composables/useVisualTheme');
+        const visualTheme = useVisualTheme();
+        await visualTheme.initialize();
+        
+        debug.log('✅ User settings initialized');
+      } catch (error) {
+        debug.error('❌ Error initializing user settings:', error);
       }
     },
   },
