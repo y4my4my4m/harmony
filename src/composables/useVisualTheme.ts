@@ -14,6 +14,7 @@ import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 export interface VisualThemeSettings {
   theme: 'dark' | 'light' | 'midnight' | 'custom'
@@ -315,9 +316,8 @@ function saveToLocalStorage(settings: VisualThemeSettings) {
 /**
  * Load settings from localStorage
  */
-async function loadFromLocalStorage(): Promise<Partial<VisualThemeSettings> | null> {
+function loadFromLocalStorage(): Partial<VisualThemeSettings> | null {
   try {
-    const { userStorage } = await import('@/utils/userScopedStorage')
     const saved = userStorage.getItem('visual-theme')
     if (saved) {
       return JSON.parse(saved)
@@ -418,7 +418,7 @@ export function useVisualTheme() {
     debug.log('🎨 Initializing visual theme system...')
     
     // Try to load from localStorage first (instant)
-    const localSettings = await loadFromLocalStorage()
+    const localSettings = loadFromLocalStorage()
     let appliedFromLocal = false
     if (localSettings) {
       Object.assign(settings.value, localSettings)

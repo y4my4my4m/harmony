@@ -1,4 +1,5 @@
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 interface PersistedState {
   lastServerId: string | null
@@ -79,7 +80,6 @@ class StatePersistenceService {
 
   private async _initialize(): Promise<void> {
     try {
-      const { userStorage } = await import('@/utils/userScopedStorage')
       const stored = userStorage.getItem(STORAGE_KEY)
       
       if (stored) {
@@ -144,7 +144,6 @@ class StatePersistenceService {
    */
   private async saveState(): Promise<void> {
     try {
-      const { userStorage } = await import('@/utils/userScopedStorage')
       const stateToSave = {
         ...this.state,
         lastActiveTimestamp: Date.now()
@@ -158,7 +157,6 @@ class StatePersistenceService {
       // Try to clear space and retry once
       try {
         this.clearOldStates()
-        const { userStorage } = await import('@/utils/userScopedStorage')
         userStorage.setItem(STORAGE_KEY, JSON.stringify(this.state))
         debug.log('💾 State persisted after cleanup')
       } catch (retryError) {
@@ -388,7 +386,6 @@ class StatePersistenceService {
     
     // Fallback: quick localStorage check without full state loading
     try {
-      const { userStorage } = await import('@/utils/userScopedStorage')
       const stored = userStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
@@ -453,7 +450,6 @@ class StatePersistenceService {
     this.isLoaded = false
     
     try {
-      const { userStorage } = await import('@/utils/userScopedStorage')
       userStorage.removeItem(STORAGE_KEY)
       this.clearOldStates() // Also clean up any legacy keys
       debug.log('🗑️ All persisted state cleared')
