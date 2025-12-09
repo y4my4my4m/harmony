@@ -140,7 +140,15 @@
     </div>
 
     <!-- Minimized Mode (tiny dock in channel sidebar) -->
-    <div v-else-if="currentMode === 'minimized'" class="minimized-container" @click="expandToDock">
+    <div 
+      v-else-if="currentMode === 'minimized'" 
+      ref="minimizedContainerRef"
+      class="minimized-container" 
+      :class="{ 'is-dragging': isDragging }"
+      :style="minimizedPositionStyle"
+      @mousedown="handleMinimizedMouseDown"
+      @click="handleMinimizedClick"
+    >
       <!-- Mini Video Preview (when someone is sharing video/screen) - hide if PIP is active -->
       <div v-if="activeVideoUser && !voiceStore.pipActive" class="minimized-video-preview" @click.stop="expandToOverlay">
         <video
@@ -166,7 +174,11 @@
       </div>
 
       <div class="minimized-content">
-        <div class="minimized-info">
+        <div 
+          class="minimized-info"
+          @mousedown="startDrag"
+          @touchstart="startDrag"
+        >
           <Icon name="volume" class="channel-icon" />
           <span class="channel-name">{{ channelName }}</span>
           <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
@@ -237,6 +249,7 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
 import { useKeybinds } from '@/composables/useKeybinds';
+import { userStorage } from '@/utils/userScopedStorage';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -269,6 +282,17 @@ const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
 const minimizedVideoRef = ref<HTMLVideoElement | null>(null);
 const dockVideoRef = ref<HTMLVideoElement | null>(null);
+const minimizedContainerRef = ref<HTMLElement | null>(null);
+
+// Drag state for minimized dock
+const isDragging = ref(false);
+const dragStartPos = ref({ x: 0, y: 0 });
+const dragInitialMousePos = ref({ x: 0, y: 0 }); // Track initial mouse position
+const hasMoved = ref(false); // Track if mouse moved significantly during drag
+const minimizedPosition = ref({ left: 10, bottom: 90 });
+const containerDimensions = ref({ width: 0, height: 0 });
+let rafId: number | null = null;
+const CLICK_THRESHOLD = 5; // Pixels - if moved less than this, it's a click
 
 // =============================================================================
 // COMPUTED PROPERTIES
@@ -311,6 +335,17 @@ const dockMode = computed(() => ({
   'minimized-mode': currentMode.value === 'minimized',
   'overlay-mode': currentMode.value === 'overlay'
 }));
+
+// Computed style for minimized dock position
+const minimizedPositionStyle = computed((): Record<string, string> => {
+  if (currentMode.value !== 'minimized') return {};
+  return {
+    left: `${minimizedPosition.value.left}px`,
+    bottom: `${minimizedPosition.value.bottom}px`,
+    transform: 'none',
+    position: 'fixed',
+  };
+});
 
 // Get first user with active video or screenshare (for minimized preview)
 const activeVideoUser = computed(() => {
@@ -389,6 +424,233 @@ const activatePIPForActiveVideo = () => {
     // Use 'draggable' mode so users can move and resize it
     voiceStore.togglePIP(activeVideoUser.value.userId, 'draggable');
   }
+};
+
+// =============================================================================
+// DRAG FUNCTIONALITY FOR MINIMIZED DOCK
+// =============================================================================
+const STORAGE_KEY_MINIMIZED_POSITION = 'voice-dock-minimized-position';
+
+// Default position (matches CSS default)
+const DEFAULT_POSITION = { left: 10, bottom: 90 };
+// Magnetic snap threshold (pixels) - snap if within this distance
+const SNAP_THRESHOLD = 30;
+// Only enable magnetic snap on desktop (not mobile)
+const isDesktop = computed(() => window.innerWidth > 768);
+
+const loadMinimizedPosition = () => {
+  try {
+    const saved = userStorage.getItem(STORAGE_KEY_MINIMIZED_POSITION);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (typeof parsed.left === 'number' && typeof parsed.bottom === 'number') {
+        minimizedPosition.value = { left: parsed.left, bottom: parsed.bottom };
+      }
+    } else {
+      // Use default position if no saved position
+      minimizedPosition.value = { ...DEFAULT_POSITION };
+    }
+  } catch (error) {
+    debug.warn('Failed to load minimized dock position:', error);
+    minimizedPosition.value = { ...DEFAULT_POSITION };
+  }
+};
+
+const saveMinimizedPosition = () => {
+  try {
+    // Only save if position is different from default (user has moved it)
+    const isAtDefault = 
+      Math.abs(minimizedPosition.value.left - DEFAULT_POSITION.left) < 1 &&
+      Math.abs(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom) < 1;
+    
+    if (isAtDefault) {
+      // Remove saved position to use default
+      userStorage.removeItem(STORAGE_KEY_MINIMIZED_POSITION);
+    } else {
+      userStorage.setItem(STORAGE_KEY_MINIMIZED_POSITION, JSON.stringify(minimizedPosition.value));
+    }
+  } catch (error) {
+    debug.warn('Failed to save minimized dock position:', error);
+  }
+};
+
+const startDrag = (e: MouseEvent | TouchEvent) => {
+  // Prevent click event from firing
+  e.preventDefault();
+  e.stopPropagation();
+  
+  isDragging.value = true;
+  hasMoved.value = false; // Reset movement tracking
+  
+  // Cache container dimensions to avoid recalculating on every move
+  const container = minimizedContainerRef.value;
+  if (container) {
+    const rect = container.getBoundingClientRect();
+    containerDimensions.value = { width: rect.width, height: rect.height };
+  }
+  
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  
+  // Store initial mouse position to detect movement
+  dragInitialMousePos.value = { x: clientX, y: clientY };
+  
+  dragStartPos.value = {
+    x: clientX - minimizedPosition.value.left,
+    y: window.innerHeight - clientY - minimizedPosition.value.bottom
+  };
+  
+  // Use passive: false to allow preventDefault
+  document.addEventListener('mousemove', handleDrag, { passive: false });
+  document.addEventListener('mouseup', stopDrag);
+  document.addEventListener('touchmove', handleDrag, { passive: false });
+  document.addEventListener('touchend', stopDrag);
+  
+  // Prevent text selection while dragging
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'grabbing';
+  
+  // Disable transitions during drag for smooth movement
+  if (container) {
+    container.style.transition = 'none';
+  }
+};
+
+const handleDrag = (e: MouseEvent | TouchEvent) => {
+  if (!isDragging.value) return;
+  
+  e.preventDefault();
+  
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  
+  // Check if mouse has moved significantly from initial position
+  const deltaX = Math.abs(clientX - dragInitialMousePos.value.x);
+  const deltaY = Math.abs(clientY - dragInitialMousePos.value.y);
+  const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  
+  if (distance > CLICK_THRESHOLD) {
+    hasMoved.value = true; // Mark as moved if beyond threshold
+  }
+  
+  // Cancel any pending animation frame
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+  }
+  
+  // Use requestAnimationFrame for smooth updates
+  rafId = requestAnimationFrame(() => {
+    if (!isDragging.value) return;
+    
+    // Calculate new position
+    let newLeft = clientX - dragStartPos.value.x;
+    let newBottom = window.innerHeight - clientY - dragStartPos.value.y;
+    
+    // Magnetic snap to default position (desktop only)
+    if (isDesktop.value) {
+      const distanceToDefault = Math.sqrt(
+        Math.pow(newLeft - DEFAULT_POSITION.left, 2) + 
+        Math.pow(newBottom - DEFAULT_POSITION.bottom, 2)
+      );
+      
+      if (distanceToDefault < SNAP_THRESHOLD) {
+        // Snap to default position
+        newLeft = DEFAULT_POSITION.left;
+        newBottom = DEFAULT_POSITION.bottom;
+      }
+    }
+    
+    // Constrain to viewport bounds using cached dimensions
+    const maxLeft = window.innerWidth - containerDimensions.value.width;
+    const maxBottom = window.innerHeight - containerDimensions.value.height;
+    
+    minimizedPosition.value = {
+      left: Math.max(0, Math.min(newLeft, maxLeft)),
+      bottom: Math.max(0, Math.min(newBottom, maxBottom))
+    };
+    
+    rafId = null;
+  });
+};
+
+const stopDrag = () => {
+  if (!isDragging.value) return;
+  
+  // Cancel any pending animation frame
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  
+  // If we moved, prevent the click event from firing
+  if (hasMoved.value) {
+    shouldPreventClick = true;
+    // Use a small timeout to ensure click event is prevented
+    setTimeout(() => {
+      shouldPreventClick = false;
+      hasMoved.value = false; // Reset for next interaction
+    }, 100);
+  }
+  
+  isDragging.value = false;
+  
+  // Re-enable transitions after drag
+  const container = minimizedContainerRef.value;
+  if (container) {
+    container.style.transition = '';
+  }
+  
+  // Final snap check on release (desktop only)
+  if (isDesktop.value) {
+    const distanceToDefault = Math.sqrt(
+      Math.pow(minimizedPosition.value.left - DEFAULT_POSITION.left, 2) + 
+      Math.pow(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom, 2)
+    );
+    
+    if (distanceToDefault < SNAP_THRESHOLD) {
+      // Smoothly animate to default position
+      minimizedPosition.value = { ...DEFAULT_POSITION };
+    }
+  }
+  
+  saveMinimizedPosition();
+  
+  document.removeEventListener('mousemove', handleDrag);
+  document.removeEventListener('mouseup', stopDrag);
+  document.removeEventListener('touchmove', handleDrag);
+  document.removeEventListener('touchend', stopDrag);
+  
+  // Restore text selection
+  document.body.style.userSelect = '';
+  document.body.style.cursor = '';
+};
+
+// Track if we should prevent the click event
+let shouldPreventClick = false;
+
+const handleMinimizedMouseDown = (e: MouseEvent) => {
+  // If mousedown is on the drag handle or info area, don't prevent click yet
+  // We'll check in handleDrag if movement occurred
+  const target = e.target as HTMLElement;
+  const isOnDragArea = target.closest('.minimized-info') !== null;
+  
+  if (!isOnDragArea) {
+    // If clicking outside drag area, allow normal click behavior
+    shouldPreventClick = false;
+  }
+};
+
+const handleMinimizedClick = (e: MouseEvent) => {
+  // Prevent click if we just finished dragging
+  if (shouldPreventClick || hasMoved.value) {
+    e.preventDefault();
+    e.stopPropagation();
+    shouldPreventClick = false; // Reset for next interaction
+    return;
+  }
+  
+  // Only expand if it was a genuine click (no drag occurred)
+  expandToDock();
 };
 
 // =============================================================================
@@ -499,12 +761,26 @@ onMounted(() => {
     currentMode.value = 'overlay';
   }
   
+  // Load saved minimized dock position
+  loadMinimizedPosition();
+  
   // Keybind handlers are registered in UnifiedVoiceOverlay when overlay is open
   // When in dock mode (not overlay), we still want these shortcuts to work
   // The keybind system handles this through context - 'voice-connected' is active here
   
   // Note: Keybind handlers are registered once globally in the voice store when connected.
   // The dock doesn't need its own handlers - the centralized system handles everything.
+});
+
+onUnmounted(() => {
+  // Clean up drag listeners
+  stopDrag();
+  
+  // Cancel any pending animation frame
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
 });
 </script>
 
@@ -517,18 +793,17 @@ onMounted(() => {
 
 /* Compact Mode - floating bar centered at bottom */
 .unified-voice-dock.dock-mode {
-  bottom: 0px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
 }
 
 /* Minimized Mode - tiny dock in channel sidebar */
 .unified-voice-dock.minimized-mode {
-  bottom: 90px; /* Height of UserProfileComponent */
-  left: 10px;   /* Offset from ServerSidebar (72px width) */
   width: 343px; /* Width of channel sidebar */
   transform: none;
   z-index: 10;  /* Above UserProfileComponent but below global overlays */
+  /* Position is set dynamically via inline styles */
 }
 
 /* Overlay Mode - full screen view with all participants */
@@ -848,20 +1123,28 @@ onMounted(() => {
   padding: 12px 16px;
   cursor: pointer;
   transition: all 0.3s ease;
-  width: 100%; /* Use full width of minimized dock container */
+  width: 343px; /* Use full width of minimized dock container */
+  box-sizing: border-box; /* Include padding in width calculation */
   box-shadow: 
     0 6px 20px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.3);
   margin-bottom: 0; /* Remove bottom margin for tight positioning */
 }
 
-.minimized-container:hover {
+.minimized-container:hover:not(.is-dragging) {
   /* background: linear-gradient(145deg, #36393f, #40444b); */
   background: linear-gradient(145deg, #36393f63, #40444b59);
   transform: translateY(-1px);
   box-shadow: 
     0 8px 25px rgba(0, 0, 0, 0.5),
     0 3px 10px rgba(0, 0, 0, 0.4);
+}
+
+.minimized-container.is-dragging {
+  cursor: grabbing !important;
+  transition: none !important; /* Disable all transitions during drag */
+  z-index: 10000; /* Above everything while dragging */
+  will-change: transform; /* Optimize for position changes */
 }
 
 /* Minimized Video Preview */
@@ -933,6 +1216,24 @@ onMounted(() => {
   gap: 8px;
   flex: 1;
   min-width: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.minimized-info:active {
+  cursor: grabbing;
+}
+
+.drag-handle {
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: grab;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.minimized-info:hover .drag-handle {
+  opacity: 1;
 }
 
 .channel-icon {
