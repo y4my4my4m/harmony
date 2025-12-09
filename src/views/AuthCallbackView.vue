@@ -90,8 +90,49 @@ onMounted(async () => {
       throw new Error('No session found after authentication')
     }
     
-    // Check if user is suspended
+    // Debug: Log user info and identities to understand account linking
     if (session.user) {
+      const identities = session.user.identities || []
+      const primaryEmail = session.user.email
+      
+      console.log('🔐 OAuth callback - User info:', {
+        userId: session.user.id,
+        email: primaryEmail,
+        emailVerified: session.user.email_confirmed_at,
+        identities: identities.map((id: any) => ({
+          provider: id.provider,
+          email: id.email || id.identity_data?.email || 'unknown',
+          identityId: id.id
+        }))
+      })
+      
+      // Check if multiple identities are linked (indicates account linking happened)
+      if (identities.length > 1) {
+        const identityEmails = identities
+          .map((id: any) => id.email || id.identity_data?.email)
+          .filter(Boolean)
+        
+        // Check if all emails match the primary email
+        const allEmailsMatch = identityEmails.every((email: string) => 
+          email?.toLowerCase() === primaryEmail?.toLowerCase()
+        )
+        
+        if (!allEmailsMatch) {
+          console.error('⚠️ UNEXPECTED ACCOUNT LINKING DETECTED!', {
+            primaryEmail,
+            linkedEmails: identityEmails,
+            identities: identities.map((id: any) => ({
+              provider: id.provider,
+              email: id.email || id.identity_data?.email
+            }))
+          })
+          console.warn('⚠️ Accounts with different emails were linked. This should only happen when emails match!')
+        } else {
+          console.log('✅ Account linking detected with matching emails:', identityEmails.join(', '))
+        }
+      }
+      
+      // Check if user is suspended
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_suspended, suspension_reason')
