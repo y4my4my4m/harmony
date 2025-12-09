@@ -524,9 +524,9 @@ onMounted(() => {
 
 /* Minimized Mode - tiny dock in channel sidebar */
 .unified-voice-dock.minimized-mode {
-  bottom: 72px; /* Height of UserProfileComponent */
-  left: 72px;   /* Offset from ServerSidebar (72px width) */
-  width: 240px; /* Width of channel sidebar */
+  bottom: 90px; /* Height of UserProfileComponent */
+  left: 10px;   /* Offset from ServerSidebar (72px width) */
+  width: 343px; /* Width of channel sidebar */
   transform: none;
   z-index: 10;  /* Above UserProfileComponent but below global overlays */
 }
@@ -545,7 +545,8 @@ onMounted(() => {
    ============================================================================= */
 
 .dock-container {
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  /* background: linear-gradient(145deg, #2f3136, #36393f);  */
+  background:linear-gradient(145deg, #2f313663, #36393f59);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 16px;
@@ -563,7 +564,7 @@ onMounted(() => {
 }
 
 .dock-container:hover {
-  background: linear-gradient(145deg, #36393f, #40444b);
+  background: linear-gradient(145deg, #36393f63, #40444b59);
   transform: translateY(-2px);
   box-shadow: 
     0 12px 40px rgba(0, 0, 0, 0.7),
@@ -839,7 +840,9 @@ onMounted(() => {
    ============================================================================= */
 
 .minimized-container {
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  /* background: linear-gradient(145deg, #2f3136, #36393f); */
+  background: linear-gradient(145deg, #2f313663, #36393f59);
+  backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 12px 16px;
@@ -849,12 +852,12 @@ onMounted(() => {
   box-shadow: 
     0 6px 20px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
   margin-bottom: 0; /* Remove bottom margin for tight positioning */
 }
 
 .minimized-container:hover {
-  background: linear-gradient(145deg, #36393f, #40444b);
+  /* background: linear-gradient(145deg, #36393f, #40444b); */
+  background: linear-gradient(145deg, #36393f63, #40444b59);
   transform: translateY(-1px);
   box-shadow: 
     0 8px 25px rgba(0, 0, 0, 0.5),
@@ -1029,6 +1032,10 @@ onMounted(() => {
   .unified-voice-dock.dock-mode {
     left: 10px;
     transform: translateX(0);
+  }
+  .unified-voice-dock.minimized-mode {
+    bottom: 80px;
+    width: calc(100% - 20px);
   }
   
   .dock-container {
