@@ -5,6 +5,7 @@ import { updateUserStatus } from '@/services/ProfileService';
 import { useChatStore } from '@/stores/useChat';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -153,6 +154,10 @@ export const useAuthStore = defineStore('auth', {
             // ✅ PERFORMANCE: Remember we validated this session to avoid redundant validation
             // on INITIAL_SESSION event that fires immediately after
             this._mfaValidatedForSession = session.access_token;
+            // Set user-scoped storage for the current user
+            if (session.user?.id) {
+              userStorage.setCurrentUser(session.user.id);
+            }
           } else {
             debug.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
             // Sign out the incomplete session to prevent other tabs from using it
@@ -235,6 +240,8 @@ export const useAuthStore = defineStore('auth', {
           if (currentUserId) {
             await this.setUserOffline(currentUserId);
           }
+          // Clear user-scoped localStorage on logout
+          userStorage.clearCurrentUser();
           this.cleanupNotificationSystem();
           return;
         }
@@ -262,6 +269,8 @@ export const useAuthStore = defineStore('auth', {
           this.isPasswordResetMode = false;
           this.session = session;
           if (session.user?.id) {
+            // Set user-scoped storage for the new user
+            userStorage.setCurrentUser(session.user.id);
             this.setupOfflineHandlers(session.user.id);
           }
           return;
@@ -273,6 +282,8 @@ export const useAuthStore = defineStore('auth', {
           if (!this.session) {
             this.session = session;
             if (session.user?.id) {
+              // Set user-scoped storage for the current user
+              userStorage.setCurrentUser(session.user.id);
               this.setupOfflineHandlers(session.user.id);
             }
           }
@@ -480,6 +491,9 @@ export const useAuthStore = defineStore('auth', {
         await this.setUserOffline(this.session.user.id);
       }
       this.cleanupOfflineHandlers();
+      
+      // Clear user-scoped localStorage on logout
+      userStorage.clearCurrentUser();
       
       // ✅ PERFORMANCE FIX: Cleanup state persistence before logout
       try {

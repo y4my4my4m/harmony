@@ -271,7 +271,7 @@ export class NotificationService {
         .from('notification_preferences')
         .select('*')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (error && error.code !== 'PGRST116') {
         throw this.createError('LOAD_PREFERENCES_FAILED', error.message, error)

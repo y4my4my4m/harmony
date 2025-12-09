@@ -304,7 +304,9 @@ function applySettings(settings: VisualThemeSettings) {
  */
 function saveToLocalStorage(settings: VisualThemeSettings) {
   try {
-    localStorage.setItem('harmony-visual-theme', JSON.stringify(settings))
+    import('@/utils/userScopedStorage').then(({ userStorage }) => {
+      userStorage.setItem('visual-theme', JSON.stringify(settings))
+    })
   } catch (error) {
     debug.error('Failed to save theme to localStorage:', error)
   }
@@ -313,9 +315,10 @@ function saveToLocalStorage(settings: VisualThemeSettings) {
 /**
  * Load settings from localStorage
  */
-function loadFromLocalStorage(): Partial<VisualThemeSettings> | null {
+async function loadFromLocalStorage(): Promise<Partial<VisualThemeSettings> | null> {
   try {
-    const saved = localStorage.getItem('harmony-visual-theme')
+    const { userStorage } = await import('@/utils/userScopedStorage')
+    const saved = userStorage.getItem('visual-theme')
     if (saved) {
       return JSON.parse(saved)
     }
@@ -378,9 +381,9 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
       .from('profiles')
       .select('appearance_settings')
       .eq('auth_user_id', userId)
-      .single()
+      .maybeSingle()
     
-    if (error) throw error
+    if (error && error.code !== 'PGRST116') throw error
     
     return data?.appearance_settings || null
   } catch (error) {
@@ -415,7 +418,7 @@ export function useVisualTheme() {
     debug.log('🎨 Initializing visual theme system...')
     
     // Try to load from localStorage first (instant)
-    const localSettings = loadFromLocalStorage()
+    const localSettings = await loadFromLocalStorage()
     let appliedFromLocal = false
     if (localSettings) {
       Object.assign(settings.value, localSettings)
