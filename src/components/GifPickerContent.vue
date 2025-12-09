@@ -307,7 +307,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--background-secondary);
+  background: transparent;
   border: none;
   padding: 6px 12px;
   font-size: 13px;
@@ -318,12 +318,12 @@ onMounted(async () => {
 }
 
 .category-button:hover {
-  background: var(--background-modifier-hover);
+  background: var(--background-tertiary-alpha);
   color: var(--text-primary);
 }
 
 .category-button.active {
-  background: var(--color-primary);
+  background: var(--harmony-primary-alpha);
   color: white;
 }
 

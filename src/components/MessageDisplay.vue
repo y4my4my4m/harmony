@@ -2345,7 +2345,7 @@ const closeInviteModal = () => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background-color: var(--background-tertiary-alpha);
+  background-color: var(--background-quaternary);
   border-left: 4px solid var(--harmony-primary);
   border-radius: 0 4px 4px 0;
   margin-left: 4px;
