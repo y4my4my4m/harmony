@@ -118,3 +118,7 @@ The 712KB `unicode-emoji-data.json` file is only loaded when the emoji picker is
 - Websocket will still connect, just non-blocking - realtime features will work once connected
 - Auth caching has a 5-second window to prevent stale data while still reducing duplicates
 
+
+
+
+

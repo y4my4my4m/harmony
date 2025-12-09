@@ -70,9 +70,9 @@
           </div>
 
           <!-- OAuth Providers -->
-          <div class="oauth-section">
+          <div v-if="enabledOAuthProviders.length > 0" class="oauth-section">
             <button 
-              v-for="provider in oauthProviders" 
+              v-for="provider in enabledOAuthProviders" 
               :key="provider.id"
               class="oauth-btn"
               :class="[`oauth-${provider.id}`, { 'loading': oauthLoading === provider.id }]"
@@ -85,8 +85,8 @@
             </button>
           </div>
 
-          <!-- Divider -->
-          <div class="divider">
+          <!-- Divider (only show if OAuth providers are enabled) -->
+          <div v-if="enabledOAuthProviders.length > 0" class="divider">
             <span>{{ $t('auth.orContinueWith') || 'or' }}</span>
           </div>
 
@@ -371,8 +371,8 @@ const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const toast = useToast()
 
-// OAuth Providers Configuration (removed Apple - requires paid $99/year developer account)
-const oauthProviders = [
+// All available OAuth Providers (removed Apple - requires paid $99/year developer account)
+const allOAuthProviders = [
   {
     id: 'google',
     name: 'Google',
@@ -389,6 +389,9 @@ const oauthProviders = [
     icon: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>`
   }
 ]
+
+// Enabled OAuth providers (will be filtered based on config)
+const enabledOAuthProviders = ref<typeof allOAuthProviders>([])
 
 // Reactive state
 const email = ref('')
@@ -700,6 +703,111 @@ const toggleMode = () => {
   router.push(props.isLogin ? '/register' : '/login')
 }
 
+// Load enabled OAuth providers
+const loadEnabledOAuthProviders = async () => {
+  try {
+    let enabledProviders: string[] = []
+
+    // Method 1: Try to get from instance_config directly
+    try {
+      const { data: oauthConfig, error: oauthError } = await supabase
+        .from('instance_config')
+        .select('config_value')
+        .eq('config_key', 'oauth_providers')
+        .maybeSingle()
+
+      debug.log('🔍 OAuth config query result:', { data: oauthConfig, error: oauthError })
+
+      if (oauthError) {
+        debug.warn('❌ Error querying oauth_providers from instance_config:', oauthError)
+        debug.warn('Error details:', {
+          message: oauthError.message,
+          code: oauthError.code,
+          details: oauthError.details,
+          hint: oauthError.hint
+        })
+      }
+
+      if (oauthConfig?.config_value) {
+        debug.log('📦 Found oauth_providers config:', oauthConfig.config_value)
+        // Parse the config value (may be JSON string or object)
+        let providers = oauthConfig.config_value
+        debug.log('📦 Raw providers value type:', typeof providers, providers)
+        
+        if (typeof providers === 'string') {
+          try {
+            providers = JSON.parse(providers)
+            debug.log('📦 Parsed JSON string:', providers)
+          } catch {
+            // If not JSON, try splitting by comma
+            providers = providers.split(',').map((p: string) => p.trim())
+            debug.log('📦 Split comma string:', providers)
+          }
+        }
+        
+        if (Array.isArray(providers)) {
+          enabledProviders = providers.map((p: string) => p.toLowerCase())
+          debug.log('✅ Parsed as array:', enabledProviders)
+        } else if (typeof providers === 'object' && providers !== null) {
+          // If it's an object like { google: true, twitch: false, github: true }
+          enabledProviders = Object.entries(providers)
+            .filter(([_, enabled]) => enabled === true || enabled === 'true')
+            .map(([provider]) => provider.toLowerCase())
+          debug.log('✅ Parsed as object:', enabledProviders)
+        } else {
+          debug.warn('⚠️ Unknown providers format:', providers)
+        }
+      } else {
+        debug.log('ℹ️ No oauth_providers config found in database')
+      }
+    } catch (dbError) {
+      debug.error('❌ Exception querying instance_config for OAuth providers:', dbError)
+    }
+
+    // Method 2: Fallback to AdminService config
+    if (enabledProviders.length === 0) {
+      try {
+        const config = await adminService.getInstanceConfig()
+        if (config?.instance?.oauthProviders) {
+          const providers = config.instance.oauthProviders
+          if (Array.isArray(providers)) {
+            enabledProviders = providers.map((p: string) => p.toLowerCase())
+          } else if (typeof providers === 'object' && providers !== null) {
+            enabledProviders = Object.entries(providers)
+              .filter(([_, enabled]) => enabled === true || enabled === 'true')
+              .map(([provider]) => provider.toLowerCase())
+          }
+        }
+      } catch (configError) {
+        debug.warn('Failed to get OAuth providers from instance config:', configError)
+      }
+    }
+
+    // Method 3: Fallback to environment variable
+    if (enabledProviders.length === 0) {
+      const envProviders = import.meta.env.VITE_ENABLED_OAUTH_PROVIDERS
+      if (envProviders) {
+        enabledProviders = envProviders.split(',').map((p: string) => p.trim().toLowerCase())
+      }
+    }
+
+    // Don't default to all providers - if no config found or empty, show none
+    // Filter providers based on enabled list
+    enabledOAuthProviders.value = allOAuthProviders.filter(provider => 
+      enabledProviders.includes(provider.id.toLowerCase())
+    )
+
+    debug.log('✅ OAuth providers loaded:', enabledOAuthProviders.value.map(p => p.id))
+    if (enabledOAuthProviders.value.length === 0) {
+      debug.log('ℹ️ No OAuth providers enabled - hiding OAuth section')
+    }
+  } catch (error) {
+    debug.warn('Failed to load OAuth provider config, hiding OAuth providers:', error)
+    // On error, show no providers (empty array)
+    enabledOAuthProviders.value = []
+  }
+}
+
 // Load instance branding
 const loadInstanceBranding = async () => {
   try {
@@ -716,7 +824,10 @@ const loadInstanceBranding = async () => {
 // Lifecycle
 onMounted(async () => {
   randomBg.value = await getRandomLoginBackground()
-  await loadInstanceBranding()
+  await Promise.all([
+    loadInstanceBranding(),
+    loadEnabledOAuthProviders()
+  ])
 })
 </script>
 
