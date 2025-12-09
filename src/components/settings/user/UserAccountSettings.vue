@@ -562,7 +562,8 @@ onMounted(() => {
   left: 0 !important;
   z-index: 1000 !important;
   margin-top: 8px !important;
-  background-color: var(--h-chat) !important;
+  backdrop-filter: blur(8px);
+  background-color: transparent!important;
   border: 1px solid var(--h-chat-light) !important;
   border-radius: 8px !important;
   padding: 16px !important;
@@ -571,26 +572,28 @@ onMounted(() => {
 }
 
 :deep(.hu-color-picker .color-set) {
-  background-color: var(--h-chat-darker) !important;
-  border: 1px solid var(--h-chat-light) !important;
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 :deep(.hu-color-picker .color-show) {
-  border: 1px solid var(--h-chat-light) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 :deep(.hu-color-picker .sucker) {
-  background-color: var(--h-chat-darker) !important;
-  border: 1px solid var(--h-chat-light) !important;
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 :deep(.hu-color-picker .color-type .name) {
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
   color: #ffffff !important;
 }
 
 :deep(.hu-color-picker .color-type .value) {
-  background-color: var(--h-chat-darker) !important;
-  border: 1px solid var(--h-chat-light) !important;
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
   color: #ffffff !important;
 }
 
