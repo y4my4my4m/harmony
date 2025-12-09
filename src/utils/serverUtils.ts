@@ -4,25 +4,29 @@ import { supabase } from '@/supabase'
  * Normalizes server URL to ensure consistent display across the application
  * Handles both full URLs and path-only formats
  * Always returns the proper public URL for Supabase storage paths with optimization
+ * Supports federated server URLs (external ActivityPub server icons)
  */
 export function getServerIconUrl(serverUrl: string | null | undefined, size: number = 96): string {
   // Return default server if no URL provided or if it's not a string
-  if (!serverUrl || typeof serverUrl !== 'string') {
+  if (!serverUrl || typeof serverUrl !== 'string' || serverUrl.trim() === '') {
     return '/default_server.webp'
   }
 
+  // Trim whitespace
+  const trimmedUrl = serverUrl.trim()
+
   // If it's a blob URL (from file selection preview), return as-is
-  if (serverUrl.startsWith('blob:')) {
-    return serverUrl
+  if (trimmedUrl.startsWith('blob:')) {
+    return trimmedUrl
   }
 
-  // If it's already a full URL, check if it's a Supabase storage URL that needs transformation
-  if (serverUrl.startsWith('http://') || serverUrl.startsWith('https://')) {
-    // Check if this is a Supabase storage URL for server_icons
-    const pathMatch = serverUrl.match(/\/storage\/v1\/object\/public\/server_icons\/(.+)$/)
-    if (pathMatch) {
+  // If it's already a full URL (http/https), handle it
+  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+    // Check if this is a Supabase storage URL for server_icons that needs transformation
+    const supabaseStorageMatch = trimmedUrl.match(/\/storage\/v1\/object\/public\/server_icons\/(.+)$/)
+    if (supabaseStorageMatch) {
       // Extract the path and use Supabase storage transformation
-      const serverIconPath = pathMatch[1]
+      const serverIconPath = supabaseStorageMatch[1]
       const { data } = supabase.storage
         .from('server_icons')
         .getPublicUrl(serverIconPath, {
@@ -30,15 +34,17 @@ export function getServerIconUrl(serverUrl: string | null | undefined, size: num
         })
       return data.publicUrl
     }
-    // External URLs (not Supabase storage) - return as-is
-    return serverUrl
+    // External URLs (federated servers, etc.) - return as-is
+    // These are already full URLs from other ActivityPub instances
+    return trimmedUrl
   }
 
-  // If it's a Supabase storage path (contains folder structure)
-  if (serverUrl.includes('/') && !serverUrl.startsWith('/')) {
+  // If it's a Supabase storage path (contains folder structure like "uuid/uuid.png")
+  // This should NOT match external URLs (which we already handled above)
+  if (trimmedUrl.includes('/') && !trimmedUrl.startsWith('/') && !trimmedUrl.includes('://')) {
     const { data } = supabase.storage
       .from('server_icons')
-      .getPublicUrl(serverUrl, {
+      .getPublicUrl(trimmedUrl, {
         transform: { width: size, height: size, resize: 'contain', quality: 80 }
       })
 
@@ -46,8 +52,8 @@ export function getServerIconUrl(serverUrl: string | null | undefined, size: num
   }
 
   // If it's a local path (starts with /), return as-is
-  if (serverUrl.startsWith('/')) {
-    return serverUrl
+  if (trimmedUrl.startsWith('/')) {
+    return trimmedUrl
   }
 
   // If it's just a filename or doesn't match expected patterns, return default
