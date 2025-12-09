@@ -495,6 +495,36 @@ export const useAuthStore = defineStore('auth', {
       // Clear user-scoped localStorage on logout
       userStorage.clearCurrentUser();
       
+      // ✅ CRITICAL: Clear profile store to prevent data leakage between users
+      try {
+        const { useProfileStore } = await import('@/stores/useProfile')
+        const profileStore = useProfileStore()
+        profileStore.clearProfile()
+        debug.log('✅ Profile store cleared on logout')
+      } catch (error) {
+        debug.error('❌ Error clearing profile store:', error)
+      }
+      
+      // ✅ CRITICAL: Reset visual theme to prevent theme leakage between users
+      try {
+        const { useVisualTheme } = await import('@/composables/useVisualTheme')
+        const visualTheme = useVisualTheme()
+        visualTheme.reset()
+        debug.log('✅ Visual theme reset on logout')
+      } catch (error) {
+        debug.error('❌ Error resetting visual theme:', error)
+      }
+      
+      // ✅ CRITICAL: Clear ActivityPub timeline to prevent data leakage
+      try {
+        const { useActivityPubStore } = await import('@/stores/useActivityPub')
+        const activityPubStore = useActivityPubStore()
+        activityPubStore.clearTimelineCache()
+        debug.log('✅ ActivityPub timeline cleared on logout')
+      } catch (error) {
+        debug.error('❌ Error clearing ActivityPub timeline:', error)
+      }
+      
       // ✅ PERFORMANCE FIX: Cleanup state persistence before logout
       try {
         const { statePersistence } = await import('@/services/StatePersistence')

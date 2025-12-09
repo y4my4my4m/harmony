@@ -32,8 +32,14 @@ class HapticFeedbackManager {
   }
 
   private loadPreferences(): void {
-    const stored = localStorage.getItem('harmony-haptics-enabled')
-    this.isEnabled = stored !== null ? stored === 'true' : true
+    // Note: This is a global setting, not user-specific
+    // Haptic feedback preference doesn't need to be per-user
+    try {
+      const stored = localStorage.getItem('harmony-haptics-enabled')
+      this.isEnabled = stored !== null ? stored === 'true' : true
+    } catch {
+      this.isEnabled = true
+    }
   }
 
   private getPatternDuration(pattern: HapticPattern): number | number[] {

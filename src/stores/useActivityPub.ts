@@ -477,7 +477,12 @@ export const useActivityPubStore = defineStore('activitypub', {
         userStorage.removeItem('timeline-cache');
         this.hasEverLoadedTimeline = false;
         this.timelineCacheTimestamp = null;
-        debug.log('🗑️ Timeline cache cleared');
+        // Also clear in-memory posts to prevent data leakage between users
+        this.homeFeed.posts = [];
+        this.homeFeed.hasMore = true;
+        this.homeFeed.isLoading = false;
+        this.homeFeed.error = null;
+        debug.log('🗑️ Timeline cache and posts cleared');
       } catch (error) {
         debug.warn('Failed to clear timeline cache:', error);
       }

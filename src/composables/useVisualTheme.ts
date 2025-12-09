@@ -548,6 +548,34 @@ export function useVisualTheme() {
   }
   
   /**
+   * Reset theme system completely (call on logout)
+   * This ensures the next user gets a fresh theme initialization
+   */
+  function reset() {
+    isInitialized.value = false
+    settings.value = {
+      theme: 'dark',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#5865f2',
+      customAccentColor: '#5865f2',
+      customBackgroundColor: '#5865f2',
+      customBackgroundLightness: 0,
+      customBackgroundChroma: 0,
+      fontSize: 14,
+      zoomLevel: 100,
+      showTimestamps: true,
+      use24HourTime: false,
+      compactMode: false,
+      highContrast: false,
+      reduceMotion: false,
+      screenReaderSupport: false,
+    }
+    // Apply default dark theme
+    applyTheme(PRESET_THEMES.dark)
+    debug.log('🎨 Visual theme reset for new user')
+  }
+
+  /**
    * Reset to defaults
    */
   function resetToDefaults() {
@@ -622,6 +650,7 @@ export function useVisualTheme() {
     toggleScreenReaderSupport,
     updateSettings,
     resetToDefaults,
+    reset,
     currentSettings,
   }
 }
