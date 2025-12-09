@@ -592,23 +592,9 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   rafId = requestAnimationFrame(() => {
     if (!isDragging.value) return;
     
-    // Calculate new position
-    let newLeft = clientX - dragStartPos.value.x;
-    let newBottom = window.innerHeight - clientY - dragStartPos.value.y;
-    
-    // Magnetic snap to default position (desktop only)
-    if (isDesktop.value) {
-      const distanceToDefault = Math.sqrt(
-        Math.pow(newLeft - DEFAULT_POSITION.left, 2) + 
-        Math.pow(newBottom - DEFAULT_POSITION.bottom, 2)
-      );
-      
-      if (distanceToDefault < SNAP_THRESHOLD) {
-        // Snap to default position
-        newLeft = DEFAULT_POSITION.left;
-        newBottom = DEFAULT_POSITION.bottom;
-      }
-    }
+    // Calculate new position (no snapping during drag - allow free movement)
+    const newLeft = clientX - dragStartPos.value.x;
+    const newBottom = window.innerHeight - clientY - dragStartPos.value.y;
     
     // Constrain to viewport bounds using cached dimensions
     const maxLeft = window.innerWidth - containerDimensions.value.width;
@@ -644,13 +630,13 @@ const stopDrag = () => {
   
   isDragging.value = false;
   
-  // Re-enable transitions after drag
+  // Re-enable transitions after drag for smooth magnetic snap animation
   const container = minimizedContainerRef.value;
   if (container) {
-    container.style.transition = '';
+    container.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), bottom 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
   }
   
-  // Final snap check on release (desktop only)
+  // Magnetic snap check on release (desktop only) - smoothly animate to default if close enough
   if (isDesktop.value) {
     const distanceToDefault = Math.sqrt(
       Math.pow(minimizedPosition.value.left - DEFAULT_POSITION.left, 2) + 
@@ -658,8 +644,25 @@ const stopDrag = () => {
     );
     
     if (distanceToDefault < SNAP_THRESHOLD) {
-      // Smoothly animate to default position
+      // Smoothly animate to default position (transition is now enabled)
       minimizedPosition.value = { ...DEFAULT_POSITION };
+      
+      // Disable transition after animation completes
+      setTimeout(() => {
+        if (container) {
+          container.style.transition = '';
+        }
+      }, 300); // Match transition duration
+    } else {
+      // Not close enough - disable transition immediately
+      if (container) {
+        container.style.transition = '';
+      }
+    }
+  } else {
+    // Mobile - disable transition immediately
+    if (container) {
+      container.style.transition = '';
     }
   }
   
@@ -1310,8 +1313,16 @@ onUnmounted(() => {
 }
 
 .channel-icon {
+  background: rgba(88, 101, 242, 0.2);
+  border-radius: 10px;
   color: #5865f2;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
   font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .minimized-info .channel-name {
