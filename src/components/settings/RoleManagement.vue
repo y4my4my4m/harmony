@@ -184,9 +184,12 @@
                 class="member-item"
               >
                 <img :src="member.avatar_url || '/default-avatar.png'" class="member-avatar" />
-                <span class="member-name">{{ member.display_name || member.username }}</span>
+                <span class="member-name">
+                  {{ member.display_name || member.username }}
+                  <span v-if="isServerOwner(member.id)" class="owner-badge">Owner</span>
+                </span>
                 <button 
-                  v-if="!selectedRole.is_default"
+                  v-if="canRemoveMember(member.id)"
                   class="remove-member-btn"
                   @click="removeMember(member.id)"
                   title="Remove from role"
@@ -195,6 +198,13 @@
                     <path d="M19 13H5v-2h14v2z"/>
                   </svg>
                 </button>
+                <span 
+                  v-else-if="selectedRole?.is_admin && isServerOwner(member.id)"
+                  class="protected-badge"
+                  title="Server owner cannot be removed from Admin role"
+                >
+                  Protected
+                </span>
               </div>
               <div v-if="!loadingMembers && filteredMembers.length === 0" class="no-members">
                 {{ memberSearch ? 'No members found' : 'No members with this role' }}
@@ -230,6 +240,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import draggable from 'vuedraggable'
+import { supabase } from '@/supabase'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import type { ServerRole, Permission } from '@/types'
@@ -249,6 +260,7 @@ const activeTab = ref('display')
 const memberSearch = ref('')
 const roleMembers = ref<any[]>([])
 const loadingMembers = ref(false)
+const serverOwnerId = ref<string | null>(null)
 
 // Form state
 const editForm = ref({
@@ -523,10 +535,18 @@ const removeMember = async (memberId: string) => {
   if (!selectedRole.value) return
   
   try {
-    await roleService.removeRole(memberId, selectedRole.value.id)
-    roleMembers.value = roleMembers.value.filter(m => m.id !== memberId)
-  } catch (error) {
+    const success = await roleService.removeRole(memberId, selectedRole.value.id)
+    if (success) {
+      roleMembers.value = roleMembers.value.filter(m => m.id !== memberId)
+    }
+  } catch (error: any) {
     console.error('Failed to remove member from role:', error)
+    // Show user-friendly error message
+    if (error.message?.includes('server owner')) {
+      alert('Cannot remove Admin role from the server owner')
+    } else {
+      alert(error.message || 'Failed to remove member from role')
+    }
   }
 }
 
@@ -552,8 +572,42 @@ watch(() => props.serverId, () => {
   loadRoles()
 })
 
+// Load server owner info
+const loadServerOwner = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('servers')
+      .select('owner')
+      .eq('id', props.serverId)
+      .single()
+    
+    if (!error && data) {
+      serverOwnerId.value = data.owner
+    }
+  } catch (error) {
+    console.error('Failed to load server owner:', error)
+  }
+}
+
+// Check if a member is the server owner
+const isServerOwner = (memberId: string): boolean => {
+  return serverOwnerId.value === memberId
+}
+
+// Check if remove button should be shown for a member
+const canRemoveMember = (memberId: string): boolean => {
+  // Can't remove from default role (this is already handled in template)
+  if (selectedRole.value?.is_default) return false
+  
+  // Can't remove owner from admin role
+  if (selectedRole.value?.is_admin && isServerOwner(memberId)) return false
+  
+  return true
+}
+
 onMounted(() => {
   loadRoles()
+  loadServerOwner()
 })
 </script>
 
@@ -698,6 +752,27 @@ onMounted(() => {
 .admin-badge {
   background: rgba(231, 76, 60, 0.2);
   color: #E74C3C;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.owner-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(241, 196, 15, 0.2);
+  color: #F1C40F;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.protected-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(149, 165, 166, 0.2);
+  color: var(--text-secondary);
   text-transform: uppercase;
   font-weight: 600;
 }

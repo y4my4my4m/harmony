@@ -542,9 +542,42 @@ class RoleService {
 
   /**
    * Remove a role from a user
+   * Note: Cannot remove admin roles from server owners
    */
   async removeRole(userId: string, roleId: string): Promise<boolean> {
     try {
+      // First, check if this is an admin role being removed from a server owner
+      const { data: roleData, error: roleError } = await supabase
+        .from('server_roles')
+        .select('id, server_id, is_admin')
+        .eq('id', roleId)
+        .single()
+      
+      if (roleError) {
+        debug.error('Failed to fetch role:', roleError)
+        return false
+      }
+      
+      // If it's an admin role, check if user is server owner
+      if (roleData?.is_admin) {
+        const { data: serverData, error: serverError } = await supabase
+          .from('servers')
+          .select('owner')
+          .eq('id', roleData.server_id)
+          .single()
+        
+        if (serverError) {
+          debug.error('Failed to fetch server:', serverError)
+          return false
+        }
+        
+        // Prevent removing admin role from server owner
+        if (serverData?.owner === userId) {
+          debug.warn('Cannot remove admin role from server owner')
+          throw new Error('Cannot remove admin role from server owner')
+        }
+      }
+      
       const { data, error } = await supabase
         .from('user_roles')
         .delete()

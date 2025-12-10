@@ -37,14 +37,17 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    new_role_id uuid;
+    everyone_role_id uuid;
+    admin_role_id uuid;
 BEGIN
+    -- Create @everyone role (default for all members)
     INSERT INTO server_roles (
         server_id,
         name,
         color,
         position,
         is_default,
+        is_admin,
         permissions
     ) VALUES (
         NEW.id,
@@ -52,8 +55,33 @@ BEGIN
         '#99AAB5',
         0,
         true,
+        false,
         104324161  -- Default Discord-like permissions
-    ) RETURNING id INTO new_role_id;
+    ) RETURNING id INTO everyone_role_id;
+    
+    -- Create Admin role for the owner (highest position, all permissions)
+    INSERT INTO server_roles (
+        server_id,
+        name,
+        color,
+        position,
+        is_default,
+        is_admin,
+        permissions
+    ) VALUES (
+        NEW.id,
+        'Admin',
+        '#e74c3c',  -- Red color for admin
+        999,        -- High position (owner is always above)
+        false,
+        true,       -- Mark as admin role
+        2199023255551  -- All permissions (ADMINISTRATOR)
+    ) RETURNING id INTO admin_role_id;
+    
+    -- Assign the Admin role to the server owner
+    INSERT INTO user_roles (user_id, role_id, server_id)
+    VALUES (NEW.owner, admin_role_id, NEW.id)
+    ON CONFLICT (user_id, role_id) DO NOTHING;
     
     RETURN NEW;
 END;
