@@ -205,14 +205,20 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    current_auth_uid uuid := auth.uid();
     is_admin boolean := false;
     current_settings jsonb;
     new_settings jsonb;
 BEGIN
-    -- Check if user is admin
+    -- SECURITY: Ensure user is authenticated
+    IF current_auth_uid IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+
+    -- SECURITY: Check if the AUTHENTICATED user (not the passed p_user_id) is admin
     SELECT EXISTS(
         SELECT 1 FROM profiles 
-        WHERE id = p_user_id 
+        WHERE auth_user_id = current_auth_uid 
         AND is_admin = true
     ) INTO is_admin;
     

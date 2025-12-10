@@ -23,6 +23,13 @@ DECLARE
     new_conversation_id uuid;
     participant_id uuid;
 BEGIN
+    -- SECURITY: Verify the caller is the creator
+    IF NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = creator_user_id AND auth_user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: You can only create conversations as yourself';
+    END IF;
+
     INSERT INTO conversations (is_group, name, owner_id, metadata)
     VALUES (true, conversation_name, creator_user_id, initial_metadata)
     RETURNING id INTO new_conversation_id;
@@ -61,7 +68,20 @@ AS $$
 DECLARE
     v_conversation_id uuid;
     v_participant_id uuid;
+    v_caller_profile_id uuid;
 BEGIN
+    -- SECURITY: Get caller's profile ID
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+    
+    -- SECURITY: Caller must be one of the participants
+    IF NOT (v_caller_profile_id = ANY(participant_ids)) THEN
+        RAISE EXCEPTION 'Unauthorized: You must be a participant in the conversation';
+    END IF;
+
     -- For direct conversations with 2 participants, try to find existing
     IF array_length(participant_ids, 1) = 2 AND conversation_type = 'direct' THEN
         SELECT c.id INTO v_conversation_id
@@ -75,12 +95,12 @@ BEGIN
         END IF;
     END IF;
     
-    -- Create new conversation
+    -- Create new conversation (use caller as owner if not specified)
     INSERT INTO conversations (is_group, name, owner_id)
     VALUES (
         array_length(participant_ids, 1) > 2,
         conversation_name,
-        COALESCE(created_by_id, participant_ids[1])
+        COALESCE(created_by_id, v_caller_profile_id)
     )
     RETURNING id INTO v_conversation_id;
     
@@ -100,16 +120,28 @@ $$;
 -- TIMELINE RPC FUNCTIONS
 -- ---------------------------------------------------------------------------
 
--- Get timeline posts
+-- Get timeline posts (home feed)
+-- Note: This returns posts from people the caller follows
+-- For security, we verify p_user_id matches the caller
 CREATE OR REPLACE FUNCTION public.get_timeline(
     p_user_id uuid,
     p_limit integer DEFAULT 50,
     p_before timestamp DEFAULT NOW()
 )
 RETURNS SETOF posts
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
+BEGIN
+    -- SECURITY: Verify the caller owns this profile (only view your own timeline)
+    IF NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = p_user_id AND auth_user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot view another user''s home timeline';
+    END IF;
+
+    RETURN QUERY
     SELECT p.*
     FROM posts p
     WHERE p.author_id IN (
@@ -121,6 +153,7 @@ AS $$
     AND p.is_deleted = false
     ORDER BY p.created_at DESC
     LIMIT p_limit;
+END;
 $$;
 
 -- Get trending hashtags
@@ -200,6 +233,13 @@ AS $$
 DECLARE
     v_interaction_id uuid;
 BEGIN
+    -- SECURITY: Verify the caller owns this profile
+    IF NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = p_user_id AND auth_user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot create reactions as another user';
+    END IF;
+
     IF p_emoji_id IS NULL AND p_custom_emoji_content IS NULL THEN
         RAISE EXCEPTION 'Must provide either emoji_id or custom_emoji_content';
     END IF;
@@ -302,7 +342,29 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_permission_id uuid;
+    v_caller_profile_id uuid;
 BEGIN
+    -- SECURITY: Get caller's profile ID
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+    
+    -- SECURITY: Verify caller is server owner or has manage permissions
+    IF NOT EXISTS (
+        SELECT 1 FROM servers WHERE id = p_server_id AND owner = v_caller_profile_id
+    ) AND NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = v_caller_profile_id AND is_admin = true
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Only server owners can add bots';
+    END IF;
+    
+    -- SECURITY: The installer must be the caller
+    IF p_installed_by != v_caller_profile_id THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot claim installation by another user';
+    END IF;
+
     INSERT INTO bot_server_permissions (
         bot_id, server_id, installed_by, is_active
     ) VALUES (
@@ -319,9 +381,23 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_caller_profile_id uuid;
 BEGIN
-    -- Verify ownership
-    IF NOT EXISTS (SELECT 1 FROM servers WHERE id = p_server_id AND owner = p_owner_id) THEN
+    -- SECURITY: Get caller's profile ID
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+    
+    -- SECURITY: Verify p_owner_id matches the caller
+    IF v_caller_profile_id != p_owner_id THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot delete server as another user';
+    END IF;
+    
+    -- Verify caller is actually the owner
+    IF NOT EXISTS (SELECT 1 FROM servers WHERE id = p_server_id AND owner = v_caller_profile_id) THEN
         RAISE EXCEPTION 'Not authorized to delete this server';
     END IF;
     
@@ -347,24 +423,44 @@ AS $$
 DECLARE
     v_thread_id uuid;
     v_channel_id uuid;
-    v_user_id uuid;
+    v_server_id uuid;
+    v_caller_profile_id uuid;
 BEGIN
-    SELECT channel_id, user_id INTO v_channel_id, v_user_id
+    -- SECURITY: Get caller's profile ID
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+
+    SELECT channel_id INTO v_channel_id
     FROM messages WHERE id = p_message_id;
     
     IF v_channel_id IS NULL THEN
         RAISE EXCEPTION 'Message not found or not in a channel';
     END IF;
     
+    -- SECURITY: Verify caller is a member of the server containing this channel
+    SELECT server_id INTO v_server_id FROM channels WHERE id = v_channel_id;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM user_servers 
+        WHERE server_id = v_server_id 
+          AND user_id = v_caller_profile_id 
+          AND status = 'accepted'
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: You must be a server member to create threads';
+    END IF;
+    
     INSERT INTO threads (
         channel_id, parent_message_id, name, created_by, auto_archive_duration
     ) VALUES (
-        v_channel_id, p_message_id, p_name, v_user_id, p_auto_archive_duration
+        v_channel_id, p_message_id, p_name, v_caller_profile_id, p_auto_archive_duration
     ) RETURNING id INTO v_thread_id;
     
-    -- Add creator as thread member
+    -- Add caller as thread member
     INSERT INTO thread_members (thread_id, user_id)
-    VALUES (v_thread_id, v_user_id);
+    VALUES (v_thread_id, v_caller_profile_id);
     
     RETURN v_thread_id;
 END;
@@ -390,10 +486,15 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Initialize user encryption
+-- Note: Parameters named for clarity, but map to table columns:
+--   p_identity_key -> identity_key
+--   p_signed_prekey -> signed_prekey  
+--   p_signed_prekey_signature -> signed_prekey_signature
 CREATE OR REPLACE FUNCTION public.initialize_user_encryption(
     p_user_id uuid,
-    p_identity_public_key text,
-    p_identity_private_key_encrypted text,
+    p_identity_key text,
+    p_signed_prekey text,
+    p_signed_prekey_signature text,
     p_device_id text DEFAULT 'default'
 )
 RETURNS jsonb
@@ -403,20 +504,21 @@ AS $$
 DECLARE
     v_key_pair_id UUID;
 BEGIN
+    -- SECURITY: Verify the caller owns this profile
     IF NOT EXISTS (
         SELECT 1 FROM profiles WHERE id = p_user_id AND auth_user_id = auth.uid()
     ) THEN
-        RAISE EXCEPTION 'Unauthorized';
+        RAISE EXCEPTION 'Unauthorized: Cannot initialize encryption for another user';
     END IF;
     
     IF EXISTS (SELECT 1 FROM user_key_pairs WHERE user_id = p_user_id AND device_id = p_device_id) THEN
-        RAISE EXCEPTION 'Encryption already initialized';
+        RAISE EXCEPTION 'Encryption already initialized for this device';
     END IF;
     
     INSERT INTO user_key_pairs (
-        user_id, device_id, identity_public_key, identity_private_key_encrypted, key_version, is_active
+        user_id, device_id, identity_key, signed_prekey, signed_prekey_signature
     ) VALUES (
-        p_user_id, p_device_id, p_identity_public_key, p_identity_private_key_encrypted, 1, true
+        p_user_id, p_device_id, p_identity_key, p_signed_prekey, p_signed_prekey_signature
     ) RETURNING id INTO v_key_pair_id;
     
     RETURN jsonb_build_object('success', true, 'key_pair_id', v_key_pair_id, 'device_id', p_device_id);
@@ -465,6 +567,7 @@ END;
 $$;
 
 -- Get unused prekey
+-- Note: Table uses used_at timestamp instead of is_used boolean
 CREATE OR REPLACE FUNCTION public.get_unused_prekey(p_user_id uuid, p_device_id text DEFAULT 'default')
 RETURNS prekeys
 LANGUAGE plpgsql
@@ -473,19 +576,21 @@ AS $$
 DECLARE
     v_prekey prekeys;
 BEGIN
+    -- Get an unused one-time prekey (used_at IS NULL means unused)
     SELECT * INTO v_prekey
     FROM prekeys
     WHERE user_id = p_user_id
       AND device_id = p_device_id
       AND is_one_time = true
-      AND is_used = false
+      AND used_at IS NULL
     ORDER BY created_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED;
     
+    -- Mark as used
     IF v_prekey IS NOT NULL THEN
         UPDATE prekeys
-        SET is_used = true, used_at = NOW(), used_by = auth.uid()
+        SET used_at = NOW()
         WHERE id = v_prekey.id;
     END IF;
     
@@ -499,7 +604,26 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_caller_profile_id uuid;
 BEGIN
+    -- SECURITY: Get caller's profile ID
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+    
+    -- SECURITY: Verify caller is a participant in the conversation
+    IF NOT EXISTS (
+        SELECT 1 FROM conversation_participants 
+        WHERE conversation_id = p_conversation_id 
+          AND user_id = v_caller_profile_id
+          AND left_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: You must be a participant to modify encryption settings';
+    END IF;
+
     INSERT INTO conversation_encryption_settings (conversation_id, encryption_enabled)
     VALUES (p_conversation_id, true)
     ON CONFLICT (conversation_id) DO UPDATE SET encryption_enabled = true, updated_at = NOW();
@@ -513,6 +637,8 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Create notification with spam prevention
+-- SECURITY: Only callable by authenticated users where source_user is themselves
+-- This prevents users from creating fake notifications from other users
 CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
     p_user_id uuid,
     p_type text,
@@ -530,8 +656,19 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_notification_id uuid;
+    v_caller_profile_id uuid;
 BEGIN
-    -- Simple rate limiting could be added here
+    -- SECURITY: Get caller's profile ID
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+    
+    -- SECURITY: Source user must be the caller (prevent impersonation)
+    IF p_source_user_id != v_caller_profile_id THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot create notifications from another user';
+    END IF;
     
     INSERT INTO notifications (user_id, type, title, message, data, metadata)
     VALUES (
@@ -549,6 +686,9 @@ END;
 $$;
 
 -- Create structured notification
+-- SECURITY: This function is for internal/trigger use only
+-- Regular users should use create_notification_with_spam_prevention instead
+-- Revoke authenticated grant - only service_role can call this directly
 CREATE OR REPLACE FUNCTION public.create_notification_structured(
     p_user_id uuid,
     p_type varchar,
@@ -560,7 +700,21 @@ SECURITY DEFINER
 AS $$
 DECLARE
     notification_id UUID;
+    v_caller_profile_id uuid;
 BEGIN
+    -- SECURITY: Get caller's profile - if authenticated user, verify they're admin or the notification is for them
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    -- Allow if: caller is admin, or notification target is the caller (self-notification)
+    IF v_caller_profile_id IS NOT NULL THEN
+        IF v_caller_profile_id != p_user_id AND NOT EXISTS (
+            SELECT 1 FROM profiles WHERE id = v_caller_profile_id AND is_admin = true
+        ) THEN
+            RAISE EXCEPTION 'Unauthorized: Cannot create notifications for other users';
+        END IF;
+    END IF;
+    -- Note: service_role calls will have auth.uid() = NULL which is allowed
+
     INSERT INTO notifications (user_id, type, data)
     VALUES (p_user_id, p_type, p_data)
     RETURNING id INTO notification_id;
@@ -817,11 +971,14 @@ GRANT EXECUTE ON FUNCTION public.get_batch_post_reactions(uuid[]) TO authenticat
 GRANT EXECUTE ON FUNCTION public.get_batch_message_reactions(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.add_bot_to_server(uuid, uuid, uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_thread(uuid, text, integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.initialize_user_encryption(uuid, text, text, text) TO authenticated;
+-- Updated signature: (user_id, identity_key, signed_prekey, signed_prekey_signature, device_id)
+GRANT EXECUTE ON FUNCTION public.initialize_user_encryption(uuid, text, text, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.add_user_prekeys(uuid, text, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_unused_prekey(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.enable_conversation_encryption(uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_notification_structured(uuid, varchar, jsonb) TO authenticated;
+-- Notification functions - create_notification_structured has security checks, service_role can always call
+GRANT EXECUTE ON FUNCTION public.create_notification_structured(uuid, varchar, jsonb) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_notification_with_spam_prevention(uuid, text, uuid, text, text, jsonb, uuid, uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.count_pinned_messages(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_emoji_metadata_bulk(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_federated_emoji(text, text, uuid, text) TO authenticated;

@@ -163,12 +163,18 @@ SET search_path = public
 AS $$
 DECLARE
     conversation_uuid UUID;
-    current_user_id UUID;
+    caller_profile_id UUID;
 BEGIN
-    current_user_id := auth.uid();
+    -- SECURITY: Get caller's PROFILE ID (not auth.uid() which is different!)
+    SELECT id INTO caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
     
-    IF current_user_id IS NULL THEN
+    IF caller_profile_id IS NULL THEN
         RAISE EXCEPTION 'Authentication required';
+    END IF;
+    
+    -- SECURITY: Caller must be one of the participants
+    IF caller_profile_id != user1_uuid AND caller_profile_id != user2_uuid THEN
+        RAISE EXCEPTION 'Unauthorized: You can only create conversations you are a participant of';
     END IF;
     
     -- Try to find existing direct conversation
@@ -356,6 +362,13 @@ DECLARE
     v_status jsonb;
     v_expires_at timestamptz;
 BEGIN
+    -- SECURITY: Verify the caller owns this profile
+    IF NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = p_user_id AND auth_user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot modify another user''s status';
+    END IF;
+
     IF p_type NOT IN ('custom', 'playing', 'listening', 'watching', 'competing', 'streaming') THEN
         RAISE EXCEPTION 'Invalid activity type';
     END IF;
@@ -397,6 +410,13 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+    -- SECURITY: Verify the caller owns this profile
+    IF NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = p_user_id AND auth_user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot modify another user''s status';
+    END IF;
+
     UPDATE profiles
     SET custom_status = NULL, last_status_update = NOW()
     WHERE id = p_user_id;
