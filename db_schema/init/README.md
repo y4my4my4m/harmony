@@ -62,6 +62,7 @@ psql -h localhost -p 54322 -U postgres -d postgres -f init.sql
 | 30 | rls_policies.sql | Row Level Security policies |
 | 40 | triggers.sql | Database triggers |
 | 50 | realtime.sql | Supabase Realtime publications |
+| 98 | seed_data.sql | Default instance configuration |
 | 99 | storage_buckets.sql | Storage buckets and policies |
 
 ## Important Notes

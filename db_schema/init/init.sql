@@ -50,6 +50,10 @@
 \i 50_realtime.sql
 
 \echo ''
+\echo '>>> 98_seed_data.sql - Inserting default configuration...'
+\i 98_seed_data.sql
+
+\echo ''
 \echo '>>> 99_storage_buckets.sql - Creating storage buckets...'
 \i 99_storage_buckets.sql
 
@@ -59,7 +63,8 @@
 \echo '=============================================='
 \echo ''
 \echo 'Next steps:'
-\echo '  1. Update instance_config with your domain'
+\echo '  1. Update instance_config.domain with your domain:'
+\echo '     UPDATE instance_config SET config_value=''"your-domain.com"'' WHERE config_key=''domain'';'
 \echo '  2. Configure storage bucket URLs if using custom domain'
 \echo '  3. Set up federation backend environment variables'
 \echo ''
