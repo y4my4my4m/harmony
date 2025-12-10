@@ -8,8 +8,8 @@ A complete guide to deploying your own Harmony instance. Choose the path that fi
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Your Domain                              │
-│                    harmony.yourdomain.com                        │
+│                         Your Domain                             │
+│                    harmony.yourdomain.com                       │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
     ┌───────────────────────┼───────────────────────┐
@@ -23,9 +23,9 @@ A complete guide to deploying your own Harmony instance. Choose the path that fi
                             │  ← Required for federation
                             ▼
                     ┌───────────────┐
-                    │  Federation   │
-                    │   Backend     │
-                    │ (ActivityPub) │
+                    │   Federation  │
+                    │    Backend    │
+                    │     Server    │
                     └───────────────┘
 ```
 
@@ -48,7 +48,7 @@ A complete guide to deploying your own Harmony instance. Choose the path that fi
 ### Why does federation require a VPS?
 
 The federation-backend is a **persistent Node.js service** that:
-- Processes ActivityPub activities in a queue (pg-boss)
+- Processes ActivityPub activities in a queue (realtime with pg-boss queue for reliability)
 - Handles incoming federation requests
 - Generates link previews
 - Manages bot connections via WebSocket
@@ -176,7 +176,7 @@ UPDATE instance_webrtc_settings SET
 **Cost: ~$5-12/month** for everything
 
 This method gives you full control and enables:
-- ✅ Cross-instance ActivityPub federation
+- ✅ Cross-instance federation (activitypub + chat/dm servers)
 - ✅ Link previews
 - ✅ Bot gateway
 - ✅ Self-hosted LiveKit
@@ -187,8 +187,10 @@ This method gives you full control and enables:
 | Provider | Specs | Monthly Cost |
 |----------|-------|--------------|
 | [**Hostinger VPS**](https://hostinger.com?REFERRALCODE=HARMONY) | 1 vCPU, 4GB RAM, 50GB | **$4.99/mo** |
-| Hetzner | 2 vCPU, 4GB RAM, 40GB | €4.51/mo |
-| DigitalOcean | 1 vCPU, 2GB RAM, 50GB | $12/mo |
+
+We recommend using [KVM2](https://www.hostinger.com/cart?product=vps%3Avps_kvm_2&period=24&referral_type=cart_link&REFERRALCODE=HARMONY&referral_id=019b0812-725a-7338-81f9-cddc8eb68800) nodes for better performance. But [KVM1](https://www.hostinger.com/cart?product=vps%3Avps_kvm_1&period=24&referral_type=cart_link&REFERRALCODE=HARMONY&referral_id=019b0812-725a-7338-81f9-cddc8eb68800) should work fine as well, depends on your needs.
+
+This also gives you a free .cloud domain for your instance.
 
 > 💡 **Tip:** Use code `VPSRATES10` at Hostinger for 10% off
 
@@ -533,6 +535,12 @@ Run new migration files in Supabase SQL Editor (cloud) or via psql (self-hosted)
 1. Test certificate renewal: `certbot renew --dry-run`
 2. Check Nginx config: `nginx -t`
 
+--
+
+# Mixing Cloud and Self-Hosting
+
+You can mix cloud and self-hosting, or self-host everything, the choice is yours. For example, you can use cloud for the frontend and self-host for the backend, etc.
+
 ---
 
 # Next Steps
@@ -544,5 +552,5 @@ Run new migration files in Supabase SQL Editor (cloud) or via psql (self-hosted)
 
 ---
 
-*Some links in this guide are affiliate links. Using them helps support Harmony development at no extra cost to you.*
+*Some links in this guide are affiliate links. Using them helps support Harmony development at no extra cost to you. We are in no-way affiliated with Hostinger, but we appreciate their support.*
 
