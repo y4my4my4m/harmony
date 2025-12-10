@@ -177,6 +177,11 @@ export const useAuthStore = defineStore('auth', {
         // Note: Notification system is now initialized by RouteAwareInitialization
         // to only load unread count initially (full list loads on-demand)
         
+        // ✅ CRITICAL: Load blocking/muting data on session restoration (page refresh)
+        // This must happen BEFORE any chat components render
+        const activityPubStore = useActivityPubStore();
+        await activityPubStore.loadBlockingData();
+        
         // LAZY: Don't initialize encryption on load - only when needed
         // Encryption will be initialized when:
         // 1. User opens encryption settings

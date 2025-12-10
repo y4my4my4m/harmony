@@ -160,6 +160,12 @@ CREATE POLICY "user_list_members_delete" ON public.user_list_members
     );
 
 -- ---------------------------------------------------------------------------
+-- GRANT PERMISSIONS TO AUTHENTICATED ROLE
+-- ---------------------------------------------------------------------------
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_lists TO authenticated;
+GRANT SELECT, INSERT, DELETE ON public.user_list_members TO authenticated;
+
+-- ---------------------------------------------------------------------------
 -- ADD TO REALTIME PUBLICATION
 -- ---------------------------------------------------------------------------
 DO $$

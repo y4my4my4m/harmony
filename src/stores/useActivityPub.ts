@@ -321,9 +321,20 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async loadBlockingData() {
       debug.log('🚫 Loading blocking/muting data...');
+      
+      // Get current user ID from auth store
+      const { useAuthStore } = await import('@/stores/auth');
+      const authStore = useAuthStore();
+      const userId = authStore.session?.user?.id;
+      
+      if (!userId) {
+        debug.log('ℹ️ No authenticated user, skipping blocking/muting data loading');
+        return;
+      }
+      
       await Promise.all([
-        this.loadBlockedUsers(),
-        this.loadMutedUsers()
+        this.loadBlockedUsers(userId),
+        this.loadMutedUsers(userId)
       ]);
       debug.log(`🚫 Blocking data loaded: ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
     },
@@ -339,10 +350,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         const postReactionsStore = usePostReactionsStore();
         
         // Load user relationships and counts (run in parallel for efficiency)
+        // Note: loadBlockingData handles getting userId from auth store internally
         await Promise.all([
           this.loadFollowedUsers(),
-          this.loadBlockedUsers(),
-          this.loadMutedUsers(),
+          this.loadBlockingData(), // Replaces direct loadBlockedUsers/loadMutedUsers calls
           this.loadFollowCounts(),
           this.loadUserPreferences()
         ]);
@@ -2988,26 +2999,15 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load blocked users into local cache for efficient lookups
      * Called on store initialization to avoid N+1 queries
      */
-    async loadBlockedUsers() {
+    async loadBlockedUsers(userId: string) {
       try {
-        debug.log('🔄 Loading blocked users...');
-        
-        // Get current user's profile ID to explicitly filter
-        // This is needed because the current RLS allows users to see blocks where they are blocked_user_id
-        // We only want blocks where WE are the blocker
-        const { userDataService } = await import('@/services/userDataService');
-        const currentUser = userDataService.getCurrentUser();
-        
-        if (!currentUser?.id) {
-          debug.log('ℹ️ No current user, skipping blocked users loading');
-          return;
-        }
+        debug.log('🔄 Loading blocked users for:', userId);
         
         // Explicitly filter by blocker_id to get only users WE have blocked
         const { data, error } = await supabase
           .from('user_blocks')
           .select('blocked_user_id')
-          .eq('blocker_id', currentUser.id);
+          .eq('blocker_id', userId);
 
         if (error) {
           debug.error('❌ Failed to load blocked users:', error);
@@ -3030,25 +3030,15 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load muted users into local cache for efficient lookups
      * Called on store initialization to avoid N+1 queries
      */
-    async loadMutedUsers() {
+    async loadMutedUsers(userId: string) {
       try {
-        debug.log('🔄 Loading muted users...');
-        
-        // Get current user's profile ID to explicitly filter
-        // We only want mutes where WE are the muter
-        const { userDataService } = await import('@/services/userDataService');
-        const currentUser = userDataService.getCurrentUser();
-        
-        if (!currentUser?.id) {
-          debug.log('ℹ️ No current user, skipping muted users loading');
-          return;
-        }
+        debug.log('🔄 Loading muted users for:', userId);
         
         // Explicitly filter by muter_id to get only users WE have muted
         const { data, error } = await supabase
           .from('user_mutes')
           .select('muted_user_id')
-          .eq('muter_id', currentUser.id);
+          .eq('muter_id', userId);
 
         if (error) {
           debug.error('❌ Failed to load muted users:', error);
