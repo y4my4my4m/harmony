@@ -110,15 +110,18 @@ This method uses Vercel + Supabase. Perfect for:
 
 ## A2. Deploy to Vercel
 
+Vercel hosts **only the frontend**. The `vercel.json` is pre-configured for this.
+
 ### One-Click Deploy
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_USERNAME%2Fharmony&integration-ids=oac_VqOgBHqhEoFTPzGkPd7L0iH6)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fy4my4my4m%2Fharmony&integration-ids=oac_VqOgBHqhEoFTPzGkPd7L0iH6)
 
 ### Manual Deploy
 
 1. Fork this repository to your GitHub
 2. Go to [vercel.com](https://vercel.com) and import your fork
-3. Configure environment variables:
+3. Vercel auto-detects Vite framework
+4. Configure environment variables:
 
 | Variable | Value |
 |----------|-------|
@@ -127,6 +130,7 @@ This method uses Vercel + Supabase. Perfect for:
 | `VITE_INSTANCE_DOMAIN` | `harmony.yourdomain.com` |
 | `VITE_INSTANCE_NAME` | `My Harmony` |
 | `VITE_ENABLE_VOICE` | `true` |
+| `VITE_ENABLE_FEDERATION` | `false` |
 
 4. Deploy!
 
@@ -215,7 +219,7 @@ mkdir -p /opt/harmony
 cd /opt/harmony
 
 # Clone Harmony
-git clone https://github.com/YOUR_USERNAME/harmony.git .
+git clone https://github.com/y4my4my4m/harmony.git .
 ```
 
 ## B2. Set Up Supabase
