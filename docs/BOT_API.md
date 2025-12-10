@@ -839,10 +839,9 @@ Connect to other platforms (Discord, Matrix, IRC).
 
 ## 📞 Support
 
-- Documentation: https://docs.harmonyapp.dev
-- Discord: https://discord.gg/harmony
-- GitHub: https://github.com/harmony/bot-api
-- Email: bots@harmonyapp.dev
+- Documentation: https://docs.har.mony.lol
+- GitHub: https://github.com/y4my4my4m/harmony-bot-api
+
 
 ## 📄 License
 

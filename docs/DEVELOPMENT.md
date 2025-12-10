@@ -17,7 +17,7 @@ Welcome to the Harmony development guide! This document provides everything you 
 
 ```bash
 # Clone the repository
-git clone https://github.com/y4my4m/harmony.git
+git clone https://github.com/y4my4my4m/harmony.git
 cd harmony
 
 # Install dependencies

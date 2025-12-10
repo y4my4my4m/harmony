@@ -20,8 +20,8 @@
       </div>
     </div>
 
-    <!-- Federation Settings -->
-    <div class="settings-card" v-if="permissions.canChangePrivacySettings">
+    <!-- Federation Settings (only show if instance-level federation is enabled) -->
+    <div class="settings-card" v-if="permissions.canChangePrivacySettings && instanceFederationEnabled">
       <div class="form-group">
         <div class="setting-row">
           <div class="setting-info">
@@ -186,6 +186,13 @@
 </template>
 
 <script setup lang="ts">
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+
+const instanceSettings = useInstanceSettingsStore();
+
+// Check if federation is enabled at instance level
+const instanceFederationEnabled = instanceSettings.isFederationEnabled;
+
 interface ServerPermissions {
   canChangePrivacySettings: boolean
 }

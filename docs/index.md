@@ -14,7 +14,7 @@ hero:
       link: /guide/
     - theme: alt
       text: View on GitHub
-      link: https://github.com/your-org/harmony
+      link: https://github.com/y4my4my4m/harmony
 
 features:
   - icon: 💬
@@ -65,7 +65,7 @@ Harmony is a modern federated social platform that combines the best of Discord-
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/harmony.git
+git clone https://github.com/y4my4my4m/harmony.git
 
 # Install dependencies
 cd harmony
@@ -93,9 +93,4 @@ Harmony follows modern software architecture principles:
 
 - **Documentation**: [Complete guide](/guide/)
 - **API Reference**: [Developer docs](/api/)
-- **GitHub**: [Source code & issues](https://github.com/your-org/harmony)
-- **Discord**: [Community chat](https://discord.gg/harmony)
-
----
-
-*Built with ❤️ by the Harmony community*
+- **GitHub**: [Source code & issues](https://github.com/y4my4my4m/harmony)

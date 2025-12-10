@@ -105,18 +105,20 @@ See [INSTALLATION.md](INSTALLATION.md)
 
 ## 📚 **Documentation**
 
-### **Essential Reading**
-- [START_HERE.md](START_HERE.md) - What's new after refactor
-- [QUICK_START.md](QUICK_START.md) - Get running in 5 minutes
-- [INSTALLATION.md](INSTALLATION.md) - Complete deployment guide
+### **Deployment**
+- [HOW_TO_SELF_HOST.md](HOW_TO_SELF_HOST.md) - **Complete guide** (Cloud free tier or VPS)
+- [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) - Detailed Vercel deployment reference
+
+### **Development**
+- [TODO_latest.md](TODO_latest.md) - Technical debt & roadmap
+- [db_schema/init/README.md](db_schema/init/README.md) - Database setup
 
 ### **For Developers**
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [MASTER_SUMMARY.md](MASTER_SUMMARY.md) - Complete architecture overview
-- [FEDERATED_SERVERS_COMPLETE.md](FEDERATED_SERVERS_COMPLETE.md) - Server federation details
+- [federation-backend/README.md](federation-backend/README.md) - Federation backend docs
 
-### **Detailed Docs**
-- See `docs/refactor-history/` for complete refactor documentation
+### **Database Setup**
+- [db_schema/init/README.md](db_schema/init/README.md) - Database initialization guide
 
 ---
 
@@ -170,4 +172,4 @@ MIT - See [LICENSE](LICENSE)
 
 **Built with ❤️ for the federated social web** 🌐
 
-[⭐ Star](https://github.com/your-username/harmony) | [🐛 Report Bug](https://github.com/your-username/harmony/issues) | [💡 Request Feature](https://github.com/your-username/harmony/issues)
+[⭐ Star](https://github.com/y4my4my4m/harmony) | [🐛 Report Bug](https://github.com/y4my4my4m/harmony/issues) | [💡 Request Feature](https://github.com/y4my4my4m/harmony/issues)

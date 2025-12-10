@@ -77,10 +77,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 
 // I18n
 const { t } = useI18n();
+const instanceSettings = useInstanceSettingsStore();
 
 // Props
 interface Props {
@@ -105,39 +108,51 @@ const emit = defineEmits<{
   'toggle-right-sidebar': []
 }>()
 
-// Feed tabs configuration
-const feedTabs = [
+// All feed tabs with federation requirement flag
+const allFeedTabs = [
   { 
     id: 'home', 
     label: t('activitypub.home'), 
     icon: 'home',
-    showLabelOnMobile: true
+    showLabelOnMobile: true,
+    requiresFederation: false
   },
   { 
     id: 'local', 
     label: t('activitypub.local'), 
     icon: 'users',
-    showLabelOnMobile: false
+    showLabelOnMobile: false,
+    requiresFederation: false
   },
   { 
     id: 'public', 
     label: t('activitypub.federated'), 
     icon: 'globe',
-    showLabelOnMobile: false
+    showLabelOnMobile: false,
+    requiresFederation: true
   },
   { 
     id: 'trending', 
     label: t('activitypub.trending'), 
     icon: 'trending-up',
-    showLabelOnMobile: false
+    showLabelOnMobile: false,
+    requiresFederation: false
   },
   { 
     id: 'instances', 
     label: t('activitypub.instances'), 
     icon: 'server',
-    showLabelOnMobile: false
+    showLabelOnMobile: false,
+    requiresFederation: true
   }
 ]
+
+// Filter tabs based on federation status
+const feedTabs = computed(() => 
+  allFeedTabs.filter(tab => 
+    !tab.requiresFederation || instanceSettings.isFederationEnabled
+  )
+)
 
 // Icon paths
 const getIconPath = (iconName: string): string => {
