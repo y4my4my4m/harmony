@@ -776,13 +776,15 @@ const handleInput = (event?: Event) => {
   
   // Ensure editor is empty when text is removed (for placeholder to show)
   // But preserve intentional newlines (user might have typed them)
-  if (!text || (text.trim().length === 0 && !text.includes('\n'))) {
+  const hasNoContent = !text || text.trim().length === 0;
+  const hasNoNewlines = !text?.includes('\n');
+  
+  if (hasNoContent && hasNoNewlines) {
     nextTick(() => {
       if (editorRef.value) {
         // Only clear if there's no actual content (no text, no intentional newlines)
         const hasOnlyWhitespace = editorRef.value.textContent?.trim().length === 0;
-        const hasNoNewlines = !text.includes('\n');
-        if (hasOnlyWhitespace && hasNoNewlines && editorRef.value.innerHTML.trim() !== '') {
+        if (hasOnlyWhitespace && editorRef.value.innerHTML.trim() !== '') {
           editorRef.value.innerHTML = '';
         }
       }

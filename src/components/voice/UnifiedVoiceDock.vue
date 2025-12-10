@@ -724,9 +724,8 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
   document.addEventListener('touchmove', handleDrag, { passive: false });
   document.addEventListener('touchend', stopDrag);
   
-  // Prevent text selection while dragging
-  document.body.style.userSelect = 'none';
-  document.body.style.cursor = 'grabbing';
+  // Prevent text selection while dragging using CSS class
+  document.body.classList.add('is-dragging-voice-dock');
   
   // Disable transitions during drag for smooth movement
   if (container) {
@@ -797,6 +796,9 @@ const stopDrag = () => {
   }
   
   isDragging.value = false;
+  
+  // Remove dragging class from body
+  document.body.classList.remove('is-dragging-voice-dock');
   
   // Re-enable transitions after drag for smooth magnetic snap animation
   const container = minimizedContainerRef.value;
@@ -2084,5 +2086,13 @@ onUnmounted(() => {
   0% { content: '.'; }
   33% { content: '..'; }
   66% { content: '...'; }
+}
+</style>
+
+<style>
+/* Global style for voice dock dragging - prevents interference with other components */
+body.is-dragging-voice-dock {
+  user-select: none;
+  cursor: grabbing;
 }
 </style>

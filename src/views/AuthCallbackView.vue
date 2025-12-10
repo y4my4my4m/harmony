@@ -95,7 +95,7 @@ onMounted(async () => {
       const identities = session.user.identities || []
       const primaryEmail = session.user.email
       
-      console.log('🔐 OAuth callback - User info:', {
+      debug.log('🔐 OAuth callback - User info:', {
         userId: session.user.id,
         email: primaryEmail,
         emailVerified: session.user.email_confirmed_at,
@@ -118,7 +118,7 @@ onMounted(async () => {
         )
         
         if (!allEmailsMatch) {
-          console.error('⚠️ UNEXPECTED ACCOUNT LINKING DETECTED!', {
+          debug.error('⚠️ UNEXPECTED ACCOUNT LINKING DETECTED!', {
             primaryEmail,
             linkedEmails: identityEmails,
             identities: identities.map((id: any) => ({
@@ -126,9 +126,9 @@ onMounted(async () => {
               email: id.email || id.identity_data?.email
             }))
           })
-          console.warn('⚠️ Accounts with different emails were linked. This should only happen when emails match!')
+          debug.warn('⚠️ Accounts with different emails were linked. This should only happen when emails match!')
         } else {
-          console.log('✅ Account linking detected with matching emails:', identityEmails.join(', '))
+          debug.log('✅ Account linking detected with matching emails:', identityEmails.join(', '))
         }
       }
       

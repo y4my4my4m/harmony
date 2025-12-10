@@ -10,7 +10,6 @@
       <template v-if="typingUsers.length === 1">
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[0].user_id).value }"
         >
           {{ getUserDisplayName(typingUsers[0].user_id).value }}
         </span>
@@ -20,7 +19,6 @@
       <template v-else-if="typingUsers.length === 2">
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[0].user_id).value }"
         >
           {{ getUserDisplayName(typingUsers[0].user_id).value }}
         </span>
@@ -33,14 +31,12 @@
       <template v-else-if="typingUsers.length === 3">
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[0].user_id).value }"
         >
           {{ getUserDisplayName(typingUsers[0].user_id).value }}
         </span>
         <span class="typing-suffix">, </span>
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[1].user_id).value }"
         >
           {{ getUserDisplayName(typingUsers[1].user_id).value }}
         </span>
@@ -70,7 +66,7 @@ interface Props {
 defineProps<Props>()
 
 const { t } = useI18n()
-const { getUserDisplayName, getUserColor } = useUserData()
+const { getUserDisplayName } = useUserData()
 </script>
 
 <style scoped>

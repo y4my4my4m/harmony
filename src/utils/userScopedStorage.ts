@@ -26,6 +26,7 @@ const USER_DATA_PREFIX = `${STORAGE_PREFIX}user_`
 
 class UserScopedStorage {
   private currentUserId: string | null = null
+  private warnedKeys = new Set<string>() // Track which keys have been warned about
 
   /**
    * Initialize and set current user from stored session
@@ -120,7 +121,11 @@ class UserScopedStorage {
   private getUserKey(key: string): string {
     if (!this.currentUserId) {
       // If no user is set, use a global key (for backwards compatibility during migration)
-      debug.warn('⚠️ Using global localStorage key (no user set):', key)
+      // Only warn once per key to avoid excessive logs
+      if (!this.warnedKeys.has(key)) {
+        debug.warn('⚠️ Using global localStorage key (no user set):', key)
+        this.warnedKeys.add(key)
+      }
       return `${STORAGE_PREFIX}${key}`
     }
     return `${USER_DATA_PREFIX}${this.currentUserId}_${key}`

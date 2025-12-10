@@ -338,9 +338,12 @@ onMounted(async () => {
     const metadata = user.user_metadata || {}
     const identities = user.identities || []
     
+    // Available OAuth providers (should match AuthComponent.vue)
+    const OAUTH_PROVIDERS = ['google', 'github', 'twitch'] as const
+    
     // Find OAuth identity (not email provider)
     const oauthIdentity = identities.find((id: any) => 
-      id.provider !== 'email' && (id.provider === 'google' || id.provider === 'github' || id.provider === 'twitch')
+      id.provider !== 'email' && OAUTH_PROVIDERS.includes(id.provider as typeof OAUTH_PROVIDERS[number])
     )
 
     if (!oauthIdentity) {
@@ -721,7 +724,7 @@ const createProfile = async () => {
         debug.error('Avatar upload error:', uploadError);
         toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
       }
-    } else if (avatarPreview.value && !avatarFile.value && result) {
+    } else if (avatarPreview.value && !avatarFile.value && result && authStore.session?.user?.id) {
       // OAuth avatar URL - download and upload to Supabase storage
       debug.log('Downloading and uploading OAuth avatar...');
       creationStep.value = 'Setting up avatar...';

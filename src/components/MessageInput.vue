@@ -271,8 +271,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     const handleEditorInput = () => {
       // The model value is handled by the update:model-value event
-      // Trigger typing indicator
-      handleTyping()
+      // Typing indicator is triggered in handleModelValueUpdate to avoid duplicate calls
     };
 
     // Handle typing indicator - only send "on" once, then keep alive

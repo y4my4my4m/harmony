@@ -555,8 +555,8 @@ class AdminService {
                 // Try to parse if it's a JSON string (might be double-quoted)
                 try {
                   const parsed = JSON.parse(value)
-                  // If it parsed to a string, use that (handles double-quoting)
-                  value = typeof parsed === 'string' ? parsed : value
+                  // Always use the parsed value if parsing succeeds
+                  value = parsed
                 } catch {
                   // If parsing fails, remove surrounding quotes if present
                   // Handle both "string" and \"string\" cases
