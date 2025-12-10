@@ -1,0 +1,443 @@
+-- =============================================================================
+-- Harmony Database Schema - Server Tables
+-- =============================================================================
+-- Discord-like servers, channels, and messages
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- SERVERS (Discord-like communities)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.servers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    name text NOT NULL,
+    description text,
+    icon text,
+    banner text,
+    
+    -- Owner
+    owner uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    
+    -- Settings
+    is_public boolean DEFAULT true,
+    verification_level smallint DEFAULT 0,
+    default_notification_level smallint DEFAULT 0,
+    
+    -- Federation
+    is_local_server boolean DEFAULT true,
+    federation_enabled boolean DEFAULT false,
+    ap_id text,
+    
+    -- Invite code
+    invite_code text UNIQUE,
+    
+    -- Member count (denormalized)
+    member_count integer DEFAULT 0
+);
+
+ALTER TABLE public.servers REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_servers_owner ON public.servers(owner);
+CREATE INDEX IF NOT EXISTS idx_servers_invite_code ON public.servers(invite_code) WHERE invite_code IS NOT NULL;
+
+COMMENT ON TABLE public.servers IS 'Discord-like community servers';
+
+-- ---------------------------------------------------------------------------
+-- CHANNEL CATEGORIES
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.channel_categories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    "order" integer DEFAULT 0,
+    
+    -- Federation
+    federation_status text DEFAULT 'pending'::text
+);
+
+CREATE INDEX IF NOT EXISTS idx_channel_categories_server ON public.channel_categories(server_id);
+
+COMMENT ON TABLE public.channel_categories IS 'Channel category groupings within servers';
+
+-- ---------------------------------------------------------------------------
+-- CHANNELS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.channels (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
+    category uuid REFERENCES public.channel_categories(id) ON DELETE SET NULL,
+    
+    name text NOT NULL,
+    description text,
+    
+    -- Type: 0=text, 1=voice, 2=category
+    type smallint DEFAULT 0,
+    "order" integer DEFAULT 0,
+    
+    -- Permissions
+    is_private boolean DEFAULT false,
+    slowmode_seconds integer DEFAULT 0,
+    
+    -- Federation
+    ap_id text,
+    is_remote boolean DEFAULT false,
+    federation_status text DEFAULT 'pending'::text,
+    
+    CONSTRAINT channels_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
+);
+
+ALTER TABLE public.channels REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_channels_server ON public.channels(server_id);
+CREATE INDEX IF NOT EXISTS idx_channels_category ON public.channels(category);
+
+COMMENT ON TABLE public.channels IS 'Server channels (text and voice)';
+
+-- ---------------------------------------------------------------------------
+-- MESSAGES
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    -- Author (either user or bot, mutually exclusive)
+    user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    bot_id uuid,
+    
+    -- Location (either channel or conversation, mutually exclusive)
+    channel_id uuid REFERENCES public.channels(id) ON DELETE CASCADE,
+    conversation_id uuid,
+    
+    -- Thread support
+    thread_id uuid,
+    reply_to uuid REFERENCES public.messages(id) ON DELETE SET NULL,
+    
+    -- Content
+    content jsonb NOT NULL,
+    
+    -- Message state
+    is_deleted boolean DEFAULT false,
+    is_system boolean DEFAULT false,
+    is_pinned boolean DEFAULT false,
+    pinned_at timestamp with time zone,
+    pinned_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    
+    -- Encryption
+    encrypted boolean DEFAULT false,
+    encryption_metadata jsonb,
+    megolm_session_id text,
+    megolm_message_index integer,
+    
+    -- Legacy reactions array (deprecated, use reactions table)
+    reactions uuid[],
+    
+    -- Federation
+    federation_status text DEFAULT 'pending'::text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    
+    CONSTRAINT messages_content_is_array CHECK (jsonb_typeof(content) = 'array'),
+    CONSTRAINT messages_content_not_empty CHECK (jsonb_array_length(content) > 0),
+    CONSTRAINT messages_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
+    CONSTRAINT messages_user_or_bot_check CHECK ((user_id IS NOT NULL AND bot_id IS NULL) OR (user_id IS NULL AND bot_id IS NOT NULL))
+);
+
+ALTER TABLE public.messages REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_messages_channel ON public.messages(channel_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON public.messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_user ON public.messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created ON public.messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_thread ON public.messages(thread_id) WHERE thread_id IS NOT NULL;
+
+COMMENT ON TABLE public.messages IS 'Channel and DM messages';
+
+-- ---------------------------------------------------------------------------
+-- THREADS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
+    parent_message_id uuid NOT NULL,
+    
+    name text NOT NULL,
+    created_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    
+    archived boolean DEFAULT false,
+    archived_at timestamp with time zone,
+    auto_archive_duration integer DEFAULT 1440,
+    locked boolean DEFAULT false,
+    
+    -- Denormalized counts
+    message_count integer DEFAULT 0,
+    member_count integer DEFAULT 0,
+    
+    last_message_id uuid,
+    last_message_at timestamp with time zone
+);
+
+ALTER TABLE public.threads REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_threads_channel ON public.threads(channel_id);
+CREATE INDEX IF NOT EXISTS idx_threads_parent_message ON public.threads(parent_message_id);
+
+COMMENT ON TABLE public.threads IS 'Message threads within channels';
+
+-- Add FK for messages.thread_id after threads table exists
+ALTER TABLE public.messages 
+    ADD CONSTRAINT messages_thread_id_fkey 
+    FOREIGN KEY (thread_id) REFERENCES public.threads(id) ON DELETE SET NULL;
+
+-- ---------------------------------------------------------------------------
+-- THREAD MEMBERS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.thread_members (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    thread_id uuid NOT NULL REFERENCES public.threads(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    joined_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_read_at timestamp with time zone,
+    
+    UNIQUE(thread_id, user_id)
+);
+
+ALTER TABLE public.thread_members REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_thread_members_thread ON public.thread_members(thread_id);
+CREATE INDEX IF NOT EXISTS idx_thread_members_user ON public.thread_members(user_id);
+
+-- ---------------------------------------------------------------------------
+-- REACTIONS (for messages)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.reactions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    
+    emoji_id uuid,
+    custom_emoji_content text,
+    
+    federation_status text DEFAULT 'pending'::text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    
+    CONSTRAINT reactions_has_emoji CHECK (emoji_id IS NOT NULL OR custom_emoji_content IS NOT NULL)
+);
+
+ALTER TABLE public.reactions REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_reactions_message ON public.reactions(message_id);
+CREATE INDEX IF NOT EXISTS idx_reactions_user ON public.reactions(user_id);
+
+COMMENT ON TABLE public.reactions IS 'Message emoji reactions';
+
+-- ---------------------------------------------------------------------------
+-- USER SERVERS (membership)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_servers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    
+    -- Status: pending, accepted, banned
+    status text DEFAULT 'accepted'::text,
+    
+    -- Federation
+    member_instance text,
+    
+    -- Nickname in this server
+    nickname text,
+    
+    -- Notifications
+    muted boolean DEFAULT false,
+    muted_until timestamp with time zone,
+    
+    UNIQUE(user_id, server_id),
+    CONSTRAINT user_servers_status_check CHECK (status IN ('pending', 'accepted', 'banned'))
+);
+
+ALTER TABLE public.user_servers REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_user_servers_user ON public.user_servers(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_servers_server ON public.user_servers(server_id);
+
+COMMENT ON TABLE public.user_servers IS 'Server membership records';
+
+-- ---------------------------------------------------------------------------
+-- SERVER ROLES
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.server_roles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    
+    name text NOT NULL,
+    color text,
+    position integer DEFAULT 0,
+    
+    -- Permission bits (Discord-style)
+    permissions bigint DEFAULT 0,
+    
+    -- Special flags
+    is_default boolean DEFAULT false,
+    is_admin boolean DEFAULT false,
+    mentionable boolean DEFAULT true,
+    hoist boolean DEFAULT false
+);
+
+ALTER TABLE public.server_roles REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_server_roles_server ON public.server_roles(server_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_default ON public.server_roles(server_id) WHERE is_default = true;
+
+COMMENT ON TABLE public.server_roles IS 'Server role definitions';
+
+-- ---------------------------------------------------------------------------
+-- USER ROLES (role assignments)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_roles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    role_id uuid NOT NULL REFERENCES public.server_roles(id) ON DELETE CASCADE,
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    assigned_at timestamp with time zone DEFAULT now(),
+    assigned_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    
+    UNIQUE(user_id, role_id)
+);
+
+ALTER TABLE public.user_roles REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_user_roles_user ON public.user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_server ON public.user_roles(server_id);
+
+COMMENT ON TABLE public.user_roles IS 'User role assignments';
+
+-- ---------------------------------------------------------------------------
+-- CONVERSATIONS (DMs)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.conversations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    -- Group chat name (null for 1:1)
+    name text,
+    icon text,
+    
+    -- For group DMs
+    is_group boolean DEFAULT false,
+    owner_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    
+    -- Encryption
+    encrypted boolean DEFAULT false
+);
+
+ALTER TABLE public.conversations REPLICA IDENTITY FULL;
+
+-- Add FK to messages.conversation_id
+ALTER TABLE public.messages 
+    ADD CONSTRAINT messages_conversation_id_fkey 
+    FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+
+COMMENT ON TABLE public.conversations IS 'DM conversations (1:1 and group)';
+
+-- ---------------------------------------------------------------------------
+-- CONVERSATION PARTICIPANTS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.conversation_participants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    
+    role text DEFAULT 'member'::text,
+    joined_at timestamp with time zone DEFAULT now(),
+    left_at timestamp with time zone,
+    
+    -- Last read tracking
+    last_read_at timestamp with time zone,
+    last_read_message_id uuid,
+    
+    -- Notifications
+    muted boolean DEFAULT false,
+    
+    UNIQUE(conversation_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_participants_conversation ON public.conversation_participants(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_participants_user ON public.conversation_participants(user_id);
+
+COMMENT ON TABLE public.conversation_participants IS 'DM conversation participants';
+
+-- ---------------------------------------------------------------------------
+-- INVITES
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.invites (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    code text NOT NULL UNIQUE,
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    channel_id uuid REFERENCES public.channels(id) ON DELETE SET NULL,
+    created_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT now(),
+    expires_at timestamp with time zone,
+    max_uses integer,
+    use_count integer DEFAULT 0,
+    is_active boolean DEFAULT true
+);
+
+CREATE INDEX IF NOT EXISTS idx_invites_code ON public.invites(code);
+CREATE INDEX IF NOT EXISTS idx_invites_server ON public.invites(server_id);
+
+COMMENT ON TABLE public.invites IS 'Server invite links';
+
+-- ---------------------------------------------------------------------------
+-- VOICE CHANNEL PARTICIPANTS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.voice_channel_participants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    joined_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    -- State
+    is_muted boolean DEFAULT false,
+    is_deafened boolean DEFAULT false,
+    is_video_enabled boolean DEFAULT false,
+    is_screen_sharing boolean DEFAULT false,
+    
+    -- Connection info
+    peer_id text,
+    connection_quality text DEFAULT 'good'::text,
+    
+    UNIQUE(channel_id, user_id)
+);
+
+ALTER TABLE public.voice_channel_participants REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_voice_participants_channel ON public.voice_channel_participants(channel_id);
+CREATE INDEX IF NOT EXISTS idx_voice_participants_user ON public.voice_channel_participants(user_id);
+
+COMMENT ON TABLE public.voice_channel_participants IS 'Active voice channel participants';
+
+DO $$
+BEGIN
+    RAISE NOTICE 'Server tables created successfully';
+END $$;
+

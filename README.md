@@ -105,18 +105,17 @@ See [INSTALLATION.md](INSTALLATION.md)
 
 ## 📚 **Documentation**
 
-### **Essential Reading**
-- [START_HERE.md](START_HERE.md) - What's new after refactor
-- [QUICK_START.md](QUICK_START.md) - Get running in 5 minutes
-- [INSTALLATION.md](INSTALLATION.md) - Complete deployment guide
+### **Getting Started**
+- [INSTALLATION.md](INSTALLATION.md) - Complete deployment guide (Vercel, Docker, VPS)
+- [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) - Vercel deployment step-by-step
+- [docs/QUICK_START.md](docs/QUICK_START.md) - Get running in 5 minutes
 
 ### **For Developers**
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [MASTER_SUMMARY.md](MASTER_SUMMARY.md) - Complete architecture overview
-- [FEDERATED_SERVERS_COMPLETE.md](FEDERATED_SERVERS_COMPLETE.md) - Server federation details
+- [federation-backend/README.md](federation-backend/README.md) - Federation backend docs
 
-### **Detailed Docs**
-- See `docs/refactor-history/` for complete refactor documentation
+### **Database Setup**
+- [db_schema/init/README.md](db_schema/init/README.md) - Database initialization guide
 
 ---
 

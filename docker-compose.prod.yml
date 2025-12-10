@@ -1,0 +1,120 @@
+# =============================================================================
+# Harmony Production Docker Compose
+# =============================================================================
+# For use with Supabase Cloud or external Supabase instance
+#
+# Prerequisites:
+#   1. Build frontend: npm run build-only
+#   2. Copy env.example to .env and configure
+#   3. Copy federation-backend/env.template to federation-backend/.env
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Services:
+#   - federation-backend: ActivityPub federation, link previews
+#   - bot-gateway: Bot plugin system (optional)
+#   - nginx: Reverse proxy with SSL
+#   - redis: Caching (optional)
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Federation Backend
+  # ---------------------------------------------------------------------------
+  federation-backend:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harmony
+    depends_on:
+      - redis
+
+  # ---------------------------------------------------------------------------
+  # Bot Gateway (Optional)
+  # ---------------------------------------------------------------------------
+  bot-gateway:
+    build:
+      context: ./bot-gateway
+      dockerfile: Dockerfile
+    container_name: harmony-bot-gateway
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./bot-gateway/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+    networks:
+      - harmony
+    profiles:
+      - bots
+
+  # ---------------------------------------------------------------------------
+  # Redis (for caching and rate limiting)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: harmony-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - harmony
+
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy
+  # ---------------------------------------------------------------------------
+  # Serves static frontend and proxies to backend services
+  # Expects SSL certificates in /etc/letsencrypt
+  nginx:
+    image: nginx:alpine
+    container_name: harmony-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Frontend static files
+      - ./dist:/usr/share/nginx/html:ro
+      # Nginx configuration
+      - ./nginx-harmony.conf:/etc/nginx/conf.d/default.conf:ro
+      # SSL certificates (from Let's Encrypt)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - harmony
+    depends_on:
+      - federation-backend
+
+networks:
+  harmony:
+    driver: bridge
+
+volumes:
+  redis-data:
+

@@ -1,535 +1,424 @@
 # Harmony Installation Guide
 
-Complete guide for installing and deploying Harmony.
+Complete guide for deploying your own Harmony instance.
 
 ## Table of Contents
 
-1. [Quick Start](#quick-start)
-2. [Vercel Deployment](#vercel-deployment)
-3. [Docker Deployment](#docker-deployment)
-4. [Manual Installation](#manual-installation)
-5. [Post-Installation](#post-installation)
-6. [Troubleshooting](#troubleshooting)
+1. [Choose Your Deployment Method](#choose-your-deployment-method)
+2. [Method 1: Vercel + Supabase Cloud](#method-1-vercel--supabase-cloud-easiest)
+3. [Method 2: Docker Compose](#method-2-docker-compose-recommended)
+4. [Method 3: Manual VPS Setup](#method-3-manual-vps-setup)
+5. [Database Setup](#database-setup)
+6. [Post-Installation](#post-installation)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Quick Start
+## Choose Your Deployment Method
 
-The fastest way to get Harmony running:
+| Method | Best For | Difficulty | Cost |
+|--------|----------|------------|------|
+| **Vercel + Supabase Cloud** | Quick start, low traffic | Easy | Free tier available |
+| **Docker Compose** | Self-hosting, medium traffic | Medium | VPS costs (~$5-20/mo) |
+| **Manual VPS** | Full control, high traffic | Advanced | VPS costs |
 
-### Option 1: Vercel (Recommended for beginners)
+---
+
+## Method 1: Vercel + Supabase Cloud (Easiest)
+
+Perfect for getting started quickly with minimal configuration.
+
+### Step 1: Set Up Supabase
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Wait for the database to initialize (~2 minutes)
+3. Go to **SQL Editor** and run the database schema:
+   - Navigate to `db_schema/init/` in this repository
+   - Run each SQL file in order (00, 01, 02, etc.)
+   - Or run the combined `init.sql` script
+
+4. Copy your credentials from **Settings > API**:
+   - Project URL (e.g., `https://xxxxx.supabase.co`)
+   - `anon` public key
+   - `service_role` secret key
+
+### Step 2: Deploy to Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyour-username%2Fharmony)
+
+Or deploy manually:
+
 ```bash
-# Click the deploy button in DEPLOY_TO_VERCEL.md
-# Or use Vercel CLI:
-vercel deploy
+# Install Vercel CLI
+npm i -g vercel
+
+# Clone and deploy
+git clone https://github.com/your-username/harmony.git
+cd harmony
+vercel
 ```
 
-### Option 2: Docker Compose
+### Step 3: Configure Environment Variables
+
+In Vercel Dashboard > Settings > Environment Variables, add:
+
+```env
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_INSTANCE_DOMAIN=your-vercel-domain.vercel.app
+VITE_INSTANCE_NAME=My Harmony Instance
+
+# Federation backend (same deployment)
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+INSTANCE_DOMAIN=your-vercel-domain.vercel.app
+INSTANCE_NAME=My Harmony Instance
+CORS_ORIGIN=https://your-vercel-domain.vercel.app
+
+# Disable pg-boss for serverless (uses database triggers instead)
+USE_PGBOSS_QUEUE=false
+```
+
+### Step 4: Add Custom Domain (Optional)
+
+1. In Vercel Dashboard > Settings > Domains
+2. Add your custom domain
+3. Update DNS records as instructed
+4. Update `VITE_INSTANCE_DOMAIN` and `INSTANCE_DOMAIN` to your domain
+
+### Vercel Limitations
+
+- Federation relies on database triggers (no pg-boss queue)
+- Cold starts may affect ActivityPub response times
+- Voice/video features require separate LiveKit deployment
+
+---
+
+## Method 2: Docker Compose (Recommended)
+
+Full control with easy deployment. Choose between using Supabase Cloud or self-hosting Supabase.
+
+### Option A: With Supabase Cloud
+
+Use Supabase Cloud for the database, Docker for everything else.
+
 ```bash
 # Clone the repository
 git clone https://github.com/your-username/harmony.git
 cd harmony
 
-# Copy environment file
-cp .env.example .env
-# Edit .env with your configuration
-
-# Start with Docker Compose
-docker-compose -f docker-compose.full.yml up -d
-```
-
-### Option 3: Development Mode
-```bash
-# Clone and install
-git clone https://github.com/your-username/harmony.git
-cd harmony
+# Install dependencies and build frontend
 npm install
-cd backend && npm install
+npm run build-only
 
 # Configure environment
-cp .env.example .env
-cd backend && cp .env.example .env
-# Edit both .env files
+cp env.example .env
+cp federation-backend/env.template federation-backend/.env
+# Edit both .env files with your Supabase credentials
 
-# Start development servers
-npm run dev                    # Terminal 1: Frontend
-cd backend && npm run dev      # Terminal 2: Backend
+# Start services
+docker compose -f docker-compose.prod.yml up -d
 ```
 
----
+### Option B: Fully Self-Hosted (with Supabase)
 
-## Vercel Deployment
-
-### Prerequisites
-- Vercel account (free tier works)
-- Supabase account (free tier works)
-- GitHub account
-- Custom domain (optional)
-
-### Step 1: Prepare Supabase
-
-1. **Create Supabase Project**
-   - Visit [supabase.com](https://supabase.com)
-   - Click "New Project"
-   - Fill in project details
-   - Wait for database to initialize
-
-2. **Import Database Schema**
-   ```bash
-   # Download schema
-   wget https://raw.githubusercontent.com/your-username/harmony/main/harmonious/supabase_schema_backup_latest.sql
-   
-   # In Supabase Dashboard:
-   # SQL Editor → New Query → Paste schema → Run
-   ```
-
-3. **Get Credentials**
-   - Settings → API
-   - Copy `URL`, `anon key`, and `service_role key`
-
-### Step 2: Deploy to Vercel
-
-1. **Fork Repository**
-   - Fork harmony repository to your GitHub
-
-2. **Create Vercel Project**
-   - Visit [vercel.com](https://vercel.com)
-   - Click "New Project"
-   - Import your forked repository
-
-3. **Configure Environment Variables**
-   ```env
-   SUPABASE_URL=https://xxxxx.supabase.co
-   SUPABASE_ANON_KEY=your-anon-key
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   INSTANCE_DOMAIN=your-domain.com
-   INSTANCE_NAME=Harmony
-   INSTANCE_DESCRIPTION=My federated social platform
-   CORS_ORIGIN=https://your-domain.com
-   NODE_ENV=production
-   ```
-
-4. **Deploy**
-   - Click "Deploy"
-   - Wait for build to complete
-   - Visit your deployment URL
-
-### Step 3: Custom Domain (Optional)
-
-1. In Vercel Dashboard → Settings → Domains
-2. Add your custom domain
-3. Configure DNS records:
-   ```
-   Type: CNAME
-   Name: www
-   Value: cname.vercel-dns.com
-   
-   Type: A
-   Name: @
-   Value: 76.76.21.21
-   ```
-
-### Step 4: Enable Features
-
-1. **WebFinger**
-   - Verify: `https://your-domain.com/.well-known/webfinger?resource=acct:admin@your-domain.com`
-
-2. **NodeInfo**
-   - Verify: `https://your-domain.com/.well-known/nodeinfo`
-
----
-
-## Docker Deployment
-
-### Prerequisites
-- Docker 20.10+
-- Docker Compose 2.0+
-- 2GB RAM minimum
-- 10GB disk space
-
-### Full Stack (Postgres + Redis + Backend + Frontend)
-
-1. **Clone Repository**
-   ```bash
-   git clone https://github.com/your-username/harmony.git
-   cd harmony
-   ```
-
-2. **Configure Environment**
-   ```bash
-   cp .env.example .env
-   nano .env  # Edit configuration
-   ```
-
-3. **Start Services**
-   ```bash
-   docker-compose -f docker-compose.full.yml up -d
-   ```
-
-4. **Initialize Database**
-   ```bash
-   # Import schema
-   docker exec -i harmony-postgres psql -U harmony harmony < harmonious/supabase_schema_backup_latest.sql
-   ```
-
-5. **Verify**
-   - Frontend: http://localhost:8080
-   - Backend API: http://localhost:3001
-   - Health: http://localhost:3001/health
-
-### Development Mode (Hot Reload)
+Run your own Supabase instance alongside Harmony.
 
 ```bash
-# Start development stack
-docker-compose -f docker-compose.dev.yml up
+# 1. Clone and set up Supabase
+git clone https://github.com/supabase/supabase.git
+cd supabase/docker
+cp .env.example .env
+# Edit .env with secure passwords
 
-# Logs
-docker-compose -f docker-compose.dev.yml logs -f
+# Start Supabase
+docker compose up -d
 
-# Stop
-docker-compose -f docker-compose.dev.yml down
+# 2. Clone and set up Harmony
+cd ../..
+git clone https://github.com/your-username/harmony.git
+cd harmony
+
+# Build frontend
+npm install
+npm run build-only
+
+# Configure environment
+cp env.example .env
+cp federation-backend/env.template federation-backend/.env
+# Edit .env files - use internal Docker URLs for Supabase
+
+# 3. Initialize database
+cd ../supabase/docker
+docker exec -i supabase-db psql -U postgres -d postgres < ../../harmony/db_schema/init/init.sql
+
+# 4. Start Harmony
+cd ../../harmony
+docker compose -f docker-compose.full.yml up -d
 ```
 
-### With External Supabase
+### Enable Voice/Video (Optional)
 
-If using Supabase cloud instead of local Postgres:
+```bash
+# Start with voice profile
+docker compose -f docker-compose.full.yml --profile voice up -d
 
-1. Update `docker-compose.yml`:
-   ```yaml
-   # Remove postgres service
-   # Update backend environment:
-   SUPABASE_URL: https://your-project.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY: your-key
-   ```
+# Configure LiveKit
+cp webrtc/livekit.yaml.example webrtc/livekit.yaml
+# Edit livekit.yaml with your API keys
+```
 
-2. Start without Postgres:
-   ```bash
-   docker-compose up backend frontend redis
-   ```
+### Enable Bot Gateway (Optional)
+
+```bash
+# Start with bots profile
+docker compose -f docker-compose.full.yml --profile bots up -d
+```
 
 ---
 
-## Manual Installation
+## Method 3: Manual VPS Setup
 
 For advanced users who want full control.
 
 ### Prerequisites
-- Node.js 18+
-- PostgreSQL 15+
-- Redis 7+
-- Nginx (for production)
 
-### Step 1: Clone and Install
+- Ubuntu 22.04+ or Debian 12+
+- Node.js 20+
+- Nginx
+- PostgreSQL 15+ (or Supabase)
+
+### Step 1: Install Dependencies
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install nginx
+sudo apt install -y nginx
+
+# Install certbot for SSL
+sudo apt install -y certbot python3-certbot-nginx
+```
+
+### Step 2: Clone and Build
 
 ```bash
 # Clone repository
 git clone https://github.com/your-username/harmony.git
 cd harmony
 
-# Install frontend dependencies
+# Install dependencies
 npm install
+cd federation-backend && npm install && cd ..
 
-# Install backend dependencies
-cd backend
-npm install
-cd ..
-```
+# Build frontend
+npm run build-only
 
-### Step 2: Database Setup
-
-```bash
-# Create database
-createdb harmony
-
-# Import schema
-psql harmony < harmonious/supabase_schema_backup_latest.sql
-
-# Or use Supabase cloud (recommended)
+# Build backend
+cd federation-backend && npm run build && cd ..
 ```
 
 ### Step 3: Configure Environment
 
 ```bash
-# Frontend (.env)
-cp .env.example .env
+# Frontend
+cp env.example .env
 nano .env
+
+# Federation backend
+cp federation-backend/env.template federation-backend/.env
+nano federation-backend/.env
 ```
 
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_URL=http://localhost:3001
+### Step 4: Set Up Nginx
+
+```bash
+# Copy nginx config
+sudo cp nginx-harmony.conf /etc/nginx/sites-available/harmony
+
+# Edit with your domain
+sudo nano /etc/nginx/sites-available/harmony
+# Replace 'har.mony.lol' with your domain
+# Update paths as needed
+
+# Enable site
+sudo ln -s /etc/nginx/sites-available/harmony /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Step 5: Get SSL Certificate
+
+```bash
+sudo certbot --nginx -d your-domain.com
+```
+
+### Step 6: Set Up Services
+
+Create systemd service for federation backend:
+
+```bash
+sudo nano /etc/systemd/system/harmony-federation.service
+```
+
+```ini
+[Unit]
+Description=Harmony Federation Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/harmony/federation-backend
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 ```bash
-# Backend (backend/.env)
-cd backend
-cp .env.example .env
-nano .env
+sudo systemctl enable harmony-federation
+sudo systemctl start harmony-federation
 ```
 
-```env
-NODE_ENV=production
-PORT=3001
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-INSTANCE_DOMAIN=your-domain.com
-REDIS_URL=redis://localhost:6379
-```
+---
 
-### Step 4: Build
+## Database Setup
+
+### Running the Schema
+
+The database schema is in `db_schema/init/`. Run files in order:
 
 ```bash
-# Build frontend
-npm run build
+# For self-hosted Supabase
+psql -h localhost -p 54322 -U postgres -d postgres
 
-# Build backend
-cd backend
-npm run build
+# Run each file
+\i db_schema/init/00_extensions.sql
+\i db_schema/init/01_types.sql
+\i db_schema/init/02_tables_core.sql
+\i db_schema/init/03_tables_social.sql
+\i db_schema/init/04_tables_servers.sql
+\i db_schema/init/05_tables_federation.sql
+\i db_schema/init/06_tables_misc.sql
+\i db_schema/init/30_rls_policies.sql
+\i db_schema/init/50_realtime.sql
+\i db_schema/init/99_storage_buckets.sql
 ```
 
-### Step 5: Start Services
+### For Supabase Cloud
+
+1. Go to SQL Editor in Dashboard
+2. Create a new query
+3. Paste contents of each file and run
+4. Or use the Supabase CLI:
 
 ```bash
-# Start Redis
-redis-server
-
-# Start backend
-cd backend
-npm start
-
-# Serve frontend with nginx or similar
-```
-
-### Step 6: Nginx Configuration
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # Frontend
-    location / {
-        root /path/to/harmony/dist;
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Backend API
-    location /api {
-        proxy_pass http://localhost:3001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    # ActivityPub endpoints
-    location ~ ^/(\.well-known|users|nodeinfo) {
-        proxy_pass http://localhost:3001;
-        proxy_set_header Host $host;
-    }
-}
+supabase db push
 ```
 
 ---
 
 ## Post-Installation
 
-### Step 1: Create Admin Account
+### 1. Create Admin Account
 
-1. Visit your instance URL
-2. Click "Register"
-3. Create your account
-4. First user gets admin privileges
+1. Register a new account on your instance
+2. The first user automatically gets admin privileges
+3. Or manually set admin in database:
 
-### Step 2: Configure Instance
-
-1. Go to Settings → Admin Panel
-2. Set instance details:
-   - Name
-   - Description
-   - Rules
-   - Contact email
-
-### Step 3: Test Federation
-
-1. **Test WebFinger**:
-   ```bash
-   curl https://your-domain.com/.well-known/webfinger?resource=acct:admin@your-domain.com
-   ```
-
-2. **Test NodeInfo**:
-   ```bash
-   curl https://your-domain.com/.well-known/nodeinfo
-   ```
-
-3. **Test Following**:
-   - Search for a Mastodon user: `@user@mastodon.social`
-   - Click Follow
-   - Check if follow request appears on their end
-
-### Step 4: Set Up Cron Jobs
-
-For delivery queue processing:
-
-```bash
-# Add to crontab
-*/5 * * * * curl -X POST http://localhost:3001/api/activitypub/process-delivery
+```sql
+UPDATE profiles SET is_admin = true WHERE username = 'your-username';
 ```
 
-Or use a cron service like cron-job.org.
+### 2. Configure Instance
 
-### Step 5: Enable HTTPS
+Go to Settings > Admin Panel and configure:
+- Instance name and description
+- Registration settings
+- Federation settings
 
-Use Let's Encrypt:
+### 3. Update Instance Config
+
+```sql
+UPDATE instance_config SET config_value = '"your-domain.com"' WHERE config_key = 'domain';
+UPDATE instance_config SET config_value = '"Your Instance Name"' WHERE config_key = 'name';
+```
+
+### 4. Test Federation
 
 ```bash
-# Install certbot
-sudo apt install certbot python3-certbot-nginx
+# Test WebFinger
+curl https://your-domain.com/.well-known/webfinger?resource=acct:admin@your-domain.com
 
-# Get certificate
-sudo certbot --nginx -d your-domain.com
-
-# Auto-renewal
-sudo certbot renew --dry-run
+# Test NodeInfo
+curl https://your-domain.com/.well-known/nodeinfo
 ```
 
 ---
 
 ## Troubleshooting
 
-### Frontend Won't Load
-
-**Check:**
-- Is backend running? `curl http://localhost:3001/health`
-- Are environment variables set correctly?
-- Check browser console for errors
-
-**Fix:**
-```bash
-# Rebuild frontend
-npm run build
-
-# Clear cache
-rm -rf node_modules/.vite
-npm run dev
-```
-
-### Backend Errors
-
-**Check:**
-- Database connection: `psql -h localhost -U harmony`
-- Supabase credentials in `.env`
-- Redis running: `redis-cli ping`
-
-**Fix:**
-```bash
-# View logs
-cd backend
-npm run dev  # See detailed logs
-
-# Test database
-curl http://localhost:3001/health
-```
-
 ### Federation Not Working
 
-**Check:**
-- Is INSTANCE_DOMAIN correct? (no http://, no trailing slash)
-- Is your instance publicly accessible?
-- Are HTTP signatures working?
-
-**Debug:**
-```bash
-# Test WebFinger
-curl -v https://your-domain.com/.well-known/webfinger?resource=acct:admin@your-domain.com
-
-# Check logs
-docker-compose logs -f backend
-```
-
-### Database Migration Fails
-
-**Fix:**
-```bash
-# Backup current database
-pg_dump harmony > backup.sql
-
-# Drop and recreate
-dropdb harmony
-createdb harmony
-
-# Re-import schema
-psql harmony < harmonious/supabase_schema_backup_latest.sql
-```
-
-### Performance Issues
-
-**Optimize:**
-- Enable Redis caching
-- Add database indexes
-- Use CDN for assets
-- Enable compression in nginx
-
-```bash
-# Check slow queries
-psql harmony -c "SELECT * FROM pg_stat_statements ORDER BY total_time DESC LIMIT 10;"
-```
-
----
-
-## Upgrade Guide
-
-### From Previous Version
-
-1. **Backup**
+1. Check backend is running:
    ```bash
-   # Database
-   pg_dump harmony > backup_$(date +%Y%m%d).sql
-   
-   # Files
-   tar -czf harmony_backup.tar.gz dist backend/dist .env
+   curl http://localhost:3001/health
    ```
 
-2. **Pull Updates**
+2. Verify `INSTANCE_DOMAIN` is set correctly (no `https://`, no trailing slash)
+
+3. Check nginx is proxying correctly:
    ```bash
-   git pull origin main
-   npm install
-   cd backend && npm install
+   curl -v https://your-domain.com/.well-known/nodeinfo
    ```
 
-3. **Run Migrations**
-   ```bash
-   # Apply any new schema changes
-   psql harmony < db_schema/migrations/latest.sql
+### Database Connection Issues
+
+1. Verify `DATABASE_URL` format:
+   - Self-hosted: `postgresql://supabase_admin:password@localhost:54322/postgres`
+   - Supabase Cloud: `postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:6543/postgres`
+
+2. Check pg-boss tables exist:
+   ```sql
+   SELECT * FROM pgboss.job LIMIT 1;
    ```
 
-4. **Rebuild**
+### Storage/Upload Issues
+
+1. Verify storage buckets exist in Supabase Dashboard
+2. Check RLS policies on storage.objects
+3. Verify `VITE_SUPABASE_URL` is accessible from browser
+
+### Voice/Video Not Working
+
+1. Check LiveKit is running:
    ```bash
-   npm run build
-   cd backend && npm run build
+   curl http://localhost:7880
    ```
 
-5. **Restart**
-   ```bash
-   docker-compose down
-   docker-compose up -d
-   ```
+2. Verify `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` match in:
+   - `federation-backend/.env`
+   - `webrtc/livekit.yaml`
 
----
-
-## Support
-
-- **Documentation**: Check ARCHITECTURE.md and README.md
-- **Issues**: [GitHub Issues](https://github.com/your-username/harmony/issues)
-- **Community**: Join our Discord (link in README)
+3. For production, ensure TURN server is configured
 
 ---
 
 ## Next Steps
 
-1. Customize your instance appearance
-2. Invite users
-3. Set up moderation tools
-4. Join the fediverse!
+- [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) - Detailed Vercel deployment guide
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contributing guidelines
+- [federation-backend/README.md](federation-backend/README.md) - Federation backend documentation
 
-Happy federating! 🎵
+---
 
+**Need help?** Open an issue on GitHub or join our Discord community.

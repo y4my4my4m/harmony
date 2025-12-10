@@ -2,10 +2,10 @@
   "version": 2,
   "builds": [
     {
-      "src": "backend/src/index.ts",
+      "src": "federation-backend/src/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["backend/src/**"]
+        "includeFiles": ["federation-backend/src/**"]
       }
     },
     {
@@ -18,24 +18,52 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/backend/src/index.ts"
+      "src": "/.well-known/webfinger",
+      "dest": "/federation-backend/src/index.ts"
     },
     {
-      "src": "/health",
-      "dest": "/backend/src/index.ts"
-    },
-    {
-      "src": "/.well-known/(.*)",
-      "dest": "/backend/src/index.ts"
-    },
-    {
-      "src": "/users/(.*)",
-      "dest": "/backend/src/index.ts"
+      "src": "/.well-known/nodeinfo",
+      "dest": "/federation-backend/src/index.ts"
     },
     {
       "src": "/nodeinfo/(.*)",
-      "dest": "/backend/src/index.ts"
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/users/(.*)",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/servers/(.*)",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/inbox",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/outbox",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/link-preview(.*)",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/api/livekit/(.*)",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/api/federation/(.*)",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/push/(.*)",
+      "dest": "/federation-backend/src/index.ts"
+    },
+    {
+      "src": "/health",
+      "dest": "/federation-backend/src/index.ts"
     },
     {
       "src": "/(.*)",
@@ -43,8 +71,8 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "USE_PGBOSS_QUEUE": "false"
   },
   "regions": ["iad1"]
 }
-
