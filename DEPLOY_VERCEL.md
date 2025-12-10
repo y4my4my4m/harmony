@@ -384,12 +384,12 @@ Or merge via GitHub's "Sync fork" button.
 ## Alternative: Full Self-Hosted
 
 For production instances that need:
-- Reliable pg-boss federation
-- Voice/video
+- Cross-instance ActivityPub federation
+- Link previews
 - Bot gateway
 - No cold starts
 
-See [INSTALLATION.md](INSTALLATION.md) for Docker and VPS deployment options.
+See [HOW_TO_SELF_HOST.md](HOW_TO_SELF_HOST.md) → **Path B: Full Self-Hosting on VPS**
 
 ---
 
@@ -404,5 +404,5 @@ See [INSTALLATION.md](INSTALLATION.md) for Docker and VPS deployment options.
 
 ## Support
 
-- [GitHub Issues](https://github.com/your-username/harmony/issues)
+- [GitHub Issues](https://github.com/y4my4my4m/harmony/issues)
 - [Documentation](docs/)

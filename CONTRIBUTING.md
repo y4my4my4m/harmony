@@ -37,7 +37,7 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 
 1. **Fork and Clone**
    ```bash
-   git clone https://github.com/your-username/harmony.git
+   git clone https://github.com/y4my4my4m/harmony.git
    cd harmony
    ```
 

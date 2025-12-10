@@ -18,7 +18,7 @@ See [DEPLOY_VERCEL.md](../DEPLOY_VERCEL.md) for details.
 
 ```bash
 # Clone
-git clone https://github.com/your-username/harmony.git
+git clone https://github.com/y4my4my4m/harmony.git
 cd harmony
 
 # Build frontend
@@ -33,13 +33,13 @@ cp federation-backend/env.template federation-backend/.env
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-See [INSTALLATION.md](../INSTALLATION.md) for details.
+See [HOW_TO_SELF_HOST.md](../HOW_TO_SELF_HOST.md) for details.
 
 ### Development Mode
 
 ```bash
 # Clone
-git clone https://github.com/your-username/harmony.git
+git clone https://github.com/y4my4my4m/harmony.git
 cd harmony
 
 # Install
