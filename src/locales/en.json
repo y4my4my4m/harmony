@@ -314,6 +314,12 @@
   },
   "message": {
     "typeMessage": "Message {to}",
+    "typing": {
+      "single": " is typing...",
+      "two": " and {name2} are typing...",
+      "three": ", {name2} and {name3} are typing...",
+      "many": "Many users are typing..."
+    },
     "addComment": "Add a comment...",
     "editMessage": "Edit message",
     "deleteMessage": "Delete Message",

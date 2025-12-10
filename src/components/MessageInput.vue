@@ -1,5 +1,11 @@
 <template>
   <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}">
+    <!-- Typing Indicator - positioned absolutely above input -->
+    <TypingIndicator
+      :typing-users="typingUsers"
+      class="typing-indicator-wrapper"
+    />
+    
     <MessageReply
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
@@ -30,7 +36,7 @@
           ref="richEditorRef"
           :model-value="modelValue"
           :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget })"
-          @update:model-value="(value: string) => $emit('update:modelValue', value)"
+          @update:model-value="handleModelValueUpdate"
           @input="handleEditorInput"
           @keydown="handleKeyDown"
           @focus="handleFocus"
@@ -76,6 +82,8 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useTypingIndicator } from '@/composables/useTypingIndicator';
+import TypingIndicator from '@/components/TypingIndicator.vue';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
@@ -99,6 +107,9 @@ interface Props {
   replyUserDisplayName?: string;
   channelName?: string;
   username?: string;
+  channelId?: string;
+  threadId?: string;
+  conversationId?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -138,6 +149,39 @@ const isEditorFocused = ref(false);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 
+// Typing indicator setup
+const typingContext = computed(() => {
+  if (props.threadId) {
+    return { type: 'thread' as const, threadId: props.threadId }
+  }
+  if (props.conversationId) {
+    return { type: 'conversation' as const, conversationId: props.conversationId }
+  }
+  if (props.channelId) {
+    return { type: 'channel' as const, channelId: props.channelId }
+  }
+  return null
+})
+
+// Pass the context getter directly - the composable handles reactivity
+const { typingUsers, startTyping, stopTyping } = useTypingIndicator(() => {
+  if (props.threadId) {
+    return { type: 'thread' as const, threadId: props.threadId }
+  }
+  if (props.conversationId) {
+    return { type: 'conversation' as const, conversationId: props.conversationId }
+  }
+  if (props.channelId) {
+    return { type: 'channel' as const, channelId: props.channelId }
+  }
+  return null
+})
+
+// Track if we've started typing (to avoid sending multiple "on" events)
+let hasStartedTyping = false
+let typingResetTimeout: number | null = null
+const TYPING_RESET_MS = 2000 // Reset after 2 seconds of no typing to allow re-triggering
+
 // Mobile detection - check for touch device or narrow screen
 const isMobile = ref(false);
 const checkMobile = () => {
@@ -159,6 +203,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile);
+  // Cleanup typing indicator
+  stopTyping()
+  hasStartedTyping = false
+  if (typingResetTimeout) {
+    clearTimeout(typingResetTimeout)
+  }
 });
 
 // Auto-suggest setup
@@ -212,8 +262,39 @@ const updateText = (newText: string, cursorPosition?: number) => {
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
+    const handleModelValueUpdate = (value: string) => {
+      emit('update:modelValue', value)
+      handleTyping()
+    }
+
     const handleEditorInput = () => {
       // The model value is handled by the update:model-value event
+      // Trigger typing indicator
+      handleTyping()
+    };
+
+    // Handle typing indicator - only send "on" once, then keep alive
+    const handleTyping = () => {
+      if (!typingContext.value) {
+        return
+      }
+      
+      // Clear reset timeout
+      if (typingResetTimeout) {
+        clearTimeout(typingResetTimeout)
+        typingResetTimeout = null
+      }
+      
+      // Only send "on" event if we haven't started typing yet
+      if (!hasStartedTyping) {
+        hasStartedTyping = true
+        startTyping()
+      }
+      
+      // Reset flag after inactivity (allows re-triggering if user pauses then continues)
+      typingResetTimeout = window.setTimeout(() => {
+        hasStartedTyping = false
+      }, TYPING_RESET_MS)
     };
 
     const handleCursorPositionChanged = (position: number) => {
@@ -256,6 +337,16 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     };
 
     const send = () => {
+      // Stop typing indicator when sending
+      stopTyping()
+      hasStartedTyping = false
+      
+      // Clear typing reset timeout
+      if (typingResetTimeout) {
+        clearTimeout(typingResetTimeout)
+        typingResetTimeout = null
+      }
+      
       // Close auto-suggest when sending
       autoSuggest.closeSuggestions();
       
@@ -291,6 +382,13 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     const handleBlur = () => {
       isEditorFocused.value = false;
+      // Stop typing when editor loses focus
+      stopTyping()
+      hasStartedTyping = false
+      if (typingResetTimeout) {
+        clearTimeout(typingResetTimeout)
+        typingResetTimeout = null
+      }
     };
 
     const toggleGiphy = () => {
@@ -458,6 +556,22 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       emit('files-attached', newFiles);
     }, { deep: true });
 
+    // Watch modelValue for typing detection
+    watch(() => props.modelValue, (newValue, oldValue) => {
+      if (newValue && newValue.trim().length > 0 && isEditorFocused.value && newValue !== oldValue) {
+        debug.log('⌨️ MessageInput: modelValue changed, triggering typing:', newValue.length, 'chars')
+        handleTyping()
+      }
+    });
+    
+    // Also trigger on input events from RichTextEditor
+    watch(() => isEditorFocused.value, (focused) => {
+      if (focused && props.modelValue && props.modelValue.trim().length > 0) {
+        // User focused the editor with content, might be typing
+        handleTyping()
+      }
+    });
+
     // Expose refs for parent component
     defineExpose({
       gifTriggerRef,
@@ -474,6 +588,16 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     /* background-color: var(--h-chat); */
     flex-direction: column;
     flex-shrink: 0; /* Prevent the input from shrinking */
+    position: relative; /* For absolute positioning of typing indicator */
+  }
+  
+  .typing-indicator-wrapper {
+    position: absolute;
+    bottom: calc(100% - 4px); /* Position above the input, in padding area */
+    left: 12px;
+    right: 12px;
+    pointer-events: none; /* Don't interfere with interactions */
+    z-index: 1;
   }
   
   .message-input.replying {

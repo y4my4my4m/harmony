@@ -25,6 +25,7 @@
       @createThread="handleCreateThread"
       @showAllThreads="handleShowAllThreads"
     />
+    
     <MessageInput 
       ref="messageInputRef"
       v-model="messageContent"
@@ -34,6 +35,8 @@
       :reply-user-display-name="replyToUserDisplayName"
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
+      :channel-id="props.channelId"
+      :conversation-id="props.conversationId"
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
@@ -82,6 +85,7 @@
   import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
+  import TypingIndicator from './TypingIndicator.vue';
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
@@ -100,6 +104,8 @@
   import { threadService } from '@/services/ThreadService';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
+  import { useTypingIndicator } from '@/composables/useTypingIndicator';
+  import { useUserData } from '@/composables/useUserData';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
@@ -174,6 +180,34 @@
   
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
+      
+      // Typing indicator setup
+      const typingContext = computed(() => {
+        // Use props directly - they come from route params
+        if (props.conversationId) {
+          return { type: 'conversation' as const, conversationId: props.conversationId }
+        }
+        if (props.channelId) {
+          return { type: 'channel' as const, channelId: props.channelId }
+        }
+        return null
+      })
+      
+      // Pass a getter function that watches props directly (important for direct URL loads)
+      const { typingUsers } = useTypingIndicator(() => {
+        if (props.conversationId) {
+          return { type: 'conversation' as const, conversationId: props.conversationId }
+        }
+        if (props.channelId) {
+          return { type: 'channel' as const, channelId: props.channelId }
+        }
+        return null
+      })
+      
+      // Debug: Watch for context and props changes
+      watch(() => [props.channelId, props.conversationId, typingContext.value], ([channelId, conversationId, ctx]) => {
+        debug.log('🔄 ChatComponent: Props/Context changed:', { channelId, conversationId, ctx })
+      }, { immediate: true })
       
       // Computed channel name - use prop or fallback to store lookup
       const effectiveChannelName = computed(() => {

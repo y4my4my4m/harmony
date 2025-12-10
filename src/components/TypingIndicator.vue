@@ -1,0 +1,140 @@
+<template>
+  <div v-if="typingUsers.length > 0" class="typing-indicator">
+    <div class="typing-dots">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+    <span class="typing-text">
+      <!-- Single user: "Luna is typing..." -->
+      <template v-if="typingUsers.length === 1">
+        <span 
+          class="typing-username"
+          :style="{ color: getUserColor(typingUsers[0].user_id) }"
+        >
+          {{ getUserDisplayName(typingUsers[0].user_id) }}
+        </span>
+        <span class="typing-suffix"> {{ t('message.typing.single', { name: getUserDisplayName(typingUsers[0].user_id) }) }}</span>
+      </template>
+      <!-- Two users: "Luna and Bob are typing..." -->
+      <template v-else-if="typingUsers.length === 2">
+        <span 
+          class="typing-username"
+          :style="{ color: getUserColor(typingUsers[0].user_id) }"
+        >
+          {{ getUserDisplayName(typingUsers[0].user_id) }}
+        </span>
+        <span class="typing-suffix">{{ t('message.typing.two', { 
+          name1: getUserDisplayName(typingUsers[0].user_id), 
+          name2: getUserDisplayName(typingUsers[1].user_id) 
+        }) }}</span>
+      </template>
+      <!-- Three users: "Luna, Bob and Simon are typing..." -->
+      <template v-else-if="typingUsers.length === 3">
+        <span 
+          class="typing-username"
+          :style="{ color: getUserColor(typingUsers[0].user_id) }"
+        >
+          {{ getUserDisplayName(typingUsers[0].user_id) }}
+        </span>
+        <span class="typing-suffix">, </span>
+        <span 
+          class="typing-username"
+          :style="{ color: getUserColor(typingUsers[1].user_id) }"
+        >
+          {{ getUserDisplayName(typingUsers[1].user_id) }}
+        </span>
+        <span class="typing-suffix">{{ t('message.typing.three', { 
+          name1: getUserDisplayName(typingUsers[0].user_id), 
+          name2: getUserDisplayName(typingUsers[1].user_id), 
+          name3: getUserDisplayName(typingUsers[2].user_id) 
+        }) }}</span>
+      </template>
+      <!-- Many users (4+): "Many users are typing..." -->
+      <template v-else>
+        <span class="typing-suffix">{{ t('message.typing.many') }}</span>
+      </template>
+    </span>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+import type { TypingUser } from '@/services/TypingIndicatorService'
+import { useUserData } from '@/composables/useUserData'
+
+interface Props {
+  typingUsers: TypingUser[]
+}
+
+defineProps<Props>()
+
+const { t } = useI18n()
+const { getUserDisplayName, getUserColor } = useUserData()
+</script>
+
+<style scoped>
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  min-height: 20px;
+  font-size: 13px;
+  line-height: 1.375;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+
+.typing-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  animation: typing-dot 1.4s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 0.8;
+  }
+}
+
+.typing-text {
+  color: var(--text-muted, rgba(255, 255, 255, 0.6));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.typing-username {
+  font-weight: 600;
+}
+
+.typing-suffix {
+  font-weight: 400;
+}
+</style>
