@@ -100,15 +100,7 @@ CREATE TABLE IF NOT EXISTS public.instance_config (
     updated_at timestamp with time zone DEFAULT now()
 );
 
--- Insert default instance config
-INSERT INTO public.instance_config (config_key, config_value, description)
-VALUES 
-    ('domain', '"localhost"', 'Instance domain name'),
-    ('name', '"Harmony"', 'Instance display name'),
-    ('description', '"A federated social platform"', 'Instance description'),
-    ('federation_settings', '{"enabled": true, "open_registration": true}', 'Federation configuration'),
-    ('features', '{"voice_enabled": true, "video_enabled": true, "e2e_encryption": true}', 'Feature flags')
-ON CONFLICT (config_key) DO NOTHING;
+-- Note: Default instance config is seeded in 98_seed_data.sql
 
 COMMENT ON TABLE public.instance_config IS 'Server-wide configuration settings';
 

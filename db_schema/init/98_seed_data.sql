@@ -22,7 +22,8 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('enable_outbound_federation', 'true', 'Whether outbound federation is enabled'),
     ('federation_retry_attempts', '3', 'Number of retry attempts for failed federation deliveries'),
     ('federation_settings', '{"federation_enabled": true, "federation_require_approval": false, "federation_auto_accept_follows": true, "federation_delivery_timeout_ms": 10000, "federation_max_delivery_attempts": 5}', 'Federation configuration settings for the instance'),
-    ('oauth_providers', '[]', 'Enabled OAuth providers')
+    ('oauth_providers', '[]', 'Enabled OAuth providers'),
+    ('features', '{"voice_enabled": true, "video_enabled": true, "e2e_encryption": true}', 'Feature flags')
 ON CONFLICT (config_key) DO NOTHING;
 
 DO $$
