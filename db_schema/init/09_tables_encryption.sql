@@ -283,6 +283,51 @@ CREATE INDEX IF NOT EXISTS idx_server_encryption_server ON public.server_encrypt
 
 COMMENT ON TABLE public.server_encryption_settings IS 'Server-wide encryption settings';
 
+-- ---------------------------------------------------------------------------
+-- ENCRYPTION SESSIONS - Signal Protocol session state
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.encryption_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    local_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    local_device_id text DEFAULT 'default'::text,
+    remote_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    remote_device_id text DEFAULT 'default'::text,
+    session_state text NOT NULL, -- Serialized Signal Protocol session state (encrypted)
+    established_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_at timestamp with time zone DEFAULT now(),
+    message_count integer DEFAULT 0, -- For automatic session rotation
+    needs_refresh boolean DEFAULT false,
+    metadata jsonb DEFAULT '{}'::jsonb,
+
+    UNIQUE(local_user_id, local_device_id, remote_user_id, remote_device_id)
+);
+COMMENT ON TABLE public.encryption_sessions IS 'Signal Protocol session state for message encryption between users.';
+
+CREATE INDEX IF NOT EXISTS idx_encryption_sessions_local ON public.encryption_sessions(local_user_id, local_device_id);
+CREATE INDEX IF NOT EXISTS idx_encryption_sessions_remote ON public.encryption_sessions(remote_user_id, remote_device_id);
+
+-- ---------------------------------------------------------------------------
+-- ENCRYPTION AUDIT LOG - Security event logging
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.encryption_audit_log (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    event_type text NOT NULL, -- 'key_generated', 'session_established', 'key_rotation', 'key_verification'
+    severity text DEFAULT 'info'::text, -- 'info', 'warning', 'error', 'critical'
+    description text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    ip_address inet,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+
+    CONSTRAINT encryption_audit_log_severity_check CHECK (severity IN ('info', 'warning', 'error', 'critical'))
+);
+COMMENT ON TABLE public.encryption_audit_log IS 'Audit log for encryption-related security events';
+
+CREATE INDEX IF NOT EXISTS idx_encryption_audit_user ON public.encryption_audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_encryption_audit_type ON public.encryption_audit_log(event_type);
+CREATE INDEX IF NOT EXISTS idx_encryption_audit_created ON public.encryption_audit_log(created_at DESC);
+
 DO $$
 BEGIN
     RAISE NOTICE 'Encryption tables created successfully';

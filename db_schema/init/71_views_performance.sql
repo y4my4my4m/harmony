@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS public.federation_health (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     timestamp timestamp with time zone DEFAULT now() NOT NULL,
     
-    instance_domain text NOT NULL,
+    -- UNIQUE constraint on domain for upsert operations
+    instance_domain text NOT NULL UNIQUE,
     
     -- Status
     status text DEFAULT 'unknown'::text,
@@ -65,10 +66,9 @@ CREATE TABLE IF NOT EXISTS public.federation_health (
 
 ALTER TABLE public.federation_health REPLICA IDENTITY FULL;
 
-CREATE INDEX IF NOT EXISTS idx_federation_health_domain ON public.federation_health(instance_domain);
 CREATE INDEX IF NOT EXISTS idx_federation_health_timestamp ON public.federation_health(timestamp DESC);
 
-COMMENT ON TABLE public.federation_health IS 'Health status of federated instances';
+COMMENT ON TABLE public.federation_health IS 'Health status of federated instances (one row per domain)';
 
 -- ---------------------------------------------------------------------------
 -- PERFORMANCE METRICS HOURLY - Aggregated hourly metrics
@@ -195,10 +195,8 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    v_status text;
 BEGIN
-    -- Upsert federation health
+    -- Upsert federation health by instance_domain (UNIQUE constraint)
     INSERT INTO public.federation_health (
         instance_domain,
         status,
@@ -218,7 +216,7 @@ BEGIN
         p_latency_ms,
         p_error
     )
-    ON CONFLICT (id) DO UPDATE SET
+    ON CONFLICT (instance_domain) DO UPDATE SET
         timestamp = now(),
         status = CASE 
             WHEN p_success AND federation_health.failure_count = 0 THEN 'healthy'

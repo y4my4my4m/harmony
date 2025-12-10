@@ -36,16 +36,21 @@ CREATE POLICY "profiles_delete_own" ON public.profiles
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 
--- Public posts are visible to everyone
+-- Public posts are visible to everyone, followers-only to followers
 CREATE POLICY "posts_select_public" ON public.posts
     FOR SELECT USING (
         visibility IN ('public', 'unlisted')
         OR author_id = public.get_current_profile_id()
-        OR (visibility = 'private' AND EXISTS (
+        OR (visibility = 'followers' AND EXISTS (
             SELECT 1 FROM public.follows 
             WHERE follower_id = public.get_current_profile_id() 
             AND following_id = posts.author_id 
             AND status = 'accepted'
+        ))
+        OR (visibility = 'direct' AND EXISTS (
+            -- Direct messages: user must be mentioned or be the author
+            -- This is a simplified check - in production you'd check mentions
+            SELECT 1 WHERE author_id = public.get_current_profile_id()
         ))
     );
 

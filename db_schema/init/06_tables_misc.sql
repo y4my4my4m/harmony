@@ -35,6 +35,42 @@ CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name));
 COMMENT ON TABLE public.emojis IS 'Custom emoji library';
 
 -- ---------------------------------------------------------------------------
+-- REMOTE EMOJIS CACHE - For emoji importer feature
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.remote_emojis_cache (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    
+    -- Emoji info
+    shortcode text NOT NULL,
+    origin_domain text NOT NULL,
+    full_code text NOT NULL,
+    url text NOT NULL,
+    static_url text,
+    
+    -- Tracking
+    first_seen_at timestamp with time zone DEFAULT now(),
+    last_seen_at timestamp with time zone DEFAULT now(),
+    usage_count integer DEFAULT 1,
+    
+    -- Import tracking
+    imported_as uuid REFERENCES public.emojis(id) ON DELETE SET NULL,
+    imported_at timestamp with time zone,
+    
+    -- Metadata
+    category text,
+    is_animated boolean DEFAULT false,
+    
+    created_at timestamp with time zone DEFAULT now(),
+    
+    UNIQUE(shortcode, origin_domain)
+);
+
+CREATE INDEX IF NOT EXISTS idx_remote_emojis_cache_domain ON public.remote_emojis_cache(origin_domain);
+CREATE INDEX IF NOT EXISTS idx_remote_emojis_cache_usage ON public.remote_emojis_cache(usage_count DESC);
+
+COMMENT ON TABLE public.remote_emojis_cache IS 'Cache of custom emojis encountered from remote instances. Used for the emoji importer feature.';
+
+-- ---------------------------------------------------------------------------
 -- NOTIFICATIONS
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.notifications (
@@ -434,6 +470,68 @@ CREATE INDEX IF NOT EXISTS idx_performance_metrics_type ON public.performance_me
 
 -- Partitioning hint: Consider partitioning by timestamp for large deployments
 COMMENT ON TABLE public.performance_metrics IS 'Optional performance metrics storage';
+
+-- ---------------------------------------------------------------------------
+-- NOTIFICATION RATE LIMITS - For spam prevention
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.notification_rate_limits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    notification_type text NOT NULL,
+    source_user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    notification_count integer DEFAULT 1,
+    last_notification_at timestamp with time zone DEFAULT now(),
+    suppressed_until timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+
+    UNIQUE(user_id, notification_type, source_user_id)
+);
+COMMENT ON TABLE public.notification_rate_limits IS 'Rate limiting for notifications to prevent spam';
+
+CREATE INDEX IF NOT EXISTS idx_notification_rate_limits_user ON public.notification_rate_limits(user_id);
+
+-- ---------------------------------------------------------------------------
+-- USER VIEW CONTEXTS - Track where users are viewing
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_view_contexts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
+    view_type text NOT NULL,
+    server_id uuid REFERENCES public.servers(id) ON DELETE SET NULL,
+    channel_id uuid REFERENCES public.channels(id) ON DELETE SET NULL,
+    conversation_id uuid REFERENCES public.conversations(id) ON DELETE SET NULL,
+    last_active_at timestamp with time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now()
+);
+COMMENT ON TABLE public.user_view_contexts IS 'Track where users are currently viewing (for presence)';
+
+CREATE INDEX IF NOT EXISTS idx_user_view_contexts_user ON public.user_view_contexts(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_view_contexts_channel ON public.user_view_contexts(channel_id) WHERE channel_id IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- MESSAGE SEARCH INDEX - Full-text search for messages
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.message_search_index (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    message_id uuid NOT NULL UNIQUE REFERENCES public.messages(id) ON DELETE CASCADE,
+    content_text text,
+    content_tsvector tsvector,
+    channel_id uuid REFERENCES public.channels(id) ON DELETE CASCADE,
+    conversation_id uuid REFERENCES public.conversations(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
+    has_media boolean DEFAULT false,
+    has_url boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+COMMENT ON TABLE public.message_search_index IS 'Full-text search index for messages';
+
+CREATE INDEX IF NOT EXISTS idx_message_search_tsvector ON public.message_search_index USING gin(content_tsvector);
+CREATE INDEX IF NOT EXISTS idx_message_search_channel ON public.message_search_index(channel_id);
+CREATE INDEX IF NOT EXISTS idx_message_search_conversation ON public.message_search_index(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_message_search_user ON public.message_search_index(user_id);
 
 DO $$
 BEGIN

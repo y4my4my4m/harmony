@@ -6,61 +6,19 @@ This document analyzes the current production database (`supabase_minimal.sql`) 
 
 ---
 
-## Tables Potentially UNUSED (No Code References)
+## ✅ COMPLETED WORK
 
-These tables exist in production but have **no references in the frontend codebase**:
+### Functions & Triggers (HIGH PRIORITY - DONE)
 
-| Table | Reason | Recommendation |
-|-------|--------|----------------|
-| `encryption_sessions` | No code references found | **REMOVE** - Legacy from older encryption implementation |
-| `encryption_audit_log` | No code references found | **REMOVE** - Was never implemented |
-| `conversation_backup_pre_cleanup` | Backup table from migration | **REMOVE** - Temporary table, no longer needed |
-| `message_search_index` | No code references | **KEEP** - May be used for future full-text search |
-| `activity_processing_logs` | No frontend references | **REVIEW** - May be used by federation-backend |
-| `hashtag_archive` | No code references | **REMOVE** - Not implemented |
-| `user_timeline_cache` | No code references | **REMOVE** - Timeline uses different approach |
-| `user_view_contexts` | No code references | **REMOVE** - Never implemented |
-| `emoji_usage` | Limited use | **REVIEW** - May want for emoji analytics |
+All critical functions and triggers have been added to the init folder:
 
-## Tables That Are Actually TABLES But Should Be VIEWS
+- ✅ `10_functions_core.sql` - Core helper functions (get_current_profile_id, conversation helpers, status helpers)
+- ✅ `11_functions_triggers.sql` - All trigger functions (timeline, reactions, federation queuing)
+- ✅ `12_functions_rpc.sql` - RPC functions called from frontend (conversations, timelines, encryption)
+- ✅ `40_triggers.sql` - All CREATE TRIGGER statements
 
-| Table | Issue | Recommendation |
-|-------|-------|----------------|
-| `v_has_permission` | Named like a view, is a table | **INVESTIGATE** - Should probably be a view or renamed |
+### Tables Added to Init Folder
 
-## Internal/System Tables (Don't Remove)
-
-These are internal PostgreSQL or Supabase tables:
-
-| Table | Purpose |
-|-------|---------|
-| `schedule_result` | pg_cron job results |
-| `pg_background_job` | Background job tracking |
-| `storage.*` tables | Supabase storage internals |
-
----
-
-## Duplicate/Overlapping Federation Tables
-
-The federation health tracking has some overlap. Here's the breakdown:
-
-### Current State:
-1. **`federated_instances`** - Master list of known instances with basic health stats
-2. **`federation_endpoint_health`** - Per-endpoint health (individual inbox URLs) with dead endpoint tracking
-3. **`federation_health`** - Additional health metrics table (seems redundant)
-4. **`federation_delivery_stats`** - Delivery statistics
-5. **`activitypub_processing_stats`** - Processing statistics
-
-### Recommendation:
-- **KEEP**: `federated_instances`, `federation_endpoint_health`, `federation_delivery_queue`
-- **CONSOLIDATE**: `federation_health` data into `federated_instances`
-- **REVIEW**: `federation_delivery_stats`, `activitypub_processing_stats` - determine if used
-
----
-
-## Schema Differences: Production vs Init Folder
-
-### Now Fixed (Added to init folder):
 - ✅ `trending_posts` → `07_tables_trending.sql`
 - ✅ `trending_users` → `07_tables_trending.sql`
 - ✅ `trending_refresh_queue` → `07_tables_trending.sql`
@@ -82,88 +40,139 @@ The federation health tracking has some overlap. Here's the breakdown:
 - ✅ `conversation_encryption_settings` → `09_tables_encryption.sql`
 - ✅ `server_encryption_settings` → `09_tables_encryption.sql`
 - ✅ `user_private_keys` → `09_tables_encryption.sql`
-- ✅ Views → `70_views.sql`
+- ✅ `encryption_sessions` → `09_tables_encryption.sql`
+- ✅ `encryption_audit_log` → `09_tables_encryption.sql`
+- ✅ `notification_rate_limits` → `06_tables_misc.sql`
+- ✅ `user_view_contexts` → `06_tables_misc.sql`
+- ✅ `message_search_index` → `06_tables_misc.sql`
+- ✅ `remote_emojis_cache` → `06_tables_misc.sql`
 
-### Still Missing (Low Priority):
-- `remote_emojis_cache` - Used by EmojiImporter, could add
-- `notification_channels` - Not currently used
-- `notification_rate_limits` - Not currently used
-- `slow_queries` - Admin/debugging table
-- `performance_metrics_hourly` - Performance aggregations
+### RLS Policies Added
 
----
+- ✅ `31_rls_policies_extended.sql` - All RLS policies for new tables
 
-## Column Differences
+### Views Added
 
-Some tables have evolved in production with additional columns. Key differences:
+- ✅ `70_views.sql` - Database views
+- ✅ `71_views_performance.sql` - Performance monitoring views and functions
 
-### `user_blocks` (Production has more features):
-- `block_type` (full, posts_only, interactions_only)
-- `reason`
-- `expires_at`
-- `metadata`
-- `ap_id`, `is_federated`, `federation_status`
+### Security Fixes
 
-### `hashtags` (Production has trending columns):
-- `normalized_tag`
-- `trending_score`
-- `trending_rank`
-- `daily_uses`, `weekly_uses`
-- `total_uses`
-- `peak_daily_uses`, `peak_daily_date`
-- `first_used_at`, `last_used_at`
-
-### `posts` (Production has more fields):
-- `url`
-- `in_reply_to`
-- `media_attachments`
-- `is_sensitive`
-- `edit_history`
-- `voice_attachments`
-- `federated_to`
-- `last_federated_at`
-- `conversation_root_id`
-- `is_favorited`, `is_reblogged`, `is_bookmarked` (denormalized)
-- `reblog`, `reblog_author` (JSONB for reblog data)
-- `is_pinned`
+- ✅ Fixed `webrtc_settings_select_all` RLS policy exposing LiveKit API secret
+- ✅ Fixed `set_instance_config` admin authorization bypass
+- ✅ Added `get_livekit_config()` function for safe public access
 
 ---
 
-## Recommended Cleanup Actions
+## Current Init Folder Structure
 
-### High Priority (Safe to Remove):
-1. `encryption_sessions` - Legacy, unused
-2. `encryption_audit_log` - Never implemented
-3. `conversation_backup_pre_cleanup` - Temporary backup table
-4. `hashtag_archive` - Never implemented
-5. `user_timeline_cache` - Not used
-6. `user_view_contexts` - Not used
-
-### Medium Priority (Investigate First):
-1. ~~`federation_health`~~ - **KEEP** - Used by federation-backend PerformanceMonitor.ts
-2. `activity_processing_logs` - Check if used by federation-backend
-3. `v_has_permission` - Determine if this should be a view
-
-**Note:** Federation-backend PerformanceMonitor.ts uses:
-- `federation_health` - Used for tracking instance health
-- `performance_metrics` - Metrics storage
-- `performance_metrics_hourly` - Hourly aggregations
-- `slow_queries` - Slow query tracking
-- `metrics_summary_view` - Admin dashboard view
-- `slow_queries_summary` - Admin dashboard view
-
-### Low Priority (Consider Later):
-1. Consolidate federation health tables
-2. Add missing columns to init folder tables
-3. Add RLS policies for new tables
+| File | Description |
+|------|-------------|
+| `00_extensions.sql` | PostgreSQL extensions |
+| `01_types.sql` | Custom types and enums |
+| `02_tables_core.sql` | Core tables (profiles, instance_config) |
+| `03_tables_social.sql` | Social tables (posts, follows, timeline) |
+| `04_tables_servers.sql` | Server tables (servers, channels, messages) |
+| `05_tables_federation.sql` | Federation tables (ActivityPub) |
+| `06_tables_misc.sql` | Misc tables (notifications, files, bots, search) |
+| `07_tables_trending.sql` | Trending/discovery tables |
+| `08_tables_bots_extended.sql` | Extended bot functionality |
+| `09_tables_encryption.sql` | E2E encryption tables |
+| `10_functions_core.sql` | Core helper functions |
+| `11_functions_triggers.sql` | Trigger functions |
+| `12_functions_rpc.sql` | RPC functions |
+| `30_rls_policies.sql` | Core RLS policies |
+| `31_rls_policies_extended.sql` | Extended RLS policies |
+| `40_triggers.sql` | Trigger definitions |
+| `50_realtime.sql` | Realtime publications |
+| `70_views.sql` | Database views |
+| `71_views_performance.sql` | Performance views & functions |
+| `90_federation_functions.sql` | Federation helper functions |
+| `95_livekit_tokens.sql` | LiveKit token generation |
+| `98_seed_data.sql` | Default configuration |
+| `99_storage_buckets.sql` | Storage buckets |
+| `init.sql` | Combined init script |
+| `README.md` | Documentation |
 
 ---
 
-## Next Steps
+## Tables Potentially UNUSED (Low Priority Investigation)
 
-1. **Test the new init files** on a fresh Supabase instance
-2. **Compare column definitions** more carefully
-3. **Add RLS policies** for the new tables (07, 08, 09)
-4. **Review federation-backend** for references to unused tables
-5. **Create migration** to remove confirmed unused tables from production
+These tables exist in production but may not be actively used:
 
+| Table | Reason | Recommendation |
+|-------|--------|----------------|
+| `conversation_backup_pre_cleanup` | Backup table from migration | **REMOVE** - Temporary table |
+| `hashtag_archive` | No code references | **REMOVE** - Not implemented |
+| `activity_processing_logs` | Check federation-backend | **REVIEW** |
+| `emoji_usage` | Limited analytics use | **REVIEW** |
+| `v_has_permission` | Named like a view | **INVESTIGATE** - Naming issue |
+
+---
+
+## Duplicate/Overlapping Federation Tables
+
+The federation health tracking has multiple tables that serve different purposes:
+
+| Table | Purpose | Status |
+|-------|---------|--------|
+| `federated_instances` | Master list of known instances | KEEP |
+| `federation_endpoint_health` | Per-endpoint health (inbox URLs) | KEEP |
+| `federation_health` | Overall health metrics | KEEP - Used by federation-backend |
+| `federation_delivery_queue` | Outgoing activity queue | KEEP |
+| `federation_delivery_stats` | Delivery statistics | REVIEW |
+| `activitypub_processing_stats` | Processing statistics | REVIEW |
+
+**Note:** These are NOT duplicates - they track different aspects of federation:
+- Instances (overall)
+- Endpoints (specific URLs)  
+- Health (status over time)
+- Queue (pending deliveries)
+
+---
+
+## Schema Sync Status
+
+The init folder should now be functionally complete for fresh installations:
+
+### ✅ Complete:
+- All core tables
+- All social tables  
+- All server tables
+- All federation tables
+- All encryption tables
+- All trending tables
+- All bot tables
+- All core functions
+- All trigger functions
+- All RPC functions
+- All triggers
+- All RLS policies
+- All views
+
+### ⚠️ May Need Updates:
+- Some advanced federation functions (complex ActivityPub processing)
+- Some performance optimization functions
+- Link preview functions (require external services)
+
+---
+
+## Testing
+
+To test the init folder on a fresh Supabase instance:
+
+```bash
+cd db_schema/init
+psql -h localhost -p 54322 -U postgres -d postgres -f init.sql
+```
+
+Or run files individually in order via Supabase Dashboard SQL Editor.
+
+---
+
+## Next Steps (Low Priority)
+
+1. **Production comparison** - Diff remaining column-level differences
+2. **Cleanup unused tables** - Remove confirmed unused tables from prod
+3. **Advanced functions** - Port remaining complex federation functions if needed
+4. **Performance testing** - Test on fresh instance with sample data

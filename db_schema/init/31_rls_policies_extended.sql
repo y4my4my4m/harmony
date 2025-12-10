@@ -345,6 +345,92 @@ CREATE POLICY "performance_metrics_hourly_select_all" ON public.performance_metr
 CREATE POLICY "performance_metrics_hourly_modify_admin" ON public.performance_metrics_hourly
     FOR ALL USING (public.is_current_user_admin());
 
+-- ---------------------------------------------------------------------------
+-- REMOTE EMOJIS CACHE RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.remote_emojis_cache ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can view cached remote emojis
+CREATE POLICY "remote_emojis_cache_select_all" ON public.remote_emojis_cache
+    FOR SELECT USING (true);
+
+-- Only system/admin can modify
+CREATE POLICY "remote_emojis_cache_admin_modify" ON public.remote_emojis_cache
+    FOR ALL USING (public.is_current_user_admin());
+
+-- ---------------------------------------------------------------------------
+-- NOTIFICATION RATE LIMITS RLS (Admin Only)
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.notification_rate_limits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "notification_rate_limits_admin_only" ON public.notification_rate_limits
+    FOR ALL USING (public.is_current_user_admin())
+    WITH CHECK (public.is_current_user_admin());
+
+-- ---------------------------------------------------------------------------
+-- USER VIEW CONTEXTS RLS (Own User Only)
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.user_view_contexts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_view_contexts_own_user" ON public.user_view_contexts
+    FOR ALL USING (user_id = public.get_current_profile_id())
+    WITH CHECK (user_id = public.get_current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- MESSAGE SEARCH INDEX RLS (Based on Channel/Conversation Access)
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.message_search_index ENABLE ROW LEVEL SECURITY;
+
+-- Users can search messages in channels they have access to
+CREATE POLICY "message_search_index_channel_access" ON public.message_search_index
+    FOR SELECT USING (
+        channel_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM public.channels c
+            JOIN public.user_servers us ON us.server_id = c.server_id
+            WHERE c.id = message_search_index.channel_id
+            AND us.user_id = public.get_current_profile_id()
+            AND us.status = 'accepted'
+        )
+    );
+
+-- Users can search messages in conversations they are part of
+CREATE POLICY "message_search_index_conversation_access" ON public.message_search_index
+    FOR SELECT USING (
+        conversation_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM public.conversation_participants cp
+            WHERE cp.conversation_id = message_search_index.conversation_id
+            AND cp.user_id = public.get_current_profile_id()
+            AND cp.left_at IS NULL
+        )
+    );
+
+-- ---------------------------------------------------------------------------
+-- ENCRYPTION SESSIONS RLS (Own User Only)
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.encryption_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "encryption_sessions_own_user" ON public.encryption_sessions
+    FOR ALL USING (
+        local_user_id = public.get_current_profile_id()
+        OR remote_user_id = public.get_current_profile_id()
+    )
+    WITH CHECK (local_user_id = public.get_current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- ENCRYPTION AUDIT LOG RLS (Own User + Admin)
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.encryption_audit_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "encryption_audit_log_own_or_admin" ON public.encryption_audit_log
+    FOR SELECT USING (
+        user_id = public.get_current_profile_id()
+        OR public.is_current_user_admin()
+    );
+
+-- Only system can insert (via SECURITY DEFINER functions)
+CREATE POLICY "encryption_audit_log_insert_system" ON public.encryption_audit_log
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
 DO $$
 BEGIN
     RAISE NOTICE 'Extended RLS policies created successfully';
