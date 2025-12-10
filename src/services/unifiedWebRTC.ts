@@ -1138,28 +1138,12 @@ export class UnifiedWebRTCService {
           // No deviceId - let browser choose
         };
         
-        try {
-          newAudioStream = await navigator.mediaDevices.getUserMedia({
-            audio: fallbackConstraints,
-            video: false
-          });
-          debug.log('✅ Using default audio device as fallback during constraint update');
-        } catch (fallbackError) {
-          // No microphone available - allow joining but force mute
-          debug.warn('⚠️ No microphone available, joining in muted state:', fallbackError);
-          this.localMediaState.isMuted = true;
-          this.localMediaState.isAudioEnabled = false;
-          
-          // Create empty stream so rest of code doesn't break
-          this.localStream = new MediaStream();
-          
-          // Emit state change to update UI
-          this.emit('local-stream-changed', this.localStream);
-          this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
-          this.emit('local-state-changed', this.localMediaState);
-          
-          return; // Exit early - no audio stream to setup
-        }
+        newAudioStream = await navigator.mediaDevices.getUserMedia({
+          audio: fallbackConstraints,
+          video: false
+        });
+        
+        debug.log('✅ Using default audio device as fallback during constraint update');
       }
 
       this.localStream = newAudioStream;
@@ -1177,19 +1161,8 @@ export class UnifiedWebRTCService {
       this.emit('local-stream-changed', this.localStream);
       this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
     } catch (error) {
-      // If we get here, it means getUserMedia failed completely
-      // Allow joining without microphone - user will be in muted state
-      debug.warn('⚠️ No microphone available, joining in muted state:', error);
-      this.localMediaState.isMuted = true;
-      this.localMediaState.isAudioEnabled = false;
-      
-      // Create empty stream so rest of code doesn't break
-      this.localStream = new MediaStream();
-      
-      // Emit state change to update UI
-      this.emit('local-stream-changed', this.localStream);
-      this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
-      this.emit('local-state-changed', this.localMediaState);
+      debug.error('❌ Failed to get audio stream:', error);
+      throw error;
     }
   }
   private setupAudioLevelMonitoring(): void {

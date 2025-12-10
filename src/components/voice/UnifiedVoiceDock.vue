@@ -25,7 +25,19 @@
             class="user-avatar"
             :class="{ speaking: isCurrentUserSpeaking }"
           />
-          <div v-if="isCurrentUserSpeaking" class="speaking-ring"></div>
+          <!-- Voice activity ring -->
+          <div v-if="isCurrentUserSpeaking" class="voice-ring" :style="{ '--intensity': voiceIntensity }">
+            <svg class="voice-ring-svg" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" class="voice-ring-bg" />
+              <circle
+                cx="50"
+                cy="50"
+                r="45"
+                class="voice-ring-active"
+                :style="{ strokeDashoffset: voiceRingOffset }"
+              />
+            </svg>
+          </div>
         </div>
         <div class="user-details">
           <span class="user-name">{{ currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User' }}</span>
@@ -387,6 +399,17 @@ const currentUserProfile = computed(() => {
 
 const isCurrentUserSpeaking = computed(() => {
   return voiceStore.localState.audioLevel > 20 && !voiceStore.localState.isMuted;
+});
+
+const voiceIntensity = computed(() => {
+  return Math.min(voiceStore.localState.audioLevel / 100, 1);
+});
+
+// Voice ring animation
+const voiceRingOffset = computed(() => {
+  const circumference = 2 * Math.PI * 45; // 2 * pi * radius
+  const progress = voiceIntensity.value;
+  return circumference - progress * circumference;
 });
 
 const dockMode = computed(() => ({
@@ -1252,15 +1275,35 @@ onUnmounted(() => {
   box-shadow: 0 0 20px rgba(0, 212, 170, 0.4);
 }
 
-.speaking-ring {
+.voice-ring {
   position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  border: 2px solid #00d4aa;
-  border-radius: 50%;
-  animation: pulse-ring 2s infinite;
+  top: -6px;
+  left: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  pointer-events: none;
+  opacity: 1;
+}
+
+.voice-ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.voice-ring-bg {
+  fill: none;
+  stroke: rgba(0, 212, 170, 0.3);
+  stroke-width: 2;
+}
+
+.voice-ring-active {
+  fill: none;
+  stroke: #00d4aa;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 283; /* Circumference of a circle with r=45 */
+  transition: stroke-dashoffset 0.1s ease;
 }
 
 .user-details {
