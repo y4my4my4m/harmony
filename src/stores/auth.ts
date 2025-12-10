@@ -5,6 +5,7 @@ import { updateUserStatus } from '@/services/ProfileService';
 import { useChatStore } from '@/stores/useChat';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -153,6 +154,10 @@ export const useAuthStore = defineStore('auth', {
             // ✅ PERFORMANCE: Remember we validated this session to avoid redundant validation
             // on INITIAL_SESSION event that fires immediately after
             this._mfaValidatedForSession = session.access_token;
+            // Set user-scoped storage for the current user
+            if (session.user?.id) {
+              userStorage.setCurrentUser(session.user.id);
+            }
           } else {
             debug.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
             // Sign out the incomplete session to prevent other tabs from using it
@@ -235,6 +240,8 @@ export const useAuthStore = defineStore('auth', {
           if (currentUserId) {
             await this.setUserOffline(currentUserId);
           }
+          // Clear user-scoped localStorage on logout
+          userStorage.clearCurrentUser();
           this.cleanupNotificationSystem();
           return;
         }
@@ -262,7 +269,13 @@ export const useAuthStore = defineStore('auth', {
           this.isPasswordResetMode = false;
           this.session = session;
           if (session.user?.id) {
+            // Set user-scoped storage for the new user
+            userStorage.setCurrentUser(session.user.id);
             this.setupOfflineHandlers(session.user.id);
+            
+            // ✅ CRITICAL: Re-initialize user settings after login
+            // This ensures theme and other settings load for the new user
+            this.initializeUserSettings(session.user.id);
           }
           return;
         }
@@ -273,6 +286,8 @@ export const useAuthStore = defineStore('auth', {
           if (!this.session) {
             this.session = session;
             if (session.user?.id) {
+              // Set user-scoped storage for the current user
+              userStorage.setCurrentUser(session.user.id);
               this.setupOfflineHandlers(session.user.id);
             }
           }
@@ -481,6 +496,39 @@ export const useAuthStore = defineStore('auth', {
       }
       this.cleanupOfflineHandlers();
       
+      // Clear user-scoped localStorage on logout
+      userStorage.clearCurrentUser();
+      
+      // ✅ CRITICAL: Clear profile store to prevent data leakage between users
+      try {
+        const { useProfileStore } = await import('@/stores/useProfile')
+        const profileStore = useProfileStore()
+        profileStore.clearProfile()
+        debug.log('✅ Profile store cleared on logout')
+      } catch (error) {
+        debug.error('❌ Error clearing profile store:', error)
+      }
+      
+      // ✅ CRITICAL: Reset visual theme to prevent theme leakage between users
+      try {
+        const { useVisualTheme } = await import('@/composables/useVisualTheme')
+        const visualTheme = useVisualTheme()
+        visualTheme.reset()
+        debug.log('✅ Visual theme reset on logout')
+      } catch (error) {
+        debug.error('❌ Error resetting visual theme:', error)
+      }
+      
+      // ✅ CRITICAL: Clear ActivityPub timeline to prevent data leakage
+      try {
+        const { useActivityPubStore } = await import('@/stores/useActivityPub')
+        const activityPubStore = useActivityPubStore()
+        activityPubStore.clearTimelineCache()
+        debug.log('✅ ActivityPub timeline cleared on logout')
+      } catch (error) {
+        debug.error('❌ Error clearing ActivityPub timeline:', error)
+      }
+      
       // ✅ PERFORMANCE FIX: Cleanup state persistence before logout
       try {
         const { statePersistence } = await import('@/services/StatePersistence')
@@ -560,6 +608,42 @@ export const useAuthStore = defineStore('auth', {
         
       } catch (error) {
         debug.error('❌ Error cleaning up notification system:', error);
+      }
+    },
+
+    /**
+     * Initialize user settings after login
+     * Ensures theme and other user-specific settings are loaded for the new user
+     * OPTIMIZED: Loads from localStorage first (instant), then fetches profile in background
+     */
+    async initializeUserSettings(userId: string) {
+      try {
+        debug.log('🔄 Initializing user settings for:', userId);
+        
+        // ✅ PERFORMANCE: Initialize theme from localStorage FIRST (instant, synchronous)
+        // This gives immediate visual feedback while profile loads in background
+        const { useVisualTheme } = await import('@/composables/useVisualTheme');
+        const visualTheme = useVisualTheme();
+        
+        // Initialize theme immediately (loads from localStorage first, then Supabase)
+        // This is non-blocking for the UI - theme applies instantly from localStorage
+        const themeInitPromise = visualTheme.initialize();
+        
+        // Fetch profile in parallel (non-blocking)
+        // Theme will use cached profile data if available, or fetch from Supabase
+        const { useProfileStore } = await import('@/stores/useProfile');
+        const profileStore = useProfileStore();
+        const profilePromise = profileStore.fetchProfileByAuthUserId(userId);
+        
+        // Wait for both to complete (but theme already applied from localStorage)
+        await Promise.all([themeInitPromise, profilePromise]);
+        
+        // If profile was fetched and has appearance_settings, theme will have loaded it
+        // If not, theme will have used localStorage (which is fine)
+        
+        debug.log('✅ User settings initialized');
+      } catch (error) {
+        debug.error('❌ Error initializing user settings:', error);
       }
     },
   },

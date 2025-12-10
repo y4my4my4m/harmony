@@ -7,6 +7,7 @@
 
 import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 interface EmojiUsage {
   id: string           // Emoji ID or unicode character
@@ -17,7 +18,7 @@ interface EmojiUsage {
   lastUsed: number     // Timestamp of last use
 }
 
-const STORAGE_KEY = 'harmony-frequent-emojis'
+const STORAGE_KEY = 'frequent-emojis'
 const MAX_STORED_EMOJIS = 50  // Maximum emojis to track
 
 // Shared state across all composable instances
@@ -31,7 +32,7 @@ function loadFrequentEmojis(): void {
   if (isInitialized.value) return
   
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = userStorage.getItem(STORAGE_KEY)
     if (stored) {
       frequentEmojis.value = JSON.parse(stored)
     }
@@ -59,7 +60,7 @@ function saveFrequentEmojis(): void {
       .slice(0, MAX_STORED_EMOJIS)
     
     frequentEmojis.value = sorted
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted))
+    userStorage.setItem(STORAGE_KEY, JSON.stringify(sorted))
   } catch (error) {
     debug.error('Failed to save frequent emojis:', error)
   }

@@ -72,11 +72,12 @@
             class="form-input"
             :placeholder="$t('auth.username')"
             maxlength="32"
-            @input="onUsernameChange"
+            disabled
+            readonly
           />
         </div>
         <div class="form-hint">
-          This is your unique username. Only letters, numbers, and underscores allowed.
+          Username cannot be changed until federation username updates are properly implemented.
         </div>
       </div>
 
@@ -215,10 +216,10 @@ const hasChanges = computed(() => {
   
   return (
     localProfile.value.display_name !== props.profile.display_name ||
-    localProfile.value.username !== props.profile.username ||
     localProfile.value.bio !== props.profile.bio ||
     localProfile.value.color !== props.profile.color
   )
+  // Note: username is excluded from changes - it cannot be edited until federation is fixed
 })
 
 const bannerStyle = computed(() => {
@@ -253,14 +254,15 @@ const onProfileChange = () => {
   // Debounce could be added here if needed
 }
 
-const onUsernameChange = () => {
-  // Format username (remove special characters, convert to lowercase)
-  if (localProfile.value.username) {
-    localProfile.value.username = localProfile.value.username
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '')
-  }
-}
+// Username editing is disabled until federation username updates are properly implemented
+// const onUsernameChange = () => {
+//   // Format username (remove special characters, convert to lowercase)
+//   if (localProfile.value.username) {
+//     localProfile.value.username = localProfile.value.username
+//       .toLowerCase()
+//       .replace(/[^a-z0-9_]/g, '')
+//   }
+// }
 
 const onColorChange = () => {
   // Validate hex color
@@ -491,6 +493,13 @@ onMounted(() => {
   border-color: #5865f2;
 }
 
+.form-input:disabled,
+.form-input[readonly] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--h-chat-dark);
+}
+
 .form-textarea {
   resize: vertical;
   min-height: 80px;
@@ -553,7 +562,8 @@ onMounted(() => {
   left: 0 !important;
   z-index: 1000 !important;
   margin-top: 8px !important;
-  background-color: var(--h-chat) !important;
+  backdrop-filter: blur(8px);
+  background-color: transparent!important;
   border: 1px solid var(--h-chat-light) !important;
   border-radius: 8px !important;
   padding: 16px !important;
@@ -562,26 +572,28 @@ onMounted(() => {
 }
 
 :deep(.hu-color-picker .color-set) {
-  background-color: var(--h-chat-darker) !important;
-  border: 1px solid var(--h-chat-light) !important;
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 :deep(.hu-color-picker .color-show) {
-  border: 1px solid var(--h-chat-light) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 :deep(.hu-color-picker .sucker) {
-  background-color: var(--h-chat-darker) !important;
-  border: 1px solid var(--h-chat-light) !important;
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 :deep(.hu-color-picker .color-type .name) {
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
   color: #ffffff !important;
 }
 
 :deep(.hu-color-picker .color-type .value) {
-  background-color: var(--h-chat-darker) !important;
-  border: 1px solid var(--h-chat-light) !important;
+  background-color: var(--background-secondary-alpha) !important;
+  border: 1px solid var(--border-color) !important;
   color: #ffffff !important;
 }
 

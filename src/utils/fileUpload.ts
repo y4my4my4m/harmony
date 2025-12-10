@@ -110,6 +110,71 @@ export async function uploadServerIcon(file: File, serverId: string): Promise<Up
 }
 
 /**
+ * Download an image from a URL and upload it to Supabase storage
+ * @param imageUrl The URL of the image to download
+ * @param userId The user ID
+ * @param type 'avatar' or 'banner'
+ * @returns Promise<UploadResult>
+ */
+export async function downloadAndUploadImage(
+  imageUrl: string,
+  userId: string,
+  type: 'avatar' | 'banner' = 'avatar'
+): Promise<UploadResult> {
+  try {
+    debug.log(`Downloading ${type} from ${imageUrl}...`);
+    
+    // Fetch the image
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.statusText}`);
+    }
+
+    // Get the blob
+    const blob = await response.blob();
+    
+    // Determine file extension from content type or URL
+    let fileExt = 'jpg';
+    if (blob.type) {
+      if (blob.type.includes('png')) fileExt = 'png';
+      else if (blob.type.includes('gif')) fileExt = 'gif';
+      else if (blob.type.includes('webp')) fileExt = 'webp';
+    } else {
+      // Try to get extension from URL
+      const urlExt = imageUrl.split('.').pop()?.split('?')[0]?.toLowerCase();
+      if (urlExt && ['png', 'gif', 'webp', 'jpg', 'jpeg'].includes(urlExt)) {
+        fileExt = urlExt === 'jpeg' ? 'jpg' : urlExt;
+      }
+    }
+
+    // Convert blob to File
+    const fileName = `${type}_${Date.now()}.${fileExt}`;
+    const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+
+    // Upload to Supabase storage
+    if (type === 'avatar') {
+      return await uploadAvatar(file, userId);
+    } else {
+      // Import uploadBanner dynamically to avoid circular imports
+      const { uploadBanner } = await import('@/utils/bannerUtils');
+      const result = await uploadBanner(file, userId);
+      // Convert banner result format to UploadResult format
+      return {
+        success: result.success,
+        url: result.url,
+        error: result.error
+      };
+    }
+  } catch (error: any) {
+    debug.error(`Failed to download and upload ${type}:`, error);
+    return {
+      success: false,
+      error: error.message || `Failed to download and upload ${type}`
+    };
+  }
+}
+
+/**
  * Delete a file from storage
  * @param bucket The storage bucket name
  * @param path The file path

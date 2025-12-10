@@ -80,9 +80,15 @@ export class AuthContextService {
         .from('profiles')
         .select('id')
         .eq('auth_user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (profileError || !profile) {
+      if (profileError && profileError.code !== 'PGRST116') {
+        debug.error('Error loading profile:', profileError)
+        this.cachedContext = this.createUnauthenticatedContext()
+        return this.cachedContext
+      }
+
+      if (!profile) {
         debug.warn('Auth user found but no profile exists:', user.id)
         this.cachedContext = this.createUnauthenticatedContext()
         return this.cachedContext

@@ -139,7 +139,9 @@ const getPlainText = (): string => {
   
   const processNode = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      text += node.textContent || '';
+      const content = node.textContent || '';
+      // Always add text content (including whitespace/newlines)
+      text += content;
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
       
@@ -172,6 +174,13 @@ const getPlainText = (): string => {
   
   for (const child of Array.from(editorRef.value.childNodes)) {
     processNode(child);
+  }
+  
+  // Only return empty if there's truly no content (no text, no BRs, or only whitespace)
+  // But preserve newlines if they exist (user might have typed them)
+  const trimmed = text.trim();
+  if (trimmed.length === 0 && !text.includes('\n')) {
+    return '';
   }
   
   return text;
@@ -475,7 +484,14 @@ const renderContent = (text: string, skipCursorRestore = false) => {
   editorRef.value.innerHTML = '';
   debug.log('🔧 Cleared editor content');
   
-  if (!text) {
+  if (!text || text.trim().length === 0) {
+    // Keep editor truly empty (no BR tags) so placeholder shows via CSS :empty:before
+    // Use nextTick to ensure DOM is updated
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.innerHTML = '';
+      }
+    });
     isRendering.value = false;
     return;
   }
@@ -507,12 +523,14 @@ const renderContent = (text: string, skipCursorRestore = false) => {
     }
   });
   
-  // If the fragment is empty, add a single BR to maintain the editor height
-  if (!fragment.hasChildNodes()) {
-    fragment.appendChild(document.createElement('br'));
+  // Only append fragment if it has content
+  // Don't add BR when empty - let CSS :empty:before show placeholder
+  if (fragment.hasChildNodes()) {
+    editorRef.value.appendChild(fragment);
+  } else {
+    // Ensure editor is truly empty (no BR tags) when no content
+    editorRef.value.innerHTML = '';
   }
-  
-  editorRef.value.appendChild(fragment);
   
   // Restore cursor position only if not skipping
   if (!skipCursorRestore) {
@@ -756,6 +774,23 @@ const handleInput = (event?: Event) => {
   // DO NOT re-render on input to avoid infinite loops
   // Rendering will happen when modelValue changes externally
   
+  // Ensure editor is empty when text is removed (for placeholder to show)
+  // But preserve intentional newlines (user might have typed them)
+  const hasNoContent = !text || text.trim().length === 0;
+  const hasNoNewlines = !text?.includes('\n');
+  
+  if (hasNoContent && hasNoNewlines) {
+    nextTick(() => {
+      if (editorRef.value) {
+        // Only clear if there's no actual content (no text, no intentional newlines)
+        const hasOnlyWhitespace = editorRef.value.textContent?.trim().length === 0;
+        if (hasOnlyWhitespace && editorRef.value.innerHTML.trim() !== '') {
+          editorRef.value.innerHTML = '';
+        }
+      }
+    });
+  }
+  
   // Auto-expand editor
   autoExpand();
 };
@@ -922,8 +957,21 @@ watch(() => props.modelValue, (newValue) => {
     if (currentText !== newValue) {
       debug.log('🔧 Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
       // Don't skip cursor restore here - this is for normal typing
-      renderContent(newValue, false);
+      renderContent(newValue || '', false);
       autoExpand();
+      
+      // Ensure placeholder shows when empty - clear any remaining BR tags
+      if (!newValue || newValue.trim().length === 0) {
+        nextTick(() => {
+          if (editorRef.value) {
+            const plainText = getPlainText();
+            if (plainText.trim().length === 0 && editorRef.value.innerHTML.trim() !== '') {
+              // Clear any remaining content (like BR tags) to show placeholder
+              editorRef.value.innerHTML = '';
+            }
+          }
+        });
+      }
     }
   }
 });
@@ -954,11 +1002,17 @@ onMounted(() => {
   overflow-y: auto;
 }
 
-.rich-text-editor:empty:before {
+.rich-text-editor:empty:before,
+.rich-text-editor:has(> br:only-child):before {
   content: attr(data-placeholder);
   color: #72767d;
   pointer-events: none;
   position: absolute;
+}
+
+/* Hide the BR when editor is empty (for placeholder) */
+.rich-text-editor:has(> br:only-child) br {
+  display: none;
 }
 
 /* Markdown markers styling */

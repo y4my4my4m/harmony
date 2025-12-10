@@ -284,13 +284,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
-import { uploadAvatar } from '@/utils/fileUpload';
+import { uploadAvatar, downloadAndUploadImage } from '@/utils/fileUpload';
 import { uploadBanner } from '@/utils/bannerUtils';
 import { supabase } from '@/supabase';
 
@@ -327,6 +327,98 @@ const colorPresets = [
   '#f23f42', '#ff6b35', '#4f46e5', '#06b6d4', '#10b981',
   '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'
 ];
+
+// Extract OAuth provider data and auto-populate form
+onMounted(async () => {
+  try {
+    const session = authStore.session
+    if (!session?.user) return
+
+    const user = session.user
+    const metadata = user.user_metadata || {}
+    const identities = user.identities || []
+    
+    // Available OAuth providers (should match AuthComponent.vue)
+    const OAUTH_PROVIDERS = ['google', 'github', 'twitch'] as const
+    
+    // Find OAuth identity (not email provider)
+    const oauthIdentity = identities.find((id: any) => 
+      id.provider !== 'email' && OAUTH_PROVIDERS.includes(id.provider as typeof OAUTH_PROVIDERS[number])
+    )
+
+    if (!oauthIdentity) {
+      debug.log('No OAuth identity found, using defaults')
+      return
+    }
+
+    debug.log('🔐 Extracting OAuth data from provider:', oauthIdentity.provider)
+
+    // Extract avatar from user_metadata (Supabase automatically fetches this from OAuth providers)
+    if (metadata.avatar_url) {
+      avatarPreview.value = metadata.avatar_url
+      debug.log('✅ Auto-populated avatar from OAuth:', metadata.avatar_url)
+    } else if (metadata.picture) {
+      // Some providers use 'picture' instead of 'avatar_url'
+      avatarPreview.value = metadata.picture
+      debug.log('✅ Auto-populated avatar from OAuth (picture):', metadata.picture)
+    }
+
+    // Extract display name
+    if (metadata.full_name) {
+      displayName.value = metadata.full_name
+      debug.log('✅ Auto-populated display name:', metadata.full_name)
+    } else if (metadata.name) {
+      displayName.value = metadata.name
+      debug.log('✅ Auto-populated display name (name):', metadata.name)
+    } else if (metadata.preferred_username) {
+      // Fallback to username if no name available
+      displayName.value = metadata.preferred_username
+      debug.log('✅ Auto-populated display name (preferred_username):', metadata.preferred_username)
+    }
+
+    // Extract username
+    // Try different possible fields from OAuth providers
+    let suggestedUsername = ''
+    if (metadata.preferred_username) {
+      suggestedUsername = metadata.preferred_username.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    } else if (metadata.user_name) {
+      suggestedUsername = metadata.user_name.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    } else if (metadata.username) {
+      suggestedUsername = metadata.username.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    } else if (metadata.login) {
+      // GitHub uses 'login'
+      suggestedUsername = metadata.login.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    } else if (user.email) {
+      // Fallback: use email username part
+      const emailUsername = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
+      suggestedUsername = emailUsername
+    }
+
+    if (suggestedUsername && suggestedUsername.length >= 3) {
+      username.value = suggestedUsername
+      // Trigger username availability check
+      formatUsername({ target: { value: suggestedUsername } } as any)
+      debug.log('✅ Auto-populated username:', suggestedUsername)
+    }
+
+    // Extract bio if available (some providers might have this)
+    if (metadata.bio || metadata.description) {
+      bio.value = (metadata.bio || metadata.description).substring(0, 190)
+      debug.log('✅ Auto-populated bio')
+    }
+
+    debug.log('✅ OAuth data extraction complete', {
+      provider: oauthIdentity.provider,
+      hasAvatar: !!avatarPreview.value,
+      hasDisplayName: !!displayName.value,
+      hasUsername: !!username.value
+    })
+
+  } catch (error) {
+    debug.error('Failed to extract OAuth data:', error)
+    // Don't block profile creation if OAuth extraction fails
+  }
+})
 
 // Computed properties
 const progressWidth = computed(() => `${(currentStep.value / 3) * 100}%`);
@@ -610,8 +702,9 @@ const createProfile = async () => {
       // Don't fail profile creation - the Actor endpoint will generate keys on-the-fly
     }
     
-    // Handle avatar upload if file exists
+    // Handle avatar: upload file if exists, or use OAuth avatar URL if available
     if (avatarFile.value && result) {
+      // User uploaded a file - upload it
       debug.log('Uploading avatar...');
       creationStep.value = 'Uploading avatar...';
       try {
@@ -630,6 +723,34 @@ const createProfile = async () => {
       } catch (uploadError) {
         debug.error('Avatar upload error:', uploadError);
         toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+      }
+    } else if (avatarPreview.value && !avatarFile.value && result && authStore.session?.user?.id) {
+      // OAuth avatar URL - download and upload to Supabase storage
+      debug.log('Downloading and uploading OAuth avatar...');
+      creationStep.value = 'Setting up avatar...';
+      try {
+        const uploadResult = await downloadAndUploadImage(
+          avatarPreview.value,
+          authStore.session.user.id,
+          'avatar'
+        );
+        
+        if (uploadResult.success && uploadResult.url) {
+          // Normalize the URL for storage (convert public URL to storage path if needed)
+          const { normalizeAvatarForStorage } = await import('@/utils/avatarUtils');
+          const normalizedPath = normalizeAvatarForStorage(uploadResult.url) || uploadResult.url;
+          
+          await profileStore.updateProfile({
+            avatar_url: normalizedPath
+          });
+          debug.log('✅ OAuth avatar uploaded successfully:', normalizedPath);
+        } else {
+          debug.error('OAuth avatar upload failed:', uploadResult.error);
+          toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+        }
+      } catch (avatarError) {
+        debug.error('Failed to download/upload OAuth avatar:', avatarError);
+        toast.warning('Profile created but avatar setup failed. You can update it later in settings.');
       }
     }
 

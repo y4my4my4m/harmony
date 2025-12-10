@@ -8,6 +8,7 @@
 import { ref, watch } from 'vue'
 import { hapticManager, type HapticPattern } from '@/utils/hapticFeedback'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 // Shared state across all composable instances
 const isEnabled = ref(true)
@@ -32,11 +33,11 @@ function loadSettings(): void {
   
   try {
     // Load master toggle
-    const enabled = localStorage.getItem('harmony-haptics-enabled')
+    const enabled = userStorage.getItem('haptics-enabled')
     isEnabled.value = enabled !== null ? enabled === 'true' : true
     
     // Load individual triggers
-    const triggers = localStorage.getItem('harmony-haptic-triggers')
+    const triggers = userStorage.getItem('haptic-triggers')
     if (triggers) {
       const parsed = JSON.parse(triggers)
       hapticTriggers.value = { ...hapticTriggers.value, ...parsed }
@@ -57,8 +58,8 @@ function loadSettings(): void {
  */
 function saveSettings(): void {
   try {
-    localStorage.setItem('harmony-haptics-enabled', isEnabled.value.toString())
-    localStorage.setItem('harmony-haptic-triggers', JSON.stringify(hapticTriggers.value))
+    userStorage.setItem('haptics-enabled', isEnabled.value.toString())
+    userStorage.setItem('haptic-triggers', JSON.stringify(hapticTriggers.value))
     hapticManager.setEnabled(isEnabled.value)
   } catch (error) {
     debug.error('Failed to save haptic settings:', error)

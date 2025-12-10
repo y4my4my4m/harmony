@@ -655,6 +655,10 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
     // Initialize session heartbeat for smart push notifications (Discord-like behavior)
     const { initializeSessionHeartbeat } = await import('@/composables/useViewContext')
     await initializeSessionHeartbeat(userId)
+    
+    // Initialize typing indicator service
+    const typingService = await import('@/services/TypingIndicatorService')
+    await typingService.typingIndicatorService.initialize()
   } catch (error) {
     debug.error('❌ Background loading failed:', error)
   }
@@ -700,6 +704,10 @@ watch(() => authStore.session, async (newSession, oldSession) => {
     try {
       const { cleanupViewContext } = await import('@/composables/useViewContext')
       await cleanupViewContext()
+      
+      // Cleanup typing indicator service
+      const typingService = await import('@/services/TypingIndicatorService')
+      await typingService.typingIndicatorService.cleanup()
       debug.log('✅ Session heartbeat cleanup completed')
     } catch (error) {
       debug.error('Failed to cleanup session heartbeat:', error)

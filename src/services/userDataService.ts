@@ -12,6 +12,7 @@ import { supabase } from '@/supabase'
 import { UserStatus, type UserData, type UserContext, type CustomUserStatus } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 /**
@@ -104,7 +105,7 @@ class UserDataService extends EventTarget {
    */
   private getStatusFromLocalStorage(): UserStatus | null {
     try {
-      const saved = localStorage.getItem('harmony_user_status')
+      const saved = userStorage.getItem('user_status')
       if (saved !== null) {
         const statusNumber = parseInt(saved, 10)
         // Updated range to include Invisible (4)
@@ -124,12 +125,12 @@ class UserDataService extends EventTarget {
    */
   private getCustomStatusFromLocalStorage(): CustomUserStatus | null {
     try {
-      const saved = localStorage.getItem('harmony_custom_status')
+      const saved = userStorage.getItem('custom_status')
       if (saved) {
         const customStatus = JSON.parse(saved) as CustomUserStatus
         // Check if expired
         if (customStatus.expiresAt && new Date(customStatus.expiresAt) < new Date()) {
-          localStorage.removeItem('harmony_custom_status')
+          userStorage.removeItem('custom_status')
           return null
         }
         return customStatus
@@ -146,9 +147,9 @@ class UserDataService extends EventTarget {
   private saveCustomStatusToLocalStorage(customStatus: CustomUserStatus | undefined): void {
     try {
       if (customStatus) {
-        localStorage.setItem('harmony_custom_status', JSON.stringify(customStatus))
+        userStorage.setItem('custom_status', JSON.stringify(customStatus))
       } else {
-        localStorage.removeItem('harmony_custom_status')
+        userStorage.removeItem('custom_status')
       }
     } catch (error) {
       debug.warn('⚠️ Failed to save custom status to localStorage:', error)
@@ -1354,7 +1355,7 @@ class UserDataService extends EventTarget {
       
       // Save to localStorage as professional backup (like Discord/Slack)
       try {
-        localStorage.setItem('harmony_user_status', status.toString())
+        userStorage.setItem('user_status', status.toString())
         debug.log('💾 Status backed up to localStorage')
       } catch (localStorageError) {
         debug.warn('⚠️ Failed to backup status to localStorage:', localStorageError)

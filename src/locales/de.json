@@ -86,7 +86,27 @@
     "recoveryCode": "Wiederherstellungscode",
     "signingIn": "Melde dich an...",
     "creatingAccount": "Erstelle dein Konto...",
+    "orContinueWith": "oder",
+    "termsPrefix": "Mit der Registrierung akzeptierst du unsere",
+    "termsOfService": "Nutzungsbedingungen",
+    "and": "und",
+    "privacyPolicy": "Datenschutzrichtlinie",
+    "oauth": {
+      "google": "Mit Google fortfahren",
+      "twitch": "Mit Twitch fortfahren",
+      "github": "Mit GitHub fortfahren"
+    },
+    "callback": {
+      "signingIn": "Anmelden...",
+      "pleaseWait": "Bitte warte, während wir deine Authentifizierung abschließen.",
+      "error": "Authentifizierung fehlgeschlagen",
+      "tryAgain": "Erneut versuchen",
+      "success": "Willkommen!",
+      "redirecting": "Weiterleitung..."
+    },
     "features": {
+      "federated": "Föderiert",
+      "endToEnd": "E2E-verschlüsselt",
       "realTimeMessaging": "Echtzeit-Messaging",
       "gamingCommunities": "Gaming-Communities",
       "voiceChannels": "Sprachkanäle"

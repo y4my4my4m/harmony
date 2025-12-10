@@ -86,7 +86,27 @@
     "recoveryCode": "Recovery Code",
     "signingIn": "Signing you in...",
     "creatingAccount": "Creating your account...",
+    "orContinueWith": "or",
+    "termsPrefix": "By registering, you agree to our",
+    "termsOfService": "Terms of Service",
+    "and": "and",
+    "privacyPolicy": "Privacy Policy",
+    "oauth": {
+      "google": "Continue with Google",
+      "twitch": "Continue with Twitch",
+      "github": "Continue with GitHub"
+    },
+    "callback": {
+      "signingIn": "Signing you in...",
+      "pleaseWait": "Please wait while we complete your authentication.",
+      "error": "Authentication Failed",
+      "tryAgain": "Try Again",
+      "success": "Welcome!",
+      "redirecting": "Redirecting you now..."
+    },
     "features": {
+      "federated": "Federated",
+      "endToEnd": "E2E Encrypted",
       "realTimeMessaging": "Real-time messaging",
       "gamingCommunities": "Gaming communities",
       "voiceChannels": "Voice channels"
@@ -294,6 +314,12 @@
   },
   "message": {
     "typeMessage": "Message {to}",
+    "typing": {
+      "single": " is typing...",
+      "two": " and {name2} are typing...",
+      "three": ", {name2} and {name3} are typing...",
+      "many": "Many users are typing..."
+    },
     "addComment": "Add a comment...",
     "editMessage": "Edit message",
     "deleteMessage": "Delete Message",

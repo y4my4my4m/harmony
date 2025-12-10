@@ -6,8 +6,9 @@
  */
 
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 
-const STORAGE_KEY = 'harmony-voice-settings';
+const STORAGE_KEY = 'voice-settings';
 
 export interface VoiceSettings {
   // Device IDs
@@ -58,7 +59,7 @@ class VoiceSettingsServiceClass {
    */
   load(): VoiceSettings {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = userStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         this.settings = {
@@ -80,7 +81,7 @@ class VoiceSettingsServiceClass {
    */
   private save(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
+      userStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
       debug.log('💾 [VoiceSettings] Saved settings');
       
       // Notify listeners

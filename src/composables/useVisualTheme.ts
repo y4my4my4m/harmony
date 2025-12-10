@@ -14,6 +14,7 @@ import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 export interface VisualThemeSettings {
   theme: 'dark' | 'light' | 'midnight' | 'custom'
@@ -304,7 +305,7 @@ function applySettings(settings: VisualThemeSettings) {
  */
 function saveToLocalStorage(settings: VisualThemeSettings) {
   try {
-    localStorage.setItem('harmony-visual-theme', JSON.stringify(settings))
+    userStorage.setItem('visual-theme', JSON.stringify(settings))
   } catch (error) {
     debug.error('Failed to save theme to localStorage:', error)
   }
@@ -315,7 +316,7 @@ function saveToLocalStorage(settings: VisualThemeSettings) {
  */
 function loadFromLocalStorage(): Partial<VisualThemeSettings> | null {
   try {
-    const saved = localStorage.getItem('harmony-visual-theme')
+    const saved = userStorage.getItem('visual-theme')
     if (saved) {
       return JSON.parse(saved)
     }
@@ -378,9 +379,9 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
       .from('profiles')
       .select('appearance_settings')
       .eq('auth_user_id', userId)
-      .single()
+      .maybeSingle()
     
-    if (error) throw error
+    if (error && error.code !== 'PGRST116') throw error
     
     return data?.appearance_settings || null
   } catch (error) {
@@ -547,6 +548,34 @@ export function useVisualTheme() {
   }
   
   /**
+   * Reset theme system completely (call on logout)
+   * This ensures the next user gets a fresh theme initialization
+   */
+  function reset() {
+    isInitialized.value = false
+    settings.value = {
+      theme: 'dark',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#5865f2',
+      customAccentColor: '#5865f2',
+      customBackgroundColor: '#5865f2',
+      customBackgroundLightness: 0,
+      customBackgroundChroma: 0,
+      fontSize: 14,
+      zoomLevel: 100,
+      showTimestamps: true,
+      use24HourTime: false,
+      compactMode: false,
+      highContrast: false,
+      reduceMotion: false,
+      screenReaderSupport: false,
+    }
+    // Apply default dark theme
+    applyTheme(PRESET_THEMES.dark)
+    debug.log('🎨 Visual theme reset for new user')
+  }
+
+  /**
    * Reset to defaults
    */
   function resetToDefaults() {
@@ -621,6 +650,7 @@ export function useVisualTheme() {
     toggleScreenReaderSupport,
     updateSettings,
     resetToDefaults,
+    reset,
     currentSettings,
   }
 }

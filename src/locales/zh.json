@@ -86,7 +86,27 @@
     "recoveryCode": "恢复代码",
     "signingIn": "正在登录...",
     "creatingAccount": "正在创建您的账户...",
+    "orContinueWith": "或",
+    "termsPrefix": "注册即表示您同意我们的",
+    "termsOfService": "服务条款",
+    "and": "和",
+    "privacyPolicy": "隐私政策",
+    "oauth": {
+      "google": "使用 Google 继续",
+      "twitch": "使用 Twitch 继续",
+      "github": "使用 GitHub 继续"
+    },
+    "callback": {
+      "signingIn": "正在登录...",
+      "pleaseWait": "请稍候，我们正在完成您的身份验证。",
+      "error": "身份验证失败",
+      "tryAgain": "重试",
+      "success": "欢迎！",
+      "redirecting": "正在为您跳转..."
+    },
     "features": {
+      "federated": "联邦化",
+      "endToEnd": "端到端加密",
       "realTimeMessaging": "实时消息",
       "gamingCommunities": "游戏社区",
       "voiceChannels": "语音频道"

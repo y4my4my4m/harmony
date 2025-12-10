@@ -723,6 +723,62 @@
           </div>
 
           <div class="config-section">
+            <h3>OAuth Providers</h3>
+            <div class="setting-group">
+              <p class="setting-hint" style="margin-bottom: 16px;">
+                Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
+              </p>
+              <div class="setting-row" style="flex-direction: column; gap: 12px;">
+                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-weight: 500;">Google</span>
+                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Google</span>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    v-model="oauthProviders.google"
+                    @change="oauthProvidersChanged = true"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-weight: 500;">Twitch</span>
+                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Twitch</span>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    v-model="oauthProviders.twitch"
+                    @change="oauthProvidersChanged = true"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-weight: 500;">GitHub</span>
+                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with GitHub</span>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    v-model="oauthProviders.github"
+                    @change="oauthProvidersChanged = true"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+            <button 
+              @click="saveOAuthProviders" 
+              class="save-btn" 
+              :disabled="!oauthProvidersChanged || savingOAuthProviders"
+              style="margin-top: 12px;"
+            >
+              <Icon name="save" :size="16" />
+              {{ savingOAuthProviders ? 'Saving...' : 'Save OAuth Settings' }}
+            </button>
+          </div>
+
+          <div class="config-section">
             <h3>WebRTC / Voice Settings</h3>
             <div class="setting-group">
               <label>WebRTC Mode</label>
@@ -1006,6 +1062,15 @@ const instanceConfig = ref({
   approvalRequired: false
 })
 
+// OAuth provider configuration
+const oauthProviders = ref({
+  google: false,
+  twitch: false,
+  github: false
+})
+const oauthProvidersChanged = ref(false)
+const savingOAuthProviders = ref(false)
+
 // Configuration
 const config = ref({
   chat: {
@@ -1217,6 +1282,34 @@ const loadInstanceConfig = async () => {
         openRegistration: config.instance.registrationOpen ?? true,
         approvalRequired: config.instance.requiresApproval ?? false
       }
+      
+      // Load OAuth providers
+      if (config.instance.oauthProviders) {
+        const providers = config.instance.oauthProviders
+        if (Array.isArray(providers)) {
+          // If it's an array like ["google", "github"]
+          oauthProviders.value = {
+            google: providers.includes('google'),
+            twitch: providers.includes('twitch'),
+            github: providers.includes('github')
+          }
+        } else if (typeof providers === 'object' && providers !== null) {
+          // If it's an object like { google: true, twitch: false }
+          oauthProviders.value = {
+            google: providers.google === true || providers.google === 'true',
+            twitch: providers.twitch === true || providers.twitch === 'true',
+            github: providers.github === true || providers.github === 'true'
+          }
+        }
+      } else {
+        // If no config or empty, all providers are disabled
+        oauthProviders.value = {
+          google: false,
+          twitch: false,
+          github: false
+        }
+      }
+      oauthProvidersChanged.value = false
     }
   } catch (error) {
     debug.error('Failed to load instance config:', error)
@@ -1419,6 +1512,39 @@ const saveInstanceBranding = async () => {
     toast.error(error.message || 'Failed to save instance branding')
   } finally {
     savingBranding.value = false
+  }
+}
+
+const saveOAuthProviders = async () => {
+  if (!authStore.session?.user?.id) {
+    toast.error('You must be logged in to save OAuth provider settings')
+    return
+  }
+
+  savingOAuthProviders.value = true
+  try {
+    // Build array of enabled providers
+    const enabledProviders: string[] = []
+    if (oauthProviders.value.google) enabledProviders.push('google')
+    if (oauthProviders.value.twitch) enabledProviders.push('twitch')
+    if (oauthProviders.value.github) enabledProviders.push('github')
+
+    // Save OAuth providers as an array
+    await adminService.setInstanceConfig(
+      'oauth_providers',
+      enabledProviders, // Pass as array, Supabase will convert to JSONB
+      authStore.session.user.id,
+      'Enabled OAuth providers'
+    )
+
+    oauthProvidersChanged.value = false
+    toast.success('OAuth provider settings saved successfully')
+    debug.log('OAuth providers saved:', enabledProviders)
+  } catch (error: any) {
+    debug.error('Failed to save OAuth provider settings:', error)
+    toast.error(error.message || 'Failed to save OAuth provider settings')
+  } finally {
+    savingOAuthProviders.value = false
   }
 }
 

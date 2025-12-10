@@ -536,34 +536,46 @@ class AdminService {
       let domain = import.meta.env.VITE_DOMAIN as string
       let registrationOpen = true
       let requiresApproval = false
+      let oauthProviders: string[] | Record<string, boolean> = []
 
       try {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers'])
 
         if (configData) {
           configData.forEach((config) => {
             try {
               // Parse JSONB value - it may be a string with quotes or already parsed
               let value = config.config_value
+              
+              // Handle JSONB string values
               if (typeof value === 'string') {
-                // Try to parse if it's a JSON string
+                // Try to parse if it's a JSON string (might be double-quoted)
                 try {
-                  value = JSON.parse(value)
+                  const parsed = JSON.parse(value)
+                  // Always use the parsed value if parsing succeeds
+                  value = parsed
                 } catch {
-                  // If parsing fails, use the string as-is (remove quotes if present)
-                  value = value.replace(/^"|"$/g, '')
+                  // If parsing fails, remove surrounding quotes if present
+                  // Handle both "string" and \"string\" cases
+                  value = value.replace(/^\\?"|\\?"$/g, '').replace(/\\"/g, '"')
                 }
+              }
+              
+              // Ensure we have a clean string value (not double-quoted)
+              if (typeof value === 'string') {
+                // Remove any remaining escaped quotes
+                value = value.replace(/\\"/g, '"')
               }
 
               switch (config.config_key) {
                 case 'instance_name':
-                  instanceName = value || 'Harmony Instance'
+                  instanceName = (typeof value === 'string' ? value : String(value)) || 'Harmony Instance'
                   break
                 case 'instance_description':
-                  instanceDescription = value || 'A federated social platform'
+                  instanceDescription = (typeof value === 'string' ? value : String(value)) || 'A federated social platform'
                   break
                 case 'domain':
                   domain = value || import.meta.env.VITE_DOMAIN as string
@@ -573,6 +585,9 @@ class AdminService {
                   break
                 case 'approval_required':
                   requiresApproval = value === true || value === 'true'
+                  break
+                case 'oauth_providers':
+                  oauthProviders = value
                   break
               }
             } catch (parseError) {
@@ -603,7 +618,8 @@ class AdminService {
           description: instanceDescription,
           domain: domain,
           registrationOpen: registrationOpen,
-          requiresApproval: requiresApproval
+          requiresApproval: requiresApproval,
+          oauthProviders: oauthProviders
         }
       };
     } catch (error) {
@@ -657,16 +673,11 @@ class AdminService {
   ): Promise<void> {
     try {
       // Convert value to JSONB format
-      // If it's already a string, wrap it in quotes for JSONB
-      // Otherwise, stringify it
-      let jsonbValue: any
-      if (typeof value === 'string') {
-        // Store as JSON string (with quotes)
-        jsonbValue = JSON.stringify(value)
-      } else {
-        // Store as JSON value
-        jsonbValue = value
-      }
+      // The RPC function expects JSONB, which Supabase will convert automatically
+      // For strings, pass directly - Supabase will convert to JSONB string (with quotes)
+      // For arrays/objects, pass as-is - Supabase will convert to JSONB
+      // DO NOT JSON.stringify strings as that causes double-quoting
+      const jsonbValue: any = value
 
       const { data, error } = await supabase.rpc('set_instance_config', {
         p_admin_id: adminId,

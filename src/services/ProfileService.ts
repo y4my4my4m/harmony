@@ -348,13 +348,14 @@ export class ProfileService {
         .from('profiles')
         .select('*')
         .eq('auth_user_id', authUserId)
-        .single()
+        .maybeSingle()
 
-      if (error || !profile) {
+      if (error && error.code !== 'PGRST116') {
+        debug.error('❌ Error fetching profile by auth user ID:', error)
         return null
       }
 
-      return profile
+      return profile || null
     } catch (error) {
       debug.error('❌ Failed to get profile by auth user ID:', error)
       return null

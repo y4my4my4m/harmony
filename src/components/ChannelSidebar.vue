@@ -298,6 +298,17 @@
       @close="closeConfirmationModal"
       @confirm="confirmationConfig.onConfirm"
     />
+
+    <!-- Mobile Voice Channel Preview -->
+    <MobileVoiceChannelPreview
+      :is-visible="showMobileVoicePreview"
+      :channel-id="mobileVoicePreviewChannel?.id || ''"
+      :channel-name="mobileVoicePreviewChannel?.name || ''"
+      :participants="getMobileVoicePreviewParticipants"
+      @close="closeMobileVoicePreview"
+      @join="handleMobileVoiceJoin"
+      @open-chat="handleMobileVoiceOpenChat"
+    />
   </div>
 </template>
 
@@ -327,6 +338,7 @@ import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
 import VoiceChannelParticipants from '@/components/voice/VoiceChannelParticipants.vue';
 import VoiceChannelUserList from '@/components/voice/VoiceChannelUserList.vue';
+import MobileVoiceChannelPreview from '@/components/voice/MobileVoiceChannelPreview.vue';
 import ChannelContextMenu from './ChannelContextMenu.vue';
 import CategoryContextMenu from './CategoryContextMenu.vue';
 import ChannelEditModal from './ChannelEditModal.vue';
@@ -397,6 +409,10 @@ const selectedThread = ref<ThreadWithDetails | null>(null);
 const showChannelEditModal = ref(false);
 const showCategoryEditModal = ref(false);
 const showConfirmationModal = ref(false);
+
+// Mobile voice channel preview state
+const showMobileVoicePreview = ref(false);
+const mobileVoicePreviewChannel = ref<Channel | null>(null);
 const confirmationConfig = ref({
   title: '',
   message: '',
@@ -639,14 +655,63 @@ const selectChannel = (channelId: string) => {
 };
 
 // Handler for voice channel clicks - Discord-like behavior
+// On mobile, show preview instead of auto-joining
 const handleVoiceChannelClick = async (channelId: string) => {
   // If already in this voice channel, do nothing (clicking again doesn't disconnect)
   if (isUserInVoiceChannel(channelId)) {
     return;
   }
-  // Join the voice channel (if in another channel, joinVoiceChannel handles leaving first)
+  
+  // On mobile, show the preview modal instead of auto-joining
+  if (isMobile.value) {
+    const channel = props.channels.find(c => c.id === channelId);
+    if (channel) {
+      mobileVoicePreviewChannel.value = channel;
+      showMobileVoicePreview.value = true;
+    }
+    return;
+  }
+  
+  // Desktop: Join the voice channel directly
   await joinVoiceChannel(channelId);
 };
+
+// Mobile voice preview handlers
+const closeMobileVoicePreview = () => {
+  showMobileVoicePreview.value = false;
+  mobileVoicePreviewChannel.value = null;
+};
+
+const handleMobileVoiceJoin = async (startMuted: boolean) => {
+  if (!mobileVoicePreviewChannel.value) return;
+  
+  const channelId = mobileVoicePreviewChannel.value.id;
+  closeMobileVoicePreview();
+  
+  // Join the voice channel
+  const success = await joinVoiceChannel(channelId);
+  
+  // If user chose to start muted, toggle mute after joining
+  if (success && startMuted) {
+    voiceChannelStore.toggleMute();
+  }
+};
+
+const handleMobileVoiceOpenChat = () => {
+  if (!mobileVoicePreviewChannel.value) return;
+  
+  const channelId = mobileVoicePreviewChannel.value.id;
+  closeMobileVoicePreview();
+  openVoiceChannelChat(channelId);
+};
+
+// Get participants for mobile voice preview
+const getMobileVoicePreviewParticipants = computed(() => {
+  if (!mobileVoicePreviewChannel.value) return [];
+  
+  const userIds = getUsersInVoiceChannel(mobileVoicePreviewChannel.value.id);
+  return userIds.map(id => ({ id }));
+});
 
 // Open voice channel text chat
 const openVoiceChannelChat = (channelId: string) => {
@@ -744,7 +809,7 @@ const getVoiceSessionStartTime = (channelId: string) => {
   return null;
 };
 
-const joinVoiceChannel = async (channelId: string) => {
+const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
   // Play sound and haptic immediately for optimistic UX (don't wait for connection)
   themeStore.testAudio('voice_connect');
   triggerVoice('success');
@@ -757,6 +822,8 @@ const joinVoiceChannel = async (channelId: string) => {
     themeStore.testAudio('voice_disconnect');
     triggerVoice('warning');
   }
+  
+  return success;
 };
 
 const leaveVoiceChannel = async (channelId: string) => {

@@ -1,5 +1,6 @@
 import type { AudioTheme, AudioAction, AudioThemeSettings } from '@/types'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 /**
  * Professional Audio Theme Service
@@ -461,7 +462,7 @@ export class AudioThemeService {
    */
   private loadSettings(): void {
     try {
-      const stored = localStorage.getItem('harmony_audio_theme_settings')
+      const stored = userStorage.getItem('audio_theme_settings')
       if (stored) {
         const settings = JSON.parse(stored)
         this.settings = {
@@ -481,7 +482,7 @@ export class AudioThemeService {
   private saveSettings(): void {
     try {
       this.settings.lastUpdated = new Date().toISOString()
-      localStorage.setItem('harmony_audio_theme_settings', JSON.stringify(this.settings))
+      userStorage.setItem('audio_theme_settings', JSON.stringify(this.settings))
       this.emit('settingsChanged', this.settings)
     } catch (error) {
       debug.warn('Failed to save audio theme settings:', error)

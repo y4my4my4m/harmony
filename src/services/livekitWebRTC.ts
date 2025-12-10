@@ -36,6 +36,7 @@ import {
 } from 'livekit-client';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
+import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 
 // =============================================================================
@@ -728,8 +729,12 @@ export class LiveKitWebRTCService {
       
       debug.log('✅ [LiveKit] Published local audio track');
     } catch (error) {
-      debug.error('❌ [LiveKit] Failed to publish audio:', error);
-      throw error;
+      // No microphone available - allow joining but force mute
+      debug.warn('⚠️ [LiveKit] No microphone available, joining in muted state:', error);
+      this.localMediaState.isMuted = true;
+      this.localMediaState.isAudioEnabled = false;
+      this.emit('local-state-changed', this.localMediaState);
+      // Don't throw - allow join to continue without audio
     }
   }
   
@@ -1156,7 +1161,7 @@ export class LiveKitWebRTCService {
    */
   loadStreamQualitySettings(): void {
     try {
-      const saved = localStorage.getItem('harmony-stream-settings');
+      const saved = userStorage.getItem('stream-settings');
       if (saved) {
         const settings = JSON.parse(saved);
         this.streamQualitySettings = {

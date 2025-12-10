@@ -86,7 +86,27 @@
     "recoveryCode": "복구 코드",
     "signingIn": "로그인 중...",
     "creatingAccount": "계정 생성 중...",
+    "orContinueWith": "또는",
+    "termsPrefix": "가입하면",
+    "termsOfService": "서비스 약관",
+    "and": "및",
+    "privacyPolicy": "개인정보 처리방침",
+    "oauth": {
+      "google": "Google로 계속",
+      "twitch": "Twitch로 계속",
+      "github": "GitHub로 계속"
+    },
+    "callback": {
+      "signingIn": "로그인 중...",
+      "pleaseWait": "인증을 완료하는 동안 잠시 기다려 주세요.",
+      "error": "인증 실패",
+      "tryAgain": "다시 시도",
+      "success": "환영합니다!",
+      "redirecting": "리디렉션 중..."
+    },
     "features": {
+      "federated": "연합",
+      "endToEnd": "E2E 암호화",
       "realTimeMessaging": "실시간 메시징",
       "gamingCommunities": "게임 커뮤니티",
       "voiceChannels": "음성 채널"

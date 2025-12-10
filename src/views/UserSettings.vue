@@ -381,8 +381,10 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
   
   try {
     loading.value = true
-    await updateProfile(updatedProfile)
-    profile.value = { ...profile.value, ...updatedProfile } as User
+    // Exclude username from updates - it cannot be changed until federation is fixed
+    const { username, ...profileToUpdate } = updatedProfile
+    await updateProfile(profileToUpdate)
+    profile.value = { ...profile.value, ...profileToUpdate } as User
     
     // Broadcast profile updates to all connected clients for real-time updates
     await updateCurrentUserProfile({

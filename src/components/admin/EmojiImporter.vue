@@ -462,10 +462,10 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(88, 101, 242, 0.2);
-  border: 1px solid rgba(88, 101, 242, 0.4);
+  background: var(--harmony-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
-  color: #7289da;
+  color: var(--text-primary);
   cursor: pointer;
   margin-left: auto;
   align-self: flex-end;

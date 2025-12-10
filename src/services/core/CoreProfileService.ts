@@ -145,14 +145,15 @@ export class CoreProfileService {
         .from('profiles')
         .select('*')
         .eq('auth_user_id', authUserId)
-        .single()
+        .maybeSingle()
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          debug.log(`ℹ️ Core: Profile not found for auth user`)
-          return null
-        }
+      if (error && error.code !== 'PGRST116') {
         throw this.createError('LOAD_PROFILE_FAILED', 'Failed to load profile', error)
+      }
+
+      if (!profile) {
+        debug.log(`ℹ️ Core: Profile not found for auth user`)
+        return null
       }
 
       debug.log(`✅ Core: Profile loaded by auth user ID`)

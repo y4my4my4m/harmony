@@ -1,4 +1,5 @@
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 interface PersistedState {
   lastServerId: string | null
@@ -28,7 +29,7 @@ interface ApplicationState {
   isRestoring: boolean
 }
 
-const STORAGE_KEY = 'harmony-app-state'
+const STORAGE_KEY = 'app-state' // Will be prefixed with user ID by userStorage
 const STATE_VERSION = '1.2.0'
 
 const DEFAULT_STATE: PersistedState = {
@@ -79,7 +80,7 @@ class StatePersistenceService {
 
   private async _initialize(): Promise<void> {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
+      const stored = userStorage.getItem(STORAGE_KEY)
       
       if (stored) {
         const parsed = JSON.parse(stored)
@@ -148,7 +149,7 @@ class StatePersistenceService {
         lastActiveTimestamp: Date.now()
       }
       
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
+      userStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
       debug.log('💾 State persisted to localStorage')
     } catch (error) {
       debug.warn('⚠️ Failed to persist state:', error)
@@ -156,7 +157,7 @@ class StatePersistenceService {
       // Try to clear space and retry once
       try {
         this.clearOldStates()
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state))
+        userStorage.setItem(STORAGE_KEY, JSON.stringify(this.state))
         debug.log('💾 State persisted after cleanup')
       } catch (retryError) {
         debug.error('❌ Failed to persist state even after cleanup:', retryError)
@@ -385,7 +386,7 @@ class StatePersistenceService {
     
     // Fallback: quick localStorage check without full state loading
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
+      const stored = userStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
         return parsed.appInitialized === true
@@ -449,7 +450,7 @@ class StatePersistenceService {
     this.isLoaded = false
     
     try {
-      localStorage.removeItem(STORAGE_KEY)
+      userStorage.removeItem(STORAGE_KEY)
       this.clearOldStates() // Also clean up any legacy keys
       debug.log('🗑️ All persisted state cleared')
     } catch (error) {

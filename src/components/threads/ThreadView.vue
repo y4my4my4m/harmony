@@ -146,6 +146,7 @@
             :reply-user-display-name="replyingToUserName"
             :giphy-open="giphyOpen"
             :emoji-list-open="emojiListOpen"
+            :thread-id="props.threadId"
             @send-message="handleSendMessage"
             @update:reply-message-id="handleCancelReply"
             @toggle-giphy="toggleGiphy"
@@ -186,11 +187,13 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
+import { useTypingIndicator } from '@/composables/useTypingIndicator'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
+import TypingIndicator from '@/components/TypingIndicator.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -229,6 +232,15 @@ const chatStore = useChatStore()
 
 // Current user ID for MessageDisplay
 const currentUserId = computed(() => authStore.session?.user?.id)
+
+// Typing indicator setup
+const typingContext = computed(() => {
+  const threadId = props.threadId || props.initialThread?.id
+  if (!threadId) return null
+  return { type: 'thread' as const, threadId }
+})
+
+const { typingUsers } = useTypingIndicator(() => typingContext.value)
 
 // Reply state
 const replyingToMessageId = ref<string>('')
