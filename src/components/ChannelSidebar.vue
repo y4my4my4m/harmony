@@ -691,9 +691,9 @@ const handleMobileVoiceJoin = async (startMuted: boolean) => {
   // Join the voice channel
   const success = await joinVoiceChannel(channelId);
   
-  // If user chose to start muted, toggle mute after joining
+  // If user chose to start muted, set mute state after joining
   if (success && startMuted) {
-    voiceChannelStore.toggleMute();
+    voiceChannelStore.setMuted(true);
   }
 };
 

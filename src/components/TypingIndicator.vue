@@ -34,12 +34,6 @@
         >
           {{ getUserDisplayName(typingUsers[0].user_id).value }}
         </span>
-        <span class="typing-suffix">, </span>
-        <span 
-          class="typing-username"
-        >
-          {{ getUserDisplayName(typingUsers[1].user_id).value }}
-        </span>
         <span class="typing-suffix">{{ t('message.typing.three', { 
           name1: getUserDisplayName(typingUsers[0].user_id).value, 
           name2: getUserDisplayName(typingUsers[1].user_id).value, 
