@@ -45,6 +45,26 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (!this.currentServerId) return [];
       return emojiCache.getServerEmojis(this.currentServerId);
     },
+    
+    /**
+     * Get a channel by ID - O(n) but channels array is typically small
+     * For voice channel lookups and other direct channel access
+     */
+    getChannelById(this) {
+      return (channelId: string): Channel | undefined => {
+        return this.channels.find((c: Channel) => c.id === channelId);
+      };
+    },
+    
+    /**
+     * Get channel name by ID - convenience getter for voice channel overlay etc.
+     */
+    getChannelNameById(this) {
+      return (channelId: string): string => {
+        const channel = this.channels.find((c: Channel) => c.id === channelId);
+        return channel?.name || 'Unknown Channel';
+      };
+    },
   },
 
   actions: {
@@ -911,7 +931,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
         const newCategory = await this._createCategoryHelper(name, serverId);
         
         if (newCategory) {
-          this.categories.push(newCategory);
+          // Check if realtime subscription already added this category (race condition prevention)
+          if (!this.categories.some(c => c.id === newCategory.id)) {
+            this.categories.push(newCategory);
+            // Sort by order
+            this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+            // Initialize empty channel array for this category
+            if (!this.categoryChannels[newCategory.id]) {
+              this.categoryChannels[newCategory.id] = [];
+            }
+          } else {
+            debug.log('⚠️ Category already added by realtime, skipping duplicate push');
+          }
           debug.log('✅ Category created successfully via service-like helper:', newCategory.id);
           return newCategory;
         }
@@ -998,7 +1029,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error;
       }
 
-      this.categories.push(data);
+      // Check if realtime subscription already added this category (race condition prevention)
+      if (!this.categories.some(c => c.id === data.id)) {
+        this.categories.push(data);
+        this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+        if (!this.categoryChannels[data.id]) {
+          this.categoryChannels[data.id] = [];
+        }
+      } else {
+        debug.log('⚠️ Category already added by realtime in fallback, skipping duplicate push');
+      }
       return data;
     },
 

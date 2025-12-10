@@ -431,6 +431,77 @@ CREATE POLICY "encryption_audit_log_own_or_admin" ON public.encryption_audit_log
 CREATE POLICY "encryption_audit_log_insert_system" ON public.encryption_audit_log
     FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
 
+-- ---------------------------------------------------------------------------
+-- USER LISTS RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.user_lists ENABLE ROW LEVEL SECURITY;
+
+-- Users can view their own lists
+CREATE POLICY "user_lists_own_select" ON public.user_lists
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+
+-- Users can view public lists from others
+CREATE POLICY "user_lists_public_select" ON public.user_lists
+    FOR SELECT USING (is_public = true);
+
+-- Users can only create their own lists
+CREATE POLICY "user_lists_insert" ON public.user_lists
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+-- Users can only update their own lists
+CREATE POLICY "user_lists_update" ON public.user_lists
+    FOR UPDATE USING (user_id = public.get_current_profile_id())
+    WITH CHECK (user_id = public.get_current_profile_id());
+
+-- Users can only delete their own lists
+CREATE POLICY "user_lists_delete" ON public.user_lists
+    FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- USER LIST MEMBERS RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.user_list_members ENABLE ROW LEVEL SECURITY;
+
+-- Users can view members of their own lists
+CREATE POLICY "user_list_members_own_list" ON public.user_list_members
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.user_lists ul
+            WHERE ul.id = user_list_members.list_id
+            AND ul.user_id = public.get_current_profile_id()
+        )
+    );
+
+-- Users can view members of public lists
+CREATE POLICY "user_list_members_public_list" ON public.user_list_members
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.user_lists ul
+            WHERE ul.id = user_list_members.list_id
+            AND ul.is_public = true
+        )
+    );
+
+-- Users can add members to their own lists
+CREATE POLICY "user_list_members_insert" ON public.user_list_members
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.user_lists ul
+            WHERE ul.id = user_list_members.list_id
+            AND ul.user_id = public.get_current_profile_id()
+        )
+    );
+
+-- Users can remove members from their own lists
+CREATE POLICY "user_list_members_delete" ON public.user_list_members
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM public.user_lists ul
+            WHERE ul.id = user_list_members.list_id
+            AND ul.user_id = public.get_current_profile_id()
+        )
+    );
+
 DO $$
 BEGIN
     RAISE NOTICE 'Extended RLS policies created successfully';

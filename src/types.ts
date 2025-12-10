@@ -47,7 +47,19 @@ export interface Category {
   server_id: string;
   expanded: boolean;
 }
-// TODO: FIXME! User is NOT profile (user is the auth user, profile is the user's profile)
+/**
+ * User - Represents a user in the SERVER/CHAT context (Discord-like)
+ * 
+ * Used for:
+ * - Server member lists
+ * - Voice channel participants
+ * - Chat message authors
+ * - Real-time presence tracking
+ * 
+ * Note: This is the user's representation within the chat/server system.
+ * For ActivityPub/federation contexts, use Profile instead.
+ * For auth context, use Supabase User from auth.getUser().
+ */
 export interface User {
   id: string;
   username?: string;
@@ -58,13 +70,24 @@ export interface User {
   color?: string;
   is_admin?: boolean;
   status: UserStatus;
-  roles?: Role[]; // Added for compatibility
+  roles?: Role[]; // Server-specific roles
   created_at?: string;
   updated_at?: string;
   last_seen?: string;
 }
 
-// Update interface to use bio instead of about
+/**
+ * Profile - Represents a user profile in the DATABASE/FEDERATION context
+ * 
+ * Used for:
+ * - ActivityPub federation (actors)
+ * - Database profiles table
+ * - User profile pages
+ * - Follow/follower relationships
+ * 
+ * Note: This is the canonical user representation stored in the database.
+ * Maps 1:1 with the profiles table and ActivityPub actors.
+ */
 export interface Profile {
   id: string;
   username: string;

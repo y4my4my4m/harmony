@@ -2317,37 +2317,54 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   /**
-   * Enhanced ActivityPub federation for group DMs
-   * Handles private mentions to multiple recipients
+   * ActivityPub federation for group DMs
+   * 
+   * NOTE: Federation is handled AUTOMATICALLY by the federation-backend service.
+   * The DatabaseListener.handleNewDM() function handles:
+   * 1. Getting all conversation participants
+   * 2. Filtering to remote/federated users only
+   * 3. Creating private ActivityPub Notes with direct addressing (to: [recipient])
+   * 4. Adding proper mention tags for all participants
+   * 5. Delivering to each external participant's inbox via DeliveryQueue
+   * 6. Handling delivery failures and retries
+   * 
+   * This client-side function is for validation/logging only.
+   * The actual federation happens when a message is inserted into the messages table.
+   * 
+   * @see federation-backend/src/listeners/DatabaseListener.ts handleNewDM()
    */
   const federateGroupDMMessage = async (
     message: any,
     participants: DMUser[]
   ): Promise<boolean> => {
     try {
-      debug.log('🌐 Federating group DM message to participants:', participants.length)
+      debug.log('🌐 Group DM message ready for federation:', {
+        messageId: message.id,
+        participantCount: participants.length
+      })
       
       // Filter for external (federated) participants
-      const externalParticipants = participants.filter(p => !p.is_local)
+      const externalParticipants = participants.filter(p => !p.is_local && p.domain)
       
       if (externalParticipants.length === 0) {
-        debug.log('📝 No external participants, skipping federation')
+        debug.log('📝 All participants are local, no federation needed')
         return true
       }
       
-      // TODO: Implement ActivityPub private group message federation
-      // This would involve:
-      // 1. Creating a private ActivityPub Note with multiple recipients
-      // 2. Setting proper addressing (to: participants, cc: none for privacy)
-      // 3. Adding mention tags for all participants
-      // 4. Delivering to each external participant's inbox
-      // 5. Handling delivery failures and retries
+      debug.log('📤 Federation will be handled by backend for external participants:', 
+        externalParticipants.map(p => `${p.username}@${p.domain}`)
+      )
       
-      debug.warn('🚧 Group DM federation not yet fully implemented')
-      return false
+      // Federation is handled automatically by the federation-backend when the message
+      // is inserted into the database. The DatabaseListener picks up new DM messages
+      // and federates them to all remote participants via ActivityPub.
+      // 
+      // See: federation-backend/src/listeners/DatabaseListener.ts handleNewDM()
+      
+      return true
       
     } catch (error) {
-      debug.error('❌ Failed to federate group DM message:', error)
+      debug.error('❌ Error in group DM federation check:', error)
       return false
     }
   }

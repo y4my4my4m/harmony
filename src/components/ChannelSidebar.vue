@@ -286,6 +286,13 @@
       @updated="handleCategoryUpdated"
     />
 
+    <ThreadEditModal
+      :show="showThreadEditModal"
+      :thread="selectedThread"
+      @close="closeThreadEditModal"
+      @updated="handleThreadUpdated"
+    />
+
     <!-- Confirmation Modal -->
     <ConfirmationModal
       :show="showConfirmationModal"
@@ -345,6 +352,7 @@ import ChannelEditModal from './ChannelEditModal.vue';
 import CategoryEditModal from './CategoryEditModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import ThreadContextMenu from './threads/ThreadContextMenu.vue';
+import ThreadEditModal from './ThreadEditModal.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
 import { supabase } from '@/supabase';
 
@@ -395,6 +403,10 @@ const isCategoryCreatorOpen = ref(false);
 const channelThreads = ref<Map<string, ThreadWithDetails[]>>(new Map());
 const selectedThreadId = ref<string | null>(null);
 const loadingThreads = ref(false);
+// Thread caching - track which server's threads are loaded and when
+const loadedThreadsServerId = ref<string | null>(null);
+const threadsLastFetchedAt = ref<Date | null>(null);
+const THREAD_CACHE_VALIDITY_MS = 60 * 1000; // 1 minute cache validity
 
 // Context menu state
 const showChannelContextMenu = ref(false);
@@ -408,6 +420,7 @@ const selectedThread = ref<ThreadWithDetails | null>(null);
 // Modal state
 const showChannelEditModal = ref(false);
 const showCategoryEditModal = ref(false);
+const showThreadEditModal = ref(false);
 const showConfirmationModal = ref(false);
 
 // Mobile voice channel preview state
@@ -723,12 +736,26 @@ const openInviteModal = () => showInviteModal.value = true;
 const closeInviteModal = () => showInviteModal.value = false;
 
 // Threads methods
-const loadActiveThreads = async () => {
+const loadActiveThreads = async (forceRefresh = false) => {
   if (!props.currentServer?.id) return;
+  
+  const serverId = props.currentServer.id;
+  
+  // Check cache validity - skip fetch if data is fresh and for the same server
+  if (!forceRefresh && 
+      loadedThreadsServerId.value === serverId && 
+      threadsLastFetchedAt.value && 
+      channelThreads.value.size > 0) {
+    const cacheAge = Date.now() - threadsLastFetchedAt.value.getTime();
+    if (cacheAge < THREAD_CACHE_VALIDITY_MS) {
+      debug.log(`📦 Threads cache still valid (${Math.round(cacheAge / 1000)}s old), skipping fetch`);
+      return;
+    }
+  }
   
   loadingThreads.value = true;
   try {
-    const threads = await threadService.getServerThreads(props.currentServer.id, { archived: false });
+    const threads = await threadService.getServerThreads(serverId, { archived: false });
     // Group threads by channel ID
     const grouped = new Map<string, ThreadWithDetails[]>();
     for (const thread of threads) {
@@ -739,6 +766,10 @@ const loadActiveThreads = async () => {
       grouped.get(channelId)!.push(thread);
     }
     channelThreads.value = grouped;
+    // Update cache metadata
+    loadedThreadsServerId.value = serverId;
+    threadsLastFetchedAt.value = new Date();
+    debug.log(`✅ Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
   } catch (error) {
     debug.error('Failed to load threads:', error);
     channelThreads.value = new Map();
@@ -773,10 +804,8 @@ const createCategory = async (categoryName: string) => {
   }
 };
 
-const handleChannelCreated = (channel: Channel) => {
-  selectChannel(channel.id);
-  serverChannelStore.fetchChannels(props.currentServer.id);
-};
+// NOTE: Channel creation is handled by CreateChannel.vue which emits to ChatLayout.vue
+// The realtime subscription automatically adds new channels to the store via _handleChannelInsert
 
 // Check if user is in voice channel (or optimistically joining it)
 const isUserInVoiceChannel = (channelId: string): boolean => {
@@ -931,26 +960,26 @@ const handleLeaveThread = async () => {
   if (!selectedThread.value) return;
   try {
     await threadService.leaveThread(selectedThread.value.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to leave thread:', error);
   }
 };
 
 const handleEditThread = (thread: ThreadWithDetails) => {
-  // TODO: Implement thread editing modal
-  debug.log('Edit thread:', thread.name);
+  selectedThread.value = thread;
+  showThreadEditModal.value = true;
 };
 
 const handleOpenSplitView = (thread: ThreadWithDetails) => {
-  // TODO: Implement split view functionality
-  debug.log('Open split view for thread:', thread.name);
+  // Emit the thread to open it in the panel (split view) instead of navigating to full-page view
+  emit('openThread', thread);
 };
 
 const handleCloseThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.archiveThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to close thread:', error);
   }
@@ -959,7 +988,7 @@ const handleCloseThread = async (thread: ThreadWithDetails) => {
 const handleReopenThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.unarchiveThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to reopen thread:', error);
   }
@@ -968,7 +997,7 @@ const handleReopenThread = async (thread: ThreadWithDetails) => {
 const handleLockThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.lockThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to lock thread:', error);
   }
@@ -977,7 +1006,7 @@ const handleLockThread = async (thread: ThreadWithDetails) => {
 const handleUnlockThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.unlockThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to unlock thread:', error);
   }
@@ -994,7 +1023,7 @@ const handleDeleteThread = (thread: ThreadWithDetails) => {
     onConfirm: async () => {
       try {
         await threadService.deleteThread(thread.id);
-        await loadActiveThreads();
+        await loadActiveThreads(true); // Force refresh after mutation
         closeConfirmationModal();
         // Navigate back to channel if we were viewing this thread
         if (selectedThreadId.value === thread.id) {
@@ -1020,9 +1049,14 @@ const handleDeleteThread = (thread: ThreadWithDetails) => {
 
 const closeChannelEditModal = () => showChannelEditModal.value = false;
 const closeCategoryEditModal = () => showCategoryEditModal.value = false;
+const closeThreadEditModal = () => showThreadEditModal.value = false;
 const closeConfirmationModal = () => showConfirmationModal.value = false;
 const handleChannelUpdated = (updatedChannel: Channel) => {}; // Store handles updates
 const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handles updates
+const handleThreadUpdated = () => {
+  // Refresh threads list after editing
+  loadActiveThreads(true); // Force refresh after mutation
+};
 
 // Lifecycle Hooks
 watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
@@ -1083,8 +1117,8 @@ const setupThreadsSubscription = () => {
       },
       (payload) => {
         debug.log('🧵 Thread change detected:', payload.eventType);
-        // Reload threads on any change (INSERT, UPDATE, DELETE)
-        loadActiveThreads();
+        // Reload threads on any change (INSERT, UPDATE, DELETE) - force refresh for external changes
+        loadActiveThreads(true);
       }
     )
     .subscribe();

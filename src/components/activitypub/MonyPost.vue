@@ -1189,7 +1189,7 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
   // Debug: log reaction data
-  console.log('🎯 Reaction tooltip data:', {
+  debug.log('🎯 Reaction tooltip data:', {
     emoji_name: reaction.emoji_name,
     reactors: reaction.reactors,
     user_reactions: reaction.user_reactions,
@@ -1207,7 +1207,7 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   
   // Add remote reactors from federated fetch
   const remoteUsers = (reaction.reactors || []).map((reactor: any) => {
-    console.log('🎯 Remote reactor:', reactor);
+    debug.log('🎯 Remote reactor:', reactor);
     return {
       id: `${reactor.username}@${reactor.domain}`,
       displayName: reactor.display_name || reactor.username || 'Unknown',

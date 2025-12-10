@@ -444,29 +444,19 @@ export class ProfileService {
     }
   }
 }
-// TODO: export these directly
 
-// Export singleton instance
-export const profileService = ProfileService.getInstance()
+// Singleton instance
+const profileServiceInstance = ProfileService.getInstance()
 
-// Export individual functions for compatibility with old imports
-export const updateUserStatus = (userId: string, status: number) => 
-  profileService.updateUserStatus(userId, status)
+// Export singleton as default and named export
+export const profileService = profileServiceInstance
 
-export const getProfile = (userId: string) => 
-  profileService.fetchProfile(userId)
-
-export const getProfileWithAvatarUrl = (userId: string) => 
-  profileService.getProfileWithAvatarUrl(userId)
-
-export const getProfileByAuthUserId = (authUserId: string) => 
-  profileService.fetchProfileByAuthUserId(authUserId)
-
-export const updateProfile = (profileData: ProfileData) => 
-  profileService.updateProfile(profileData)
-
-export const uploadAvatar = (file: File, userId: string) => 
-  profileService.uploadAvatar(file, userId)
-
-export const uploadBanner = (file: File, userId: string) => 
-  profileService.uploadBanner(file, userId)
+// Direct function exports for legacy compatibility
+// These proxy to the singleton instance methods
+export const updateUserStatus = profileServiceInstance.updateUserStatus.bind(profileServiceInstance)
+export const getProfile = profileServiceInstance.fetchProfile.bind(profileServiceInstance)
+export const getProfileWithAvatarUrl = profileServiceInstance.getProfileWithAvatarUrl.bind(profileServiceInstance)
+export const getProfileByAuthUserId = profileServiceInstance.fetchProfileByAuthUserId.bind(profileServiceInstance)
+export const updateProfile = profileServiceInstance.updateProfile.bind(profileServiceInstance)
+export const uploadAvatar = profileServiceInstance.uploadAvatar.bind(profileServiceInstance)
+export const uploadBanner = profileServiceInstance.uploadBanner.bind(profileServiceInstance)

@@ -1,6 +1,6 @@
 # Harmony - TODO & Technical Debt
 
-**Last Updated:** December 2024  
+**Last Updated:** December 2025 
 **Analysis Date:** Full codebase scan completed
 
 ---
@@ -14,7 +14,7 @@
 The notification system has multiple interconnected issues that need a comprehensive fix:
 
 #### Current Problems:
-- **DM Spam**: Sometimes generates multiple notifications for a single DM
+- **DM Spam**: Every single DM creates a generation, even if we are already in the DM
 - **Missing Notifications**: Some events don't trigger notifications when they should
 - **Broken Click Navigation**: Clicking notifications doesn't always navigate to the correct location
   - `handleNotificationClick()` in `useNotification.ts` has edge cases where `navData` is undefined
@@ -132,7 +132,7 @@ Lists view exists but:
 // TODO: fix for mobile
 ```
 
-- User profile section hidden on mobile with no alternative
+- User profile section hidden on mobile with no alternative (verify this is actually true?)
 - Some components don't adapt properly to small screens
 
 ---
@@ -325,6 +325,12 @@ Only `CoreMessageService` is complete. The modular core service architecture is 
 10. Type refactoring (User vs Profile)
 
 ---
+
+
+- create channel/create category triggers twice (probably realtime + actual rest call?)
+- threads don't properly use cache like channels do
+
+
 
 *This document should be updated as issues are resolved or new ones discovered.*
 

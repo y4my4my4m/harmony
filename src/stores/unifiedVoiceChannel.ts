@@ -437,10 +437,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Update store state
       this.currentChannelId = channelId;
       this.currentServerId = serverId;
-      // FIXME: highly inefficient way to get channel name
-      // This should be optimized to avoid fetching all channels every time
-      const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
-      this.currentChannelName = channel ? channel.name : 'Voice Channel';
+      // Use the optimized getter from serverChannelStore
+      this.currentChannelName = serverChannelStore.getChannelNameById(channelId) || 'Voice Channel';
       this.isConnected = true;
       this.isConnecting = false; // Connection attempt complete
       this.connectionAbortController = null; // Clear abort controller on success

@@ -1223,22 +1223,325 @@ class AdminService {
   }
 
   /**
-   * Search for ActivityPub instances online
+   * Search for ActivityPub instances using external discovery APIs
+   * Integrates with instances.social and fediverse.observer
    */
   async searchActivityPubInstances(query: string): Promise<InstanceSearchResult[]> {
     try {
-      // This would integrate with instance discovery services
-      // For now, return empty array as this requires external APIs
-      
-      // TODO: Integrate with:
-      // - instances.social API
-      // - fediverse.info API
-      // - Manual domain validation
-      
       debug.log(`Searching for instances matching: ${query}`);
-      return [];
+      
+      const results: InstanceSearchResult[] = [];
+      
+      // If query looks like a domain, try direct discovery first
+      if (query.includes('.') && !query.includes(' ')) {
+        const directResult = await this.discoverInstance(query);
+        if (directResult) {
+          results.push(directResult);
+        }
+      }
+      
+      // Try instances.social API (rate limited, but free)
+      const instancesSocialResults = await this.searchInstancesSocial(query);
+      results.push(...instancesSocialResults);
+      
+      // Try fediverse.observer API as fallback/additional source
+      const fediverseObserverResults = await this.searchFediverseObserver(query);
+      
+      // Merge results, avoiding duplicates by domain
+      const seenDomains = new Set(results.map(r => r.domain.toLowerCase()));
+      for (const result of fediverseObserverResults) {
+        if (!seenDomains.has(result.domain.toLowerCase())) {
+          results.push(result);
+          seenDomains.add(result.domain.toLowerCase());
+        }
+      }
+      
+      debug.log(`Found ${results.length} instances matching "${query}"`);
+      return results;
     } catch (error) {
       debug.error('Failed to search ActivityPub instances:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search instances using instances.social API
+   * https://instances.social/api/doc/
+   */
+  private async searchInstancesSocial(query: string): Promise<InstanceSearchResult[]> {
+    try {
+      // instances.social requires an API token for full access
+      // For now, use the limited public endpoint
+      const response = await fetch(
+        `https://instances.social/api/1.0/instances/search?q=${encodeURIComponent(query)}&count=20`,
+        {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        // API might require authentication or be rate-limited
+        debug.warn('instances.social API request failed:', response.status);
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data.instances || !Array.isArray(data.instances)) {
+        return [];
+      }
+
+      return data.instances.map((instance: any) => ({
+        domain: instance.name || instance.domain,
+        software: instance.info?.software?.name || 'mastodon',
+        version: instance.info?.software?.version,
+        description: instance.info?.short_description || instance.info?.description,
+        user_count: instance.users || 0,
+        status_count: instance.statuses || 0,
+        admin_contact: instance.admin,
+        api_available: true,
+        federation_enabled: !instance.dead
+      }));
+    } catch (error) {
+      debug.warn('instances.social search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search instances using fediverse.observer API
+   * https://fediverse.observer/api
+   */
+  private async searchFediverseObserver(query: string): Promise<InstanceSearchResult[]> {
+    try {
+      // fediverse.observer provides a GraphQL API
+      const response = await fetch('https://api.fediverse.observer/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          query: `
+            query SearchInstances($query: String!) {
+              nodes(softwarename: $query) {
+                domain
+                softwarename
+                version
+                active_users_monthly
+                total_users
+                local_posts
+                name
+              }
+            }
+          `,
+          variables: { query }
+        })
+      });
+
+      if (!response.ok) {
+        debug.warn('fediverse.observer API request failed:', response.status);
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
+        // If query doesn't match software, try as domain search
+        return await this.searchFediverseObserverByDomain(query);
+      }
+
+      return data.data.nodes.map((node: any) => ({
+        domain: node.domain,
+        software: node.softwarename,
+        version: node.version,
+        description: node.name,
+        user_count: node.total_users || node.active_users_monthly || 0,
+        status_count: node.local_posts || 0,
+        api_available: true,
+        federation_enabled: true
+      }));
+    } catch (error) {
+      debug.warn('fediverse.observer search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search fediverse.observer by domain pattern
+   */
+  private async searchFediverseObserverByDomain(query: string): Promise<InstanceSearchResult[]> {
+    try {
+      const response = await fetch('https://api.fediverse.observer/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          query: `
+            query SearchByDomain {
+              nodes(domain: "${query}") {
+                domain
+                softwarename
+                version
+                active_users_monthly
+                total_users
+                local_posts
+                name
+              }
+            }
+          `
+        })
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
+        return [];
+      }
+
+      return data.data.nodes.slice(0, 20).map((node: any) => ({
+        domain: node.domain,
+        software: node.softwarename,
+        version: node.version,
+        description: node.name,
+        user_count: node.total_users || node.active_users_monthly || 0,
+        status_count: node.local_posts || 0,
+        api_available: true,
+        federation_enabled: true
+      }));
+    } catch (error) {
+      debug.warn('fediverse.observer domain search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get popular/recommended instances from discovery services
+   */
+  async getPopularInstances(limit: number = 20): Promise<InstanceSearchResult[]> {
+    try {
+      debug.log('Fetching popular instances...');
+      
+      // Try to get popular instances from fediverse.observer
+      const response = await fetch('https://api.fediverse.observer/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          query: `
+            query PopularInstances {
+              nodes(softwarename: "mastodon") {
+                domain
+                softwarename
+                version
+                active_users_monthly
+                total_users
+                local_posts
+                name
+              }
+            }
+          `
+        })
+      });
+
+      if (!response.ok) {
+        debug.warn('Failed to fetch popular instances');
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
+        return [];
+      }
+
+      // Sort by active users and return top instances
+      const sorted = data.data.nodes
+        .filter((node: any) => node.active_users_monthly > 100) // Only active instances
+        .sort((a: any, b: any) => (b.active_users_monthly || 0) - (a.active_users_monthly || 0))
+        .slice(0, limit);
+
+      return sorted.map((node: any) => ({
+        domain: node.domain,
+        software: node.softwarename,
+        version: node.version,
+        description: node.name,
+        user_count: node.total_users || node.active_users_monthly || 0,
+        status_count: node.local_posts || 0,
+        api_available: true,
+        federation_enabled: true
+      }));
+    } catch (error) {
+      debug.error('Failed to get popular instances:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get instances by software type (mastodon, pleroma, misskey, etc.)
+   */
+  async getInstancesBySoftware(software: string, limit: number = 20): Promise<InstanceSearchResult[]> {
+    try {
+      debug.log(`Fetching ${software} instances...`);
+      
+      const response = await fetch('https://api.fediverse.observer/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          query: `
+            query InstancesBySoftware($software: String!) {
+              nodes(softwarename: $software) {
+                domain
+                softwarename
+                version
+                active_users_monthly
+                total_users
+                local_posts
+                name
+              }
+            }
+          `,
+          variables: { software: software.toLowerCase() }
+        })
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
+        return [];
+      }
+
+      return data.data.nodes
+        .slice(0, limit)
+        .map((node: any) => ({
+          domain: node.domain,
+          software: node.softwarename,
+          version: node.version,
+          description: node.name,
+          user_count: node.total_users || node.active_users_monthly || 0,
+          status_count: node.local_posts || 0,
+          api_available: true,
+          federation_enabled: true
+        }));
+    } catch (error) {
+      debug.error(`Failed to get ${software} instances:`, error);
       return [];
     }
   }

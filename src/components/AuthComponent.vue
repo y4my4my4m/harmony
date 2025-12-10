@@ -530,8 +530,8 @@ const handleOAuthLogin = async (providerId: string) => {
     // Check if user is already logged in - if so, warn them about potential account linking
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
-      console.warn('⚠️ User is already logged in when initiating OAuth. This may cause account linking.')
-      console.log('Current session:', {
+      debug.warn('⚠️ User is already logged in when initiating OAuth. This may cause account linking.')
+      debug.log('Current session:', {
         userId: session.user.id,
         email: session.user.email,
         existingIdentities: session.user.identities?.map((id: any) => ({

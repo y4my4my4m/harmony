@@ -54,7 +54,7 @@ export function useKonamiCode(onActivate: () => void) {
       
       // Check if sequence is complete
       if (sequence.value.length === KONAMI_SEQUENCE.length) {
-        console.log('🎮 [Konami] Code activated!')
+        debug.log('🎮 [Konami] Code activated!')
         isActive.value = true
         onActivate()
         sequence.value = []
@@ -85,7 +85,7 @@ export function useKonamiCode(onActivate: () => void) {
 
   onMounted(() => {
     window.addEventListener('keydown', handleKeyDown, { capture: true })
-    console.log('🎮 [Konami] Detector initialized')
+    debug.log('🎮 [Konami] Detector initialized')
   })
 
   onUnmounted(() => {
