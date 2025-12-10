@@ -840,7 +840,7 @@ Connect to other platforms (Discord, Matrix, IRC).
 ## 📞 Support
 
 - Documentation: https://docs.har.mony.lol
-- GitHub: https://github.com/y4my4my4m/armony-bot-api
+- GitHub: https://github.com/y4my4my4m/harmony-bot-api
 
 
 ## 📄 License
