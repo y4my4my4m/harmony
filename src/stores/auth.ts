@@ -3,6 +3,7 @@ import { supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
 import { useChatStore } from '@/stores/useChat';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
@@ -276,6 +277,11 @@ export const useAuthStore = defineStore('auth', {
             // ✅ CRITICAL: Re-initialize user settings after login
             // This ensures theme and other settings load for the new user
             this.initializeUserSettings(session.user.id);
+            
+            // ✅ Load blocking/muting data immediately after login
+            // This ensures blocked users are hidden in all views
+            const activityPubStore = useActivityPubStore();
+            activityPubStore.loadBlockingData();
           }
           return;
         }
@@ -289,6 +295,11 @@ export const useAuthStore = defineStore('auth', {
               // Set user-scoped storage for the current user
               userStorage.setCurrentUser(session.user.id);
               this.setupOfflineHandlers(session.user.id);
+              
+              // ✅ Load blocking/muting data on app startup
+              // This ensures blocked users are hidden in all views
+              const activityPubStore = useActivityPubStore();
+              activityPubStore.loadBlockingData();
             }
           }
           return;

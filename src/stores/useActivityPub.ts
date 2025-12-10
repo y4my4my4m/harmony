@@ -316,6 +316,19 @@ export const useActivityPubStore = defineStore('activitypub', {
 
   actions: {
     /**
+     * Load just the essential blocking/muting data
+     * Can be called independently of full store initialization
+     */
+    async loadBlockingData() {
+      debug.log('🚫 Loading blocking/muting data...');
+      await Promise.all([
+        this.loadBlockedUsers(),
+        this.loadMutedUsers()
+      ]);
+      debug.log(`🚫 Blocking data loaded: ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
+    },
+    
+    /**
      * Initialize the ActivityPub store with enhanced realtime
      */
     async initialize() {
@@ -2967,25 +2980,24 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔄 Loading blocked users...');
         
-        const { userDataService } = await import('@/services/userDataService');
-        const currentUser = userDataService.getCurrentUser();
-        if (!currentUser?.id) {
-          debug.log('ℹ️ No current user, skipping blocked users loading');
-          return;
-        }
-
+        // Let RLS handle filtering - it will only return blocks where blocker_id = current profile
+        // This is more reliable than trying to match IDs ourselves
         const { data, error } = await supabase
           .from('user_blocks')
-          .select('blocked_user_id')
-          .eq('blocker_id', currentUser.id);
+          .select('blocked_user_id, blocker_id');
 
         if (error) {
           debug.error('❌ Failed to load blocked users:', error);
           return;
         }
         
-        this.blockedUsers = new Set(data?.map(b => b.blocked_user_id) || []);
-        debug.log(`✅ Loaded ${this.blockedUsers.size} blocked users`);
+        debug.log('📊 Raw blocked users data from DB:', data);
+        
+        // Clear and repopulate the Set instead of replacing it
+        // This preserves reactivity for storeToRefs consumers
+        this.blockedUsers.clear();
+        (data || []).forEach(b => this.blockedUsers.add(b.blocked_user_id));
+        debug.log(`✅ Loaded ${this.blockedUsers.size} blocked users:`, Array.from(this.blockedUsers));
       } catch (error) {
         debug.error('❌ Failed to load blocked users:', error);
       }
@@ -2999,25 +3011,23 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔄 Loading muted users...');
         
-        const { userDataService } = await import('@/services/userDataService');
-        const currentUser = userDataService.getCurrentUser();
-        if (!currentUser?.id) {
-          debug.log('ℹ️ No current user, skipping muted users loading');
-          return;
-        }
-
+        // Let RLS handle filtering - it will only return mutes where muter_id = current profile
         const { data, error } = await supabase
           .from('user_mutes')
-          .select('muted_user_id')
-          .eq('muter_id', currentUser.id);
+          .select('muted_user_id, muter_id');
 
         if (error) {
           debug.error('❌ Failed to load muted users:', error);
           return;
         }
         
-        this.mutedUsers = new Set(data?.map(m => m.muted_user_id) || []);
-        debug.log(`✅ Loaded ${this.mutedUsers.size} muted users`);
+        debug.log('📊 Raw muted users data from DB:', data);
+        
+        // Clear and repopulate the Set instead of replacing it
+        // This preserves reactivity for storeToRefs consumers
+        this.mutedUsers.clear();
+        (data || []).forEach(m => this.mutedUsers.add(m.muted_user_id));
+        debug.log(`✅ Loaded ${this.mutedUsers.size} muted users:`, Array.from(this.mutedUsers));
       } catch (error) {
         debug.error('❌ Failed to load muted users:', error);
       }
