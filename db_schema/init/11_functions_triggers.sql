@@ -645,6 +645,7 @@ END;
 $$;
 
 -- Queue block for federation
+-- NOTE: Column is 'blocked_user_id', NOT 'blocked_id'
 CREATE OR REPLACE FUNCTION public.trigger_queue_block_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -653,8 +654,34 @@ AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
         NEW.federation_status := 'queued';
+        
+        -- Queue federation job with correct column name
+        PERFORM public.queue_federation_job(
+            'federate-block',
+            jsonb_build_object(
+                'type', 'create',
+                'block_id', NEW.id,
+                'blocker_id', NEW.blocker_id,
+                'blocked_user_id', NEW.blocked_user_id
+            ),
+            3,
+            3,
+            1800
+        );
         RETURN NEW;
     ELSIF TG_OP = 'DELETE' THEN
+        PERFORM public.queue_federation_job(
+            'federate-block',
+            jsonb_build_object(
+                'type', 'delete',
+                'block_id', OLD.id,
+                'blocker_id', OLD.blocker_id,
+                'blocked_user_id', OLD.blocked_user_id
+            ),
+            3,
+            3,
+            1800
+        );
         RETURN OLD;
     END IF;
     RETURN NULL;
