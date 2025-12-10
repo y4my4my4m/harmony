@@ -32,11 +32,19 @@ export interface ServerFolder {
 export interface Channel {
   id: string;
   name: string;
-  // type: 'text' | 'voice';
+  // type: 0=text, 1=voice, 2=category
   type: number;
+  // The category this channel belongs to (references channel_categories.id)
+  // NOTE: Database column is 'category', NOT 'category_id'
   category: string | null;
-  category_id: string | null; // Added for compatibility
   order: number;
+  // Optional fields from database
+  server_id?: string;
+  description?: string;
+  is_private?: boolean;
+  ap_id?: string;
+  is_remote?: boolean;
+  federation_status?: string;
 }
 
 
