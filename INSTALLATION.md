@@ -16,11 +16,22 @@ Complete guide for deploying your own Harmony instance.
 
 ## Choose Your Deployment Method
 
-| Method | Best For | Difficulty | Cost |
-|--------|----------|------------|------|
-| **Vercel + Supabase Cloud** | Quick start, low traffic | Easy | Free tier available |
-| **Docker Compose** | Self-hosting, medium traffic | Medium | VPS costs (~$5-20/mo) |
-| **Manual VPS** | Full control, high traffic | Advanced | VPS costs |
+| Method | Best For | Difficulty | Monthly Cost | Features |
+|--------|----------|------------|--------------|----------|
+| **Vercel + Supabase Cloud** | Quick start, testing | Easy | Free* | ⚠️ No voice, limited federation |
+| **Docker Compose + Cloud Services** | Production, medium traffic | Medium | ~$5-10 | ✅ Full features |
+| **Full Self-Hosted VPS** | Full control, privacy | Advanced | ~$10-20 | ✅ Full features |
+
+**\*Vercel Limitations**: Serverless architecture means no persistent connections (pg-boss disabled), no WebSocket support (no voice/video, no bot gateway). Good for testing, not recommended for production.
+
+### Recommended Services (with Free Tiers)
+
+| Service | Free Tier | Used For |
+|---------|-----------|----------|
+| [Supabase Cloud](https://supabase.com) | ✅ 500MB DB, 1GB storage | Database, Auth, Storage |
+| [LiveKit Cloud](https://livekit.io) | ✅ Limited minutes | Voice/Video |
+| [Resend](https://resend.com) | ✅ 3,000 emails/month | Transactional emails |
+| [Railway](https://railway.app) / [Render](https://render.com) | ⚠️ ~$5/mo minimum | Backend hosting |
 
 ---
 
@@ -410,6 +421,56 @@ curl https://your-domain.com/.well-known/nodeinfo
    - `webrtc/livekit.yaml`
 
 3. For production, ensure TURN server is configured
+
+---
+
+## Email Setup (Recommended)
+
+Harmony uses email for:
+- User registration confirmations (via Supabase Auth)
+- Password reset emails (via Supabase Auth)
+- Notification emails (via federation-backend)
+
+### Option 1: Resend (Recommended)
+
+[Resend](https://resend.com) offers 3,000 emails/month free.
+
+**Step 1: Get Resend API Key**
+1. Sign up at [resend.com](https://resend.com)
+2. Add and verify your domain
+3. Create an API key
+
+**Step 2: Configure Supabase Auth Emails**
+
+In Supabase Dashboard:
+1. Go to **Authentication** > **Email Templates**
+2. Enable **Custom SMTP**
+3. Enter:
+   - Host: `smtp.resend.com`
+   - Port: `465`
+   - Username: `resend`
+   - Password: Your API key
+   - Sender email: `noreply@yourdomain.com`
+
+**Step 3: Configure Federation Backend**
+
+In `federation-backend/.env`:
+```env
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=465
+SMTP_USER=resend
+SMTP_PASS=re_your_api_key
+SMTP_FROM=notifications@yourdomain.com
+SMTP_SECURE=true
+```
+
+### Option 2: Other SMTP Providers
+
+Any SMTP provider works:
+- **SendGrid**: 100 emails/day free
+- **Mailgun**: 5,000 emails/month (3 months)
+- **AWS SES**: ~$0.10/1000 emails
+- **Self-hosted** (Postal, Mailcow): Free but requires setup
 
 ---
 

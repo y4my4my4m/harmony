@@ -11,13 +11,20 @@ This deployment method runs:
 | **Frontend** | Vercel CDN | Static Vue/Vite build |
 | **Federation Backend** | Vercel Serverless | ActivityPub, WebFinger, link previews |
 | **Database** | Supabase | PostgreSQL + Realtime + Auth + Storage |
-| **Voice/Video** | LiveKit Cloud (optional) | Requires separate setup |
+| **Voice/Video** | ✅ LiveKit Cloud | Tokens generated in Supabase (no VPS!) |
 | **Bots** | ❌ Not supported | Requires persistent WebSocket |
 
-**Important Limitations:**
+**Limitations:**
 - ⚠️ **No pg-boss queue** - Vercel serverless doesn't support persistent connections. Federation uses database triggers (less reliable but works).
 - ⚠️ **Cold starts** - First request after idle may be slow (1-3s).
 - ⚠️ **No bot gateway** - Requires separate VPS deployment.
+
+**What DOES work:**
+- ✅ Full chat (servers, channels, DMs)
+- ✅ Timeline/social features
+- ✅ ActivityPub federation (basic)
+- ✅ **Voice/Video** (via LiveKit Cloud + Supabase token generation)
+- ✅ File uploads, reactions, threads
 
 **Estimated time**: 15-30 minutes
 
@@ -122,7 +129,7 @@ The integration auto-sets some variables. You only need to add:
 | `INSTANCE_NAME` | `My Harmony` | Same, for backend |
 | `CORS_ORIGIN` | `https://your-app.vercel.app` | Full URL with https |
 | `USE_PGBOSS_QUEUE` | `false` | **Must be false** for Vercel |
-| `VITE_ENABLE_VOICE` | `false` | Unless you have LiveKit |
+| `VITE_ENABLE_VOICE` | `true` | Voice works! See Step 6 |
 
 ### If Setting Up Manually
 
@@ -141,7 +148,7 @@ Add all required variables:
 | `INSTANCE_NAME` | `My Harmony` | Same |
 | `CORS_ORIGIN` | `https://your-app.vercel.app` | Full URL with https |
 | `USE_PGBOSS_QUEUE` | `false` | **Must be false** for Vercel |
-| `VITE_ENABLE_VOICE` | `false` | Unless you have LiveKit |
+| `VITE_ENABLE_VOICE` | `true` | Voice works! See Step 6 |
 
 ---
 
@@ -201,29 +208,68 @@ Then redeploy.
 
 ## Step 6: Add Voice/Video (Optional)
 
-Voice/video requires LiveKit, which cannot run on Vercel serverless.
+**Good news!** Voice works with Vercel + Supabase — **no VPS needed!**
 
-### Option A: LiveKit Cloud (Easiest)
+Harmony generates LiveKit tokens directly in Supabase using the `pgjwt` extension. You just need a LiveKit Cloud account (free tier available).
 
-1. Sign up at [livekit.io](https://livekit.io)
+### Step 6.1: Set Up LiveKit Cloud
+
+1. Sign up at [livekit.io](https://livekit.io) (free tier: 500 participant-minutes/month)
 2. Create a new project
-3. Get your API Key and Secret
-4. Add to Vercel environment variables:
+3. Get your:
+   - **API Key** (looks like `APIxxxx`)
+   - **API Secret** (looks like `xxxxxxxxxxxxxxxxxxxx`)
+   - **WebSocket URL** (looks like `wss://your-project.livekit.cloud`)
+
+### Step 6.2: Add to Vercel Environment Variables
 
 | Variable | Value |
 |----------|-------|
 | `VITE_LIVEKIT_URL` | `wss://your-project.livekit.cloud` |
 | `VITE_ENABLE_VOICE` | `true` |
-| `LIVEKIT_API_KEY` | Your API key |
-| `LIVEKIT_API_SECRET` | Your secret |
-| `LIVEKIT_URL` | `wss://your-project.livekit.cloud` |
 
-### Option B: Self-Hosted LiveKit
+### Step 6.3: Configure LiveKit in Supabase
 
-Deploy LiveKit on a VPS and point to it:
+Run this SQL in Supabase SQL Editor (or use the Admin Panel after first login):
+
+```sql
+-- First, enable pgjwt extension if not already
+CREATE EXTENSION IF NOT EXISTS pgjwt WITH SCHEMA extensions;
+
+-- Run the LiveKit token functions
+-- (Copy content from db_schema/init/95_livekit_tokens.sql)
+
+-- Then configure LiveKit credentials:
+UPDATE instance_webrtc_settings SET
+  livekit_url = 'wss://your-project.livekit.cloud',
+  livekit_api_key = 'APIxxxx',
+  livekit_api_secret = 'your-secret-here',
+  webrtc_mode = 'sfu',
+  allow_federated_voice = false;
+```
+
+**Important:** The API Secret is stored securely in the database and never exposed to the frontend. Token generation happens server-side via RPC.
+
+### Step 6.4: Redeploy
+
+Redeploy your Vercel app to pick up the new environment variables.
+
+### How It Works
+
+1. User joins a voice channel
+2. Frontend calls `supabase.rpc('generate_livekit_token', { room_name: '...' })`
+3. Supabase generates a JWT signed with your API secret (using pgjwt)
+4. Token is returned to frontend
+5. Frontend connects to LiveKit Cloud with the token
+
+**No backend server required!** 🎉
+
+### Alternative: Self-Hosted LiveKit
+
+If you prefer to run your own LiveKit server:
 
 ```yaml
-# On your VPS with docker-compose
+# On a VPS with docker-compose
 services:
   livekit:
     image: livekit/livekit-server:latest
@@ -236,7 +282,7 @@ services:
     command: --config /livekit.yaml
 ```
 
-Then add environment variables pointing to your VPS.
+Then update your `instance_webrtc_settings` with your VPS's LiveKit URL.
 
 ---
 

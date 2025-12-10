@@ -50,6 +50,10 @@
 \i 50_realtime.sql
 
 \echo ''
+\echo '>>> 95_livekit_tokens.sql - Creating LiveKit token functions...'
+\i 95_livekit_tokens.sql
+
+\echo ''
 \echo '>>> 98_seed_data.sql - Inserting default configuration...'
 \i 98_seed_data.sql
 

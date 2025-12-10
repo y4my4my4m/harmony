@@ -386,10 +386,13 @@ CREATE TABLE IF NOT EXISTS public.instance_webrtc_settings (
     
     webrtc_mode text DEFAULT 'hybrid'::text,
     
-    livekit_url text,
-    livekit_public_url text,
+    -- LiveKit configuration
+    livekit_url text,                -- WebSocket URL (wss://...)
+    livekit_public_url text,         -- Public URL if different
+    livekit_api_key text,            -- API Key (APIxxxx)
+    livekit_api_secret text,         -- API Secret (SENSITIVE - never expose!)
     
-    -- TURN servers
+    -- TURN servers (for P2P fallback)
     turn_servers jsonb DEFAULT '[]'::jsonb,
     
     -- Federation

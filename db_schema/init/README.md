@@ -33,6 +33,8 @@ psql -h localhost -p 54322 -U postgres -d postgres
 \i 30_rls_policies.sql
 \i 40_triggers.sql
 \i 50_realtime.sql
+\i 95_livekit_tokens.sql
+\i 98_seed_data.sql
 \i 99_storage_buckets.sql
 ```
 
@@ -62,6 +64,7 @@ psql -h localhost -p 54322 -U postgres -d postgres -f init.sql
 | 30 | rls_policies.sql | Row Level Security policies |
 | 40 | triggers.sql | Database triggers |
 | 50 | realtime.sql | Supabase Realtime publications |
+| 95 | livekit_tokens.sql | LiveKit token generation (voice/video without backend) |
 | 98 | seed_data.sql | Default instance configuration |
 | 99 | storage_buckets.sql | Storage buckets and policies |
 

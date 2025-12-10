@@ -9,6 +9,7 @@ import { useVisualTheme } from '@/composables/useVisualTheme'
 import { setLocale } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { debug } from '@/utils/debug'
 
 /**
@@ -18,6 +19,10 @@ export async function initializeAppSettings() {
   debug.log('🚀 Initializing app settings...')
   
   try {
+    // Initialize instance settings first (affects UI visibility)
+    const instanceSettings = useInstanceSettingsStore()
+    await instanceSettings.fetchSettings()
+    
     // Initialize visual theme system
     const visualTheme = useVisualTheme()
     await visualTheme.initialize()
