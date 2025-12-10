@@ -19,7 +19,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     status smallint DEFAULT 0,
     
     -- Federation fields
-    domain text DEFAULT 'har.mony.lol'::text NOT NULL,
+    -- Domain of the user's instance
+    -- For local users: set from instance_config 'domain' during profile creation
+    -- For federated users: the remote instance domain
+    -- Default 'localhost' is for development; production instances MUST configure this
+    domain text DEFAULT 'localhost'::text NOT NULL,
     federated_id text,
     public_key text,
     -- Note: private_key is stored in user_private_keys table, NOT here
