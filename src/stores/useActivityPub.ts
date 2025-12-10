@@ -2530,7 +2530,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         debug.log('✅ List updated:', updatedList.title);
-        return this.lists[index];
+        // Return the updated list from local state if found, otherwise return server response
+        return index !== -1 ? this.lists[index] : updatedList;
       } catch (error) {
         debug.error('Failed to update list:', error);
         throw error;

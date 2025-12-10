@@ -1223,36 +1223,43 @@ class AdminService {
   }
 
   /**
-   * Search for ActivityPub instances using external discovery APIs
-   * Integrates with instances.social and fediverse.observer
+   * Search for ActivityPub instances using DIRECT probing
+   * No 3rd party APIs - we query the instances directly using standard ActivityPub/Nodeinfo endpoints
    */
   async searchActivityPubInstances(query: string): Promise<InstanceSearchResult[]> {
     try {
-      debug.log(`Searching for instances matching: ${query}`);
+      debug.log(`Searching for instance: ${query}`);
       
       const results: InstanceSearchResult[] = [];
       
-      // If query looks like a domain, try direct discovery first
+      // If query looks like a domain, probe it directly
       if (query.includes('.') && !query.includes(' ')) {
         const directResult = await this.discoverInstance(query);
         if (directResult) {
           results.push(directResult);
         }
-      }
-      
-      // Try instances.social API (rate limited, but free)
-      const instancesSocialResults = await this.searchInstancesSocial(query);
-      results.push(...instancesSocialResults);
-      
-      // Try fediverse.observer API as fallback/additional source
-      const fediverseObserverResults = await this.searchFediverseObserver(query);
-      
-      // Merge results, avoiding duplicates by domain
-      const seenDomains = new Set(results.map(r => r.domain.toLowerCase()));
-      for (const result of fediverseObserverResults) {
-        if (!seenDomains.has(result.domain.toLowerCase())) {
-          results.push(result);
-          seenDomains.add(result.domain.toLowerCase());
+      } else {
+        // For non-domain queries, try common TLDs
+        const commonTLDs = ['.social', '.masto.host', '.online', '.world', '.cloud', '.space'];
+        const probeDomains = commonTLDs.map(tld => `${query}${tld}`);
+        
+        // Also try the query as-is with common suffixes
+        probeDomains.push(`${query}.com`, `${query}.org`, `${query}.net`);
+        
+        // Probe domains in parallel (limit concurrency)
+        const probePromises = probeDomains.slice(0, 5).map(async domain => {
+          try {
+            return await this.discoverInstance(domain);
+          } catch {
+            return null;
+          }
+        });
+        
+        const probeResults = await Promise.allSettled(probePromises);
+        for (const result of probeResults) {
+          if (result.status === 'fulfilled' && result.value) {
+            results.push(result.value);
+          }
         }
       }
       
@@ -1265,166 +1272,160 @@ class AdminService {
   }
 
   /**
-   * Search instances using instances.social API
-   * https://instances.social/api/doc/
+   * Discover an instance by probing it directly
+   * Uses standard ActivityPub/Nodeinfo endpoints
    */
-  private async searchInstancesSocial(query: string): Promise<InstanceSearchResult[]> {
+  async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
     try {
-      // instances.social requires an API token for full access
-      // For now, use the limited public endpoint
-      const response = await fetch(
-        `https://instances.social/api/1.0/instances/search?q=${encodeURIComponent(query)}&count=20`,
-        {
-          headers: {
-            'Accept': 'application/json'
+      // Clean the domain
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+      debug.log(`Probing instance: ${cleanDomain}`);
+      
+      // Try Nodeinfo first (most universal)
+      const nodeinfoResult = await this.probeNodeinfo(cleanDomain);
+      if (nodeinfoResult) {
+        return nodeinfoResult;
+      }
+      
+      // Try Mastodon API as fallback
+      const mastodonResult = await this.probeMastodonAPI(cleanDomain);
+      if (mastodonResult) {
+        return mastodonResult;
+      }
+      
+      // Try ActivityPub actor endpoint as last resort
+      const actorResult = await this.probeActivityPubActor(cleanDomain);
+      if (actorResult) {
+        return actorResult;
+      }
+      
+      debug.log(`Could not discover instance: ${cleanDomain}`);
+      return null;
+    } catch (error) {
+      debug.warn(`Instance discovery failed for ${domain}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Probe instance using Nodeinfo (standard for Fediverse)
+   */
+  private async probeNodeinfo(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // First, get the nodeinfo location
+      const wellKnownResponse = await fetch(`https://${domain}/.well-known/nodeinfo`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (!wellKnownResponse.ok) return null;
+      
+      const wellKnown = await wellKnownResponse.json();
+      
+      // Find nodeinfo 2.0 or 2.1 URL
+      const nodeinfoUrl = wellKnown.links?.find((link: any) => 
+        link.rel?.includes('nodeinfo') && (link.rel.includes('2.0') || link.rel.includes('2.1'))
+      )?.href;
+      
+      if (!nodeinfoUrl) return null;
+      
+      // Fetch the actual nodeinfo
+      const nodeinfoResponse = await fetch(nodeinfoUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (!nodeinfoResponse.ok) return null;
+      
+      const nodeinfo = await nodeinfoResponse.json();
+      
+      return {
+        domain: domain,
+        software: nodeinfo.software?.name || 'unknown',
+        version: nodeinfo.software?.version,
+        description: nodeinfo.metadata?.nodeDescription || nodeinfo.metadata?.nodeName,
+        user_count: nodeinfo.usage?.users?.total || 0,
+        status_count: nodeinfo.usage?.localPosts || 0,
+        api_available: true,
+        federation_enabled: nodeinfo.openRegistrations !== false
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Probe instance using Mastodon API (works for Mastodon, Pleroma, Akkoma, etc)
+   */
+  private async probeMastodonAPI(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // Try v2 first, then v1
+      for (const version of ['v2', 'v1']) {
+        try {
+          const response = await fetch(`https://${domain}/api/${version}/instance`, {
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(10000)
+          });
+          
+          if (response.ok) {
+            const instance = await response.json();
+            
+            return {
+              domain: instance.domain || domain,
+              software: instance.source_url?.includes('mastodon') ? 'mastodon' : 
+                        instance.source_url?.includes('pleroma') ? 'pleroma' :
+                        instance.source_url?.includes('akkoma') ? 'akkoma' : 'mastodon-compatible',
+              version: instance.version,
+              description: instance.description || instance.short_description,
+              user_count: instance.stats?.user_count || instance.usage?.users?.active_month || 0,
+              status_count: instance.stats?.status_count || 0,
+              admin_contact: instance.contact?.email || instance.email,
+              api_available: true,
+              federation_enabled: true
+            };
           }
+        } catch {
+          continue;
         }
-      );
-
-      if (!response.ok) {
-        // API might require authentication or be rate-limited
-        debug.warn('instances.social API request failed:', response.status);
-        return [];
       }
-
-      const data = await response.json();
-      
-      if (!data.instances || !Array.isArray(data.instances)) {
-        return [];
-      }
-
-      return data.instances.map((instance: any) => ({
-        domain: instance.name || instance.domain,
-        software: instance.info?.software?.name || 'mastodon',
-        version: instance.info?.software?.version,
-        description: instance.info?.short_description || instance.info?.description,
-        user_count: instance.users || 0,
-        status_count: instance.statuses || 0,
-        admin_contact: instance.admin,
-        api_available: true,
-        federation_enabled: !instance.dead
-      }));
+      return null;
     } catch (error) {
-      debug.warn('instances.social search failed:', error);
-      return [];
+      return null;
     }
   }
 
   /**
-   * Search instances using fediverse.observer API
-   * https://fediverse.observer/api
+   * Probe instance by checking if it has an ActivityPub actor
    */
-  private async searchFediverseObserver(query: string): Promise<InstanceSearchResult[]> {
+  private async probeActivityPubActor(domain: string): Promise<InstanceSearchResult | null> {
     try {
-      // fediverse.observer provides a GraphQL API
-      const response = await fetch('https://api.fediverse.observer/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          query: `
-            query SearchInstances($query: String!) {
-              nodes(softwarename: $query) {
-                domain
-                softwarename
-                version
-                active_users_monthly
-                total_users
-                local_posts
-                name
-              }
-            }
-          `,
-          variables: { query }
-        })
+      // Try WebFinger for the instance actor
+      const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:instance@${domain}`;
+      const response = await fetch(webfingerUrl, {
+        headers: { 'Accept': 'application/jrd+json, application/json' },
+        signal: AbortSignal.timeout(10000)
       });
-
-      if (!response.ok) {
-        debug.warn('fediverse.observer API request failed:', response.status);
-        return [];
-      }
-
-      const data = await response.json();
       
-      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
-        // If query doesn't match software, try as domain search
-        return await this.searchFediverseObserverByDomain(query);
+      if (response.ok) {
+        // Instance is responding to WebFinger, it's likely ActivityPub compatible
+        return {
+          domain: domain,
+          software: 'activitypub-compatible',
+          description: 'ActivityPub-compatible instance',
+          api_available: true,
+          federation_enabled: true
+        };
       }
-
-      return data.data.nodes.map((node: any) => ({
-        domain: node.domain,
-        software: node.softwarename,
-        version: node.version,
-        description: node.name,
-        user_count: node.total_users || node.active_users_monthly || 0,
-        status_count: node.local_posts || 0,
-        api_available: true,
-        federation_enabled: true
-      }));
+      
+      return null;
     } catch (error) {
-      debug.warn('fediverse.observer search failed:', error);
-      return [];
+      return null;
     }
   }
 
   /**
-   * Search fediverse.observer by domain pattern
-   */
-  private async searchFediverseObserverByDomain(query: string): Promise<InstanceSearchResult[]> {
-    try {
-      const response = await fetch('https://api.fediverse.observer/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          query: `
-            query SearchByDomain {
-              nodes(domain: "${query}") {
-                domain
-                softwarename
-                version
-                active_users_monthly
-                total_users
-                local_posts
-                name
-              }
-            }
-          `
-        })
-      });
-
-      if (!response.ok) {
-        return [];
-      }
-
-      const data = await response.json();
-      
-      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
-        return [];
-      }
-
-      return data.data.nodes.slice(0, 20).map((node: any) => ({
-        domain: node.domain,
-        software: node.softwarename,
-        version: node.version,
-        description: node.name,
-        user_count: node.total_users || node.active_users_monthly || 0,
-        status_count: node.local_posts || 0,
-        api_available: true,
-        federation_enabled: true
-      }));
-    } catch (error) {
-      debug.warn('fediverse.observer domain search failed:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get popular/recommended instances from discovery services
+   * Get popular/recommended instances (now returns empty - use direct discovery)
+   * Previously used 3rd party APIs which we've removed
    */
   async getPopularInstances(limit: number = 20): Promise<InstanceSearchResult[]> {
     try {
