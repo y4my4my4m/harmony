@@ -140,6 +140,15 @@
       <!-- Action Controls -->
       <div class="action-controls" @mousedown.stop @touchstart.stop>
         <button
+          @click.stop="toggleParticipantsDropdown"
+          class="control-btn participants-btn"
+          :class="{ active: showParticipantsDropdown }"
+          title="Show participants"
+        >
+          <Icon name="users" />
+        </button>
+
+        <button
           @click="expandToOverlay"
           class="control-btn expand-btn"
           title="Expand to overlay"
@@ -243,7 +252,7 @@
       </div>
     </div>
     
-    <!-- Participants Dropdown (only shown when not at default position, outside container) -->
+    <!-- Participants Dropdown for Minimized Mode (only shown when not at default position, outside container) -->
     <div 
       v-if="currentMode === 'minimized' && !isAtDefaultPosition" 
       class="participants-dropdown-container"
@@ -260,6 +269,22 @@
       
       <Transition name="participants-dropdown">
         <div v-if="showParticipantsDropdown" class="participants-dropdown">
+          <VoiceChannelParticipants 
+            :participants="voiceStore.allParticipants"
+            :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
+          />
+        </div>
+      </Transition>
+    </div>
+
+    <!-- Participants Dropdown for Dock Mode (positioned above the dock) -->
+    <div 
+      v-if="currentMode === 'dock' && showParticipantsDropdown" 
+      class="participants-dropdown-container dock-participants-dropdown"
+      :style="dockParticipantsDropdownStyle"
+    >
+      <Transition name="participants-dropdown">
+        <div v-if="showParticipantsDropdown" class="participants-dropdown dock-participants-dropdown-content">
           <VoiceChannelParticipants 
             :participants="voiceStore.allParticipants"
             :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
@@ -285,7 +310,7 @@
       v-if="currentMode === 'overlay'"
       :channel-name="channelName"
       @close="handleOverlayClosed"
-      @minimize="collapseToMinimized"
+      @minimize="collapseToDock"
     />
     
     <!-- Screenshare PIP - Always rendered when connected, regardless of dock mode -->
@@ -457,7 +482,7 @@ const dockPositionStyle = computed((): Record<string, string> => {
   };
 });
 
-// Computed style for participants dropdown (positioned below the dock)
+// Computed style for participants dropdown (positioned below the minimized dock)
 const participantsDropdownStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'minimized') return {};
   // Position it below the dock, centered
@@ -467,6 +492,35 @@ const participantsDropdownStyle = computed((): Record<string, string> => {
     transform: 'translateX(-50%)',
     position: 'fixed',
   };
+});
+
+// Computed style for participants dropdown in dock mode (positioned above the dock)
+const dockParticipantsDropdownStyle = computed((): Record<string, string> => {
+  if (currentMode.value !== 'dock') return {};
+  
+  // Get dock container dimensions if available
+  const dockHeight = dockContainerDimensions.value.height || 80; // Default height estimate
+  const dockBottom = dockPosition.value.bottom;
+  
+  // Position it above the dock, centered
+  if (dockPosition.value.left === 0) {
+    // Centered dock
+    return {
+      left: '50%',
+      bottom: `${dockBottom + dockHeight + 12}px`, // 12px above the dock
+      transform: 'translateX(-50%)',
+      position: 'fixed',
+    };
+  } else {
+    // Positioned dock
+    const dockWidth = dockContainerDimensions.value.width || 600; // Default width estimate
+    return {
+      left: `${dockPosition.value.left + dockWidth / 2}px`,
+      bottom: `${dockBottom + dockHeight + 12}px`, // 12px above the dock
+      transform: 'translateX(-50%)',
+      position: 'fixed',
+    };
+  }
 });
 
 // Get first user with active video or screenshare (for minimized preview)
@@ -509,8 +563,8 @@ const minimizeDock = () => {
   voiceStore.isOverlayVisible = false;
 };
 
-const collapseToMinimized = () => {
-  currentMode.value = 'minimized';
+const collapseToDock = () => {
+  currentMode.value = 'dock';
   voiceStore.isOverlayVisible = false;
 };
 
@@ -1130,7 +1184,8 @@ onMounted(() => {
     const target = e.target as HTMLElement;
     if (showParticipantsDropdown.value && 
         !target.closest('.participants-dropdown-container') &&
-        !target.closest('.participants-dropdown')) {
+        !target.closest('.participants-dropdown') &&
+        !target.closest('.participants-btn')) {
       showParticipantsDropdown.value = false;
     }
   };
@@ -1799,6 +1854,20 @@ onUnmounted(() => {
   z-index: 101;
   pointer-events: auto; /* Dropdown is clickable */
   margin-top: 4px; /* Small gap from button */
+}
+
+/* Dock mode participants dropdown - positioned above the dock */
+.dock-participants-dropdown {
+  pointer-events: none;
+  z-index: 100;
+}
+
+.dock-participants-dropdown .participants-dropdown {
+  position: relative;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 0;
 }
 
 .participants-dropdown .voice-participants {
