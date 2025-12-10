@@ -17,9 +17,10 @@
         :hint="channelNameHint"
         autofocus
         required
-        @enter="createChannel"
         @input="validateChannelName"
       />
+      <!-- NOTE: Removed @enter handler - form @submit.prevent handles Enter key.
+           Having both caused double channel creation! -->
       
       <div class="channel-type-section">
         <label class="section-label">{{ $t('channel.channelType') }}</label>

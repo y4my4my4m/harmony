@@ -1225,48 +1225,32 @@ class AdminService {
   /**
    * Search for ActivityPub instances using DIRECT probing
    * No 3rd party APIs - we query the instances directly using standard ActivityPub/Nodeinfo endpoints
+   * 
+   * User must enter a full domain name (e.g., "mastodon.social", "fosstodon.org")
    */
   async searchActivityPubInstances(query: string): Promise<InstanceSearchResult[]> {
     try {
-      debug.log(`Searching for instance: ${query}`);
+      const domain = query.trim().toLowerCase();
       
-      const results: InstanceSearchResult[] = [];
-      
-      // If query looks like a domain, probe it directly
-      if (query.includes('.') && !query.includes(' ')) {
-        const directResult = await this.discoverInstance(query);
-        if (directResult) {
-          results.push(directResult);
-        }
-      } else {
-        // For non-domain queries, try common TLDs
-        const commonTLDs = ['.social', '.masto.host', '.online', '.world', '.cloud', '.space'];
-        const probeDomains = commonTLDs.map(tld => `${query}${tld}`);
-        
-        // Also try the query as-is with common suffixes
-        probeDomains.push(`${query}.com`, `${query}.org`, `${query}.net`);
-        
-        // Probe domains in parallel (limit concurrency)
-        const probePromises = probeDomains.slice(0, 5).map(async domain => {
-          try {
-            return await this.discoverInstance(domain);
-          } catch {
-            return null;
-          }
-        });
-        
-        const probeResults = await Promise.allSettled(probePromises);
-        for (const result of probeResults) {
-          if (result.status === 'fulfilled' && result.value) {
-            results.push(result.value);
-          }
-        }
+      // Validate domain format
+      if (!domain.includes('.') || domain.includes(' ')) {
+        debug.log(`Invalid domain format: "${query}". User must enter a full domain like "mastodon.social"`);
+        return [];
       }
       
-      debug.log(`Found ${results.length} instances matching "${query}"`);
-      return results;
+      debug.log(`Probing instance directly: ${domain}`);
+      
+      const result = await this.discoverInstance(domain);
+      
+      if (result) {
+        debug.log(`✅ Successfully discovered instance: ${domain}`);
+        return [result];
+      }
+      
+      debug.log(`❌ Could not discover instance at: ${domain}`);
+      return [];
     } catch (error) {
-      debug.error('Failed to search ActivityPub instances:', error);
+      debug.error('Failed to probe ActivityPub instance:', error);
       return [];
     }
   }

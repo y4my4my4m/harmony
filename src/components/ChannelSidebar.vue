@@ -932,19 +932,33 @@ const handleEditCategory = (category: Category) => {
   showCategoryEditModal.value = true;
 };
 
+// State for category deletion with channels option
+const deleteCategoryWithChannels = ref(false);
+
 const handleDeleteCategory = (category: Category) => {
   selectedCategory.value = category;
   const channelCount = (props.categoryChannels[category.id] || []).length;
+  deleteCategoryWithChannels.value = false; // Reset on each delete attempt
+  
+  let secondaryMsg = 'This action cannot be undone.';
+  if (channelCount > 0) {
+    secondaryMsg = `This category contains ${channelCount} channel(s). Channels will be moved to the top of the channel list (uncategorized). To also delete all channels, type "${category.name} DELETE" instead of just "${category.name}".`;
+  }
+  
   confirmationConfig.value = {
     title: 'Delete Category',
     message: `Are you sure you want to delete "${category.name}"?`,
-    secondaryMessage: channelCount > 0 ? `This category contains ${channelCount} channel(s). All channels will be moved to the top of the channel list.` : 'This action cannot be undone.',
+    secondaryMessage: secondaryMsg,
     confirmButtonText: 'Delete Category',
     requireConfirmation: true,
     confirmationText: category.name,
     onConfirm: async () => {
       try {
-        await serverChannelStore.deleteCategory(category.id);
+        // Check if user wants to delete channels too (typed "NAME DELETE")
+        const confirmInput = document.querySelector<HTMLInputElement>('.confirmation-section input');
+        const deleteChannels = confirmInput?.value?.trim().toUpperCase().endsWith(' DELETE') || false;
+        
+        await serverChannelStore.deleteCategory(category.id, deleteChannels);
         closeConfirmationModal();
       } catch (error) {
         debug.error('Failed to delete category:', error);
