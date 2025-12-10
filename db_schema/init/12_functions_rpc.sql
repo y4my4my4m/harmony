@@ -30,8 +30,9 @@ BEGIN
         RAISE EXCEPTION 'Unauthorized: You can only create conversations as yourself';
     END IF;
 
-    INSERT INTO conversations (is_group, name, owner_id, metadata)
-    VALUES (true, conversation_name, creator_user_id, initial_metadata)
+    -- Note: metadata stored as part of the conversation if needed, but table doesn't have metadata column
+    INSERT INTO conversations (is_group, name, owner_id)
+    VALUES (true, conversation_name, creator_user_id)
     RETURNING id INTO new_conversation_id;
     
     -- Add creator as admin
@@ -639,16 +640,14 @@ $$;
 -- Create notification with spam prevention
 -- SECURITY: Only callable by authenticated users where source_user is themselves
 -- This prevents users from creating fake notifications from other users
+-- Note: notifications table uses: user_id, type, actor_id, post_id, message_id, server_id, read, metadata
 CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
     p_user_id uuid,
     p_type text,
     p_source_user_id uuid,
-    p_title text DEFAULT NULL,
-    p_message text DEFAULT NULL,
-    p_data jsonb DEFAULT '{}',
-    p_server_id uuid DEFAULT NULL,
-    p_channel_id uuid DEFAULT NULL,
-    p_conversation_id uuid DEFAULT NULL
+    p_post_id uuid DEFAULT NULL,
+    p_message_id uuid DEFAULT NULL,
+    p_server_id uuid DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -670,16 +669,9 @@ BEGIN
         RAISE EXCEPTION 'Unauthorized: Cannot create notifications from another user';
     END IF;
     
-    INSERT INTO notifications (user_id, type, title, message, data, metadata)
-    VALUES (
-        p_user_id, p_type, p_title, p_message, p_data,
-        jsonb_build_object(
-            'source_user_id', p_source_user_id,
-            'server_id', p_server_id,
-            'channel_id', p_channel_id,
-            'conversation_id', p_conversation_id
-        )
-    ) RETURNING id INTO v_notification_id;
+    INSERT INTO notifications (user_id, type, actor_id, post_id, message_id, server_id)
+    VALUES (p_user_id, p_type, p_source_user_id, p_post_id, p_message_id, p_server_id)
+    RETURNING id INTO v_notification_id;
     
     RETURN v_notification_id;
 END;
@@ -688,11 +680,11 @@ $$;
 -- Create structured notification
 -- SECURITY: This function is for internal/trigger use only
 -- Regular users should use create_notification_with_spam_prevention instead
--- Revoke authenticated grant - only service_role can call this directly
+-- Note: notifications table uses metadata column, not data
 CREATE OR REPLACE FUNCTION public.create_notification_structured(
     p_user_id uuid,
     p_type varchar,
-    p_data jsonb DEFAULT '{}'
+    p_metadata jsonb DEFAULT '{}'
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -715,8 +707,8 @@ BEGIN
     END IF;
     -- Note: service_role calls will have auth.uid() = NULL which is allowed
 
-    INSERT INTO notifications (user_id, type, data)
-    VALUES (p_user_id, p_type, p_data)
+    INSERT INTO notifications (user_id, type, metadata)
+    VALUES (p_user_id, p_type, p_metadata)
     RETURNING id INTO notification_id;
     
     RETURN notification_id;
@@ -765,17 +757,86 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- End user session
-CREATE OR REPLACE FUNCTION public.end_user_session(p_session_token text)
+-- Uses session_token for identification
+CREATE OR REPLACE FUNCTION public.end_user_session(p_user_id uuid, p_session_token text)
 RETURNS void
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_caller_profile_id uuid;
+BEGIN
+    -- SECURITY: Get caller's profile ID
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    -- Only allow ending your own sessions
+    IF v_caller_profile_id IS NULL OR v_caller_profile_id != p_user_id THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot end another user''s session';
+    END IF;
+
     UPDATE user_sessions 
-    SET ended_at = NOW(), is_active = false 
-    WHERE session_token = p_session_token;
+    SET is_active = false, status = 'offline'
+    WHERE user_id = p_user_id AND session_token = p_session_token;
+END;
+$$;
+
+-- Update session heartbeat (keep session alive)
+CREATE OR REPLACE FUNCTION public.update_session_heartbeat(
+    p_session_token text,
+    p_status text DEFAULT 'online'
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_caller_profile_id uuid;
+BEGIN
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+
+    UPDATE user_sessions 
+    SET last_heartbeat = NOW(), 
+        status = p_status,
+        is_active = true
+    WHERE user_id = v_caller_profile_id AND session_token = p_session_token;
+END;
+$$;
+
+-- Update session context (what user is viewing)
+CREATE OR REPLACE FUNCTION public.update_session_context(
+    p_session_token text,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_caller_profile_id uuid;
+BEGIN
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+    
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+
+    UPDATE user_sessions 
+    SET current_server_id = p_server_id,
+        current_channel_id = p_channel_id,
+        current_conversation_id = p_conversation_id,
+        last_activity = NOW()
+    WHERE user_id = v_caller_profile_id AND session_token = p_session_token;
+END;
 $$;
 
 -- Cleanup stale sessions
+-- Uses last_activity for determining staleness
 CREATE OR REPLACE FUNCTION public.cleanup_stale_user_sessions()
 RETURNS integer
 LANGUAGE plpgsql
@@ -783,11 +844,17 @@ AS $$
 DECLARE
     deleted_count integer;
 BEGIN
-    DELETE FROM user_sessions
+    -- Mark old sessions as inactive first
+    UPDATE user_sessions
+    SET is_active = false, status = 'offline'
     WHERE is_active = true
-      AND last_active_at < NOW() - INTERVAL '30 days'
-    RETURNING 1 INTO deleted_count;
+      AND last_activity < NOW() - INTERVAL '30 days';
     
+    -- Delete very old sessions
+    DELETE FROM user_sessions
+    WHERE last_activity < NOW() - INTERVAL '90 days';
+    
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN COALESCE(deleted_count, 0);
 END;
 $$;
@@ -814,16 +881,18 @@ END;
 $$;
 
 -- Cleanup expired voice calls
+-- Note: federated_voice_calls uses started_at and ended_at, no status column
 CREATE OR REPLACE FUNCTION public.cleanup_expired_voice_calls()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+    -- Mark calls as ended if started more than 4 hours ago and not already ended
     UPDATE federated_voice_calls
-    SET status = 'ended', ended_at = NOW()
-    WHERE status = 'active'
-      AND created_at < NOW() - INTERVAL '4 hours';
+    SET ended_at = NOW()
+    WHERE ended_at IS NULL
+      AND started_at < NOW() - INTERVAL '4 hours';
 END;
 $$;
 
@@ -896,6 +965,7 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Get emoji metadata bulk
+-- Note: emojis table only has created_at, not updated_at
 CREATE OR REPLACE FUNCTION public.get_emoji_metadata_bulk(server_ids uuid[])
 RETURNS TABLE(server_id uuid, last_modified timestamptz, emoji_count integer)
 LANGUAGE plpgsql
@@ -904,7 +974,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         e.server_id,
-        COALESCE(MAX(e.updated_at), MAX(e.created_at)) as last_modified,
+        MAX(e.created_at) as last_modified,
         COUNT(e.id)::integer as emoji_count
     FROM emojis e
     WHERE e.server_id = ANY(server_ids)
@@ -913,22 +983,23 @@ END;
 $$;
 
 -- Create federated emoji
+-- Note: emojis table uses created_by (not uploader), and doesn't have updated_at, usage_count, last_used
 CREATE OR REPLACE FUNCTION public.create_federated_emoji(
     p_name text,
     p_url text,
-    p_uploader uuid,
+    p_created_by uuid,
     p_domain text DEFAULT NULL
 )
-RETURNS TABLE(id uuid, created_at timestamptz, name varchar, url varchar, server_id uuid, uploader uuid, updated_at timestamptz, usage_count integer, last_used timestamptz, domain text)
+RETURNS TABLE(id uuid, created_at timestamptz, name text, url text, server_id uuid, created_by uuid, domain text)
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
-    INSERT INTO emojis (name, url, uploader, domain)
-    VALUES (p_name, p_url, p_uploader, p_domain)
+    INSERT INTO emojis (name, url, created_by, domain)
+    VALUES (p_name, p_url, p_created_by, p_domain)
     RETURNING emojis.id, emojis.created_at, emojis.name, emojis.url, emojis.server_id, 
-              emojis.uploader, emojis.updated_at, emojis.usage_count, emojis.last_used, emojis.domain;
+              emojis.created_by, emojis.domain;
 END;
 $$;
 
@@ -962,26 +1033,35 @@ $$;
 -- ---------------------------------------------------------------------------
 -- GRANTS
 -- ---------------------------------------------------------------------------
+-- Conversation functions (metadata param removed from create_group_conversation)
 GRANT EXECUTE ON FUNCTION public.create_group_conversation(uuid, uuid[], text, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_or_get_multi_conversation(uuid[], text, text, uuid) TO authenticated;
+-- Timeline functions
 GRANT EXECUTE ON FUNCTION public.get_timeline(uuid, integer, timestamp) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_trending_hashtags(integer, integer) TO authenticated, anon;
+-- Post interaction functions
 GRANT EXECUTE ON FUNCTION public.add_post_emoji_reaction(uuid, uuid, uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_batch_post_reactions(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_batch_message_reactions(uuid[]) TO authenticated;
+-- Server/bot functions
 GRANT EXECUTE ON FUNCTION public.add_bot_to_server(uuid, uuid, uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_thread(uuid, text, integer) TO authenticated;
--- Updated signature: (user_id, identity_key, signed_prekey, signed_prekey_signature, device_id)
+-- Encryption functions
 GRANT EXECUTE ON FUNCTION public.initialize_user_encryption(uuid, text, text, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.add_user_prekeys(uuid, text, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_unused_prekey(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.enable_conversation_encryption(uuid) TO authenticated;
--- Notification functions - create_notification_structured has security checks, service_role can always call
+-- Notification functions (updated signatures to match table columns)
 GRANT EXECUTE ON FUNCTION public.create_notification_structured(uuid, varchar, jsonb) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.create_notification_with_spam_prevention(uuid, text, uuid, text, text, jsonb, uuid, uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_notification_with_spam_prevention(uuid, text, uuid, uuid, uuid, uuid) TO authenticated;
+-- Other functions
 GRANT EXECUTE ON FUNCTION public.count_pinned_messages(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_emoji_metadata_bulk(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_federated_emoji(text, text, uuid, text) TO authenticated;
+-- Session functions
+GRANT EXECUTE ON FUNCTION public.end_user_session(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_session_heartbeat(text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_session_context(text, uuid, uuid, uuid) TO authenticated;
 
 DO $$
 BEGIN

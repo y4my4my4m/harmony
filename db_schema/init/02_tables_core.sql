@@ -126,22 +126,36 @@ COMMENT ON TABLE public.oauth_providers IS 'OAuth provider configurations';
 CREATE TABLE IF NOT EXISTS public.user_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    device_id text NOT NULL,
-    device_name text,
-    device_type text,
-    ip_address inet,
-    user_agent text,
-    created_at timestamp with time zone DEFAULT now(),
-    last_seen_at timestamp with time zone DEFAULT now(),
-    is_active boolean DEFAULT true,
-    push_token text,
+    session_token text NOT NULL,
     
-    UNIQUE(user_id, device_id)
+    -- Device/browser info
+    platform text DEFAULT 'web'::text,
+    form_factor text DEFAULT 'desktop'::text,
+    is_pwa boolean DEFAULT false,
+    browser text,
+    user_agent text,
+    ip_address text,
+    
+    -- Activity tracking
+    last_heartbeat timestamp with time zone DEFAULT now() NOT NULL,
+    last_activity timestamp with time zone DEFAULT now() NOT NULL,
+    is_active boolean DEFAULT true,
+    status text DEFAULT 'online'::text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    -- Current context (for smart notifications)
+    -- Note: No FK constraints to avoid circular dependencies
+    current_server_id uuid,
+    current_channel_id uuid,
+    current_conversation_id uuid,
+    
+    UNIQUE(user_id, session_token)
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON public.user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON public.user_sessions(is_active) WHERE is_active = true;
 
-COMMENT ON TABLE public.user_sessions IS 'User login sessions and devices';
+COMMENT ON TABLE public.user_sessions IS 'Tracks active user sessions for smart push notifications. If user has an active session, push notifications are suppressed (Discord-like behavior).';
 
 DO $$
 BEGIN
