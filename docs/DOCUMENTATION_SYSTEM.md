@@ -106,7 +106,7 @@ export default defineConfig({
     },
     
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/your-org/harmony' }
+      { icon: 'github', link: 'https://github.com/y4my4my4m/harmony' }
     ],
     
     search: {
