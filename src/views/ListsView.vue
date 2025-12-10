@@ -296,7 +296,7 @@ onMounted(() => {
   flex-direction: column;
   overflow-y: auto;
   padding: 1.5rem;
-  background: var(--bg-primary, #1a1a2e);
+  background: var(--background-primary, #1a1a2e);
 }
 
 .lists-header {
@@ -318,7 +318,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: var(--accent-primary, #6366f1);
+  background: var(--harmony-primary, #6366f1);
   color: white;
   border: none;
   border-radius: 0.5rem;
@@ -328,7 +328,7 @@ onMounted(() => {
 }
 
 .create-list-btn:hover {
-  background: var(--accent-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover, #4f46e5);
 }
 
 .create-list-btn .icon {
@@ -351,7 +351,7 @@ onMounted(() => {
   width: 2rem;
   height: 2rem;
   border: 3px solid var(--border-primary, #333);
-  border-top-color: var(--accent-primary, #6366f1);
+  border-top-color: var(--harmony-primary, #6366f1);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -388,7 +388,7 @@ onMounted(() => {
 
 .create-first-btn {
   padding: 0.75rem 1.5rem;
-  background: var(--accent-primary, #6366f1);
+  background: var(--harmony-primary, #6366f1);
   color: white;
   border: none;
   border-radius: 0.5rem;
@@ -398,7 +398,7 @@ onMounted(() => {
 }
 
 .create-first-btn:hover {
-  background: var(--accent-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover, #4f46e5);
 }
 
 /* Lists Grid */
@@ -410,7 +410,7 @@ onMounted(() => {
 
 .list-card {
   position: relative;
-  background: var(--bg-secondary, #16213e);
+  background: var(--background-secondary, #16213e);
   border: 1px solid var(--border-primary, #333);
   border-radius: 0.75rem;
   padding: 1rem;
@@ -419,7 +419,7 @@ onMounted(() => {
 }
 
 .list-card:hover {
-  border-color: var(--accent-primary, #6366f1);
+  border-color: var(--harmony-primary, #6366f1);
   transform: translateY(-2px);
 }
 
@@ -479,7 +479,7 @@ onMounted(() => {
 
 .action-btn {
   padding: 0.375rem;
-  background: var(--bg-tertiary, #0f0f1a);
+  background: var(--background-tertiary, #0f0f1a);
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
@@ -487,7 +487,7 @@ onMounted(() => {
 }
 
 .action-btn:hover {
-  background: var(--bg-hover, #252550);
+  background: var(--background-hover, #252550);
 }
 
 .action-btn.delete:hover {
@@ -510,7 +510,7 @@ onMounted(() => {
 }
 
 .modal-content {
-  background: var(--bg-secondary, #16213e);
+  background: var(--background-secondary, #16213e);
   border: 1px solid var(--border-primary, #333);
   border-radius: 1rem;
   padding: 1.5rem;
@@ -542,7 +542,7 @@ onMounted(() => {
 .form-group select {
   width: 100%;
   padding: 0.625rem 0.875rem;
-  background: var(--bg-primary, #1a1a2e);
+  background: var(--background-primary, #1a1a2e);
   border: 1px solid var(--border-primary, #333);
   border-radius: 0.5rem;
   color: var(--text-primary, #fff);
@@ -553,7 +553,7 @@ onMounted(() => {
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--accent-primary, #6366f1);
+  border-color: var(--harmony-primary, #6366f1);
 }
 
 .form-group.checkbox label {
@@ -598,17 +598,17 @@ onMounted(() => {
 }
 
 .btn-cancel:hover {
-  background: var(--bg-hover, #252550);
+  background: var(--background-hover, #252550);
 }
 
 .btn-submit {
-  background: var(--accent-primary, #6366f1);
+  background: var(--harmony-primary, #6366f1);
   border: none;
   color: white;
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: var(--accent-primary-hover, #4f46e5);
+  background: var(--harmony-primary-hover, #4f46e5);
 }
 
 .btn-submit:disabled {
