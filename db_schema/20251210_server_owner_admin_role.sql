@@ -75,10 +75,12 @@ DECLARE
     new_admin_role_id uuid;
 BEGIN
     -- Loop through all servers that don't have an Admin role
+    -- Only process servers that have a non-null owner
     FOR server_record IN 
         SELECT s.id, s.owner 
         FROM servers s 
-        WHERE NOT EXISTS (
+        WHERE s.owner IS NOT NULL
+          AND NOT EXISTS (
             SELECT 1 FROM server_roles sr 
             WHERE sr.server_id = s.id AND sr.is_admin = true
         )
@@ -121,15 +123,32 @@ DECLARE
     admin_role_id uuid;
 BEGIN
     -- For servers that already have an Admin role, ensure owner is assigned
+    -- Only process servers that have a non-null owner
     FOR server_record IN 
         SELECT s.id, s.owner, sr.id as admin_role_id
         FROM servers s 
         JOIN server_roles sr ON sr.server_id = s.id AND sr.is_admin = true
+        WHERE s.owner IS NOT NULL
     LOOP
         -- Assign admin role to owner if not already assigned
         INSERT INTO user_roles (user_id, role_id, server_id)
         VALUES (server_record.owner, server_record.admin_role_id, server_record.id)
         ON CONFLICT (user_id, role_id) DO NOTHING;
+    END LOOP;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- LOG SERVERS WITH NULL OWNERS (data quality issue)
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+    orphan_server RECORD;
+BEGIN
+    FOR orphan_server IN 
+        SELECT id, name FROM servers WHERE owner IS NULL
+    LOOP
+        RAISE WARNING 'Server % (id: %) has NULL owner - skipped admin role assignment', 
+            orphan_server.name, orphan_server.id;
     END LOOP;
 END $$;
 

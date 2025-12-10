@@ -164,50 +164,93 @@
 
           <!-- Members Tab -->
           <div v-if="activeTab === 'members'" class="tab-content">
-            <div class="members-header">
-              <input 
-                v-model="memberSearch" 
-                type="text" 
-                class="search-input"
-                placeholder="Search members..."
-              />
-            </div>
-            
-            <div class="members-list">
-              <div v-if="loadingMembers" class="loading-members">
+            <!-- Add Members Section -->
+            <div v-if="!selectedRole?.is_default" class="add-members-section">
+              <h4 class="section-label">Add Members</h4>
+              <div class="add-member-search">
+                <input 
+                  v-model="addMemberSearch" 
+                  type="text" 
+                  class="search-input"
+                  placeholder="Search server members to add..."
+                  @input="handleAddMemberSearch"
+                />
+              </div>
+              <div v-if="addMemberSearch && searchingMembers" class="loading-members">
                 <div class="spinner small"></div>
               </div>
-              <div 
-                v-else
-                v-for="member in filteredMembers" 
-                :key="member.id"
-                class="member-item"
-              >
-                <img :src="member.avatar_url || '/default-avatar.png'" class="member-avatar" />
-                <span class="member-name">
-                  {{ member.display_name || member.username }}
-                  <span v-if="isServerOwner(member.id)" class="owner-badge">Owner</span>
-                </span>
-                <button 
-                  v-if="canRemoveMember(member.id)"
-                  class="remove-member-btn"
-                  @click="removeMember(member.id)"
-                  title="Remove from role"
+              <div v-else-if="addMemberSearch && availableMembers.length > 0" class="available-members-list">
+                <div 
+                  v-for="member in availableMembers" 
+                  :key="member.id"
+                  class="member-item available"
+                  @click="addMemberToRole(member.id)"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 13H5v-2h14v2z"/>
-                  </svg>
-                </button>
-                <span 
-                  v-else-if="selectedRole?.is_admin && isServerOwner(member.id)"
-                  class="protected-badge"
-                  title="Server owner cannot be removed from Admin role"
-                >
-                  Protected
-                </span>
+                  <img :src="member.avatar_url || '/default-avatar.png'" class="member-avatar" />
+                  <span class="member-name">{{ member.display_name || member.username }}</span>
+                  <button class="add-member-btn" title="Add to role">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <div v-if="!loadingMembers && filteredMembers.length === 0" class="no-members">
-                {{ memberSearch ? 'No members found' : 'No members with this role' }}
+              <div v-else-if="addMemberSearch && !searchingMembers && availableMembers.length === 0" class="no-members">
+                No members found to add
+              </div>
+            </div>
+
+            <!-- Current Members Section -->
+            <div class="current-members-section">
+              <h4 class="section-label">
+                Members with this role 
+                <span class="member-count-badge">{{ roleMembers.length }}</span>
+              </h4>
+              <div class="members-header">
+                <input 
+                  v-model="memberSearch" 
+                  type="text" 
+                  class="search-input"
+                  placeholder="Filter current members..."
+                />
+              </div>
+              
+              <div class="members-list">
+                <div v-if="loadingMembers" class="loading-members">
+                  <div class="spinner small"></div>
+                </div>
+                <div 
+                  v-else
+                  v-for="member in filteredMembers" 
+                  :key="member.id"
+                  class="member-item"
+                >
+                  <img :src="member.avatar_url || '/default-avatar.png'" class="member-avatar" />
+                  <span class="member-name">
+                    {{ member.display_name || member.username }}
+                    <span v-if="isServerOwner(member.id)" class="owner-badge">Owner</span>
+                  </span>
+                  <button 
+                    v-if="canRemoveMember(member.id)"
+                    class="remove-member-btn"
+                    @click="removeMember(member.id)"
+                    title="Remove from role"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 13H5v-2h14v2z"/>
+                    </svg>
+                  </button>
+                  <span 
+                    v-else-if="selectedRole?.is_admin && isServerOwner(member.id)"
+                    class="protected-badge"
+                    title="Server owner cannot be removed from Admin role"
+                  >
+                    Protected
+                  </span>
+                </div>
+                <div v-if="!loadingMembers && filteredMembers.length === 0" class="no-members">
+                  {{ memberSearch ? 'No members found' : 'No members with this role' }}
+                </div>
               </div>
             </div>
           </div>
@@ -262,6 +305,13 @@ const roleMembers = ref<any[]>([])
 const loadingMembers = ref(false)
 const serverOwnerId = ref<string | null>(null)
 
+// Add member state
+const addMemberSearch = ref('')
+const searchingMembers = ref(false)
+const availableMembers = ref<any[]>([])
+const allServerMembers = ref<any[]>([])
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
 // Form state
 const editForm = ref({
   name: '',
@@ -286,7 +336,7 @@ const colorPresets = [
   '#C27C0E', '#A84300', '#992D22', '#979C9F', '#546E7A',
 ]
 
-// Permission sections with Discord-like structure
+// Permission sections - matches Harmony's actual features
 const permissionSections = [
   {
     id: 'general',
@@ -298,6 +348,8 @@ const permissionSections = [
       { key: 'MANAGE_SERVER', label: 'Manage Server', description: 'Edit server settings and delete the server' },
       { key: 'CREATE_INVITE', label: 'Create Invite', description: 'Create invites to this server' },
       { key: 'VIEW_AUDIT_LOG', label: 'View Audit Log', description: 'View the server audit log' },
+      { key: 'MANAGE_EMOJIS', label: 'Manage Emojis', description: 'Add, edit, and remove custom emojis' },
+      { key: 'MANAGE_WEBHOOKS', label: 'Manage Webhooks', description: 'Create, edit, and delete webhooks' },
     ],
   },
   {
@@ -307,8 +359,6 @@ const permissionSections = [
       { key: 'KICK_MEMBERS', label: 'Kick Members', description: 'Remove members from the server' },
       { key: 'BAN_MEMBERS', label: 'Ban Members', description: 'Permanently ban members from the server' },
       { key: 'TIMEOUT_MEMBERS', label: 'Timeout Members', description: 'Temporarily mute members' },
-      { key: 'CHANGE_NICKNAME', label: 'Change Nickname', description: 'Change their own nickname' },
-      { key: 'MANAGE_NICKNAMES', label: 'Manage Nicknames', description: 'Change other members\' nicknames' },
     ],
   },
   {
@@ -323,6 +373,7 @@ const permissionSections = [
       { key: 'MANAGE_MESSAGES', label: 'Manage Messages', description: 'Delete and pin messages from others' },
       { key: 'READ_MESSAGE_HISTORY', label: 'Read Message History', description: 'View message history' },
       { key: 'USE_EXTERNAL_EMOJIS', label: 'Use External Emojis', description: 'Use emojis from other servers' },
+      { key: 'PIN_MESSAGES', label: 'Pin Messages', description: 'Pin messages in channels' },
     ],
   },
   {
@@ -332,7 +383,6 @@ const permissionSections = [
       { key: 'CREATE_PUBLIC_THREADS', label: 'Create Public Threads', description: 'Create threads visible to everyone' },
       { key: 'CREATE_PRIVATE_THREADS', label: 'Create Private Threads', description: 'Create invite-only threads' },
       { key: 'SEND_MESSAGES_IN_THREADS', label: 'Send Messages in Threads', description: 'Reply in threads' },
-      { key: 'MANAGE_THREADS', label: 'Manage Threads', description: 'Rename, delete, and archive threads' },
     ],
   },
   {
@@ -443,10 +493,18 @@ const selectRole = async (role: ServerRole) => {
   activeTab.value = 'display'
   resetForm()
   
-  // Load members
+  // Reset add member search
+  addMemberSearch.value = ''
+  availableMembers.value = []
+  
+  // Load members and server members in parallel
   loadingMembers.value = true
   try {
-    roleMembers.value = await roleService.getRoleMembers(role.id)
+    const [members] = await Promise.all([
+      roleService.getRoleMembers(role.id),
+      loadServerMembers()
+    ])
+    roleMembers.value = members
   } catch (error) {
     console.error('Failed to load role members:', error)
     roleMembers.value = []
@@ -547,6 +605,95 @@ const removeMember = async (memberId: string) => {
     } else {
       alert(error.message || 'Failed to remove member from role')
     }
+  }
+}
+
+// Load all server members for the add member search
+const loadServerMembers = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('user_servers')
+      .select(`
+        user_id,
+        profiles:user_id (
+          id,
+          username,
+          display_name,
+          avatar_url
+        )
+      `)
+      .eq('server_id', props.serverId)
+    
+    if (error) throw error
+    
+    allServerMembers.value = (data || []).map((us: any) => ({
+      id: us.user_id,
+      username: us.profiles?.username || 'Unknown',
+      display_name: us.profiles?.display_name,
+      avatar_url: us.profiles?.avatar_url,
+    }))
+  } catch (error) {
+    console.error('Failed to load server members:', error)
+    allServerMembers.value = []
+  }
+}
+
+// Handle search input for adding members
+const handleAddMemberSearch = () => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  
+  searchTimeout = setTimeout(() => {
+    searchAvailableMembers()
+  }, 200)
+}
+
+// Search for members that can be added (not already in role)
+const searchAvailableMembers = () => {
+  const query = addMemberSearch.value.toLowerCase().trim()
+  if (!query) {
+    availableMembers.value = []
+    return
+  }
+  
+  searchingMembers.value = true
+  
+  // Filter server members who don't already have this role
+  const roleMemberIds = new Set(roleMembers.value.map(m => m.id))
+  
+  availableMembers.value = allServerMembers.value.filter(member => {
+    // Exclude members who already have this role
+    if (roleMemberIds.has(member.id)) return false
+    
+    // Match by username or display name
+    const username = (member.username || '').toLowerCase()
+    const displayName = (member.display_name || '').toLowerCase()
+    
+    return username.includes(query) || displayName.includes(query)
+  }).slice(0, 10) // Limit to 10 results
+  
+  searchingMembers.value = false
+}
+
+// Add a member to the current role
+const addMemberToRole = async (memberId: string) => {
+  if (!selectedRole.value) return
+  
+  try {
+    const success = await roleService.assignRole(memberId, selectedRole.value.id, props.serverId)
+    if (success) {
+      // Find the member in available members and add to role members
+      const member = availableMembers.value.find(m => m.id === memberId)
+      if (member) {
+        roleMembers.value.push(member)
+        // Remove from available members
+        availableMembers.value = availableMembers.value.filter(m => m.id !== memberId)
+      }
+    }
+  } catch (error: any) {
+    console.error('Failed to add member to role:', error)
+    alert(error.message || 'Failed to add member to role')
   }
 }
 
@@ -1118,6 +1265,74 @@ onMounted(() => {
 }
 
 /* Members */
+.add-members-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.current-members-section {
+  /* Empty for now, placeholder for future styles */
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-count-badge {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.add-member-search {
+  margin-bottom: 8px;
+}
+
+.available-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.member-item.available {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.member-item.available:hover {
+  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.15));
+}
+
+.add-member-btn {
+  background: none;
+  border: none;
+  color: var(--harmony-primary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  transition: all 0.2s;
+}
+
+.add-member-btn:hover {
+  background: rgba(88, 101, 242, 0.2);
+}
+
 .members-header {
   margin-bottom: 16px;
 }
