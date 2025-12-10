@@ -1947,7 +1947,7 @@ onUnmounted(() => {
   
   .minimized-container {
     min-width: auto;
-    width: 100%;
+    width: 80%;
   }
   
   .user-section {
@@ -1980,7 +1980,7 @@ onUnmounted(() => {
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     margin-bottom: 0;
     min-width: auto;
-    width: 100%;
+    width: calc(100% - 20px);
     position: relative;
   }
   
@@ -2063,9 +2063,6 @@ onUnmounted(() => {
     display: flex;
   }
   
-  .minimize-btn {
-    display: none;
-  }
 }
 
 /* Connecting state - subtle pulse animation */

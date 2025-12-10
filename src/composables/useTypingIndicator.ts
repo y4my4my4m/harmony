@@ -5,9 +5,11 @@
  * - Track typing in channels, threads, or conversations
  * - Display typing indicators
  * - Automatically handle cleanup
+ * 
+ * Uses watchEffect to properly track reactive props accessed inside getter functions
  */
 
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onUnmounted, watchEffect, watch } from 'vue'
 import { typingIndicatorService, type TypingContext, type TypingUser } from '@/services/TypingIndicatorService'
 import { useAuthStore } from '@/stores/auth'
 import { debug } from '@/utils/debug'
@@ -20,7 +22,7 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   const authStore = useAuthStore()
   let unsubscribe: (() => void) | null = null
   let currentSubscribedKey = '' // Track what we're currently subscribed to
-  let retryTimeout: ReturnType<typeof setTimeout> | null = null
+  let isSubscribing = false // Prevent concurrent subscription attempts
 
   // Handle both computed refs and direct values
   const getContext = () => {
@@ -40,9 +42,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     return 'unknown'
   }
 
-  // Create a computed that Vue can properly track for reactivity
-  const contextKey = computed(() => getContextKey(getContext()))
-
   // Subscribe to typing updates for a given context
   const subscribeToContext = async (ctx: TypingContext | null, key: string) => {
     // Skip if already subscribed to this exact context
@@ -51,10 +50,17 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
       return
     }
     
+    // Prevent concurrent subscription attempts
+    if (isSubscribing) {
+      debug.log('⏳ useTypingIndicator: Already subscribing, skipping')
+      return
+    }
+    
     // Cleanup previous subscription
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
+      currentSubscribedKey = ''
     }
     
     if (!ctx) {
@@ -69,6 +75,7 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
       return
     }
     
+    isSubscribing = true
     debug.log('✅ useTypingIndicator: Subscribing to context:', ctx, 'key:', key)
     
     try {
@@ -83,77 +90,62 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
       currentSubscribedKey = key
     } catch (err) {
       debug.error('❌ useTypingIndicator: Failed to subscribe:', err)
+    } finally {
+      isSubscribing = false
     }
   }
 
-  // Watch the computed context key for changes - this properly tracks reactive deps
-  watch(
-    contextKey,
-    async (newKey, oldKey) => {
-      // Clear any pending retry
-      if (retryTimeout) {
-        clearTimeout(retryTimeout)
-        retryTimeout = null
+  // Use watchEffect to automatically track ALL reactive dependencies
+  // This includes props.channelId, props.conversationId, props.threadId accessed inside the getter
+  // watchEffect runs immediately and re-runs whenever any tracked dependency changes
+  watchEffect(async () => {
+    // Access the context - this triggers Vue's reactivity tracking on any props accessed
+    const ctx = getContext()
+    const key = getContextKey(ctx)
+    
+    // Also track auth state
+    const userId = authStore.session?.user?.id
+    
+    debug.log('🔄 useTypingIndicator watchEffect: context=', key, 'auth=', !!userId)
+    
+    // Only subscribe if we have both context and auth
+    if (ctx && key !== 'null' && userId) {
+      await subscribeToContext(ctx, key)
+    } else if (!ctx || key === 'null') {
+      // Clear subscription if no context
+      if (unsubscribe) {
+        unsubscribe()
+        unsubscribe = null
       }
-      
-      debug.log('🔄 useTypingIndicator: Context key changed:', oldKey, '->', newKey)
-      const ctx = getContext()
-      await subscribeToContext(ctx, newKey)
-    },
-    { immediate: true }
-  )
-
-  // Watch for auth session changes - subscribe when user logs in
+      typingUsers.value = []
+      currentSubscribedKey = ''
+    }
+  })
+  
+  // Additional watch for auth changes to retry subscription
   watch(
     () => authStore.session?.user?.id,
-    async (userId) => {
-      const ctx = getContext()
-      const key = contextKey.value
-      
-      // If we have a valid context but haven't subscribed yet, subscribe now
-      if (userId && ctx && key !== 'null' && currentSubscribedKey !== key) {
-        debug.log('🔄 useTypingIndicator: Auth ready, subscribing to context:', key)
-        await subscribeToContext(ctx, key)
-      }
-    },
-    { immediate: true }
-  )
-
-  // Ensure subscription on mount with retry for direct page loads
-  onMounted(async () => {
-    // For direct page loads, props might not be immediately available
-    // Retry a few times with increasing delays
-    const trySubscribe = async (attempt: number) => {
-      const ctx = getContext()
-      const key = getContextKey(ctx)
-      
-      if (ctx && key !== 'null' && currentSubscribedKey !== key) {
-        debug.log(`🔄 useTypingIndicator: onMounted attempt ${attempt} - subscribing to:`, key)
-        await subscribeToContext(ctx, key)
-      } else if (attempt < 5 && key === 'null') {
-        // Context not yet available, retry with exponential backoff
-        const delay = Math.min(100 * Math.pow(2, attempt), 1000)
-        debug.log(`⏳ useTypingIndicator: Context not ready, retrying in ${delay}ms (attempt ${attempt})`)
-        retryTimeout = setTimeout(() => trySubscribe(attempt + 1), delay)
+    async (userId, oldUserId) => {
+      if (userId && !oldUserId) {
+        // User just logged in, try to subscribe
+        const ctx = getContext()
+        const key = getContextKey(ctx)
+        if (ctx && key !== 'null' && currentSubscribedKey !== key) {
+          debug.log('🔄 useTypingIndicator: Auth ready, subscribing to context:', key)
+          await subscribeToContext(ctx, key)
+        }
       }
     }
-    
-    // Start with a small delay to allow props to settle
-    await new Promise(resolve => setTimeout(resolve, 50))
-    await trySubscribe(1)
-  })
+  )
 
   // Cleanup on unmount
   onUnmounted(() => {
-    if (retryTimeout) {
-      clearTimeout(retryTimeout)
-      retryTimeout = null
-    }
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
     }
     currentSubscribedKey = ''
+    isSubscribing = false
   })
 
   /**
