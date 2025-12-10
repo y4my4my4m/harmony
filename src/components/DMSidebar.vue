@@ -207,7 +207,9 @@ const emit = defineEmits<{
 
 const dmStore = useDMStore()
 const activityPubStore = useActivityPubStore()
-const { blockedUsers } = storeToRefs(activityPubStore)
+
+// Reactive computed to track blocked users count for change detection
+const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size)
 
 // Use professional presence system
 const { 
@@ -227,9 +229,11 @@ const searchTimeout = ref<NodeJS.Timeout | null>(null)
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
 
-// Filter out blocked users from search results (uses storeToRefs for reactivity)
+// Filter out blocked users from search results (uses store getter for reactivity)
 const filteredSearchResults = computed(() => {
-  return dmStore.searchResults.filter(user => !blockedUsers.value.has(user.id))
+  // Access the count to ensure reactivity when blocked users change
+  blockedUsersCount.value
+  return dmStore.searchResults.filter(user => !activityPubStore.isBlocked(user.id))
 })
 
 // Helper functions for conversation display
@@ -311,7 +315,7 @@ const startConversation = async (user: DMUser) => {
   if (!currentUser?.id) return
 
   // Check if user is blocked - don't allow starting conversation with blocked users
-  if (blockedUsers.value.has(user.id)) {
+  if (activityPubStore.isBlocked(user.id)) {
     debug.warn('Cannot start conversation with blocked user')
     return
   }

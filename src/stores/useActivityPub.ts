@@ -1955,8 +1955,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         const result = await services.interactions.toggleMute(userId);
         
         if (result.muting) {
-          this.mutedUsers.add(userId);
-          debug.log('✅ User muted successfully:', userId);
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newMutedUsers = new Set(this.mutedUsers);
+          newMutedUsers.add(userId);
+          this.mutedUsers = newMutedUsers;
+          debug.log('✅ User muted successfully:', userId, 'Total muted:', this.mutedUsers.size);
         }
         
         return { muted: result.muting };
@@ -1977,8 +1980,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         const result = await services.interactions.toggleMute(userId);
         
         if (!result.muting) {
-          this.mutedUsers.delete(userId);
-          debug.log('✅ User unmuted successfully:', userId);
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newMutedUsers = new Set(this.mutedUsers);
+          newMutedUsers.delete(userId);
+          this.mutedUsers = newMutedUsers;
+          debug.log('✅ User unmuted successfully:', userId, 'Total muted:', this.mutedUsers.size);
         }
         
         return { muted: result.muting };
@@ -1999,7 +2005,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         const result = await services.interactions.toggleBlock(userId);
         
         if (result.blocking) {
-          this.blockedUsers.add(userId);
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newBlockedUsers = new Set(this.blockedUsers);
+          newBlockedUsers.add(userId);
+          this.blockedUsers = newBlockedUsers;
           
           // Also unfollow if following (blocking implies unfollowing)
           if (this.followedUsers.has(userId)) {
@@ -2010,7 +2019,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             }
           }
           
-          debug.log('✅ User blocked successfully:', userId);
+          debug.log('✅ User blocked successfully:', userId, 'Total blocked:', this.blockedUsers.size);
         }
         
         return { blocked: result.blocking };
@@ -2031,8 +2040,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         const result = await services.interactions.toggleBlock(userId);
         
         if (!result.blocking) {
-          this.blockedUsers.delete(userId);
-          debug.log('✅ User unblocked successfully:', userId);
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newBlockedUsers = new Set(this.blockedUsers);
+          newBlockedUsers.delete(userId);
+          this.blockedUsers = newBlockedUsers;
+          debug.log('✅ User unblocked successfully:', userId, 'Total blocked:', this.blockedUsers.size);
         }
         
         return { blocked: result.blocking };
@@ -2980,11 +2992,22 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔄 Loading blocked users...');
         
-        // Let RLS handle filtering - it will only return blocks where blocker_id = current profile
-        // This is more reliable than trying to match IDs ourselves
+        // Get current user's profile ID to explicitly filter
+        // This is needed because the current RLS allows users to see blocks where they are blocked_user_id
+        // We only want blocks where WE are the blocker
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        
+        if (!currentUser?.id) {
+          debug.log('ℹ️ No current user, skipping blocked users loading');
+          return;
+        }
+        
+        // Explicitly filter by blocker_id to get only users WE have blocked
         const { data, error } = await supabase
           .from('user_blocks')
-          .select('blocked_user_id, blocker_id');
+          .select('blocked_user_id')
+          .eq('blocker_id', currentUser.id);
 
         if (error) {
           debug.error('❌ Failed to load blocked users:', error);
@@ -2993,10 +3016,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         
         debug.log('📊 Raw blocked users data from DB:', data);
         
-        // Clear and repopulate the Set instead of replacing it
-        // This preserves reactivity for storeToRefs consumers
-        this.blockedUsers.clear();
-        (data || []).forEach(b => this.blockedUsers.add(b.blocked_user_id));
+        // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+        const newBlockedUsers = new Set<string>();
+        (data || []).forEach(b => newBlockedUsers.add(b.blocked_user_id));
+        this.blockedUsers = newBlockedUsers;
         debug.log(`✅ Loaded ${this.blockedUsers.size} blocked users:`, Array.from(this.blockedUsers));
       } catch (error) {
         debug.error('❌ Failed to load blocked users:', error);
@@ -3011,10 +3034,21 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔄 Loading muted users...');
         
-        // Let RLS handle filtering - it will only return mutes where muter_id = current profile
+        // Get current user's profile ID to explicitly filter
+        // We only want mutes where WE are the muter
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        
+        if (!currentUser?.id) {
+          debug.log('ℹ️ No current user, skipping muted users loading');
+          return;
+        }
+        
+        // Explicitly filter by muter_id to get only users WE have muted
         const { data, error } = await supabase
           .from('user_mutes')
-          .select('muted_user_id, muter_id');
+          .select('muted_user_id')
+          .eq('muter_id', currentUser.id);
 
         if (error) {
           debug.error('❌ Failed to load muted users:', error);
@@ -3023,10 +3057,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         
         debug.log('📊 Raw muted users data from DB:', data);
         
-        // Clear and repopulate the Set instead of replacing it
-        // This preserves reactivity for storeToRefs consumers
-        this.mutedUsers.clear();
-        (data || []).forEach(m => this.mutedUsers.add(m.muted_user_id));
+        // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+        const newMutedUsers = new Set<string>();
+        (data || []).forEach(m => newMutedUsers.add(m.muted_user_id));
+        this.mutedUsers = newMutedUsers;
         debug.log(`✅ Loaded ${this.mutedUsers.size} muted users:`, Array.from(this.mutedUsers));
       } catch (error) {
         debug.error('❌ Failed to load muted users:', error);

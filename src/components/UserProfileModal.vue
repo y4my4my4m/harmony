@@ -306,7 +306,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
-import { storeToRefs } from 'pinia'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -334,17 +333,20 @@ const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
-const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore)
 const { closeMobileSidebars, isMobile } = useLayoutState()
 
-// Watch for changes to blocked/muted users
-watch(blockedUsers, (newVal) => {
-  debug.log('👁️ UserProfileModal: blockedUsers changed, size:', newVal?.size || 0)
-}, { deep: true, immediate: true })
+// Reactive computed to track blocked/muted user counts for change detection
+const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size)
+const mutedUsersCount = computed(() => activityPubStore.mutedUsers.size)
 
-watch(mutedUsers, (newVal) => {
-  debug.log('👁️ UserProfileModal: mutedUsers changed, size:', newVal?.size || 0)
-}, { deep: true, immediate: true })
+// Watch for changes to blocked/muted users counts
+watch(blockedUsersCount, (newVal) => {
+  debug.log('👁️ UserProfileModal: blockedUsers changed, size:', newVal)
+}, { immediate: true })
+
+watch(mutedUsersCount, (newVal) => {
+  debug.log('👁️ UserProfileModal: mutedUsers changed, size:', newVal)
+}, { immediate: true })
 
 // Use professional presence system
 const { 
@@ -773,12 +775,14 @@ const openInviteModal = () => {
   showActionsMenu.value = false
 }
 
-// Check if the current user has blocked this user (uses storeToRefs for reactivity)
+// Check if the current user has blocked this user (uses store getter for reactivity)
 const isBlocked = computed(() => {
   if (!props.user) return false
-  // Directly check the reactive Set from storeToRefs
-  const blocked = blockedUsers.value?.has(props.user.id) || false
-  debug.log(`🔍 isBlocked check: userId=${props.user.id}, blocked=${blocked}, blockedUsers size=${blockedUsers.value?.size || 0}`)
+  // Access the count to ensure reactivity when blocked users change
+  blockedUsersCount.value
+  // Use store getter for reliable check
+  const blocked = activityPubStore.isBlocked(props.user.id)
+  debug.log(`🔍 isBlocked check: userId=${props.user.id}, blocked=${blocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`)
   return blocked
 })
 
@@ -799,12 +803,14 @@ const toggleBlock = async () => {
   }
 }
 
-// Check if the current user has muted this user (uses storeToRefs for reactivity)
+// Check if the current user has muted this user (uses store getter for reactivity)
 const isMuted = computed(() => {
   if (!props.user) return false
-  // Directly check the reactive Set from storeToRefs
-  const muted = mutedUsers.value?.has(props.user.id) || false
-  debug.log(`🔍 isMuted check: userId=${props.user.id}, muted=${muted}, mutedUsers size=${mutedUsers.value?.size || 0}`)
+  // Access the count to ensure reactivity when muted users change
+  mutedUsersCount.value
+  // Use store getter for reliable check
+  const muted = activityPubStore.isMuted(props.user.id)
+  debug.log(`🔍 isMuted check: userId=${props.user.id}, muted=${muted}, mutedUsers size=${activityPubStore.mutedUsers.size}`)
   return muted
 })
 

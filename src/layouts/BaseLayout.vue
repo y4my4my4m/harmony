@@ -33,6 +33,25 @@
       :class="{ 'is-dragging': isDragging && dragDirection === 'left' }"
       :style="serverSidebarDragStyle"
     >
+      <!-- TODO: fix for mobile -->
+
+      <!-- Mobile Profile Component -->
+      <div 
+        v-if="isMobile"
+        class="user-profile-section"
+      >
+        <Teleport :to="mobileProfileOpen ? '#app' : undefined" :disabled="!mobileProfileOpen">
+          <div 
+            :class="{ 'mobile-profile-overlay': mobileProfileOpen }"
+            @click="mobileProfileOpen ? closeMobileSidebars() : null"
+          >
+            <UserProfileComponent 
+              :toggle-mobile-profile="toggleMobileProfile" 
+              @click.stop
+            />
+          </div>
+        </Teleport>
+      </div>
       <ServerSidebar
         :servers="servers"
         @showPublicServers="$emit('showPublicServers')"
@@ -40,44 +59,6 @@
         @switch-to-chat="$emit('switchToChat')"
       />
     </div>
-    
-    <!-- Mobile Floating Profile Button (always accessible) -->
-    <div v-if="isMobile && !leftSidebarOpen && !rightSidebarOpen" class="mobile-profile-fab">
-      <button 
-        class="profile-fab-button"
-        @click="toggleMobileProfile"
-        aria-label="Open profile menu"
-      >
-        <img 
-          :src="currentUserAvatar || '/default_avatar.webp'" 
-          :alt="currentUserName || 'Profile'"
-          class="fab-avatar"
-        />
-        <span class="fab-status" :class="currentUserStatusClass"></span>
-      </button>
-    </div>
-    
-    <!-- Mobile Profile Overlay (fullscreen panel) -->
-    <Teleport to="body">
-      <div 
-        v-if="isMobile && mobileProfileOpen" 
-        class="mobile-profile-overlay"
-        @click="closeMobileSidebars"
-      >
-        <div class="mobile-profile-panel" @click.stop>
-          <div class="mobile-profile-header">
-            <h3>Profile</h3>
-            <button class="close-btn" @click="closeMobileSidebars">
-              ✕
-            </button>
-          </div>
-          <UserProfileComponent 
-            :toggle-mobile-profile="toggleMobileProfile" 
-            :is-mobile-expanded="true"
-          />
-        </div>
-      </div>
-    </Teleport>
     
     <!-- Content Area with Nested Router View -->
     <div class="content-area">
@@ -97,7 +78,8 @@
       />
     </div>
 
-    <!-- User Profile at Bottom (Desktop only - Mobile uses floating FAB) -->
+    <!-- User Profile at Bottom -->
+    <!-- TODO: fix for mobile -->
     <div v-if="!isMobile" class="user-profile-section">
       <UserProfileComponent />
     </div>
@@ -203,19 +185,6 @@ const isDMRoute = computed(() => {
 })
 const servers = computed(() => serverChannelStore.servers)
 const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerWidth : 768)
-
-// Current user profile data for mobile FAB
-const currentUserAvatar = computed(() => profileStore.profile?.avatar_url || authStore.session?.user?.user_metadata?.avatar_url)
-const currentUserName = computed(() => profileStore.profile?.display_name || profileStore.profile?.username || 'User')
-const currentUserStatusClass = computed(() => {
-  const status = profileStore.profile?.status
-  switch (status) {
-    case 1: return 'status-online'
-    case 2: return 'status-away'
-    case 3: return 'status-busy'
-    default: return 'status-offline'
-  }
-})
 
 // Dynamic overlay opacity during drag
 const overlayStyle = computed(() => {
@@ -988,126 +957,6 @@ onBeforeUnmount(() => {
   z-index: 101;
 }
 
-/* Mobile Floating Action Button for Profile */
-.mobile-profile-fab {
-  position: fixed;
-  bottom: 16px;
-  left: 16px;
-  z-index: 150;
-}
-
-.profile-fab-button {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: none;
-  background: var(--background-secondary);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 2px var(--background-tertiary);
-  cursor: pointer;
-  padding: 0;
-  overflow: hidden;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.profile-fab-button:active {
-  transform: scale(0.95);
-}
-
-.fab-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
-}
-
-.fab-status {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--background-secondary);
-}
-
-.fab-status.status-online { background: #23a55a; }
-.fab-status.status-away { background: #f0b232; }
-.fab-status.status-busy { background: #f23f43; }
-.fab-status.status-offline { background: #80848e; }
-
-/* Mobile Profile Overlay */
-.mobile-profile-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  z-index: 1000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 16px;
-}
-
-.mobile-profile-panel {
-  width: 100%;
-  max-width: 400px;
-  max-height: 80vh;
-  background: var(--background-secondary);
-  border-radius: 16px 16px 0 0;
-  overflow: hidden;
-  animation: slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.mobile-profile-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--background-modifier-accent);
-}
-
-.mobile-profile-header h3 {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-normal);
-}
-
-.mobile-profile-header .close-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 1.25rem;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s, color 0.2s;
-}
-
-.mobile-profile-header .close-btn:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-}
-
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   .base-layout.sidebar-open .server-sidebar-container {
@@ -1130,8 +979,36 @@ onBeforeUnmount(() => {
     transition: none !important;
   }
 
+  .mobile-profile-overlay {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mobile-profile-overlay .user-profile-section {
+    width: 100%;
+    height: auto;
+    padding: 10px;
+    left: 0px;
+    flex-direction: row;
+    justify-content: space-between;
+  }
   .user-profile-section {
-    display: none; /* Hidden on mobile, use FAB instead */
+    position: absolute;
+    left: 6px;
+    bottom: 10px;
+    width: 64px;
+    z-index: 101;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 }
 </style>

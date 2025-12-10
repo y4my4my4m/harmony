@@ -376,7 +376,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
-import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
@@ -446,20 +445,21 @@ const authStore = useAuthStore();
 const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
 
-// Get reactive references to blocked/muted users for proper reactivity
-const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore);
-
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
 const revealedBlockedGroups = ref<Set<string>>(new Set());
 
 // Force reactivity counter - increment when blocked users change
+// This is updated by watching the store's blockedUsers size
 const blockCheckVersion = ref(0);
 
-// Watch for changes to blocked users and force re-evaluation
-watch(blockedUsers, (newVal) => {
+// Reactive computed that tracks the blocked users count for change detection
+const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size);
+
+// Watch for changes to blocked users count and force re-evaluation
+watch(blockedUsersCount, (newCount, oldCount) => {
   blockCheckVersion.value++;
-  debug.log('🔄 Blocked users changed, forcing re-render. Count:', newVal?.size || 0);
-}, { deep: true });
+  debug.log('🔄 Blocked users changed, forcing re-render. Count:', newCount);
+});
 
 // Check if a message is from a blocked user (reactive)
 const isMessageFromBlockedUser = (message: Message): boolean => {
@@ -469,12 +469,12 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   const authorId = message.user_id || message.bot_id;
   if (!authorId) return false;
   
-  // Directly check the reactive Set
-  const isBlocked = blockedUsers.value?.has(authorId) || false;
+  // Use the store getter for reliable reactive access
+  const isBlocked = activityPubStore.isBlocked(authorId);
   
   // Debug: log check for first few messages
   if (debug.isEnabled && props.messages.indexOf(message) < 3) {
-    debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${blockedUsers.value?.size || 0}`);
+    debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
   }
   
   return isBlocked;
