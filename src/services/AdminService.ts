@@ -662,6 +662,39 @@ class AdminService {
   }
 
   /**
+   * Update federation settings
+   * Uses the update_federation_settings RPC function
+   */
+  async updateFederationSettings(settings: {
+    userId: string;
+    federationEnabled?: boolean;
+    inboundEnabled?: boolean;
+    outboundEnabled?: boolean;
+    autoAcceptFollows?: boolean;
+  }): Promise<boolean> {
+    try {
+      const { error } = await supabase.rpc('update_federation_settings', {
+        p_user_id: settings.userId,
+        p_federation_enabled: settings.federationEnabled ?? null,
+        p_inbound_enabled: settings.inboundEnabled ?? null,
+        p_outbound_enabled: settings.outboundEnabled ?? null,
+        p_auto_accept_follows: settings.autoAcceptFollows ?? null
+      });
+
+      if (error) {
+        debug.error('Failed to update federation settings:', error);
+        return false;
+      }
+
+      debug.log('Federation settings updated successfully');
+      return true;
+    } catch (error) {
+      debug.error('Failed to update federation settings:', error);
+      return false;
+    }
+  }
+
+  /**
    * Set instance configuration key-value pair
    * Uses the set_instance_config RPC function which requires admin permissions
    */

@@ -50,6 +50,10 @@
 \i 50_realtime.sql
 
 \echo ''
+\echo '>>> 90_federation_functions.sql - Creating federation helper functions...'
+\i 90_federation_functions.sql
+
+\echo ''
 \echo '>>> 95_livekit_tokens.sql - Creating LiveKit token functions...'
 \i 95_livekit_tokens.sql
 

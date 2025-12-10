@@ -29,17 +29,26 @@ import HashTagIcon from '@/components/icons/HashTag.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Channel } from '@/types';
 import { ViewMode, ViewType, CurrentView, VIEW_CONFIGS } from '@/types/viewTypes';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 
 const { t } = useI18n();
+const instanceSettings = useInstanceSettingsStore();
 
-// Professional tab configuration using the centralized type system
-const mainFeedTabs = [
-  { id: CurrentView.HOME, label: t('activitypub.home'), icon: 'home' },
-  { id: CurrentView.LOCAL, label: t('activitypub.local'), icon: 'users' },
-  { id: CurrentView.PUBLIC, label: t('activitypub.federated'), icon: 'globe' },
-  { id: CurrentView.TRENDING, label: t('activitypub.trending'), icon: 'trending-up' },
-  { id: CurrentView.INSTANCES, label: t('activitypub.instances'), icon: 'server' }
+// All available tabs
+const allFeedTabs = [
+  { id: CurrentView.HOME, label: t('activitypub.home'), icon: 'home', requiresFederation: false },
+  { id: CurrentView.LOCAL, label: t('activitypub.local'), icon: 'users', requiresFederation: false },
+  { id: CurrentView.PUBLIC, label: t('activitypub.federated'), icon: 'globe', requiresFederation: true },
+  { id: CurrentView.TRENDING, label: t('activitypub.trending'), icon: 'trending-up', requiresFederation: false },
+  { id: CurrentView.INSTANCES, label: t('activitypub.instances'), icon: 'server', requiresFederation: true }
 ];
+
+// Filter tabs based on federation status
+const mainFeedTabs = computed(() => 
+  allFeedTabs.filter(tab => 
+    !tab.requiresFederation || instanceSettings.isFederationEnabled
+  )
+);
 
 const props = defineProps<{
   mode: ViewMode;

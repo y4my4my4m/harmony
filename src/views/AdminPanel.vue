@@ -926,6 +926,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -1471,12 +1472,55 @@ const navigateToServer = (serverId: string) => {
 }
 
 const saveConfig = async () => {
+  if (!authStore.session?.user?.id) {
+    toast.error('You must be logged in to save configuration')
+    return
+  }
+
   try {
-    // Save configuration to database
-    debug.log('Saving configuration...', config.value)
+    const userId = authStore.session.user.id
+    
+    // Save federation settings
+    const fedSuccess = await adminService.updateFederationSettings({
+      userId,
+      inboundEnabled: config.value.federation.enableInbound,
+      outboundEnabled: config.value.federation.enableOutbound,
+      federationEnabled: config.value.federation.enableInbound || config.value.federation.enableOutbound
+    })
+
+    if (!fedSuccess) {
+      toast.error('Failed to save federation settings')
+      return
+    }
+
+    // Save chat settings
+    await adminService.setInstanceConfig('max_server_size', config.value.chat.maxServerSize, userId)
+    await adminService.setInstanceConfig('max_message_length', config.value.chat.maxMessageLength, userId)
+    await adminService.setInstanceConfig('allow_file_uploads', config.value.chat.allowFileUploads, userId)
+    await adminService.setInstanceConfig('enable_voice_channels', config.value.chat.enableVoiceChannels, userId)
+    
+    // Save federation-specific settings
+    await adminService.setInstanceConfig('max_post_length', config.value.federation.maxPostLength, userId)
+    await adminService.setInstanceConfig('federation_retry_attempts', config.value.federation.retryAttempts, userId)
+
+    // Save WebRTC settings
+    await adminService.updateWebRTCSettings({
+      mode: config.value.webrtc.mode,
+      livekitUrl: config.value.webrtc.livekitUrl,
+      allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
+      maxStageListeners: config.value.webrtc.maxStageListeners
+    })
+
     configChanged.value = false
-  } catch (error) {
+    toast.success('Configuration saved successfully')
+    debug.log('Configuration saved:', config.value)
+    
+    // Refresh instance settings store so UI updates
+    const instanceSettings = useInstanceSettingsStore()
+    await instanceSettings.fetchSettings(true)
+  } catch (error: any) {
     debug.error('Failed to save configuration:', error)
+    toast.error(error.message || 'Failed to save configuration')
   }
 }
 
