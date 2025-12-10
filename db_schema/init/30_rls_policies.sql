@@ -390,8 +390,41 @@ CREATE POLICY "invites_select_all" ON public.invites FOR SELECT USING (true);
 ALTER TABLE public.voice_channel_participants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "voice_participants_select_all" ON public.voice_channel_participants FOR SELECT USING (true);
 
+-- ---------------------------------------------------------------------------
+-- INSTANCE WEBRTC SETTINGS RLS
+-- SECURITY: This table contains livekit_api_secret which MUST NOT be exposed!
+-- Only admins can read the full table. Use get_livekit_config() for safe access.
+-- ---------------------------------------------------------------------------
 ALTER TABLE public.instance_webrtc_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "webrtc_settings_select_all" ON public.instance_webrtc_settings FOR SELECT USING (true);
+
+-- Only admins can read WebRTC settings (contains API secrets)
+CREATE POLICY "webrtc_settings_select_admin_only" ON public.instance_webrtc_settings 
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE auth_user_id = auth.uid() 
+            AND is_admin = true
+        )
+    );
+
+-- Only admins can modify WebRTC settings
+CREATE POLICY "webrtc_settings_update_admin_only" ON public.instance_webrtc_settings 
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE auth_user_id = auth.uid() 
+            AND is_admin = true
+        )
+    );
+
+CREATE POLICY "webrtc_settings_insert_admin_only" ON public.instance_webrtc_settings 
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE auth_user_id = auth.uid() 
+            AND is_admin = true
+        )
+    );
 
 DO $$
 BEGIN

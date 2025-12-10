@@ -18,43 +18,65 @@ CREATE TABLE IF NOT EXISTS public.posts (
     -- Content
     content jsonb NOT NULL,
     content_warning text,
+    language text DEFAULT 'en'::text,
     
-    -- Visibility: public, unlisted, private (followers), direct
-    visibility text DEFAULT 'public'::text,
-    
-    -- Reply chain
-    reply_to_id uuid REFERENCES public.posts(id) ON DELETE SET NULL,
-    reply_to_author_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-    
-    -- Reblog (boost)
-    reblog_of_id uuid REFERENCES public.posts(id) ON DELETE SET NULL,
-    
-    -- Soft delete
-    is_deleted boolean DEFAULT false,
-    deleted_at timestamp with time zone,
-    
-    -- Pin to profile
-    is_pinned boolean DEFAULT false,
-    pinned_at timestamp with time zone,
-    
-    -- Federation
-    is_local boolean DEFAULT true,
-    is_federated boolean DEFAULT false,
+    -- ActivityPub
     ap_id text,
     ap_type text DEFAULT 'Note'::text,
+    url text,
+    
+    -- Reply chain
+    in_reply_to uuid REFERENCES public.posts(id) ON DELETE SET NULL,
+    conversation_id uuid,
+    conversation_root_id uuid,
+    
+    -- Visibility: public, unlisted, followers, direct
+    visibility text DEFAULT 'public'::text,
+    
+    -- Local/Federation state
+    is_local boolean DEFAULT true,
+    is_federated boolean DEFAULT true,
     federation_status text DEFAULT 'pending'::text,
+    federated_to text[] DEFAULT '{}'::text[],
+    last_federated_at timestamp with time zone,
     
     -- Denormalized counts
     replies_count integer DEFAULT 0,
     reblogs_count integer DEFAULT 0,
     favorites_count integer DEFAULT 0,
     
+    -- Media
+    media_attachments jsonb DEFAULT '[]'::jsonb,
+    voice_attachments jsonb DEFAULT '[]'::jsonb,
+    
     -- Metadata
     metadata jsonb DEFAULT '{}'::jsonb,
-    language text DEFAULT 'en'::text,
+    is_sensitive boolean DEFAULT false,
+    
+    -- Soft delete
+    is_deleted boolean DEFAULT false,
+    deleted_at timestamp with time zone,
+    
+    -- Edit history
+    edit_history jsonb DEFAULT '[]'::jsonb,
+    
+    -- Reblog support (embedded reblog data for performance)
+    reblog jsonb,
+    reblog_author jsonb,
+    
+    -- Pin to profile
+    is_pinned boolean DEFAULT false,
+    
+    -- Denormalized user interaction states (computed per-user in queries)
+    -- These are placeholder columns used by RPC functions
+    is_favorited boolean DEFAULT false,
+    is_reblogged boolean DEFAULT false,
+    is_bookmarked boolean DEFAULT false,
     
     -- Constraints
-    CONSTRAINT posts_visibility_check CHECK (visibility IN ('public', 'unlisted', 'private', 'direct')),
+    CONSTRAINT posts_content_is_array CHECK (jsonb_typeof(content) = 'array'),
+    CONSTRAINT posts_content_not_empty CHECK (jsonb_array_length(content) > 0 OR reblog IS NOT NULL),
+    CONSTRAINT posts_visibility_check CHECK (visibility IN ('public', 'unlisted', 'followers', 'direct')),
     CONSTRAINT posts_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
 );
 
@@ -65,9 +87,17 @@ CREATE INDEX IF NOT EXISTS idx_posts_created_at ON public.posts(created_at DESC)
 CREATE INDEX IF NOT EXISTS idx_posts_visibility ON public.posts(visibility);
 CREATE INDEX IF NOT EXISTS idx_posts_is_local ON public.posts(is_local);
 CREATE INDEX IF NOT EXISTS idx_posts_ap_id ON public.posts(ap_id) WHERE ap_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_posts_reply_to ON public.posts(reply_to_id) WHERE reply_to_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_in_reply_to ON public.posts(in_reply_to) WHERE in_reply_to IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_conversation_id ON public.posts(conversation_id) WHERE conversation_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_conversation_root ON public.posts(conversation_root_id) WHERE conversation_root_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_not_deleted ON public.posts(created_at DESC) WHERE is_deleted = false;
 
 COMMENT ON TABLE public.posts IS 'Timeline posts - federated with Mastodon/Misskey';
+COMMENT ON COLUMN public.posts.conversation_root_id IS 'UUID of the root post in this ActivityPub conversation thread. Enables O(1) conversation lookups.';
+COMMENT ON COLUMN public.posts.is_favorited IS 'Whether the current user has favorited this post (computed in queries)';
+COMMENT ON COLUMN public.posts.is_reblogged IS 'Whether the current user has reblogged this post (computed in queries)';
+COMMENT ON COLUMN public.posts.is_bookmarked IS 'Whether the current user has bookmarked this post (computed in queries)';
+COMMENT ON CONSTRAINT posts_content_not_empty ON public.posts IS 'Ensures posts have content OR are reblogs. Pure reblogs can have empty content if reblog field is present.';
 
 -- ---------------------------------------------------------------------------
 -- FOLLOWS - Following relationships
@@ -146,19 +176,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_post_interactions_unique
 COMMENT ON TABLE public.post_interactions IS 'Post likes, reblogs, emoji reactions, and bookmarks';
 
 -- ---------------------------------------------------------------------------
--- HASHTAGS
+-- HASHTAGS - With trending support
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.hashtags (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    name text NOT NULL UNIQUE,
-    usage_count integer DEFAULT 0,
-    last_used_at timestamp with time zone DEFAULT now(),
     created_at timestamp with time zone DEFAULT now(),
-    is_trending boolean DEFAULT false
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    -- Tag name
+    tag text NOT NULL,
+    normalized_tag text NOT NULL,
+    
+    -- Usage counts
+    total_uses integer DEFAULT 0,
+    daily_uses integer DEFAULT 0,
+    weekly_uses integer DEFAULT 0,
+    
+    -- Peak tracking
+    peak_daily_uses integer DEFAULT 0,
+    peak_daily_date date,
+    
+    -- Timestamps
+    first_used_at timestamp with time zone DEFAULT now(),
+    last_used_at timestamp with time zone DEFAULT now(),
+    
+    -- Trending
+    trending_score numeric DEFAULT 0,
+    trending_rank integer,
+    last_trending_update timestamp with time zone,
+    
+    UNIQUE(normalized_tag)
 );
 
-CREATE INDEX IF NOT EXISTS idx_hashtags_name ON public.hashtags(lower(name));
-CREATE INDEX IF NOT EXISTS idx_hashtags_usage ON public.hashtags(usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_hashtags_tag ON public.hashtags(tag);
+CREATE INDEX IF NOT EXISTS idx_hashtags_normalized ON public.hashtags(normalized_tag);
+CREATE INDEX IF NOT EXISTS idx_hashtags_trending ON public.hashtags(trending_score DESC);
+CREATE INDEX IF NOT EXISTS idx_hashtags_daily_uses ON public.hashtags(daily_uses DESC);
 
 COMMENT ON TABLE public.hashtags IS 'Hashtag registry for trending and discovery';
 
@@ -168,8 +221,12 @@ COMMENT ON TABLE public.hashtags IS 'Hashtag registry for trending and discovery
 CREATE TABLE IF NOT EXISTS public.post_hashtags (
     post_id uuid NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
     hashtag_id uuid NOT NULL REFERENCES public.hashtags(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT now(),
     PRIMARY KEY (post_id, hashtag_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_post_hashtags_hashtag ON public.post_hashtags(hashtag_id);
+CREATE INDEX IF NOT EXISTS idx_post_hashtags_created ON public.post_hashtags(created_at DESC);
 
 -- ---------------------------------------------------------------------------
 -- USER BLOCKS

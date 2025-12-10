@@ -130,12 +130,13 @@ Returns true only if both instance-level AND user-level federation are enabled.'
 -- Set Instance Config (Admin Only)
 -- =============================================================================
 -- Upsert configuration values in instance_config table.
--- Requires admin role or service_role key.
+-- Requires admin role. Uses auth.uid() to verify the caller is an admin.
+-- SECURITY: Always verifies admin status - never bypasses the check.
 -- =============================================================================
 CREATE OR REPLACE FUNCTION public.set_instance_config(
     p_key text,
     p_value jsonb,
-    p_user_id uuid DEFAULT NULL,
+    p_user_id uuid DEFAULT NULL,  -- Deprecated: kept for backwards compatibility, ignored
     p_description text DEFAULT NULL
 )
 RETURNS boolean
@@ -144,19 +145,27 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    is_admin boolean := false;
+    v_is_admin boolean := false;
+    v_caller_profile_id uuid;
 BEGIN
-    -- Check if user is admin
-    IF p_user_id IS NOT NULL THEN
-        SELECT EXISTS(
-            SELECT 1 FROM profiles 
-            WHERE id = p_user_id 
-            AND is_admin = true
-        ) INTO is_admin;
-        
-        IF NOT is_admin THEN
-            RAISE EXCEPTION 'Unauthorized: Admin role required';
-        END IF;
+    -- SECURITY: Always get the actual caller from auth.uid(), never trust passed parameter
+    -- Get the profile ID for the current authenticated user
+    SELECT id INTO v_caller_profile_id
+    FROM profiles 
+    WHERE auth_user_id = auth.uid();
+    
+    -- If no profile found, user is not authenticated properly
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Must be authenticated with a valid profile';
+    END IF;
+    
+    -- Check if the authenticated user is an admin
+    SELECT is_admin INTO v_is_admin
+    FROM profiles 
+    WHERE id = v_caller_profile_id;
+    
+    IF NOT COALESCE(v_is_admin, false) THEN
+        RAISE EXCEPTION 'Unauthorized: Admin role required';
     END IF;
     
     -- Upsert the config value
@@ -174,7 +183,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.set_instance_config(text, jsonb, uuid, text) TO authenticated;
 
 COMMENT ON FUNCTION public.set_instance_config(text, jsonb, uuid, text) IS 
-'Set or update instance configuration. Admin role required.';
+'Set or update instance configuration. Admin role required. Always uses auth.uid() for authorization.';
 
 
 -- =============================================================================

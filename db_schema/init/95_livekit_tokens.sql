@@ -20,6 +20,52 @@
 CREATE EXTENSION IF NOT EXISTS pgjwt WITH SCHEMA extensions;
 
 -- =============================================================================
+-- Get Public LiveKit Config (Safe - No Secrets!)
+-- =============================================================================
+-- Returns LiveKit configuration WITHOUT the API secret.
+-- Safe for all authenticated users to call.
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.get_livekit_config()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_config jsonb;
+    v_mode text;
+    v_url text;
+    v_public_url text;
+    v_allow_federated boolean;
+BEGIN
+    -- Get config WITHOUT the secret
+    SELECT 
+        webrtc_mode,
+        livekit_url,
+        livekit_public_url,
+        allow_federated_voice
+    INTO v_mode, v_url, v_public_url, v_allow_federated
+    FROM instance_webrtc_settings
+    LIMIT 1;
+    
+    -- Return safe config (NO livekit_api_key, NO livekit_api_secret!)
+    RETURN jsonb_build_object(
+        'mode', COALESCE(v_mode, 'hybrid'),
+        'configured', (v_url IS NOT NULL),
+        'wsUrl', COALESCE(v_public_url, v_url),
+        'allow_federated_voice', COALESCE(v_allow_federated, true)
+    );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_livekit_config() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_livekit_config() TO anon;
+
+COMMENT ON FUNCTION public.get_livekit_config() IS 
+'Get public LiveKit configuration. NEVER exposes API key or secret. Safe for all users.';
+
+-- =============================================================================
 -- Generate LiveKit Token
 -- =============================================================================
 CREATE OR REPLACE FUNCTION public.generate_livekit_token(

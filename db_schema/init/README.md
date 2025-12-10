@@ -26,13 +26,15 @@ psql -h localhost -p 54322 -U postgres -d postgres
 \i 04_tables_servers.sql
 \i 05_tables_federation.sql
 \i 06_tables_misc.sql
-\i 10_functions_core.sql
-\i 11_functions_federation.sql
-\i 12_functions_triggers.sql
-\i 20_indexes.sql
+\i 07_tables_trending.sql
+\i 08_tables_bots_extended.sql
+\i 09_tables_encryption.sql
 \i 30_rls_policies.sql
-\i 40_triggers.sql
+\i 31_rls_policies_extended.sql
 \i 50_realtime.sql
+\i 70_views.sql
+\i 71_views_performance.sql
+\i 90_federation_functions.sql
 \i 95_livekit_tokens.sql
 \i 98_seed_data.sql
 \i 99_storage_buckets.sql
@@ -56,14 +58,15 @@ psql -h localhost -p 54322 -U postgres -d postgres -f init.sql
 | 03 | tables_social.sql | Social tables: posts, follows, interactions |
 | 04 | tables_servers.sql | Server tables: servers, channels, messages |
 | 05 | tables_federation.sql | Federation tables: instances, activities |
-| 06 | tables_misc.sql | Miscellaneous tables: bots, encryption, etc. |
-| 10 | functions_core.sql | Core functions |
-| 11 | functions_federation.sql | Federation functions |
-| 12 | functions_triggers.sql | Trigger functions |
-| 20 | indexes.sql | Performance indexes |
-| 30 | rls_policies.sql | Row Level Security policies |
-| 40 | triggers.sql | Database triggers |
+| 06 | tables_misc.sql | Miscellaneous tables: bots, notifications, etc. |
+| 07 | tables_trending.sql | Trending posts/users, server folders, user mutes |
+| 08 | tables_bots_extended.sql | Extended bot tables: commands, webhooks, presence |
+| 09 | tables_encryption.sql | E2E encryption: Megolm sessions, key backups |
+| 30 | rls_policies.sql | Row Level Security policies (core tables) |
+| 31 | rls_policies_extended.sql | RLS for trending, bots, encryption tables |
 | 50 | realtime.sql | Supabase Realtime publications |
+| 70 | views.sql | Useful database views |
+| 71 | views_performance.sql | Performance monitoring tables, views & functions |
 | 90 | federation_functions.sql | Federation helper functions (RPC) |
 | 95 | livekit_tokens.sql | LiveKit token generation (voice/video without backend) |
 | 98 | seed_data.sql | Default instance configuration |
