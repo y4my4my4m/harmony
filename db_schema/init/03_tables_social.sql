@@ -104,27 +104,26 @@ COMMENT ON CONSTRAINT posts_content_not_empty ON public.posts IS 'Ensures posts 
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.follows (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     
     follower_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     following_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
+    -- Federation
+    ap_id text,
+    accepted_at timestamp with time zone,
+    
     -- Status: pending (awaiting approval), accepted, rejected
     status text DEFAULT 'pending'::text,
-    
-    -- Federation
+    is_local boolean DEFAULT true,
+    metadata jsonb DEFAULT '{}'::jsonb,
     federation_status text DEFAULT 'pending'::text,
-    ap_id text,
-    
-    -- Notifications
-    notify_posts boolean DEFAULT true,
-    show_reblogs boolean DEFAULT true,
     
     UNIQUE(follower_id, following_id),
+    CONSTRAINT follows_no_self_follow CHECK (follower_id != following_id),
     CONSTRAINT follows_status_check CHECK (status IN ('pending', 'accepted', 'rejected')),
-    CONSTRAINT follows_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
-    CONSTRAINT follows_no_self_follow CHECK (follower_id != following_id)
+    CONSTRAINT follows_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
 );
 
 ALTER TABLE public.follows REPLICA IDENTITY FULL;
@@ -134,6 +133,8 @@ CREATE INDEX IF NOT EXISTS idx_follows_following_id ON public.follows(following_
 CREATE INDEX IF NOT EXISTS idx_follows_status ON public.follows(status);
 
 COMMENT ON TABLE public.follows IS 'User following relationships';
+COMMENT ON COLUMN public.follows.follower_id IS 'ID of the user doing the following. This is the source of the follow relationship (follower_id -> following_id)';
+COMMENT ON COLUMN public.follows.following_id IS 'ID of the user being followed. IMPORTANT: Code should use following_id, NOT followed_id. This is the target of the follow relationship (follower_id -> following_id)';
 
 -- ---------------------------------------------------------------------------
 -- POST INTERACTIONS - Likes, reblogs, emoji reactions
@@ -233,12 +234,26 @@ CREATE INDEX IF NOT EXISTS idx_post_hashtags_created ON public.post_hashtags(cre
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.user_blocks (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
     blocker_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     blocked_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
+    -- Block type: full, posts_only, interactions_only
+    block_type text DEFAULT 'full'::text,
+    reason text,
+    expires_at timestamp with time zone,
+    
+    -- Federation
+    metadata jsonb DEFAULT '{}'::jsonb,
+    ap_id text,
+    is_federated boolean DEFAULT false,
+    federation_status text DEFAULT 'pending'::text,
+    
     UNIQUE(blocker_id, blocked_user_id),
-    CONSTRAINT user_blocks_no_self_block CHECK (blocker_id != blocked_user_id)
+    CONSTRAINT user_blocks_no_self_block CHECK (blocker_id != blocked_user_id),
+    CONSTRAINT user_blocks_block_type_check CHECK (block_type IN ('full', 'posts_only', 'interactions_only')),
+    CONSTRAINT user_blocks_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
 );
 
 ALTER TABLE public.user_blocks REPLICA IDENTITY FULL;
@@ -246,7 +261,9 @@ ALTER TABLE public.user_blocks REPLICA IDENTITY FULL;
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON public.user_blocks(blocker_id);
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON public.user_blocks(blocked_user_id);
 
-COMMENT ON TABLE public.user_blocks IS 'User block relationships';
+COMMENT ON TABLE public.user_blocks IS 'User-level blocking with granular control and optional expiration';
+COMMENT ON COLUMN public.user_blocks.ap_id IS 'ActivityPub ID for federated Block activities';
+COMMENT ON COLUMN public.user_blocks.is_federated IS 'Whether this block was received via federation';
 
 -- ---------------------------------------------------------------------------
 -- TIMELINE ENTRIES - Cached timeline for fast retrieval

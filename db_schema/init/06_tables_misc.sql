@@ -35,6 +35,27 @@ CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name));
 COMMENT ON TABLE public.emojis IS 'Custom emoji library';
 
 -- ---------------------------------------------------------------------------
+-- EMOJI USAGE - Track emoji usage for analytics and suggestions
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.emoji_usage (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    emoji_id uuid NOT NULL REFERENCES public.emojis(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    context_type text NOT NULL,
+    context_id uuid,
+    used_at timestamp with time zone DEFAULT now(),
+    
+    CONSTRAINT emoji_usage_context_type_check CHECK (context_type IN ('message', 'reaction'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_emoji_usage_emoji ON public.emoji_usage(emoji_id);
+CREATE INDEX IF NOT EXISTS idx_emoji_usage_user ON public.emoji_usage(user_id);
+CREATE INDEX IF NOT EXISTS idx_emoji_usage_server ON public.emoji_usage(server_id);
+
+COMMENT ON TABLE public.emoji_usage IS 'Tracks emoji usage for analytics and frequently used suggestions';
+
+-- ---------------------------------------------------------------------------
 -- REMOTE EMOJIS CACHE - For emoji importer feature
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.remote_emojis_cache (
@@ -135,6 +156,29 @@ ALTER TABLE public.notification_preferences REPLICA IDENTITY FULL;
 COMMENT ON TABLE public.notification_preferences IS 'User notification preferences';
 
 -- ---------------------------------------------------------------------------
+-- NOTIFICATION CHANNELS - Per-channel/server muting
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.notification_channels (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
+    channel_id uuid REFERENCES public.channels(id) ON DELETE CASCADE,
+    conversation_id uuid,
+    
+    muted boolean DEFAULT false,
+    muted_until timestamp with time zone,
+    notification_level varchar(20) DEFAULT 'all'::varchar,
+    
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_channels_user ON public.notification_channels(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_channels_server ON public.notification_channels(server_id);
+
+COMMENT ON TABLE public.notification_channels IS 'Channel/server/conversation specific notification muting settings';
+
+-- ---------------------------------------------------------------------------
 -- PUSH SUBSCRIPTIONS (Web Push)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.push_subscriptions (
@@ -145,18 +189,26 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     p256dh text NOT NULL,
     auth text NOT NULL,
     
+    -- Device info
+    user_agent text,
     device_name text,
     
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    last_used_at timestamp with time zone,
+    -- Timestamps
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
     
-    UNIQUE(user_id, endpoint)
+    -- Push delivery tracking
+    last_successful_push timestamp with time zone,
+    failure_count integer DEFAULT 0,
+    last_failure_at timestamp with time zone,
+    last_failure_reason text
 );
 
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON public.push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON public.push_subscriptions(endpoint);
 
-COMMENT ON TABLE public.push_subscriptions IS 'Web Push notification subscriptions';
+COMMENT ON TABLE public.push_subscriptions IS 'Stores Web Push notification subscriptions for each user device. Used for native push notifications on iOS (16.4+) and Android PWAs.';
+COMMENT ON COLUMN public.push_subscriptions.endpoint IS 'The unique push service URL for this subscription';
 
 -- ---------------------------------------------------------------------------
 -- UNREAD COUNTS (denormalized for performance)

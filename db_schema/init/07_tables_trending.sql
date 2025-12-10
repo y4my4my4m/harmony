@@ -234,6 +234,25 @@ CREATE INDEX IF NOT EXISTS idx_user_mutes_muted ON public.user_mutes(muted_user_
 
 COMMENT ON TABLE public.user_mutes IS 'User mute relationships (hide without blocking)';
 
+-- ---------------------------------------------------------------------------
+-- USER TIMELINE CACHE - Cached timeline data for fast retrieval
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_timeline_cache (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    timeline_type text NOT NULL,
+    posts_data jsonb DEFAULT '[]'::jsonb NOT NULL,
+    last_updated timestamp with time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now(),
+    
+    CONSTRAINT user_timeline_cache_timeline_type_check CHECK (timeline_type IN ('home', 'local', 'public'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_timeline_cache_user ON public.user_timeline_cache(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_timeline_cache_user_type ON public.user_timeline_cache(user_id, timeline_type);
+
+COMMENT ON TABLE public.user_timeline_cache IS 'Pre-computed timeline cache for instant feed loading';
+
 DO $$
 BEGIN
     RAISE NOTICE 'Trending & discovery tables created successfully';

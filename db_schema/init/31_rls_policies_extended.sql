@@ -299,7 +299,7 @@ CREATE POLICY "conversation_encryption_settings_modify" ON public.conversation_e
         EXISTS (
             SELECT 1 FROM public.conversations c
             WHERE c.id = conversation_encryption_settings.conversation_id
-            AND c.owner_id = public.get_current_profile_id()
+            AND c.created_by = public.get_current_profile_id()
         )
     );
 

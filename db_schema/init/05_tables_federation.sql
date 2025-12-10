@@ -295,6 +295,61 @@ CREATE INDEX IF NOT EXISTS idx_federated_voice_calls_channel ON public.federated
 
 COMMENT ON TABLE public.federated_voice_calls IS 'Federated voice call sessions';
 
+-- ---------------------------------------------------------------------------
+-- ACTIVITY PROCESSING LOGS - Track ActivityPub activity processing
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.activity_processing_logs (
+    id serial PRIMARY KEY,
+    activity_id uuid NOT NULL,
+    ap_id text NOT NULL,
+    ap_type text NOT NULL,
+    status text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    error_message text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    processed_at timestamp with time zone
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_processing_logs_activity ON public.activity_processing_logs(activity_id);
+CREATE INDEX IF NOT EXISTS idx_activity_processing_logs_status ON public.activity_processing_logs(status);
+
+COMMENT ON TABLE public.activity_processing_logs IS 'Tracks processing of ActivityPub activities';
+
+-- ---------------------------------------------------------------------------
+-- ACTIVITYPUB PROCESSING STATS - Daily statistics
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.activitypub_processing_stats (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    date date NOT NULL UNIQUE,
+    total_activities integer DEFAULT 0,
+    processed_activities integer DEFAULT 0,
+    failed_activities integer DEFAULT 0,
+    permanently_failed_activities integer DEFAULT 0,
+    avg_processing_time_ms numeric DEFAULT 0,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+COMMENT ON TABLE public.activitypub_processing_stats IS 'Daily ActivityPub processing statistics';
+
+-- ---------------------------------------------------------------------------
+-- FEDERATION DELIVERY STATS - Delivery statistics per period
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.federation_delivery_stats (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    period_start timestamp with time zone NOT NULL,
+    period_end timestamp with time zone NOT NULL,
+    total_deliveries integer DEFAULT 0,
+    successful_deliveries integer DEFAULT 0,
+    failed_deliveries integer DEFAULT 0,
+    avg_delivery_time_ms numeric,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_federation_delivery_stats_period ON public.federation_delivery_stats(period_start, period_end);
+
+COMMENT ON TABLE public.federation_delivery_stats IS 'Statistics on federation delivery success rates';
+
 DO $$
 BEGIN
     RAISE NOTICE 'Federation tables created successfully';

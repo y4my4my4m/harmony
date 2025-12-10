@@ -180,7 +180,7 @@ BEGIN
     -- Try to find existing direct conversation
     SELECT c.id INTO conversation_uuid
     FROM conversations c
-    WHERE c.is_group = false
+    WHERE c.type = 'direct'
       AND EXISTS (
           SELECT 1 FROM conversation_participants cp1 
           WHERE cp1.conversation_id = c.id 
@@ -194,10 +194,10 @@ BEGIN
             AND cp2.left_at IS NULL
       );
     
-    -- If not found, create new conversation
+    -- If not found, create new conversation using new schema
     IF conversation_uuid IS NULL THEN
-        INSERT INTO conversations (is_group, owner_id)
-        VALUES (false, user1_uuid)
+        INSERT INTO conversations (type, created_by)
+        VALUES ('direct', user1_uuid)
         RETURNING id INTO conversation_uuid;
         
         -- Add both users as participants
@@ -228,13 +228,13 @@ BEGIN
     FROM conversations c
     JOIN conversation_participants cp1 ON c.id = cp1.conversation_id AND cp1.user_id = p_user1_id
     JOIN conversation_participants cp2 ON c.id = cp2.conversation_id AND cp2.user_id = p_user2_id
-    WHERE c.is_group = false
+    WHERE c.type = 'direct'
     LIMIT 1;
     
     IF v_conversation_id IS NULL THEN
-        -- Create new conversation
-        INSERT INTO conversations (is_group)
-        VALUES (false)
+        -- Create new conversation using new schema
+        INSERT INTO conversations (type)
+        VALUES ('direct')
         RETURNING id INTO v_conversation_id;
         
         INSERT INTO conversation_participants (conversation_id, user_id)

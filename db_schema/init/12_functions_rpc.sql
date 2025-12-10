@@ -30,9 +30,9 @@ BEGIN
         RAISE EXCEPTION 'Unauthorized: You can only create conversations as yourself';
     END IF;
 
-    -- Note: metadata stored as part of the conversation if needed, but table doesn't have metadata column
-    INSERT INTO conversations (is_group, name, owner_id)
-    VALUES (true, conversation_name, creator_user_id)
+    -- Create group conversation using new schema (type, created_by, metadata)
+    INSERT INTO conversations (type, name, created_by, metadata)
+    VALUES ('group', conversation_name, creator_user_id, initial_metadata)
     RETURNING id INTO new_conversation_id;
     
     -- Add creator as admin
@@ -87,7 +87,7 @@ BEGIN
     IF array_length(participant_ids, 1) = 2 AND conversation_type = 'direct' THEN
         SELECT c.id INTO v_conversation_id
         FROM conversations c
-        WHERE c.is_group = false
+        WHERE c.type = 'direct'
           AND EXISTS (SELECT 1 FROM conversation_participants WHERE conversation_id = c.id AND user_id = participant_ids[1])
           AND EXISTS (SELECT 1 FROM conversation_participants WHERE conversation_id = c.id AND user_id = participant_ids[2]);
         
@@ -96,10 +96,10 @@ BEGIN
         END IF;
     END IF;
     
-    -- Create new conversation (use caller as owner if not specified)
-    INSERT INTO conversations (is_group, name, owner_id)
+    -- Create new conversation using new schema (type, created_by)
+    INSERT INTO conversations (type, name, created_by)
     VALUES (
-        array_length(participant_ids, 1) > 2,
+        CASE WHEN array_length(participant_ids, 1) > 2 THEN 'group' ELSE 'direct' END,
         conversation_name,
         COALESCE(created_by_id, v_caller_profile_id)
     )

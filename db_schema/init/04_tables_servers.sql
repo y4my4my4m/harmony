@@ -340,19 +340,19 @@ COMMENT ON TABLE public.user_roles IS 'User role assignments';
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.conversations (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     
-    -- Group chat name (null for 1:1)
+    -- Conversation info
     name text,
-    icon text,
+    type text DEFAULT 'direct'::text,
+    created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    is_active boolean DEFAULT true,
     
-    -- For group DMs
-    is_group boolean DEFAULT false,
-    owner_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    -- Metadata for federation etc.
+    metadata jsonb DEFAULT '{}'::jsonb,
     
-    -- Encryption
-    encrypted boolean DEFAULT false
+    CONSTRAINT conversations_type_check CHECK (type IN ('direct', 'group', 'channel'))
 );
 
 ALTER TABLE public.conversations REPLICA IDENTITY FULL;
@@ -362,7 +362,7 @@ ALTER TABLE public.messages
     ADD CONSTRAINT messages_conversation_id_fkey 
     FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
 
-COMMENT ON TABLE public.conversations IS 'DM conversations (1:1 and group)';
+COMMENT ON TABLE public.conversations IS 'DM conversations between users. Supports both local users (in auth.users) and federated users (profiles only). Foreign keys reference profiles to enable federated DMs.';
 
 -- ---------------------------------------------------------------------------
 -- CONVERSATION PARTICIPANTS

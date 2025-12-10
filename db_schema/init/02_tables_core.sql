@@ -19,10 +19,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     status smallint DEFAULT 0,
     
     -- Federation fields
-    domain text NOT NULL,
+    domain text DEFAULT 'har.mony.lol'::text NOT NULL,
     federated_id text,
     public_key text,
-    private_key text,
+    -- Note: private_key is stored in user_private_keys table, NOT here
     inbox_url text,
     outbox_url text,
     followers_url text,
