@@ -151,7 +151,7 @@ BEGIN
         SELECT EXISTS(
             SELECT 1 FROM profiles 
             WHERE id = p_user_id 
-            AND (role = 'admin' OR role = 'super_admin')
+            AND is_admin = true
         ) INTO is_admin;
         
         IF NOT is_admin THEN
@@ -204,7 +204,7 @@ BEGIN
     SELECT EXISTS(
         SELECT 1 FROM profiles 
         WHERE id = p_user_id 
-        AND (role = 'admin' OR role = 'super_admin')
+        AND is_admin = true
     ) INTO is_admin;
     
     IF NOT is_admin THEN

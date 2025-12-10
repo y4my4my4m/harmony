@@ -147,7 +147,12 @@ CREATE TABLE IF NOT EXISTS public.messages (
     CONSTRAINT messages_content_is_array CHECK (jsonb_typeof(content) = 'array'),
     CONSTRAINT messages_content_not_empty CHECK (jsonb_array_length(content) > 0),
     CONSTRAINT messages_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
-    CONSTRAINT messages_user_or_bot_check CHECK ((user_id IS NOT NULL AND bot_id IS NULL) OR (user_id IS NULL AND bot_id IS NOT NULL))
+    -- Allow both NULL (message from deleted user) or exactly one non-NULL
+    CONSTRAINT messages_user_or_bot_check CHECK (
+        (user_id IS NULL AND bot_id IS NULL) OR  -- Deleted user
+        (user_id IS NOT NULL AND bot_id IS NULL) OR  -- User message
+        (user_id IS NULL AND bot_id IS NOT NULL)  -- Bot message
+    )
 );
 
 ALTER TABLE public.messages REPLICA IDENTITY FULL;
