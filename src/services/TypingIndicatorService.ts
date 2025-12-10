@@ -203,6 +203,7 @@ class TypingIndicatorService {
 
   /**
    * Set up presence channel for a context
+   * Waits for subscription to complete with retry logic for initial page loads
    */
   private async setupContext(context: TypingContext): Promise<void> {
     // If already set up for this context, reuse
@@ -220,26 +221,80 @@ class TypingIndicatorService {
 
     debug.log('🔄 TypingIndicatorService: Setting up context:', channelName)
 
-    this.currentChannel = supabase.channel(channelName)
-      .on('presence', { event: 'sync' }, () => {
-        this.handlePresenceSync(context)
-      })
-      .on('presence', { event: 'join' }, ({ newPresences }) => {
-        this.handlePresenceJoin(context, newPresences)
-      })
-      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        this.handlePresenceLeave(context, leftPresences)
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          debug.log('✅ TypingIndicatorService: Subscribed to', channelName)
-          // Trigger sync immediately after subscription to get current typing users
-          // This is important when landing directly on a channel (page refresh)
-          this.handlePresenceSync(context)
-        } else if (status === 'CHANNEL_ERROR') {
-          debug.error('❌ TypingIndicatorService: Channel error for', channelName)
+    // Try to subscribe with retry logic
+    // On initial page load, Supabase realtime connection might not be ready yet
+    const MAX_RETRIES = 5
+    const RETRY_DELAY_MS = 500
+    const SUBSCRIBE_TIMEOUT_MS = 3000
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const subscribed = await this.subscribeToChannel(context, channelName, SUBSCRIBE_TIMEOUT_MS)
+        if (subscribed) {
+          debug.log('✅ TypingIndicatorService: Subscribed to', channelName, 'on attempt', attempt)
+          return
         }
-      })
+      } catch (err) {
+        debug.warn(`⚠️ TypingIndicatorService: Subscription attempt ${attempt}/${MAX_RETRIES} failed for ${channelName}`)
+      }
+
+      // Wait before retrying (except on last attempt)
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
+      }
+    }
+
+    debug.error('❌ TypingIndicatorService: Failed to subscribe after', MAX_RETRIES, 'attempts')
+  }
+
+  /**
+   * Subscribe to a channel with timeout
+   * Returns true if subscription succeeded, false if timed out
+   */
+  private async subscribeToChannel(context: TypingContext, channelName: string, timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      let resolved = false
+      
+      // Timeout for subscription
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          debug.warn('⏳ TypingIndicatorService: Subscription timed out for', channelName)
+          // Clean up the pending channel
+          if (this.currentChannel) {
+            supabase.removeChannel(this.currentChannel).catch(() => {})
+            this.currentChannel = null
+          }
+          resolve(false)
+        }
+      }, timeoutMs)
+
+      this.currentChannel = supabase.channel(channelName)
+        .on('presence', { event: 'sync' }, () => {
+          this.handlePresenceSync(context)
+        })
+        .on('presence', { event: 'join' }, ({ newPresences }) => {
+          this.handlePresenceJoin(context, newPresences)
+        })
+        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+          this.handlePresenceLeave(context, leftPresences)
+        })
+        .subscribe((status) => {
+          if (resolved) return
+          
+          if (status === 'SUBSCRIBED') {
+            resolved = true
+            clearTimeout(timeout)
+            this.handlePresenceSync(context)
+            resolve(true)
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            resolved = true
+            clearTimeout(timeout)
+            debug.error('❌ TypingIndicatorService: Channel error for', channelName, '- status:', status)
+            reject(new Error(`Channel subscription failed: ${status}`))
+          }
+        })
+    })
   }
 
   /**

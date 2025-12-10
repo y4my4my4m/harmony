@@ -97,6 +97,7 @@ import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import type { Message } from '@/types';
 import { backgroundUploadManager } from '@/services/fileService';
 import { useAuthStore } from '@/stores/auth';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
@@ -149,7 +150,11 @@ const isEditorFocused = ref(false);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 
-// Typing indicator setup
+// Get store for channel ID (more reliable than props on direct page load)
+const serverChannelStore = useServerChannelStore()
+
+// Typing context - use props first, fall back to store
+// This is a computed that Vue can properly track for reactivity
 const typingContext = computed(() => {
   if (props.threadId) {
     return { type: 'thread' as const, threadId: props.threadId }
@@ -157,25 +162,22 @@ const typingContext = computed(() => {
   if (props.conversationId) {
     return { type: 'conversation' as const, conversationId: props.conversationId }
   }
-  if (props.channelId) {
-    return { type: 'channel' as const, channelId: props.channelId }
+  // Use props.channelId first, fall back to store's currentChannelId
+  // The store is set in ChatView's loadMessages which fires with immediate: true
+  const channelId = props.channelId || serverChannelStore.currentChannelId
+  if (channelId) {
+    return { type: 'channel' as const, channelId }
   }
   return null
 })
 
-// Pass the context getter directly - the composable handles reactivity
-const { typingUsers, startTyping, stopTyping } = useTypingIndicator(() => {
-  if (props.threadId) {
-    return { type: 'thread' as const, threadId: props.threadId }
-  }
-  if (props.conversationId) {
-    return { type: 'conversation' as const, conversationId: props.conversationId }
-  }
-  if (props.channelId) {
-    return { type: 'channel' as const, channelId: props.channelId }
-  }
-  return null
-})
+// Pass the computed getter - this properly tracks all reactive dependencies
+const { typingUsers, startTyping, stopTyping } = useTypingIndicator(() => typingContext.value)
+
+// DEBUG: Track context changes for typing indicator debugging
+watch(typingContext, (newCtx, oldCtx) => {
+  debug.log('🔍 MessageInput: typingContext changed:', newCtx, 'from:', oldCtx)
+}, { immediate: true })
 
 // Track if we've started typing (to avoid sending multiple "on" events)
 let hasStartedTyping = false

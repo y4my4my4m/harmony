@@ -181,32 +181,25 @@
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
       
-      // Typing indicator setup
+      // Typing indicator setup - use store's currentChannelId as fallback for direct page loads
       const typingContext = computed(() => {
-        // Use props directly - they come from route params
         if (props.conversationId) {
           return { type: 'conversation' as const, conversationId: props.conversationId }
         }
-        if (props.channelId) {
-          return { type: 'channel' as const, channelId: props.channelId }
+        // Use props.channelId first, fall back to store (which is set in ChatView's loadMessages)
+        const channelId = props.channelId || serverChannelStore.currentChannelId
+        if (channelId) {
+          return { type: 'channel' as const, channelId }
         }
         return null
       })
       
-      // Pass a getter function that watches props directly (important for direct URL loads)
-      const { typingUsers } = useTypingIndicator(() => {
-        if (props.conversationId) {
-          return { type: 'conversation' as const, conversationId: props.conversationId }
-        }
-        if (props.channelId) {
-          return { type: 'channel' as const, channelId: props.channelId }
-        }
-        return null
-      })
+      // Pass a getter that returns the computed value - this properly tracks reactive deps
+      const { typingUsers } = useTypingIndicator(() => typingContext.value)
       
-      // Debug: Watch for context and props changes
-      watch(() => [props.channelId, props.conversationId, typingContext.value], ([channelId, conversationId, ctx]) => {
-        debug.log('🔄 ChatComponent: Props/Context changed:', { channelId, conversationId, ctx })
+      // Debug: Watch for context changes
+      watch(typingContext, (ctx) => {
+        debug.log('🔄 ChatComponent: typingContext changed:', ctx)
       }, { immediate: true })
       
       // Computed channel name - use prop or fallback to store lookup
