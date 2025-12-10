@@ -185,8 +185,20 @@
 
         <!-- Tab Content -->
         <div class="tab-content">
-          <!-- Posts Tab -->
-          <div v-if="activeTab === 'posts'" class="posts-tab">
+          <!-- Blocked User Banner (like Twitter) -->
+          <div v-if="isBlocked && !isCurrentUser" class="blocked-user-banner">
+            <div class="blocked-banner-content">
+              <Icon name="user-x" :size="48" class="blocked-icon" />
+              <h3>You blocked @{{ user?.username }}</h3>
+              <p>You can't view or interact with their posts.</p>
+              <button @click="handleBlock" class="unblock-btn">
+                Unblock
+              </button>
+            </div>
+          </div>
+          
+          <!-- Posts Tab (hidden if blocked) -->
+          <div v-else-if="activeTab === 'posts'" class="posts-tab">
             <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
               <Icon name="message-circle" :size="48" />
               <h3>No monies yet</h3>
@@ -274,6 +286,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -352,6 +365,7 @@ defineEmits<{
 
 // Stores
 const activityPubStore = useActivityPubStore();
+const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore);
 const authStore = useAuthStore();
 const profileStore = useProfileStore();
 const route = useRoute();
@@ -495,11 +509,13 @@ const isFollowing = computed(() => {
 });
 
 const isMuted = computed(() => {
-  return user.value ? activityPubStore.isMuted(user.value.id) : false;
+  if (!user.value) return false;
+  return mutedUsers.value.has(user.value.id);
 });
 
 const isBlocked = computed(() => {
-  return user.value ? activityPubStore.isBlocked(user.value.id) : false;
+  if (!user.value) return false;
+  return blockedUsers.value.has(user.value.id);
 });
 
 // Remote profile URL for "View on remote instance" link
@@ -1471,6 +1487,61 @@ document.addEventListener('click', handleClickOutside);
   color: var(--text-primary);
   margin: 1rem 0 0.5rem;
   font-size: 1.25rem;
+}
+
+/* Blocked User Banner (Twitter-like) */
+.blocked-user-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  background: var(--background-secondary);
+  border-radius: 12px;
+  margin: 1rem;
+}
+
+.blocked-banner-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 300px;
+}
+
+.blocked-banner-content .blocked-icon {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.blocked-banner-content h3 {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.blocked-banner-content p {
+  color: var(--text-muted);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.unblock-btn {
+  margin-top: 0.5rem;
+  padding: 8px 24px;
+  background: transparent;
+  border: 1px solid var(--brand-color, #5865f2);
+  color: var(--brand-color, #5865f2);
+  border-radius: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.unblock-btn:hover {
+  background: var(--brand-color, #5865f2);
+  color: white;
 }
 
 .load-more-container {

@@ -47,17 +47,17 @@
         </button>
       </div>
 
-      <!-- Search Results -->
+      <!-- Search Results (filtered to exclude blocked users) -->
       <div v-if="searchQuery" class="search-results">
         <div v-if="dmStore.isSearching" class="search-loading">
           {{ $t('common.search') }}...
         </div>
-        <div v-else-if="dmStore.searchResults.length === 0" class="no-results">
+        <div v-else-if="filteredSearchResults.length === 0" class="no-results">
           {{ $t('dm.noUsersFound') }}
         </div>
         <div 
           v-else
-          v-for="user in dmStore.searchResults"
+          v-for="user in filteredSearchResults"
           :key="user.id"
           class="search-result-item"
           @click="startConversation(user)"
@@ -191,7 +191,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
@@ -204,6 +206,8 @@ const emit = defineEmits<{
 }>()
 
 const dmStore = useDMStore()
+const activityPubStore = useActivityPubStore()
+const { blockedUsers } = storeToRefs(activityPubStore)
 
 // Use professional presence system
 const { 
@@ -222,6 +226,11 @@ const searchTimeout = ref<NodeJS.Timeout | null>(null)
 
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
+
+// Filter out blocked users from search results (uses storeToRefs for reactivity)
+const filteredSearchResults = computed(() => {
+  return dmStore.searchResults.filter(user => !blockedUsers.value.has(user.id))
+})
 
 // Helper functions for conversation display
 const getConversationDisplayName = (conversation: DMConversation): string => {
@@ -300,6 +309,12 @@ const closeSearch = () => {
 const startConversation = async (user: DMUser) => {
   const currentUser = getCurrentUser.value
   if (!currentUser?.id) return
+
+  // Check if user is blocked - don't allow starting conversation with blocked users
+  if (blockedUsers.value.has(user.id)) {
+    debug.warn('Cannot start conversation with blocked user')
+    return
+  }
 
   const conversationId = await dmStore.createOrGetConversation(
     currentUser.id,
