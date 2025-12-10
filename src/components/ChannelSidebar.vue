@@ -742,13 +742,13 @@ const loadActiveThreads = async (forceRefresh = false) => {
   const serverId = props.currentServer.id;
   
   // Check cache validity - skip fetch if data is fresh and for the same server
+  // Note: We don't check channelThreads.value.size > 0 because "zero threads" is also a valid cached state
   if (!forceRefresh && 
       loadedThreadsServerId.value === serverId && 
-      threadsLastFetchedAt.value && 
-      channelThreads.value.size > 0) {
+      threadsLastFetchedAt.value) {
     const cacheAge = Date.now() - threadsLastFetchedAt.value.getTime();
     if (cacheAge < THREAD_CACHE_VALIDITY_MS) {
-      debug.log(`📦 Threads cache still valid (${Math.round(cacheAge / 1000)}s old), skipping fetch`);
+      debug.log(`📦 Threads cache still valid (${Math.round(cacheAge / 1000)}s old, ${channelThreads.value.size} threads), skipping fetch`);
       return;
     }
   }
