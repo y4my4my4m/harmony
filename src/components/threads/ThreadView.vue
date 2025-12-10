@@ -240,7 +240,7 @@ const typingContext = computed(() => {
   return { type: 'thread' as const, threadId }
 })
 
-const { typingUsers } = useTypingIndicator(typingContext)
+const { typingUsers } = useTypingIndicator(() => typingContext.value)
 
 // Reply state
 const replyingToMessageId = ref<string>('')

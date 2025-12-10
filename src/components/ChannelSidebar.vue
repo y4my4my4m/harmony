@@ -809,7 +809,7 @@ const getVoiceSessionStartTime = (channelId: string) => {
   return null;
 };
 
-const joinVoiceChannel = async (channelId: string) => {
+const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
   // Play sound and haptic immediately for optimistic UX (don't wait for connection)
   themeStore.testAudio('voice_connect');
   triggerVoice('success');
@@ -822,6 +822,8 @@ const joinVoiceChannel = async (channelId: string) => {
     themeStore.testAudio('voice_disconnect');
     triggerVoice('warning');
   }
+  
+  return success;
 };
 
 const leaveVoiceChannel = async (channelId: string) => {

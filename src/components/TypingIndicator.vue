@@ -10,44 +10,44 @@
       <template v-if="typingUsers.length === 1">
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[0].user_id) }"
+          :style="{ color: getUserColor(typingUsers[0].user_id).value }"
         >
-          {{ getUserDisplayName(typingUsers[0].user_id) }}
+          {{ getUserDisplayName(typingUsers[0].user_id).value }}
         </span>
-        <span class="typing-suffix"> {{ t('message.typing.single', { name: getUserDisplayName(typingUsers[0].user_id) }) }}</span>
+        <span class="typing-suffix"> {{ t('message.typing.single', { name: getUserDisplayName(typingUsers[0].user_id).value }) }}</span>
       </template>
       <!-- Two users: "Luna and Bob are typing..." -->
       <template v-else-if="typingUsers.length === 2">
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[0].user_id) }"
+          :style="{ color: getUserColor(typingUsers[0].user_id).value }"
         >
-          {{ getUserDisplayName(typingUsers[0].user_id) }}
+          {{ getUserDisplayName(typingUsers[0].user_id).value }}
         </span>
         <span class="typing-suffix">{{ t('message.typing.two', { 
-          name1: getUserDisplayName(typingUsers[0].user_id), 
-          name2: getUserDisplayName(typingUsers[1].user_id) 
+          name1: getUserDisplayName(typingUsers[0].user_id).value, 
+          name2: getUserDisplayName(typingUsers[1].user_id).value 
         }) }}</span>
       </template>
       <!-- Three users: "Luna, Bob and Simon are typing..." -->
       <template v-else-if="typingUsers.length === 3">
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[0].user_id) }"
+          :style="{ color: getUserColor(typingUsers[0].user_id).value }"
         >
-          {{ getUserDisplayName(typingUsers[0].user_id) }}
+          {{ getUserDisplayName(typingUsers[0].user_id).value }}
         </span>
         <span class="typing-suffix">, </span>
         <span 
           class="typing-username"
-          :style="{ color: getUserColor(typingUsers[1].user_id) }"
+          :style="{ color: getUserColor(typingUsers[1].user_id).value }"
         >
-          {{ getUserDisplayName(typingUsers[1].user_id) }}
+          {{ getUserDisplayName(typingUsers[1].user_id).value }}
         </span>
         <span class="typing-suffix">{{ t('message.typing.three', { 
-          name1: getUserDisplayName(typingUsers[0].user_id), 
-          name2: getUserDisplayName(typingUsers[1].user_id), 
-          name3: getUserDisplayName(typingUsers[2].user_id) 
+          name1: getUserDisplayName(typingUsers[0].user_id).value, 
+          name2: getUserDisplayName(typingUsers[1].user_id).value, 
+          name3: getUserDisplayName(typingUsers[2].user_id).value 
         }) }}</span>
       </template>
       <!-- Many users (4+): "Many users are typing..." -->
