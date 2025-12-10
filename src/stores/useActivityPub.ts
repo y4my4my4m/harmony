@@ -325,18 +325,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Initialize post reactions store for batch loading
         const postReactionsStore = usePostReactionsStore();
         
-        // Load user relationships and counts
-        await this.loadFollowedUsers();
-        await this.loadFollowCounts();
-        await this.loadUserPreferences();
+        // Load user relationships and counts (run in parallel for efficiency)
+        await Promise.all([
+          this.loadFollowedUsers(),
+          this.loadBlockedUsers(),
+          this.loadMutedUsers(),
+          this.loadFollowCounts(),
+          this.loadUserPreferences()
+        ]);
         
         // Setup comprehensive realtime subscriptions
-              this.setupEnhancedRealtimeSubscriptions();
-        
-        // Debug methods removed - no longer needed
-        // getTimelineStats, createTestFederatedPost, and exposeDebugMethods removed
+        this.setupEnhancedRealtimeSubscriptions();
         
         debug.log('✅ ActivityPub store initialized successfully');
+        debug.log(`📊 Relationships loaded: ${this.followedUsers.size} following, ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
       } catch (error) {
         debug.error('❌ Failed to initialize ActivityPub store:', error);
         throw error;
@@ -2955,6 +2957,84 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       // Add all followed users (both local and federated)
       this.followedUsers = new Set(data.map(f => f.following_id));
+    },
+
+    /**
+     * Load blocked users into local cache for efficient lookups
+     * Called on store initialization to avoid N+1 queries
+     */
+    async loadBlockedUsers() {
+      try {
+        debug.log('🔄 Loading blocked users...');
+        
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) {
+          debug.log('ℹ️ No current user, skipping blocked users loading');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('user_blocks')
+          .select('blocked_user_id')
+          .eq('blocker_id', currentUser.id);
+
+        if (error) {
+          debug.error('❌ Failed to load blocked users:', error);
+          return;
+        }
+        
+        this.blockedUsers = new Set(data?.map(b => b.blocked_user_id) || []);
+        debug.log(`✅ Loaded ${this.blockedUsers.size} blocked users`);
+      } catch (error) {
+        debug.error('❌ Failed to load blocked users:', error);
+      }
+    },
+
+    /**
+     * Load muted users into local cache for efficient lookups
+     * Called on store initialization to avoid N+1 queries
+     */
+    async loadMutedUsers() {
+      try {
+        debug.log('🔄 Loading muted users...');
+        
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) {
+          debug.log('ℹ️ No current user, skipping muted users loading');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('user_mutes')
+          .select('muted_user_id')
+          .eq('muter_id', currentUser.id);
+
+        if (error) {
+          debug.error('❌ Failed to load muted users:', error);
+          return;
+        }
+        
+        this.mutedUsers = new Set(data?.map(m => m.muted_user_id) || []);
+        debug.log(`✅ Loaded ${this.mutedUsers.size} muted users`);
+      } catch (error) {
+        debug.error('❌ Failed to load muted users:', error);
+      }
+    },
+
+    /**
+     * Check if a user is blocked (uses local cache - O(1) lookup)
+     */
+    isUserBlocked(userId: string): boolean {
+      return this.blockedUsers.has(userId);
+    },
+
+    /**
+     * Check if a user is muted (uses local cache - O(1) lookup)
+     */
+    isUserMuted(userId: string): boolean {
+      return this.mutedUsers.has(userId);
     },
 
      /**

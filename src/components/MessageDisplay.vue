@@ -116,8 +116,27 @@
           />
         </div>
 
-        <!-- Regular Message Content -->
+        <!-- Blocked User Message Placeholder -->
+        <template v-else-if="isMessageFromBlockedUser(message) && !isBlockedMessageRevealed(message.id)">
+          <div class="blocked-message">
+            <div class="blocked-message-content">
+              <span class="blocked-icon">🚫</span>
+              <span class="blocked-text">Message from blocked user</span>
+              <button class="reveal-btn" @click="revealBlockedMessage(message.id)">
+                Show message
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Regular Message Content (or revealed blocked message) -->
         <template v-else>
+          <!-- Hide button for revealed blocked messages -->
+          <div v-if="isMessageFromBlockedUser(message) && isBlockedMessageRevealed(message.id)" class="revealed-blocked-header">
+            <span class="blocked-warning">⚠️ Message from blocked user</span>
+            <button class="hide-btn" @click="hideBlockedMessage(message.id)">Hide</button>
+          </div>
+          
           <!-- Reply reference -->
           <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="reply-reference">
             <div class="reply-spine"></div>
@@ -359,6 +378,7 @@ import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useNotificationStore } from '@/stores/useNotification';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
@@ -415,7 +435,33 @@ const serverChannelStore = useServerChannelStore();
 const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
+const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
+
+// Track which blocked messages the user has chosen to reveal
+const revealedBlockedMessages = ref<Set<string>>(new Set());
+
+// Check if a message is from a blocked user
+const isMessageFromBlockedUser = (message: Message): boolean => {
+  const authorId = message.user_id || message.bot_id;
+  if (!authorId) return false;
+  return activityPubStore.isUserBlocked(authorId);
+};
+
+// Check if a blocked message has been revealed by the user
+const isBlockedMessageRevealed = (messageId: string): boolean => {
+  return revealedBlockedMessages.value.has(messageId);
+};
+
+// Reveal a blocked message
+const revealBlockedMessage = (messageId: string) => {
+  revealedBlockedMessages.value.add(messageId);
+};
+
+// Hide a revealed blocked message
+const hideBlockedMessage = (messageId: string) => {
+  revealedBlockedMessages.value.delete(messageId);
+};
 const { isCurrentUserServerOwner } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const { 
@@ -2522,5 +2568,80 @@ const closeInviteModal = () => {
   50% {
     opacity: 0.9;
   }
+}
+
+/* Blocked message styles */
+.blocked-message {
+  padding: 8px 16px;
+  margin: 4px 0;
+}
+
+.blocked-message-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  border-left: 3px solid var(--text-muted);
+}
+
+.blocked-icon {
+  font-size: 1rem;
+  opacity: 0.6;
+}
+
+.blocked-text {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.reveal-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reveal-btn:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--text-normal);
+  color: var(--text-normal);
+}
+
+.revealed-blocked-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  margin-bottom: 4px;
+}
+
+.blocked-warning {
+  font-size: 0.75rem;
+  color: var(--text-warning, #f0b232);
+  opacity: 0.8;
+}
+
+.hide-btn {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hide-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
 }
 </style>

@@ -35,9 +35,13 @@
           Send Server Invite
         </div>
         <div class="action-divider"></div>
-        <div class="action-item danger" @click="blockUser">
-          <Icon name="ban" class="action-item-icon" />
-          Block User
+        <div class="action-item" @click="toggleMute">
+          <Icon :name="isMuted ? 'volume-2' : 'volume-x'" class="action-item-icon" />
+          {{ isMuted ? 'Unmute User' : 'Mute User' }}
+        </div>
+        <div class="action-item" :class="{ danger: !isBlocked }" @click="toggleBlock">
+          <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" />
+          {{ isBlocked ? 'Unblock User' : 'Block User' }}
         </div>
       </div>
 
@@ -752,18 +756,49 @@ const openInviteModal = () => {
   showActionsMenu.value = false
 }
 
-const blockUser = async () => {
+// Check if the current user has blocked this user
+const isBlocked = computed(() => {
+  if (!props.user) return false
+  return activityPubStore.isUserBlocked(props.user.id)
+})
+
+const toggleBlock = async () => {
   if (!props.user) return
   
   try {
-    await activityPubStore.blockUser(props.user.id)
-    debug.log('User blocked successfully:', props.user.id)
-    // Show success toast
+    if (isBlocked.value) {
+      await activityPubStore.unblockUser(props.user.id)
+      debug.log('User unblocked successfully:', props.user.id)
+    } else {
+      await activityPubStore.blockUser(props.user.id)
+      debug.log('User blocked successfully:', props.user.id)
+    }
     showActionsMenu.value = false
-    emit('close')
   } catch (error) {
-    debug.error('Failed to block user:', error)
-    // Show error toast
+    debug.error('Failed to toggle block:', error)
+  }
+}
+
+// Check if the current user has muted this user
+const isMuted = computed(() => {
+  if (!props.user) return false
+  return activityPubStore.isUserMuted(props.user.id)
+})
+
+const toggleMute = async () => {
+  if (!props.user) return
+  
+  try {
+    if (isMuted.value) {
+      await activityPubStore.unmuteUser(props.user.id)
+      debug.log('User unmuted successfully:', props.user.id)
+    } else {
+      await activityPubStore.muteUser(props.user.id)
+      debug.log('User muted successfully:', props.user.id)
+    }
+    showActionsMenu.value = false
+  } catch (error) {
+    debug.error('Failed to toggle mute:', error)
   }
 }
 
