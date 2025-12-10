@@ -2342,6 +2342,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Move a server to a folder (or to root if folderId is null)
+     * Uses optimistic updates for smooth UX
      */
     async moveServerToFolder(serverId: string, folderId: string | null): Promise<boolean> {
       if (!this.currentUserId) {
@@ -2349,15 +2350,26 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return false;
       }
 
+      debug.log('📁 Moving server to folder:', serverId, folderId);
+
+      // Get next position in target folder/root
+      const serversInTarget = this.servers.filter(s => s.folder_id === folderId);
+      const maxPosition = serversInTarget.length > 0
+        ? Math.max(...serversInTarget.map(s => s.position || 0)) + 1
+        : 0;
+
+      // Store previous state for rollback
+      const serverIndex = this.servers.findIndex(s => s.id === serverId);
+      const previousFolderId = serverIndex !== -1 ? this.servers[serverIndex].folder_id : null;
+      const previousPosition = serverIndex !== -1 ? this.servers[serverIndex].position : 0;
+
+      // OPTIMISTIC UPDATE: Update local state immediately
+      if (serverIndex !== -1) {
+        this.servers[serverIndex].folder_id = folderId;
+        this.servers[serverIndex].position = maxPosition;
+      }
+
       try {
-        debug.log('📁 Moving server to folder:', serverId, folderId);
-
-        // Get next position in target folder/root
-        const serversInTarget = this.servers.filter(s => s.folder_id === folderId);
-        const maxPosition = serversInTarget.length > 0
-          ? Math.max(...serversInTarget.map(s => s.position || 0)) + 1
-          : 0;
-
         const { error } = await supabase
           .from('user_servers')
           .update({ folder_id: folderId, position: maxPosition })
@@ -2366,26 +2378,31 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
         if (error) {
           debug.error('❌ Error moving server to folder:', error);
+          // Rollback optimistic update
+          if (serverIndex !== -1) {
+            this.servers[serverIndex].folder_id = previousFolderId;
+            this.servers[serverIndex].position = previousPosition;
+          }
           return false;
-        }
-
-        // Update local state
-        const serverIndex = this.servers.findIndex(s => s.id === serverId);
-        if (serverIndex !== -1) {
-          this.servers[serverIndex].folder_id = folderId;
-          this.servers[serverIndex].position = maxPosition;
         }
 
         debug.log('✅ Server moved to folder');
         return true;
       } catch (error) {
         debug.error('❌ Failed to move server to folder:', error);
+        // Rollback optimistic update
+        if (serverIndex !== -1) {
+          this.servers[serverIndex].folder_id = previousFolderId;
+          this.servers[serverIndex].position = previousPosition;
+        }
         return false;
       }
     },
 
     /**
      * Update positions for servers and folders after drag-drop reorder
+     * Uses optimistic updates for smooth UX - local state updates immediately,
+     * database updates happen in the background
      */
     async updateServerPositions(positions: { serverId: string; folderId: string | null; position: number }[]): Promise<boolean> {
       if (!this.currentUserId) {
@@ -2393,68 +2410,136 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return false;
       }
 
-      try {
-        debug.log('📁 Updating server positions:', positions.length, 'items');
+      // Store previous state for rollback on error
+      const previousState = positions.map(pos => {
+        const server = this.servers.find(s => s.id === pos.serverId);
+        return server ? { serverId: pos.serverId, folderId: server.folder_id, position: server.position } : null;
+      }).filter(Boolean) as { serverId: string; folderId: string | null; position: number }[];
 
-        // Update each server's position
+      // OPTIMISTIC UPDATE: Update local state immediately using requestAnimationFrame for smooth visuals
+      requestAnimationFrame(() => {
         for (const pos of positions) {
-          const { error } = await supabase
-            .from('user_servers')
-            .update({ folder_id: pos.folderId, position: pos.position })
-            .eq('user_id', this.currentUserId)
-            .eq('server_id', pos.serverId);
-
-          if (error) {
-            debug.error('❌ Error updating server position:', error);
-            return false;
-          }
-
-          // Update local state
           const serverIndex = this.servers.findIndex(s => s.id === pos.serverId);
           if (serverIndex !== -1) {
             this.servers[serverIndex].folder_id = pos.folderId;
             this.servers[serverIndex].position = pos.position;
           }
         }
+      });
+
+      try {
+        debug.log('📁 Updating server positions:', positions.length, 'items');
+
+        // Batch database updates - run in parallel for speed
+        const updatePromises = positions.map(pos =>
+          supabase
+            .from('user_servers')
+            .update({ folder_id: pos.folderId, position: pos.position })
+            .eq('user_id', this.currentUserId!)
+            .eq('server_id', pos.serverId)
+        );
+
+        const results = await Promise.all(updatePromises);
+        const hasError = results.some(r => r.error);
+
+        if (hasError) {
+          debug.error('❌ Error updating server positions, rolling back');
+          // Rollback optimistic update
+          requestAnimationFrame(() => {
+            for (const prev of previousState) {
+              const serverIndex = this.servers.findIndex(s => s.id === prev.serverId);
+              if (serverIndex !== -1) {
+                this.servers[serverIndex].folder_id = prev.folderId;
+                this.servers[serverIndex].position = prev.position;
+              }
+            }
+          });
+          return false;
+        }
 
         debug.log('✅ Server positions updated');
         return true;
       } catch (error) {
         debug.error('❌ Failed to update server positions:', error);
+        // Rollback optimistic update
+        requestAnimationFrame(() => {
+          for (const prev of previousState) {
+            const serverIndex = this.servers.findIndex(s => s.id === prev.serverId);
+            if (serverIndex !== -1) {
+              this.servers[serverIndex].folder_id = prev.folderId;
+              this.servers[serverIndex].position = prev.position;
+            }
+          }
+        });
         return false;
       }
     },
 
     /**
      * Update folder positions after drag-drop reorder
+     * Uses optimistic updates for smooth UX
      */
     async updateFolderPositions(positions: { folderId: string; position: number }[]): Promise<boolean> {
-      try {
-        debug.log('📁 Updating folder positions:', positions.length, 'items');
+      // Store previous state for rollback on error
+      const previousState = positions.map(pos => {
+        const folder = this.folders.find(f => f.id === pos.folderId);
+        return folder ? { folderId: pos.folderId, position: folder.position } : null;
+      }).filter(Boolean) as { folderId: string; position: number }[];
 
+      // OPTIMISTIC UPDATE: Update local state immediately
+      requestAnimationFrame(() => {
         for (const pos of positions) {
-          const { error } = await supabase
-            .from('server_folders')
-            .update({ position: pos.position })
-            .eq('id', pos.folderId);
-
-          if (error) {
-            debug.error('❌ Error updating folder position:', error);
-            return false;
-          }
-
-          // Update local state
           const folderIndex = this.folders.findIndex(f => f.id === pos.folderId);
           if (folderIndex !== -1) {
             this.folders[folderIndex].position = pos.position;
           }
         }
-
         this.folders.sort((a, b) => a.position - b.position);
+      });
+
+      try {
+        debug.log('📁 Updating folder positions:', positions.length, 'items');
+
+        // Batch database updates - run in parallel for speed
+        const updatePromises = positions.map(pos =>
+          supabase
+            .from('server_folders')
+            .update({ position: pos.position })
+            .eq('id', pos.folderId)
+        );
+
+        const results = await Promise.all(updatePromises);
+        const hasError = results.some(r => r.error);
+
+        if (hasError) {
+          debug.error('❌ Error updating folder positions, rolling back');
+          // Rollback optimistic update
+          requestAnimationFrame(() => {
+            for (const prev of previousState) {
+              const folderIndex = this.folders.findIndex(f => f.id === prev.folderId);
+              if (folderIndex !== -1) {
+                this.folders[folderIndex].position = prev.position;
+              }
+            }
+            this.folders.sort((a, b) => a.position - b.position);
+          });
+          return false;
+        }
+
         debug.log('✅ Folder positions updated');
         return true;
       } catch (error) {
         debug.error('❌ Failed to update folder positions:', error);
+        // Rollback optimistic update
+        requestAnimationFrame(() => {
+          for (const prev of previousState) {
+            const folderIndex = this.folders.findIndex(f => f.id === prev.folderId);
+            if (folderIndex !== -1) {
+              this.folders[folderIndex].position = prev.position;
+            }
+          }
+          this.folders.sort((a, b) => a.position - b.position);
+        });
         return false;
       }
     },

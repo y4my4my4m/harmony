@@ -7,7 +7,7 @@
  * - Automatically handle cleanup
  */
 
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { typingIndicatorService, type TypingContext, type TypingUser } from '@/services/TypingIndicatorService'
 import { useAuthStore } from '@/stores/auth'
 import { debug } from '@/utils/debug'
@@ -19,7 +19,8 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   const typingUsers = ref<TypingUser[]>([])
   const authStore = useAuthStore()
   let unsubscribe: (() => void) | null = null
-  let hasSubscribed = false
+  let currentSubscribedKey = '' // Track what we're currently subscribed to
+  let retryTimeout: ReturnType<typeof setTimeout> | null = null
 
   // Handle both computed refs and direct values
   const getContext = () => {
@@ -29,8 +30,27 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     return context
   }
 
+  // Get serialized context key for comparison (handles Vue reactive objects)
+  const getContextKey = (ctx: TypingContext | null): string => {
+    if (!ctx) return 'null'
+    // Extract plain values to avoid circular reference issues with Vue reactivity
+    if ('channelId' in ctx) return `channel:${ctx.channelId}`
+    if ('threadId' in ctx) return `thread:${ctx.threadId}`
+    if ('conversationId' in ctx) return `conversation:${ctx.conversationId}`
+    return 'unknown'
+  }
+
+  // Create a computed that Vue can properly track for reactivity
+  const contextKey = computed(() => getContextKey(getContext()))
+
   // Subscribe to typing updates for a given context
-  const subscribeToContext = async (ctx: TypingContext | null) => {
+  const subscribeToContext = async (ctx: TypingContext | null, key: string) => {
+    // Skip if already subscribed to this exact context
+    if (key === currentSubscribedKey && unsubscribe) {
+      debug.log('📌 useTypingIndicator: Already subscribed to:', key)
+      return
+    }
+    
     // Cleanup previous subscription
     if (unsubscribe) {
       unsubscribe()
@@ -39,10 +59,17 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     
     if (!ctx) {
       typingUsers.value = []
+      currentSubscribedKey = ''
       return
     }
     
-    debug.log('✅ useTypingIndicator: Subscribing to context:', ctx)
+    // Ensure we have auth before subscribing
+    if (!authStore.session?.user?.id) {
+      debug.log('⏳ useTypingIndicator: Waiting for auth before subscribing to:', key)
+      return
+    }
+    
+    debug.log('✅ useTypingIndicator: Subscribing to context:', ctx, 'key:', key)
     
     try {
       // Initialize service (will wait for auth if needed)
@@ -53,72 +80,80 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
         debug.log('📝 useTypingIndicator: Typing users updated:', users.length)
         typingUsers.value = users
       })
-      hasSubscribed = true
+      currentSubscribedKey = key
     } catch (err) {
       debug.error('❌ useTypingIndicator: Failed to subscribe:', err)
     }
   }
 
-  // Get serialized context for comparison
-  const getContextKey = (ctx: TypingContext | null) => {
-    if (!ctx) return 'null'
-    return JSON.stringify(ctx)
-  }
-
-  let lastContextKey = ''
-
-  // Watch for context changes
+  // Watch the computed context key for changes - this properly tracks reactive deps
   watch(
-    getContext,
-    async (newContext) => {
-      const newKey = getContextKey(newContext)
-      
-      // Skip if context hasn't actually changed
-      if (newKey === lastContextKey) {
-        return
+    contextKey,
+    async (newKey, oldKey) => {
+      // Clear any pending retry
+      if (retryTimeout) {
+        clearTimeout(retryTimeout)
+        retryTimeout = null
       }
       
-      lastContextKey = newKey
-      debug.log('🔄 useTypingIndicator: Context changed:', newContext)
-      await subscribeToContext(newContext)
+      debug.log('🔄 useTypingIndicator: Context key changed:', oldKey, '->', newKey)
+      const ctx = getContext()
+      await subscribeToContext(ctx, newKey)
     },
-    { immediate: true, deep: true }
+    { immediate: true }
   )
 
-  // Also watch for auth session changes - re-subscribe when user logs in
+  // Watch for auth session changes - subscribe when user logs in
   watch(
     () => authStore.session?.user?.id,
     async (userId) => {
-      if (userId && !hasSubscribed) {
-        const ctx = getContext()
-        if (ctx) {
-          debug.log('🔄 useTypingIndicator: Auth ready, subscribing to context:', ctx)
-          await subscribeToContext(ctx)
-        }
+      const ctx = getContext()
+      const key = contextKey.value
+      
+      // If we have a valid context but haven't subscribed yet, subscribe now
+      if (userId && ctx && key !== 'null' && currentSubscribedKey !== key) {
+        debug.log('🔄 useTypingIndicator: Auth ready, subscribing to context:', key)
+        await subscribeToContext(ctx, key)
       }
     },
     { immediate: true }
   )
 
-  // Ensure subscription on mount (handles case where props are already set)
+  // Ensure subscription on mount with retry for direct page loads
   onMounted(async () => {
-    // Small delay to ensure props are available
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    const ctx = getContext()
-    if (ctx && !hasSubscribed) {
-      debug.log('🔄 useTypingIndicator: onMounted - subscribing to context:', ctx)
-      await subscribeToContext(ctx)
+    // For direct page loads, props might not be immediately available
+    // Retry a few times with increasing delays
+    const trySubscribe = async (attempt: number) => {
+      const ctx = getContext()
+      const key = getContextKey(ctx)
+      
+      if (ctx && key !== 'null' && currentSubscribedKey !== key) {
+        debug.log(`🔄 useTypingIndicator: onMounted attempt ${attempt} - subscribing to:`, key)
+        await subscribeToContext(ctx, key)
+      } else if (attempt < 5 && key === 'null') {
+        // Context not yet available, retry with exponential backoff
+        const delay = Math.min(100 * Math.pow(2, attempt), 1000)
+        debug.log(`⏳ useTypingIndicator: Context not ready, retrying in ${delay}ms (attempt ${attempt})`)
+        retryTimeout = setTimeout(() => trySubscribe(attempt + 1), delay)
+      }
     }
+    
+    // Start with a small delay to allow props to settle
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await trySubscribe(1)
   })
 
   // Cleanup on unmount
   onUnmounted(() => {
+    if (retryTimeout) {
+      clearTimeout(retryTimeout)
+      retryTimeout = null
+    }
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
     }
-    hasSubscribed = false
+    currentSubscribedKey = ''
   })
 
   /**

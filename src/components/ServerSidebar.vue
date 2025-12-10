@@ -1103,6 +1103,9 @@ const removeServerFromFolder = async () => {
 .server-item-wrapper {
   position: relative;
   margin: 10px;
+  /* Optimize for smooth drag animations */
+  will-change: transform, opacity;
+  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
 }
 
 .portal,
@@ -1207,6 +1210,9 @@ const removeServerFromFolder = async () => {
 /* Folder wrapper positioning for drop zones */
 .folder-wrapper {
   position: relative;
+  /* Optimize for smooth drag animations */
+  will-change: transform, opacity;
+  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
 }
 
 /* Invisible drop zones for folder reordering */

@@ -584,7 +584,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 <style scoped>
   .message-input {
     display: flex;
-    padding: 10px 12px 20px 12px;
+    padding: 24px 12px 12px 12px;
     /* background-color: var(--h-chat); */
     flex-direction: column;
     flex-shrink: 0; /* Prevent the input from shrinking */
@@ -593,7 +593,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
   
   .typing-indicator-wrapper {
     position: absolute;
-    bottom: calc(100% - 4px); /* Position above the input, in padding area */
+    bottom: calc(100% - 22px); /* Position above the input, in padding area */
     left: 12px;
     right: 12px;
     pointer-events: none; /* Don't interfere with interactions */
