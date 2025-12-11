@@ -180,10 +180,27 @@ const existingParticipants = computed(() => {
 const loadMessages = async () => {
   const conversationId = route.params.conversationId as string
   if (conversationId) {
+    const currentUser = getCurrentUser.value
+    
+    // Check if we have a valid cache for instant loading (no skeleton needed)
+    if (dmStore.isCacheValid(conversationId)) {
+      // Load from cache instantly - no loading state needed
+      dmStore.loadCachedMessages(conversationId)
+      // Still initialize conversation metadata in background
+      if (currentUser?.id) {
+        dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id, conversationId)
+        // Background refresh
+        dmStore.fetchConversationMessages(conversationId)
+      }
+      return
+    }
+    
+    // No cache - show skeleton loader
     isLoading.value = true
+    dmStore.clearDMMessages()
+    // Allow Vue to render the skeleton before fetching
+    await nextTick()
     try {
-      // Initialize DM environment for direct access if needed
-      const currentUser = getCurrentUser.value
       if (currentUser?.id) {
         // IMPORTANT: Wait for conversation and user data to be loaded before proceeding
         // This ensures the DMHeader has user data available when it renders
