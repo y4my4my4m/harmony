@@ -283,6 +283,7 @@ import { useAuthStore } from '@/stores/auth';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
+import DeviceSelector from './DeviceSelector.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 
