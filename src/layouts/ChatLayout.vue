@@ -511,20 +511,21 @@ onMounted(() => {
   position: relative;
   z-index: 40;
   will-change: transform;
+  /* Height constraint needed for scrollbar - takes full height minus status bar space */
+  height: calc(100% - 100px);
+  max-height: calc(100vh - 100px);
   /* Allow scrolling when content overflows */
   overflow-y: auto;
   overflow-x: hidden;
-  /* Reserve space for the status bar at the bottom */
-  padding-bottom: 100px;
   /* Smooth scrolling */
   scroll-behavior: smooth;
-  /* Custom scrollbar styling */
+  /* Custom scrollbar styling - uses theme variables */
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2)) transparent;
+  scrollbar-color: var(--scrollbar-thumb, rgba(79, 84, 92, 0.8)) transparent;
 }
 
 .channel-sidebar-container::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .channel-sidebar-container::-webkit-scrollbar-track {
@@ -532,12 +533,12 @@ onMounted(() => {
 }
 
 .channel-sidebar-container::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2));
-  border-radius: 4px;
+  background: var(--scrollbar-thumb, rgba(79, 84, 92, 0.8));
+  border-radius: 3px;
 }
 
 .channel-sidebar-container::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+  background: var(--scrollbar-thumb-hover, rgba(79, 84, 92, 1));
 }
 
 .main-and-right-container {
@@ -643,15 +644,15 @@ onMounted(() => {
   .right-sidebar-container {
     position: fixed;
     top: 0;
-    height: 100%;
     z-index: 200;
     /* Native-feeling spring animation on release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  /* On mobile, status bar is handled separately so no extra padding needed */
+  /* On mobile, status bar is handled separately so take full height */
   .channel-sidebar-container {
-    padding-bottom: 16px;
+    height: 100%;
+    max-height: 100vh;
   }
 
   /* Disable transitions during active drag */
