@@ -875,7 +875,7 @@ class AdminService {
   async addInstanceFromDomain(domain: string, trusted: boolean, adminId: string): Promise<void> {
     try {
       // First try to discover instance info
-      const instanceInfo = await this.fetchInstanceInfo(domain);
+      const instanceInfo = await this.discoverInstance(domain);
       
       const { error } = await supabase
         .from('federated_instances')
@@ -987,100 +987,6 @@ class AdminService {
         active_instances: 0,
         recently_discovered: 0
       };
-    }
-  }
-
-  /**
-   * Discover ActivityPub instance by domain
-   */
-  async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Clean up the domain
-      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-      
-      // Try to fetch nodeinfo or instance information
-      const instanceInfo = await this.fetchInstanceInfo(cleanDomain);
-      
-      return instanceInfo;
-    } catch (error) {
-      debug.error(`Failed to discover instance ${domain}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Fetch instance information via nodeinfo or mastodon API
-   */
-  private async fetchInstanceInfo(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Try nodeinfo 2.0 first (standard)
-      const nodeinfoResponse = await fetch(`https://${domain}/.well-known/nodeinfo`);
-      if (nodeinfoResponse.ok) {
-        const nodeinfo = await nodeinfoResponse.json();
-        const links = nodeinfo.links || [];
-        
-        // Find nodeinfo 2.0 or 2.1 link
-        const nodeinfoLink = links.find((link: any) => 
-          link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0' ||
-          link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1'
-        );
-        
-        if (nodeinfoLink) {
-          // Ensure HTTPS to avoid mixed content issues
-          const secureNodeinfoUrl = nodeinfoLink.href.replace(/^http:/, 'https:');
-          const infoResponse = await fetch(secureNodeinfoUrl);
-          if (infoResponse.ok) {
-            const info = await infoResponse.json();
-            return {
-              domain,
-              software: info.software?.name,
-              version: info.software?.version,
-              description: info.metadata?.description || info.metadata?.shortDescription,
-              user_count: info.usage?.users?.total || 0,
-              status_count: info.usage?.localPosts || 0,
-              admin_contact: info.metadata?.admin?.email,
-              api_available: true,
-              federation_enabled: true
-            };
-          }
-        }
-      }
-
-      // Fallback: Try Mastodon API
-      const mastodonResponse = await fetch(`https://${domain}/api/v1/instance`);
-      if (mastodonResponse.ok) {
-        const instance = await mastodonResponse.json();
-        return {
-          domain,
-          software: 'mastodon',
-          version: instance.version,
-          description: instance.description,
-          user_count: instance.stats?.user_count || 0,
-          status_count: instance.stats?.status_count || 0,
-          admin_contact: instance.contact_account?.acct,
-          api_available: true,
-          federation_enabled: true
-        };
-      }
-
-      // Basic ActivityPub check
-      const actorResponse = await fetch(`https://${domain}/actor`, {
-        headers: { 'Accept': 'application/activity+json' }
-      });
-      
-      if (actorResponse.ok) {
-        return {
-          domain,
-          software: 'unknown',
-          api_available: true,
-          federation_enabled: true
-        };
-      }
-
-      return null;
-    } catch (error) {
-      debug.error(`Failed to fetch instance info for ${domain}:`, error);
-      return null;
     }
   }
 
@@ -1586,7 +1492,7 @@ class AdminService {
       if (fetchError) throw fetchError;
 
       // Fetch updated info
-      const updatedInfo = await this.fetchInstanceInfo(instance.domain);
+      const updatedInfo = await this.discoverInstance(instance.domain);
       
       if (updatedInfo) {
         // Update the instance
