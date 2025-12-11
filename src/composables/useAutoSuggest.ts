@@ -4,6 +4,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
+import { roleService } from '@/services/RoleService';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
@@ -136,6 +137,11 @@ export function useAutoSuggest(
   const bridgedUsers = ref<BridgedUser[]>([]);
   const bridgedUsersLoaded = ref(false);
   const bridgedUsersChannelId = ref<string | null>(null);
+
+  // Server roles for @role mentions
+  const serverRoles = ref<any[]>([]);
+  const serverRolesLoaded = ref(false);
+  const serverRolesServerId = ref<string | null>(null);
 
   // Trigger patterns
   const triggers: AutoSuggestTrigger[] = [];
@@ -346,6 +352,28 @@ export function useAutoSuggest(
         }
       }
 
+      // Add mentionable roles to suggestions
+      for (const role of serverRoles.value) {
+        // Only include mentionable roles (and not @everyone)
+        if (!role.mentionable || role.is_default) continue;
+        
+        const roleName = role.name?.toLowerCase() || '';
+        
+        if (roleName.includes(query)) {
+          suggestions.push({
+            id: `role:${role.id}`,
+            display_name: role.name,
+            username: role.name,
+            avatar: undefined,
+            display_text: `@${role.name}`,
+            mention_text: `@role:${role.id}`, // Special format for role mentions
+            isRole: true,
+            roleColor: role.color,
+            role: role
+          });
+        }
+      }
+
       // Additional final deduplication check based on user ID (should be unnecessary now but kept for safety)
       const uniqueSuggestions = suggestions.filter((item, index, self) => 
         index === self.findIndex(s => s.id === item.id)
@@ -353,6 +381,10 @@ export function useAutoSuggest(
 
       return uniqueSuggestions
         .sort((a, b) => {
+          // Roles first, then users
+          if (a.isRole && !b.isRole) return -1;
+          if (!a.isRole && b.isRole) return 1;
+          
           const aDisplay = (a.display_name || '').toLowerCase();
           const bDisplay = (b.display_name || '').toLowerCase();
           const aUsername = (a.username || '').toLowerCase();
@@ -566,6 +598,32 @@ export function useAutoSuggest(
     bridgedUsersLoaded.value = true;
   };
 
+  // Fetch server roles for @role mentions
+  const fetchServerRoles = async (serverId: string) => {
+    if (!serverId) {
+      serverRoles.value = [];
+      return;
+    }
+    
+    // Skip if already loaded for this server
+    if (serverRolesLoaded.value && serverRolesServerId.value === serverId) {
+      return;
+    }
+    
+    try {
+      const roles = await roleService.getRolesForServer(serverId);
+      // Filter to only mentionable roles
+      serverRoles.value = roles.filter(role => role.mentionable);
+      serverRolesServerId.value = serverId;
+      serverRolesLoaded.value = true;
+      debug.log(`🎭 Loaded ${serverRoles.value.length} mentionable roles for server ${serverId}`);
+    } catch (error) {
+      debug.warn('🎭 Failed to fetch server roles:', error);
+      serverRoles.value = [];
+      serverRolesLoaded.value = true;
+    }
+  };
+
   // ActivityPub user search function with timeout
   const searchActivityPubUsers = async (query: string) => {
     debug.log('[DEBUG] searchActivityPubUsers called:', { query, mode: finalConfig.mode });
@@ -745,10 +803,15 @@ export function useAutoSuggest(
           position: calculateCursorPosition()
         };
         
-        // LAZY: Check for bridge bots only when user actually types @ (not on server change)
+        // LAZY: Check for bridge bots and load server roles only when user actually types @ (not on server change)
         if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
           const serverId = serverChannelStore.currentServerId;
           const channelId = serverChannelStore.currentChannelId;
+          
+          // Fetch server roles for @role mentions
+          if (serverId && serverId !== serverRolesServerId.value) {
+            fetchServerRoles(serverId);
+          }
           
           // Check if server has bridge bots (lazy - only when @ is typed)
           checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
@@ -762,22 +825,6 @@ export function useAutoSuggest(
         }
         
         debug.log('[DEBUG] State set to active:', state.value);
-
-        // LAZY: Check for bridge bots only when user actually types @ (not on server change)
-        if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
-          const serverId = serverChannelStore.currentServerId;
-          const channelId = serverChannelStore.currentChannelId;
-          
-          // Check if server has bridge bots (lazy - only when @ is typed)
-          checkBridgeBotsIfNeeded(serverId).then(hasBridge => {
-            // Only fetch bridged users if server has bridge bots and we haven't loaded them yet
-            if (hasBridge && channelId && channelId !== bridgedUsersChannelId.value) {
-              fetchBridgedUsers(channelId);
-            }
-          }).catch(err => {
-            debug.warn('Failed to check bridge bots:', err);
-          });
-        }
 
         // Trigger ActivityPub user search if needed
         if (trigger.type === 'mention' && finalConfig.mode === 'activitypub') {

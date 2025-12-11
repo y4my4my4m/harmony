@@ -311,10 +311,12 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'
+import { useServerChannelStore } from '../stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl } from '@/utils/bannerUtils'
 import { coreProfileService } from '@/services/core/CoreProfileService'
+import { roleService, type ServerRole } from '@/services/RoleService'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
@@ -333,6 +335,7 @@ const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
+const serverChannelStore = useServerChannelStore()
 const { closeMobileSidebars, isMobile } = useLayoutState()
 
 // Reactive computed to track blocked/muted user counts for change detection
@@ -369,6 +372,10 @@ const fetchedUserStats = ref<{ posts: number; following: number; followers: numb
 const fetchedCreatedAt = ref<string | null>(null)
 const isLoadingUserStats = ref(false)
 
+// Server roles for the user (from current server context)
+const fetchedUserRoles = ref<ServerRole[]>([])
+const isLoadingRoles = ref(false)
+
 // Get the current instance domain
 const currentDomain = import.meta.env.VITE_DOMAIN as string
 
@@ -402,6 +409,26 @@ async function loadUserStats(userId: string) {
     debug.error('Failed to load user stats:', error)
   } finally {
     isLoadingUserStats.value = false
+  }
+}
+
+/**
+ * Fetch user roles for the current server context
+ */
+async function loadUserRoles(userId: string) {
+  const serverId = serverChannelStore.currentServerId
+  if (!serverId || isLoadingRoles.value) return
+  
+  isLoadingRoles.value = true
+  try {
+    const roles = await roleService.getUserRoles(userId, serverId)
+    fetchedUserRoles.value = roles.filter(r => !r.is_default) // Exclude @everyone
+    debug.log('🎭 Loaded user roles:', fetchedUserRoles.value.length)
+  } catch (error) {
+    debug.error('Failed to load user roles:', error)
+    fetchedUserRoles.value = []
+  } finally {
+    isLoadingRoles.value = false
   }
 }
 
@@ -847,6 +874,11 @@ const getUserVerified = (user: any) => {
 }
 
 const getUserRoles = (user: any) => {
+  // First check if we have fetched roles from the server
+  if (fetchedUserRoles.value.length > 0) {
+    return fetchedUserRoles.value
+  }
+  // Fall back to roles on user object (if any)
   return user?.roles || user?.profile?.roles || []
 }
 
@@ -934,6 +966,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     instanceInfo.value = null
     fetchedUserStats.value = null
     fetchedCreatedAt.value = null
+    fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
@@ -952,6 +985,10 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       if (!hasStats) {
         loadUserStats(props.user.id)
       }
+      
+      // Load user roles for current server context
+      // This shows the user's roles in the server where the modal was opened
+      loadUserRoles(props.user.id)
       
       // Ensure followed users are loaded in the store for accurate follow button state
       if (!activityPubStore.followsLoaded) {

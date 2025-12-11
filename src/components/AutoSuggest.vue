@@ -19,8 +19,18 @@
       <slot :suggestion="suggestion" :selected="index === props.selectedIndex">
         <!-- Default fallback rendering -->
         <div class="suggest-item-default">
+          <!-- Role icon -->
+          <div 
+            v-if="suggestion.isRole" 
+            class="suggest-icon role-icon"
+            :style="{ backgroundColor: suggestion.roleColor || '#99AAB5' }"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+            </svg>
+          </div>
           <Avatar
-            v-if="suggestion.avatar"
+            v-else-if="suggestion.avatar"
             :src="suggestion.avatar || suggestion.url"
             :alt="suggestion.name || suggestion.display_name"
             class="suggest-icon"
@@ -38,16 +48,24 @@
           >{{ suggestion.native }}</span>
           <div class="suggest-text">
             <div class="suggest-name-row">
-            <span class="suggest-name" v-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
-            <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
+              <!-- Role name with color -->
+              <span v-if="suggestion.isRole" class="suggest-name role-name" :style="{ color: suggestion.roleColor || '#99AAB5' }">
+                @{{ suggestion.display_name || suggestion.name }}
+              </span>
+              <span class="suggest-name" v-else-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
+              <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
+              <!-- Role badge -->
+              <span v-if="suggestion.isRole" class="bridge-badge role-badge" title="Role">
+                Role
+              </span>
               <!-- Discord badge for bridged users -->
-              <span v-if="suggestion.isBridged && suggestion.bridgeSource === 'discord'" class="bridge-badge discord" title="Discord user">
+              <span v-else-if="suggestion.isBridged && suggestion.bridgeSource === 'discord'" class="bridge-badge discord" title="Discord user">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"/>
                 </svg>
               </span>
             </div>
-            <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
+            <span v-if="suggestion.username && !suggestion.isRole" class="suggest-username">{{ suggestion.username }}</span>
             <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
           </div>
         </div>
@@ -262,8 +280,34 @@ watch(() => props.selectedIndex, (newIndex) => {
   color: #5865F2;
 }
 
+.bridge-badge.role-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(88, 101, 242, 0.2);
+  color: #5865F2;
+}
+
+.role-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: white;
+}
+
+.role-name {
+  font-weight: 600;
+}
+
 .selected .bridge-badge {
   color: #fff;
+}
+
+.selected .bridge-badge.role-badge {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .suggest-username {
