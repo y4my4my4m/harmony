@@ -1252,15 +1252,15 @@ onMounted(() => {
 .role-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 0 2px;
   background: rgba(88, 101, 242, 0.2);
   border: 1px solid rgba(88, 101, 242, 0.3);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #ffffff;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.1em;
 }
 
 .user-stats {

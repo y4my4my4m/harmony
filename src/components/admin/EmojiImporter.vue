@@ -399,7 +399,6 @@ onMounted(() => {
 <style scoped>
 .emoji-importer {
   padding: 1.5rem;
-  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -517,6 +516,8 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
+  height: 620px;
+  overflow-y: auto;
 }
 
 .emoji-card {
