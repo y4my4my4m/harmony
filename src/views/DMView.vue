@@ -198,8 +198,8 @@ const loadMessages = async () => {
     // No cache - show skeleton loader
     isLoading.value = true
     dmStore.clearDMMessages()
-    // Allow Vue to render the skeleton before fetching
-    await nextTick()
+    // Force browser to paint the skeleton before fetching
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     try {
       if (currentUser?.id) {
         // IMPORTANT: Wait for conversation and user data to be loaded before proceeding

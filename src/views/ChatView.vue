@@ -91,8 +91,9 @@ const loadMessages = async () => {
       // No cache - show skeleton loader
       isLoading.value = true
       dmStore.clearDMMessages()
-      // Allow Vue to render the skeleton before fetching
-      await nextTick()
+      // Force browser to paint the skeleton before fetching
+      // nextTick alone isn't enough - we need to yield to the browser's render loop
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       try {
         const userId = authStore.session?.user?.id
         if (userId) {
@@ -125,8 +126,9 @@ const loadMessages = async () => {
       // No cache - show skeleton loader
       isLoading.value = true
       chatStore.clearMessages()
-      // Allow Vue to render the skeleton before fetching
-      await nextTick()
+      // Force browser to paint the skeleton before fetching
+      // nextTick alone isn't enough - we need to yield to the browser's render loop
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       try {
         if (serverChannelStore.currentChannelId !== channelId) {
           serverChannelStore.setCurrentChannel(channelId)
