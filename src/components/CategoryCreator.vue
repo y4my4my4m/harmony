@@ -42,10 +42,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { debug } from '@/utils/debug'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
 import ModernButton from '@/components/common/ModernButton.vue'
+import { supabase } from '@/supabase'
+import { useServerChannelStore } from '@/stores/useServerChannel'
+
+// Max categories per server
+const MAX_CATEGORIES_PER_SERVER = 25
+
+const { t } = useI18n()
+const serverChannelStore = useServerChannelStore()
 
 // Icon component for the modal header
 const CategoryIcon = {
@@ -66,9 +76,51 @@ const emit = defineEmits<{
 const categoryName = ref('')
 const errorMessage = ref('')
 const isCreating = ref(false)
+const currentCategoryCount = ref(0)
+const isCheckingLimit = ref(false)
+
+// Check category count when component mounts
+const checkCategoryCount = async () => {
+  const serverId = serverChannelStore.currentServerId
+  if (!serverId) return
+  
+  isCheckingLimit.value = true
+  try {
+    const { count, error } = await supabase
+      .from('channel_categories')
+      .select('*', { count: 'exact', head: true })
+      .eq('server_id', serverId)
+    
+    if (error) {
+      debug.error('Error checking category count:', error)
+      return
+    }
+    
+    currentCategoryCount.value = count || 0
+    
+    // If already at limit, show error immediately
+    if (currentCategoryCount.value >= MAX_CATEGORIES_PER_SERVER) {
+      errorMessage.value = t('category.errors.limitReached', { max: MAX_CATEGORIES_PER_SERVER })
+    }
+  } catch (error) {
+    debug.error('Error checking category count:', error)
+  } finally {
+    isCheckingLimit.value = false
+  }
+}
+
+// Check limit on mount
+onMounted(() => {
+  checkCategoryCount()
+})
+
+const isAtCategoryLimit = computed(() => currentCategoryCount.value >= MAX_CATEGORIES_PER_SERVER)
 
 const canCreate = computed(() => {
-  return categoryName.value.trim().length > 0 && categoryName.value.trim().length <= 100
+  return categoryName.value.trim().length > 0 && 
+         categoryName.value.trim().length <= 100 &&
+         !isAtCategoryLimit.value &&
+         !isCheckingLimit.value
 })
 
 const hint = computed(() => {
@@ -111,6 +163,12 @@ const closeCategoryCreator = () => {
 const handleCreation = async () => {
   const trimmedName = categoryName.value.trim()
   
+  // Check limit again before creating (in case it changed)
+  if (isAtCategoryLimit.value) {
+    errorMessage.value = t('category.errors.limitReached', { max: MAX_CATEGORIES_PER_SERVER })
+    return
+  }
+  
   // Validate input
   const validationError = validateCategoryName(trimmedName)
   if (validationError) {
@@ -123,13 +181,27 @@ const handleCreation = async () => {
   isCreating.value = true
   
   try {
-    // Simulate API delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 500))
+    const serverId = serverChannelStore.currentServerId
+    if (!serverId) {
+      errorMessage.value = t('category.errors.noServer')
+      return
+    }
+    
+    // Double-check count before creating (race condition protection)
+    const { count } = await supabase
+      .from('channel_categories')
+      .select('*', { count: 'exact', head: true })
+      .eq('server_id', serverId)
+    
+    if ((count || 0) >= MAX_CATEGORIES_PER_SERVER) {
+      errorMessage.value = t('category.errors.limitReached', { max: MAX_CATEGORIES_PER_SERVER })
+      return
+    }
     
     emit('createCategory', trimmedName)
     closeCategoryCreator()
   } catch (error) {
-    errorMessage.value = 'Failed to create category. Please try again.'
+    errorMessage.value = t('category.errors.createFailed')
   } finally {
     isCreating.value = false
   }

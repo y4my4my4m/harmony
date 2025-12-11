@@ -962,8 +962,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Service-like helper: Create category with proper ordering
+     * Enforces a maximum of 25 categories per server
      */
     async _createCategoryHelper(name: string, serverId: string): Promise<Category | null> {
+      const MAX_CATEGORIES_PER_SERVER = 25;
+      
+      // Check category count limit
+      const { count: categoryCount, error: countError } = await supabase
+        .from('channel_categories')
+        .select('*', { count: 'exact', head: true })
+        .eq('server_id', serverId);
+      
+      if (countError) {
+        debug.warn('Warning: Could not check category count:', countError);
+      } else if ((categoryCount || 0) >= MAX_CATEGORIES_PER_SERVER) {
+        throw new Error(`Category limit reached: Maximum ${MAX_CATEGORIES_PER_SERVER} categories per server`);
+      }
+      
       // Get the highest order value for existing categories in this server
       const { data: existingCategories, error: fetchError } = await supabase
         .from('channel_categories')
@@ -996,8 +1011,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Fallback method for creating category
+     * Enforces a maximum of 25 categories per server
      */
     async _createCategoryFallback(name: string, serverId: string): Promise<Category | null> {
+      const MAX_CATEGORIES_PER_SERVER = 25;
+      
+      // Check category count limit
+      const { count: categoryCount, error: countError } = await supabase
+        .from('channel_categories')
+        .select('*', { count: 'exact', head: true })
+        .eq('server_id', serverId);
+      
+      if (countError) {
+        debug.warn('Warning: Could not check category count in fallback:', countError);
+      } else if ((categoryCount || 0) >= MAX_CATEGORIES_PER_SERVER) {
+        throw new Error(`Category limit reached: Maximum ${MAX_CATEGORIES_PER_SERVER} categories per server`);
+      }
+      
       // Get the highest order value for existing categories in this server
       const { data: existingCategories, error: fetchError } = await supabase
         .from('channel_categories')

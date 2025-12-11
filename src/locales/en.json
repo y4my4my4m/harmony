@@ -309,7 +309,17 @@
     "errors": {
       "nameTooShort": "Channel name must be at least 1 character",
       "nameTooLong": "Channel name must be less than 100 characters",
-      "invalidName": "Channel name can only contain letters, numbers, and hyphens"
+      "invalidName": "Channel name can only contain letters, numbers, and hyphens",
+      "limitReached": "This server has reached the maximum limit of {max} channels",
+      "createFailed": "Failed to create channel. Please try again."
+    }
+  },
+  "category": {
+    "create": "Create Category",
+    "errors": {
+      "limitReached": "This server has reached the maximum limit of {max} categories",
+      "createFailed": "Failed to create category. Please try again.",
+      "noServer": "No server selected"
     }
   },
   "message": {

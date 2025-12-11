@@ -99,12 +99,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
+import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
 import ModernButton from '@/components/common/ModernButton.vue'
 import { supabase } from '@/supabase'
+
+// Max channels per server
+const MAX_CHANNELS_PER_SERVER = 100
+
+const { t } = useI18n()
 
 // Icon component for the modal header
 const ChannelIcon = {
@@ -132,11 +138,57 @@ const newChannelName = ref('')
 const channelType = ref(0) // Default to text channel
 const channelNameError = ref('')
 const isCreating = ref(false)
+const currentChannelCount = ref(0)
+const isCheckingLimit = ref(false)
+
+// Check channel count when modal opens
+const checkChannelCount = async () => {
+  if (!props.serverId) return
+  
+  isCheckingLimit.value = true
+  try {
+    const { count, error } = await supabase
+      .from('channels')
+      .select('*', { count: 'exact', head: true })
+      .eq('server_id', props.serverId)
+    
+    if (error) {
+      debug.error('Error checking channel count:', error)
+      return
+    }
+    
+    currentChannelCount.value = count || 0
+    
+    // If already at limit, show error immediately
+    if (currentChannelCount.value >= MAX_CHANNELS_PER_SERVER) {
+      channelNameError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
+    }
+  } catch (error) {
+    debug.error('Error checking channel count:', error)
+  } finally {
+    isCheckingLimit.value = false
+  }
+}
+
+// Check limit when modal opens
+watch(() => props.show, (newShow) => {
+  if (newShow) {
+    checkChannelCount()
+  } else {
+    // Reset when modal closes
+    channelNameError.value = ''
+    currentChannelCount.value = 0
+  }
+}, { immediate: true })
+
+const isAtChannelLimit = computed(() => currentChannelCount.value >= MAX_CHANNELS_PER_SERVER)
 
 const canCreate = computed(() => {
   return newChannelName.value.trim().length > 0 && 
          !channelNameError.value && 
-         newChannelName.value.trim().length <= 100
+         newChannelName.value.trim().length <= 100 &&
+         !isAtChannelLimit.value &&
+         !isCheckingLimit.value
 })
 
 const channelNameHint = computed(() => {
@@ -225,12 +277,29 @@ const setChannelType = (type: number) => {
 const createChannel = async () => {
   if (!canCreate.value) return
 
+  // Check limit again before creating (in case it changed)
+  if (isAtChannelLimit.value) {
+    channelNameError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
+    return
+  }
+
   validateChannelName()
   if (channelNameError.value) return
 
   isCreating.value = true
   
   try {
+    // Double-check count before inserting (race condition protection)
+    const { count } = await supabase
+      .from('channels')
+      .select('*', { count: 'exact', head: true })
+      .eq('server_id', props.serverId)
+    
+    if ((count || 0) >= MAX_CHANNELS_PER_SERVER) {
+      channelNameError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
+      return
+    }
+
     const channelData = {
       name: newChannelName.value.trim(),
       server_id: props.serverId,
@@ -250,7 +319,7 @@ const createChannel = async () => {
     closeForm()
   } catch (error) {
     debug.error('Error creating channel:', error)
-    channelNameError.value = 'Failed to create channel. Please try again.'
+    channelNameError.value = t('channel.errors.createFailed')
   } finally {
     isCreating.value = false
   }
