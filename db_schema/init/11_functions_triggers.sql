@@ -27,6 +27,64 @@ COMMENT ON FUNCTION public.create_notification_preferences() IS
 'Creates notification preferences only for local users.';
 
 -- ---------------------------------------------------------------------------
+-- SERVER LIMIT ENFORCEMENT
+-- ---------------------------------------------------------------------------
+
+-- Check channel limit before insert (max 100 channels per server)
+CREATE OR REPLACE FUNCTION public.check_channel_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  channel_count INTEGER;
+  max_channels CONSTANT INTEGER := 100;
+BEGIN
+  -- Count existing channels for this server
+  SELECT COUNT(*) INTO channel_count
+  FROM channels
+  WHERE server_id = NEW.server_id;
+  
+  -- Check if limit would be exceeded
+  IF channel_count >= max_channels THEN
+    RAISE EXCEPTION 'Channel limit exceeded: Maximum % channels per server', max_channels
+      USING ERRCODE = 'check_violation';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.check_channel_limit() IS 
+'Enforces maximum 100 channels per server';
+
+-- Check category limit before insert (max 25 categories per server)
+CREATE OR REPLACE FUNCTION public.check_category_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  category_count INTEGER;
+  max_categories CONSTANT INTEGER := 25;
+BEGIN
+  -- Count existing categories for this server
+  SELECT COUNT(*) INTO category_count
+  FROM channel_categories
+  WHERE server_id = NEW.server_id;
+  
+  -- Check if limit would be exceeded
+  IF category_count >= max_categories THEN
+    RAISE EXCEPTION 'Category limit exceeded: Maximum % categories per server', max_categories
+      USING ERRCODE = 'check_violation';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.check_category_limit() IS 
+'Enforces maximum 25 categories per server';
+
+-- ---------------------------------------------------------------------------
 -- SERVER TRIGGERS
 -- ---------------------------------------------------------------------------
 

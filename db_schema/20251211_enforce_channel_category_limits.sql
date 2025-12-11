@@ -3,10 +3,16 @@
 -- Max 100 channels per server
 -- Max 25 categories per server
 -- =====================================================
+-- Migration: 20251211_enforce_channel_category_limits
+-- This adds database-level enforcement of limits that
+-- cannot be bypassed by client-side code
+-- =====================================================
 
 -- Function to check channel limit before insert
-CREATE OR REPLACE FUNCTION check_channel_limit()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.check_channel_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
 DECLARE
   channel_count INTEGER;
   max_channels CONSTANT INTEGER := 100;
@@ -24,11 +30,16 @@ BEGIN
   
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
+COMMENT ON FUNCTION public.check_channel_limit() IS 
+'Enforces maximum 100 channels per server';
 
 -- Function to check category limit before insert
-CREATE OR REPLACE FUNCTION check_category_limit()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.check_category_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
 DECLARE
   category_count INTEGER;
   max_categories CONSTANT INTEGER := 25;
@@ -46,25 +57,29 @@ BEGIN
   
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
+COMMENT ON FUNCTION public.check_category_limit() IS 
+'Enforces maximum 25 categories per server';
 
 -- Drop existing triggers if they exist (idempotent)
-DROP TRIGGER IF EXISTS enforce_channel_limit ON channels;
-DROP TRIGGER IF EXISTS enforce_category_limit ON channel_categories;
+DROP TRIGGER IF EXISTS enforce_channel_limit ON public.channels;
+DROP TRIGGER IF EXISTS enforce_category_limit ON public.channel_categories;
 
 -- Create trigger for channels
 CREATE TRIGGER enforce_channel_limit
-  BEFORE INSERT ON channels
+  BEFORE INSERT ON public.channels
   FOR EACH ROW
-  EXECUTE FUNCTION check_channel_limit();
+  EXECUTE FUNCTION public.check_channel_limit();
 
 -- Create trigger for categories
 CREATE TRIGGER enforce_category_limit
-  BEFORE INSERT ON channel_categories
+  BEFORE INSERT ON public.channel_categories
   FOR EACH ROW
-  EXECUTE FUNCTION check_category_limit();
+  EXECUTE FUNCTION public.check_category_limit();
 
--- Add comments for documentation
-COMMENT ON FUNCTION check_channel_limit() IS 'Enforces maximum 100 channels per server';
-COMMENT ON FUNCTION check_category_limit() IS 'Enforces maximum 25 categories per server';
+DO $$
+BEGIN
+    RAISE NOTICE 'Channel and category limits enforced: max 100 channels, max 25 categories per server';
+END $$;
 

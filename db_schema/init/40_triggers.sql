@@ -15,6 +15,22 @@ CREATE TRIGGER create_notification_preferences_trigger
     EXECUTE FUNCTION public.create_notification_preferences();
 
 -- ---------------------------------------------------------------------------
+-- SERVER LIMIT ENFORCEMENT TRIGGERS
+-- ---------------------------------------------------------------------------
+
+-- Enforce maximum 100 channels per server
+CREATE TRIGGER enforce_channel_limit
+    BEFORE INSERT ON public.channels
+    FOR EACH ROW
+    EXECUTE FUNCTION public.check_channel_limit();
+
+-- Enforce maximum 25 categories per server
+CREATE TRIGGER enforce_category_limit
+    BEFORE INSERT ON public.channel_categories
+    FOR EACH ROW
+    EXECUTE FUNCTION public.check_category_limit();
+
+-- ---------------------------------------------------------------------------
 -- SERVER TRIGGERS
 -- ---------------------------------------------------------------------------
 
