@@ -62,6 +62,36 @@ class ThreadService {
   private cacheValidityDuration = 5 * 60 * 1000 // 5 minutes
   private maxCacheSize = 50 // Maximum number of threads to cache
 
+  /**
+   * Check if thread messages are cached and fresh (without fetching)
+   * Used by UI to decide if loading indicator should be shown
+   */
+  hasValidMessageCache(threadId: string): boolean {
+    const cached = this.messageCache.get(threadId)
+    if (!cached) return false
+    
+    const cacheAge = Date.now() - cached.lastFetchedAt.getTime()
+    return cacheAge < this.cacheValidityDuration
+  }
+
+  /**
+   * Get cached messages instantly (returns null if not cached/stale)
+   * For optimistic UI rendering
+   */
+  getCachedMessages(threadId: string): ThreadMessagesResult | null {
+    const cached = this.messageCache.get(threadId)
+    if (!cached) return null
+    
+    const cacheAge = Date.now() - cached.lastFetchedAt.getTime()
+    if (cacheAge >= this.cacheValidityDuration) return null
+    
+    return {
+      messages: [...cached.messages],
+      has_more: cached.hasMore,
+      oldest_id: cached.oldestMessageId,
+    }
+  }
+
   // =============================================
   // Thread CRUD Operations
   // =============================================
@@ -677,6 +707,28 @@ class ThreadService {
     } = {}
   ): Promise<ThreadMessagesResult> {
     const { limit = 50, before, after } = options
+
+    // For initial load (no pagination), check cache first
+    if (!before && !after) {
+      const cached = this.messageCache.get(threadId)
+      if (cached) {
+        const cacheAge = Date.now() - cached.lastFetchedAt.getTime()
+        
+        // If cache is fresh (less than 5 minutes old), return instantly
+        if (cacheAge < this.cacheValidityDuration) {
+          debug.log(`✅ Loading ${cached.messages.length} thread messages from cache instantly (age: ${Math.round(cacheAge / 1000)}s)`)
+          return {
+            messages: [...cached.messages],
+            has_more: cached.hasMore,
+            oldest_id: cached.oldestMessageId,
+          }
+        } else {
+          debug.log(`⚠️ Thread cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`)
+        }
+      } else {
+        debug.log(`📭 No cache found for thread ${threadId}, fetching from database`)
+      }
+    }
 
     try {
       let query = supabase
