@@ -107,29 +107,25 @@ COMMENT ON TABLE public.trending_refresh_queue IS 'Queue for background trending
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.server_folders (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
     name text NOT NULL,
-    color text,
-    icon text,
-    "order" integer DEFAULT 0,
-    
-    -- Folder can contain server IDs
-    server_ids uuid[] DEFAULT '{}'::uuid[],
-    
-    -- Collapsed state
-    is_collapsed boolean DEFAULT false
+    color text DEFAULT '#5865f2'::text,
+    "position" integer DEFAULT 0 NOT NULL,
+    is_expanded boolean DEFAULT true
 );
 
 ALTER TABLE public.server_folders REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_server_folders_user ON public.server_folders(user_id);
-CREATE INDEX IF NOT EXISTS idx_server_folders_order ON public.server_folders(user_id, "order");
+CREATE INDEX IF NOT EXISTS idx_server_folders_user_position ON public.server_folders(user_id, "position");
 
-COMMENT ON TABLE public.server_folders IS 'User-defined folders to organize servers';
+COMMENT ON TABLE public.server_folders IS 'User-created folders for organizing servers in the sidebar';
+COMMENT ON COLUMN public.server_folders.color IS 'Hex color code for folder display';
+COMMENT ON COLUMN public.server_folders."position" IS 'Sort order position for the folder in the sidebar';
 
 -- ---------------------------------------------------------------------------
 -- SERVER SETTINGS - Extended server configuration
