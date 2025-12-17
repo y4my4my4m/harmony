@@ -122,6 +122,12 @@ CREATE POLICY "channel_permission_overrides_modify_owner" ON public.channel_perm
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.user_mutes ENABLE ROW LEVEL SECURITY;
 
+
+DROP POLICY IF EXISTS user_mutes_select_own ON public.user_mutes;
+DROP POLICY IF EXISTS user_mutes_insert_own on public.user_mutes;
+DROP POLICY IF EXISTS user_mutes_update_own on public.user_mutes;
+DROP POLICY IF EXISTS user_mutes_delete_own on public.user_mutes;
+
 CREATE POLICY "user_mutes_select_own" ON public.user_mutes
     FOR SELECT USING (muter_id = public.get_current_profile_id());
 

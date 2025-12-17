@@ -253,6 +253,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_timeline_cache_user_type ON public.us
 
 COMMENT ON TABLE public.user_timeline_cache IS 'Pre-computed timeline cache for instant feed loading';
 
+-- ---------------------------------------------------------------------------
+-- ADD FOREIGN KEY for user_servers.folder_id (now that server_folders exists)
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'user_servers_folder_id_fkey'
+        AND table_name = 'user_servers'
+    ) THEN
+        ALTER TABLE public.user_servers 
+            ADD CONSTRAINT user_servers_folder_id_fkey 
+            FOREIGN KEY (folder_id) REFERENCES public.server_folders(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
 DO $$
 BEGIN
     RAISE NOTICE 'Trending & discovery tables created successfully';
