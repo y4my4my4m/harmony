@@ -74,6 +74,10 @@
 \echo '>>> 12_functions_rpc.sql - Creating RPC functions...'
 \i 12_functions_rpc.sql
 
+\echo ''
+\echo '>>> 13_functions_rpc_extended.sql - Creating extended RPC functions...'
+\i 13_functions_rpc_extended.sql
+
 -- ---------------------------------------------------------------------------
 -- PHASE 4: RLS Policies
 -- ---------------------------------------------------------------------------
