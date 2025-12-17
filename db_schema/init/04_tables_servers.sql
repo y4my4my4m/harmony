@@ -446,7 +446,12 @@ CREATE TABLE IF NOT EXISTS public.voice_channel_participants (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
     joined_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    -- Federation
+    is_federated boolean DEFAULT false NOT NULL,
+    federation_status text DEFAULT 'local'::text,
     
     -- State
     is_muted boolean DEFAULT false,
@@ -454,9 +459,8 @@ CREATE TABLE IF NOT EXISTS public.voice_channel_participants (
     is_video_enabled boolean DEFAULT false,
     is_screen_sharing boolean DEFAULT false,
     
-    -- Connection info
-    peer_id text,
-    connection_quality text DEFAULT 'good'::text,
+    -- Metadata
+    metadata jsonb DEFAULT '{}'::jsonb,
     
     UNIQUE(channel_id, user_id)
 );

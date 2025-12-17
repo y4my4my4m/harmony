@@ -592,3 +592,18 @@ BEGIN
     RAISE NOTICE '✅ Sync with production completed!';
 END $$;
 
+
+-- =============================================================================
+-- FIX voice_channel_participants table - Add missing columns
+-- =============================================================================
+ALTER TABLE public.voice_channel_participants 
+    ADD COLUMN IF NOT EXISTS server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
+    ADD COLUMN IF NOT EXISTS is_federated boolean DEFAULT false NOT NULL,
+    ADD COLUMN IF NOT EXISTS federation_status text DEFAULT 'local'::text,
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+
+-- Drop old columns that are not in production
+ALTER TABLE public.voice_channel_participants 
+    DROP COLUMN IF EXISTS peer_id,
+    DROP COLUMN IF EXISTS connection_quality;
+
