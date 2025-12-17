@@ -242,7 +242,8 @@ CREATE TABLE IF NOT EXISTS public.reactions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     
     message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    bot_id uuid,  -- For bot reactions
     
     emoji_id uuid,
     custom_emoji_content text,
@@ -250,7 +251,9 @@ CREATE TABLE IF NOT EXISTS public.reactions (
     federation_status text DEFAULT 'pending'::text,
     metadata jsonb DEFAULT '{}'::jsonb,
     
-    CONSTRAINT reactions_has_emoji CHECK (emoji_id IS NOT NULL OR custom_emoji_content IS NOT NULL)
+    -- Either user or bot must be set
+    CONSTRAINT reactions_has_emoji CHECK (emoji_id IS NOT NULL OR custom_emoji_content IS NOT NULL),
+    CONSTRAINT reactions_has_author CHECK (user_id IS NOT NULL OR bot_id IS NOT NULL)
 );
 
 ALTER TABLE public.reactions REPLICA IDENTITY FULL;
