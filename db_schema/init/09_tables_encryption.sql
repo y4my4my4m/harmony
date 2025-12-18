@@ -178,19 +178,23 @@ CREATE TABLE IF NOT EXISTS public.recovery_key_metadata (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
     
-    -- Key identification (NOT the actual key)
-    key_id text NOT NULL,
-    algorithm text DEFAULT 'm.secret_storage.v1.aes-hmac-sha2'::text,
+    -- Key version and verification
+    key_version integer DEFAULT 1 NOT NULL,
+    verification_code text NOT NULL,
+    word_count integer DEFAULT 12,
     
-    -- Creation info
-    created_at timestamp with time zone DEFAULT now(),
+    -- Backup status
+    has_server_backup boolean DEFAULT false,
+    last_backup_at timestamp with time zone,
     
-    -- Usage tracking
-    last_used_at timestamp with time zone,
+    -- Timestamps
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_verified_at timestamp with time zone,
     
-    -- Verification status
-    is_verified boolean DEFAULT false,
-    verified_at timestamp with time zone
+    -- Storage hint for user
+    storage_hint text,
+    
+    CONSTRAINT recovery_key_metadata_word_count_check CHECK (word_count = ANY (ARRAY[12, 24]))
 );
 
 CREATE INDEX IF NOT EXISTS idx_recovery_key_metadata_user ON public.recovery_key_metadata(user_id);

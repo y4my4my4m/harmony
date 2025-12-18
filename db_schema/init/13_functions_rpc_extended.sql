@@ -6,9 +6,261 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- Function: send_notification (BASE function - must be created first)
+-- Other functions like send_notification_to_user depend on this
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.send_notification(notification_type character varying, to_user_ids uuid[], notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+    created_notification_ids uuid[] := '{}';
+    recipient_id uuid;
+    user_prefs record;
+    should_send boolean;
+    notification_id uuid;
+    current_timestamp timestamp with time zone := now();
+    enhanced_data jsonb;
+    is_blocked boolean;
+    is_muted boolean;
+    is_channel_muted boolean;
+    p_channel_id uuid;
+    p_conversation_id uuid;
+    is_activitypub_type boolean;
+BEGIN
+    -- Validate inputs
+    IF notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
+        RETURN '{}';
+    END IF;
+
+    -- Determine if this is an ActivityPub notification type
+    is_activitypub_type := notification_type LIKE 'activitypub_%';
+
+    -- Process each recipient
+    FOREACH recipient_id IN ARRAY to_user_ids LOOP
+        -- Skip if sending to self
+        IF from_user_id IS NOT NULL AND recipient_id = from_user_id THEN
+            CONTINUE;
+        END IF;
+
+        -- Check if sender is blocked by recipient
+        IF from_user_id IS NOT NULL THEN
+            SELECT EXISTS (
+                SELECT 1 
+                FROM user_blocks ub
+                WHERE ub.blocker_id = recipient_id
+                AND ub.blocked_user_id = from_user_id
+                AND (ub.expires_at IS NULL OR ub.expires_at > NOW())
+            ) INTO is_blocked;
+            
+            IF is_blocked THEN
+                CONTINUE;
+            END IF;
+        END IF;
+
+        -- Check if sender is muted by recipient (for notifications)
+        IF from_user_id IS NOT NULL THEN
+            SELECT EXISTS (
+                SELECT 1 
+                FROM user_mutes um
+                WHERE um.muter_id = recipient_id
+                AND um.muted_user_id = from_user_id
+                AND um.mute_type IN ('notifications_only', 'all')
+                AND (um.expires_at IS NULL OR um.expires_at > NOW())
+            ) INTO is_muted;
+            
+            IF is_muted THEN
+                CONTINUE;
+            END IF;
+        END IF;
+
+        -- Check if channel/conversation is muted
+        p_channel_id := channel_id;
+        p_conversation_id := conversation_id;
+        
+        IF p_channel_id IS NOT NULL OR p_conversation_id IS NOT NULL THEN
+            SELECT EXISTS (
+                SELECT 1 
+                FROM notification_channels nc
+                WHERE nc.user_id = recipient_id
+                AND nc.muted = true
+                AND (
+                    (p_channel_id IS NOT NULL AND nc.channel_id = p_channel_id)
+                    OR
+                    (p_conversation_id IS NOT NULL AND nc.conversation_id = p_conversation_id)
+                )
+                AND (nc.muted_until IS NULL OR nc.muted_until > NOW())
+            ) INTO is_channel_muted;
+            
+            IF is_channel_muted THEN
+                CONTINUE;
+            END IF;
+        END IF;
+
+        -- Check if user is currently viewing this channel/DM (Discord-like behavior)
+        IF (server_id IS NOT NULL AND p_channel_id IS NOT NULL) OR p_conversation_id IS NOT NULL THEN
+            IF public.is_user_viewing_context(recipient_id, server_id, p_channel_id, p_conversation_id) THEN
+                CONTINUE;
+            END IF;
+        END IF;
+
+        -- Get user notification preferences
+        user_prefs := NULL;
+        BEGIN
+            SELECT * INTO user_prefs FROM notification_preferences WHERE user_id = recipient_id;
+        EXCEPTION
+            WHEN undefined_table THEN
+                user_prefs := NULL;
+        END;
+
+        -- Default to sending notifications if no preferences found
+        should_send := true;
+
+        -- Apply preferences if they exist
+        IF user_prefs IS NOT NULL THEN
+            -- First check master toggles
+            IF is_activitypub_type THEN
+                -- Check ActivityPub master toggle first
+                IF COALESCE(user_prefs.activitypub_notifications, true) = false THEN
+                    should_send := false;
+                ELSIF COALESCE(user_prefs.activitypub_desktop_notifications, true) = false THEN
+                    should_send := false;
+                ELSE
+                    -- Check specific ActivityPub notification types
+                    CASE notification_type
+                        WHEN 'activitypub_follow' THEN
+                            should_send := COALESCE(user_prefs.activitypub_follows, true) 
+                                       AND COALESCE(user_prefs.activitypub_desktop_follows, true);
+                        WHEN 'activitypub_follow_request' THEN
+                            should_send := COALESCE(user_prefs.activitypub_follow_requests, true) 
+                                       AND COALESCE(user_prefs.activitypub_desktop_follows, true);
+                        WHEN 'activitypub_favorite' THEN
+                            should_send := COALESCE(user_prefs.activitypub_favorites, true) 
+                                       AND COALESCE(user_prefs.activitypub_desktop_favorites, false);
+                        WHEN 'activitypub_reblog' THEN
+                            should_send := COALESCE(user_prefs.activitypub_reblogs, true) 
+                                       AND COALESCE(user_prefs.activitypub_desktop_reblogs, false);
+                        WHEN 'activitypub_mention' THEN
+                            should_send := COALESCE(user_prefs.activitypub_mentions, true) 
+                                       AND COALESCE(user_prefs.activitypub_desktop_mentions, true);
+                        WHEN 'activitypub_reply' THEN
+                            should_send := COALESCE(user_prefs.activitypub_replies, true) 
+                                       AND COALESCE(user_prefs.activitypub_desktop_replies, true);
+                        WHEN 'activitypub_reaction' THEN
+                            should_send := COALESCE(user_prefs.activitypub_favorites, true) 
+                                       AND COALESCE(user_prefs.activitypub_desktop_favorites, false);
+                        ELSE
+                            should_send := true;
+                    END CASE;
+                END IF;
+            ELSE
+                -- Check desktop_notifications master toggle first for non-ActivityPub
+                IF COALESCE(user_prefs.desktop_notifications, true) = false THEN
+                    -- Master toggle off, but still allow high-priority types
+                    IF notification_type NOT IN ('mention', 'dm') THEN
+                        should_send := false;
+                    END IF;
+                END IF;
+
+                -- Check specific non-ActivityPub notification types
+                IF should_send THEN
+                    CASE notification_type
+                        WHEN 'mention' THEN
+                            should_send := COALESCE(user_prefs.desktop_mentions, true);
+                        WHEN 'reply' THEN
+                            should_send := COALESCE(user_prefs.desktop_replies, true);
+                        WHEN 'dm' THEN
+                            should_send := COALESCE(user_prefs.desktop_dms, true);
+                        WHEN 'reaction' THEN
+                            should_send := COALESCE(user_prefs.desktop_reactions, false);
+                        WHEN 'voice_channel_activity' THEN
+                            should_send := COALESCE(user_prefs.sound_voice_activity, true);
+                        WHEN 'server_invite' THEN
+                            should_send := COALESCE(user_prefs.desktop_notifications, true);
+                        WHEN 'friend_request' THEN
+                            should_send := COALESCE(user_prefs.desktop_notifications, true);
+                        WHEN 'server_update' THEN
+                            should_send := COALESCE(user_prefs.desktop_notifications, true);
+                        WHEN 'emoji_added' THEN
+                            should_send := COALESCE(user_prefs.desktop_notifications, true);
+                        ELSE
+                            should_send := true;
+                    END CASE;
+                END IF;
+            END IF;
+
+            -- Apply DND restrictions if configured
+            IF user_prefs.dnd_enabled IS TRUE AND should_send THEN
+                DECLARE
+                    current_time_of_day time := current_timestamp::time;
+                    dnd_start time := COALESCE(user_prefs.dnd_start_time, '22:00'::time);
+                    dnd_end time := COALESCE(user_prefs.dnd_end_time, '08:00'::time);
+                BEGIN
+                    -- Handle overnight DND (e.g., 22:00 to 08:00)
+                    IF dnd_start > dnd_end THEN
+                        IF current_time_of_day >= dnd_start OR current_time_of_day <= dnd_end THEN
+                            should_send := false;
+                        END IF;
+                    ELSE
+                        IF current_time_of_day >= dnd_start AND current_time_of_day <= dnd_end THEN
+                            should_send := false;
+                        END IF;
+                    END IF;
+                END;
+            END IF;
+        END IF;
+
+        -- Create enhanced notification data with context
+        enhanced_data := notification_data;
+        
+        IF server_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('server_id', server_id);
+        END IF;
+        
+        IF channel_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('channel_id', channel_id);
+        END IF;
+        
+        IF conversation_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('conversation_id', conversation_id);
+        END IF;
+        
+        IF from_user_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('from_user_id', from_user_id);
+        END IF;
+        
+        IF priority IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('priority', priority);
+        END IF;
+
+        -- Create notification if should send
+        IF should_send THEN
+            INSERT INTO notifications (
+                type,
+                user_id,
+                data,
+                created_at
+            ) VALUES (
+                notification_type,
+                recipient_id,
+                enhanced_data,
+                current_timestamp
+            ) RETURNING id INTO notification_id;
+
+            created_notification_ids := array_append(created_notification_ids, notification_id);
+        END IF;
+
+    END LOOP;
+
+    RETURN created_notification_ids;
+END;
+$$;
+
+COMMENT ON FUNCTION public.send_notification IS 'Send notifications to multiple users with preference checking';
+
+-- ---------------------------------------------------------------------------
 -- Function: check_encryption_policy
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.check_encryption_policy(p_server_id uuid) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.check_encryption_policy(p_server_id uuid) RETURNS jsonb
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -43,7 +295,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: claim_session_share
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.claim_session_share(p_share_id uuid, p_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.claim_session_share(p_share_id uuid, p_user_id uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 BEGIN
@@ -62,7 +314,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: convert_jsonb_to_ap
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.convert_jsonb_to_ap(content jsonb) RETURNS text
+CREATE OR REPLACE FUNCTION public.convert_jsonb_to_ap(content jsonb) RETURNS text
     LANGUAGE plpgsql IMMUTABLE
     AS $$
 DECLARE
@@ -184,7 +436,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_activitypub_conversation_root
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_activitypub_conversation_root(post_id uuid) RETURNS TABLE(root_id uuid)
+CREATE OR REPLACE FUNCTION public.get_activitypub_conversation_root(post_id uuid) RETURNS TABLE(root_id uuid)
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -225,7 +477,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_batch_post_emoji_reactions
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_batch_post_emoji_reactions(p_post_ids uuid[], p_user_limit integer DEFAULT 5) RETURNS TABLE(post_id uuid, emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
+CREATE OR REPLACE FUNCTION public.get_batch_post_emoji_reactions(p_post_ids uuid[], p_user_limit integer DEFAULT 5) RETURNS TABLE(post_id uuid, emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -292,7 +544,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_conversation_encryption_status
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_conversation_encryption_status(p_conversation_id uuid) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.get_conversation_encryption_status(p_conversation_id uuid) RETURNS jsonb
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -331,7 +583,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_conversation_thread
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_conversation_thread(p_conversation_id text, p_user_id uuid) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.get_conversation_thread(p_conversation_id text, p_user_id uuid) RETURNS jsonb
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -400,7 +652,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_enhanced_timeline_posts
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_enhanced_timeline_posts(p_user_id uuid, p_timeline_type text DEFAULT 'home'::text, p_limit integer DEFAULT 20, p_max_id text DEFAULT NULL::text) RETURNS TABLE(id text, created_at timestamp with time zone, updated_at timestamp with time zone, content jsonb, content_warning text, language text, author_id text, ap_id text, ap_type text, url text, reply_context jsonb, conversation_id text, visibility text, is_local boolean, is_federated boolean, replies_count integer, reblogs_count integer, favorites_count integer, media_attachments jsonb, metadata jsonb, is_sensitive boolean, is_deleted boolean, deleted_at timestamp with time zone, author jsonb, is_favorited boolean, is_reblogged boolean, is_bookmarked boolean, reblog jsonb, reblog_author jsonb)
+CREATE OR REPLACE FUNCTION public.get_enhanced_timeline_posts(p_user_id uuid, p_timeline_type text DEFAULT 'home'::text, p_limit integer DEFAULT 20, p_max_id text DEFAULT NULL::text) RETURNS TABLE(id text, created_at timestamp with time zone, updated_at timestamp with time zone, content jsonb, content_warning text, language text, author_id text, ap_id text, ap_type text, url text, reply_context jsonb, conversation_id text, visibility text, is_local boolean, is_federated boolean, replies_count integer, reblogs_count integer, favorites_count integer, media_attachments jsonb, metadata jsonb, is_sensitive boolean, is_deleted boolean, deleted_at timestamp with time zone, author jsonb, is_favorited boolean, is_reblogged boolean, is_bookmarked boolean, reblog jsonb, reblog_author jsonb)
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -488,7 +740,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_federated_timeline
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_federated_timeline(p_user_id uuid, p_limit integer DEFAULT 20, p_max_id text DEFAULT NULL::text) RETURNS TABLE(id text, created_at timestamp with time zone, updated_at timestamp with time zone, content jsonb, content_warning text, language text, author_id text, ap_id text, ap_type text, url text, conversation_id text, visibility text, is_local boolean, is_federated boolean, replies_count integer, reblogs_count integer, favorites_count integer, media_attachments jsonb, metadata jsonb, is_sensitive boolean, author jsonb, is_favorited boolean, is_reblogged boolean, is_bookmarked boolean)
+CREATE OR REPLACE FUNCTION public.get_federated_timeline(p_user_id uuid, p_limit integer DEFAULT 20, p_max_id text DEFAULT NULL::text) RETURNS TABLE(id text, created_at timestamp with time zone, updated_at timestamp with time zone, content jsonb, content_warning text, language text, author_id text, ap_id text, ap_type text, url text, conversation_id text, visibility text, is_local boolean, is_federated boolean, replies_count integer, reblogs_count integer, favorites_count integer, media_attachments jsonb, metadata jsonb, is_sensitive boolean, author jsonb, is_favorited boolean, is_reblogged boolean, is_bookmarked boolean)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     AS $$
 BEGIN
@@ -577,7 +829,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_instance_domain
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_instance_domain() RETURNS text
+CREATE OR REPLACE FUNCTION public.get_instance_domain() RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -600,7 +852,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_post_emoji_reactions
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_post_emoji_reactions(p_post_id uuid, p_user_limit integer DEFAULT 5) RETURNS TABLE(emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
+CREATE OR REPLACE FUNCTION public.get_post_emoji_reactions(p_post_id uuid, p_user_limit integer DEFAULT 5) RETURNS TABLE(emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -666,7 +918,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_post_with_context
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_post_with_context(p_post_id uuid, p_user_id uuid, p_context_type text DEFAULT 'minimal'::text, p_highlight_reply uuid DEFAULT NULL::uuid, p_max_depth integer DEFAULT 10, p_include_interactions boolean DEFAULT true) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.get_post_with_context(p_post_id uuid, p_user_id uuid, p_context_type text DEFAULT 'minimal'::text, p_highlight_reply uuid DEFAULT NULL::uuid, p_max_depth integer DEFAULT 10, p_include_interactions boolean DEFAULT true) RETURNS jsonb
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -1033,7 +1285,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_unclaimed_session_shares
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_unclaimed_session_shares(p_user_id uuid) RETURNS TABLE(share_id uuid, room_id uuid, session_id text, sender_user_id uuid, encrypted_session_key text, first_known_index integer, created_at timestamp with time zone)
+CREATE OR REPLACE FUNCTION public.get_unclaimed_session_shares(p_user_id uuid) RETURNS TABLE(share_id uuid, room_id uuid, session_id text, sender_user_id uuid, encrypted_session_key text, first_known_index integer, created_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 BEGIN
@@ -1060,7 +1312,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_user_handle
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_user_handle(p_user_id uuid) RETURNS text
+CREATE OR REPLACE FUNCTION public.get_user_handle(p_user_id uuid) RETURNS text
     LANGUAGE sql STABLE
     AS $$
   SELECT username || '@' || domain
@@ -1071,7 +1323,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_user_notifications
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_user_notifications(p_user_id uuid, p_limit integer DEFAULT 20, p_offset integer DEFAULT 0, p_unread_only boolean DEFAULT false, p_notification_types character varying[] DEFAULT NULL::character varying[]) RETURNS TABLE(id uuid, user_id uuid, type character varying, data jsonb, is_read boolean, is_clicked boolean, created_at timestamp with time zone, updated_at timestamp with time zone, expires_at timestamp with time zone, read_at timestamp with time zone)
+CREATE OR REPLACE FUNCTION public.get_user_notifications(p_user_id uuid, p_limit integer DEFAULT 20, p_offset integer DEFAULT 0, p_unread_only boolean DEFAULT false, p_notification_types character varying[] DEFAULT NULL::character varying[]) RETURNS TABLE(id uuid, user_id uuid, type character varying, data jsonb, is_read boolean, is_clicked boolean, created_at timestamp with time zone, updated_at timestamp with time zone, expires_at timestamp with time zone, read_at timestamp with time zone)
     LANGUAGE plpgsql STABLE
     AS $$
 BEGIN
@@ -1157,7 +1409,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_user_permissions
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_user_permissions(p_user_id uuid, p_server_id uuid, p_channel_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.get_user_permissions(p_user_id uuid, p_server_id uuid, p_channel_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     AS $$
 DECLARE
@@ -1318,7 +1570,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_user_prekey_bundle
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.get_user_prekey_bundle(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.get_user_prekey_bundle(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1398,7 +1650,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: import_remote_emoji
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.import_remote_emoji(p_remote_emoji_id uuid, p_new_name text DEFAULT NULL::text, p_server_id uuid DEFAULT NULL::uuid) RETURNS uuid
+CREATE OR REPLACE FUNCTION public.import_remote_emoji(p_remote_emoji_id uuid, p_new_name text DEFAULT NULL::text, p_server_id uuid DEFAULT NULL::uuid) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1450,7 +1702,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: mark_all_notifications_read
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RETURNS void
+CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RETURNS void
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -1463,7 +1715,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: moderate_user
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.moderate_user(p_admin_id uuid, p_target_user_id uuid, p_action text, p_reason text DEFAULT NULL::text) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.moderate_user(p_admin_id uuid, p_target_user_id uuid, p_action text, p_reason text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1534,7 +1786,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: pin_message
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.pin_message(p_message_id uuid, p_user_id uuid DEFAULT auth.uid()) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.pin_message(p_message_id uuid, p_user_id uuid DEFAULT auth.uid()) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1617,7 +1869,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: record_emoji_usage
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.record_emoji_usage(p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid DEFAULT NULL::uuid) RETURNS void
+CREATE OR REPLACE FUNCTION public.record_emoji_usage(p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid DEFAULT NULL::uuid) RETURNS void
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -1643,7 +1895,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: register_recovery_key
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.register_recovery_key(p_user_id uuid, p_verification_code text, p_word_count integer DEFAULT 12) RETURNS public.recovery_key_metadata
+CREATE OR REPLACE FUNCTION public.register_recovery_key(p_user_id uuid, p_verification_code text, p_word_count integer DEFAULT 12) RETURNS public.recovery_key_metadata
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1674,7 +1926,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: remove_group_icon
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.remove_group_icon(conversation_uuid uuid, user_profile_id uuid) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.remove_group_icon(conversation_uuid uuid, user_profile_id uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1722,7 +1974,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: remove_post_emoji_reaction
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.remove_post_emoji_reaction(p_user_id uuid, p_post_id uuid, p_emoji_id uuid DEFAULT NULL::uuid, p_custom_emoji_content text DEFAULT NULL::text) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.remove_post_emoji_reaction(p_user_id uuid, p_post_id uuid, p_emoji_id uuid DEFAULT NULL::uuid, p_custom_emoji_content text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1749,7 +2001,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: reset_user_encryption
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.reset_user_encryption(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.reset_user_encryption(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1822,7 +2074,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: rotate_prekeys
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.rotate_prekeys(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.rotate_prekeys(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1894,7 +2146,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: save_recovery_codes
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.save_recovery_codes(p_user_id uuid, p_codes text[]) RETURNS void
+CREATE OR REPLACE FUNCTION public.save_recovery_codes(p_user_id uuid, p_codes text[]) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_catalog'
     AS $$
@@ -1919,7 +2171,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: search_federated_users
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.search_federated_users(p_query text, p_limit integer DEFAULT 10) RETURNS TABLE(user_id uuid, username text, display_name text, domain text, avatar_url text, handle text, is_local boolean)
+CREATE OR REPLACE FUNCTION public.search_federated_users(p_query text, p_limit integer DEFAULT 10) RETURNS TABLE(user_id uuid, username text, display_name text, domain text, avatar_url text, handle text, is_local boolean)
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -1949,7 +2201,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: search_messages
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.search_messages(p_query text DEFAULT NULL::text, p_channel_id uuid DEFAULT NULL::uuid, p_channel_ids uuid[] DEFAULT NULL::uuid[], p_user_id uuid DEFAULT NULL::uuid, p_conversation_id uuid DEFAULT NULL::uuid, p_server_id uuid DEFAULT NULL::uuid, p_has_media boolean DEFAULT NULL::boolean, p_has_url boolean DEFAULT NULL::boolean, p_from_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_to_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0) RETURNS TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone)
+CREATE OR REPLACE FUNCTION public.search_messages(p_query text DEFAULT NULL::text, p_channel_id uuid DEFAULT NULL::uuid, p_channel_ids uuid[] DEFAULT NULL::uuid[], p_user_id uuid DEFAULT NULL::uuid, p_conversation_id uuid DEFAULT NULL::uuid, p_server_id uuid DEFAULT NULL::uuid, p_has_media boolean DEFAULT NULL::boolean, p_has_url boolean DEFAULT NULL::boolean, p_from_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_to_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0) RETURNS TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone)
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -2043,7 +2295,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: send_notification_to_user
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.send_notification_to_user(notification_type character varying, to_user_id uuid, notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid
+CREATE OR REPLACE FUNCTION public.send_notification_to_user(notification_type character varying, to_user_id uuid, notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid
     LANGUAGE sql SECURITY DEFINER
     AS $$
     SELECT (send_notification(
@@ -2061,7 +2313,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: unpin_message
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.unpin_message(p_message_id uuid, p_user_id uuid DEFAULT auth.uid()) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.unpin_message(p_message_id uuid, p_user_id uuid DEFAULT auth.uid()) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -2124,7 +2376,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: update_group_icon
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.update_group_icon(conversation_uuid uuid, user_profile_id uuid, icon_path text) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.update_group_icon(conversation_uuid uuid, user_profile_id uuid, icon_path text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -2172,7 +2424,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: update_group_name
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.update_group_name(conversation_uuid uuid, user_profile_id uuid, new_name text) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.update_group_name(conversation_uuid uuid, user_profile_id uuid, new_name text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -2228,7 +2480,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: user_has_encryption
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.user_has_encryption(p_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.user_has_encryption(p_user_id uuid) RETURNS boolean
     LANGUAGE plpgsql STABLE
     AS $$
 BEGIN
@@ -2243,7 +2495,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: verify_recovery_code
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION public.verify_recovery_code(p_user_id uuid, p_code text) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.verify_recovery_code(p_user_id uuid, p_code text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_catalog'
     AS $$
