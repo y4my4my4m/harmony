@@ -77,11 +77,11 @@ ON CONFLICT (id) DO UPDATE SET
     public = EXCLUDED.public,
     file_size_limit = EXCLUDED.file_size_limit;
 
--- Emoji bucket (custom emoji)
+-- Emojis bucket (custom emoji)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
-    'emoji',
-    'emoji',
+    'emojis',
+    'emojis',
     true,
     1048576, -- 1MB
     ARRAY['image/png', 'image/gif', 'image/webp']
@@ -119,9 +119,9 @@ CREATE POLICY "Public read access for user_media"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'user_media');
 
-CREATE POLICY "Public read access for emoji"
+CREATE POLICY "Public read access for emojis"
     ON storage.objects FOR SELECT
-    USING (bucket_id = 'emoji');
+    USING (bucket_id = 'emojis');
 
 -- Authenticated users can upload to avatars (their own folder)
 CREATE POLICY "Users can upload their own avatar"
@@ -212,10 +212,10 @@ CREATE POLICY "Server owners can update server banners"
     );
 
 -- Emoji upload (server owners or global)
-CREATE POLICY "Users can upload emoji"
+CREATE POLICY "Users can upload emojis"
     ON storage.objects FOR INSERT
     WITH CHECK (
-        bucket_id = 'emoji'
+        bucket_id = 'emojis'
         AND auth.role() = 'authenticated'
     );
 
