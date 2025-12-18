@@ -6,6 +6,70 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- Function: send_notification (BASE function - must be created first)
+-- Other functions like send_notification_to_user depend on this
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.send_notification(notification_type character varying, to_user_ids uuid[], notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+    created_notification_ids uuid[] := '{}';
+    recipient_id uuid;
+    notification_id uuid;
+    current_timestamp timestamp with time zone := now();
+    enhanced_data jsonb;
+    is_blocked boolean;
+BEGIN
+    IF notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
+        RETURN '{}';
+    END IF;
+
+    FOREACH recipient_id IN ARRAY to_user_ids LOOP
+        IF from_user_id IS NOT NULL AND recipient_id = from_user_id THEN
+            CONTINUE;
+        END IF;
+
+        IF from_user_id IS NOT NULL THEN
+            SELECT EXISTS (
+                SELECT 1 FROM user_blocks ub
+                WHERE ub.blocker_id = recipient_id
+                AND ub.blocked_user_id = from_user_id
+                AND (ub.expires_at IS NULL OR ub.expires_at > NOW())
+            ) INTO is_blocked;
+            IF is_blocked THEN CONTINUE; END IF;
+        END IF;
+
+        enhanced_data := notification_data;
+        
+        IF server_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('server_id', server_id);
+        END IF;
+        IF channel_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('channel_id', channel_id);
+        END IF;
+        IF conversation_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('conversation_id', conversation_id);
+        END IF;
+        IF from_user_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('from_user_id', from_user_id);
+        END IF;
+        IF priority IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('priority', priority);
+        END IF;
+
+        INSERT INTO notifications (type, user_id, data, created_at)
+        VALUES (notification_type, recipient_id, enhanced_data, current_timestamp)
+        RETURNING id INTO notification_id;
+        created_notification_ids := array_append(created_notification_ids, notification_id);
+    END LOOP;
+
+    RETURN created_notification_ids;
+END;
+$$;
+
+COMMENT ON FUNCTION public.send_notification IS 'Send notifications to multiple users';
+
+-- ---------------------------------------------------------------------------
 -- Function: check_encryption_policy
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.check_encryption_policy(p_server_id uuid) RETURNS jsonb
