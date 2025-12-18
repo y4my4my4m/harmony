@@ -2693,3 +2693,33 @@ BEGIN
     RAISE NOTICE 'These are temporary implementations - see TODO_cleanRPC.md for details';
 END $$;
 
+
+-- ---------------------------------------------------------------------------
+-- check_key_consistency - Check for users with inconsistent key state
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.check_key_consistency() 
+RETURNS TABLE(user_id uuid, username text, has_public_key boolean, has_private_key boolean)
+LANGUAGE plpgsql 
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.id as user_id,
+        p.username,
+        (p.public_key IS NOT NULL) as has_public_key,
+        (upk.id IS NOT NULL) as has_private_key
+    FROM profiles p
+    LEFT JOIN user_private_keys upk ON upk.user_id = p.id
+    WHERE p.is_local = true
+    AND (
+        -- Has public key but no private key (broken)
+        (p.public_key IS NOT NULL AND upk.id IS NULL)
+        OR
+        -- Has private key but no public key (also broken)
+        (p.public_key IS NULL AND upk.id IS NOT NULL)
+    );
+END;
+$$;
+
+COMMENT ON FUNCTION public.check_key_consistency() IS 'Check for local users with inconsistent key state (public key without private key or vice versa)';

@@ -277,7 +277,7 @@ CREATE TABLE IF NOT EXISTS public.timeline_entries (
     created_at timestamp with time zone DEFAULT now(),
     
     UNIQUE(user_id, post_id, timeline_type),
-    CONSTRAINT timeline_entries_type_check CHECK (timeline_type IN ('home', 'local', 'federated', 'list'))
+    CONSTRAINT timeline_entries_timeline_type_check CHECK (timeline_type = ANY (ARRAY['home'::text, 'public'::text, 'local'::text, 'notifications'::text]))
 );
 
 ALTER TABLE public.timeline_entries REPLICA IDENTITY FULL;

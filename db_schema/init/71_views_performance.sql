@@ -9,25 +9,25 @@
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.slow_queries (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT now() NOT NULL,
     
     -- Query details
-    duration_ms numeric NOT NULL,
+    duration_ms double precision NOT NULL,
     query_text text,
+    query_hash text,
     operation_type text,
     table_name text,
     parameters jsonb,
     
     -- Context
-    source text DEFAULT 'unknown'::text,
+    source text DEFAULT 'backend'::text,
     user_id uuid,
     request_id text,
-    
-    -- Indexes for cleanup
-    expires_at timestamp with time zone DEFAULT (now() + interval '30 days')
+    rows_affected integer,
+    recorded_at timestamp with time zone
 );
 
-CREATE INDEX IF NOT EXISTS idx_slow_queries_created ON public.slow_queries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_slow_queries_timestamp ON public.slow_queries("timestamp" DESC);
 CREATE INDEX IF NOT EXISTS idx_slow_queries_duration ON public.slow_queries(duration_ms DESC);
 CREATE INDEX IF NOT EXISTS idx_slow_queries_table ON public.slow_queries(table_name);
 
@@ -81,18 +81,19 @@ CREATE TABLE IF NOT EXISTS public.performance_metrics_hourly (
     metric_name text NOT NULL,
     
     -- Aggregated values
-    count integer DEFAULT 0,
-    sum_value double precision DEFAULT 0,
-    min_value double precision,
-    max_value double precision,
-    avg_value double precision,
-    p50_value double precision,
-    p95_value double precision,
-    p99_value double precision,
+    count bigint DEFAULT 0,
+    sum double precision DEFAULT 0,
+    min double precision,
+    max double precision,
+    avg double precision,
+    p50 double precision,
+    p95 double precision,
+    p99 double precision,
     
     -- Labels aggregation
     labels jsonb DEFAULT '{}'::jsonb,
-    source text,
+    source text DEFAULT 'aggregation'::text,
+    avg_latency double precision,
     
     UNIQUE(hour, metric_type, metric_name, source)
 );
