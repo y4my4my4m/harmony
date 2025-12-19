@@ -430,8 +430,9 @@ CREATE TABLE IF NOT EXISTS public.invites (
     created_at timestamp with time zone DEFAULT now(),
     expires_at timestamp with time zone,
     max_uses integer,
-    use_count integer DEFAULT 0,
-    is_active boolean DEFAULT true
+    uses integer DEFAULT 0,
+    used boolean DEFAULT false,
+    temporary boolean DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS idx_invites_code ON public.invites(code);

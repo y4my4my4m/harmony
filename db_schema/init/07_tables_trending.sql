@@ -134,7 +134,16 @@ CREATE TABLE IF NOT EXISTS public.server_settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL UNIQUE REFERENCES public.servers(id) ON DELETE CASCADE,
     
+    -- Default role (set by trigger on server creation)
+    default_role_id uuid REFERENCES public.server_roles(id) ON DELETE SET NULL,
+    
+    -- Invite permissions
+    invite_permissions jsonb DEFAULT '{"who_can_create": "everyone", "default_expiration": 1440, "max_expiration": 0, "allow_temporary": true, "max_uses_limit": 0}'::jsonb,
+    
     -- Moderation settings
+    moderation_settings jsonb DEFAULT '{"auto_mod_enabled": false, "spam_filter": false, "link_filter": false}'::jsonb,
+    
+    -- Legacy/extended moderation settings (keep for compatibility)
     auto_mod_enabled boolean DEFAULT false,
     auto_mod_rules jsonb DEFAULT '{}'::jsonb,
     
