@@ -1,73 +1,75 @@
 <template>
-  <div v-if="show" class="modal-overlay" @click="closeModal">
-    <div class="modal-container" @click.stop>
-      <div class="modal-header">
-        <h2 class="modal-title">Edit Channel</h2>
-        <button class="modal-close" @click="closeModal">
-          <svg width="24" height="24" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
-          </svg>
-        </button>
-      </div>
-      
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="channel-name">Channel Name</label>
-          <input
-            id="channel-name"
-            v-model="editedName"
-            type="text"
-            class="form-input"
-            placeholder="Enter channel name"
-            maxlength="100"
-            @keydown.enter="saveChanges"
-            @keydown.escape="closeModal"
-            ref="nameInput"
-          />
-          <div class="character-count">{{ editedName.length }}/100</div>
+  <Teleport to="body">
+    <div v-if="show" class="modal-overlay" @click="closeModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Channel</h2>
+          <button class="modal-close" @click="closeModal">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+            </svg>
+          </button>
         </div>
         
-        <div class="form-group">
-          <label for="channel-description">Description</label>
-          <textarea
-            id="channel-description"
-            v-model="editedDescription"
-            class="form-textarea"
-            placeholder="What's this channel about?"
-            maxlength="1024"
-            rows="3"
-          />
-          <div class="character-count">{{ (editedDescription || '').length }}/1024</div>
-        </div>
-        
-        <div class="form-group">
-          <label>Channel Type</label>
-          <div class="channel-type-display">
-            <div class="channel-type-icon">
-              <HashTagIcon v-if="channel?.type === 0" />
-              <SpeakerIcon v-else />
-            </div>
-            <span>{{ channel?.type === 0 ? 'Text Channel' : 'Voice Channel' }}</span>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="channel-name">Channel Name</label>
+            <input
+              id="channel-name"
+              v-model="editedName"
+              type="text"
+              class="form-input"
+              placeholder="Enter channel name"
+              maxlength="100"
+              @keydown.enter="saveChanges"
+              @keydown.escape="closeModal"
+              ref="nameInput"
+            />
+            <div class="character-count">{{ editedName.length }}/100</div>
           </div>
-          <div class="form-hint">Channel type cannot be changed after creation</div>
+          
+          <div class="form-group">
+            <label for="channel-description">Description</label>
+            <textarea
+              id="channel-description"
+              v-model="editedDescription"
+              class="form-textarea"
+              placeholder="What's this channel about?"
+              maxlength="1024"
+              rows="3"
+            />
+            <div class="character-count">{{ (editedDescription || '').length }}/1024</div>
+          </div>
+          
+          <div class="form-group">
+            <label>Channel Type</label>
+            <div class="channel-type-display">
+              <div class="channel-type-icon">
+                <HashTagIcon v-if="channel?.type === 0" />
+                <SpeakerIcon v-else />
+              </div>
+              <span>{{ channel?.type === 0 ? 'Text Channel' : 'Voice Channel' }}</span>
+            </div>
+            <div class="form-hint">Channel type cannot be changed after creation</div>
+          </div>
         </div>
-      </div>
-      
-      <div class="modal-footer">
-        <button class="btn btn-secondary" @click="closeModal">
-          Cancel
-        </button>
-        <button 
-          class="btn btn-primary" 
-          @click="saveChanges"
-          :disabled="!isValidName || isLoading"
-        >
-          <span v-if="isLoading" class="loading-spinner"></span>
-          {{ isLoading ? 'Saving...' : 'Save Changes' }}
-        </button>
+        
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeModal">
+            Cancel
+          </button>
+          <button 
+            class="btn btn-primary" 
+            @click="saveChanges"
+            :disabled="!isValidName || isLoading"
+          >
+            <span v-if="isLoading" class="loading-spinner"></span>
+            {{ isLoading ? 'Saving...' : 'Save Changes' }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
