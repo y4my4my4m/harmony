@@ -435,7 +435,30 @@ onUnmounted(() => {
 
 .chat-content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  /* Custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(79, 84, 92, 0.8)) transparent;
+}
+
+.chat-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-content::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, rgba(79, 84, 92, 0.8));
+  border-radius: 3px;
+}
+
+.chat-content::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, rgba(79, 84, 92, 1));
 }
 
 /* DM Mode Styles */
