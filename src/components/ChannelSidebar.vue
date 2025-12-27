@@ -24,16 +24,20 @@
       <draggable
         v-model="orphanChannels"
         :group="dragGroup"
-        :disabled="!canDragAndDrop || isMobile"
+        :disabled="!canDragAndDrop"
         @start="onDragStart"
         @end="onDragEnd"
         @add="onChannelAddedToOrphans"
         item-key="id"
-        :class="{ 'drag-disabled': !canDragAndDrop || isMobile }"
         tag="div"
       >
         <template #item="{ element }">
-          <div :key="element.id" class="channel-wrapper">
+          <div 
+            :key="element.id" 
+            class="channel-wrapper"
+            :data-channel-id="element.id"
+            :data-category-id="null"
+          >
             <div 
               :class="['channel-item', { 
                 'selected': element.id === currentChannelId && !selectedThreadId,
@@ -44,8 +48,6 @@
               @click="element.type === 1 ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
               :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
-              :data-channel-id="element.id"
-              :data-category-id="null"
             >
               <div class="channel-content">
                 <HashTagIcon v-if="element.type === 0" />
@@ -103,7 +105,7 @@
     <draggable
       v-model="reorderableCategories"
       :group="{ name: 'categories', put: false, pull: false }"
-      :disabled="!canDragAndDrop || isMobile"
+      :disabled="!canDragAndDrop"
       :key="categoriesKey"
       item-key="id"
       tag="div"
@@ -139,7 +141,7 @@
             <draggable
               v-model="getCachedCategoryChannels(category.id).value"
               :group="dragGroup"
-              :disabled="!canDragAndDrop || isMobile"
+              :disabled="!canDragAndDrop"
               @start="onDragStart"
               @end="onDragEnd"
               @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
@@ -150,7 +152,12 @@
               :class="{ 'empty-drop-zone': getCachedCategoryChannels(category.id).value.length === 0 }"
             >
               <template #item="{ element: channel }">
-                <div :key="channel.id" class="channel-wrapper">
+                <div 
+                  :key="channel.id" 
+                  class="channel-wrapper"
+                  :data-channel-id="channel.id"
+                  :data-category-id="category.id"
+                >
                   <div
                     class="channel-item"
                     :class="{ 
@@ -163,8 +170,6 @@
                     @click="channel.type === 1 ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
                     :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
-                    :data-channel-id="channel.id"
-                    :data-category-id="category.id"
                   >
                     <div class="channel-content">
                       <HashTagIcon v-if="channel.type === 0" />
@@ -324,9 +329,9 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useAuthStore } from '@/stores/auth';
 import { useRouter, useRoute } from 'vue-router';
-import { useChannelPermissions } from '@/composables/useChannelPermissions';
+import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
@@ -452,7 +457,33 @@ const route = useRoute();
 const serverUsersStore = useServerUsersStore();
 const voiceChannelStore = useUnifiedVoiceChannelStore();
 const themeStore = useThemeStore();
-const { canDragAndDrop, canCreateChannels, canMoveChannelsBetweenCategories, getDragCursor } = useChannelPermissions();
+const { 
+  canManageChannels, 
+  isCurrentUserServerOwner,
+  channelPermissions 
+} = useServerPermissions();
+
+// Direct owner check as fallback (simpler, more reliable)
+const { getCurrentUser } = useUserData();
+const isDirectOwner = computed(() => {
+  const currentUserId = getCurrentUser.value?.id;
+  const serverOwner = props.currentServer?.owner;
+  return !!(currentUserId && serverOwner && currentUserId === serverOwner);
+});
+
+// Computed permissions for drag and drop - use direct owner check as primary, composable as backup
+const canDragAndDrop = computed(() => {
+  return isDirectOwner.value || isCurrentUserServerOwner.value || canManageChannels.value;
+});
+const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels || isDirectOwner.value);
+const canMoveChannelsBetweenCategories = computed(() => channelPermissions.value.canReorderChannels || isDirectOwner.value);
+
+const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => {
+  if (!canDragAndDrop.value) {
+    return 'pointer';
+  }
+  return isDragging ? 'grabbing' : 'grab';
+};
 const { triggerVoice } = useHapticSettings();
 
 // Computed Properties
@@ -460,8 +491,8 @@ const isMobile = computed(() => 'ontouchstart' in window || navigator.maxTouchPo
 
 const dragGroup = computed(() => ({
   name: 'channels',
-  put: canDragAndDrop.value && !isMobile.value,
-  pull: canDragAndDrop.value && !isMobile.value,
+  put: true,
+  pull: true,
 }));
 
 const currentServerData = computed(() => {
@@ -566,6 +597,7 @@ const onDragStart = (evt: any) => {
     evt.preventDefault();
     return false;
   }
+  
   const channelId = evt.item.dataset.channelId;
   const categoryId = evt.item.dataset.categoryId;
   const allChannels = [...orphanChannels.value, ...Object.values(props.categoryChannels).flat()];
@@ -575,6 +607,7 @@ const onDragStart = (evt: any) => {
     evt.preventDefault();
     return false;
   }
+  
   dragState.value = {
     isDragging: true,
     draggedItem: draggedChannel,
@@ -585,7 +618,7 @@ const onDragStart = (evt: any) => {
   document.body.classList.add('dragging-channel');
 };
 
-const onDragEnd = (evt: any) => {
+const onDragEnd = () => {
   document.body.classList.remove('dragging-channel');
   dragState.value = { isDragging: false, draggedItem: null, sourceCategoryId: null, targetCategoryId: null, isOver: false };
 };

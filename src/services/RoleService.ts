@@ -102,6 +102,81 @@ export const PERMISSION_CATEGORIES = {
   },
 } as const
 
+// =============================================
+// Permission Bit Mapping (for bigint storage)
+// =============================================
+
+// Each permission maps to a specific bit position in the bigint
+export const PERMISSION_BITS: Record<Permission, number> = {
+  // General Permissions (bits 0-7)
+  [Permission.ADMINISTRATOR]: 0,
+  [Permission.VIEW_CHANNEL]: 1,
+  [Permission.MANAGE_CHANNELS]: 2,
+  [Permission.MANAGE_ROLES]: 3,
+  [Permission.MANAGE_EMOJIS]: 4,
+  [Permission.VIEW_AUDIT_LOG]: 5,
+  [Permission.MANAGE_WEBHOOKS]: 6,
+  [Permission.MANAGE_SERVER]: 7,
+
+  // Membership Permissions (bits 8-11)
+  [Permission.CREATE_INVITE]: 8,
+  [Permission.KICK_MEMBERS]: 9,
+  [Permission.BAN_MEMBERS]: 10,
+  [Permission.TIMEOUT_MEMBERS]: 11,
+
+  // Text Channel Permissions (bits 12-23)
+  [Permission.SEND_MESSAGES]: 12,
+  [Permission.SEND_MESSAGES_IN_THREADS]: 13,
+  [Permission.CREATE_PUBLIC_THREADS]: 14,
+  [Permission.CREATE_PRIVATE_THREADS]: 15,
+  [Permission.EMBED_LINKS]: 16,
+  [Permission.ATTACH_FILES]: 17,
+  [Permission.ADD_REACTIONS]: 18,
+  [Permission.USE_EXTERNAL_EMOJIS]: 19,
+  [Permission.MENTION_EVERYONE]: 20,
+  [Permission.MANAGE_MESSAGES]: 21,
+  [Permission.READ_MESSAGE_HISTORY]: 22,
+  [Permission.PIN_MESSAGES]: 23,
+
+  // Voice Channel Permissions (bits 24-29)
+  [Permission.CONNECT]: 24,
+  [Permission.SPEAK]: 25,
+  [Permission.STREAM]: 26,
+  [Permission.MUTE_MEMBERS]: 27,
+  [Permission.DEAFEN_MEMBERS]: 28,
+  [Permission.MOVE_MEMBERS]: 29,
+}
+
+/**
+ * Convert permissions object to bigint bitmask for database storage
+ */
+export function permissionsToBitmask(permissions: Record<Permission, boolean> | Partial<Record<Permission, boolean>>): bigint {
+  let bitmask = BigInt(0)
+  
+  for (const [permission, enabled] of Object.entries(permissions)) {
+    if (enabled && permission in PERMISSION_BITS) {
+      const bit = PERMISSION_BITS[permission as Permission]
+      bitmask |= BigInt(1) << BigInt(bit)
+    }
+  }
+  
+  return bitmask
+}
+
+/**
+ * Convert bigint bitmask from database to permissions object
+ */
+export function bitmaskToPermissions(bitmask: bigint | number | string): Record<Permission, boolean> {
+  const permissions: Record<Permission, boolean> = {} as Record<Permission, boolean>
+  const mask = BigInt(bitmask || 0)
+  
+  for (const [permission, bit] of Object.entries(PERMISSION_BITS)) {
+    permissions[permission as Permission] = (mask & (BigInt(1) << BigInt(bit))) !== BigInt(0)
+  }
+  
+  return permissions
+}
+
 // Permission descriptions for UI
 export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.ADMINISTRATOR]: 'Members with this permission have every permission and can bypass channel-specific permissions.',
@@ -239,8 +314,10 @@ class RoleService {
 
       if (error) throw error
 
+      // Convert bigint permissions to object format for frontend
       const roles = (data || []).map((r: any) => ({
         ...r,
+        permissions: bitmaskToPermissions(r.permissions),
         member_count: r.member_count?.[0]?.count || 0,
       })) as ServerRole[]
       this.roleCache.set(serverId, roles)
@@ -270,7 +347,12 @@ class RoleService {
         .single()
 
       if (error) throw error
-      return data as ServerRole
+      
+      // Convert bigint permissions to object format
+      return {
+        ...data,
+        permissions: bitmaskToPermissions(data.permissions)
+      } as ServerRole
     } catch (error) {
       debug.error('Failed to fetch role:', error)
       return null
@@ -286,6 +368,11 @@ class RoleService {
       const roles = await this.getServerRoles(serverId)
       const maxPosition = Math.max(...roles.map(r => r.position), 0)
 
+      // Convert permissions object to bigint for database
+      const permissionsBitmask = params.permissions 
+        ? Number(permissionsToBitmask(params.permissions))
+        : 0
+
       const { data, error } = await supabase
         .from('server_roles')
         .insert({
@@ -295,7 +382,7 @@ class RoleService {
           hoist: params.hoist || false,
           mentionable: params.mentionable || false,
           position: maxPosition + 1,
-          permissions: params.permissions || {},
+          permissions: permissionsBitmask,
           icon_url: params.icon_url,
           unicode_emoji: params.unicode_emoji,
         })
@@ -307,7 +394,11 @@ class RoleService {
       // Invalidate cache
       this.roleCache.delete(serverId)
 
-      return data as ServerRole
+      // Convert permissions back to object for frontend
+      return {
+        ...data,
+        permissions: bitmaskToPermissions(data.permissions)
+      } as ServerRole
     } catch (error) {
       debug.error('Failed to create role:', error)
       return null
@@ -319,16 +410,27 @@ class RoleService {
    */
   async updateRole(roleId: string, params: UpdateRoleParams): Promise<ServerRole | null> {
     try {
+      // Convert permissions object to bigint if present
+      const dbParams: Record<string, any> = { ...params }
+      if (params.permissions && typeof params.permissions === 'object' && !Array.isArray(params.permissions)) {
+        dbParams.permissions = Number(permissionsToBitmask(params.permissions as Record<Permission, boolean>))
+      }
+      
       const { data, error } = await supabase
         .from('server_roles')
-        .update(params)
+        .update(dbParams)
         .eq('id', roleId)
         .select()
         .single()
 
       if (error) throw error
 
-      const role = data as ServerRole
+      // Convert bigint permissions back to object for frontend
+      const role: ServerRole = {
+        ...data,
+        permissions: bitmaskToPermissions(data.permissions)
+      }
+      
       // Invalidate caches
       this.roleCache.delete(role.server_id)
       this.permissionCache.clear()

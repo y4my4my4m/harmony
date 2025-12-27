@@ -5,17 +5,11 @@
  * - Track typing in channels, threads, or conversations
  * - Display typing indicators
  * - Automatically handle cleanup
- * 
- * Uses multiple mechanisms to ensure subscription works on direct page load:
- * 1. watchEffect for reactive tracking
- * 2. watch for auth changes
- * 3. Polling fallback for edge cases
  */
 
-import { ref, onMounted, onUnmounted, watchEffect, watch } from 'vue'
+import { ref, onUnmounted, watchEffect } from 'vue'
 import { typingIndicatorService, type TypingContext, type TypingUser } from '@/services/TypingIndicatorService'
 import { useAuthStore } from '@/stores/auth'
-import { debug } from '@/utils/debug'
 
 /**
  * Composable for tracking and displaying typing indicators
@@ -24,12 +18,8 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   const typingUsers = ref<TypingUser[]>([])
   const authStore = useAuthStore()
   let unsubscribe: (() => void) | null = null
-  let currentSubscribedKey = '' // Track what we're currently subscribed to
-  let isSubscribing = false // Prevent concurrent subscription attempts
-  let retryInterval: ReturnType<typeof setInterval> | null = null
-  let retryCount = 0
-  const MAX_RETRIES = 10
-  const RETRY_INTERVAL_MS = 500
+  let currentSubscribedKey = ''
+  let isSubscribing = false
 
   // Handle both computed refs and direct values
   const getContext = () => {
@@ -39,10 +29,9 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     return context
   }
 
-  // Get serialized context key for comparison (handles Vue reactive objects)
+  // Get serialized context key for comparison
   const getContextKey = (ctx: TypingContext | null): string => {
     if (!ctx) return 'null'
-    // Extract plain values to avoid circular reference issues with Vue reactivity
     if ('channelId' in ctx) return `channel:${ctx.channelId}`
     if ('threadId' in ctx) return `thread:${ctx.threadId}`
     if ('conversationId' in ctx) return `conversation:${ctx.conversationId}`
@@ -50,17 +39,15 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   }
 
   // Subscribe to typing updates for a given context
-  const subscribeToContext = async (ctx: TypingContext | null, key: string): Promise<boolean> => {
+  const subscribeToContext = async (ctx: TypingContext | null, key: string): Promise<void> => {
     // Skip if already subscribed to this exact context
     if (key === currentSubscribedKey && unsubscribe) {
-      debug.log('📌 useTypingIndicator: Already subscribed to:', key)
-      return true
+      return
     }
     
     // Prevent concurrent subscription attempts
     if (isSubscribing) {
-      debug.log('⏳ useTypingIndicator: Already subscribing, skipping')
-      return false
+      return
     }
     
     // Cleanup previous subscription
@@ -73,75 +60,40 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     if (!ctx) {
       typingUsers.value = []
       currentSubscribedKey = ''
-      return false
+      return
     }
     
     // Ensure we have auth before subscribing
     if (!authStore.session?.user?.id) {
-      debug.log('⏳ useTypingIndicator: Waiting for auth before subscribing to:', key)
-      return false
+      return
     }
     
     isSubscribing = true
-    debug.log('✅ useTypingIndicator: Subscribing to context:', ctx, 'key:', key)
     
     try {
-      // Initialize service (will wait for auth if needed)
       await typingIndicatorService.initialize()
       
-      // Subscribe to typing updates
       unsubscribe = typingIndicatorService.subscribeToTyping(ctx, (users) => {
-        debug.log('📝 useTypingIndicator: Typing users updated:', users.length)
         typingUsers.value = users
       })
       currentSubscribedKey = key
-      return true
-    } catch (err) {
-      debug.error('❌ useTypingIndicator: Failed to subscribe:', err)
-      return false
+    } catch {
+      // Silently fail - typing indicators are non-critical
     } finally {
       isSubscribing = false
     }
   }
 
-  // Try to subscribe - called from multiple mechanisms
-  const trySubscribe = async () => {
-    const ctx = getContext()
-    const key = getContextKey(ctx)
-    const userId = authStore.session?.user?.id
-    
-    if (ctx && key !== 'null' && userId && currentSubscribedKey !== key) {
-      const success = await subscribeToContext(ctx, key)
-      if (success) {
-        // Stop retry interval if we succeeded
-        if (retryInterval) {
-          clearInterval(retryInterval)
-          retryInterval = null
-          retryCount = 0
-        }
-      }
-      return success
-    }
-    return false
-  }
-
-  // Use watchEffect to automatically track ALL reactive dependencies
+  // Use watchEffect to automatically track reactive dependencies
   watchEffect(async () => {
-    // IMPORTANT: Access authStore.session BEFORE optional chaining to ensure Vue tracks it
     const session = authStore.session
     const userId = session?.user?.id
-    
-    // Access the context - this triggers Vue's reactivity tracking on any props accessed
     const ctx = getContext()
     const key = getContextKey(ctx)
     
-    debug.log('🔄 useTypingIndicator watchEffect: context=', key, 'auth=', !!userId)
-    
-    // Only subscribe if we have both context and auth
     if (ctx && key !== 'null' && userId) {
       await subscribeToContext(ctx, key)
     } else if (!ctx || key === 'null') {
-      // Clear subscription if no context
       if (unsubscribe) {
         unsubscribe()
         unsubscribe = null
@@ -150,60 +102,15 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
       currentSubscribedKey = ''
     }
   })
-  
-  // Additional watch for auth changes
-  watch(
-    () => authStore.session,
-    async () => {
-      await trySubscribe()
-    },
-    { immediate: true }
-  )
-  
-  // Polling fallback for direct page loads where reactivity might not work
-  // This handles edge cases where Vue's reactivity doesn't detect changes
-  onMounted(() => {
-    // Start retry interval
-    retryInterval = setInterval(async () => {
-      if (currentSubscribedKey !== '' && currentSubscribedKey !== 'null') {
-        // Already subscribed, stop retrying
-        if (retryInterval) {
-          clearInterval(retryInterval)
-          retryInterval = null
-        }
-        return
-      }
-      
-      retryCount++
-      debug.log(`🔄 useTypingIndicator: Retry attempt ${retryCount}/${MAX_RETRIES}`)
-      
-      const success = await trySubscribe()
-      
-      if (success || retryCount >= MAX_RETRIES) {
-        if (retryInterval) {
-          clearInterval(retryInterval)
-          retryInterval = null
-        }
-        if (!success && retryCount >= MAX_RETRIES) {
-          debug.warn('⚠️ useTypingIndicator: Max retries reached, giving up')
-        }
-      }
-    }, RETRY_INTERVAL_MS)
-  })
 
   // Cleanup on unmount
   onUnmounted(() => {
-    if (retryInterval) {
-      clearInterval(retryInterval)
-      retryInterval = null
-    }
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
     }
     currentSubscribedKey = ''
     isSubscribing = false
-    retryCount = 0
   })
 
   /**
@@ -212,10 +119,7 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   const startTyping = async () => {
     const ctx = getContext()
     if (ctx) {
-      debug.log('⌨️ useTypingIndicator: Starting typing for context:', ctx)
       await typingIndicatorService.startTyping(ctx)
-    } else {
-      debug.warn('⚠️ useTypingIndicator: Cannot start typing, no context')
     }
   }
 
@@ -228,7 +132,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
 
   /**
    * Format typing indicator text
-   * Returns formatted string like "John is typing..." or "John and 2 others are typing..."
    */
   const formatTypingText = (users: TypingUser[], getUserDisplayName: (userId: string) => string): string => {
     if (users.length === 0) return ''
