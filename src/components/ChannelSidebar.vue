@@ -24,12 +24,13 @@
       <draggable
         v-model="orphanChannels"
         :group="dragGroup"
-        :disabled="!canDragAndDrop"
+        :disabled="!canDragAndDrop || isMobile"
         @start="onDragStart"
         @end="onDragEnd"
         @add="onChannelAddedToOrphans"
         item-key="id"
         tag="div"
+        :class="{ 'drag-disabled': !canDragAndDrop || isMobile }"
       >
         <template #item="{ element }">
           <div 
@@ -105,7 +106,7 @@
     <draggable
       v-model="reorderableCategories"
       :group="{ name: 'categories', put: false, pull: false }"
-      :disabled="!canDragAndDrop"
+      :disabled="!canDragAndDrop || isMobile"
       :key="categoriesKey"
       item-key="id"
       tag="div"
@@ -141,7 +142,7 @@
             <draggable
               v-model="getCachedCategoryChannels(category.id).value"
               :group="dragGroup"
-              :disabled="!canDragAndDrop"
+              :disabled="!canDragAndDrop || isMobile"
               @start="onDragStart"
               @end="onDragEnd"
               @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
@@ -487,7 +488,12 @@ const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => 
 const { triggerVoice } = useHapticSettings();
 
 // Computed Properties
-const isMobile = computed(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+// Only consider mobile if screen is actually small (touch-enabled desktops should still allow drag)
+const isMobile = computed(() => {
+  const hasSmallScreen = window.innerWidth <= 768;
+  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+  return hasSmallScreen || isTouchOnlyDevice;
+});
 
 const dragGroup = computed(() => ({
   name: 'channels',
@@ -593,7 +599,7 @@ const initializeCategoryStates = async () => {
 };
 
 const onDragStart = (evt: any) => {
-  if (!canDragAndDrop.value) {
+  if (!canDragAndDrop.value || isMobile.value) {
     evt.preventDefault();
     return false;
   }
