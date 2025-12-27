@@ -332,7 +332,6 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerPermissions } from '@/composables/useServerPermissions';
-import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
@@ -464,26 +463,12 @@ const {
   channelPermissions 
 } = useServerPermissions();
 
-// Direct owner check as fallback (simpler, more reliable)
-const { getCurrentUser } = useUserData();
-const isDirectOwner = computed(() => {
-  const currentUserId = getCurrentUser.value?.id;
-  const serverOwner = props.currentServer?.owner;
-  return !!(currentUserId && serverOwner && currentUserId === serverOwner);
-});
-
-// Computed permissions for drag and drop - use direct owner check as primary, composable as backup
-const canDragAndDrop = computed(() => {
-  return isDirectOwner.value || isCurrentUserServerOwner.value || canManageChannels.value;
-});
-const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels || isDirectOwner.value);
-const canMoveChannelsBetweenCategories = computed(() => channelPermissions.value.canReorderChannels || isDirectOwner.value);
+// Channel management permissions
+const canDragAndDrop = computed(() => isCurrentUserServerOwner.value || canManageChannels.value);
+const canMoveChannelsBetweenCategories = computed(() => channelPermissions.value.canReorderChannels);
 
 const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => {
-  if (!canDragAndDrop.value) {
-    return 'pointer';
-  }
-  return isDragging ? 'grabbing' : 'grab';
+  return canDragAndDrop.value ? (isDragging ? 'grabbing' : 'grab') : 'pointer';
 };
 const { triggerVoice } = useHapticSettings();
 
