@@ -797,15 +797,15 @@ const handleInput = (event?: Event) => {
 
 // Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
-  // On mobile, handle Enter key to insert proper line break
-  // contenteditable on mobile often inserts <div> elements causing double spacing
-  const isMobile = window.matchMedia('(max-width: 768px)').matches || 
-    ('ontouchstart' in window) || 
-    (navigator.maxTouchPoints > 0);
+  // Detect true mobile devices (small screen OR touch-only without mouse)
+  const hasSmallScreen = window.innerWidth <= 768;
+  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+  const isMobile = hasSmallScreen || isTouchOnlyDevice;
   
+  // On mobile, Enter inserts line break (user taps send button)
+  // On desktop, emit to parent and let it handle (Enter sends, Shift+Enter for new line)
   if (event.key === 'Enter' && isMobile && !event.shiftKey) {
     // Check if parent will handle this (e.g., auto-suggest active)
-    // Emit first so parent can prevent default if needed
     emit('keydown', event);
     
     // If parent didn't prevent default, insert a line break manually
@@ -818,17 +818,14 @@ const handleKeyDown = (event: KeyboardEvent) => {
         const range = selection.getRangeAt(0);
         range.deleteContents();
         
-        // Insert <br> element
         const br = document.createElement('br');
         range.insertNode(br);
         
-        // Move cursor after the <br>
         range.setStartAfter(br);
         range.setEndAfter(br);
         selection.removeAllRanges();
         selection.addRange(range);
         
-        // Trigger input event to update model
         handleInput();
       }
     }
@@ -985,6 +982,7 @@ onMounted(() => {
 </script>
 <style scoped>
 .rich-text-editor {
+  position: relative;
   min-height: var(--min-height);
   max-height: var(--max-height);
   padding: 11px 12px;

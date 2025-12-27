@@ -187,9 +187,10 @@ const TYPING_RESET_MS = 2000 // Reset after 2 seconds of no typing to allow re-t
 // Mobile detection - check for touch device or narrow screen
 const isMobile = ref(false);
 const checkMobile = () => {
-  isMobile.value = window.matchMedia('(max-width: 768px)').matches || 
-    ('ontouchstart' in window) || 
-    (navigator.maxTouchPoints > 0);
+  // Only consider mobile if screen is small OR touch-only device (no mouse)
+  const hasSmallScreen = window.innerWidth <= 768;
+  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+  isMobile.value = hasSmallScreen || isTouchOnlyDevice;
 };
 
 // Check if there's content to send
