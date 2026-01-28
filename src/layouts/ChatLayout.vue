@@ -616,6 +616,7 @@ onMounted(() => {
   .right-sidebar-container {
     position: fixed;
     top: 0;
+    bottom: 0;
     z-index: 200;
     /* Native-feeling spring animation on release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);
