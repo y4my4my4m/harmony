@@ -42,6 +42,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
@@ -86,13 +87,33 @@ const emit = defineEmits<{
 
 // Store
 const activityPubStore = useActivityPubStore()
+const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore)
 
 // Layout state
 const { isMobile } = useLayoutState()
 
-// Computed
+// Computed - filter out posts from blocked and muted users
 const posts = computed(() => {
-  return activityPubStore.getTimelinePosts(props.currentView as 'home' | 'public' | 'local')
+  const rawPosts = activityPubStore.getTimelinePosts(props.currentView as 'home' | 'public' | 'local')
+  
+  // Filter out posts from blocked users (they shouldn't see our feed at all)
+  // Also filter out posts from muted users (unless they're replies to us)
+  return rawPosts.filter(post => {
+    const authorId = post.author_id || post.author?.id
+    if (!authorId) return true
+    
+    // Hide posts from blocked users completely
+    if (blockedUsers.value.has(authorId)) {
+      return false
+    }
+    
+    // Hide posts from muted users (in home timeline)
+    if (props.currentView === 'home' && mutedUsers.value.has(authorId)) {
+      return false
+    }
+    
+    return true
+  })
 })
 
 const hasMorePosts = computed(() => {

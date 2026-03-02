@@ -18,8 +18,6 @@ export enum Permission {
 
   // Membership Permissions
   CREATE_INVITE = 'CREATE_INVITE',
-  CHANGE_NICKNAME = 'CHANGE_NICKNAME',
-  MANAGE_NICKNAMES = 'MANAGE_NICKNAMES',
   KICK_MEMBERS = 'KICK_MEMBERS',
   BAN_MEMBERS = 'BAN_MEMBERS',
   TIMEOUT_MEMBERS = 'TIMEOUT_MEMBERS',
@@ -36,15 +34,12 @@ export enum Permission {
   MENTION_EVERYONE = 'MENTION_EVERYONE',
   MANAGE_MESSAGES = 'MANAGE_MESSAGES',
   READ_MESSAGE_HISTORY = 'READ_MESSAGE_HISTORY',
-  SEND_TTS_MESSAGES = 'SEND_TTS_MESSAGES',
   PIN_MESSAGES = 'PIN_MESSAGES',
 
   // Voice Channel Permissions
   CONNECT = 'CONNECT',
   SPEAK = 'SPEAK',
   STREAM = 'STREAM',
-  USE_VAD = 'USE_VAD',
-  PRIORITY_SPEAKER = 'PRIORITY_SPEAKER',
   MUTE_MEMBERS = 'MUTE_MEMBERS',
   DEAFEN_MEMBERS = 'DEAFEN_MEMBERS',
   MOVE_MEMBERS = 'MOVE_MEMBERS',
@@ -68,8 +63,6 @@ export const PERMISSION_CATEGORIES = {
     name: 'Membership Permissions',
     permissions: [
       Permission.CREATE_INVITE,
-      Permission.CHANGE_NICKNAME,
-      Permission.MANAGE_NICKNAMES,
       Permission.KICK_MEMBERS,
       Permission.BAN_MEMBERS,
       Permission.TIMEOUT_MEMBERS,
@@ -89,7 +82,6 @@ export const PERMISSION_CATEGORIES = {
       Permission.MENTION_EVERYONE,
       Permission.MANAGE_MESSAGES,
       Permission.READ_MESSAGE_HISTORY,
-      Permission.SEND_TTS_MESSAGES,
       Permission.PIN_MESSAGES,
     ],
   },
@@ -99,8 +91,6 @@ export const PERMISSION_CATEGORIES = {
       Permission.CONNECT,
       Permission.SPEAK,
       Permission.STREAM,
-      Permission.USE_VAD,
-      Permission.PRIORITY_SPEAKER,
       Permission.MUTE_MEMBERS,
       Permission.DEAFEN_MEMBERS,
       Permission.MOVE_MEMBERS,
@@ -111,6 +101,81 @@ export const PERMISSION_CATEGORIES = {
     permissions: [Permission.ADMINISTRATOR],
   },
 } as const
+
+// =============================================
+// Permission Bit Mapping (for bigint storage)
+// =============================================
+
+// Each permission maps to a specific bit position in the bigint
+export const PERMISSION_BITS: Record<Permission, number> = {
+  // General Permissions (bits 0-7)
+  [Permission.ADMINISTRATOR]: 0,
+  [Permission.VIEW_CHANNEL]: 1,
+  [Permission.MANAGE_CHANNELS]: 2,
+  [Permission.MANAGE_ROLES]: 3,
+  [Permission.MANAGE_EMOJIS]: 4,
+  [Permission.VIEW_AUDIT_LOG]: 5,
+  [Permission.MANAGE_WEBHOOKS]: 6,
+  [Permission.MANAGE_SERVER]: 7,
+
+  // Membership Permissions (bits 8-11)
+  [Permission.CREATE_INVITE]: 8,
+  [Permission.KICK_MEMBERS]: 9,
+  [Permission.BAN_MEMBERS]: 10,
+  [Permission.TIMEOUT_MEMBERS]: 11,
+
+  // Text Channel Permissions (bits 12-23)
+  [Permission.SEND_MESSAGES]: 12,
+  [Permission.SEND_MESSAGES_IN_THREADS]: 13,
+  [Permission.CREATE_PUBLIC_THREADS]: 14,
+  [Permission.CREATE_PRIVATE_THREADS]: 15,
+  [Permission.EMBED_LINKS]: 16,
+  [Permission.ATTACH_FILES]: 17,
+  [Permission.ADD_REACTIONS]: 18,
+  [Permission.USE_EXTERNAL_EMOJIS]: 19,
+  [Permission.MENTION_EVERYONE]: 20,
+  [Permission.MANAGE_MESSAGES]: 21,
+  [Permission.READ_MESSAGE_HISTORY]: 22,
+  [Permission.PIN_MESSAGES]: 23,
+
+  // Voice Channel Permissions (bits 24-29)
+  [Permission.CONNECT]: 24,
+  [Permission.SPEAK]: 25,
+  [Permission.STREAM]: 26,
+  [Permission.MUTE_MEMBERS]: 27,
+  [Permission.DEAFEN_MEMBERS]: 28,
+  [Permission.MOVE_MEMBERS]: 29,
+}
+
+/**
+ * Convert permissions object to bigint bitmask for database storage
+ */
+export function permissionsToBitmask(permissions: Record<Permission, boolean> | Partial<Record<Permission, boolean>>): bigint {
+  let bitmask = BigInt(0)
+  
+  for (const [permission, enabled] of Object.entries(permissions)) {
+    if (enabled && permission in PERMISSION_BITS) {
+      const bit = PERMISSION_BITS[permission as Permission]
+      bitmask |= BigInt(1) << BigInt(bit)
+    }
+  }
+  
+  return bitmask
+}
+
+/**
+ * Convert bigint bitmask from database to permissions object
+ */
+export function bitmaskToPermissions(bitmask: bigint | number | string): Record<Permission, boolean> {
+  const permissions: Record<Permission, boolean> = {} as Record<Permission, boolean>
+  const mask = BigInt(bitmask || 0)
+  
+  for (const [permission, bit] of Object.entries(PERMISSION_BITS)) {
+    permissions[permission as Permission] = (mask & (BigInt(1) << BigInt(bit))) !== BigInt(0)
+  }
+  
+  return permissions
+}
 
 // Permission descriptions for UI
 export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
@@ -123,8 +188,6 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.MANAGE_WEBHOOKS]: 'Allows members to create, edit, and delete webhooks.',
   [Permission.MANAGE_SERVER]: 'Allows members to change server name, icon, and other settings.',
   [Permission.CREATE_INVITE]: 'Allows members to create invites to the server.',
-  [Permission.CHANGE_NICKNAME]: 'Allows members to change their own nickname.',
-  [Permission.MANAGE_NICKNAMES]: 'Allows members to change the nicknames of other members.',
   [Permission.KICK_MEMBERS]: 'Allows members to remove other members from the server.',
   [Permission.BAN_MEMBERS]: 'Allows members to permanently ban other members from the server.',
   [Permission.TIMEOUT_MEMBERS]: 'Allows members to timeout other members, preventing them from sending messages.',
@@ -139,13 +202,10 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.MENTION_EVERYONE]: 'Allows members to use @everyone and @here mentions.',
   [Permission.MANAGE_MESSAGES]: 'Allows members to delete and pin messages from other members.',
   [Permission.READ_MESSAGE_HISTORY]: 'Allows members to read previous messages in a channel.',
-  [Permission.SEND_TTS_MESSAGES]: 'Allows members to send text-to-speech messages.',
   [Permission.PIN_MESSAGES]: 'Allows members to pin messages in channels.',
   [Permission.CONNECT]: 'Allows members to connect to voice channels.',
   [Permission.SPEAK]: 'Allows members to speak in voice channels.',
   [Permission.STREAM]: 'Allows members to share their screen in voice channels.',
-  [Permission.USE_VAD]: 'Allows members to use voice activity detection instead of push-to-talk.',
-  [Permission.PRIORITY_SPEAKER]: 'Allows members to be more easily heard when speaking.',
   [Permission.MUTE_MEMBERS]: 'Allows members to mute other members in voice channels.',
   [Permission.DEAFEN_MEMBERS]: 'Allows members to deafen other members in voice channels.',
   [Permission.MOVE_MEMBERS]: 'Allows members to move other members between voice channels.',
@@ -254,8 +314,10 @@ class RoleService {
 
       if (error) throw error
 
+      // Convert bigint permissions to object format for frontend
       const roles = (data || []).map((r: any) => ({
         ...r,
+        permissions: bitmaskToPermissions(r.permissions),
         member_count: r.member_count?.[0]?.count || 0,
       })) as ServerRole[]
       this.roleCache.set(serverId, roles)
@@ -285,7 +347,12 @@ class RoleService {
         .single()
 
       if (error) throw error
-      return data as ServerRole
+      
+      // Convert bigint permissions to object format
+      return {
+        ...data,
+        permissions: bitmaskToPermissions(data.permissions)
+      } as ServerRole
     } catch (error) {
       debug.error('Failed to fetch role:', error)
       return null
@@ -301,6 +368,11 @@ class RoleService {
       const roles = await this.getServerRoles(serverId)
       const maxPosition = Math.max(...roles.map(r => r.position), 0)
 
+      // Convert permissions object to bigint for database
+      const permissionsBitmask = params.permissions 
+        ? Number(permissionsToBitmask(params.permissions))
+        : 0
+
       const { data, error } = await supabase
         .from('server_roles')
         .insert({
@@ -310,7 +382,7 @@ class RoleService {
           hoist: params.hoist || false,
           mentionable: params.mentionable || false,
           position: maxPosition + 1,
-          permissions: params.permissions || {},
+          permissions: permissionsBitmask,
           icon_url: params.icon_url,
           unicode_emoji: params.unicode_emoji,
         })
@@ -322,7 +394,11 @@ class RoleService {
       // Invalidate cache
       this.roleCache.delete(serverId)
 
-      return data as ServerRole
+      // Convert permissions back to object for frontend
+      return {
+        ...data,
+        permissions: bitmaskToPermissions(data.permissions)
+      } as ServerRole
     } catch (error) {
       debug.error('Failed to create role:', error)
       return null
@@ -334,16 +410,27 @@ class RoleService {
    */
   async updateRole(roleId: string, params: UpdateRoleParams): Promise<ServerRole | null> {
     try {
+      // Convert permissions object to bigint if present
+      const dbParams: Record<string, any> = { ...params }
+      if (params.permissions && typeof params.permissions === 'object' && !Array.isArray(params.permissions)) {
+        dbParams.permissions = Number(permissionsToBitmask(params.permissions as Record<Permission, boolean>))
+      }
+      
       const { data, error } = await supabase
         .from('server_roles')
-        .update(params)
+        .update(dbParams)
         .eq('id', roleId)
         .select()
         .single()
 
       if (error) throw error
 
-      const role = data as ServerRole
+      // Convert bigint permissions back to object for frontend
+      const role: ServerRole = {
+        ...data,
+        permissions: bitmaskToPermissions(data.permissions)
+      }
+      
       // Invalidate caches
       this.roleCache.delete(role.server_id)
       this.permissionCache.clear()
@@ -542,9 +629,42 @@ class RoleService {
 
   /**
    * Remove a role from a user
+   * Note: Cannot remove admin roles from server owners
    */
   async removeRole(userId: string, roleId: string): Promise<boolean> {
     try {
+      // First, check if this is an admin role being removed from a server owner
+      const { data: roleData, error: roleError } = await supabase
+        .from('server_roles')
+        .select('id, server_id, is_admin')
+        .eq('id', roleId)
+        .single()
+      
+      if (roleError) {
+        debug.error('Failed to fetch role:', roleError)
+        return false
+      }
+      
+      // If it's an admin role, check if user is server owner
+      if (roleData?.is_admin) {
+        const { data: serverData, error: serverError } = await supabase
+          .from('servers')
+          .select('owner')
+          .eq('id', roleData.server_id)
+          .single()
+        
+        if (serverError) {
+          debug.error('Failed to fetch server:', serverError)
+          return false
+        }
+        
+        // Prevent removing admin role from server owner
+        if (serverData?.owner === userId) {
+          debug.warn('Cannot remove admin role from server owner')
+          throw new Error('Cannot remove admin role from server owner')
+        }
+      }
+      
       const { data, error } = await supabase
         .from('user_roles')
         .delete()

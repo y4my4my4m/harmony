@@ -28,6 +28,40 @@ import type {
   MessagePart
 } from '@/types';
 
+// User List type for Mastodon-compatible Lists feature
+export interface UserList {
+  id: string;
+  created_at: string;
+  updated_at: string | null;
+  user_id: string;
+  title: string;
+  description: string | null;
+  replies_policy: 'followed' | 'list' | 'none';
+  is_exclusive: boolean;
+  is_public: boolean;
+  is_local: boolean;
+  federated_id: string | null;
+  ap_id: string | null;
+  // Computed/joined fields
+  members_count?: number;
+}
+
+export interface UserListMember {
+  id: string;
+  created_at: string;
+  list_id: string;
+  account_id: string;
+  // Joined profile data
+  account?: {
+    id: string;
+    username: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    domain: string | null;
+    is_local: boolean;
+  };
+}
+
 interface ActivityPubState {
   // Feed state
   homeFeed: MonyFeed;
@@ -89,6 +123,13 @@ interface ActivityPubState {
   bookmarks: TimelinePost[];
   hasMoreBookmarks: boolean;
   bookmarksCursor: string | null;
+  
+  // Lists state
+  lists: UserList[];
+  hasMoreLists: boolean;
+  listsCursor: string | null;
+  listsLoaded: boolean;
+  currentListMembers: Map<string, UserListMember[]>;
   
   // Cache flags for preventing duplicate queries
   followsLoaded: boolean;
@@ -177,6 +218,13 @@ export const useActivityPubStore = defineStore('activitypub', {
     bookmarks: [],
     hasMoreBookmarks: true,
     bookmarksCursor: null,
+    
+    // Lists state
+    lists: [],
+    hasMoreLists: true,
+    listsCursor: null,
+    listsLoaded: false,
+    currentListMembers: new Map(),
     
     // Cache flags for preventing duplicate queries
     followsLoaded: false,
@@ -268,6 +316,30 @@ export const useActivityPubStore = defineStore('activitypub', {
 
   actions: {
     /**
+     * Load just the essential blocking/muting data
+     * Can be called independently of full store initialization
+     */
+    async loadBlockingData() {
+      debug.log('🚫 Loading blocking/muting data...');
+      
+      // Get current user ID from auth store
+      const { useAuthStore } = await import('@/stores/auth');
+      const authStore = useAuthStore();
+      const userId = authStore.session?.user?.id;
+      
+      if (!userId) {
+        debug.log('ℹ️ No authenticated user, skipping blocking/muting data loading');
+        return;
+      }
+      
+      await Promise.all([
+        this.loadBlockedUsers(userId),
+        this.loadMutedUsers(userId)
+      ]);
+      debug.log(`🚫 Blocking data loaded: ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
+    },
+    
+    /**
      * Initialize the ActivityPub store with enhanced realtime
      */
     async initialize() {
@@ -277,18 +349,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Initialize post reactions store for batch loading
         const postReactionsStore = usePostReactionsStore();
         
-        // Load user relationships and counts
-        await this.loadFollowedUsers();
-        await this.loadFollowCounts();
-        await this.loadUserPreferences();
+        // Load user relationships and counts (run in parallel for efficiency)
+        // Note: loadBlockingData handles getting userId from auth store internally
+        await Promise.all([
+          this.loadFollowedUsers(),
+          this.loadBlockingData(), // Replaces direct loadBlockedUsers/loadMutedUsers calls
+          this.loadFollowCounts(),
+          this.loadUserPreferences()
+        ]);
         
         // Setup comprehensive realtime subscriptions
-              this.setupEnhancedRealtimeSubscriptions();
-        
-        // Debug methods removed - no longer needed
-        // getTimelineStats, createTestFederatedPost, and exposeDebugMethods removed
+        this.setupEnhancedRealtimeSubscriptions();
         
         debug.log('✅ ActivityPub store initialized successfully');
+        debug.log(`📊 Relationships loaded: ${this.followedUsers.size} following, ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
       } catch (error) {
         debug.error('❌ Failed to initialize ActivityPub store:', error);
         throw error;
@@ -1598,13 +1672,16 @@ export const useActivityPubStore = defineStore('activitypub', {
         return attachment;
       }
 
-      // If it has a blob URL, fetch and convert to File
+      // If it has a stored File reference, use it directly (most reliable)
+      if (attachment.file instanceof File) {
+        return attachment.file;
+      }
+
+      // Fallback: if it has a blob URL, fetch and convert to File
       if (attachment.url && attachment.url.startsWith('blob:')) {
         const response = await fetch(attachment.url);
         const blob = await response.blob();
         const fileName = attachment.filename || `file.${blob.type.split('/')[1] || 'bin'}`;
-        // attachment.type might be 'image'/'video'/'audio', but we need MIME type
-        // Use blob.type if available, otherwise infer from attachment.type
         let mimeType = blob.type;
         if (!mimeType && attachment.type) {
           if (attachment.type === 'image') mimeType = 'image/jpeg';
@@ -1612,11 +1689,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           else if (attachment.type === 'audio') mimeType = 'audio/mpeg';
         }
         return new File([blob], fileName, { type: mimeType || 'application/octet-stream' });
-      }
-
-      // If it's a MediaAttachment with a file property
-      if (attachment.file instanceof File) {
-        return attachment.file;
       }
 
       throw new Error('Cannot convert MediaAttachment to File: invalid attachment format');
@@ -1882,15 +1954,26 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Mute a user
+     * Mute a user - hides their content without blocking
      */
-    async muteUser(userId: string) {
+    async muteUser(userId: string, options?: { hideNotifications?: boolean; duration?: number }) {
       try {
-        // TODO: Implement mute API call
-        debug.log('Muting user:', userId);
-        this.mutedUsers.add(userId);
+        debug.log('🔇 Muting user:', userId, options);
+        
+        // Use InteractionService for the database operation
+        const result = await services.interactions.toggleMute(userId);
+        
+        if (result.muting) {
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newMutedUsers = new Set(this.mutedUsers);
+          newMutedUsers.add(userId);
+          this.mutedUsers = newMutedUsers;
+          debug.log('✅ User muted successfully:', userId, 'Total muted:', this.mutedUsers.size);
+        }
+        
+        return { muted: result.muting };
       } catch (error) {
-        debug.error('Failed to mute user:', error);
+        debug.error('❌ Failed to mute user:', error);
         throw error;
       }
     },
@@ -1900,30 +1983,57 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async unmuteUser(userId: string) {
       try {
-        // TODO: Implement unmute API call
-        debug.log('Unmuting user:', userId);
-        this.mutedUsers.delete(userId);
+        debug.log('🔊 Unmuting user:', userId);
+        
+        // Use InteractionService for the database operation
+        const result = await services.interactions.toggleMute(userId);
+        
+        if (!result.muting) {
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newMutedUsers = new Set(this.mutedUsers);
+          newMutedUsers.delete(userId);
+          this.mutedUsers = newMutedUsers;
+          debug.log('✅ User unmuted successfully:', userId, 'Total muted:', this.mutedUsers.size);
+        }
+        
+        return { muted: result.muting };
       } catch (error) {
-        debug.error('Failed to unmute user:', error);
+        debug.error('❌ Failed to unmute user:', error);
         throw error;
       }
     },
 
     /**
-     * Block a user
+     * Block a user - prevents all interactions
      */
-    async blockUser(userId: string) {
+    async blockUser(userId: string, options?: { reason?: string; blockType?: 'full' | 'posts_only' | 'interactions_only' }) {
       try {
-        // TODO: Implement block API call
-        debug.log('Blocking user:', userId);
-        this.blockedUsers.add(userId);
+        debug.log('🚫 Blocking user:', userId, options);
         
-        // Also unfollow if following
-        if (this.followedUsers.has(userId)) {
-          await this.unfollowUser(userId);
+        // Use InteractionService for the database operation
+        const result = await services.interactions.toggleBlock(userId);
+        
+        if (result.blocking) {
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newBlockedUsers = new Set(this.blockedUsers);
+          newBlockedUsers.add(userId);
+          this.blockedUsers = newBlockedUsers;
+          
+          // Also unfollow if following (blocking implies unfollowing)
+          if (this.followedUsers.has(userId)) {
+            try {
+              await this.unfollowUser(userId);
+            } catch (unfollowError) {
+              debug.warn('⚠️ Could not unfollow blocked user:', unfollowError);
+            }
+          }
+          
+          debug.log('✅ User blocked successfully:', userId, 'Total blocked:', this.blockedUsers.size);
         }
+        
+        return { blocked: result.blocking };
       } catch (error) {
-        debug.error('Failed to block user:', error);
+        debug.error('❌ Failed to block user:', error);
         throw error;
       }
     },
@@ -1933,11 +2043,22 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async unblockUser(userId: string) {
       try {
-        // TODO: Implement unblock API call
-        debug.log('Unblocking user:', userId);
-        this.blockedUsers.delete(userId);
+        debug.log('🔓 Unblocking user:', userId);
+        
+        // Use InteractionService for the database operation  
+        const result = await services.interactions.toggleBlock(userId);
+        
+        if (!result.blocking) {
+          // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+          const newBlockedUsers = new Set(this.blockedUsers);
+          newBlockedUsers.delete(userId);
+          this.blockedUsers = newBlockedUsers;
+          debug.log('✅ User unblocked successfully:', userId, 'Total blocked:', this.blockedUsers.size);
+        }
+        
+        return { blocked: result.blocking };
       } catch (error) {
-        debug.error('Failed to unblock user:', error);
+        debug.error('❌ Failed to unblock user:', error);
         throw error;
       }
     },
@@ -2320,6 +2441,350 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
+    // =============================================
+    // LISTS MANAGEMENT (Mastodon-compatible)
+    // =============================================
+
+    /**
+     * Load all user lists
+     */
+    async loadLists(force = false) {
+      // Skip if already loaded unless forced
+      if (this.listsLoaded && !force) {
+        debug.log('📋 Lists already loaded, skipping');
+        return;
+      }
+
+      try {
+        const profileId = await authContextService.getCurrentProfileId();
+
+        const { data, error } = await supabase
+          .from('user_lists')
+          .select(`
+            *,
+            members:user_list_members(count)
+          `)
+          .eq('user_id', profileId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Transform to add members_count
+        this.lists = (data || []).map(list => ({
+          ...list,
+          members_count: list.members?.[0]?.count || 0
+        }));
+        this.listsLoaded = true;
+        this.hasMoreLists = false; // Lists don't typically paginate
+
+        debug.log(`📋 Loaded ${this.lists.length} lists`);
+      } catch (error) {
+        debug.error('Failed to load lists:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Load more lists (for pagination if needed)
+     */
+    async loadMoreLists() {
+      // Lists don't typically need pagination, but included for API completeness
+      debug.log('📋 loadMoreLists called - lists are fully loaded');
+      return;
+    },
+
+    /**
+     * Create a new list
+     */
+    async createList(data: {
+      title: string;
+      description?: string;
+      replies_policy?: 'followed' | 'list' | 'none';
+      is_exclusive?: boolean;
+      is_public?: boolean;
+    }): Promise<UserList> {
+      try {
+        const profileId = await authContextService.getCurrentProfileId();
+
+        const { data: newList, error } = await supabase
+          .from('user_lists')
+          .insert({
+            user_id: profileId,
+            title: data.title,
+            description: data.description || null,
+            replies_policy: data.replies_policy || 'list',
+            is_exclusive: data.is_exclusive || false,
+            is_public: data.is_public || false
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Add to local state
+        const listWithCount: UserList = { ...newList, members_count: 0 };
+        this.lists.unshift(listWithCount);
+
+        debug.log('✅ List created:', newList.title);
+        return listWithCount;
+      } catch (error) {
+        debug.error('Failed to create list:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Update a list
+     */
+    async updateList(listId: string, updates: {
+      title?: string;
+      description?: string;
+      replies_policy?: 'followed' | 'list' | 'none';
+      is_exclusive?: boolean;
+      is_public?: boolean;
+    }): Promise<UserList> {
+      try {
+        const profileId = await authContextService.getCurrentProfileId();
+
+        const { data: updatedList, error } = await supabase
+          .from('user_lists')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', listId)
+          .eq('user_id', profileId)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Update local state
+        const index = this.lists.findIndex(l => l.id === listId);
+        if (index !== -1) {
+          this.lists[index] = { ...this.lists[index], ...updatedList };
+        }
+
+        debug.log('✅ List updated:', updatedList.title);
+        // Return the updated list from local state if found, otherwise return server response
+        return index !== -1 ? this.lists[index] : updatedList;
+      } catch (error) {
+        debug.error('Failed to update list:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Delete a list
+     */
+    async deleteList(listId: string): Promise<void> {
+      try {
+        const profileId = await authContextService.getCurrentProfileId();
+
+        const { error } = await supabase
+          .from('user_lists')
+          .delete()
+          .eq('id', listId)
+          .eq('user_id', profileId);
+
+        if (error) throw error;
+
+        // Remove from local state
+        this.lists = this.lists.filter(l => l.id !== listId);
+        this.currentListMembers.delete(listId);
+
+        debug.log('✅ List deleted:', listId);
+      } catch (error) {
+        debug.error('Failed to delete list:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Get list by ID
+     */
+    async getList(listId: string): Promise<UserList | null> {
+      // Check local cache first
+      const cached = this.lists.find(l => l.id === listId);
+      if (cached) return cached;
+
+      try {
+        const { data, error } = await supabase
+          .from('user_lists')
+          .select(`
+            *,
+            members:user_list_members(count)
+          `)
+          .eq('id', listId)
+          .single();
+
+        if (error) {
+          if (error.code === 'PGRST116') return null;
+          throw error;
+        }
+
+        return {
+          ...data,
+          members_count: data.members?.[0]?.count || 0
+        };
+      } catch (error) {
+        debug.error('Failed to get list:', error);
+        return null;
+      }
+    },
+
+    /**
+     * Load members of a list
+     */
+    async loadListMembers(listId: string): Promise<UserListMember[]> {
+      try {
+        const { data, error } = await supabase
+          .from('user_list_members')
+          .select(`
+            *,
+            account:profiles(id, username, display_name, avatar_url, domain, is_local)
+          `)
+          .eq('list_id', listId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const members = data || [];
+        this.currentListMembers.set(listId, members);
+
+        debug.log(`📋 Loaded ${members.length} members for list ${listId}`);
+        return members;
+      } catch (error) {
+        debug.error('Failed to load list members:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Add a user to a list
+     */
+    async addToList(listId: string, accountId: string): Promise<UserListMember> {
+      try {
+        // First verify the user is followed
+        const isFollowing = this.followedUsers.has(accountId);
+        if (!isFollowing) {
+          throw new Error('You can only add followed users to lists');
+        }
+
+        const { data, error } = await supabase
+          .from('user_list_members')
+          .insert({
+            list_id: listId,
+            account_id: accountId
+          })
+          .select(`
+            *,
+            account:profiles(id, username, display_name, avatar_url, domain, is_local)
+          `)
+          .single();
+
+        if (error) throw error;
+
+        // Update local state
+        const members = this.currentListMembers.get(listId) || [];
+        members.unshift(data);
+        this.currentListMembers.set(listId, members);
+
+        // Update members count
+        const list = this.lists.find(l => l.id === listId);
+        if (list) {
+          list.members_count = (list.members_count || 0) + 1;
+        }
+
+        debug.log(`✅ Added user ${accountId} to list ${listId}`);
+        return data;
+      } catch (error) {
+        debug.error('Failed to add user to list:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Remove a user from a list
+     */
+    async removeFromList(listId: string, accountId: string): Promise<void> {
+      try {
+        const { error } = await supabase
+          .from('user_list_members')
+          .delete()
+          .eq('list_id', listId)
+          .eq('account_id', accountId);
+
+        if (error) throw error;
+
+        // Update local state
+        const members = this.currentListMembers.get(listId) || [];
+        this.currentListMembers.set(
+          listId,
+          members.filter(m => m.account_id !== accountId)
+        );
+
+        // Update members count
+        const list = this.lists.find(l => l.id === listId);
+        if (list && list.members_count) {
+          list.members_count--;
+        }
+
+        debug.log(`✅ Removed user ${accountId} from list ${listId}`);
+      } catch (error) {
+        debug.error('Failed to remove user from list:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Get timeline for a specific list
+     */
+    async getListTimeline(listId: string, options: { limit?: number; max_id?: string } = {}): Promise<TimelinePost[]> {
+      try {
+        const limit = options.limit || 20;
+
+        // First get list members
+        let members = this.currentListMembers.get(listId);
+        if (!members) {
+          members = await this.loadListMembers(listId);
+        }
+
+        if (!members || members.length === 0) {
+          return [];
+        }
+
+        const memberIds = members.map(m => m.account_id);
+
+        // Query posts from list members
+        let query = supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles(id, username, display_name, avatar_url, domain, is_local, bio)
+          `)
+          .in('author_id', memberIds)
+          .eq('is_deleted', false)
+          .in('visibility', ['public', 'unlisted'])
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (options.max_id) {
+          query = query.lt('id', options.max_id);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        debug.log(`📋 Loaded ${data?.length || 0} posts for list timeline`);
+        return data || [];
+      } catch (error) {
+        debug.error('Failed to get list timeline:', error);
+        throw error;
+      }
+    },
+
     /**
      * Toggle post reblog - creates actual reblog posts for timeline display
      */
@@ -2526,6 +2991,82 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       // Add all followed users (both local and federated)
       this.followedUsers = new Set(data.map(f => f.following_id));
+    },
+
+    /**
+     * Load blocked users into local cache for efficient lookups
+     * Called on store initialization to avoid N+1 queries
+     */
+    async loadBlockedUsers(userId: string) {
+      try {
+        debug.log('🔄 Loading blocked users for:', userId);
+        
+        // Explicitly filter by blocker_id to get only users WE have blocked
+        const { data, error } = await supabase
+          .from('user_blocks')
+          .select('blocked_user_id')
+          .eq('blocker_id', userId);
+
+        if (error) {
+          debug.error('❌ Failed to load blocked users:', error);
+          return;
+        }
+        
+        debug.log('📊 Raw blocked users data from DB:', data);
+        
+        // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+        const newBlockedUsers = new Set<string>();
+        (data || []).forEach(b => newBlockedUsers.add(b.blocked_user_id));
+        this.blockedUsers = newBlockedUsers;
+        debug.log(`✅ Loaded ${this.blockedUsers.size} blocked users:`, Array.from(this.blockedUsers));
+      } catch (error) {
+        debug.error('❌ Failed to load blocked users:', error);
+      }
+    },
+
+    /**
+     * Load muted users into local cache for efficient lookups
+     * Called on store initialization to avoid N+1 queries
+     */
+    async loadMutedUsers(userId: string) {
+      try {
+        debug.log('🔄 Loading muted users for:', userId);
+        
+        // Explicitly filter by muter_id to get only users WE have muted
+        const { data, error } = await supabase
+          .from('user_mutes')
+          .select('muted_user_id')
+          .eq('muter_id', userId);
+
+        if (error) {
+          debug.error('❌ Failed to load muted users:', error);
+          return;
+        }
+        
+        debug.log('📊 Raw muted users data from DB:', data);
+        
+        // Create a new Set to trigger Vue reactivity (Set mutations don't trigger reactivity)
+        const newMutedUsers = new Set<string>();
+        (data || []).forEach(m => newMutedUsers.add(m.muted_user_id));
+        this.mutedUsers = newMutedUsers;
+        debug.log(`✅ Loaded ${this.mutedUsers.size} muted users:`, Array.from(this.mutedUsers));
+      } catch (error) {
+        debug.error('❌ Failed to load muted users:', error);
+      }
+    },
+
+    /**
+     * Check if a user is blocked (uses local cache - O(1) lookup)
+     */
+    isUserBlocked(userId: string): boolean {
+      return this.blockedUsers.has(userId);
+    },
+
+    /**
+     * Check if a user is muted (uses local cache - O(1) lookup)
+     */
+    isUserMuted(userId: string): boolean {
+      return this.mutedUsers.has(userId);
     },
 
      /**

@@ -681,10 +681,20 @@ const resetDragState = () => {
 };
 
 // Tooltip handlers
+// Hide tooltip on route changes (fixes mobile where mouseleave doesn't fire reliably)
+watch(() => route.fullPath, () => {
+  hideSidebarTooltip();
+});
+
+const isTouchDevice = ref(false);
+if (typeof window !== 'undefined') {
+  isTouchDevice.value = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+}
+
 const showSidebarTooltip = (event: MouseEvent, name: string, serverCount?: number) => {
+  if (isTouchDevice.value) return;
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
-  // Capture rect immediately before it becomes null in the timeout
   const target = event.currentTarget as HTMLElement;
   if (!target) return;
   const rect = target.getBoundingClientRect();

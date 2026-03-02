@@ -45,6 +45,24 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (!this.currentServerId) return [];
       return emojiCache.getServerEmojis(this.currentServerId);
     },
+    
+    /**
+     * Get a channel by ID - O(n) but channels array is typically small
+     * For voice channel lookups and other direct channel access
+     * Usage: serverChannelStore.getChannelById('channel-id')
+     */
+    getChannelById: (state) => (channelId: string): Channel | undefined => {
+      return state.channels.find((c: Channel) => c.id === channelId);
+    },
+    
+    /**
+     * Get channel name by ID - convenience getter for voice channel overlay etc.
+     * Usage: serverChannelStore.getChannelNameById('channel-id')
+     */
+    getChannelNameById: (state) => (channelId: string): string => {
+      const channel = state.channels.find((c: Channel) => c.id === channelId);
+      return channel?.name || 'Unknown Channel';
+    },
   },
 
   actions: {
@@ -911,7 +929,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
         const newCategory = await this._createCategoryHelper(name, serverId);
         
         if (newCategory) {
-          this.categories.push(newCategory);
+          // Check if realtime subscription already added this category (race condition prevention)
+          if (!this.categories.some(c => c.id === newCategory.id)) {
+            this.categories.push(newCategory);
+            // Sort by order
+            this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+            // Initialize empty channel array for this category
+            if (!this.categoryChannels[newCategory.id]) {
+              this.categoryChannels[newCategory.id] = [];
+            }
+          } else {
+            debug.log('⚠️ Category already added by realtime, skipping duplicate push');
+          }
           debug.log('✅ Category created successfully via service-like helper:', newCategory.id);
           return newCategory;
         }
@@ -933,8 +962,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Service-like helper: Create category with proper ordering
+     * Enforces a maximum of 25 categories per server
      */
     async _createCategoryHelper(name: string, serverId: string): Promise<Category | null> {
+      const MAX_CATEGORIES_PER_SERVER = 25;
+      
+      // Check category count limit
+      const { count: categoryCount, error: countError } = await supabase
+        .from('channel_categories')
+        .select('*', { count: 'exact', head: true })
+        .eq('server_id', serverId);
+      
+      if (countError) {
+        debug.warn('Warning: Could not check category count:', countError);
+      } else if ((categoryCount || 0) >= MAX_CATEGORIES_PER_SERVER) {
+        throw new Error(`Category limit reached: Maximum ${MAX_CATEGORIES_PER_SERVER} categories per server`);
+      }
+      
       // Get the highest order value for existing categories in this server
       const { data: existingCategories, error: fetchError } = await supabase
         .from('channel_categories')
@@ -967,8 +1011,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Fallback method for creating category
+     * Enforces a maximum of 25 categories per server
      */
     async _createCategoryFallback(name: string, serverId: string): Promise<Category | null> {
+      const MAX_CATEGORIES_PER_SERVER = 25;
+      
+      // Check category count limit
+      const { count: categoryCount, error: countError } = await supabase
+        .from('channel_categories')
+        .select('*', { count: 'exact', head: true })
+        .eq('server_id', serverId);
+      
+      if (countError) {
+        debug.warn('Warning: Could not check category count in fallback:', countError);
+      } else if ((categoryCount || 0) >= MAX_CATEGORIES_PER_SERVER) {
+        throw new Error(`Category limit reached: Maximum ${MAX_CATEGORIES_PER_SERVER} categories per server`);
+      }
+      
       // Get the highest order value for existing categories in this server
       const { data: existingCategories, error: fetchError } = await supabase
         .from('channel_categories')
@@ -998,7 +1057,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error;
       }
 
-      this.categories.push(data);
+      // Check if realtime subscription already added this category (race condition prevention)
+      if (!this.categories.some(c => c.id === data.id)) {
+        this.categories.push(data);
+        this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+        if (!this.categoryChannels[data.id]) {
+          this.categoryChannels[data.id] = [];
+        }
+      } else {
+        debug.log('⚠️ Category already added by realtime in fallback, skipping duplicate push');
+      }
       return data;
     },
 
@@ -1499,18 +1567,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this._removeChannelFromLocalState(channelId);
     },
 
-    async deleteCategory(categoryId: string): Promise<void> {
+    /**
+     * Delete a category
+     * @param categoryId - The category to delete
+     * @param deleteChannels - If true, cascade delete all channels. If false (default), make them orphans.
+     */
+    async deleteCategory(categoryId: string, deleteChannels: boolean = false): Promise<void> {
       try {
-        debug.log('🔄 Deleting category via service-like helper:', categoryId);
+        debug.log('🔄 Deleting category via service-like helper:', categoryId, { deleteChannels });
         
-        // Get channels that need to be moved to orphans
+        // Get channels that need to be handled
         const channelsInCategory = this.categoryChannels[categoryId] || [];
         
         // Use service-like helper for complex category deletion
-        await this._deleteCategoryHelper(categoryId, channelsInCategory);
+        await this._deleteCategoryHelper(categoryId, channelsInCategory, deleteChannels);
         
         // Handle complex local state cleanup using service-like helper
-        this._removeCategoryFromLocalState(categoryId, channelsInCategory);
+        this._removeCategoryFromLocalState(categoryId, channelsInCategory, deleteChannels);
         
         debug.log('✅ Category deleted successfully via service-like helper:', categoryId);
       } catch (error) {
@@ -1519,7 +1592,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         // Fallback to direct deletion if helper fails
         try {
           debug.log('🔄 Falling back to direct category deletion');
-          await this._deleteCategoryFallback(categoryId);
+          await this._deleteCategoryFallback(categoryId, deleteChannels);
         } catch (fallbackError) {
           debug.error('❌ Fallback category deletion also failed:', fallbackError);
           throw fallbackError;
@@ -1528,18 +1601,33 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     /**
-     * Service-like helper: Delete category with channel orphaning
+     * Service-like helper: Delete category with proper channel handling
+     * @param deleteChannels - If true, cascade delete all channels. If false, make them orphans.
      */
-    async _deleteCategoryHelper(categoryId: string, channelsInCategory: Channel[]): Promise<void> {
-      // First, move all channels in this category to orphans (no category)
+    async _deleteCategoryHelper(categoryId: string, channelsInCategory: Channel[], deleteChannels: boolean = false): Promise<void> {
       if (channelsInCategory.length > 0) {
-        const { error: updateError } = await supabase
-          .from('channels')
-          .update({ category_id: null })
-          .in('id', channelsInCategory.map(channel => channel.id));
+        if (deleteChannels) {
+          // Cascade delete: remove all channels in the category
+          const { error: deleteError } = await supabase
+            .from('channels')
+            .delete()
+            .in('id', channelsInCategory.map(channel => channel.id));
 
-        if (updateError) {
-          throw new Error(`Error moving channels to orphans: ${updateError.message}`);
+          if (deleteError) {
+            throw new Error(`Error deleting channels: ${deleteError.message}`);
+          }
+          debug.log(`🗑️ Deleted ${channelsInCategory.length} channels from category`);
+        } else {
+          // Make channels orphans - NOTE: column is 'category', NOT 'category_id'
+          const { error: updateError } = await supabase
+            .from('channels')
+            .update({ category: null })
+            .in('id', channelsInCategory.map(channel => channel.id));
+
+          if (updateError) {
+            throw new Error(`Error moving channels to orphans: ${updateError.message}`);
+          }
+          debug.log(`📦 Moved ${channelsInCategory.length} channels to orphans`);
         }
       }
 
@@ -1556,16 +1644,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Service-like helper: Remove category from complex local state
+     * @param deleteChannels - If true, remove channels from state. If false, make them orphans.
      */
-    _removeCategoryFromLocalState(categoryId: string, channelsInCategory: Channel[]): void {
+    _removeCategoryFromLocalState(categoryId: string, channelsInCategory: Channel[], deleteChannels: boolean = false): void {
       // Update local state
-      this.categories = this.categories.filter(category => category.id !== categoryId);
+      this.categories = this.categories.filter(cat => cat.id !== categoryId);
       
-      // Move channels to orphans in local state
-      if (channelsInCategory.length > 0) {
-        channelsInCategory.forEach(channel => {
-          channel.category_id = null;
-        });
+      if (deleteChannels) {
+        // Remove deleted channels from local state
+        const channelIds = new Set(channelsInCategory.map(c => c.id));
+        this.channels = this.channels.filter(c => !channelIds.has(c.id));
+      } else {
+        // Move channels to orphans in local state
+        if (channelsInCategory.length > 0) {
+          channelsInCategory.forEach(channel => {
+            channel.category = null;
+          });
+        }
       }
       
       // Remove category from categoryChannels
@@ -1574,21 +1669,35 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Fallback method for deleting category
+     * @param deleteChannels - If true, cascade delete channels. If false, orphan them.
      */
-    async _deleteCategoryFallback(categoryId: string): Promise<void> {
-      // Get channels that need to be moved to orphans
+    async _deleteCategoryFallback(categoryId: string, deleteChannels: boolean = false): Promise<void> {
+      // Get channels that need to be handled
       const channelsInCategory = this.categoryChannels[categoryId] || [];
       
-      // First, move all channels in this category to orphans (no category)
       if (channelsInCategory.length > 0) {
-        const { error: updateError } = await supabase
-          .from('channels')
-          .update({ category_id: null })
-          .in('id', channelsInCategory.map(channel => channel.id));
+        if (deleteChannels) {
+          // Cascade delete channels
+          const { error: deleteError } = await supabase
+            .from('channels')
+            .delete()
+            .in('id', channelsInCategory.map(channel => channel.id));
 
-        if (updateError) {
-          debug.error('Error moving channels to orphans in fallback:', updateError);
-          throw updateError;
+          if (deleteError) {
+            debug.error('Error deleting channels in fallback:', deleteError);
+            throw deleteError;
+          }
+        } else {
+          // Move channels to orphans - NOTE: column is 'category', NOT 'category_id'
+          const { error: updateError } = await supabase
+            .from('channels')
+            .update({ category: null })
+            .in('id', channelsInCategory.map(channel => channel.id));
+
+          if (updateError) {
+            debug.error('Error moving channels to orphans in fallback:', updateError);
+            throw updateError;
+          }
         }
       }
 
@@ -1604,7 +1713,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
 
       // Handle complex local state cleanup using reusable helper
-      this._removeCategoryFromLocalState(categoryId, channelsInCategory);
+      this._removeCategoryFromLocalState(categoryId, channelsInCategory, deleteChannels);
     },
 
     async updateChannel(channelData: { id: string; name?: string; description?: string }): Promise<void> {

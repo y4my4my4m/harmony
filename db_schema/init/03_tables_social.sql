@@ -277,7 +277,7 @@ CREATE TABLE IF NOT EXISTS public.timeline_entries (
     created_at timestamp with time zone DEFAULT now(),
     
     UNIQUE(user_id, post_id, timeline_type),
-    CONSTRAINT timeline_entries_type_check CHECK (timeline_type IN ('home', 'local', 'federated', 'list'))
+    CONSTRAINT timeline_entries_timeline_type_check CHECK (timeline_type = ANY (ARRAY['home'::text, 'public'::text, 'local'::text, 'notifications'::text]))
 );
 
 ALTER TABLE public.timeline_entries REPLICA IDENTITY FULL;
@@ -286,6 +286,77 @@ CREATE INDEX IF NOT EXISTS idx_timeline_entries_user_type ON public.timeline_ent
 CREATE INDEX IF NOT EXISTS idx_timeline_entries_position ON public.timeline_entries(user_id, timeline_type, position DESC);
 
 COMMENT ON TABLE public.timeline_entries IS 'Cached timeline entries for fast feed retrieval';
+
+-- ---------------------------------------------------------------------------
+-- USER LISTS - Mastodon-style lists for organizing followed accounts
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_lists (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    -- Owner of the list
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    
+    -- List metadata
+    title text NOT NULL,
+    description text,
+    
+    -- Visibility controls
+    -- 'followed': Only show replies to other list members
+    -- 'list': Only show replies to list members  
+    -- 'none': Hide all replies
+    replies_policy text DEFAULT 'list'::text,
+    
+    -- Whether the list is exclusive (members removed from home timeline)
+    is_exclusive boolean DEFAULT false,
+    
+    -- Whether the list can be viewed by others
+    is_public boolean DEFAULT false,
+    
+    -- ActivityPub federation
+    federated_id text,
+    ap_id text,
+    is_local boolean DEFAULT true,
+    
+    CONSTRAINT user_lists_replies_policy_check 
+        CHECK (replies_policy IN ('followed', 'list', 'none'))
+);
+
+ALTER TABLE public.user_lists REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_user_lists_user_id ON public.user_lists(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_lists_created_at ON public.user_lists(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS user_lists_federated_id_key 
+    ON public.user_lists(federated_id) WHERE federated_id IS NOT NULL;
+
+COMMENT ON TABLE public.user_lists IS 'User-created lists for organizing followed accounts (Mastodon-compatible)';
+COMMENT ON COLUMN public.user_lists.replies_policy IS 'Controls which replies are shown: followed, list, or none';
+COMMENT ON COLUMN public.user_lists.is_exclusive IS 'When true, list members are hidden from home timeline';
+
+-- ---------------------------------------------------------------------------
+-- USER LIST MEMBERS - Junction table for list membership
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_list_members (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    -- The list this membership belongs to
+    list_id uuid NOT NULL REFERENCES public.user_lists(id) ON DELETE CASCADE,
+    
+    -- The user being added to the list (must be followed by list owner)
+    account_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    
+    -- Unique constraint: a user can only be in a list once
+    CONSTRAINT user_list_members_unique UNIQUE (list_id, account_id)
+);
+
+ALTER TABLE public.user_list_members REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_user_list_members_list_id ON public.user_list_members(list_id);
+CREATE INDEX IF NOT EXISTS idx_user_list_members_account_id ON public.user_list_members(account_id);
+
+COMMENT ON TABLE public.user_list_members IS 'Membership junction table for user lists';
 
 DO $$
 BEGIN

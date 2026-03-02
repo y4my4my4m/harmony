@@ -316,10 +316,10 @@ export default defineComponent({
     // Touch device detection (hide keybinds on touch devices)
     const isTouchDevice = ref(false);
     const detectTouchDevice = () => {
-      isTouchDevice.value = 
-        'ontouchstart' in window || 
-        navigator.maxTouchPoints > 0 ||
-        window.matchMedia('(pointer: coarse)').matches;
+      // Only consider touch device if it's touch-only (no mouse/fine pointer)
+      const hasSmallScreen = window.innerWidth <= 768;
+      const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+      isTouchDevice.value = hasSmallScreen || isTouchOnlyDevice;
     };
 
     // Get available devices and apply stored settings

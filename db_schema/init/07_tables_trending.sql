@@ -107,29 +107,25 @@ COMMENT ON TABLE public.trending_refresh_queue IS 'Queue for background trending
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.server_folders (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
     name text NOT NULL,
-    color text,
-    icon text,
-    "order" integer DEFAULT 0,
-    
-    -- Folder can contain server IDs
-    server_ids uuid[] DEFAULT '{}'::uuid[],
-    
-    -- Collapsed state
-    is_collapsed boolean DEFAULT false
+    color text DEFAULT '#5865f2'::text,
+    "position" integer DEFAULT 0 NOT NULL,
+    is_expanded boolean DEFAULT true
 );
 
 ALTER TABLE public.server_folders REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_server_folders_user ON public.server_folders(user_id);
-CREATE INDEX IF NOT EXISTS idx_server_folders_order ON public.server_folders(user_id, "order");
+CREATE INDEX IF NOT EXISTS idx_server_folders_user_position ON public.server_folders(user_id, "position");
 
-COMMENT ON TABLE public.server_folders IS 'User-defined folders to organize servers';
+COMMENT ON TABLE public.server_folders IS 'User-created folders for organizing servers in the sidebar';
+COMMENT ON COLUMN public.server_folders.color IS 'Hex color code for folder display';
+COMMENT ON COLUMN public.server_folders."position" IS 'Sort order position for the folder in the sidebar';
 
 -- ---------------------------------------------------------------------------
 -- SERVER SETTINGS - Extended server configuration
@@ -138,7 +134,16 @@ CREATE TABLE IF NOT EXISTS public.server_settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL UNIQUE REFERENCES public.servers(id) ON DELETE CASCADE,
     
+    -- Default role (set by trigger on server creation)
+    default_role_id uuid REFERENCES public.server_roles(id) ON DELETE SET NULL,
+    
+    -- Invite permissions
+    invite_permissions jsonb DEFAULT '{"who_can_create": "everyone", "default_expiration": 1440, "max_expiration": 0, "allow_temporary": true, "max_uses_limit": 0}'::jsonb,
+    
     -- Moderation settings
+    moderation_settings jsonb DEFAULT '{"auto_mod_enabled": false, "spam_filter": false, "link_filter": false}'::jsonb,
+    
+    -- Legacy/extended moderation settings (keep for compatibility)
     auto_mod_enabled boolean DEFAULT false,
     auto_mod_rules jsonb DEFAULT '{}'::jsonb,
     
@@ -252,6 +257,22 @@ CREATE INDEX IF NOT EXISTS idx_user_timeline_cache_user ON public.user_timeline_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_timeline_cache_user_type ON public.user_timeline_cache(user_id, timeline_type);
 
 COMMENT ON TABLE public.user_timeline_cache IS 'Pre-computed timeline cache for instant feed loading';
+
+-- ---------------------------------------------------------------------------
+-- ADD FOREIGN KEY for user_servers.folder_id (now that server_folders exists)
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'user_servers_folder_id_fkey'
+        AND table_name = 'user_servers'
+    ) THEN
+        ALTER TABLE public.user_servers 
+            ADD CONSTRAINT user_servers_folder_id_fkey 
+            FOREIGN KEY (folder_id) REFERENCES public.server_folders(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 DO $$
 BEGIN

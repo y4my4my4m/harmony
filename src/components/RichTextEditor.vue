@@ -54,6 +54,7 @@ interface Emits {
   (e: 'focus', event: FocusEvent): void;
   (e: 'blur', event: FocusEvent): void;
   (e: 'cursor-position-changed', position: number): void;
+  (e: 'paste', event: ClipboardEvent): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -163,8 +164,15 @@ const getPlainText = (): string => {
         }
       } else if (el.tagName === 'BR') {
         text += '\n';
+      } else if (el.tagName === 'DIV' || el.tagName === 'P') {
+        // Block elements created by some browsers (Chrome uses <div> for Enter)
+        if (text.length > 0 && !text.endsWith('\n')) {
+          text += '\n';
+        }
+        for (const child of Array.from(node.childNodes)) {
+          processNode(child);
+        }
       } else {
-        // For other elements, process their children
         for (const child of Array.from(node.childNodes)) {
           processNode(child);
         }
@@ -797,15 +805,15 @@ const handleInput = (event?: Event) => {
 
 // Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
-  // On mobile, handle Enter key to insert proper line break
-  // contenteditable on mobile often inserts <div> elements causing double spacing
-  const isMobile = window.matchMedia('(max-width: 768px)').matches || 
-    ('ontouchstart' in window) || 
-    (navigator.maxTouchPoints > 0);
+  // Detect true mobile devices (small screen OR touch-only without mouse)
+  const hasSmallScreen = window.innerWidth <= 768;
+  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+  const isMobile = hasSmallScreen || isTouchOnlyDevice;
   
+  // On mobile, Enter inserts line break (user taps send button)
+  // On desktop, emit to parent and let it handle (Enter sends, Shift+Enter for new line)
   if (event.key === 'Enter' && isMobile && !event.shiftKey) {
     // Check if parent will handle this (e.g., auto-suggest active)
-    // Emit first so parent can prevent default if needed
     emit('keydown', event);
     
     // If parent didn't prevent default, insert a line break manually
@@ -818,17 +826,14 @@ const handleKeyDown = (event: KeyboardEvent) => {
         const range = selection.getRangeAt(0);
         range.deleteContents();
         
-        // Insert <br> element
         const br = document.createElement('br');
         range.insertNode(br);
         
-        // Move cursor after the <br>
         range.setStartAfter(br);
         range.setEndAfter(br);
         selection.removeAllRanges();
         selection.addRange(range);
         
-        // Trigger input event to update model
         handleInput();
       }
     }
@@ -853,6 +858,24 @@ const handleBlur = (event: FocusEvent) => {
 // Handle paste
 const handlePaste = (event: ClipboardEvent) => {
   event.preventDefault();
+
+  // Check for image/file data in clipboard - let parent handle it
+  const items = event.clipboardData?.items;
+  if (items) {
+    let hasFiles = false;
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file') {
+        hasFiles = true;
+        break;
+      }
+    }
+    if (hasFiles) {
+      emit('paste', event);
+      return;
+    }
+  }
+
+  // Text-only paste
   const text = event.clipboardData?.getData('text/plain') || '';
   insertTextAtCursor(text);
 };
@@ -985,6 +1008,7 @@ onMounted(() => {
 </script>
 <style scoped>
 .rich-text-editor {
+  position: relative;
   min-height: var(--min-height);
   max-height: var(--max-height);
   padding: 11px 12px;
@@ -1002,17 +1026,13 @@ onMounted(() => {
   overflow-y: auto;
 }
 
-.rich-text-editor:empty:before,
-.rich-text-editor:has(> br:only-child):before {
+.rich-text-editor.is-empty::before {
   content: attr(data-placeholder);
   color: #72767d;
   pointer-events: none;
   position: absolute;
-}
-
-/* Hide the BR when editor is empty (for placeholder) */
-.rich-text-editor:has(> br:only-child) br {
-  display: none;
+  top: 11px;
+  left: 12px;
 }
 
 /* Markdown markers styling */

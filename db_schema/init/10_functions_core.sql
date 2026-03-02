@@ -70,6 +70,78 @@ COMMENT ON FUNCTION public.is_author_suspended(p_author_id uuid) IS
 'Returns true if the post author is suspended. Returns FALSE for missing profiles.';
 
 -- ---------------------------------------------------------------------------
+-- BLOCKING HELPERS
+-- ---------------------------------------------------------------------------
+
+-- Check if current user is blocked by a specific user
+CREATE OR REPLACE FUNCTION public.is_blocked_by(target_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_blocks
+        WHERE blocker_id = target_user_id
+        AND blocked_user_id = public.get_current_profile_id()
+    );
+$$;
+
+COMMENT ON FUNCTION public.is_blocked_by IS 'Check if the current user is blocked by the target user';
+
+-- Check if current user has blocked a specific user
+CREATE OR REPLACE FUNCTION public.has_blocked(target_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_blocks
+        WHERE blocker_id = public.get_current_profile_id()
+        AND blocked_user_id = target_user_id
+    );
+$$;
+
+COMMENT ON FUNCTION public.has_blocked IS 'Check if the current user has blocked the target user';
+
+-- ---------------------------------------------------------------------------
+-- MUTING HELPERS
+-- ---------------------------------------------------------------------------
+
+-- Check if current user is muted by a specific user (not commonly needed, but for symmetry)
+CREATE OR REPLACE FUNCTION public.is_muted_by(target_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_mutes
+        WHERE muter_id = target_user_id
+        AND muted_user_id = public.get_current_profile_id()
+    );
+$$;
+
+COMMENT ON FUNCTION public.is_muted_by IS 'Check if the current user is muted by the target user';
+
+-- Check if current user has muted a specific user
+CREATE OR REPLACE FUNCTION public.has_muted(target_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_mutes
+        WHERE muter_id = public.get_current_profile_id()
+        AND muted_user_id = target_user_id
+    );
+$$;
+
+COMMENT ON FUNCTION public.has_muted IS 'Check if the current user has muted the target user';
+
+-- ---------------------------------------------------------------------------
 -- SERVER HELPERS
 -- ---------------------------------------------------------------------------
 
@@ -557,6 +629,12 @@ GRANT EXECUTE ON FUNCTION public.get_custom_status(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.set_custom_status(uuid, text, text, text, text, text, text, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.clear_custom_status(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_unread_notification_count(uuid) TO authenticated;
+
+-- Blocking and muting helper functions
+GRANT EXECUTE ON FUNCTION public.is_blocked_by(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.has_blocked(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_muted_by(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.has_muted(uuid) TO authenticated;
 
 DO $$
 BEGIN

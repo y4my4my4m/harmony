@@ -26,6 +26,8 @@ export interface UserRoleInfo {
 const permissionsCache = reactive<Map<string, Record<Permission, boolean>>>(new Map())
 const rolesCache = reactive<Map<string, ServerRole[]>>(new Map())
 const loadingStates = reactive<Map<string, boolean>>(new Map())
+// Reactive version counter to force computed re-evaluation when cache updates
+const cacheVersion = ref(0)
 
 export function useServerPermissions() {
   const authStore = useAuthStore()
@@ -35,20 +37,19 @@ export function useServerPermissions() {
   const currentUserId = computed(() => authStore.session?.user?.id || null)
   const fetchedProfileId = ref<string | null>(null)
   const isFetchingProfileId = ref(false)
+  const profileIdLoaded = ref(false)
 
-  // OPTIMIZED: Use AuthContextService for cached profile ID lookup
-  watch(currentUserId, async (authId) => {
-    if (!authId) {
-      fetchedProfileId.value = null
-      return
-    }
-    if (getCurrentUser.value?.id === fetchedProfileId.value) return
+  // Load profile ID - called when auth ID changes
+  const loadProfileId = async (_authId: string) => {
     if (isFetchingProfileId.value) return
     isFetchingProfileId.value = true
     try {
       const context = await authContextService.getCurrentContext()
-      if (context.isAuthenticated) {
+      if (context.isAuthenticated && context.profileId) {
         fetchedProfileId.value = context.profileId
+        profileIdLoaded.value = true
+        cacheVersion.value++ // Force re-evaluation of permission computed properties
+        debug.log('🔐 Profile ID loaded:', context.profileId)
       } else {
         fetchedProfileId.value = null
       }
@@ -58,9 +59,35 @@ export function useServerPermissions() {
     } finally {
       isFetchingProfileId.value = false
     }
+  }
+
+  // Watch for auth changes
+  watch(currentUserId, async (authId) => {
+    if (!authId) {
+      fetchedProfileId.value = null
+      profileIdLoaded.value = false
+      return
+    }
+    // Always try to load if not yet loaded
+    if (!profileIdLoaded.value) {
+      await loadProfileId(authId)
+    }
   }, { immediate: true })
 
-  const currentProfileId = computed(() => getCurrentUser.value?.id || fetchedProfileId.value)
+  // Also watch getCurrentUser for changes (backup source)
+  watch(() => getCurrentUser.value?.id, (userId) => {
+    if (userId && !fetchedProfileId.value) {
+      fetchedProfileId.value = userId
+      profileIdLoaded.value = true
+      cacheVersion.value++ // Force re-evaluation of permission computed properties
+      debug.log('🔐 Profile ID from getCurrentUser:', userId)
+    }
+  }, { immediate: true })
+
+  const currentProfileId = computed(() => {
+    // Prefer getCurrentUser (most up-to-date), fallback to fetchedProfileId
+    return getCurrentUser.value?.id || fetchedProfileId.value
+  })
   const currentServer = computed(() => serverChannelStore.currentServer)
 
   // Get cache key for user+server
@@ -89,6 +116,7 @@ export function useServerPermissions() {
     try {
       const permissions = await roleService.getUserPermissions(userId, serverId)
       permissionsCache.set(cacheKey, permissions)
+      cacheVersion.value++ // Trigger reactivity for computed properties
       return permissions
     } catch (error) {
       debug.error('Failed to load permissions:', error)
@@ -109,6 +137,7 @@ export function useServerPermissions() {
     try {
       const roles = await roleService.getUserRoles(userId, serverId)
       rolesCache.set(cacheKey, roles)
+      cacheVersion.value++ // Trigger reactivity for computed properties
       return roles
     } catch (error) {
       debug.error('Failed to load user roles:', error)
@@ -120,13 +149,33 @@ export function useServerPermissions() {
   const isServerOwner = (serverId: string, profileId?: string): boolean => {
     if (!profileId) return false
     const server = serverChannelStore.servers.find(s => s.id === serverId)
-    return server?.owner === profileId
+    const isOwner = server?.owner === profileId
+    return isOwner
   }
 
   // Check if current user is the server owner
   const isCurrentUserServerOwner = computed(() => {
-    if (!currentProfileId.value || !currentServer.value) return false
-    return isServerOwner(currentServer.value.id, currentProfileId.value)
+    // Access cacheVersion to ensure reactivity
+    void cacheVersion.value
+    
+    if (!currentProfileId.value || !currentServer.value) {
+      debug.log('🔐 Owner check: missing profile or server', { 
+        profileId: currentProfileId.value, 
+        serverId: currentServer.value?.id 
+      })
+      return false
+    }
+    
+    const server = serverChannelStore.servers.find(s => s.id === currentServer.value?.id)
+    const isOwner = server?.owner === currentProfileId.value
+    
+    debug.log('🔐 Owner check:', { 
+      profileId: currentProfileId.value, 
+      serverOwner: server?.owner,
+      isOwner 
+    })
+    
+    return isOwner
   })
 
   // Get user role info (combines owner status with database roles)
@@ -174,7 +223,7 @@ export function useServerPermissions() {
 
     // Convert cached permissions to array
     const permissionsList = Object.entries(cachedPermissions)
-      .filter(([_, value]) => value === true)
+      .filter((entry) => entry[1] === true)
       .map(([key]) => key as Permission)
 
     return {
@@ -196,6 +245,9 @@ export function useServerPermissions() {
     profileId: string, 
     permission: Permission
   ): boolean => {
+    // Access cacheVersion to create reactive dependency (forces re-evaluation when cache updates)
+    void cacheVersion.value
+    
     const isOwner = isServerOwner(serverId, profileId)
     if (isOwner) return true
 
@@ -224,6 +276,8 @@ export function useServerPermissions() {
 
   // Check if current user has a specific permission
   const hasCurrentUserPermission = (permission: Permission): boolean => {
+    // Access cacheVersion to create reactive dependency - forces re-evaluation when permissions load
+    void cacheVersion.value
     if (!currentProfileId.value || !currentServer.value) return false
     return hasPermission(currentServer.value.id, currentProfileId.value, permission)
   }
@@ -231,7 +285,9 @@ export function useServerPermissions() {
   // Check if server is local (not federated)
   const isLocalServer = computed(() => {
     if (!currentServer.value) return false
-    return currentServer.value.is_local_server !== false
+    const isLocal = currentServer.value.is_local_server !== false
+    debug.log('🔐 isLocalServer:', { is_local_server: currentServer.value.is_local_server, result: isLocal })
+    return isLocal
   })
 
   // Server settings permissions (only for local servers)
@@ -239,9 +295,12 @@ export function useServerPermissions() {
     isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_SERVER)
   )
 
-  const canManageChannels = computed(() => 
-    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_CHANNELS)
-  )
+  const canManageChannels = computed(() => {
+    const local = isLocalServer.value
+    const hasPerms = hasCurrentUserPermission(Permission.MANAGE_CHANNELS)
+    debug.log('🔐 canManageChannels:', { isLocal: local, hasPermission: hasPerms })
+    return local && hasPerms
+  })
 
   const canManageEmojis = computed(() => 
     isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_EMOJIS)
@@ -401,6 +460,9 @@ export function useServerPermissions() {
     // Component-specific permissions
     serverSettingsPermissions,
     channelPermissions,
+    
+    // Server state
+    isLocalServer,
     
     // Cache management
     clearServerCache,

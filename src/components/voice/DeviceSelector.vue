@@ -6,7 +6,7 @@
       @click.stop="toggleDropdown"
       :title="triggerTitle"
     >
-      <Icon :name="triggerIcon" />
+      <!-- <Icon :name="triggerIcon" /> -->
       <Icon name="chevron-down" class="chevron" />
     </button>
 

@@ -178,19 +178,23 @@ CREATE TABLE IF NOT EXISTS public.recovery_key_metadata (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
     
-    -- Key identification (NOT the actual key)
-    key_id text NOT NULL,
-    algorithm text DEFAULT 'm.secret_storage.v1.aes-hmac-sha2'::text,
+    -- Key version and verification
+    key_version integer DEFAULT 1 NOT NULL,
+    verification_code text NOT NULL,
+    word_count integer DEFAULT 12,
     
-    -- Creation info
-    created_at timestamp with time zone DEFAULT now(),
+    -- Backup status
+    has_server_backup boolean DEFAULT false,
+    last_backup_at timestamp with time zone,
     
-    -- Usage tracking
-    last_used_at timestamp with time zone,
+    -- Timestamps
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_verified_at timestamp with time zone,
     
-    -- Verification status
-    is_verified boolean DEFAULT false,
-    verified_at timestamp with time zone
+    -- Storage hint for user
+    storage_hint text,
+    
+    CONSTRAINT recovery_key_metadata_word_count_check CHECK (word_count = ANY (ARRAY[12, 24]))
 );
 
 CREATE INDEX IF NOT EXISTS idx_recovery_key_metadata_user ON public.recovery_key_metadata(user_id);
@@ -255,33 +259,42 @@ CREATE INDEX IF NOT EXISTS idx_conversation_encryption_conv ON public.conversati
 COMMENT ON TABLE public.conversation_encryption_settings IS 'Per-conversation encryption settings';
 
 -- ---------------------------------------------------------------------------
--- SERVER ENCRYPTION SETTINGS - Server-wide encryption config
+-- SERVER ENCRYPTION SETTINGS - Per-server E2EE enforcement policies
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.server_encryption_settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL UNIQUE REFERENCES public.servers(id) ON DELETE CASCADE,
     
-    -- Default encryption for new channels
-    default_encryption_enabled boolean DEFAULT false,
+    -- Encryption mode: disabled, optional, required, required_local_only
+    encryption_mode text DEFAULT 'optional'::text,
     
-    -- Which channels are encrypted
-    encrypted_channel_ids uuid[] DEFAULT '{}'::uuid[],
+    -- Federation settings
+    allow_federation boolean DEFAULT true,
     
-    -- Key rotation policy
-    rotation_period_ms bigint DEFAULT 604800000,
+    -- Device verification requirements
+    require_verified_devices boolean DEFAULT false,
     
-    -- Who can enable encryption
-    encryption_permission text DEFAULT 'admin'::text,
+    -- Force key setup for new users
+    force_key_setup boolean DEFAULT false NOT NULL,
     
-    created_at timestamp with time zone DEFAULT now(),
+    -- Encrypt file attachments
+    encrypt_attachments boolean DEFAULT true NOT NULL,
+    
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
+    updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     
-    CONSTRAINT server_encryption_permission_check CHECK (encryption_permission IN ('admin', 'moderator', 'anyone'))
+    -- Additional metadata
+    metadata jsonb DEFAULT '{}'::jsonb,
+    
+    CONSTRAINT server_encryption_settings_encryption_mode_check 
+        CHECK (encryption_mode = ANY (ARRAY['disabled'::text, 'optional'::text, 'required'::text, 'required_local_only'::text]))
 );
 
 CREATE INDEX IF NOT EXISTS idx_server_encryption_server ON public.server_encryption_settings(server_id);
 
-COMMENT ON TABLE public.server_encryption_settings IS 'Server-wide encryption settings';
+COMMENT ON TABLE public.server_encryption_settings IS 'Per-server E2EE enforcement policies. Server owners control encryption requirements.';
+COMMENT ON COLUMN public.server_encryption_settings.encryption_mode IS 'disabled: No E2EE. optional: User choice. required: All messages encrypted. required_local_only: E2EE required, federation disabled.';
 
 -- ---------------------------------------------------------------------------
 -- ENCRYPTION SESSIONS - Signal Protocol session state

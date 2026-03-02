@@ -42,6 +42,7 @@
           @focus="handleFocus"
           @blur="handleBlur"
           @cursor-position-changed="handleCursorPositionChanged"
+          @paste="handlePasteFiles"
         />
       </div>
       <div class="right-icons">
@@ -187,9 +188,10 @@ const TYPING_RESET_MS = 2000 // Reset after 2 seconds of no typing to allow re-t
 // Mobile detection - check for touch device or narrow screen
 const isMobile = ref(false);
 const checkMobile = () => {
-  isMobile.value = window.matchMedia('(max-width: 768px)').matches || 
-    ('ontouchstart' in window) || 
-    (navigator.maxTouchPoints > 0);
+  // Only consider mobile if screen is small OR touch-only device (no mouse)
+  const hasSmallScreen = window.innerWidth <= 768;
+  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+  isMobile.value = hasSmallScreen || isTouchOnlyDevice;
 };
 
 // Check if there's content to send
@@ -471,6 +473,22 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     const hasActiveUploads = () => {
       return attachedFiles.value.some(file => file.uploadStatus === 'uploading');
+    };
+
+    const handlePasteFiles = (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        handleFilesSelected(files);
+      }
     };
 
     const handleFilesSelected = async (files: File[]) => {

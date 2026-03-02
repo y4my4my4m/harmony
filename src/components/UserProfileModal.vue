@@ -35,9 +35,13 @@
           Send Server Invite
         </div>
         <div class="action-divider"></div>
-        <div class="action-item danger" @click="blockUser">
-          <Icon name="ban" class="action-item-icon" />
-          Block User
+        <div class="action-item" @click="toggleMute">
+          <Icon :name="isMuted ? 'volume-2' : 'volume-x'" class="action-item-icon" />
+          {{ isMuted ? 'Unmute User' : 'Mute User' }}
+        </div>
+        <div class="action-item" :class="{ danger: !isBlocked }" @click="toggleBlock">
+          <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" />
+          {{ isBlocked ? 'Unblock User' : 'Block User' }}
         </div>
       </div>
 
@@ -256,9 +260,9 @@
 
           <!-- Other User Actions -->
           <template v-else>
-            <!-- Local Users: Send DM (local users can DM each other) -->
+            <!-- Local Users: Send DM (local users can DM each other, hide if blocked) -->
             <button 
-              v-if="getUserIsLocal(user)"
+              v-if="getUserIsLocal(user) && !isBlocked"
               @click="sendDirectMessage"
               class="primary-action-btn"
             >
@@ -307,10 +311,12 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'
+import { useServerChannelStore } from '../stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl } from '@/utils/bannerUtils'
 import { coreProfileService } from '@/services/core/CoreProfileService'
+import { roleService, type ServerRole } from '@/services/RoleService'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
@@ -329,7 +335,21 @@ const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
+const serverChannelStore = useServerChannelStore()
 const { closeMobileSidebars, isMobile } = useLayoutState()
+
+// Reactive computed to track blocked/muted user counts for change detection
+const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size)
+const mutedUsersCount = computed(() => activityPubStore.mutedUsers.size)
+
+// Watch for changes to blocked/muted users counts
+watch(blockedUsersCount, (newVal) => {
+  debug.log('👁️ UserProfileModal: blockedUsers changed, size:', newVal)
+}, { immediate: true })
+
+watch(mutedUsersCount, (newVal) => {
+  debug.log('👁️ UserProfileModal: mutedUsers changed, size:', newVal)
+}, { immediate: true })
 
 // Use professional presence system
 const { 
@@ -351,6 +371,10 @@ const isLoadingInstanceInfo = ref(false)
 const fetchedUserStats = ref<{ posts: number; following: number; followers: number } | null>(null)
 const fetchedCreatedAt = ref<string | null>(null)
 const isLoadingUserStats = ref(false)
+
+// Server roles for the user (from current server context)
+const fetchedUserRoles = ref<ServerRole[]>([])
+const isLoadingRoles = ref(false)
 
 // Get the current instance domain
 const currentDomain = import.meta.env.VITE_DOMAIN as string
@@ -385,6 +409,26 @@ async function loadUserStats(userId: string) {
     debug.error('Failed to load user stats:', error)
   } finally {
     isLoadingUserStats.value = false
+  }
+}
+
+/**
+ * Fetch user roles for the current server context
+ */
+async function loadUserRoles(userId: string) {
+  const serverId = serverChannelStore.currentServerId
+  if (!serverId || isLoadingRoles.value) return
+  
+  isLoadingRoles.value = true
+  try {
+    const roles = await roleService.getUserRoles(userId, serverId)
+    fetchedUserRoles.value = roles.filter(r => !r.is_default) // Exclude @everyone
+    debug.log('🎭 Loaded user roles:', fetchedUserRoles.value.length)
+  } catch (error) {
+    debug.error('Failed to load user roles:', error)
+    fetchedUserRoles.value = []
+  } finally {
+    isLoadingRoles.value = false
   }
 }
 
@@ -680,6 +724,12 @@ const copyUserId = async () => {
 const sendDirectMessage = () => {
   if (!props.user) return
   
+  // Check if user is blocked - don't allow DMing blocked users
+  if (isBlocked.value) {
+    debug.warn('Cannot send DM to blocked user')
+    return
+  }
+  
   // Navigate to DM with this user
   router.push(`/dm/${props.user.id}`)
   emit('close')
@@ -752,18 +802,59 @@ const openInviteModal = () => {
   showActionsMenu.value = false
 }
 
-const blockUser = async () => {
+// Check if the current user has blocked this user (uses store getter for reactivity)
+const isBlocked = computed(() => {
+  if (!props.user) return false
+  // Access the count to ensure reactivity when blocked users change
+  blockedUsersCount.value
+  // Use store getter for reliable check
+  const blocked = activityPubStore.isBlocked(props.user.id)
+  debug.log(`🔍 isBlocked check: userId=${props.user.id}, blocked=${blocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`)
+  return blocked
+})
+
+const toggleBlock = async () => {
   if (!props.user) return
   
   try {
-    await activityPubStore.blockUser(props.user.id)
-    debug.log('User blocked successfully:', props.user.id)
-    // Show success toast
+    if (isBlocked.value) {
+      await activityPubStore.unblockUser(props.user.id)
+      debug.log('User unblocked successfully:', props.user.id)
+    } else {
+      await activityPubStore.blockUser(props.user.id)
+      debug.log('User blocked successfully:', props.user.id)
+    }
     showActionsMenu.value = false
-    emit('close')
   } catch (error) {
-    debug.error('Failed to block user:', error)
-    // Show error toast
+    debug.error('Failed to toggle block:', error)
+  }
+}
+
+// Check if the current user has muted this user (uses store getter for reactivity)
+const isMuted = computed(() => {
+  if (!props.user) return false
+  // Access the count to ensure reactivity when muted users change
+  mutedUsersCount.value
+  // Use store getter for reliable check
+  const muted = activityPubStore.isMuted(props.user.id)
+  debug.log(`🔍 isMuted check: userId=${props.user.id}, muted=${muted}, mutedUsers size=${activityPubStore.mutedUsers.size}`)
+  return muted
+})
+
+const toggleMute = async () => {
+  if (!props.user) return
+  
+  try {
+    if (isMuted.value) {
+      await activityPubStore.unmuteUser(props.user.id)
+      debug.log('User unmuted successfully:', props.user.id)
+    } else {
+      await activityPubStore.muteUser(props.user.id)
+      debug.log('User muted successfully:', props.user.id)
+    }
+    showActionsMenu.value = false
+  } catch (error) {
+    debug.error('Failed to toggle mute:', error)
   }
 }
 
@@ -783,6 +874,11 @@ const getUserVerified = (user: any) => {
 }
 
 const getUserRoles = (user: any) => {
+  // First check if we have fetched roles from the server
+  if (fetchedUserRoles.value.length > 0) {
+    return fetchedUserRoles.value
+  }
+  // Fall back to roles on user object (if any)
   return user?.roles || user?.profile?.roles || []
 }
 
@@ -870,6 +966,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     instanceInfo.value = null
     fetchedUserStats.value = null
     fetchedCreatedAt.value = null
+    fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
@@ -888,6 +985,10 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       if (!hasStats) {
         loadUserStats(props.user.id)
       }
+      
+      // Load user roles for current server context
+      // This shows the user's roles in the server where the modal was opened
+      loadUserRoles(props.user.id)
       
       // Ensure followed users are loaded in the store for accurate follow button state
       if (!activityPubStore.followsLoaded) {
@@ -1151,15 +1252,15 @@ onMounted(() => {
 .role-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 0 2px;
   background: rgba(88, 101, 242, 0.2);
   border: 1px solid rgba(88, 101, 242, 0.3);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #ffffff;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.1em;
 }
 
 .user-stats {

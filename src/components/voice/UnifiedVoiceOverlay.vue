@@ -283,6 +283,7 @@ import { useAuthStore } from '@/stores/auth';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
+import DeviceSelector from './DeviceSelector.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 
@@ -406,7 +407,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         if (!participant) {
           // Fullscreen participant left or not found - exit fullscreen immediately
           if (voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId) {
-            console.log('🖼️ [Fullscreen] Participant gone, exiting fullscreen');
+            debug.log('🖼️ [Fullscreen] Participant gone, exiting fullscreen');
             voiceStore.exitFullscreen();
           }
           previousScreenShareState.value = null;
@@ -418,7 +419,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         
         // If they had video/screenshare and now don't, exit fullscreen immediately
         if (hadVideoOrScreenshare === true && !hasVideoOrScreenshare) {
-          console.log('🖼️ [Fullscreen] No more video/screenshare, exiting fullscreen');
+          debug.log('🖼️ [Fullscreen] No more video/screenshare, exiting fullscreen');
           voiceStore.exitFullscreen();
         }
         
@@ -438,7 +439,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         // Re-check if fullscreen participant still has video/screenshare
         const participant = fullscreenParticipant.value;
         if (participant && !participant.isVideoEnabled && !participant.isScreenSharing) {
-          console.log('🖼️ [Fullscreen] Stream update detected - no video, exiting fullscreen');
+          debug.log('🖼️ [Fullscreen] Stream update detected - no video, exiting fullscreen');
           voiceStore.exitFullscreen();
         }
       }
@@ -456,7 +457,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         
         // If user exists but has no video/screenshare, exit fullscreen
         if (user && !user.isVideoEnabled && !user.isScreenSharing) {
-          console.log('🖼️ [Fullscreen] User has no video/screenshare, exiting');
+          debug.log('🖼️ [Fullscreen] User has no video/screenshare, exiting');
           voiceStore.exitFullscreen();
         }
       },

@@ -17,6 +17,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 
 /**
  * Detect if user is on a mobile device
+ * Touch-enabled desktops/laptops with a mouse are NOT considered mobile
  */
 function detectMobileDevice(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
@@ -25,11 +26,13 @@ function detectMobileDevice(): boolean {
   const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera || ''
   const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i
   
-  // Also check for touch capability + small screen (tablets with keyboards excluded)
-  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-  const isSmallScreen = window.innerWidth <= 768
+  // Small screen is definitely mobile
+  const hasSmallScreen = window.innerWidth <= 768
   
-  return mobileRegex.test(userAgent) || (isTouchDevice && isSmallScreen)
+  // Touch-only device (no mouse/fine pointer) is mobile
+  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches
+  
+  return mobileRegex.test(userAgent) || hasSmallScreen || isTouchOnlyDevice
 }
 
 

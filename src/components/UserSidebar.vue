@@ -70,6 +70,87 @@
         <span>{{ $t('server.loadingUsers') }}</span>
       </div>
       
+      <!-- Hoisted Role Groups (displayed first) -->
+      <div 
+        v-for="role in hoistedRolesSorted" 
+        :key="`role-group-${role.id}`"
+        v-show="!isLoadingUsers && groupedUsers[`role:${role.id}`]?.length > 0"
+        class="user-group role-group"
+      >
+        <button 
+          @click="toggleGroup(`role:${role.id}`)"
+          class="group-header"
+          :class="{ 'group-collapsed': collapsedGroups[`role:${role.id}`] }"
+        >
+          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+          </svg>
+          <span class="group-title">
+            <span class="role-color-dot" :style="{ backgroundColor: role.color || '#99AAB5' }"></span>
+            {{ role.name }} — {{ groupedUsers[`role:${role.id}`]?.length || 0 }}
+          </span>
+        </button>
+        <div v-if="!collapsedGroups[`role:${role.id}`]" class="user-list">
+          <div 
+            v-for="user in groupedUsers[`role:${role.id}`]" 
+            :key="user.id" 
+            class="user-item"
+            @click="showUserProfile(user)"
+          >
+            <Avatar
+              :src="getUserAvatarUrl(user.id).value"
+              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
+              size="sm"
+              :status="getStatusForAvatarValue(user.id)"
+              class="user-avatar"
+            />
+            <div class="user-info">
+              <div class="user-name-row">
+                <span 
+                  class="user-name" 
+                  :style="{ color: role.color || getUserColor(user.id).value || undefined }"
+                >
+                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                </span>
+                <span 
+                  v-if="!isUserLocal(user.id).value" 
+                  class="federation-badge"
+                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
+                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                  </svg>
+                </span>
+              </div>
+              <span 
+                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
+                class="user-domain"
+              >
+                {{ getUserDomain(user.id).value }}
+              </span>
+              <!-- Custom Status -->
+              <div 
+                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
+                class="user-custom-status"
+              >
+                <img 
+                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
+                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
+                  class="status-emoji-img"
+                />
+                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
+                  {{ getUserCustomStatus(user.id).value?.emoji }}
+                </span>
+                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
+                  {{ getUserCustomStatus(user.id).value?.text }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- Online Users -->
       <div v-if="!isLoadingUsers && groupedUsers.online.length > 0" class="user-group">
         <button 
@@ -447,6 +528,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 import { useUserData } from '@/composables/useUserData';
+import { roleService, type ServerRole } from '@/services/RoleService';
 
 // Props
 interface Props {
@@ -486,8 +568,13 @@ const searchQuery = ref('');
 const isLoadingUsers = ref(false);
 const lastFetchedServerId = ref<string | null>(null);
 
-// Group collapse state
-const collapsedGroups = ref({
+// Role-based member grouping (hoist feature)
+const serverRoles = ref<ServerRole[]>([]);
+const userRolesMap = ref<Map<string, ServerRole[]>>(new Map());
+const rolesLoadedForServer = ref<string | null>(null);
+
+// Group collapse state - dynamic based on roles
+const collapsedGroups = ref<Record<string, boolean>>({
   online: false,
   away: false,
   busy: false,
@@ -548,52 +635,72 @@ const filteredUsers = computed(() => {
   });
 });
 
-// Group users by real-time presence first, then by status for present users
-// This ensures:
-// 1. Only users who are actually present (connected via Supabase Realtime) appear as Online/Away/Busy
-// 2. Federated users (non-local) who are not present go into their own "federated" category
-// 3. Local users who are not present appear as Offline
-// 4. After page reload, only truly present users are shown as active
-// 5. Professional, scalable real-time presence behavior for modern chat apps
+// Get hoisted roles sorted by position (highest first)
+const hoistedRolesSorted = computed(() => {
+  return serverRoles.value
+    .filter(r => r.hoist && !r.is_default)
+    .sort((a, b) => b.position - a.position);
+});
+
+// Group users by hoisted roles first, then by presence status
+// Users with hoisted roles appear in their highest hoisted role group (online users only)
+// Users without hoisted roles appear in status groups (online, away, busy)
+// Offline users and federated users appear in their respective groups
 const groupedUsers = computed(() => {
-  const groups = {
-    online: [] as User[],
-    away: [] as User[],
-    busy: [] as User[],
-    federated: [] as User[],
-    offline: [] as User[]
+  const groups: Record<string, User[]> = {
+    online: [],
+    away: [],
+    busy: [],
+    federated: [],
+    offline: []
   };
 
+  // Create groups for each hoisted role
+  for (const role of hoistedRolesSorted.value) {
+    groups[`role:${role.id}`] = [];
+  }
+
+  // Track which users have been placed in a role group
+  const usersInRoleGroups = new Set<string>();
+
   filteredUsers.value.forEach((user: User) => {
-    // Check if user is actually present in real-time
     const isPresent = isUserOnline(user.id).value;
     const isLocal = isUserLocal(user.id).value;
     
     if (isPresent) {
-      // User is present - group by their preferred status
-      const status = getUserStatus(user.id).value;
-      switch (status) {
-        case UserStatus.Online:
-          groups.online.push(user);
-          break;
-        case UserStatus.Away:
-          groups.away.push(user);
-          break;
-        case UserStatus.Busy:
-          groups.busy.push(user);
-          break;
-        default:
-          // Present but status is Offline? Treat as Online
-          groups.online.push(user);
-          break;
+      // Check if user has a hoisted role
+      const highestHoistedRole = getHighestHoistedRole(user.id);
+      
+      if (highestHoistedRole) {
+        // User has hoisted role - put them in the role group
+        const roleGroupKey = `role:${highestHoistedRole.id}`;
+        if (groups[roleGroupKey]) {
+          groups[roleGroupKey].push(user);
+          usersInRoleGroups.add(user.id);
+        }
+      } else {
+        // No hoisted role - group by status
+        const status = getUserStatus(user.id).value;
+        switch (status) {
+          case UserStatus.Online:
+            groups.online.push(user);
+            break;
+          case UserStatus.Away:
+            groups.away.push(user);
+            break;
+          case UserStatus.Busy:
+            groups.busy.push(user);
+            break;
+          default:
+            groups.online.push(user);
+            break;
+        }
       }
     } else {
       // User is not present
       if (!isLocal) {
-        // Federated users go into their own category
         groups.federated.push(user);
       } else {
-        // Local users who are not present appear as offline
         groups.offline.push(user);
       }
     }
@@ -611,6 +718,13 @@ const groupedUsers = computed(() => {
   return groups;
 });
 
+// Get the role info for a group key
+const getRoleForGroup = (groupKey: string): ServerRole | null => {
+  if (!groupKey.startsWith('role:')) return null;
+  const roleId = groupKey.replace('role:', '');
+  return serverRoles.value.find(r => r.id === roleId) || null;
+};
+
 // Total member count
 const totalMemberCount = computed(() => {
   return users.value.length;
@@ -623,10 +737,56 @@ const currentServerData = computed(() => {
 
 // Methods
 const toggleGroup = (groupName: string) => {
-  if (groupName in collapsedGroups.value) {
-    collapsedGroups.value[groupName as keyof typeof collapsedGroups.value] = 
-      !collapsedGroups.value[groupName as keyof typeof collapsedGroups.value];
+  collapsedGroups.value[groupName] = !collapsedGroups.value[groupName];
+};
+
+// Load server roles and user role assignments for hoist feature
+const loadServerRolesAndAssignments = async (serverId: string) => {
+  if (!serverId || rolesLoadedForServer.value === serverId) return;
+  
+  try {
+    // Fetch all roles for the server
+    const roles = await roleService.getServerRoles(serverId);
+    serverRoles.value = roles;
+    
+    // For each user in the server, we need to fetch their roles
+    // This is done efficiently by checking hoisted roles
+    const hoistedRoles = roles.filter(r => r.hoist && !r.is_default);
+    
+    if (hoistedRoles.length > 0) {
+      debug.log(`🎭 UserSidebar: Found ${hoistedRoles.length} hoisted roles for server ${serverId}`);
+      
+      // Fetch role members for each hoisted role
+      const newUserRolesMap = new Map<string, ServerRole[]>();
+      
+      for (const role of hoistedRoles) {
+        const members = await roleService.getRoleMembers(role.id);
+        for (const member of members) {
+          if (!newUserRolesMap.has(member.id)) {
+            newUserRolesMap.set(member.id, []);
+          }
+          newUserRolesMap.get(member.id)!.push(role);
+        }
+      }
+      
+      userRolesMap.value = newUserRolesMap;
+      debug.log(`🎭 UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
+    }
+    
+    rolesLoadedForServer.value = serverId;
+  } catch (error) {
+    debug.error('Failed to load server roles:', error);
   }
+};
+
+// Get highest hoisted role for a user
+const getHighestHoistedRole = (userId: string): ServerRole | null => {
+  const userRoles = userRolesMap.value.get(userId);
+  if (!userRoles || userRoles.length === 0) return null;
+  
+  // Sort by position (highest first) and return first hoisted role
+  const sorted = [...userRoles].sort((a, b) => b.position - a.position);
+  return sorted.find(r => r.hoist) || null;
 };
 
 const fetchAndSetUsers = async (serverId: string | null) => {
@@ -707,9 +867,15 @@ watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId)
   
   if (oldServerId) {
     await unsubscribeFromContext(oldServerId);
+    // Reset role data when leaving server
+    rolesLoadedForServer.value = null;
+    serverRoles.value = [];
+    userRolesMap.value = new Map();
   }
   if (newServerId) {
     await fetchAndSetUsers(newServerId);
+    // Load roles for hoist feature (non-blocking)
+    loadServerRolesAndAssignments(newServerId);
   }
 }, { immediate: true });
 
@@ -1008,6 +1174,18 @@ const closeInviteModal = () => {
   display: flex;
   align-items: center;
   font-weight: bold;
+  gap: 6px;
+}
+
+.role-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.role-group .group-header {
+  color: var(--text-secondary);
 }
 
 .group-arrow {

@@ -178,16 +178,18 @@ export class AuthContextService {
         return
       }
       
-      // For SIGNED_IN, only clear if it's a DIFFERENT user
+      // For SIGNED_IN, clear cache if:
+      // 1. Cache contains unauthenticated state (user was logged out)
+      // 2. Different user is signing in
       if (event === 'SIGNED_IN') {
         const newUserId = session?.user?.id
         const cachedUserId = this.cachedContext?.authUser?.id
         
-        if (cachedUserId && cachedUserId !== newUserId) {
-          debug.log('🔐 Different user signed in, clearing stale cache')
+        // Clear if cache is unauthenticated or different user
+        if (!this.cachedContext?.isAuthenticated || (cachedUserId && cachedUserId !== newUserId)) {
+          debug.log('🔐 SIGNED_IN - clearing cache (unauthenticated or different user)')
           this.clearCache()
         }
-        // Same user or no cache - don't clear, don't log spam
         return
       }
       

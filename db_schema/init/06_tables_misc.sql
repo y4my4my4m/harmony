@@ -9,28 +9,24 @@
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.emojis (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    name text NOT NULL,
-    url text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    name character varying,
+    url character varying,
     server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
+    uploader uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     
-    -- Global emoji (available everywhere)
-    is_global boolean DEFAULT false,
-    
-    -- Animated
-    is_animated boolean DEFAULT false,
+    -- Usage tracking
+    usage_count integer DEFAULT 0,
+    last_used timestamp with time zone,
     
     -- Federation
-    remote_url text,
-    domain text,
-    
-    created_at timestamp with time zone DEFAULT now(),
-    created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-    
-    UNIQUE(server_id, name)
+    domain text
 );
 
 CREATE INDEX IF NOT EXISTS idx_emojis_server ON public.emojis(server_id);
-CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name));
+CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name::text));
 
 COMMENT ON TABLE public.emojis IS 'Custom emoji library';
 
@@ -215,18 +211,27 @@ COMMENT ON COLUMN public.push_subscriptions.endpoint IS 'The unique push service
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.unread_counts (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
+    channel_id uuid REFERENCES public.channels(id) ON DELETE CASCADE,
+    conversation_id uuid REFERENCES public.conversations(id) ON DELETE CASCADE,
     
-    notifications_count integer DEFAULT 0,
-    mentions_count integer DEFAULT 0,
-    dms_count integer DEFAULT 0,
+    unread_messages integer DEFAULT 0,
+    unread_mentions integer DEFAULT 0,
+    last_read_message_id uuid,
+    last_read_at timestamp with time zone DEFAULT now(),
     
+    created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
 
 ALTER TABLE public.unread_counts REPLICA IDENTITY FULL;
 
-COMMENT ON TABLE public.unread_counts IS 'Denormalized unread counts for fast UI updates';
+CREATE INDEX IF NOT EXISTS idx_unread_counts_user ON public.unread_counts(user_id);
+CREATE INDEX IF NOT EXISTS idx_unread_counts_channel ON public.unread_counts(channel_id);
+CREATE INDEX IF NOT EXISTS idx_unread_counts_conversation ON public.unread_counts(conversation_id);
+
+COMMENT ON TABLE public.unread_counts IS 'Per-channel/conversation unread message tracking';
 
 -- ---------------------------------------------------------------------------
 -- REPORTS

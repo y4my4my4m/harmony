@@ -14,21 +14,27 @@ CREATE TABLE IF NOT EXISTS public.servers (
     
     name text NOT NULL,
     description text,
-    icon text,
+    icon text DEFAULT '/default_server_icon.png'::text,
     banner text,
     
     -- Owner
     owner uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
     -- Settings
-    is_public boolean DEFAULT true,
+    public boolean DEFAULT false,
+    allow_cross_server_emojis boolean DEFAULT true,
     verification_level smallint DEFAULT 0,
     default_notification_level smallint DEFAULT 0,
     
     -- Federation
     is_local_server boolean DEFAULT true,
     federation_enabled boolean DEFAULT false,
+    federation_domain text,
+    federation_inbox_url text,
+    federation_metadata jsonb DEFAULT '{}'::jsonb,
+    supported_activities text[] DEFAULT '{}'::text[],
     ap_id text,
+    host_domain text,
     
     -- Invite code
     invite_code text UNIQUE,
@@ -41,8 +47,14 @@ ALTER TABLE public.servers REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_servers_owner ON public.servers(owner);
 CREATE INDEX IF NOT EXISTS idx_servers_invite_code ON public.servers(invite_code) WHERE invite_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_servers_federation ON public.servers(federation_enabled, is_local_server);
+CREATE INDEX IF NOT EXISTS idx_servers_ap_id ON public.servers(ap_id) WHERE ap_id IS NOT NULL;
 
 COMMENT ON TABLE public.servers IS 'Discord-like community servers';
+COMMENT ON COLUMN public.servers.allow_cross_server_emojis IS 'Whether server emojis can be used in other servers';
+COMMENT ON COLUMN public.servers.ap_id IS 'ActivityPub ID for this server (Group actor)';
+COMMENT ON COLUMN public.servers.host_domain IS 'Domain where this server is hosted (null if local)';
+COMMENT ON COLUMN public.servers.is_local_server IS 'True if server is hosted on this instance';
 
 -- ---------------------------------------------------------------------------
 -- CHANNEL CATEGORIES
@@ -230,7 +242,8 @@ CREATE TABLE IF NOT EXISTS public.reactions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     
     message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    bot_id uuid,  -- For bot reactions
     
     emoji_id uuid,
     custom_emoji_content text,
@@ -238,7 +251,9 @@ CREATE TABLE IF NOT EXISTS public.reactions (
     federation_status text DEFAULT 'pending'::text,
     metadata jsonb DEFAULT '{}'::jsonb,
     
-    CONSTRAINT reactions_has_emoji CHECK (emoji_id IS NOT NULL OR custom_emoji_content IS NOT NULL)
+    -- Either user or bot must be set
+    CONSTRAINT reactions_has_emoji CHECK (emoji_id IS NOT NULL OR custom_emoji_content IS NOT NULL),
+    CONSTRAINT reactions_has_author CHECK (user_id IS NOT NULL OR bot_id IS NOT NULL)
 );
 
 ALTER TABLE public.reactions REPLICA IDENTITY FULL;
@@ -268,6 +283,10 @@ CREATE TABLE IF NOT EXISTS public.user_servers (
     -- Nickname in this server
     nickname text,
     
+    -- Server organization
+    folder_id uuid,  -- References server_folders, added after that table is created
+    position integer DEFAULT 0,
+    
     -- Notifications
     muted boolean DEFAULT false,
     muted_until timestamp with time zone,
@@ -280,8 +299,16 @@ ALTER TABLE public.user_servers REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_user_servers_user ON public.user_servers(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_servers_server ON public.user_servers(server_id);
+CREATE INDEX IF NOT EXISTS idx_user_servers_folder_id ON public.user_servers(folder_id);
+CREATE INDEX IF NOT EXISTS idx_user_servers_user_position ON public.user_servers(user_id, position);
+CREATE INDEX IF NOT EXISTS idx_user_servers_by_instance ON public.user_servers(server_id, member_instance);
+CREATE INDEX IF NOT EXISTS idx_user_servers_status ON public.user_servers(server_id, status);
 
 COMMENT ON TABLE public.user_servers IS 'Server membership records';
+COMMENT ON COLUMN public.user_servers.member_instance IS 'Instance domain of the member (for efficient batching)';
+COMMENT ON COLUMN public.user_servers.status IS 'Membership status: pending, accepted, rejected';
+COMMENT ON COLUMN public.user_servers.folder_id IS 'Optional folder this server belongs to (null = root level)';
+COMMENT ON COLUMN public.user_servers.position IS 'Sort order position within the folder or at root level';
 
 -- ---------------------------------------------------------------------------
 -- SERVER ROLES
@@ -403,8 +430,9 @@ CREATE TABLE IF NOT EXISTS public.invites (
     created_at timestamp with time zone DEFAULT now(),
     expires_at timestamp with time zone,
     max_uses integer,
-    use_count integer DEFAULT 0,
-    is_active boolean DEFAULT true
+    uses integer DEFAULT 0,
+    used boolean DEFAULT false,
+    temporary boolean DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS idx_invites_code ON public.invites(code);
@@ -419,7 +447,12 @@ CREATE TABLE IF NOT EXISTS public.voice_channel_participants (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
     joined_at timestamp with time zone DEFAULT now() NOT NULL,
+    
+    -- Federation
+    is_federated boolean DEFAULT false NOT NULL,
+    federation_status text DEFAULT 'local'::text,
     
     -- State
     is_muted boolean DEFAULT false,
@@ -427,9 +460,8 @@ CREATE TABLE IF NOT EXISTS public.voice_channel_participants (
     is_video_enabled boolean DEFAULT false,
     is_screen_sharing boolean DEFAULT false,
     
-    -- Connection info
-    peer_id text,
-    connection_quality text DEFAULT 'good'::text,
+    -- Metadata
+    metadata jsonb DEFAULT '{}'::jsonb,
     
     UNIQUE(channel_id, user_id)
 );

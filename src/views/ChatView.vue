@@ -76,11 +76,25 @@ const loadMessages = async () => {
   if (props.isDM) {
     const conversationId = route.params.conversationId as string
     if (conversationId) {
+      // Check if we have a valid cache for instant loading (no skeleton needed)
+      if (dmStore.isCacheValid(conversationId)) {
+        // Load from cache instantly - no loading state needed
+        dmStore.loadCachedMessages(conversationId)
+        const userId = authStore.session?.user?.id
+        if (userId) {
+          // Still fetch fresh data in background
+          dmStore.fetchConversationMessages(conversationId)
+        }
+        return
+      }
+      
+      // No cache - show skeleton loader
       isLoading.value = true
-      // Clear DM messages immediately when switching conversations
       dmStore.clearDMMessages()
+      // Force browser to paint the skeleton before fetching
+      // nextTick alone isn't enough - we need to yield to the browser's render loop
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       try {
-        // Initialize DM environment for direct access if needed
         const userId = authStore.session?.user?.id
         if (userId) {
           await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId)
@@ -95,17 +109,31 @@ const loadMessages = async () => {
     const serverId = route.params.serverId as string
     
     if (serverId && channelId) {
+      // Check if we have a valid cache for instant loading (no skeleton needed)
+      if (chatStore.isMessageCached(channelId)) {
+        // Load from cache instantly - no loading state needed
+        chatStore.loadCachedMessages(channelId)
+        // Set current channel
+        if (serverChannelStore.currentChannelId !== channelId) {
+          serverChannelStore.setCurrentChannel(channelId)
+        }
+        // Subscribe and fetch fresh data in background
+        chatStore.subscribeToMessages(channelId)
+        chatStore.fetchMessages(channelId) // Background refresh
+        return
+      }
+      
+      // No cache - show skeleton loader
       isLoading.value = true
-      // Clear messages immediately when switching channels to show loading state
       chatStore.clearMessages()
+      // Force browser to paint the skeleton before fetching
+      // nextTick alone isn't enough - we need to yield to the browser's render loop
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       try {
-        // Set current channel first to avoid race condition
-        // Only set if it's different to prevent recursive triggers
         if (serverChannelStore.currentChannelId !== channelId) {
           serverChannelStore.setCurrentChannel(channelId)
         }
         await chatStore.fetchMessages(channelId)
-        // Subscribe to real-time messages for this channel
         chatStore.subscribeToMessages(channelId)
       } finally {
         isLoading.value = false

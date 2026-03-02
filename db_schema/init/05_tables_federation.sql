@@ -9,33 +9,28 @@
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.federated_instances (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
     domain text NOT NULL UNIQUE,
     
     -- Instance info
-    name text,
-    description text,
     software text,
     version text,
-    
-    -- URLs
-    shared_inbox_url text,
-    nodeinfo_url text,
+    description text,
+    admin_contact text,
     
     -- Status
     is_blocked boolean DEFAULT false,
-    is_silenced boolean DEFAULT false,
+    is_trusted boolean DEFAULT false,
+    last_seen_at timestamp with time zone DEFAULT now(),
     
     -- Stats
     user_count integer DEFAULT 0,
     status_count integer DEFAULT 0,
+    connection_count integer DEFAULT 0,
     
-    -- Sync
-    last_successful_sync timestamp with time zone,
-    last_sync_attempt timestamp with time zone,
-    consecutive_failures integer DEFAULT 0,
-    
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    -- Metadata
+    metadata jsonb DEFAULT '{}'::jsonb
 );
 
 ALTER TABLE public.federated_instances REPLICA IDENTITY FULL;

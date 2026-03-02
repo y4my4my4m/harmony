@@ -577,12 +577,22 @@ export const useNotificationStore = defineStore('notification', {
               // Format message using client-side formatter
               const formatted = NotificationFormatter.formatNotification(newNotification)
 
-              // Since database already filters based on view context, show all notifications that reach here
-              const uiDecision = {
-                showToast: true,
-                showDesktop: true,
-                playSound: true,
-                reason: 'Notification passed database filtering'
+              // ✅ FIX: Use viewContextTracker to check if user is currently viewing the source
+              // This is a client-side check as a safety net (database may also filter but better safe than sorry)
+              const notificationContext = {
+                server_id: newNotification.data?.location?.server_id || newNotification.data?.server_id,
+                channel_id: newNotification.data?.location?.channel_id || newNotification.data?.channel_id,
+                conversation_id: newNotification.data?.conversation?.id || newNotification.data?.conversation_id,
+                type: newNotification.type
+              }
+              
+              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext)
+              debug.log('🎯 Notification UI decision:', uiDecision)
+              
+              // If suppressed, don't show any UI but the notification is still in the list
+              if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
+                debug.log('🔕 Notification suppressed: User is viewing source context')
+                return
               }
 
               // Process notification through unified notification system
@@ -1182,6 +1192,25 @@ export const useNotificationStore = defineStore('notification', {
             
             default:
               debug.log('⚠️ No navigation data for notification type:', navData.type)
+          }
+        } else {
+          // ✅ FIX: Fallback navigation for notifications without proper navData
+          debug.warn('⚠️ No navigation data extracted for notification:', notification.type)
+          
+          // Try to provide sensible defaults based on notification type
+          if (notification.type.startsWith('activitypub_')) {
+            router.push('/social/home')
+          } else if (notification.type === 'dm') {
+            // Try to get conversation ID from data
+            const conversationId = notification.data?.conversation?.id || notification.data?.conversation_id
+            if (conversationId) {
+              router.push(`/dm/${conversationId}`)
+            } else {
+              router.push('/dm')
+            }
+          } else {
+            // Default to home
+            debug.warn('⚠️ Could not determine navigation for notification, going to home')
           }
         }
       } catch (error) {

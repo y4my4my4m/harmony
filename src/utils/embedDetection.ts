@@ -123,10 +123,35 @@ export function extractYouTubeId(url: URL): string | null {
   return null;
 }
 
+/**
+ * Parse YouTube time parameter to seconds.
+ * Handles: ?t=90, ?t=1m30s, ?t=1h2m30s, &t=90, youtu.be/id?t=90
+ */
+function parseYouTubeTime(url: URL): number | null {
+  const t = url.searchParams.get('t') || url.searchParams.get('start');
+  if (!t) return null;
+
+  // Pure number = seconds
+  if (/^\d+$/.test(t)) return parseInt(t, 10);
+
+  // Format like 1h2m30s, 2m30s, 45s
+  let total = 0;
+  const hours = t.match(/(\d+)h/);
+  const minutes = t.match(/(\d+)m/);
+  const seconds = t.match(/(\d+)s/);
+  if (hours) total += parseInt(hours[1], 10) * 3600;
+  if (minutes) total += parseInt(minutes[1], 10) * 60;
+  if (seconds) total += parseInt(seconds[1], 10);
+  return total > 0 ? total : null;
+}
+
 export function buildYouTubeEmbedUrl(url: URL): string | null {
   const videoId = extractYouTubeId(url);
   if (!videoId) return null;
-  return `https://www.youtube.com/embed/${videoId}`;
+
+  const startTime = parseYouTubeTime(url);
+  const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+  return startTime ? `${embedUrl}?start=${startTime}` : embedUrl;
 }
 
 export function buildSpotifyEmbedUrl(url: URL): string | null {

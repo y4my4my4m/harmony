@@ -153,6 +153,7 @@ import { federationServerService, type RemoteServer, type InviteInfo } from '@/s
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useRouter } from 'vue-router'
+import { debug } from '@/utils/debug'
 
 const emit = defineEmits<{
   close: []
@@ -227,7 +228,7 @@ async function joinServer() {
       // NOTE: Use /chat/ route for actual chat, not /server/ (which is for settings)
       if (result.defaultChannelId) {
         serverChannelStore.setCurrentChannel(result.defaultChannelId)
-        console.log('🎯 Navigating to default channel:', result.defaultChannelId)
+        debug.log('🎯 Navigating to default channel:', result.defaultChannelId)
         router.push(`/chat/${result.serverId}/${result.defaultChannelId}`)
       } else {
         // Fallback - try to get the first channel from discovered server
@@ -240,12 +241,12 @@ async function joinServer() {
         if (firstChannel) {
           const channelId = (firstChannel as any).localId || firstChannel.id?.split('/').pop()
           if (channelId) {
-            console.log('🎯 Navigating to fallback channel:', channelId)
+            debug.log('🎯 Navigating to fallback channel:', channelId)
             router.push(`/chat/${result.serverId}/${channelId}`)
             return
           }
         }
-        console.log('⚠️ No default channel found, navigating to DM page')
+        debug.log('⚠️ No default channel found, navigating to DM page')
         router.push('/dm')
       }
     } else {

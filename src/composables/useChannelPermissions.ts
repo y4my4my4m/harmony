@@ -1,36 +1,21 @@
 import { computed } from 'vue'
-import { useAuthStore } from '@/stores/auth'
-import { useServerUsersStore } from '@/stores/useServerUsers'
-import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useServerPermissions } from '@/composables/useServerPermissions'
 
 export function useChannelPermissions() {
-  const authStore = useAuthStore()
-  const serverUsersStore = useServerUsersStore()
-  const serverChannelStore = useServerChannelStore()
+  // Use the centralized server permissions composable that properly fetches from roleService
+  const { 
+    isCurrentUserServerOwner,
+    channelPermissions,
+    isLocalServer
+  } = useServerPermissions()
 
-  const currentUserId = computed(() => authStore.session?.user?.id)
-  const currentServerId = computed(() => serverChannelStore.currentServerId)
-  
-  const userRoles = computed(() => {
-    if (!currentUserId.value || !currentServerId.value) return []
-    const userProfile = serverUsersStore.userProfiles[currentUserId.value]
-    return userProfile?.roles || []
-  })
-
-  const isServerOwner = computed(() => {
-    if (!currentUserId.value || !currentServerId.value) return false
-    const server = serverChannelStore.currentServer
-    return server?.owner === currentUserId.value
-  })
-
-  const hasAdminRole = computed(() => {
-    return userRoles.value.some(role => role.permissions?.includes('administrator'))
-  })
-
+  // Consistent permission model: owner bypass + isLocalServer check for all channel operations
+  // This ensures semantic coherence - if you can drag, you can create/move/delete
   const hasManageChannelsPermission = computed(() => {
-    return isServerOwner.value || 
-           hasAdminRole.value || 
-           userRoles.value.some(role => role.permissions?.includes('manage_channels'))
+    // For federated servers, no local user can manage channels
+    if (!isLocalServer.value) return false
+    // For local servers, owner always has full access
+    return isCurrentUserServerOwner.value || channelPermissions.value.canMoveChannels
   })
 
   const canMoveChannels = computed(() => {
@@ -65,12 +50,12 @@ export function useChannelPermissions() {
     return hasManageChannelsPermission.value
   })
 
-  const canViewChannel = (channelId: string) => {
+  const canViewChannel = (_channelId: string) => {
     // Basic implementation - can be extended with channel-specific permissions
     return true
   }
 
-  const canAccessChannel = (channelId: string) => {
+  const canAccessChannel = (_channelId: string) => {
     // Basic implementation - can be extended with channel-specific permissions
     return true
   }
@@ -110,14 +95,8 @@ export function useChannelPermissions() {
   }
 
   return {
-    // User info
-    currentUserId,
-    currentServerId,
-    userRoles,
-    
     // Server-level permissions
-    isServerOwner,
-    hasAdminRole,
+    isServerOwner: isCurrentUserServerOwner,
     hasManageChannelsPermission,
     hasAnyChannelPermissions,
     

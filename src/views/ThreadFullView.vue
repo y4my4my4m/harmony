@@ -250,9 +250,26 @@ const formatDate = (date: string | Date) => {
 
 // Load thread
 const loadThread = async () => {
+  // Check if we have cached messages - if so, show instantly without loading indicator
+  const cachedMessages = threadService.getCachedMessages(props.threadId)
+  if (cachedMessages) {
+    // Use cached data instantly - no loading indicator
+    messages.value = cachedMessages.messages
+    hasMore.value = cachedMessages.has_more
+    
+    // Still load thread metadata in background
+    thread.value = await threadService.getThread(props.threadId, false)
+    isMember.value = thread.value?.is_member ?? true
+    
+    await nextTick()
+    scrollToBottom()
+    return
+  }
+  
+  // No cache - show loading indicator
   loading.value = true
   try {
-    thread.value = await threadService.getThread(props.threadId, true)
+    thread.value = await threadService.getThread(props.threadId, false)
     isMember.value = thread.value?.is_member ?? true
     
     if (thread.value) {

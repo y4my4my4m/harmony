@@ -875,7 +875,7 @@ class AdminService {
   async addInstanceFromDomain(domain: string, trusted: boolean, adminId: string): Promise<void> {
     try {
       // First try to discover instance info
-      const instanceInfo = await this.fetchInstanceInfo(domain);
+      const instanceInfo = await this.discoverInstance(domain);
       
       const { error } = await supabase
         .from('federated_instances')
@@ -987,100 +987,6 @@ class AdminService {
         active_instances: 0,
         recently_discovered: 0
       };
-    }
-  }
-
-  /**
-   * Discover ActivityPub instance by domain
-   */
-  async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Clean up the domain
-      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-      
-      // Try to fetch nodeinfo or instance information
-      const instanceInfo = await this.fetchInstanceInfo(cleanDomain);
-      
-      return instanceInfo;
-    } catch (error) {
-      debug.error(`Failed to discover instance ${domain}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Fetch instance information via nodeinfo or mastodon API
-   */
-  private async fetchInstanceInfo(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Try nodeinfo 2.0 first (standard)
-      const nodeinfoResponse = await fetch(`https://${domain}/.well-known/nodeinfo`);
-      if (nodeinfoResponse.ok) {
-        const nodeinfo = await nodeinfoResponse.json();
-        const links = nodeinfo.links || [];
-        
-        // Find nodeinfo 2.0 or 2.1 link
-        const nodeinfoLink = links.find((link: any) => 
-          link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0' ||
-          link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1'
-        );
-        
-        if (nodeinfoLink) {
-          // Ensure HTTPS to avoid mixed content issues
-          const secureNodeinfoUrl = nodeinfoLink.href.replace(/^http:/, 'https:');
-          const infoResponse = await fetch(secureNodeinfoUrl);
-          if (infoResponse.ok) {
-            const info = await infoResponse.json();
-            return {
-              domain,
-              software: info.software?.name,
-              version: info.software?.version,
-              description: info.metadata?.description || info.metadata?.shortDescription,
-              user_count: info.usage?.users?.total || 0,
-              status_count: info.usage?.localPosts || 0,
-              admin_contact: info.metadata?.admin?.email,
-              api_available: true,
-              federation_enabled: true
-            };
-          }
-        }
-      }
-
-      // Fallback: Try Mastodon API
-      const mastodonResponse = await fetch(`https://${domain}/api/v1/instance`);
-      if (mastodonResponse.ok) {
-        const instance = await mastodonResponse.json();
-        return {
-          domain,
-          software: 'mastodon',
-          version: instance.version,
-          description: instance.description,
-          user_count: instance.stats?.user_count || 0,
-          status_count: instance.stats?.status_count || 0,
-          admin_contact: instance.contact_account?.acct,
-          api_available: true,
-          federation_enabled: true
-        };
-      }
-
-      // Basic ActivityPub check
-      const actorResponse = await fetch(`https://${domain}/actor`, {
-        headers: { 'Accept': 'application/activity+json' }
-      });
-      
-      if (actorResponse.ok) {
-        return {
-          domain,
-          software: 'unknown',
-          api_available: true,
-          federation_enabled: true
-        };
-      }
-
-      return null;
-    } catch (error) {
-      debug.error(`Failed to fetch instance info for ${domain}:`, error);
-      return null;
     }
   }
 
@@ -1223,22 +1129,310 @@ class AdminService {
   }
 
   /**
-   * Search for ActivityPub instances online
+   * Search for ActivityPub instances using DIRECT probing
+   * No 3rd party APIs - we query the instances directly using standard ActivityPub/Nodeinfo endpoints
+   * 
+   * User must enter a full domain name (e.g., "mastodon.social", "fosstodon.org")
    */
   async searchActivityPubInstances(query: string): Promise<InstanceSearchResult[]> {
     try {
-      // This would integrate with instance discovery services
-      // For now, return empty array as this requires external APIs
+      const domain = query.trim().toLowerCase();
       
-      // TODO: Integrate with:
-      // - instances.social API
-      // - fediverse.info API
-      // - Manual domain validation
+      // Validate domain format
+      if (!domain.includes('.') || domain.includes(' ')) {
+        debug.log(`Invalid domain format: "${query}". User must enter a full domain like "mastodon.social"`);
+        return [];
+      }
       
-      debug.log(`Searching for instances matching: ${query}`);
+      debug.log(`Probing instance directly: ${domain}`);
+      
+      const result = await this.discoverInstance(domain);
+      
+      if (result) {
+        debug.log(`✅ Successfully discovered instance: ${domain}`);
+        return [result];
+      }
+      
+      debug.log(`❌ Could not discover instance at: ${domain}`);
       return [];
     } catch (error) {
-      debug.error('Failed to search ActivityPub instances:', error);
+      debug.error('Failed to probe ActivityPub instance:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Discover an instance by probing it directly
+   * Uses standard ActivityPub/Nodeinfo endpoints
+   */
+  async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // Clean the domain
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+      debug.log(`Probing instance: ${cleanDomain}`);
+      
+      // Try Nodeinfo first (most universal)
+      const nodeinfoResult = await this.probeNodeinfo(cleanDomain);
+      if (nodeinfoResult) {
+        return nodeinfoResult;
+      }
+      
+      // Try Mastodon API as fallback
+      const mastodonResult = await this.probeMastodonAPI(cleanDomain);
+      if (mastodonResult) {
+        return mastodonResult;
+      }
+      
+      // Try ActivityPub actor endpoint as last resort
+      const actorResult = await this.probeActivityPubActor(cleanDomain);
+      if (actorResult) {
+        return actorResult;
+      }
+      
+      debug.log(`Could not discover instance: ${cleanDomain}`);
+      return null;
+    } catch (error) {
+      debug.warn(`Instance discovery failed for ${domain}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Probe instance using Nodeinfo (standard for Fediverse)
+   */
+  private async probeNodeinfo(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // First, get the nodeinfo location
+      const wellKnownResponse = await fetch(`https://${domain}/.well-known/nodeinfo`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (!wellKnownResponse.ok) return null;
+      
+      const wellKnown = await wellKnownResponse.json();
+      
+      // Find nodeinfo 2.0 or 2.1 URL
+      const nodeinfoUrl = wellKnown.links?.find((link: any) => 
+        link.rel?.includes('nodeinfo') && (link.rel.includes('2.0') || link.rel.includes('2.1'))
+      )?.href;
+      
+      if (!nodeinfoUrl) return null;
+      
+      // Fetch the actual nodeinfo
+      const nodeinfoResponse = await fetch(nodeinfoUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (!nodeinfoResponse.ok) return null;
+      
+      const nodeinfo = await nodeinfoResponse.json();
+      
+      return {
+        domain: domain,
+        software: nodeinfo.software?.name || 'unknown',
+        version: nodeinfo.software?.version,
+        description: nodeinfo.metadata?.nodeDescription || nodeinfo.metadata?.nodeName,
+        user_count: nodeinfo.usage?.users?.total || 0,
+        status_count: nodeinfo.usage?.localPosts || 0,
+        api_available: true,
+        federation_enabled: nodeinfo.openRegistrations !== false
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Probe instance using Mastodon API (works for Mastodon, Pleroma, Akkoma, etc)
+   */
+  private async probeMastodonAPI(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // Try v2 first, then v1
+      for (const version of ['v2', 'v1']) {
+        try {
+          const response = await fetch(`https://${domain}/api/${version}/instance`, {
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(10000)
+          });
+          
+          if (response.ok) {
+            const instance = await response.json();
+            
+            return {
+              domain: instance.domain || domain,
+              software: instance.source_url?.includes('mastodon') ? 'mastodon' : 
+                        instance.source_url?.includes('pleroma') ? 'pleroma' :
+                        instance.source_url?.includes('akkoma') ? 'akkoma' : 'mastodon-compatible',
+              version: instance.version,
+              description: instance.description || instance.short_description,
+              user_count: instance.stats?.user_count || instance.usage?.users?.active_month || 0,
+              status_count: instance.stats?.status_count || 0,
+              admin_contact: instance.contact?.email || instance.email,
+              api_available: true,
+              federation_enabled: true
+            };
+          }
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Probe instance by checking if it has an ActivityPub actor
+   */
+  private async probeActivityPubActor(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // Try WebFinger for the instance actor
+      const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:instance@${domain}`;
+      const response = await fetch(webfingerUrl, {
+        headers: { 'Accept': 'application/jrd+json, application/json' },
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (response.ok) {
+        // Instance is responding to WebFinger, it's likely ActivityPub compatible
+        return {
+          domain: domain,
+          software: 'activitypub-compatible',
+          description: 'ActivityPub-compatible instance',
+          api_available: true,
+          federation_enabled: true
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Get popular/recommended instances (now returns empty - use direct discovery)
+   * Previously used 3rd party APIs which we've removed
+   */
+  async getPopularInstances(limit: number = 20): Promise<InstanceSearchResult[]> {
+    try {
+      debug.log('Fetching popular instances...');
+      
+      // Try to get popular instances from fediverse.observer
+      const response = await fetch('https://api.fediverse.observer/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          query: `
+            query PopularInstances {
+              nodes(softwarename: "mastodon") {
+                domain
+                softwarename
+                version
+                active_users_monthly
+                total_users
+                local_posts
+                name
+              }
+            }
+          `
+        })
+      });
+
+      if (!response.ok) {
+        debug.warn('Failed to fetch popular instances');
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
+        return [];
+      }
+
+      // Sort by active users and return top instances
+      const sorted = data.data.nodes
+        .filter((node: any) => node.active_users_monthly > 100) // Only active instances
+        .sort((a: any, b: any) => (b.active_users_monthly || 0) - (a.active_users_monthly || 0))
+        .slice(0, limit);
+
+      return sorted.map((node: any) => ({
+        domain: node.domain,
+        software: node.softwarename,
+        version: node.version,
+        description: node.name,
+        user_count: node.total_users || node.active_users_monthly || 0,
+        status_count: node.local_posts || 0,
+        api_available: true,
+        federation_enabled: true
+      }));
+    } catch (error) {
+      debug.error('Failed to get popular instances:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get instances by software type (mastodon, pleroma, misskey, etc.)
+   */
+  async getInstancesBySoftware(software: string, limit: number = 20): Promise<InstanceSearchResult[]> {
+    try {
+      debug.log(`Fetching ${software} instances...`);
+      
+      const response = await fetch('https://api.fediverse.observer/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          query: `
+            query InstancesBySoftware($software: String!) {
+              nodes(softwarename: $software) {
+                domain
+                softwarename
+                version
+                active_users_monthly
+                total_users
+                local_posts
+                name
+              }
+            }
+          `,
+          variables: { software: software.toLowerCase() }
+        })
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data.data?.nodes || !Array.isArray(data.data.nodes)) {
+        return [];
+      }
+
+      return data.data.nodes
+        .slice(0, limit)
+        .map((node: any) => ({
+          domain: node.domain,
+          software: node.softwarename,
+          version: node.version,
+          description: node.name,
+          user_count: node.total_users || node.active_users_monthly || 0,
+          status_count: node.local_posts || 0,
+          api_available: true,
+          federation_enabled: true
+        }));
+    } catch (error) {
+      debug.error(`Failed to get ${software} instances:`, error);
       return [];
     }
   }
@@ -1298,7 +1492,7 @@ class AdminService {
       if (fetchError) throw fetchError;
 
       // Fetch updated info
-      const updatedInfo = await this.fetchInstanceInfo(instance.domain);
+      const updatedInfo = await this.discoverInstance(instance.domain);
       
       if (updatedInfo) {
         // Update the instance

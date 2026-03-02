@@ -1,5 +1,5 @@
 <template>
-  <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
+  <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll" @click="dismissMobileActions">
     <!-- Loading skeletons when initially loading messages -->
     <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
       <div v-for="n in 5" :key="`skeleton-${n}`" class="skeleton-message">
@@ -24,250 +24,279 @@
       <span>{{ $t('message.loadingOlder') }}</span>
     </div>
     
-    <template v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
-      <!-- Beginning of conversation indicator (only show when all messages loaded) -->
-      <div v-if="index === 0 && hasScrollbar && isAllMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
-        <div class="beginning-content">
-          <div class="beginning-icon">🌟</div>
-          <div class="beginning-text">
-            <div class="beginning-title">{{ $t('message.conversationBeginning') }}</div>
-            <div class="beginning-subtitle">{{ $t('message.conversationBeginningSubtitle') }}</div>
-          </div>
+    <!-- Blocked Message Groups (Discord-like) -->
+    <template v-for="(item, itemIndex) in displayItems" :key="item.key">
+      <!-- Blocked Group Placeholder -->
+      <div v-if="item.type === 'blocked-group'" class="blocked-message-group">
+        <div class="blocked-group-content">
+          <span class="blocked-icon">🚫</span>
+          <span class="blocked-text">{{ item.count }} blocked message{{ item.count > 1 ? 's' : '' }}</span>
+          <span class="blocked-separator">—</span>
+          <button class="reveal-btn" @click="revealBlockedGroup(item.groupId)">
+            Show message{{ item.count > 1 ? 's' : '' }}
+          </button>
         </div>
       </div>
-
-      <!-- Date separator -->
-      <div v-if="shouldShowDateSeparator(message, index)" class="date-separator">
-        <div class="date-separator-line"></div>
-        <span class="date-separator-text">{{ formatDateSeparator(message.created_at) }}</span>
-        <div class="date-separator-line"></div>
-      </div>
-
-      <div 
-        :id="`message-${message.id}`" 
-        :data-message-id="message.id"
-        class="message-item" 
-        @mouseover="hoveredMessageId = message.id" 
-        @mouseleave="hoveredMessageId = null"
-      >
-        <!-- Gap indicator for jumped-to messages -->
-        <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
-          <div class="gap-line"></div>
-          <div class="gap-text">{{ $t('message.jumpInConversation') }}</div>
-          <div class="gap-line"></div>
-        </div>
-
-        <!-- System Message (join/leave announcements, thread creation) -->
-        <div v-if="message.is_system" class="system-message">
-          <div class="system-message-content">
-            <div class="system-timestamp" v-html="formatSystemTimestamp(message.created_at)"></div>
-            <div class="system-content">
-              <!-- Thread created system message -->
-              <template v-if="message.metadata?.type === 'thread_created'">
-                <div class="system-icon">🧵</div>
-                <div class="system-text thread-created-text">
-                  <span 
-                    class="system-user-mention"
-                    @click="showUserProfile(message.user_id)"
-                    :style="{ color: getUserColor(message.user_id).value }"
-                  >{{ getUserDisplayName(message.user_id).value }}</span>
-                  started a thread: 
-                  <span 
-                    class="system-thread-link"
-                    @click="handleOpenThread(message.metadata?.thread_id)"
-                  >{{ message.metadata?.thread_name || 'Thread' }}</span>. 
-                  See 
-                  <span 
-                    class="system-threads-link"
-                    @click="emit('showAllThreads')"
-                  >all threads</span>.
-                </div>
-              </template>
-              <!-- Default system message (join/leave, etc.) -->
-              <template v-else>
-                <div class="system-icon">👋</div>
-                <div class="system-text">
-                  <UnifiedMessageContent 
-                    :content="message.content"
-                    :message-id="message.id"
-                    :is-system="true"
-                    :embed-payloads="message.metadata?.embeds"
-                    @show-user-profile="showUserProfile"
-                  />
-                </div>
-              </template>
+      
+      <!-- Regular Message or Revealed Blocked Message -->
+      <template v-else-if="item.type === 'message'">
+        <!-- Beginning of conversation indicator (only show when all messages loaded) -->
+        <div v-if="item.index === 0 && hasScrollbar && isAllMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
+          <div class="beginning-content">
+            <div class="beginning-icon">🌟</div>
+            <div class="beginning-text">
+              <div class="beginning-title">{{ $t('message.conversationBeginning') }}</div>
+              <div class="beginning-subtitle">{{ $t('message.conversationBeginningSubtitle') }}</div>
             </div>
           </div>
-          
-          <!-- Message actions for system messages (if hovered) -->
-          <div class="message-actions" v-if="hoveredMessageId === message.id">
-            <div class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
-            <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
-            <div class="action-btn" @click="openContextMenu(message, $event)"><MoreIcon/></div>
-          </div>
-          
-          <!-- Reactions for system messages -->
-          <MessageReactions
-            :message="message"
-            @toggle-reaction="handleToggleReaction"
-            @show-reaction-tooltip="showTooltip"
-            @hide-reaction-tooltip="hideTooltip"
-            @open-emoji-picker="handleOpenEmojiPicker"
-          />
         </div>
 
-        <!-- Regular Message Content -->
-        <template v-else>
-          <!-- Reply reference -->
-          <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="reply-reference">
+        <!-- Date separator -->
+        <div v-if="shouldShowDateSeparator(item.message, item.index)" class="date-separator">
+          <div class="date-separator-line"></div>
+          <span class="date-separator-text">{{ formatDateSeparator(item.message.created_at) }}</span>
+          <div class="date-separator-line"></div>
+        </div>
+
+        <div 
+          :id="`message-${item.message.id}`" 
+          :data-message-id="item.message.id"
+          class="message-item" 
+          :class="{ 
+            'shake-reject': isMessageShaking(item.message.id),
+            'revealed-blocked': item.isRevealed
+          }"
+          @mouseover="handleMessageMouseover(item.message.id)" 
+          @mouseleave="handleMessageMouseleave"
+          @touchstart.passive="handleMessageTouchStart(item.message.id)"
+          @touchend.passive="handleMessageTouchEnd"
+          @touchmove.passive="handleMessageTouchMove"
+        >
+          <!-- Hide button for revealed blocked messages -->
+          <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
+            <span class="blocked-warning">⚠️ {{ item.revealedCount }} message{{ item.revealedCount > 1 ? 's' : '' }} from blocked user</span>
+            <button class="hide-btn" @click="hideBlockedGroup(item.groupId)">Hide</button>
+          </div>
+          
+          <!-- Gap indicator for jumped-to messages -->
+          <div v-if="chatStore.messageGaps.has(`gap-before-${item.message.id}`)" class="message-gap">
+            <div class="gap-line"></div>
+            <div class="gap-text">{{ $t('message.jumpInConversation') }}</div>
+            <div class="gap-line"></div>
+          </div>
+
+          <!-- System Message (join/leave announcements, thread creation) -->
+          <div v-if="item.message.is_system" class="system-message">
+            <div class="system-message-content">
+              <div class="system-timestamp" v-html="formatSystemTimestamp(item.message.created_at)"></div>
+              <div class="system-content">
+                <!-- Thread created system message -->
+                <template v-if="item.message.metadata?.type === 'thread_created'">
+                  <div class="system-icon">🧵</div>
+                  <div class="system-text thread-created-text">
+                    <span 
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: getUserColor(item.message.user_id).value }"
+                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    started a thread: 
+                    <span 
+                      class="system-thread-link"
+                      @click="handleOpenThread(item.message.metadata?.thread_id)"
+                    >{{ item.message.metadata?.thread_name || 'Thread' }}</span>. 
+                    See 
+                    <span 
+                      class="system-threads-link"
+                      @click="emit('showAllThreads')"
+                    >all threads</span>.
+                  </div>
+                </template>
+                <!-- Default system message (join/leave, etc.) -->
+                <template v-else>
+                  <div class="system-icon">👋</div>
+                  <div class="system-text">
+                    <UnifiedMessageContent 
+                      :content="item.message.content"
+                      :message-id="item.message.id"
+                      :is-system="true"
+                      :embed-payloads="item.message.metadata?.embeds"
+                      @show-user-profile="showUserProfile"
+                    />
+                  </div>
+                </template>
+              </div>
+            </div>
+            
+            <!-- Message actions for system messages (if hovered) -->
+            <div class="message-actions" v-if="hoveredMessageId === item.message.id">
+              <div class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
+              <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id)"><DeleteIcon/></div>
+              <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
+            </div>
+            
+            <!-- Reactions for system messages -->
+            <MessageReactions
+              :message="item.message"
+              @toggle-reaction="handleToggleReaction"
+              @show-reaction-tooltip="showTooltip"
+              @hide-reaction-tooltip="hideTooltip"
+              @open-emoji-picker="handleOpenEmojiPicker"
+            />
+          </div>
+
+          <!-- Regular Message Content -->
+          <template v-else>
+            <!-- Reply reference -->
+            <div v-if="item.message.reply_to" @click="handleReplyClick(item.message.reply_to)" class="reply-reference">
             <div class="reply-spine"></div>
             <div class="reply-content">
               <Avatar 
-                :src="getReplyUserAvatar(message.reply_to)"
+                :src="getReplyUserAvatar(item.message.reply_to)"
                 size="mini"
                 class="reply-avatar"
               />
-              <div class="reply-username" :style="{ color: getReplyUserColor(message.reply_to) }">
-                {{ getReplyUserDisplayName(message.reply_to) }}
+              <div class="reply-username" :style="{ color: getReplyUserColor(item.message.reply_to) }">
+                {{ getReplyUserDisplayName(item.message.reply_to) }}
               </div>
               <div class="reply-preview">
-                {{ getReplyMessagePreview(message.reply_to) }}
+                {{ getReplyMessagePreview(item.message.reply_to) }}
               </div>
             </div>
           </div>
           
           <!-- Message content with proper alignment -->
-      <div class="message-group" :class="{ 'has-header': shouldShowHeader(message, index), 'compact': !shouldShowHeader(message, index) }">
-        <!-- Message header (avatar + username + timestamp) -->
-        <div v-if="shouldShowHeader(message, index)" class="message-header">
-          <div class="message-avatar">
-            <Avatar 
-              :src="getAuthorAvatarUrl(message).value"
-              size="sm" 
-              :interactive="true"
-              @click="getMessageAuthorId(message) && showUserProfile(getMessageAuthorId(message), $event)"
-            />
+          <div class="message-group" :class="{ 'has-header': shouldShowHeader(item.message, item.index), 'compact': !shouldShowHeader(item.message, item.index) }">
+            <!-- Message header (avatar + username + timestamp) -->
+            <div v-if="shouldShowHeader(item.message, item.index)" class="message-header">
+              <div class="message-avatar">
+                <Avatar 
+                  :src="getAuthorAvatarUrl(item.message).value"
+                  size="sm" 
+                  :interactive="true"
+                  @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)"
+                />
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <span class="username" :style="{color: getAuthorColor(message).value}" @click="getMessageAuthorId(message) && showUserProfile(getMessageAuthorId(message), $event)">
-                {{ getAuthorDisplayName(message).value }}
-                <span v-if="hasDiscordUserMetadata(message)" class="bot-badge discord">DISCORD</span>
-                <span v-else-if="isMessageFromBot(message)" class="bot-badge">BOT</span>
+              <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)">
+                {{ getAuthorDisplayName(item.message).value }}
+                <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
+                <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
               </span>
               <span class="timestamp">
-                {{ formatTimestamp(message.created_at) }}
+                {{ formatTimestamp(item.message.created_at) }}
                 <!-- Pin indicator -->
                 <span 
-                  v-if="message.is_pinned" 
+                  v-if="item.message.is_pinned" 
                   class="pin-indicator"
                   title="Pinned message"
                 >📌</span>
                 <!-- Encryption indicators -->
                 <span 
-                  v-if="message.decrypted" 
+                  v-if="item.message.decrypted" 
                   class="encryption-dot decrypted"
                   :title="'End-to-end encrypted'"
                 ></span>
                 <span 
-                  v-else-if="message.encrypted" 
+                  v-else-if="item.message.encrypted" 
                   class="encryption-indicator locked"
                   :title="'End-to-end encrypted - You cannot decrypt this message'"
                 >🔒</span>
               </span>
             </div>
             <UnifiedMessageContent 
-              :content="message.content"
-              :message-id="message.id"
+              :content="item.message.content"
+              :message-id="item.message.id"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
-              :is-single-emoji="checkSingleEmoji(message.content)"
-              :embed-payloads="message.metadata?.embeds"
-              :encrypted="message.encrypted || false"
-              :decrypted="message.decrypted || false"
+              :is-single-emoji="checkSingleEmoji(item.message.content)"
+              :embed-payloads="item.message.metadata?.embeds"
+              :encrypted="item.message.encrypted || false"
+              :decrypted="item.message.decrypted || false"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
-              @embed-loaded="handleEmbedLoaded(message.id)"
+              @embed-loaded="handleEmbedLoaded(item.message.id)"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
-              @decrypt-message="handleDecryptMessage(message)"
+              @decrypt-message="handleDecryptMessage(item.message)"
             />
             <!-- Edited indicator for messages with headers -->
             <span 
-              v-if="isMessageEdited(message)" 
+              v-if="isMessageEdited(item.message)" 
               class="edited-indicator inline"
-              :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
+              :title="item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
             >(edited)</span>
           </div>
         </div>
         
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
-          <div class="message-gutter" :data-timestamp="formatTimeOnly(message.created_at)"></div>
+          <div class="message-gutter" :data-timestamp="formatTimeOnly(item.message.created_at)"></div>
           <div class="message-main">
             <UnifiedMessageContent 
-              :content="message.content"
-              :message-id="message.id"
+              :content="item.message.content"
+              :message-id="item.message.id"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
-              :is-single-emoji="checkSingleEmoji(message.content)"
-              :embed-payloads="message.metadata?.embeds"
-              :encrypted="message.encrypted || false"
-              :decrypted="message.decrypted || false"
+              :is-single-emoji="checkSingleEmoji(item.message.content)"
+              :embed-payloads="item.message.metadata?.embeds"
+              :encrypted="item.message.encrypted || false"
+              :decrypted="item.message.decrypted || false"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
-              @embed-loaded="handleEmbedLoaded(message.id)"
+              @embed-loaded="handleEmbedLoaded(item.message.id)"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
-              @decrypt-message="handleDecryptMessage(message)"
+              @decrypt-message="handleDecryptMessage(item.message)"
             />
             <!-- Edited indicator for compact messages -->
             <span 
-              v-if="isMessageEdited(message)" 
+              v-if="isMessageEdited(item.message)" 
               class="edited-indicator compact"
-              :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
+              :title="item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
             >(edited)</span>
           </div>
         </div>
         
         <!-- Message actions -->
-        <div class="message-actions" v-if="hoveredMessageId === message.id">
-          <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
-          <div class="action-btn" @click="replyTo(message)"><ReplyIcon/></div>
-          <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(message)" title="Create Thread"><ThreadIcon/></div>
-          <div class="action-btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
-          <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
-          <div class="action-btn" @click="openContextMenu(message, $event)"><MoreIcon/></div>
+        <div class="message-actions" v-if="hoveredMessageId === item.message.id">
+          <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
+          <div class="action-btn" @click="replyTo(item.message)"><ReplyIcon/></div>
+          <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
+          <div class="action-btn" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
+          <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id)"><DeleteIcon/></div>
+          <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
         </div>
         
         <!-- Reactions -->
         <MessageReactions
-          :message="message"
+          :message="item.message"
           @toggle-reaction="handleToggleReaction"
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
           @open-emoji-picker="handleOpenEmojiPicker"
         />
         
-        <!-- Thread Indicator (if this message started a thread) - hidden in thread view -->
-        <ThreadIndicator
-          v-if="!props.hideThreadActions && getThreadForMessage(message.id)"
-          :thread="getThreadForMessage(message.id)"
-          @open="openThread"
-          class="message-thread-indicator"
-        />
-      </div>
+          <!-- Thread Indicator (if this message started a thread) - hidden in thread view -->
+          <ThreadIndicator
+            v-if="!props.hideThreadActions && getThreadForMessage(item.message.id)"
+            :thread="getThreadForMessage(item.message.id)"
+            @open="openThread"
+            class="message-thread-indicator"
+          />
+        </div>
         </template>
       </div>
     </template>
+  </template>
   </div>
   
   <vue-easy-lightbox
@@ -349,7 +378,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
@@ -359,10 +388,12 @@ import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useNotificationStore } from '@/stores/useNotification';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useLayoutState } from '@/composables/useLayoutState';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -415,9 +446,234 @@ const serverChannelStore = useServerChannelStore();
 const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
+const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
+
+// Track which blocked message groups the user has chosen to reveal (by first message ID in group)
+const revealedBlockedGroups = ref<Set<string>>(new Set());
+
+// Force reactivity counter - increment when blocked users change
+// This is updated by watching the store's blockedUsers size
+const blockCheckVersion = ref(0);
+
+// Reactive computed that tracks the blocked users count for change detection
+const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size);
+
+// Watch for changes to blocked users count and force re-evaluation
+watch(blockedUsersCount, (newCount, oldCount) => {
+  blockCheckVersion.value++;
+  debug.log('🔄 Blocked users changed, forcing re-render. Count:', newCount);
+});
+
+// Check if a message is from a blocked user (reactive)
+const isMessageFromBlockedUser = (message: Message): boolean => {
+  // Access the version to make this reactive to blocked user changes
+  blockCheckVersion.value;
+  
+  const authorId = message.user_id || message.bot_id;
+  if (!authorId) return false;
+  
+  // Use the store getter for reliable reactive access
+  const isBlocked = activityPubStore.isBlocked(authorId);
+  
+  // Debug: log check for first few messages
+  if (debug.isEnabled && props.messages.indexOf(message) < 3) {
+    debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
+  }
+  
+  return isBlocked;
+};
+
+// Computed: Group consecutive blocked messages together (Discord-like)
+interface BlockedMessageGroup {
+  type: 'blocked-group';
+  firstMessageId: string;
+  messageIds: string[];
+  count: number;
+}
+
+interface ProcessedMessage {
+  type: 'message' | 'blocked-group';
+  message?: Message;
+  group?: BlockedMessageGroup;
+  index: number;
+}
+
+const processedMessages = computed((): ProcessedMessage[] => {
+  // Force reactivity
+  blockCheckVersion.value;
+  
+  const result: ProcessedMessage[] = [];
+  let currentBlockedGroup: BlockedMessageGroup | null = null;
+  
+  props.messages.forEach((message, index) => {
+    const isBlocked = isMessageFromBlockedUser(message);
+    const isRevealed = currentBlockedGroup && revealedBlockedGroups.value.has(currentBlockedGroup.firstMessageId);
+    
+    if (isBlocked && !isRevealed) {
+      // Start or continue a blocked group
+      if (!currentBlockedGroup) {
+        currentBlockedGroup = {
+          type: 'blocked-group',
+          firstMessageId: message.id,
+          messageIds: [message.id],
+          count: 1
+        };
+      } else {
+        currentBlockedGroup.messageIds.push(message.id);
+        currentBlockedGroup.count++;
+      }
+    } else {
+      // End current blocked group if exists
+      if (currentBlockedGroup) {
+        result.push({
+          type: 'blocked-group',
+          group: currentBlockedGroup,
+          index: result.length
+        });
+        currentBlockedGroup = null;
+      }
+      
+      // Add regular message
+      result.push({
+        type: 'message',
+        message,
+        index
+      });
+    }
+  });
+  
+  // Don't forget the last blocked group
+  if (currentBlockedGroup) {
+    result.push({
+      type: 'blocked-group',
+      group: currentBlockedGroup,
+      index: result.length
+    });
+  }
+  
+  return result;
+});
+
+// Check if a blocked group has been revealed
+const isBlockedGroupRevealed = (firstMessageId: string): boolean => {
+  return revealedBlockedGroups.value.has(firstMessageId);
+};
+
+// Reveal a blocked message group
+const revealBlockedGroup = (firstMessageId: string) => {
+  revealedBlockedGroups.value.add(firstMessageId);
+  // Force re-computation
+  blockCheckVersion.value++;
+};
+
+// Hide a revealed blocked message group
+const hideBlockedGroup = (firstMessageId: string) => {
+  revealedBlockedGroups.value.delete(firstMessageId);
+  // Force re-computation
+  blockCheckVersion.value++;
+};
+
+// Get messages in a revealed blocked group
+const getRevealedBlockedMessages = (messageIds: string[]): Message[] => {
+  return props.messages.filter(m => messageIds.includes(m.id));
+};
+
+// Legacy functions for backwards compatibility
+const isBlockedMessageRevealed = (messageId: string): boolean => {
+  return revealedBlockedGroups.value.has(messageId);
+};
+
+const revealBlockedMessage = (messageId: string) => {
+  revealedBlockedGroups.value.add(messageId);
+  blockCheckVersion.value++;
+};
+
+const hideBlockedMessage = (messageId: string) => {
+  revealedBlockedGroups.value.delete(messageId);
+  blockCheckVersion.value++;
+};
+
+// Display items: transforms messages into displayable items with blocked groups
+interface DisplayItem {
+  type: 'message' | 'blocked-group';
+  key: string;
+  message?: Message;
+  index?: number;
+  // For blocked groups
+  groupId?: string;
+  count?: number;
+  // For revealed blocked messages
+  isRevealed?: boolean;
+  isFirstInRevealedGroup?: boolean;
+  revealedCount?: number;
+}
+
+const displayItems = computed((): DisplayItem[] => {
+  // Force reactivity
+  blockCheckVersion.value;
+  
+  const result: DisplayItem[] = [];
+  let i = 0;
+  
+  while (i < props.messages.length) {
+    const message = props.messages[i];
+    const isBlocked = isMessageFromBlockedUser(message);
+    
+    if (isBlocked) {
+      // Find consecutive blocked messages
+      const groupStartIndex = i;
+      const groupId = message.id;
+      const groupMessages: Message[] = [];
+      
+      while (i < props.messages.length && isMessageFromBlockedUser(props.messages[i])) {
+        groupMessages.push(props.messages[i]);
+        i++;
+      }
+      
+      const isRevealed = revealedBlockedGroups.value.has(groupId);
+      
+      if (isRevealed) {
+        // Show revealed messages individually with a banner on the first one
+        groupMessages.forEach((msg, idx) => {
+          result.push({
+            type: 'message',
+            key: `msg-${msg.id}`,
+            message: msg,
+            index: groupStartIndex + idx,
+            isRevealed: true,
+            isFirstInRevealedGroup: idx === 0,
+            groupId: groupId,
+            revealedCount: groupMessages.length
+          });
+        });
+      } else {
+        // Show as a collapsed group
+        result.push({
+          type: 'blocked-group',
+          key: `blocked-${groupId}`,
+          groupId: groupId,
+          count: groupMessages.length
+        });
+      }
+    } else {
+      // Regular message
+      result.push({
+        type: 'message',
+        key: `msg-${message.id}`,
+        message: message,
+        index: i,
+        isRevealed: false
+      });
+      i++;
+    }
+  }
+  
+  return result;
+});
 const { isCurrentUserServerOwner } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
+const { isMobile } = useLayoutState();
 const { 
   getUserDisplayName, 
   getUserColor, 
@@ -677,6 +933,50 @@ const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
 const editableMessageId = ref<string | null>(null);
 const editableMessageContent = ref('');
 const hoveredMessageId = ref<string | null>(null);
+const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const LONG_PRESS_DURATION = 500;
+
+const handleMessageMouseover = (messageId: string) => {
+  if (!isMobile.value) {
+    hoveredMessageId.value = messageId;
+  }
+};
+
+const handleMessageMouseleave = () => {
+  if (!isMobile.value) {
+    hoveredMessageId.value = null;
+  }
+};
+
+const handleMessageTouchStart = (messageId: string) => {
+  longPressTimer.value = setTimeout(() => {
+    hoveredMessageId.value = messageId;
+    triggerInteraction();
+  }, LONG_PRESS_DURATION);
+};
+
+const handleMessageTouchEnd = () => {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
+};
+
+const handleMessageTouchMove = () => {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
+};
+
+const dismissMobileActions = (event: MouseEvent) => {
+  if (!isMobile.value || !hoveredMessageId.value) return;
+  const target = event.target as HTMLElement;
+  if (!target.closest('.message-actions')) {
+    hoveredMessageId.value = null;
+  }
+};
+
 const isAtTop = ref(false);
 const hasScrollbar = ref(false);
 const bufferDistance = ref(0);
@@ -1154,6 +1454,9 @@ onUnmounted(() => {
   if (messageDisplayContainer.value) {
     messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
   }
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+  }
 });
 
 // --- METHODS ---
@@ -1475,9 +1778,34 @@ const openEmojiReactor = (message: Message, event: MouseEvent) => {
   emit('toggleEmojiList', true, message, event.currentTarget as HTMLElement);
 };
 
+// Track messages with shake animation for blocked reaction attempts
+const shakingMessages = ref<Set<string>>(new Set());
+
 const handleToggleReaction = (messageId: string, emoji: Emoji) => {
   if (tooltip.value.visible) hideTooltip();
+  
+  // Check if the message is from a blocked user - refuse reaction with shake
+  const message = props.messages.find(m => m.id === messageId);
+  if (message && isMessageFromBlockedUser(message)) {
+    // Add shake animation
+    shakingMessages.value.add(messageId);
+    triggerDestructive(); // Haptic feedback
+    
+    // Remove shake after animation completes
+    setTimeout(() => {
+      shakingMessages.value.delete(messageId);
+    }, 500);
+    
+    debug.warn('Cannot react to message from blocked user');
+    return;
+  }
+  
   emit('sendReaction', messageId, emoji);
+};
+
+// Check if a message is currently shaking (blocked reaction attempt)
+const isMessageShaking = (messageId: string): boolean => {
+  return shakingMessages.value.has(messageId);
 };
 
 // Handle opening emoji picker from inline add reaction button
@@ -2215,7 +2543,7 @@ const closeInviteModal = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
 }
@@ -2233,7 +2561,7 @@ const closeInviteModal = () => {
 .skeleton-username {
   width: 80px;
   height: 16px;
-  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2242,7 +2570,7 @@ const closeInviteModal = () => {
 .skeleton-timestamp {
   width: 50px;
   height: 12px;
-  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2250,7 +2578,7 @@ const closeInviteModal = () => {
 
 .skeleton-text-line {
   height: 14px;
-  background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2522,5 +2850,134 @@ const closeInviteModal = () => {
   50% {
     opacity: 0.9;
   }
+}
+
+/* Blocked message styles */
+/* Discord-like blocked message group */
+.blocked-message-group {
+  padding: 8px 16px;
+  margin: 4px 0;
+}
+
+.blocked-group-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.blocked-separator {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.blocked-message {
+  padding: 8px 16px;
+  margin: 4px 0;
+}
+
+.blocked-message-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  border-left: 3px solid var(--text-muted);
+}
+
+/* Revealed blocked messages indicator banner */
+.revealed-blocked-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  margin-bottom: 4px;
+  background: rgba(237, 66, 69, 0.1);
+  border-radius: 4px;
+  border-left: 3px solid var(--status-danger, #ed4245);
+}
+
+.revealed-blocked {
+  border-left: 2px solid var(--status-danger, #ed4245);
+  background: rgba(237, 66, 69, 0.05);
+}
+
+.blocked-icon {
+  font-size: 1rem;
+  opacity: 0.6;
+}
+
+.blocked-text {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.reveal-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reveal-btn:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--text-normal);
+  color: var(--text-normal);
+}
+
+.revealed-blocked-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  margin-bottom: 4px;
+}
+
+.blocked-warning {
+  font-size: 0.75rem;
+  color: var(--text-warning, #f0b232);
+  opacity: 0.8;
+}
+
+.hide-btn {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hide-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Shake animation for blocked reaction attempts (like Discord) */
+@keyframes shake-reject {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.shake-reject {
+  animation: shake-reject 0.5s ease-in-out;
+  background-color: rgba(237, 66, 69, 0.1) !important;
+}
+
+.shake-reject .message-reactions,
+.shake-reject .reaction {
+  animation: shake-reject 0.5s ease-in-out;
 }
 </style>

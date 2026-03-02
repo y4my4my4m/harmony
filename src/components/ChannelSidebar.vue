@@ -29,11 +29,16 @@
         @end="onDragEnd"
         @add="onChannelAddedToOrphans"
         item-key="id"
-        :class="{ 'drag-disabled': !canDragAndDrop || isMobile }"
         tag="div"
+        :class="{ 'drag-disabled': !canDragAndDrop || isMobile }"
       >
         <template #item="{ element }">
-          <div :key="element.id" class="channel-wrapper">
+          <div 
+            :key="element.id" 
+            class="channel-wrapper"
+            :data-channel-id="element.id"
+            :data-category-id="null"
+          >
             <div 
               :class="['channel-item', { 
                 'selected': element.id === currentChannelId && !selectedThreadId,
@@ -44,8 +49,6 @@
               @click="element.type === 1 ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
               :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
-              :data-channel-id="element.id"
-              :data-category-id="null"
             >
               <div class="channel-content">
                 <HashTagIcon v-if="element.type === 0" />
@@ -150,7 +153,12 @@
               :class="{ 'empty-drop-zone': getCachedCategoryChannels(category.id).value.length === 0 }"
             >
               <template #item="{ element: channel }">
-                <div :key="channel.id" class="channel-wrapper">
+                <div 
+                  :key="channel.id" 
+                  class="channel-wrapper"
+                  :data-channel-id="channel.id"
+                  :data-category-id="category.id"
+                >
                   <div
                     class="channel-item"
                     :class="{ 
@@ -163,8 +171,6 @@
                     @click="channel.type === 1 ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
                     :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
-                    :data-channel-id="channel.id"
-                    :data-category-id="category.id"
                   >
                     <div class="channel-content">
                       <HashTagIcon v-if="channel.type === 0" />
@@ -286,6 +292,13 @@
       @updated="handleCategoryUpdated"
     />
 
+    <ThreadEditModal
+      :show="showThreadEditModal"
+      :thread="selectedThread"
+      @close="closeThreadEditModal"
+      @updated="handleThreadUpdated"
+    />
+
     <!-- Confirmation Modal -->
     <ConfirmationModal
       :show="showConfirmationModal"
@@ -317,9 +330,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useAuthStore } from '@/stores/auth';
 import { useRouter, useRoute } from 'vue-router';
-import { useChannelPermissions } from '@/composables/useChannelPermissions';
+import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
@@ -345,6 +357,7 @@ import ChannelEditModal from './ChannelEditModal.vue';
 import CategoryEditModal from './CategoryEditModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import ThreadContextMenu from './threads/ThreadContextMenu.vue';
+import ThreadEditModal from './ThreadEditModal.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
 import { supabase } from '@/supabase';
 
@@ -395,6 +408,10 @@ const isCategoryCreatorOpen = ref(false);
 const channelThreads = ref<Map<string, ThreadWithDetails[]>>(new Map());
 const selectedThreadId = ref<string | null>(null);
 const loadingThreads = ref(false);
+// Thread caching - track which server's threads are loaded and when
+const loadedThreadsServerId = ref<string | null>(null);
+const threadsLastFetchedAt = ref<Date | null>(null);
+const THREAD_CACHE_VALIDITY_MS = 60 * 1000; // 1 minute cache validity
 
 // Context menu state
 const showChannelContextMenu = ref(false);
@@ -408,6 +425,7 @@ const selectedThread = ref<ThreadWithDetails | null>(null);
 // Modal state
 const showChannelEditModal = ref(false);
 const showCategoryEditModal = ref(false);
+const showThreadEditModal = ref(false);
 const showConfirmationModal = ref(false);
 
 // Mobile voice channel preview state
@@ -439,16 +457,33 @@ const route = useRoute();
 const serverUsersStore = useServerUsersStore();
 const voiceChannelStore = useUnifiedVoiceChannelStore();
 const themeStore = useThemeStore();
-const { canDragAndDrop, canCreateChannels, canMoveChannelsBetweenCategories, getDragCursor } = useChannelPermissions();
+const { 
+  canManageChannels, 
+  isCurrentUserServerOwner,
+  channelPermissions 
+} = useServerPermissions();
+
+// Channel management permissions
+const canDragAndDrop = computed(() => isCurrentUserServerOwner.value || canManageChannels.value);
+const canMoveChannelsBetweenCategories = computed(() => channelPermissions.value.canReorderChannels);
+
+const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => {
+  return canDragAndDrop.value ? (isDragging ? 'grabbing' : 'grab') : 'pointer';
+};
 const { triggerVoice } = useHapticSettings();
 
 // Computed Properties
-const isMobile = computed(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+// Only consider mobile if screen is actually small (touch-enabled desktops should still allow drag)
+const isMobile = computed(() => {
+  const hasSmallScreen = window.innerWidth <= 768;
+  const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+  return hasSmallScreen || isTouchOnlyDevice;
+});
 
 const dragGroup = computed(() => ({
   name: 'channels',
-  put: canDragAndDrop.value && !isMobile.value,
-  pull: canDragAndDrop.value && !isMobile.value,
+  put: true,
+  pull: true,
 }));
 
 const currentServerData = computed(() => {
@@ -549,10 +584,11 @@ const initializeCategoryStates = async () => {
 };
 
 const onDragStart = (evt: any) => {
-  if (!canDragAndDrop.value) {
+  if (!canDragAndDrop.value || isMobile.value) {
     evt.preventDefault();
     return false;
   }
+  
   const channelId = evt.item.dataset.channelId;
   const categoryId = evt.item.dataset.categoryId;
   const allChannels = [...orphanChannels.value, ...Object.values(props.categoryChannels).flat()];
@@ -562,6 +598,7 @@ const onDragStart = (evt: any) => {
     evt.preventDefault();
     return false;
   }
+  
   dragState.value = {
     isDragging: true,
     draggedItem: draggedChannel,
@@ -572,7 +609,7 @@ const onDragStart = (evt: any) => {
   document.body.classList.add('dragging-channel');
 };
 
-const onDragEnd = (evt: any) => {
+const onDragEnd = () => {
   document.body.classList.remove('dragging-channel');
   dragState.value = { isDragging: false, draggedItem: null, sourceCategoryId: null, targetCategoryId: null, isOver: false };
 };
@@ -723,12 +760,26 @@ const openInviteModal = () => showInviteModal.value = true;
 const closeInviteModal = () => showInviteModal.value = false;
 
 // Threads methods
-const loadActiveThreads = async () => {
+const loadActiveThreads = async (forceRefresh = false) => {
   if (!props.currentServer?.id) return;
+  
+  const serverId = props.currentServer.id;
+  
+  // Check cache validity - skip fetch if data is fresh and for the same server
+  // Note: We don't check channelThreads.value.size > 0 because "zero threads" is also a valid cached state
+  if (!forceRefresh && 
+      loadedThreadsServerId.value === serverId && 
+      threadsLastFetchedAt.value) {
+    const cacheAge = Date.now() - threadsLastFetchedAt.value.getTime();
+    if (cacheAge < THREAD_CACHE_VALIDITY_MS) {
+      debug.log(`📦 Threads cache still valid (${Math.round(cacheAge / 1000)}s old, ${channelThreads.value.size} threads), skipping fetch`);
+      return;
+    }
+  }
   
   loadingThreads.value = true;
   try {
-    const threads = await threadService.getServerThreads(props.currentServer.id, { archived: false });
+    const threads = await threadService.getServerThreads(serverId, { archived: false });
     // Group threads by channel ID
     const grouped = new Map<string, ThreadWithDetails[]>();
     for (const thread of threads) {
@@ -739,6 +790,10 @@ const loadActiveThreads = async () => {
       grouped.get(channelId)!.push(thread);
     }
     channelThreads.value = grouped;
+    // Update cache metadata
+    loadedThreadsServerId.value = serverId;
+    threadsLastFetchedAt.value = new Date();
+    debug.log(`✅ Loaded ${threads.length} threads for server, cached at ${threadsLastFetchedAt.value.toISOString()}`);
   } catch (error) {
     debug.error('Failed to load threads:', error);
     channelThreads.value = new Map();
@@ -773,10 +828,8 @@ const createCategory = async (categoryName: string) => {
   }
 };
 
-const handleChannelCreated = (channel: Channel) => {
-  selectChannel(channel.id);
-  serverChannelStore.fetchChannels(props.currentServer.id);
-};
+// NOTE: Channel creation is handled by CreateChannel.vue which emits to ChatLayout.vue
+// The realtime subscription automatically adds new channels to the store via _handleChannelInsert
 
 // Check if user is in voice channel (or optimistically joining it)
 const isUserInVoiceChannel = (channelId: string): boolean => {
@@ -903,19 +956,33 @@ const handleEditCategory = (category: Category) => {
   showCategoryEditModal.value = true;
 };
 
+// State for category deletion with channels option
+const deleteCategoryWithChannels = ref(false);
+
 const handleDeleteCategory = (category: Category) => {
   selectedCategory.value = category;
   const channelCount = (props.categoryChannels[category.id] || []).length;
+  deleteCategoryWithChannels.value = false; // Reset on each delete attempt
+  
+  let secondaryMsg = 'This action cannot be undone.';
+  if (channelCount > 0) {
+    secondaryMsg = `This category contains ${channelCount} channel(s). Channels will be moved to the top of the channel list (uncategorized). To also delete all channels, type "${category.name} DELETE" instead of just "${category.name}".`;
+  }
+  
   confirmationConfig.value = {
     title: 'Delete Category',
     message: `Are you sure you want to delete "${category.name}"?`,
-    secondaryMessage: channelCount > 0 ? `This category contains ${channelCount} channel(s). All channels will be moved to the top of the channel list.` : 'This action cannot be undone.',
+    secondaryMessage: secondaryMsg,
     confirmButtonText: 'Delete Category',
     requireConfirmation: true,
     confirmationText: category.name,
     onConfirm: async () => {
       try {
-        await serverChannelStore.deleteCategory(category.id);
+        // Check if user wants to delete channels too (typed "NAME DELETE")
+        const confirmInput = document.querySelector<HTMLInputElement>('.confirmation-section input');
+        const deleteChannels = confirmInput?.value?.trim().toUpperCase().endsWith(' DELETE') || false;
+        
+        await serverChannelStore.deleteCategory(category.id, deleteChannels);
         closeConfirmationModal();
       } catch (error) {
         debug.error('Failed to delete category:', error);
@@ -931,26 +998,26 @@ const handleLeaveThread = async () => {
   if (!selectedThread.value) return;
   try {
     await threadService.leaveThread(selectedThread.value.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to leave thread:', error);
   }
 };
 
 const handleEditThread = (thread: ThreadWithDetails) => {
-  // TODO: Implement thread editing modal
-  debug.log('Edit thread:', thread.name);
+  selectedThread.value = thread;
+  showThreadEditModal.value = true;
 };
 
 const handleOpenSplitView = (thread: ThreadWithDetails) => {
-  // TODO: Implement split view functionality
-  debug.log('Open split view for thread:', thread.name);
+  // Emit the thread to open it in the panel (split view) instead of navigating to full-page view
+  emit('openThread', thread);
 };
 
 const handleCloseThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.archiveThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to close thread:', error);
   }
@@ -959,7 +1026,7 @@ const handleCloseThread = async (thread: ThreadWithDetails) => {
 const handleReopenThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.unarchiveThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to reopen thread:', error);
   }
@@ -968,7 +1035,7 @@ const handleReopenThread = async (thread: ThreadWithDetails) => {
 const handleLockThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.lockThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to lock thread:', error);
   }
@@ -977,7 +1044,7 @@ const handleLockThread = async (thread: ThreadWithDetails) => {
 const handleUnlockThread = async (thread: ThreadWithDetails) => {
   try {
     await threadService.unlockThread(thread.id);
-    await loadActiveThreads();
+    await loadActiveThreads(true); // Force refresh after mutation
   } catch (error) {
     debug.error('Failed to unlock thread:', error);
   }
@@ -994,7 +1061,7 @@ const handleDeleteThread = (thread: ThreadWithDetails) => {
     onConfirm: async () => {
       try {
         await threadService.deleteThread(thread.id);
-        await loadActiveThreads();
+        await loadActiveThreads(true); // Force refresh after mutation
         closeConfirmationModal();
         // Navigate back to channel if we were viewing this thread
         if (selectedThreadId.value === thread.id) {
@@ -1020,9 +1087,14 @@ const handleDeleteThread = (thread: ThreadWithDetails) => {
 
 const closeChannelEditModal = () => showChannelEditModal.value = false;
 const closeCategoryEditModal = () => showCategoryEditModal.value = false;
+const closeThreadEditModal = () => showThreadEditModal.value = false;
 const closeConfirmationModal = () => showConfirmationModal.value = false;
 const handleChannelUpdated = (updatedChannel: Channel) => {}; // Store handles updates
 const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handles updates
+const handleThreadUpdated = () => {
+  // Refresh threads list after editing
+  loadActiveThreads(true); // Force refresh after mutation
+};
 
 // Lifecycle Hooks
 watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
@@ -1083,8 +1155,8 @@ const setupThreadsSubscription = () => {
       },
       (payload) => {
         debug.log('🧵 Thread change detected:', payload.eventType);
-        // Reload threads on any change (INSERT, UPDATE, DELETE)
-        loadActiveThreads();
+        // Reload threads on any change (INSERT, UPDATE, DELETE) - force refresh for external changes
+        loadActiveThreads(true);
       }
     )
     .subscribe();

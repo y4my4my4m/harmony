@@ -187,22 +187,72 @@ ORDER BY p.last_status_update DESC;
 COMMENT ON VIEW public.active_statuses_view IS 'Users with active custom statuses';
 
 -- ---------------------------------------------------------------------------
--- TIMELINE POSTS VIEW - Optimized timeline query base
+-- TIMELINE POSTS VIEW - Optimized timeline query base with author JSONB
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.timeline_posts AS
 SELECT 
-    p.*,
-    author.username AS author_username,
-    author.display_name AS author_display_name,
-    author.avatar_url AS author_avatar_url,
-    author.domain AS author_domain,
-    author.is_local AS author_is_local
+    p.id,
+    p.content,
+    p.created_at,
+    p.updated_at,
+    p.conversation_id,
+    p.author_id,
+    jsonb_build_object(
+        'id', pr.id,
+        'username', pr.username,
+        'display_name', pr.display_name,
+        'avatar_url', pr.avatar_url,
+        'domain', COALESCE(pr.domain, current_setting('app.domain', true)),
+        'handle', CASE
+            WHEN COALESCE(pr.is_local, true) THEN ('@' || pr.username)
+            ELSE ('@' || pr.username || '@' || pr.domain)
+        END,
+        'is_local', COALESCE(pr.is_local, true),
+        'bio', pr.bio,
+        'followers_count', pr.followers_count,
+        'following_count', pr.following_count,
+        'posts_count', pr.posts_count
+    ) AS author,
+    p.visibility,
+    COALESCE(p.favorites_count, 0) AS favorites_count,
+    COALESCE(p.reblogs_count, 0) AS reblogs_count,
+    COALESCE(p.replies_count, 0) AS replies_count,
+    COALESCE(p.media_attachments, '[]'::jsonb) AS media_attachments,
+    CASE
+        WHEN p.in_reply_to IS NOT NULL THEN jsonb_build_object(
+            'id', rp.id,
+            'author', jsonb_build_object(
+                'id', rpr.id,
+                'username', rpr.username,
+                'display_name', rpr.display_name,
+                'avatar_url', rpr.avatar_url,
+                'domain', COALESCE(rpr.domain, current_setting('app.domain', true)),
+                'handle', CASE
+                    WHEN COALESCE(rpr.is_local, true) THEN ('@' || rpr.username)
+                    ELSE ('@' || rpr.username || '@' || rpr.domain)
+                END
+            ),
+            'created_at', rp.created_at,
+            'visibility', rp.visibility,
+            'content', rp.content
+        )
+        ELSE NULL
+    END AS reply_context,
+    p.content_warning,
+    COALESCE(p.is_sensitive, false) AS is_sensitive,
+    p.reblog,
+    p.reblog_author,
+    p.url,
+    p.metadata
 FROM public.posts p
-JOIN public.profiles author ON p.author_id = author.id
-WHERE p.is_deleted = false
-  AND (author.is_suspended = false OR author.is_suspended IS NULL);
+LEFT JOIN public.profiles pr ON p.author_id = pr.id
+LEFT JOIN public.posts rp ON p.in_reply_to = rp.id
+LEFT JOIN public.profiles rpr ON rp.author_id = rpr.id
+WHERE (p.deleted_at IS NULL OR p.deleted_at IS NULL)
+  AND (p.is_deleted = false OR p.is_deleted IS NULL)
+  AND (pr.is_suspended = false OR pr.is_suspended IS NULL);
 
-COMMENT ON VIEW public.timeline_posts IS 'Base view for timeline queries with author info';
+COMMENT ON VIEW public.timeline_posts IS 'Timeline view with author JSONB and reblog fields for proper timeline display';
 
 DO $$
 BEGIN

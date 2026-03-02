@@ -27,6 +27,64 @@ COMMENT ON FUNCTION public.create_notification_preferences() IS
 'Creates notification preferences only for local users.';
 
 -- ---------------------------------------------------------------------------
+-- SERVER LIMIT ENFORCEMENT
+-- ---------------------------------------------------------------------------
+
+-- Check channel limit before insert (max 100 channels per server)
+CREATE OR REPLACE FUNCTION public.check_channel_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  channel_count INTEGER;
+  max_channels CONSTANT INTEGER := 100;
+BEGIN
+  -- Count existing channels for this server
+  SELECT COUNT(*) INTO channel_count
+  FROM channels
+  WHERE server_id = NEW.server_id;
+  
+  -- Check if limit would be exceeded
+  IF channel_count >= max_channels THEN
+    RAISE EXCEPTION 'Channel limit exceeded: Maximum % channels per server', max_channels
+      USING ERRCODE = 'check_violation';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.check_channel_limit() IS 
+'Enforces maximum 100 channels per server';
+
+-- Check category limit before insert (max 25 categories per server)
+CREATE OR REPLACE FUNCTION public.check_category_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  category_count INTEGER;
+  max_categories CONSTANT INTEGER := 25;
+BEGIN
+  -- Count existing categories for this server
+  SELECT COUNT(*) INTO category_count
+  FROM channel_categories
+  WHERE server_id = NEW.server_id;
+  
+  -- Check if limit would be exceeded
+  IF category_count >= max_categories THEN
+    RAISE EXCEPTION 'Category limit exceeded: Maximum % categories per server', max_categories
+      USING ERRCODE = 'check_violation';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.check_category_limit() IS 
+'Enforces maximum 25 categories per server';
+
+-- ---------------------------------------------------------------------------
 -- SERVER TRIGGERS
 -- ---------------------------------------------------------------------------
 
@@ -37,14 +95,17 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    new_role_id uuid;
+    everyone_role_id uuid;
+    admin_role_id uuid;
 BEGIN
+    -- Create @everyone role (default for all members)
     INSERT INTO server_roles (
         server_id,
         name,
         color,
         position,
         is_default,
+        is_admin,
         permissions
     ) VALUES (
         NEW.id,
@@ -52,8 +113,33 @@ BEGIN
         '#99AAB5',
         0,
         true,
+        false,
         104324161  -- Default Discord-like permissions
-    ) RETURNING id INTO new_role_id;
+    ) RETURNING id INTO everyone_role_id;
+    
+    -- Create Admin role for the owner (highest position, all permissions)
+    INSERT INTO server_roles (
+        server_id,
+        name,
+        color,
+        position,
+        is_default,
+        is_admin,
+        permissions
+    ) VALUES (
+        NEW.id,
+        'Admin',
+        '#e74c3c',  -- Red color for admin
+        999,        -- High position (owner is always above)
+        false,
+        true,       -- Mark as admin role
+        2199023255551  -- All permissions (ADMINISTRATOR)
+    ) RETURNING id INTO admin_role_id;
+    
+    -- Assign the Admin role to the server owner
+    INSERT INTO user_roles (user_id, role_id, server_id)
+    VALUES (NEW.owner, admin_role_id, NEW.id)
+    ON CONFLICT (user_id, role_id) DO NOTHING;
     
     RETURN NEW;
 END;
@@ -645,6 +731,7 @@ END;
 $$;
 
 -- Queue block for federation
+-- NOTE: Column is 'blocked_user_id', NOT 'blocked_id'
 CREATE OR REPLACE FUNCTION public.trigger_queue_block_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -653,8 +740,34 @@ AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
         NEW.federation_status := 'queued';
+        
+        -- Queue federation job with correct column name
+        PERFORM public.queue_federation_job(
+            'federate-block',
+            jsonb_build_object(
+                'type', 'create',
+                'block_id', NEW.id,
+                'blocker_id', NEW.blocker_id,
+                'blocked_user_id', NEW.blocked_user_id
+            ),
+            3,
+            3,
+            1800
+        );
         RETURN NEW;
     ELSIF TG_OP = 'DELETE' THEN
+        PERFORM public.queue_federation_job(
+            'federate-block',
+            jsonb_build_object(
+                'type', 'delete',
+                'block_id', OLD.id,
+                'blocker_id', OLD.blocker_id,
+                'blocked_user_id', OLD.blocked_user_id
+            ),
+            3,
+            3,
+            1800
+        );
         RETURN OLD;
     END IF;
     RETURN NULL;

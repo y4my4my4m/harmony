@@ -22,6 +22,7 @@ export interface CallPermissionCheck {
 class DMCallPermissionService {
   /**
    * Check if user can receive calls (comprehensive check)
+   * Now fully enabled with proper RLS policies on user_blocks table
    */
   async canReceiveCall(
     callerId: string,
@@ -32,90 +33,83 @@ class DMCallPermissionService {
     
     try {
       // 1. Check if caller is blocked by receiver
-      // TEMPORARILY DISABLED due to RLS permissions on user_blocks table
-      // TODO: Add RLS policies then re-enable
-      debug.log('🔍 Checking if caller is blocked... (SKIPPED - RLS not configured)')
-      // const isBlocked = await this.isUserBlocked(receiverId, callerId)
-      // debug.log('🔍 Blocked check result:', isBlocked)
-      // if (isBlocked) {
-      //   return {
-      //     allowed: false,
-      //     reason: 'blocked',
-      //     message: 'You cannot call this user'
-      //   }
-      // }
+      debug.log('🔍 Checking if caller is blocked by receiver...')
+      const isBlocked = await this.isUserBlocked(receiverId, callerId)
+      debug.log('🔍 Blocked check result:', isBlocked)
+      if (isBlocked) {
+        return {
+          allowed: false,
+          reason: 'blocked',
+          message: 'You cannot call this user'
+        }
+      }
 
       // 2. Check if caller has blocked receiver (shouldn't be able to call)
-      // TEMPORARILY DISABLED due to RLS permissions on user_blocks table
-      debug.log('🔍 Checking if caller has blocked receiver... (SKIPPED - RLS not configured)')
-      // const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
-      // debug.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
-      // if (hasBlockedReceiver) {
-      //   return {
-      //     allowed: false,
-      //     reason: 'blocked',
-      //     message: 'You have blocked this user'
-      //   }
-      // }
+      debug.log('🔍 Checking if caller has blocked receiver...')
+      const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
+      debug.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
+      if (hasBlockedReceiver) {
+        return {
+          allowed: false,
+          reason: 'blocked',
+          message: 'You have blocked this user'
+        }
+      }
 
       // 3. Check if receiver is in Do Not Disturb mode
-      // TEMPORARILY DISABLED - Implement later
-      debug.log('🔍 Checking DND status... (SKIPPED)')
-      // const isDND = await this.isUserInDND(receiverId)
-      // debug.log('🔍 DND check result:', isDND)
-      // if (isDND) {
-      //   return {
-      //     allowed: false,
-      //     reason: 'dnd',
-      //     message: 'This user is in Do Not Disturb mode'
-      //   }
-      // }
+      debug.log('🔍 Checking DND status...')
+      const isDND = await this.isUserInDND(receiverId)
+      debug.log('🔍 DND check result:', isDND)
+      if (isDND) {
+        return {
+          allowed: false,
+          reason: 'dnd',
+          message: 'This user is in Do Not Disturb mode'
+        }
+      }
 
       // 4. Check if receiver is busy (already in another call)
-      // TEMPORARILY DISABLED - Implement later
-      debug.log('🔍 Checking busy status... (SKIPPED)')
-      // const isBusy = await this.isUserBusy(receiverId)
-      // debug.log('🔍 Busy check result:', isBusy)
-      // if (isBusy) {
-      //   return {
-      //     allowed: false,
-      //     reason: 'busy',
-      //     message: 'User is currently in another call'
-      //   }
-      // }
+      debug.log('🔍 Checking busy status...')
+      const isBusy = await this.isUserBusy(receiverId)
+      debug.log('🔍 Busy check result:', isBusy)
+      if (isBusy) {
+        return {
+          allowed: false,
+          reason: 'busy',
+          message: 'User is currently in another call'
+        }
+      }
 
       // 5. Check if receiver has muted this conversation
-      // TEMPORARILY DISABLED - Implement later
-      debug.log('🔍 Checking if conversation is muted... (SKIPPED)')
-      // const isMuted = await this.isConversationMuted(receiverId, conversationId)
-      // debug.log('🔍 Muted check result:', isMuted)
-      // if (isMuted) {
-      //   return {
-      //     allowed: false,
-      //     reason: 'muted',
-      //     message: 'This user has muted this conversation'
-      //   }
-      // }
+      debug.log('🔍 Checking if conversation is muted...')
+      const isMuted = await this.isConversationMuted(receiverId, conversationId)
+      debug.log('🔍 Muted check result:', isMuted)
+      if (isMuted) {
+        return {
+          allowed: false,
+          reason: 'muted',
+          message: 'This user has muted this conversation'
+        }
+      }
 
       // 6. Check notification preferences
-      // TEMPORARILY DISABLED - Implement later
-      debug.log('🔍 Checking notification preferences... (SKIPPED)')
-      // const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
-      // debug.log('🔍 Notifications enabled result:', notificationsEnabled)
-      // if (!notificationsEnabled) {
-      //   return {
-      //     allowed: false,
-      //     reason: 'notifications_disabled',
-      //     message: 'This user has disabled call notifications'
-      //   }
-      // }
+      debug.log('🔍 Checking notification preferences...')
+      const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
+      debug.log('🔍 Notifications enabled result:', notificationsEnabled)
+      if (!notificationsEnabled) {
+        return {
+          allowed: false,
+          reason: 'notifications_disabled',
+          message: 'This user has disabled call notifications'
+        }
+      }
 
       // All checks passed
       debug.log('✅ All permission checks passed - call allowed!')
       return { allowed: true }
     } catch (error) {
       debug.error('❌ Error checking call permissions:', error)
-      // On error, allow the call (fail open)
+      // On error, allow the call (fail open for usability)
       debug.log('⚠️ Failing open - allowing call despite error')
       return { allowed: true }
     }

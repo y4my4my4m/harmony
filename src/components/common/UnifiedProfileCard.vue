@@ -536,15 +536,15 @@ const vClickOutside = {
 .role-badge {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-1) var(--space-2);
-  background: rgba(88, 101, 242, 0.1);
-  border: 1px solid rgba(88, 101, 242, 0.2);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  padding: 0 2px;
+  background: rgba(88, 101, 242, 0.2);
+  border: 1px solid rgba(88, 101, 242, 0.3);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
   text-transform: uppercase;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.1em;
 }
 
 .user-stats {

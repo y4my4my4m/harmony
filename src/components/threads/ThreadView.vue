@@ -317,10 +317,28 @@ const loadThread = async () => {
   const threadId = props.threadId || props.initialThread?.id
   if (!threadId) return
   
+  // Check if we have cached messages - if so, show instantly without loading indicator
+  const cachedMessages = threadService.getCachedMessages(threadId)
+  if (cachedMessages) {
+    // Use cached data instantly - no loading indicator
+    messages.value = cachedMessages.messages
+    hasMore.value = cachedMessages.has_more
+    
+    // Still load thread metadata in background (for fresh membership status, etc.)
+    thread.value = await threadService.getThread(threadId, false) // use cache if available
+    isMember.value = thread.value?.is_member ?? true
+    
+    // Scroll to bottom
+    await nextTick()
+    scrollToBottom()
+    return
+  }
+  
+  // No cache - show loading indicator
   loading.value = true
   try {
-    // Always fetch full thread data to ensure parent_message is included
-    thread.value = await threadService.getThread(threadId, true) // force refresh
+    // Fetch thread data
+    thread.value = await threadService.getThread(threadId, false)
     
     isMember.value = thread.value?.is_member ?? true
     
