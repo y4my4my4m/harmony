@@ -140,8 +140,8 @@ const youtubeEmbedUrl = computed(() => {
   const parsed = parseEmbedUrl(normalized);
   if (!parsed) return null;
   
-  // Add enablejsapi=1 and origin parameter to enable YouTube Player API
   const url = buildYouTubeEmbedUrl(parsed);
+  if (!url) return null;
   const params = new URLSearchParams();
   params.set('enablejsapi', '1');
   params.set('origin', window.location.origin);

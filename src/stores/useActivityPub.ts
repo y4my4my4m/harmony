@@ -1672,13 +1672,16 @@ export const useActivityPubStore = defineStore('activitypub', {
         return attachment;
       }
 
-      // If it has a blob URL, fetch and convert to File
+      // If it has a stored File reference, use it directly (most reliable)
+      if (attachment.file instanceof File) {
+        return attachment.file;
+      }
+
+      // Fallback: if it has a blob URL, fetch and convert to File
       if (attachment.url && attachment.url.startsWith('blob:')) {
         const response = await fetch(attachment.url);
         const blob = await response.blob();
         const fileName = attachment.filename || `file.${blob.type.split('/')[1] || 'bin'}`;
-        // attachment.type might be 'image'/'video'/'audio', but we need MIME type
-        // Use blob.type if available, otherwise infer from attachment.type
         let mimeType = blob.type;
         if (!mimeType && attachment.type) {
           if (attachment.type === 'image') mimeType = 'image/jpeg';
@@ -1686,11 +1689,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           else if (attachment.type === 'audio') mimeType = 'audio/mpeg';
         }
         return new File([blob], fileName, { type: mimeType || 'application/octet-stream' });
-      }
-
-      // If it's a MediaAttachment with a file property
-      if (attachment.file instanceof File) {
-        return attachment.file;
       }
 
       throw new Error('Cannot convert MediaAttachment to File: invalid attachment format');

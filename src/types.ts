@@ -868,6 +868,7 @@ export interface MediaAttachment {
   mime_type?: string; // e.g., 'image/jpeg', 'video/mp4'
   filename?: string; // Original filename if available
   size?: number; // Size in bytes
+  file?: File; // Original File reference for reliable uploads
 }
 
 export interface ActivityPubFollow {

@@ -18,6 +18,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -372,6 +373,24 @@ export function useContentRenderer(
             return `<div class="media-container audio-container">
               <audio src="${url}" controls preload="metadata" class="content-audio"></audio>
             </div>`;
+          }
+          
+          // YouTube embeds
+          if (renderOptions.showVideos) {
+            const parsed = parseEmbedUrl(url);
+            if (parsed && isYouTubeUrl(parsed)) {
+              const embedUrl = buildYouTubeEmbedUrl(parsed);
+              if (embedUrl) {
+                const separator = embedUrl.includes('?') ? '&' : '?';
+                const fullEmbedUrl = `${embedUrl}${separator}enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`;
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${url}</a>
+                  <div class="media-container video-container youtube-embed">
+                    <iframe src="${fullEmbedUrl}" frameborder="0" allowfullscreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      loading="lazy"></iframe>
+                  </div>`;
+              }
+            }
           }
           
           return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${url}</a>`;

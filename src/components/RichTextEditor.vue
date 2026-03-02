@@ -54,6 +54,7 @@ interface Emits {
   (e: 'focus', event: FocusEvent): void;
   (e: 'blur', event: FocusEvent): void;
   (e: 'cursor-position-changed', position: number): void;
+  (e: 'paste', event: ClipboardEvent): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -163,8 +164,15 @@ const getPlainText = (): string => {
         }
       } else if (el.tagName === 'BR') {
         text += '\n';
+      } else if (el.tagName === 'DIV' || el.tagName === 'P') {
+        // Block elements created by some browsers (Chrome uses <div> for Enter)
+        if (text.length > 0 && !text.endsWith('\n')) {
+          text += '\n';
+        }
+        for (const child of Array.from(node.childNodes)) {
+          processNode(child);
+        }
       } else {
-        // For other elements, process their children
         for (const child of Array.from(node.childNodes)) {
           processNode(child);
         }
@@ -850,6 +858,24 @@ const handleBlur = (event: FocusEvent) => {
 // Handle paste
 const handlePaste = (event: ClipboardEvent) => {
   event.preventDefault();
+
+  // Check for image/file data in clipboard - let parent handle it
+  const items = event.clipboardData?.items;
+  if (items) {
+    let hasFiles = false;
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file') {
+        hasFiles = true;
+        break;
+      }
+    }
+    if (hasFiles) {
+      emit('paste', event);
+      return;
+    }
+  }
+
+  // Text-only paste
   const text = event.clipboardData?.getData('text/plain') || '';
   insertTextAtCursor(text);
 };
@@ -1000,17 +1026,13 @@ onMounted(() => {
   overflow-y: auto;
 }
 
-.rich-text-editor:empty:before,
-.rich-text-editor:has(> br:only-child):before {
+.rich-text-editor.is-empty::before {
   content: attr(data-placeholder);
   color: #72767d;
   pointer-events: none;
   position: absolute;
-}
-
-/* Hide the BR when editor is empty (for placeholder) */
-.rich-text-editor:has(> br:only-child) br {
-  display: none;
+  top: 11px;
+  left: 12px;
 }
 
 /* Markdown markers styling */

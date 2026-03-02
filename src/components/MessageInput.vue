@@ -42,6 +42,7 @@
           @focus="handleFocus"
           @blur="handleBlur"
           @cursor-position-changed="handleCursorPositionChanged"
+          @paste="handlePasteFiles"
         />
       </div>
       <div class="right-icons">
@@ -472,6 +473,22 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     const hasActiveUploads = () => {
       return attachedFiles.value.some(file => file.uploadStatus === 'uploading');
+    };
+
+    const handlePasteFiles = (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        handleFilesSelected(files);
+      }
     };
 
     const handleFilesSelected = async (files: File[]) => {

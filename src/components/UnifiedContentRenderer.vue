@@ -678,6 +678,21 @@ const formatFileSize = (bytes: number): string => {
   cursor: default;
 }
 
+.content-html :deep(.youtube-embed) {
+  aspect-ratio: 16 / 9;
+  max-width: 560px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.content-html :deep(.youtube-embed iframe) {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
 .content-html :deep(.content-audio) {
   width: 100%;
   max-width: 450px;

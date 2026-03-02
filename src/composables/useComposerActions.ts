@@ -81,14 +81,16 @@ export function useComposerActions(options: ComposerActionsOptions) {
       }
 
       if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        const previewUrl = URL.createObjectURL(file);
         const attachment: MediaAttachment = {
           id: `temp_${Date.now()}_${Math.random()}`,
           type: file.type.startsWith('image/') ? 'image' : 'video',
-          url: URL.createObjectURL(file),
-          preview_url: URL.createObjectURL(file),
+          url: previewUrl,
+          preview_url: previewUrl,
           filename: file.name,
           size: file.size,
-          description: null
+          description: undefined,
+          file: file
         };
 
         options.mediaAttachments.value.push(attachment);
@@ -110,14 +112,16 @@ export function useComposerActions(options: ComposerActionsOptions) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (file && options.canAddMedia.value) {
+          const previewUrl = URL.createObjectURL(file);
           const attachment: MediaAttachment = {
             id: `temp_${Date.now()}_${Math.random()}`,
             type: 'image',
-            url: URL.createObjectURL(file),
-            preview_url: URL.createObjectURL(file),
+            url: previewUrl,
+            preview_url: previewUrl,
             filename: file.name,
             size: file.size,
-            description: null
+            description: undefined,
+            file: file
           };
 
           options.mediaAttachments.value.push(attachment);
