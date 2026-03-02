@@ -1,5 +1,5 @@
 <template>
-  <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
+  <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll" @click="dismissMobileActions">
     <!-- Loading skeletons when initially loading messages -->
     <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
       <div v-for="n in 5" :key="`skeleton-${n}`" class="skeleton-message">
@@ -66,8 +66,11 @@
             'shake-reject': isMessageShaking(item.message.id),
             'revealed-blocked': item.isRevealed
           }"
-          @mouseover="hoveredMessageId = item.message.id" 
-          @mouseleave="hoveredMessageId = null"
+          @mouseover="handleMessageMouseover(item.message.id)" 
+          @mouseleave="handleMessageMouseleave"
+          @touchstart.passive="handleMessageTouchStart(item.message.id)"
+          @touchend.passive="handleMessageTouchEnd"
+          @touchmove.passive="handleMessageTouchMove"
         >
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
@@ -390,6 +393,7 @@ import { supabase } from '@/supabase';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useLayoutState } from '@/composables/useLayoutState';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -669,6 +673,7 @@ const displayItems = computed((): DisplayItem[] => {
 });
 const { isCurrentUserServerOwner } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
+const { isMobile } = useLayoutState();
 const { 
   getUserDisplayName, 
   getUserColor, 
@@ -928,6 +933,50 @@ const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
 const editableMessageId = ref<string | null>(null);
 const editableMessageContent = ref('');
 const hoveredMessageId = ref<string | null>(null);
+const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const LONG_PRESS_DURATION = 500;
+
+const handleMessageMouseover = (messageId: string) => {
+  if (!isMobile.value) {
+    hoveredMessageId.value = messageId;
+  }
+};
+
+const handleMessageMouseleave = () => {
+  if (!isMobile.value) {
+    hoveredMessageId.value = null;
+  }
+};
+
+const handleMessageTouchStart = (messageId: string) => {
+  longPressTimer.value = setTimeout(() => {
+    hoveredMessageId.value = messageId;
+    triggerInteraction();
+  }, LONG_PRESS_DURATION);
+};
+
+const handleMessageTouchEnd = () => {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
+};
+
+const handleMessageTouchMove = () => {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
+};
+
+const dismissMobileActions = (event: MouseEvent) => {
+  if (!isMobile.value || !hoveredMessageId.value) return;
+  const target = event.target as HTMLElement;
+  if (!target.closest('.message-actions')) {
+    hoveredMessageId.value = null;
+  }
+};
+
 const isAtTop = ref(false);
 const hasScrollbar = ref(false);
 const bufferDistance = ref(0);
@@ -1404,6 +1453,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (messageDisplayContainer.value) {
     messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
+  }
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
   }
 });
 

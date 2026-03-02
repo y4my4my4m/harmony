@@ -340,10 +340,12 @@ const handleServerClick = (serverId: string) => {
 };
 
 // Tooltip handlers
+const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
+
 const showServerTooltip = (event: MouseEvent, name: string) => {
+  if (isTouchDevice) return;
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
-  // Capture rect immediately before it becomes null in the timeout
   const target = event.currentTarget as HTMLElement;
   if (!target) return;
   const rect = target.getBoundingClientRect();
@@ -368,6 +370,7 @@ const hideServerTooltip = () => {
 
 // Folder tooltip handlers (emit to parent)
 const showFolderTooltip = (event: MouseEvent) => {
+  if (isTouchDevice) return;
   emit('show-folder-tooltip', event, props.folder.name || 'Folder', props.servers.length);
 };
 
