@@ -98,7 +98,8 @@ export function isSpotifyUrl(url: URL): boolean {
 export function extractYouTubeId(url: URL): string | null {
   const host = url.hostname.toLowerCase();
   if (host === 'youtu.be') {
-    return url.pathname.slice(1);
+    const id = url.pathname.split('/').filter(Boolean)[0];
+    return id || null;
   }
 
   if (host.includes('youtube.com')) {

@@ -754,6 +754,16 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         }
       }
       
+      // Regular links (not mentions/hashtags) — preserve as URL parts
+      // so YouTube, Spotify, etc. embeds render properly
+      if (element.tagName === 'A' && !element.classList.contains('mention') && !element.classList.contains('hashtag')) {
+        const href = element.getAttribute('href');
+        if (href && /^https?:\/\//i.test(href)) {
+          parts.push({ type: 'url', url: href, preview: true });
+          return;
+        }
+      }
+      
       // Handle line breaks
       if (element.tagName === 'BR') {
         parts.push({ type: 'text', text: '\n' });
