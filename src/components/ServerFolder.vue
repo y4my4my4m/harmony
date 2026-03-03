@@ -476,8 +476,8 @@ const onIconError = (event: Event) => {
 }
 
 .folder-grid-item {
-  width: 100%;
-  height: 100%;
+  width: 20px; /* 100% */
+  height: 20px; /* 100% */
   border-radius: 4px;
   overflow: hidden;
   display: flex;
