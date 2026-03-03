@@ -24,7 +24,7 @@ export interface NotificationUIDecision {
   reason: string
 }
 
-class ViewContextTracker {
+export class ViewContextTracker {
   private currentContext: ViewContext = {
     view_type: 'home'
   }

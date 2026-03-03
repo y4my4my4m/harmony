@@ -556,15 +556,33 @@ export const useNotificationStore = defineStore('notification', {
                 return
               }
 
-              // Note: Block/mute filtering AND view context filtering are handled by database triggers/functions
-              // If a notification reaches here, it means the user is NOT viewing the source channel/DM
-              // (Notifications are suppressed at database level if user is viewing the context)
+              // Check if user is currently viewing the source context BEFORE adding to list
+              // This prevents unread count from incrementing for conversations the user is actively in
+              const notificationContext = {
+                server_id: newNotification.data?.location?.server_id || newNotification.data?.server_id,
+                channel_id: newNotification.data?.location?.channel_id || newNotification.data?.channel_id,
+                conversation_id: newNotification.data?.conversation?.id || newNotification.data?.conversation_id,
+                type: newNotification.type
+              }
+              
+              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext)
+              debug.log('🎯 Notification UI decision:', uiDecision)
+              
+              // If user is viewing the source context, auto-mark as read and skip all UI
+              if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
+                debug.log('🔕 Notification suppressed: User is viewing source context')
+                newNotification.is_read = true
+                this.notifications.unshift(newNotification)
+                // Don't update unread count since we marked it read
+                // Also mark as read in the database
+                services.notifications.markAsRead(newNotification.id).catch(() => {})
+                return
+              }
               
               // Check DND - if active, don't show UI but still add to list
               const isDndActive = this.isQuietHours
               if (isDndActive && newNotification.type !== 'server_update') {
                 debug.log('🌙 DND active - notification added silently')
-                // Still add to list but don't show UI
                 this.notifications.unshift(newNotification)
                 this.updateUnreadCount()
                 return
@@ -576,24 +594,6 @@ export const useNotificationStore = defineStore('notification', {
 
               // Format message using client-side formatter
               const formatted = NotificationFormatter.formatNotification(newNotification)
-
-              // ✅ FIX: Use viewContextTracker to check if user is currently viewing the source
-              // This is a client-side check as a safety net (database may also filter but better safe than sorry)
-              const notificationContext = {
-                server_id: newNotification.data?.location?.server_id || newNotification.data?.server_id,
-                channel_id: newNotification.data?.location?.channel_id || newNotification.data?.channel_id,
-                conversation_id: newNotification.data?.conversation?.id || newNotification.data?.conversation_id,
-                type: newNotification.type
-              }
-              
-              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext)
-              debug.log('🎯 Notification UI decision:', uiDecision)
-              
-              // If suppressed, don't show any UI but the notification is still in the list
-              if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
-                debug.log('🔕 Notification suppressed: User is viewing source context')
-                return
-              }
 
               // Process notification through unified notification system
               this.handleRealtimeNotification(newNotification, formatted, uiDecision)

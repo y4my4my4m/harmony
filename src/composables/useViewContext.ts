@@ -78,6 +78,19 @@ export async function updateViewContext(
       conversation_id: conversationId
     })
 
+    // Sync view context to database so send_notification() can suppress
+    // notifications for the channel/conversation the user is actively viewing
+    supabase.rpc('sync_view_context_from_presence', {
+      p_view_type: viewType,
+      p_server_id: serverId || null,
+      p_channel_id: channelId || null,
+      p_conversation_id: conversationId || null,
+    }).then(({ error }) => {
+      if (error) {
+        debug.warn('Failed to sync view context to DB:', error)
+      }
+    })
+
     // Update session heartbeat context for smart push notifications
     sessionHeartbeat.updateContext({
       serverId,
