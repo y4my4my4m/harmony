@@ -44,6 +44,15 @@ export async function updateViewContext(
   conversationId?: string
 ): Promise<void> {
   try {
+    // Update local tracker FIRST so client-side notification suppression
+    // works immediately, before any async network calls complete
+    viewContextTracker.updateContext({
+      view_type: viewType === 'activitypub_home' ? 'home' : viewType,
+      server_id: serverId,
+      channel_id: channelId,
+      conversation_id: conversationId
+    })
+
     // Initialize view context presence channel if needed
     if (!viewContextChannel) {
       const userId = (await supabase.auth.getUser()).data.user?.id
@@ -61,21 +70,13 @@ export async function updateViewContext(
         })
     }
 
-    // Track current view context in ephemeral presence
+    // Track current view context in ephemeral presence (async, non-blocking for UI)
     await viewContextChannel.track({
       view_type: viewType,
       server_id: serverId || null,
       channel_id: channelId || null,
       conversation_id: conversationId || null,
       updated_at: new Date().toISOString()
-    })
-
-    // Also update the local tracker for immediate client-side checks
-    viewContextTracker.updateContext({
-      view_type: viewType === 'activitypub_home' ? 'home' : viewType,
-      server_id: serverId,
-      channel_id: channelId,
-      conversation_id: conversationId
     })
 
     // Sync view context to database so send_notification() can suppress

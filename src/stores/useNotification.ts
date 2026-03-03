@@ -767,13 +767,21 @@ export const useNotificationStore = defineStore('notification', {
           formatted = NotificationFormatter.formatNotification(notification)
         }
 
+        // Use per-context tags so new notifications from the same source replace the previous one
+        // instead of stacking up (e.g., multiple DMs from the same conversation)
+        const contextTag = notification.data?.conversation_id
+          ? `harmony-${notification.type}-conv-${notification.data.conversation_id}`
+          : notification.data?.channel_id
+            ? `harmony-${notification.type}-ch-${notification.data.channel_id}`
+            : `harmony-${notification.type}-${notification.id}`
+
         const notificationOptions = {
           body: formatted.message,
           icon: NotificationFormatter.getAvatarUrl(notification),
           badge: '/img/app_icon_badge.png',
-          tag: `harmony-${notification.type}-${notification.id}`,
+          tag: contextTag,
+          renotify: true,
           silent: false,
-          // Data for service worker click handling
           data: {
             notificationId: notification.id,
             type: notification.type,
@@ -787,7 +795,6 @@ export const useNotificationStore = defineStore('notification', {
           const registration = await navigator.serviceWorker.ready
           await registration.showNotification(formatted.title, {
             ...notificationOptions,
-            // Service worker notifications need requireInteraction for important ones
             requireInteraction: notification.type === 'mention' || notification.type === 'dm'
           })
           debug.log(`✅ Service Worker notification shown for ${notification.type}`)
@@ -802,7 +809,6 @@ export const useNotificationStore = defineStore('notification', {
             desktopNotification.close()
           }
 
-          // Auto-close non-critical notifications
           if (notification.type !== 'mention' && notification.type !== 'dm') {
             setTimeout(() => desktopNotification.close(), 8000)
           }

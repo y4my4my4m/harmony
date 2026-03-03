@@ -84,7 +84,8 @@ self.addEventListener('push', async (event) => {
       // Badge should be monochrome white for Android status bar
       // Falls back to square icon if badge doesn't exist
       badge: '/img/app_icon_badge.png',
-      tag: data.tag || `harmony-${data.type}-${data.data?.user_id || 'unknown'}`,
+      tag: data.tag || `harmony-${data.type}-${data.data?.conversation_id || data.data?.channel_id || data.data?.user_id || 'unknown'}`,
+      renotify: true,
       data: data.data || {},
       requireInteraction: data.type === 'mention' || data.type === 'dm',
       silent: false,
