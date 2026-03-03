@@ -346,6 +346,9 @@ $$;
 COMMENT ON FUNCTION public.create_notification_structured IS 'Create notification with structured data.
 SECURITY: Caller must be target user, admin, or service_role.';
 
+-- Drop old 6-arg signature (localhost still has it; dev already has the 9-arg version)
+DROP FUNCTION IF EXISTS public.create_notification_with_spam_prevention(uuid, text, uuid, uuid, uuid, uuid);
+
 -- Fix create_notification_with_spam_prevention: restore caller identity check
 CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
     p_user_id uuid,
