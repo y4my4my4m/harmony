@@ -775,20 +775,19 @@ export const useNotificationStore = defineStore('notification', {
           }
         }
 
-        // On mobile PWA, use service worker for notifications
-        // Direct `new Notification()` doesn't work on mobile
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           const registration = await navigator.serviceWorker.ready
           await registration.showNotification(formatted.title, {
             ...notificationOptions,
             requireInteraction: notification.type === 'mention' || notification.type === 'dm'
           })
-          debug.log(`✅ Service Worker notification shown for ${notification.type}`)
+          debug.log(`✅ Desktop notification shown via SW for ${notification.type}`)
         } else {
-          // Desktop browsers without active service worker - use direct Notification
-          const desktopNotification = new Notification(formatted.title, notificationOptions)
+          const desktopNotification = new Notification(formatted.title, {
+            ...notificationOptions,
+            requireInteraction: notification.type === 'mention' || notification.type === 'dm'
+          })
 
-          // Handle click to navigate and close
           desktopNotification.onclick = () => {
             window.focus()
             this.handleNotificationClick(notification)

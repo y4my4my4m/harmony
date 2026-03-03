@@ -74,6 +74,15 @@ self.addEventListener('push', async (event) => {
     const data = event.data.json()
     console.log('📨 Service Worker: Notification data:', data)
 
+    // Skip push notification if any app window is focused — the realtime
+    // subscription already handles desktop notifications in that case
+    const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false })
+    const hasFocusedClient = windowClients.some(client => client.focused)
+    if (hasFocusedClient) {
+      console.log('🔕 Service Worker: App is focused, skipping push notification')
+      return
+    }
+
     // Discord-like notification logic
     // icon = colored icon for notification body (can be user avatar or app icon)
     // badge = small monochrome icon for status bar (must be white/transparent, 96x96)
@@ -84,7 +93,11 @@ self.addEventListener('push', async (event) => {
       // Badge should be monochrome white for Android status bar
       // Falls back to square icon if badge doesn't exist
       badge: '/img/app_icon_badge.png',
-      tag: data.tag || `harmony-${data.type}-${data.data?.conversation_id || data.data?.channel_id || data.data?.user_id || 'unknown'}`,
+      tag: data.tag || (data.data?.conversation_id
+        ? `harmony-${data.type}-conv-${data.data.conversation_id}`
+        : data.data?.channel_id
+          ? `harmony-${data.type}-ch-${data.data.channel_id}`
+          : `harmony-${data.type}-${data.data?.user_id || 'unknown'}`),
       renotify: true,
       data: data.data || {},
       requireInteraction: data.type === 'mention' || data.type === 'dm',
