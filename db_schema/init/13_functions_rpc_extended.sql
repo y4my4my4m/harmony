@@ -107,7 +107,7 @@ GRANT EXECUTE ON FUNCTION public.sync_view_context_from_presence(text, uuid, uui
 -- Function: send_notification (BASE function - must be created first)
 -- Other functions like send_notification_to_user depend on this
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.send_notification(notification_type character varying, to_user_ids uuid[], notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid[]
+CREATE OR REPLACE FUNCTION public.send_notification(p_notification_type character varying, to_user_ids uuid[], notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid[]
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -128,12 +128,12 @@ DECLARE
     v_time_threshold timestamp with time zone := NOW() - INTERVAL '2 minutes';
 BEGIN
     -- Validate inputs
-    IF notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
+    IF p_notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
         RETURN '{}';
     END IF;
 
     -- Determine if this is an ActivityPub notification type
-    is_activitypub_type := notification_type LIKE 'activitypub_%';
+    is_activitypub_type := p_notification_type LIKE 'activitypub_%';
 
     -- Process each recipient
     FOREACH recipient_id IN ARRAY to_user_ids LOOP
@@ -204,9 +204,9 @@ BEGIN
         END IF;
 
         -- Rate limit reaction-type notifications to prevent spam
-        IF from_user_id IS NOT NULL AND notification_type IN ('reaction', 'activitypub_reaction') THEN
+        IF from_user_id IS NOT NULL AND p_notification_type IN ('reaction', 'activitypub_reaction') THEN
             INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
-            VALUES (recipient_id, notification_type, from_user_id)
+            VALUES (recipient_id, p_notification_type, from_user_id)
             ON CONFLICT (user_id, notification_type, source_user_id)
             DO UPDATE SET
                 notification_count = notification_rate_limits.notification_count + 1,
@@ -219,14 +219,14 @@ BEGIN
             INTO is_rate_limited
             FROM notification_rate_limits nrl
             WHERE nrl.user_id = recipient_id
-              AND nrl.notification_type = send_notification.notification_type
+              AND nrl.notification_type = p_notification_type
               AND nrl.source_user_id = from_user_id;
 
             IF is_rate_limited THEN
                 UPDATE notification_rate_limits nrl
                 SET suppressed_until = NOW() + INTERVAL '2 minutes'
                 WHERE nrl.user_id = recipient_id
-                  AND nrl.notification_type = send_notification.notification_type
+                  AND nrl.notification_type = p_notification_type
                   AND nrl.source_user_id = from_user_id;
                 CONTINUE;
             END IF;
@@ -254,8 +254,7 @@ BEGIN
                 ELSIF COALESCE(user_prefs.activitypub_desktop_notifications, true) = false THEN
                     should_send := false;
                 ELSE
-                    -- Check specific ActivityPub notification types
-                    CASE notification_type
+                    CASE p_notification_type
                         WHEN 'activitypub_follow' THEN
                             should_send := COALESCE(user_prefs.activitypub_follows, true) 
                                        AND COALESCE(user_prefs.activitypub_desktop_follows, true);
@@ -284,15 +283,13 @@ BEGIN
             ELSE
                 -- Check desktop_notifications master toggle first for non-ActivityPub
                 IF COALESCE(user_prefs.desktop_notifications, true) = false THEN
-                    -- Master toggle off, but still allow high-priority types
-                    IF notification_type NOT IN ('mention', 'dm') THEN
+                    IF p_notification_type NOT IN ('mention', 'dm') THEN
                         should_send := false;
                     END IF;
                 END IF;
 
-                -- Check specific non-ActivityPub notification types
                 IF should_send THEN
-                    CASE notification_type
+                    CASE p_notification_type
                         WHEN 'mention' THEN
                             should_send := COALESCE(user_prefs.desktop_mentions, true);
                         WHEN 'reply' THEN
@@ -324,7 +321,6 @@ BEGIN
                     dnd_start time := COALESCE(user_prefs.dnd_start_time, '22:00'::time);
                     dnd_end time := COALESCE(user_prefs.dnd_end_time, '08:00'::time);
                 BEGIN
-                    -- Handle overnight DND (e.g., 22:00 to 08:00)
                     IF dnd_start > dnd_end THEN
                         IF current_time_of_day >= dnd_start OR current_time_of_day <= dnd_end THEN
                             should_send := false;
@@ -369,7 +365,7 @@ BEGIN
                 data,
                 created_at
             ) VALUES (
-                notification_type,
+                p_notification_type,
                 recipient_id,
                 enhanced_data,
                 current_timestamp
