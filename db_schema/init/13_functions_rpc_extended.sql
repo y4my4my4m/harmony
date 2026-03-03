@@ -101,6 +101,8 @@ $$;
 COMMENT ON FUNCTION public.sync_view_context_from_presence(text, uuid, uuid, uuid)
 IS 'Syncs ephemeral presence state to database table for PostgreSQL function access. Resolves auth.uid() to profiles.id before writing. Called from frontend when view context changes.';
 
+GRANT EXECUTE ON FUNCTION public.sync_view_context_from_presence(text, uuid, uuid, uuid) TO authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Function: send_notification (BASE function - must be created first)
 -- Other functions like send_notification_to_user depend on this

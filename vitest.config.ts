@@ -19,7 +19,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
-    exclude: ['node_modules', 'dist', 'federation-backend', 'tests/db/**'],
+    exclude: ['node_modules', 'dist', 'federation-backend', 'tests/db/**', 'tests/integration/**'],
     setupFiles: ['./tests/setup.ts'],
     globals: true,
     testTimeout: 10000,

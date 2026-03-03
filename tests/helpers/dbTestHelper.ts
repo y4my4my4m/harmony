@@ -1,11 +1,12 @@
 /**
  * Database test helper for integration tests against local Supabase PostgreSQL.
  *
- * Requires the local Supabase stack running (dev/docker-compose.yml).
+ * Requires the local Supabase stack running with DB port exposed.
  * Uses direct pg connections for transaction-based isolation.
  *
- * Set environment variables:
- *   TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
+ * Connection string is read from:
+ *   1. TEST_DATABASE_URL environment variable
+ *   2. Falls back to postgresql://postgres:your-super-secret-and-long-postgres-password@localhost:54322/postgres
  */
 
 export interface DbTestContext {
@@ -28,13 +29,19 @@ async function getPg() {
   return pgModule
 }
 
+function getConnectionString(): string {
+  return (
+    process.env.TEST_DATABASE_URL ||
+    'postgresql://postgres:your-super-secret-and-long-postgres-password@localhost:54322/postgres'
+  )
+}
+
 /**
  * Run a test function inside a rolled-back transaction for isolation.
  */
 export async function withTestTransaction(fn: (ctx: DbTestContext) => Promise<void>): Promise<void> {
   const pg = await getPg()
-  const connectionString = process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:54322/postgres'
-  const client = new pg.Client({ connectionString })
+  const client = new pg.Client({ connectionString: getConnectionString() })
 
   await client.connect()
   await client.query('BEGIN')
@@ -63,8 +70,7 @@ export async function withTestTransaction(fn: (ctx: DbTestContext) => Promise<vo
 export async function isDatabaseAvailable(): Promise<boolean> {
   try {
     const pg = await getPg()
-    const connectionString = process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:54322/postgres'
-    const client = new pg.Client({ connectionString })
+    const client = new pg.Client({ connectionString: getConnectionString() })
     await client.connect()
     await client.query('SELECT 1')
     await client.end()
