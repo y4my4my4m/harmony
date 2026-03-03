@@ -121,9 +121,11 @@ DECLARE
     is_blocked boolean;
     is_muted boolean;
     is_channel_muted boolean;
+    is_rate_limited boolean;
     p_channel_id uuid;
     p_conversation_id uuid;
     is_activitypub_type boolean;
+    v_time_threshold timestamp with time zone := NOW() - INTERVAL '2 minutes';
 BEGIN
     -- Validate inputs
     IF notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
@@ -197,6 +199,35 @@ BEGIN
         -- Check if user is currently viewing this channel/DM (Discord-like behavior)
         IF (server_id IS NOT NULL AND p_channel_id IS NOT NULL) OR p_conversation_id IS NOT NULL THEN
             IF public.is_user_viewing_context(recipient_id, server_id, p_channel_id, p_conversation_id) THEN
+                CONTINUE;
+            END IF;
+        END IF;
+
+        -- Rate limit reaction-type notifications to prevent spam
+        IF from_user_id IS NOT NULL AND notification_type IN ('reaction', 'activitypub_reaction') THEN
+            INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
+            VALUES (recipient_id, notification_type, from_user_id)
+            ON CONFLICT (user_id, notification_type, source_user_id)
+            DO UPDATE SET
+                notification_count = notification_rate_limits.notification_count + 1,
+                last_notification_at = NOW();
+
+            SELECT
+                (notification_count > 3) OR
+                (notification_count > 1 AND last_notification_at > v_time_threshold) OR
+                (suppressed_until IS NOT NULL AND suppressed_until > NOW())
+            INTO is_rate_limited
+            FROM notification_rate_limits
+            WHERE user_id = recipient_id
+              AND notification_type = notification_type
+              AND source_user_id = from_user_id;
+
+            IF is_rate_limited THEN
+                UPDATE notification_rate_limits
+                SET suppressed_until = NOW() + INTERVAL '2 minutes'
+                WHERE user_id = recipient_id
+                  AND notification_type = notification_type
+                  AND source_user_id = from_user_id;
                 CONTINUE;
             END IF;
         END IF;

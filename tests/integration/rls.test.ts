@@ -250,7 +250,7 @@ describe('RLS Policies - Notifications', () => {
       .insert({
         user_id: alice.profileId,
         type: 'test_rls',
-        metadata: { test: true },
+        data: { test: true },
       })
       .select('id')
       .single()
@@ -260,7 +260,7 @@ describe('RLS Policies - Notifications', () => {
       .insert({
         user_id: bob.profileId,
         type: 'test_rls',
-        metadata: { test: true },
+        data: { test: true },
       })
       .select('id')
       .single()
@@ -292,14 +292,14 @@ describe('RLS Policies - Notifications', () => {
       .insert({
         user_id: alice.profileId,
         type: 'test_update',
-        metadata: {},
+        data: {},
       })
       .select('id')
       .single()
 
     const { error } = await alice.client
       .from('notifications')
-      .update({ read: true, read_at: new Date().toISOString() })
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('id', notif!.id)
 
     expect(error).toBeNull()
@@ -307,11 +307,11 @@ describe('RLS Policies - Notifications', () => {
     // Verify
     const { data: updated } = await admin
       .from('notifications')
-      .select('read')
+      .select('is_read')
       .eq('id', notif!.id)
       .single()
 
-    expect(updated!.read).toBe(true)
+    expect(updated!.is_read).toBe(true)
 
     await admin.from('notifications').delete().eq('id', notif!.id)
   })
@@ -322,7 +322,7 @@ describe('RLS Policies - Notifications', () => {
       .insert({
         user_id: bob.profileId,
         type: 'test_update_other',
-        metadata: {},
+        data: {},
       })
       .select('id')
       .single()
@@ -330,7 +330,7 @@ describe('RLS Policies - Notifications', () => {
     // Alice tries to mark Bob's notification as read
     const { data, error } = await alice.client
       .from('notifications')
-      .update({ read: true })
+      .update({ is_read: true })
       .eq('id', notif!.id)
       .select('id')
 

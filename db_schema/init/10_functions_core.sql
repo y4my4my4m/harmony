@@ -347,7 +347,7 @@ BEGIN
         cp.user_id,
         cp.role,
         cp.joined_at,
-        cp.muted as is_muted,
+        cp.is_muted,
         cp.last_read_at
     FROM conversation_participants cp
     WHERE cp.conversation_id = conversation_uuid
@@ -367,7 +367,7 @@ STABLE
 AS $$
     SELECT COUNT(*)::INTEGER
     FROM notifications
-    WHERE user_id = p_user_id AND read = false;
+    WHERE user_id = p_user_id AND is_read = false;
 $$;
 
 -- Create default notification preferences

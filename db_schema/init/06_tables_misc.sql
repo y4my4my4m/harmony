@@ -89,37 +89,31 @@ COMMENT ON TABLE public.remote_emojis_cache IS 'Cache of custom emojis encounter
 
 -- ---------------------------------------------------------------------------
 -- NOTIFICATIONS
+-- Matches production schema: flat table with JSONB data column.
+-- All context (sender, post, server, channel, etc.) is stored in `data`.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.notifications (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    
-    -- Type: follow, mention, reply, reblog, favorite, poll, etc.
-    type text NOT NULL,
-    
-    -- What triggered the notification
-    actor_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-    post_id uuid REFERENCES public.posts(id) ON DELETE CASCADE,
-    message_id uuid REFERENCES public.messages(id) ON DELETE CASCADE,
-    server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
-    
-    -- State
-    read boolean DEFAULT false,
-    read_at timestamp with time zone,
-    
-    -- Extra data
-    metadata jsonb DEFAULT '{}'::jsonb
+    type character varying(50) NOT NULL,
+    data jsonb DEFAULT '{}'::jsonb,
+    is_read boolean DEFAULT false,
+    is_clicked boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval),
+    read_at timestamp with time zone
 );
 
 ALTER TABLE public.notifications REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_unread ON public.notifications(user_id, read) WHERE read = false;
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON public.notifications(user_id, is_read) WHERE is_read = false;
 CREATE INDEX IF NOT EXISTS idx_notifications_created ON public.notifications(created_at DESC);
 
 COMMENT ON TABLE public.notifications IS 'User notifications';
+COMMENT ON COLUMN public.notifications.is_read IS 'Boolean field indicating if notification has been read';
+COMMENT ON COLUMN public.notifications.read_at IS 'Timestamp when notification was marked as read';
 
 -- ---------------------------------------------------------------------------
 -- NOTIFICATION PREFERENCES

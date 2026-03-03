@@ -278,11 +278,11 @@ CREATE POLICY "Allow all" ON public.user_servers
 -- Allow users to leave servers they're in, or owners to remove members
 CREATE POLICY "Users can leave servers" ON public.user_servers
     FOR DELETE TO authenticated USING (
-        user_id = auth.uid()
+        user_id = public.get_current_profile_id()
         OR EXISTS (
             SELECT 1 FROM public.servers
             WHERE servers.id = user_servers.server_id
-            AND servers.owner = auth.uid()
+            AND owner = public.get_current_profile_id()
         )
     );
 
@@ -320,11 +320,11 @@ CREATE POLICY "Authenticated users can manage participants" ON public.conversati
 
 -- Allow users to update their own participation
 CREATE POLICY "conversation_participants_update_policy" ON public.conversation_participants
-    FOR UPDATE TO authenticated USING (user_id = auth.uid());
+    FOR UPDATE TO authenticated USING (user_id = public.get_current_profile_id());
 
 -- Allow users to leave conversations
 CREATE POLICY "conversation_participants_delete_policy" ON public.conversation_participants
-    FOR DELETE TO authenticated USING (user_id = auth.uid());
+    FOR DELETE TO authenticated USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
 -- NOTIFICATIONS RLS
@@ -350,6 +350,9 @@ ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "user_blocks_select_own" ON public.user_blocks
     FOR SELECT USING (blocker_id = public.get_current_profile_id());
+
+CREATE POLICY "user_blocks_check_if_blocked" ON public.user_blocks
+    FOR SELECT USING (blocked_user_id = public.get_current_profile_id());
 
 CREATE POLICY "user_blocks_insert_own" ON public.user_blocks
     FOR INSERT WITH CHECK (blocker_id = public.get_current_profile_id());
