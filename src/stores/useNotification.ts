@@ -743,23 +743,9 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
-        // Check if push notifications are enabled - if so, don't show desktop notification
-        // The backend will send the push notification instead
-        // This prevents duplicate notifications on mobile PWA
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          try {
-            const registration = await navigator.serviceWorker.ready
-            const pushSubscription = await registration.pushManager.getSubscription()
-            
-            if (pushSubscription) {
-              // User has push notifications - let backend handle it
-              debug.log('📱 Skipping desktop notification - push notifications active')
-              return
-            }
-          } catch (e) {
-            // If we can't check, proceed with desktop notification
-            debug.log('Could not check push subscription status:', e)
-          }
+        // Only show desktop notifications when the tab isn't focused
+        if (document.hasFocus()) {
+          return
         }
 
         // Use formatter if not provided
