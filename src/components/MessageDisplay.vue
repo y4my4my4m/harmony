@@ -2543,7 +2543,7 @@ const closeInviteModal = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
 }
@@ -2561,7 +2561,7 @@ const closeInviteModal = () => {
 .skeleton-username {
   width: 80px;
   height: 16px;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2570,7 +2570,7 @@ const closeInviteModal = () => {
 .skeleton-timestamp {
   width: 50px;
   height: 12px;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2578,7 +2578,7 @@ const closeInviteModal = () => {
 
 .skeleton-text-line {
   height: 14px;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;

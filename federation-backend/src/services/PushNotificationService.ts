@@ -694,6 +694,14 @@ class PushNotificationServiceClass {
         message = this.extractContentPreview(data) || 'You have a new notification';
     }
 
+    const conversationId = data.conversation_id || data.conversation?.id;
+    const channelId = data.channel_id || data.location?.channel_id;
+    const tag = conversationId
+      ? `harmony-${notification.type}-conv-${conversationId}`
+      : channelId
+        ? `harmony-${notification.type}-ch-${channelId}`
+        : `harmony-${notification.type}-${notification.id}`;
+
     return {
       title,
       message,
@@ -701,7 +709,7 @@ class PushNotificationServiceClass {
       type: notification.type,
       icon,
       badge: '/img/app_icon_square.webp',
-      tag: `harmony-${notification.type}-${notification.id}`,
+      tag,
       requireInteraction: ['mention', 'dm', 'activitypub_mention'].includes(notification.type),
       data: {
         notification_id: notification.id,
