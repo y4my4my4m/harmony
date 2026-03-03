@@ -213,21 +213,21 @@ BEGIN
                 last_notification_at = NOW();
 
             SELECT
-                (notification_count > 3) OR
-                (notification_count > 1 AND last_notification_at > v_time_threshold) OR
-                (suppressed_until IS NOT NULL AND suppressed_until > NOW())
+                (nrl.notification_count > 3) OR
+                (nrl.notification_count > 1 AND nrl.last_notification_at > v_time_threshold) OR
+                (nrl.suppressed_until IS NOT NULL AND nrl.suppressed_until > NOW())
             INTO is_rate_limited
-            FROM notification_rate_limits
-            WHERE user_id = recipient_id
-              AND notification_type = notification_type
-              AND source_user_id = from_user_id;
+            FROM notification_rate_limits nrl
+            WHERE nrl.user_id = recipient_id
+              AND nrl.notification_type = send_notification.notification_type
+              AND nrl.source_user_id = from_user_id;
 
             IF is_rate_limited THEN
-                UPDATE notification_rate_limits
+                UPDATE notification_rate_limits nrl
                 SET suppressed_until = NOW() + INTERVAL '2 minutes'
-                WHERE user_id = recipient_id
-                  AND notification_type = notification_type
-                  AND source_user_id = from_user_id;
+                WHERE nrl.user_id = recipient_id
+                  AND nrl.notification_type = send_notification.notification_type
+                  AND nrl.source_user_id = from_user_id;
                 CONTINUE;
             END IF;
         END IF;
