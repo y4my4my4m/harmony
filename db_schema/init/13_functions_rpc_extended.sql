@@ -6,6 +6,102 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- Function: is_user_viewing_context
+-- Checks if user is viewing a specific channel/DM. Used by send_notification
+-- to suppress notifications at database level (Discord-like behavior).
+-- Must be created BEFORE send_notification which depends on it.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_user_viewing_context(
+    p_user_id uuid,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+) RETURNS boolean
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+    v_view_context RECORD;
+BEGIN
+    SELECT * INTO v_view_context
+    FROM public.user_view_contexts
+    WHERE user_id = p_user_id;
+
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Check if viewing the exact server channel
+    IF p_server_id IS NOT NULL AND p_channel_id IS NOT NULL THEN
+        IF v_view_context.view_type = 'server_channel' AND
+           v_view_context.server_id = p_server_id AND
+           v_view_context.channel_id = p_channel_id THEN
+            RETURN TRUE;
+        END IF;
+    END IF;
+
+    -- Check if viewing the exact DM conversation
+    IF p_conversation_id IS NOT NULL THEN
+        IF v_view_context.view_type = 'dm' AND
+           v_view_context.conversation_id = p_conversation_id THEN
+            RETURN TRUE;
+        END IF;
+    END IF;
+
+    RETURN FALSE;
+END;
+$$;
+
+COMMENT ON FUNCTION public.is_user_viewing_context(uuid, uuid, uuid, uuid)
+IS 'Checks if user is viewing a specific channel/DM. Used by send_notification to suppress notifications at database level.';
+
+-- ---------------------------------------------------------------------------
+-- Function: sync_view_context_from_presence
+-- Syncs ephemeral presence state to the user_view_contexts table so
+-- is_user_viewing_context() can check it. Called from frontend on navigation.
+-- Resolves auth.uid() to profiles.id since they are different UUIDs.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.sync_view_context_from_presence(
+    p_view_type text,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_auth_id UUID := auth.uid();
+    v_profile_id UUID;
+BEGIN
+    IF v_auth_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- Resolve auth user ID to profile ID (they are different UUIDs)
+    SELECT id INTO v_profile_id
+    FROM public.profiles
+    WHERE auth_user_id = v_auth_id
+    LIMIT 1;
+
+    IF v_profile_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    INSERT INTO public.user_view_contexts (user_id, view_type, server_id, channel_id, conversation_id, last_active_at)
+    VALUES (v_profile_id, p_view_type, p_server_id, p_channel_id, p_conversation_id, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET
+        view_type = EXCLUDED.view_type,
+        server_id = EXCLUDED.server_id,
+        channel_id = EXCLUDED.channel_id,
+        conversation_id = EXCLUDED.conversation_id,
+        last_active_at = EXCLUDED.last_active_at;
+END;
+$$;
+
+COMMENT ON FUNCTION public.sync_view_context_from_presence(text, uuid, uuid, uuid)
+IS 'Syncs ephemeral presence state to database table for PostgreSQL function access. Resolves auth.uid() to profiles.id before writing. Called from frontend when view context changes.';
+
+-- ---------------------------------------------------------------------------
 -- Function: send_notification (BASE function - must be created first)
 -- Other functions like send_notification_to_user depend on this
 -- ---------------------------------------------------------------------------
