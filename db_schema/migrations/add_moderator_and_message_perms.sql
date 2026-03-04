@@ -13,6 +13,16 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_moderator boolean DEFAUL
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. Instance-level helper functions
 -- ─────────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.is_current_user_admin()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+    SELECT COALESCE(
+        (SELECT is_admin FROM public.profiles WHERE auth_user_id = auth.uid()),
+        false
+    );
+$$;
+
 CREATE OR REPLACE FUNCTION public.is_current_user_moderator()
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
