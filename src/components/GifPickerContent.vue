@@ -496,12 +496,12 @@ onMounted(async () => {
 }
 
 .gif-results::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thin-thumb);
+  background: var(--background-quaternary);
   border-radius: 4px;
 }
 
 .gif-results::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thin-thumb-hover);
+  background: var(--border-hover);
 }
 </style>
 
