@@ -43,6 +43,7 @@ export interface AdminUser {
   domain?: string;
   is_local?: boolean; // Indicates if the user is local or remote
   is_admin: boolean;
+  is_moderator: boolean;
   is_suspended: boolean;
   suspended_at?: string;
   suspension_reason?: string;
@@ -298,6 +299,7 @@ class AdminService {
           domain,
           is_local,
           is_admin,
+          is_moderator,
           is_suspended,
           suspended_at,
           suspension_reason,
@@ -767,6 +769,63 @@ class AdminService {
     } catch (error) {
       debug.error('Failed to check admin permissions:', error);
       return false;
+    }
+  }
+
+  /**
+   * Check if user is instance moderator
+   */
+  async checkModeratorPermissions(userId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_moderator')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      return data?.is_moderator || false;
+    } catch (error) {
+      debug.error('Failed to check moderator permissions:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if user is admin or moderator
+   */
+  async checkAdminOrModPermissions(userId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_admin, is_moderator')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      return data?.is_admin || data?.is_moderator || false;
+    } catch (error) {
+      debug.error('Failed to check admin/mod permissions:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Set moderator status for a user (admin only)
+   */
+  async setModeratorStatus(userId: string, isModerator: boolean): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_moderator: isModerator })
+        .eq('id', userId);
+
+      if (error) throw error;
+    } catch (error) {
+      debug.error('Failed to set moderator status:', error);
+      throw error;
     }
   }
 

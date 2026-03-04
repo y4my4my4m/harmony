@@ -12,6 +12,7 @@
 CREATE OR REPLACE FUNCTION public.create_notification_preferences()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
     IF NEW.is_local = true OR NEW.is_local IS NULL THEN

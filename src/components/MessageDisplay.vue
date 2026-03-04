@@ -387,6 +387,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
@@ -446,6 +447,7 @@ const serverChannelStore = useServerChannelStore();
 const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
+const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
 
@@ -671,7 +673,7 @@ const displayItems = computed((): DisplayItem[] => {
   
   return result;
 });
-const { isCurrentUserServerOwner } = useServerPermissions();
+const { isCurrentUserServerOwner, canManageMessages } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const { isMobile } = useLayoutState();
 const { 
@@ -1680,13 +1682,18 @@ const canEditMessage = (message: Message) => {
 
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
-  
-  // Can't delete messages in remote servers (federated servers)
+
   if (serverChannelStore.currentServer?.is_local_server === false) return false;
-  
+
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
-  return messageUserId === currentUserId || isCurrentUserServerOwner.value;
+
+  if (messageUserId === currentUserId) return true;
+  if (isCurrentUserServerOwner.value) return true;
+  if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
+  if (canManageMessages.value) return true;
+
+  return false;
 };
 
 

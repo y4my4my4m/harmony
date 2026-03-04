@@ -462,9 +462,10 @@ const filteredMembers = computed(() => {
 
 // Methods
 const loadRoles = async () => {
+  if (!props.serverId) return
   loading.value = true
   try {
-    const data = await roleService.getRolesForServer(props.serverId)
+    const data = await roleService.getServerRoles(props.serverId, true)
     roles.value = data.sort((a, b) => b.position - a.position)
   } catch (error) {
     console.error('Failed to load roles:', error)

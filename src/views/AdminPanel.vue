@@ -544,6 +544,7 @@
                   {{ user.display_name || user.username }}
                   <span v-if="user.is_suspended" class="badge suspended">Suspended</span>
                   <span v-if="user.is_admin" class="badge admin">Admin</span>
+                  <span v-if="user.is_moderator && !user.is_admin" class="badge moderator">Mod</span>
                 </div>
                 <div class="user-meta">
                   {{ user.handle }}
@@ -567,6 +568,15 @@
                 <span v-else class="user-stat">federated</span>
               </div>
               <div class="user-actions">
+                <button
+                  v-if="!user.is_admin"
+                  @click="toggleModerator(user)"
+                  class="mod-btn"
+                  :class="user.is_moderator ? 'demote-btn' : 'promote-btn'"
+                  :title="user.is_moderator ? 'Remove Moderator' : 'Make Moderator'"
+                >
+                  <Icon :name="user.is_moderator ? 'shield-off' : 'shield'" :size="16" />
+                </button>
                 <button 
                   v-if="user.is_suspended"
                   @click="moderateUser(user, 'unsuspend')" 
@@ -1373,6 +1383,21 @@ const unblockInstance = async (domain: string) => {
   } catch (error) {
     debug.error('Failed to unblock instance:', error)
     alert('Failed to unblock instance. Check console for details.')
+  }
+}
+
+const toggleModerator = async (user: any) => {
+  const newStatus = !user.is_moderator
+  const label = newStatus ? 'promote to moderator' : 'remove moderator from'
+  if (!confirm(`Are you sure you want to ${label} ${user.username}?`)) return
+
+  try {
+    await adminService.setModeratorStatus(user.id, newStatus)
+    user.is_moderator = newStatus
+    await loadRecentActivity()
+  } catch (error) {
+    debug.error('Failed to toggle moderator status:', error)
+    alert('Failed to update moderator status.')
   }
 }
 
@@ -2960,6 +2985,21 @@ const handleAddInstance = () => {
 .badge.admin {
   background: rgba(0, 212, 255, 0.2);
   color: #00d4ff;
+}
+
+.badge.moderator {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+}
+
+.promote-btn {
+  color: #2ecc71 !important;
+  &:hover { background: rgba(46, 204, 113, 0.2) !important; }
+}
+
+.demote-btn {
+  color: #e67e22 !important;
+  &:hover { background: rgba(230, 126, 34, 0.2) !important; }
 }
 
 .suspension-reason {

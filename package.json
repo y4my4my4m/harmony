@@ -99,6 +99,7 @@
     "concurrently": "^8.2.2",
     "eslint": "^8.49.0",
     "eslint-plugin-vue": "^9.17.0",
+    "fake-indexeddb": "^6.2.5",
     "glob": "^11.0.3",
     "happy-dom": "^15.11.7",
     "jsdoc-to-markdown": "^9.1.1",

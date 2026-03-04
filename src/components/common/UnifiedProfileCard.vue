@@ -30,8 +30,10 @@
         <p class="bio-text">{{ truncatedBio }}</p>
       </div>
 
-      <!-- Roles/Badges -->
-      <div v-if="!isCompact && userRoles.length > 0" class="user-roles">
+      <!-- Instance & Server Badges -->
+      <div v-if="!isCompact && (hasInstanceBadge || userRoles.length > 0)" class="user-roles">
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance Admin</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance Mod</div>
         <div
           v-for="role in userRoles"
           :key="role.id"
@@ -173,6 +175,7 @@ interface Props {
   showFollowBtn?: boolean
   showMoreActions?: boolean
   showInstanceBadge?: boolean
+  showRoles?: boolean
   hasStats?: boolean
   maxBioLength?: number
 }
@@ -184,6 +187,7 @@ const props = withDefaults(defineProps<Props>(), {
   showFollowBtn: true,
   showMoreActions: true,
   showInstanceBadge: true,
+  showRoles: false,
   hasStats: true,
   maxBioLength: 120
 })
@@ -249,7 +253,12 @@ const truncatedBio = computed(() => {
 })
 
 const userRoles = computed(() => {
+  if (!props.showRoles) return []
   return props.user.roles || []
+})
+
+const hasInstanceBadge = computed(() => {
+  return props.user.is_admin || props.user.is_moderator || false
 })
 
 const hasSpecialBadge = computed(() => {
@@ -545,6 +554,18 @@ const vClickOutside = {
   color: #ffffff;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.instance-admin-badge {
+  background: rgba(0, 212, 255, 0.2);
+  border-color: rgba(0, 212, 255, 0.4);
+  color: #00d4ff;
+}
+
+.instance-mod-badge {
+  background: rgba(46, 204, 113, 0.2);
+  border-color: rgba(46, 204, 113, 0.4);
+  color: #2ecc71;
 }
 
 .user-stats {

@@ -20,6 +20,79 @@ AS $$
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Helper: Check if user is instance moderator
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_current_user_moderator()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT COALESCE(
+        (SELECT is_moderator FROM public.profiles WHERE auth_user_id = auth.uid()),
+        false
+    );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Helper: Check if user is admin OR moderator
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_current_user_admin_or_mod()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT COALESCE(
+        (SELECT (is_admin OR is_moderator) FROM public.profiles WHERE auth_user_id = auth.uid()),
+        false
+    );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Helper: Check if current user can manage messages in a given channel
+-- Checks server ownership, server admin role, and MANAGE_MESSAGES (bit 21)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.can_current_user_manage_messages_in_channel(p_channel_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_profile_id uuid;
+    v_server_id uuid;
+    v_is_owner boolean;
+    v_has_perm boolean;
+BEGIN
+    v_profile_id := public.get_current_profile_id();
+    IF v_profile_id IS NULL THEN RETURN false; END IF;
+
+    SELECT server_id INTO v_server_id FROM public.channels WHERE id = p_channel_id;
+    IF v_server_id IS NULL THEN RETURN false; END IF;
+
+    SELECT (owner = v_profile_id) INTO v_is_owner FROM public.servers WHERE id = v_server_id;
+    IF v_is_owner THEN RETURN true; END IF;
+
+    -- Check if user has a role with ADMINISTRATOR (bit 0) or MANAGE_MESSAGES (bit 21)
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.user_roles ur
+        JOIN public.server_roles sr ON sr.id = ur.role_id
+        WHERE ur.user_id = v_profile_id
+          AND sr.server_id = v_server_id
+          AND (
+              sr.is_admin = true
+              OR (sr.permissions & (1::bigint << 0)) != 0
+              OR (sr.permissions & (1::bigint << 21)) != 0
+          )
+    ) INTO v_has_perm;
+
+    RETURN v_has_perm;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- TRENDING POSTS RLS
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.trending_posts ENABLE ROW LEVEL SECURITY;

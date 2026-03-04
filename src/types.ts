@@ -77,6 +77,7 @@ export interface User {
   bio?: string;
   color?: string;
   is_admin?: boolean;
+  is_moderator?: boolean;
   status: UserStatus;
   roles?: Role[]; // Server-specific roles
   created_at?: string;
@@ -107,6 +108,7 @@ export interface Profile {
   status?: UserStatus;
   color?: string;
   is_admin?: boolean;
+  is_moderator?: boolean;
   // ActivityPub fields
   federated_id?: string;
   ap_id?: string;

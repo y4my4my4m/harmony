@@ -1,4 +1,10 @@
 import { vi } from 'vitest'
+import { webcrypto } from 'node:crypto'
+
+// Polyfill Web Crypto API for Node 18 (natively global in Node 20+)
+if (!globalThis.crypto?.subtle) {
+  globalThis.crypto = webcrypto as unknown as Crypto
+}
 
 vi.stubGlobal('import.meta', {
   env: {

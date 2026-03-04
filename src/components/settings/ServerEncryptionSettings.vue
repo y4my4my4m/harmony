@@ -333,36 +333,15 @@ async function createDefaultPolicy() {
 
 async function loadMemberStats() {
   try {
-    // Get total member count
-    const { count: totalCount } = await supabase
-      .from('user_servers')
-      .select('*', { count: 'exact', head: true })
-      .eq('server_id', props.serverId)
+    const { data, error } = await supabase
+      .rpc('get_server_encryption_stats', { p_server_id: props.serverId })
 
-    memberStats.value.total = totalCount || 0
+    if (error) throw error
 
-    // Get members with encryption keys
-    const { data: membersWithKeys } = await supabase
-      .from('user_servers')
-      .select('user_id')
-      .eq('server_id', props.serverId)
-
-    if (membersWithKeys) {
-      let withKeysCount = 0
-
-      for (const member of membersWithKeys) {
-        const { data: hasKeys } = await supabase
-          .rpc('user_has_encryption', { p_user_id: member.user_id })
-
-        if (hasKeys) {
-          withKeysCount++
-        }
-      }
-
-      memberStats.value.withKeys = withKeysCount
-      memberStats.value.percentage = memberStats.value.total > 0
-        ? Math.round((withKeysCount / memberStats.value.total) * 100)
-        : 0
+    if (data) {
+      memberStats.value.total = data.total || 0
+      memberStats.value.withKeys = data.with_keys || 0
+      memberStats.value.percentage = data.percentage || 0
     }
   } catch (err) {
     debug.error('Failed to load member stats:', err)

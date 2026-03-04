@@ -253,11 +253,21 @@ CREATE POLICY "messages_insert_member" ON public.messages
         )
     );
 
-CREATE POLICY "messages_update_own" ON public.messages
-    FOR UPDATE USING (user_id = public.get_current_profile_id());
+CREATE POLICY "messages_update_authorized" ON public.messages
+    FOR UPDATE USING (
+        user_id = public.get_current_profile_id()
+        OR public.is_current_user_admin()
+        OR public.is_current_user_moderator()
+        OR public.can_current_user_manage_messages_in_channel(channel_id)
+    );
 
-CREATE POLICY "messages_delete_own" ON public.messages
-    FOR DELETE USING (user_id = public.get_current_profile_id());
+CREATE POLICY "messages_delete_authorized" ON public.messages
+    FOR DELETE USING (
+        user_id = public.get_current_profile_id()
+        OR public.is_current_user_admin()
+        OR public.is_current_user_moderator()
+        OR public.can_current_user_manage_messages_in_channel(channel_id)
+    );
 
 -- ---------------------------------------------------------------------------
 -- USER SERVERS RLS
@@ -468,6 +478,40 @@ CREATE POLICY "webrtc_settings_insert_admin_only" ON public.instance_webrtc_sett
             AND is_admin = true
         )
     );
+
+-- ---------------------------------------------------------------------------
+-- NOTIFICATION PREFERENCES RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "notification_preferences_select_own" ON public.notification_preferences
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_preferences_insert_own" ON public.notification_preferences
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_preferences_update_own" ON public.notification_preferences
+    FOR UPDATE USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_preferences_delete_own" ON public.notification_preferences
+    FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- NOTIFICATION CHANNELS RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.notification_channels ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "notification_channels_select_own" ON public.notification_channels
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_channels_insert_own" ON public.notification_channels
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_channels_update_own" ON public.notification_channels
+    FOR UPDATE USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_channels_delete_own" ON public.notification_channels
+    FOR DELETE USING (user_id = public.get_current_profile_id());
 
 DO $$
 BEGIN

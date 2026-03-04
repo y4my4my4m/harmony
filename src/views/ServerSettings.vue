@@ -168,6 +168,7 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { useServerStore } from '@/stores/server'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { getProfileWithAvatarUrl } from '@/services/ProfileService'
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -197,6 +198,7 @@ const { isMobile } = useLayoutState()
 // Composables
 const router = useRouter()
 const serverStore = useServerStore()
+const emojiCacheStore = useEmojiCacheStore()
 const toast = useToast()
 const { serverSettingsPermissions } = useServerPermissions()
 
@@ -316,7 +318,13 @@ const fetchServer = async () => {
 
 const fetchEmojis = async () => {
   try {
-    emojis.value = await serverStore.fetchEmojis(props.serverId)
+    const cached = emojiCacheStore.getServerEmojis(props.serverId)
+    if (cached.length > 0) {
+      emojis.value = cached
+      return
+    }
+    await emojiCacheStore.loadEmojisForServers([props.serverId])
+    emojis.value = emojiCacheStore.getServerEmojis(props.serverId)
   } catch (error) {
     debug.error('Error fetching emojis:', error)
     toast.error(t('server.failedToLoadEmojis'))
@@ -332,6 +340,7 @@ const handleFileChange = (file: File | null) => {
 
 const handleEmojiUploaded = (newEmoji: Emoji) => {
   emojis.value.push(newEmoji)
+  emojiCacheStore.invalidate({ serverId: props.serverId })
   toast.success(t('server.emojiUploadedSuccessToast'))
 }
 
@@ -340,6 +349,7 @@ const handleEmojiDeleted = (emojiId: string) => {
   if (index > -1) {
     emojis.value.splice(index, 1)
   }
+  emojiCacheStore.invalidate({ serverId: props.serverId })
 }
 
 const handleSave = async () => {

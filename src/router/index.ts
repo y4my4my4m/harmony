@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
-// Lazy load LoginView and RegisterView to avoid circular dependency with auth store
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/useProfile';
 import {
   ViewType, 
   CurrentView 
@@ -365,11 +365,15 @@ const router = createRouter({
   ],
 });
 
+const PROFILE_EXEMPT_ROUTES = new Set([
+  'NewProfile', 'Login', 'Register', 'Home', 'ResetPassword',
+  'AuthCallback', 'NotFoundPublic', 'NotFound', 'CatchAll'
+])
+
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const isLoggedIn = authStore.isLoggedIn;
 
-  // Prevent navigation away from reset-password when in password reset mode
   if (authStore.isPasswordResetMode && to.name !== 'ResetPassword' && to.name !== 'Login') {
     next({ name: 'ResetPassword' });
     return;
@@ -377,8 +381,19 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' });
-  } else if ((to.name === 'Login' || to.name === 'Home') && isLoggedIn) {
-    // Default to chat mode when logging in
+    return;
+  }
+
+  if (isLoggedIn && !PROFILE_EXEMPT_ROUTES.has(to.name as string)) {
+    const profileStore = useProfileStore();
+    const profile = profileStore.profile;
+    if (profile === null || !profile.username) {
+      next({ name: 'NewProfile' });
+      return;
+    }
+  }
+
+  if ((to.name === 'Login' || to.name === 'Home') && isLoggedIn) {
     next({ name: 'Chat' });
   } else {
     next();
