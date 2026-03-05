@@ -856,7 +856,7 @@ export interface ActivityPubPost {
 
 export interface MediaAttachment {
   id: string;
-  type: 'image' | 'video' | 'audio' | 'unknown';
+  type: 'image' | 'video' | 'gifv' | 'audio' | 'unknown';
   url: string;
   preview_url?: string;
   remote_url?: string;

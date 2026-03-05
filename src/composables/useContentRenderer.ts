@@ -410,6 +410,18 @@ export function useContentRenderer(
             </div>`;
           }
           
+          if (part.fileType === 'video' && renderOptions.showVideos) {
+            return `<div class="media-container video-container">
+              <video src="${part.url}" controls class="content-video"></video>
+            </div>`;
+          }
+          
+          if (part.fileType === 'audio') {
+            return `<div class="media-container audio-container">
+              <audio src="${part.url}" controls preload="metadata" class="content-audio"></audio>
+            </div>`;
+          }
+          
           return `<a href="${part.url}" target="_blank" rel="noopener noreferrer" class="file-link">
             <span class="file-icon">📎</span>${fileName}${fileSize}
           </a>`;
