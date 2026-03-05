@@ -5,7 +5,7 @@
 #
 # Prerequisites:
 #   1. Clone Supabase docker: git clone https://github.com/supabase/supabase
-#   2. Configure Supabase .env (copy from supabase/docker/.env.example)
+#   2. Configure Supabase .env (copy from supabase/docker/.env.example) (Add IMGPROXY_MAX_ANIMATION_FRAMES: 120 to supabase's imgproxy's service in the .env
 #   3. Build frontend: npm run build-only
 #   4. Configure Harmony env files
 #
