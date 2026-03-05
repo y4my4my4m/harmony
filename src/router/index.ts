@@ -386,8 +386,7 @@ router.beforeEach((to, from, next) => {
 
   if (isLoggedIn && !PROFILE_EXEMPT_ROUTES.has(to.name as string)) {
     const profileStore = useProfileStore();
-    const profile = profileStore.profile;
-    if (profile === null || !profile.username) {
+    if (profileStore.profileFetched && (!profileStore.profile || !profileStore.profile.username)) {
       next({ name: 'NewProfile' });
       return;
     }

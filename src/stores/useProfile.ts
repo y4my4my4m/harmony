@@ -8,12 +8,11 @@ import { debug } from '@/utils/debug';
 export const useProfileStore = defineStore('profile', {
   state: () => ({
     profile: null as Profile | null,
-    // Add consistent loading states from service layer
+    profileFetched: false,
     loadingState: createLoadingState<Profile>(),
   }),
   getters: {
     isProfileComplete: (state) => services.profiles.isProfileComplete(state.profile),
-    // Add loading state getters
     isLoading: (state) => state.loadingState.loading,
     error: (state) => state.loadingState.error,
   },
@@ -32,10 +31,12 @@ export const useProfileStore = defineStore('profile', {
           this.profile = null;
           this.loadingState = setSuccess(this.loadingState, null);
         }
+        this.profileFetched = true;
         
         debug.log('✅ Profile fetched via service layer');
       } catch (error: any) {
         debug.error('❌ Error fetching profile via service:', error);
+        this.profileFetched = true;
         this.loadingState = setError(this.loadingState, {
           code: error.code || 'FETCH_ERROR',
           message: error.message || 'Failed to fetch profile',
@@ -106,10 +107,12 @@ export const useProfileStore = defineStore('profile', {
         
         this.profile = profile;
         this.loadingState = setSuccess(this.loadingState, profile);
+        this.profileFetched = true;
         
         debug.log('✅ Profile fetched by auth user ID via service layer');
       } catch (error: any) {
         debug.error('❌ Error fetching profile by auth user ID via service:', error);
+        this.profileFetched = true;
         this.loadingState = setError(this.loadingState, {
           code: error.code || 'FETCH_BY_AUTH_ERROR',
           message: error.message || 'Failed to fetch profile by auth user ID',
@@ -131,6 +134,7 @@ export const useProfileStore = defineStore('profile', {
     // Helper method to clear profile
     clearProfile() {
       this.profile = null;
+      this.profileFetched = false;
       this.loadingState = createLoadingState<Profile>();
     }
   },
