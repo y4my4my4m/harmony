@@ -314,7 +314,7 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
@@ -339,10 +339,16 @@ const props = defineProps<Props>()
 const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 const serverChannelStore = useServerChannelStore()
 const { closeMobileSidebars, isMobile } = useLayoutState()
+
+const isInServerContext = computed(() => {
+  return route.path.startsWith('/chat/') && !route.path.startsWith('/dm')
+    && !!serverChannelStore.currentServerId
+})
 
 // Reactive computed to track blocked/muted user counts for change detection
 const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size)
@@ -422,8 +428,8 @@ async function loadUserStats(userId: string) {
  * Fetch user roles for the current server context
  */
 async function loadUserRoles(userId: string) {
-  const serverId = serverChannelStore.currentServerId
-  if (!serverId || isLoadingRoles.value) return
+  if (!isInServerContext.value || isLoadingRoles.value) return
+  const serverId = serverChannelStore.currentServerId!
   
   isLoadingRoles.value = true
   try {
@@ -880,7 +886,7 @@ const getUserVerified = (user: any) => {
 }
 
 const getUserRoles = (_user: any) => {
-  if (!serverChannelStore.currentServerId) {
+  if (!isInServerContext.value) {
     return []
   }
   return fetchedUserRoles.value

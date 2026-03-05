@@ -1177,7 +1177,7 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status')
+        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -1205,6 +1205,8 @@ class UserDataService extends EventTarget {
             lastCacheUpdate: new Date().toISOString(),
             createdAt: profile.created_at || new Date().toISOString(),
             updatedAt: profile.updated_at,
+            isAdmin: profile.is_admin || false,
+            isModerator: profile.is_moderator || false,
             source: 'database'
           }
           
@@ -1239,6 +1241,8 @@ class UserDataService extends EventTarget {
       status: userData.status,
       domain: userData.domain,
       roles: userData.roles || [],
+      is_admin: userData.isAdmin || false,
+      is_moderator: userData.isModerator || false,
       is_local: userData.isLocal,
       online_at: userData.lastSeen,
       last_seen: userData.lastSeen

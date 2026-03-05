@@ -136,9 +136,11 @@ export interface UserData {
   createdAt: string // When the user account was created
   updatedAt?: string // When the profile was last updated in database
   roles?: any[]
+  isAdmin?: boolean
+  isModerator?: boolean
   messageCount?: number
   voiceTime?: number
-  
+
   // Presence data (real-time)
   status: UserStatus
   customStatus?: CustomUserStatus  // Custom status text (Discord-style)
