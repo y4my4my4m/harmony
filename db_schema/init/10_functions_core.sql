@@ -636,6 +636,52 @@ GRANT EXECUTE ON FUNCTION public.has_blocked(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_muted_by(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.has_muted(uuid) TO authenticated;
 
+-- ---------------------------------------------------------------------------
+-- FEDERATION JOB QUEUE
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.queue_federation_job(
+    p_job_name text,
+    p_job_data jsonb,
+    p_priority integer DEFAULT 5,
+    p_retry_limit integer DEFAULT 5,
+    p_expire_in_seconds integer DEFAULT 3600
+)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_job_id uuid;
+    v_target_domain text;
+BEGIN
+    INSERT INTO pgboss.job (
+        id, name, data, priority, retry_limit,
+        expire_in, created_on, state
+    ) VALUES (
+        gen_random_uuid(), p_job_name, p_job_data, p_priority, p_retry_limit,
+        make_interval(secs => p_expire_in_seconds), now(), 'created'
+    )
+    RETURNING id INTO v_job_id;
+    RETURN v_job_id;
+EXCEPTION
+    WHEN undefined_table OR insufficient_privilege THEN
+        v_target_domain := p_job_data->>'target_domain';
+        IF v_target_domain IS NOT NULL AND v_target_domain != '' THEN
+            INSERT INTO public.federation_delivery_queue (
+                activity_data, target_inbox_url, target_domain,
+                sender_id, status, priority, next_attempt_at
+            ) VALUES (
+                p_job_data, p_job_data->>'target_inbox', v_target_domain,
+                (p_job_data->>'sender_id')::UUID, 'pending', p_priority, NOW()
+            )
+            RETURNING id INTO v_job_id;
+            RETURN v_job_id;
+        ELSE
+            RAISE LOG 'pg-boss not available, skipping job %', p_job_name;
+            RETURN NULL;
+        END IF;
+END;
+$$;
+
 DO $$
 BEGIN
     RAISE NOTICE 'Core functions created successfully';

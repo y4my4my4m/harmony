@@ -41,11 +41,41 @@ export async function createTestUser(
   const username = opts.username || `testuser_${suffix}`
   const email = `${username}@test.harmony.local`
 
-  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+  let { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
     password: 'test-password-12345',
     email_confirm: true,
   })
+
+  if (authError?.message?.includes('already been registered')) {
+    // Look up stale auth user via profile (most reliable)
+    const { data: existingProfile } = await admin
+      .from('profiles')
+      .select('auth_user_id')
+      .eq('username', username)
+      .single()
+
+    let staleAuthId = existingProfile?.auth_user_id
+
+    // Fallback: search auth users list
+    if (!staleAuthId) {
+      const { data: listData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const existing = listData?.users?.find((u: any) => u.email === email)
+      staleAuthId = existing?.id
+    }
+
+    if (staleAuthId) {
+      await cleanupSingleUser(admin, staleAuthId)
+    }
+
+    const retry = await admin.auth.admin.createUser({
+      email,
+      password: 'test-password-12345',
+      email_confirm: true,
+    })
+    authData = retry.data
+    authError = retry.error
+  }
 
   if (authError || !authData.user) {
     throw new Error(`Failed to create auth user: ${authError?.message}`)
@@ -101,10 +131,34 @@ export async function createTestUser(
   }
 }
 
+async function cleanupSingleUser(admin: SupabaseClient, authId: string): Promise<void> {
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('auth_user_id', authId)
+    .single()
+
+  if (profile?.id) {
+    await admin.from('user_servers').delete().eq('user_id', profile.id)
+    await admin.from('user_roles').delete().eq('user_id', profile.id)
+    await admin.rpc('_test_delete_owned_servers', { p_owner_id: profile.id })
+    await admin.from('messages').delete().eq('user_id', profile.id)
+    await admin.from('conversation_participants').delete().eq('user_id', profile.id)
+    await admin.from('user_blocks').delete().eq('blocker_id', profile.id)
+    await admin.from('user_blocks').delete().eq('blocked_user_id', profile.id)
+    await admin.from('notifications').delete().eq('user_id', profile.id)
+    await admin.from('notification_preferences').delete().eq('user_id', profile.id)
+    await admin.from('user_view_contexts').delete().eq('user_id', profile.id)
+    await admin.from('reactions').delete().eq('user_id', profile.id)
+    await admin.from('profiles').delete().eq('id', profile.id)
+  }
+
+  await admin.auth.admin.deleteUser(authId)
+}
+
 export async function cleanupTestUsers(admin: SupabaseClient): Promise<void> {
   for (const authId of createdAuthIds) {
-    await admin.from('profiles').delete().eq('auth_user_id', authId)
-    await admin.auth.admin.deleteUser(authId)
+    await cleanupSingleUser(admin, authId)
   }
   createdAuthIds.length = 0
 }

@@ -43,8 +43,9 @@ CREATE POLICY "posts_select_public" ON public.posts
         -- Author can always see their own posts
         author_id = public.get_current_profile_id()
         OR (
-            -- Not blocked by the author
+            -- Not blocked by the author AND not blocked by you
             NOT public.is_blocked_by(author_id)
+            AND NOT public.has_blocked(author_id)
             AND (
                 -- Public/unlisted posts
                 visibility IN ('public', 'unlisted')

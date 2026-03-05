@@ -838,9 +838,10 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-    INSERT INTO server_membership_events (server_id, user_id, event_type, payload)
-    VALUES (OLD.server_id, OLD.user_id, 'leave', '{}'::jsonb);
-    
+    IF EXISTS (SELECT 1 FROM servers WHERE id = OLD.server_id) THEN
+        INSERT INTO server_membership_events (server_id, user_id, event_type, payload)
+        VALUES (OLD.server_id, OLD.user_id, 'leave', '{}'::jsonb);
+    END IF;
     RETURN OLD;
 END;
 $$;

@@ -23,19 +23,22 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  // Clean up any leftover notifications
   await admin.from('notifications').delete().eq('type', 'dm')
   await admin.from('notifications').delete().eq('type', 'mention')
   await admin.from('notifications').delete().eq('type', 'test_notif')
-  await admin.from('user_view_contexts').delete().eq('user_id', alice.profileId)
-  await admin.from('user_view_contexts').delete().eq('user_id', bob.profileId)
+  if (alice?.profileId) {
+    await admin.from('user_view_contexts').delete().eq('user_id', alice.profileId)
+  }
+  if (bob?.profileId) {
+    await admin.from('user_view_contexts').delete().eq('user_id', bob.profileId)
+  }
   await cleanupTestUsers(admin)
 })
 
 describe('send_notification RPC', () => {
   it('creates a notification for the recipient', async () => {
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'test_notif',
+      p_notification_type: 'test_notif',
       to_user_ids: [bob.profileId],
       notification_data: { message: 'Hello from test' },
       from_user_id: alice.profileId,
@@ -60,7 +63,7 @@ describe('send_notification RPC', () => {
 
   it('does NOT create a notification when sending to yourself', async () => {
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'test_notif',
+      p_notification_type: 'test_notif',
       to_user_ids: [alice.profileId],
       notification_data: { message: 'Self message' },
       from_user_id: alice.profileId,
@@ -82,7 +85,7 @@ describe('send_notification RPC', () => {
     )
 
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'test_notif',
+      p_notification_type: 'test_notif',
       to_user_ids: [bob.profileId],
       notification_data: { message: 'From blocked user' },
       from_user_id: alice.profileId,
@@ -194,7 +197,7 @@ describe('View context suppression (the DM notification bug)', () => {
 
     // Alice sends a notification to Bob for this conversation
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'dm',
+      p_notification_type: 'dm',
       to_user_ids: [bob.profileId],
       notification_data: { message: 'New DM' },
       conversation_id: conversationId,
@@ -211,7 +214,7 @@ describe('View context suppression (the DM notification bug)', () => {
     await admin.from('user_view_contexts').delete().eq('user_id', bob.profileId)
 
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'dm',
+      p_notification_type: 'dm',
       to_user_ids: [bob.profileId],
       notification_data: { message: 'New DM while away' },
       conversation_id: conversationId,
@@ -241,7 +244,7 @@ describe('View context suppression (the DM notification bug)', () => {
     )
 
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'dm',
+      p_notification_type: 'dm',
       to_user_ids: [bob.profileId],
       notification_data: { message: 'DM to different convo' },
       conversation_id: conversationId,
@@ -284,7 +287,7 @@ describe('Channel notification suppression', () => {
     )
 
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'mention',
+      p_notification_type: 'mention',
       to_user_ids: [bob.profileId],
       notification_data: { message: '@bob check this out' },
       server_id: serverId,
@@ -313,7 +316,7 @@ describe('Channel notification suppression', () => {
     )
 
     const { data, error } = await admin.rpc('send_notification', {
-      notification_type: 'mention',
+      p_notification_type: 'mention',
       to_user_ids: [bob.profileId],
       notification_data: { message: '@bob in other channel' },
       server_id: serverId,

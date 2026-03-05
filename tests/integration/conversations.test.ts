@@ -277,11 +277,13 @@ describe('Block functions', () => {
   })
 
   it('has_blocked returns true after blocking', async () => {
-    await admin.from('user_blocks').insert({
+    const { error: insertError } = await admin.from('user_blocks').insert({
       blocker_id: alice.profileId,
       blocked_user_id: bob.profileId,
       block_type: 'full',
     })
+
+    expect(insertError).toBeNull()
 
     const { data, error } = await alice.client.rpc('has_blocked', {
       target_user_id: bob.profileId,

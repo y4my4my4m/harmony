@@ -121,14 +121,29 @@ COMMENT ON COLUMN public.notifications.read_at IS 'Timestamp when notification w
 CREATE TABLE IF NOT EXISTS public.notification_preferences (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
-    
+
+    -- Desktop/sound notifications
+    desktop_notifications boolean DEFAULT true,
+    desktop_mentions boolean DEFAULT true,
+    desktop_replies boolean DEFAULT true,
+    desktop_dms boolean DEFAULT true,
+    desktop_reactions boolean DEFAULT false,
+    sound_mentions boolean DEFAULT true,
+    sound_dms boolean DEFAULT true,
+    sound_voice_activity boolean DEFAULT true,
+
+    -- Do Not Disturb
+    dnd_enabled boolean DEFAULT false,
+    dnd_start_time time DEFAULT '22:00'::time,
+    dnd_end_time time DEFAULT '08:00'::time,
+
     -- Email notifications
     email_follows boolean DEFAULT true,
     email_mentions boolean DEFAULT true,
     email_replies boolean DEFAULT true,
     email_reblogs boolean DEFAULT true,
     email_favorites boolean DEFAULT true,
-    
+
     -- Push notifications
     push_follows boolean DEFAULT true,
     push_mentions boolean DEFAULT true,
@@ -136,7 +151,22 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
     push_reblogs boolean DEFAULT true,
     push_favorites boolean DEFAULT true,
     push_dms boolean DEFAULT true,
-    
+
+    -- ActivityPub notifications
+    activitypub_notifications boolean DEFAULT true,
+    activitypub_desktop_notifications boolean DEFAULT true,
+    activitypub_follows boolean DEFAULT true,
+    activitypub_follow_requests boolean DEFAULT true,
+    activitypub_favorites boolean DEFAULT true,
+    activitypub_reblogs boolean DEFAULT true,
+    activitypub_mentions boolean DEFAULT true,
+    activitypub_replies boolean DEFAULT true,
+    activitypub_desktop_follows boolean DEFAULT true,
+    activitypub_desktop_favorites boolean DEFAULT false,
+    activitypub_desktop_reblogs boolean DEFAULT false,
+    activitypub_desktop_mentions boolean DEFAULT true,
+    activitypub_desktop_replies boolean DEFAULT true,
+
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );

@@ -164,7 +164,7 @@ BEGIN
                 FROM user_mutes um
                 WHERE um.muter_id = recipient_id
                 AND um.muted_user_id = from_user_id
-                AND um.mute_type IN ('notifications_only', 'all')
+                AND um.hide_notifications = true
                 AND (um.expires_at IS NULL OR um.expires_at > NOW())
             ) INTO is_muted;
             
@@ -1501,7 +1501,7 @@ BEGIN
             NULLIF((n.data->'user'->>'id'), '')::uuid,
             NULLIF((n.data->'author'->>'id'), '')::uuid
         )
-        AND um.mute_type IN ('notifications_only', 'all')
+        AND um.hide_notifications = true
         AND (um.expires_at IS NULL OR um.expires_at > NOW())
     )
     
