@@ -6,10 +6,108 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- Function: is_user_viewing_context
+-- Checks if user is viewing a specific channel/DM. Used by send_notification
+-- to suppress notifications at database level (Discord-like behavior).
+-- Must be created BEFORE send_notification which depends on it.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_user_viewing_context(
+    p_user_id uuid,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+) RETURNS boolean
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+    v_view_context RECORD;
+BEGIN
+    SELECT * INTO v_view_context
+    FROM public.user_view_contexts
+    WHERE user_id = p_user_id;
+
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Check if viewing the exact server channel
+    IF p_server_id IS NOT NULL AND p_channel_id IS NOT NULL THEN
+        IF v_view_context.view_type = 'server_channel' AND
+           v_view_context.server_id = p_server_id AND
+           v_view_context.channel_id = p_channel_id THEN
+            RETURN TRUE;
+        END IF;
+    END IF;
+
+    -- Check if viewing the exact DM conversation
+    IF p_conversation_id IS NOT NULL THEN
+        IF v_view_context.view_type = 'dm' AND
+           v_view_context.conversation_id = p_conversation_id THEN
+            RETURN TRUE;
+        END IF;
+    END IF;
+
+    RETURN FALSE;
+END;
+$$;
+
+COMMENT ON FUNCTION public.is_user_viewing_context(uuid, uuid, uuid, uuid)
+IS 'Checks if user is viewing a specific channel/DM. Used by send_notification to suppress notifications at database level.';
+
+-- ---------------------------------------------------------------------------
+-- Function: sync_view_context_from_presence
+-- Syncs ephemeral presence state to the user_view_contexts table so
+-- is_user_viewing_context() can check it. Called from frontend on navigation.
+-- Resolves auth.uid() to profiles.id since they are different UUIDs.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.sync_view_context_from_presence(
+    p_view_type text,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_auth_id UUID := auth.uid();
+    v_profile_id UUID;
+BEGIN
+    IF v_auth_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- Resolve auth user ID to profile ID (they are different UUIDs)
+    SELECT id INTO v_profile_id
+    FROM public.profiles
+    WHERE auth_user_id = v_auth_id
+    LIMIT 1;
+
+    IF v_profile_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    INSERT INTO public.user_view_contexts (user_id, view_type, server_id, channel_id, conversation_id, last_active_at)
+    VALUES (v_profile_id, p_view_type, p_server_id, p_channel_id, p_conversation_id, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET
+        view_type = EXCLUDED.view_type,
+        server_id = EXCLUDED.server_id,
+        channel_id = EXCLUDED.channel_id,
+        conversation_id = EXCLUDED.conversation_id,
+        last_active_at = EXCLUDED.last_active_at;
+END;
+$$;
+
+COMMENT ON FUNCTION public.sync_view_context_from_presence(text, uuid, uuid, uuid)
+IS 'Syncs ephemeral presence state to database table for PostgreSQL function access. Resolves auth.uid() to profiles.id before writing. Called from frontend when view context changes.';
+
+GRANT EXECUTE ON FUNCTION public.sync_view_context_from_presence(text, uuid, uuid, uuid) TO authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Function: send_notification (BASE function - must be created first)
 -- Other functions like send_notification_to_user depend on this
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.send_notification(notification_type character varying, to_user_ids uuid[], notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid[]
+CREATE OR REPLACE FUNCTION public.send_notification(p_notification_type character varying, to_user_ids uuid[], notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid[]
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -23,17 +121,19 @@ DECLARE
     is_blocked boolean;
     is_muted boolean;
     is_channel_muted boolean;
+    is_rate_limited boolean;
     p_channel_id uuid;
     p_conversation_id uuid;
     is_activitypub_type boolean;
+    v_time_threshold timestamp with time zone := NOW() - INTERVAL '2 minutes';
 BEGIN
     -- Validate inputs
-    IF notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
+    IF p_notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
         RETURN '{}';
     END IF;
 
     -- Determine if this is an ActivityPub notification type
-    is_activitypub_type := notification_type LIKE 'activitypub_%';
+    is_activitypub_type := p_notification_type LIKE 'activitypub_%';
 
     -- Process each recipient
     FOREACH recipient_id IN ARRAY to_user_ids LOOP
@@ -64,7 +164,7 @@ BEGIN
                 FROM user_mutes um
                 WHERE um.muter_id = recipient_id
                 AND um.muted_user_id = from_user_id
-                AND um.mute_type IN ('notifications_only', 'all')
+                AND um.hide_notifications = true
                 AND (um.expires_at IS NULL OR um.expires_at > NOW())
             ) INTO is_muted;
             
@@ -103,6 +203,35 @@ BEGIN
             END IF;
         END IF;
 
+        -- Rate limit reaction-type notifications to prevent spam
+        IF from_user_id IS NOT NULL AND p_notification_type IN ('reaction', 'activitypub_reaction') THEN
+            INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
+            VALUES (recipient_id, p_notification_type, from_user_id)
+            ON CONFLICT (user_id, notification_type, source_user_id)
+            DO UPDATE SET
+                notification_count = notification_rate_limits.notification_count + 1,
+                last_notification_at = NOW();
+
+            SELECT
+                (nrl.notification_count > 3) OR
+                (nrl.notification_count > 1 AND nrl.last_notification_at > v_time_threshold) OR
+                (nrl.suppressed_until IS NOT NULL AND nrl.suppressed_until > NOW())
+            INTO is_rate_limited
+            FROM notification_rate_limits nrl
+            WHERE nrl.user_id = recipient_id
+              AND nrl.notification_type = p_notification_type
+              AND nrl.source_user_id = from_user_id;
+
+            IF is_rate_limited THEN
+                UPDATE notification_rate_limits nrl
+                SET suppressed_until = NOW() + INTERVAL '2 minutes'
+                WHERE nrl.user_id = recipient_id
+                  AND nrl.notification_type = p_notification_type
+                  AND nrl.source_user_id = from_user_id;
+                CONTINUE;
+            END IF;
+        END IF;
+
         -- Get user notification preferences
         user_prefs := NULL;
         BEGIN
@@ -125,8 +254,7 @@ BEGIN
                 ELSIF COALESCE(user_prefs.activitypub_desktop_notifications, true) = false THEN
                     should_send := false;
                 ELSE
-                    -- Check specific ActivityPub notification types
-                    CASE notification_type
+                    CASE p_notification_type
                         WHEN 'activitypub_follow' THEN
                             should_send := COALESCE(user_prefs.activitypub_follows, true) 
                                        AND COALESCE(user_prefs.activitypub_desktop_follows, true);
@@ -155,15 +283,13 @@ BEGIN
             ELSE
                 -- Check desktop_notifications master toggle first for non-ActivityPub
                 IF COALESCE(user_prefs.desktop_notifications, true) = false THEN
-                    -- Master toggle off, but still allow high-priority types
-                    IF notification_type NOT IN ('mention', 'dm') THEN
+                    IF p_notification_type NOT IN ('mention', 'dm') THEN
                         should_send := false;
                     END IF;
                 END IF;
 
-                -- Check specific non-ActivityPub notification types
                 IF should_send THEN
-                    CASE notification_type
+                    CASE p_notification_type
                         WHEN 'mention' THEN
                             should_send := COALESCE(user_prefs.desktop_mentions, true);
                         WHEN 'reply' THEN
@@ -195,7 +321,6 @@ BEGIN
                     dnd_start time := COALESCE(user_prefs.dnd_start_time, '22:00'::time);
                     dnd_end time := COALESCE(user_prefs.dnd_end_time, '08:00'::time);
                 BEGIN
-                    -- Handle overnight DND (e.g., 22:00 to 08:00)
                     IF dnd_start > dnd_end THEN
                         IF current_time_of_day >= dnd_start OR current_time_of_day <= dnd_end THEN
                             should_send := false;
@@ -240,7 +365,7 @@ BEGIN
                 data,
                 created_at
             ) VALUES (
-                notification_type,
+                p_notification_type,
                 recipient_id,
                 enhanced_data,
                 current_timestamp
@@ -1376,7 +1501,7 @@ BEGIN
             NULLIF((n.data->'user'->>'id'), '')::uuid,
             NULLIF((n.data->'author'->>'id'), '')::uuid
         )
-        AND um.mute_type IN ('notifications_only', 'all')
+        AND um.hide_notifications = true
         AND (um.expires_at IS NULL OR um.expires_at > NOW())
     )
     
@@ -1409,161 +1534,129 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_user_permissions
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_user_permissions(p_user_id uuid, p_server_id uuid, p_channel_id uuid DEFAULT NULL::uuid) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    AS $$
+CREATE OR REPLACE FUNCTION public.get_user_permissions(
+    p_user_id uuid,
+    p_server_id uuid,
+    p_channel_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
 DECLARE
     v_is_owner boolean;
-    v_base_permissions jsonb := '{}'::jsonb;
-    v_channel_allows jsonb := '{}'::jsonb;
-    v_channel_denies jsonb := '{}'::jsonb;
-    v_final_permissions jsonb;
+    v_base_mask bigint := 0;
+    v_allow_mask bigint := 0;
+    v_deny_mask bigint := 0;
+    v_final_mask bigint;
     v_role record;
     v_override record;
+    v_result jsonb := '{}'::jsonb;
+    v_bit_map jsonb := '[
+        "ADMINISTRATOR","VIEW_CHANNEL","MANAGE_CHANNELS","MANAGE_ROLES",
+        "MANAGE_EMOJIS","VIEW_AUDIT_LOG","MANAGE_WEBHOOKS","MANAGE_SERVER",
+        "CREATE_INVITE","KICK_MEMBERS","BAN_MEMBERS","TIMEOUT_MEMBERS",
+        "SEND_MESSAGES","SEND_MESSAGES_IN_THREADS","CREATE_PUBLIC_THREADS","CREATE_PRIVATE_THREADS",
+        "EMBED_LINKS","ATTACH_FILES","ADD_REACTIONS","USE_EXTERNAL_EMOJIS",
+        "MENTION_EVERYONE","MANAGE_MESSAGES","READ_MESSAGE_HISTORY","PIN_MESSAGES",
+        "CONNECT","SPEAK","STREAM","MUTE_MEMBERS","DEAFEN_MEMBERS","MOVE_MEMBERS"
+    ]'::jsonb;
+    v_i int;
+    v_perm_name text;
 BEGIN
-    -- Check if user is server owner
     SELECT (owner = p_user_id) INTO v_is_owner
-    FROM "public"."servers"
-    WHERE id = p_server_id;
-    
-    -- Server owner has all permissions
+    FROM public.servers WHERE id = p_server_id;
+
+    -- Server owner gets all permissions
     IF v_is_owner THEN
-        RETURN jsonb_build_object(
-            'ADMINISTRATOR', true,
-            'VIEW_CHANNEL', true,
-            'MANAGE_CHANNELS', true,
-            'MANAGE_ROLES', true,
-            'MANAGE_EMOJIS', true,
-            'VIEW_AUDIT_LOG', true,
-            'MANAGE_WEBHOOKS', true,
-            'MANAGE_SERVER', true,
-            'CREATE_INVITE', true,
-            'CHANGE_NICKNAME', true,
-            'MANAGE_NICKNAMES', true,
-            'KICK_MEMBERS', true,
-            'BAN_MEMBERS', true,
-            'TIMEOUT_MEMBERS', true,
-            'SEND_MESSAGES', true,
-            'SEND_MESSAGES_IN_THREADS', true,
-            'CREATE_PUBLIC_THREADS', true,
-            'CREATE_PRIVATE_THREADS', true,
-            'EMBED_LINKS', true,
-            'ATTACH_FILES', true,
-            'ADD_REACTIONS', true,
-            'USE_EXTERNAL_EMOJIS', true,
-            'MENTION_EVERYONE', true,
-            'MANAGE_MESSAGES', true,
-            'READ_MESSAGE_HISTORY', true,
-            'SEND_TTS_MESSAGES', true,
-            'CONNECT', true,
-            'SPEAK', true,
-            'STREAM', true,
-            'USE_VAD', true,
-            'PRIORITY_SPEAKER', true,
-            'MUTE_MEMBERS', true,
-            'DEAFEN_MEMBERS', true,
-            'MOVE_MEMBERS', true,
-            'PIN_MESSAGES', true
-        );
-    END IF;
-    
-    -- Start with @everyone role permissions as base
-    SELECT permissions INTO v_base_permissions
-    FROM "public"."server_roles"
-    WHERE server_id = p_server_id AND is_default = true;
-    
-    v_base_permissions := COALESCE(v_base_permissions, '{}'::jsonb);
-    
-    -- Collect permissions from all user's roles (ordered by position)
-    -- Merge on top of @everyone (higher position roles can override)
-    FOR v_role IN
-        SELECT sr.permissions, sr.position
-        FROM "public"."user_roles" ur
-        JOIN "public"."server_roles" sr ON ur.role_id = sr.id
-        WHERE ur.user_id = p_user_id AND ur.server_id = p_server_id
-        ORDER BY sr.position ASC
-    LOOP
-        -- Merge permissions (higher position roles can override)
-        v_base_permissions := v_base_permissions || v_role.permissions;
-    END LOOP;
-    
-    -- If ADMINISTRATOR permission is set, grant all permissions
-    IF (v_base_permissions->>'ADMINISTRATOR')::boolean = true THEN
-        RETURN jsonb_build_object(
-            'ADMINISTRATOR', true,
-            'VIEW_CHANNEL', true,
-            'MANAGE_CHANNELS', true,
-            'MANAGE_ROLES', true,
-            'MANAGE_EMOJIS', true,
-            'VIEW_AUDIT_LOG', true,
-            'MANAGE_WEBHOOKS', true,
-            'MANAGE_SERVER', true,
-            'CREATE_INVITE', true,
-            'CHANGE_NICKNAME', true,
-            'MANAGE_NICKNAMES', true,
-            'KICK_MEMBERS', true,
-            'BAN_MEMBERS', true,
-            'TIMEOUT_MEMBERS', true,
-            'SEND_MESSAGES', true,
-            'SEND_MESSAGES_IN_THREADS', true,
-            'CREATE_PUBLIC_THREADS', true,
-            'CREATE_PRIVATE_THREADS', true,
-            'EMBED_LINKS', true,
-            'ATTACH_FILES', true,
-            'ADD_REACTIONS', true,
-            'USE_EXTERNAL_EMOJIS', true,
-            'MENTION_EVERYONE', true,
-            'MANAGE_MESSAGES', true,
-            'READ_MESSAGE_HISTORY', true,
-            'SEND_TTS_MESSAGES', true,
-            'CONNECT', true,
-            'SPEAK', true,
-            'STREAM', true,
-            'USE_VAD', true,
-            'PRIORITY_SPEAKER', true,
-            'MUTE_MEMBERS', true,
-            'DEAFEN_MEMBERS', true,
-            'MOVE_MEMBERS', true,
-            'PIN_MESSAGES', true
-        );
-    END IF;
-    
-    -- Apply channel-specific overrides if channel_id is provided
-    IF p_channel_id IS NOT NULL THEN
-        -- Get role-based overrides (collect all allows and denies)
-        FOR v_override IN
-            SELECT cpo.allow, cpo.deny
-            FROM "public"."channel_permission_overrides" cpo
-            JOIN "public"."user_roles" ur ON cpo.target_id = ur.role_id AND cpo.target_type = 'role'
-            WHERE cpo.channel_id = p_channel_id AND ur.user_id = p_user_id
-        LOOP
-            v_channel_allows := v_channel_allows || v_override.allow;
-            v_channel_denies := v_channel_denies || v_override.deny;
+        FOR v_i IN 0..29 LOOP
+            v_perm_name := v_bit_map->>v_i;
+            IF v_perm_name IS NOT NULL THEN
+                v_result := v_result || jsonb_build_object(v_perm_name, true);
+            END IF;
         END LOOP;
-        
-        -- Get user-specific overrides (highest priority)
-        SELECT allow, deny INTO v_override
-        FROM "public"."channel_permission_overrides"
-        WHERE channel_id = p_channel_id AND target_type = 'user' AND target_id = p_user_id;
-        
-        IF FOUND THEN
-            v_channel_allows := v_channel_allows || v_override.allow;
-            v_channel_denies := v_channel_denies || v_override.deny;
-        END IF;
-        
-        -- Apply overrides: base + allows - denies
-        v_final_permissions := v_base_permissions || v_channel_allows;
-        
-        -- Remove denied permissions
-        SELECT jsonb_object_agg(key, value)
-        INTO v_final_permissions
-        FROM jsonb_each(v_final_permissions) 
-        WHERE NOT (v_channel_denies ? key AND (v_channel_denies->>key)::boolean = true);
-        
-        RETURN COALESCE(v_final_permissions, '{}'::jsonb);
+        RETURN v_result;
     END IF;
-    
-    RETURN v_base_permissions;
+
+    -- Start with @everyone role
+    SELECT COALESCE(permissions, 0) INTO v_base_mask
+    FROM public.server_roles
+    WHERE server_id = p_server_id AND is_default = true;
+
+    v_base_mask := COALESCE(v_base_mask, 0);
+
+    -- Merge all user's roles (OR the bitmasks)
+    FOR v_role IN
+        SELECT sr.permissions
+        FROM public.user_roles ur
+        JOIN public.server_roles sr ON ur.role_id = sr.id
+        WHERE ur.user_id = p_user_id AND ur.server_id = p_server_id
+    LOOP
+        v_base_mask := v_base_mask | COALESCE(v_role.permissions, 0);
+    END LOOP;
+
+    -- ADMINISTRATOR bit (0) grants everything
+    IF (v_base_mask & 1) != 0 THEN
+        FOR v_i IN 0..29 LOOP
+            v_perm_name := v_bit_map->>v_i;
+            IF v_perm_name IS NOT NULL THEN
+                v_result := v_result || jsonb_build_object(v_perm_name, true);
+            END IF;
+        END LOOP;
+        RETURN v_result;
+    END IF;
+
+    -- Apply channel overrides
+    v_final_mask := v_base_mask;
+    IF p_channel_id IS NOT NULL THEN
+        FOR v_override IN
+            SELECT allow_permissions, deny_permissions
+            FROM public.channel_permission_overrides
+            WHERE channel_id = p_channel_id
+              AND (role_id IN (
+                  SELECT sr.id FROM public.user_roles ur
+                  JOIN public.server_roles sr ON ur.role_id = sr.id
+                  WHERE ur.user_id = p_user_id AND ur.server_id = p_server_id
+              ) OR user_id = p_user_id)
+        LOOP
+            v_allow_mask := v_allow_mask | COALESCE(v_override.allow_permissions, 0);
+            v_deny_mask := v_deny_mask | COALESCE(v_override.deny_permissions, 0);
+        END LOOP;
+
+        v_final_mask := (v_final_mask | v_allow_mask) & ~v_deny_mask;
+    END IF;
+
+    -- Convert bitmask to jsonb result
+    FOR v_i IN 0..29 LOOP
+        v_perm_name := v_bit_map->>v_i;
+        IF v_perm_name IS NOT NULL THEN
+            v_result := v_result || jsonb_build_object(
+                v_perm_name,
+                (v_final_mask & (1::bigint << v_i)) != 0
+            );
+        END IF;
+    END LOOP;
+
+    RETURN v_result;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: has_permission
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.has_permission(
+    p_user_id uuid,
+    p_server_id uuid,
+    p_permission text,
+    p_channel_id uuid DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
+DECLARE
+    v_permissions jsonb;
+BEGIN
+    v_permissions := public.get_user_permissions(p_user_id, p_server_id, p_channel_id);
+    RETURN COALESCE((v_permissions->>p_permission)::boolean, false);
 END;
 $$;
 
@@ -2975,3 +3068,37 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.check_key_consistency() IS 'Check for local users with inconsistent key state (public key without private key or vice versa)';
+
+-- ---------------------------------------------------------------------------
+-- get_server_encryption_stats - Aggregated encryption stats for a server
+-- Replaces per-user N+1 calls to user_has_encryption
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_server_encryption_stats(p_server_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_total int;
+  v_with_keys int;
+BEGIN
+  SELECT count(*) INTO v_total
+  FROM user_servers WHERE server_id = p_server_id;
+
+  SELECT count(DISTINCT us.user_id) INTO v_with_keys
+  FROM user_servers us
+  JOIN user_key_pairs ukp ON ukp.user_id = us.user_id AND ukp.is_active = true
+  WHERE us.server_id = p_server_id;
+
+  RETURN jsonb_build_object(
+    'total', v_total,
+    'with_keys', v_with_keys,
+    'percentage', CASE WHEN v_total > 0
+      THEN round((v_with_keys::numeric / v_total) * 100)
+      ELSE 0 END
+  );
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_server_encryption_stats(uuid) IS 'Get aggregated encryption adoption stats for a server in a single query';

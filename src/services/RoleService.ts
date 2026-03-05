@@ -169,11 +169,11 @@ export function permissionsToBitmask(permissions: Record<Permission, boolean> | 
 export function bitmaskToPermissions(bitmask: bigint | number | string): Record<Permission, boolean> {
   const permissions: Record<Permission, boolean> = {} as Record<Permission, boolean>
   const mask = BigInt(bitmask || 0)
-  
+
   for (const [permission, bit] of Object.entries(PERMISSION_BITS)) {
     permissions[permission as Permission] = (mask & (BigInt(1) << BigInt(bit))) !== BigInt(0)
   }
-  
+
   return permissions
 }
 
@@ -303,22 +303,38 @@ class RoleService {
     }
 
     try {
+      // Fetch roles (simple query without embedded resource to avoid user_roles RLS issues)
       const { data, error } = await supabase
         .from('server_roles')
-        .select(`
-          *,
-          member_count:user_roles(count)
-        `)
+        .select('*')
         .eq('server_id', serverId)
         .order('position', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        debug.error('getServerRoles query error:', error)
+        throw error
+      }
 
-      // Convert bigint permissions to object format for frontend
+      // Fetch member counts separately
+      const roleIds = (data || []).map((r: any) => r.id)
+      const memberCounts: Record<string, number> = {}
+      if (roleIds.length > 0) {
+        const { data: countData } = await supabase
+          .from('user_roles')
+          .select('role_id')
+          .in('role_id', roleIds)
+
+        if (countData) {
+          countData.forEach((ur: any) => {
+            memberCounts[ur.role_id] = (memberCounts[ur.role_id] || 0) + 1
+          })
+        }
+      }
+
       const roles = (data || []).map((r: any) => ({
         ...r,
         permissions: bitmaskToPermissions(r.permissions),
-        member_count: r.member_count?.[0]?.count || 0,
+        member_count: memberCounts[r.id] || 0,
       })) as ServerRole[]
       this.roleCache.set(serverId, roles)
       return roles
@@ -593,6 +609,30 @@ class RoleService {
       }))
     } catch (error) {
       debug.error('Failed to fetch role members:', error)
+      return []
+    }
+  }
+
+  /**
+   * Get all role assignments for a server, optionally filtered to specific role IDs.
+   * Single query replaces N+1 per-role fetches.
+   */
+  async getRoleMembersForServer(serverId: string, roleIds?: string[]): Promise<{ user_id: string; role_id: string }[]> {
+    try {
+      let query = supabase
+        .from('user_roles')
+        .select('user_id, role_id')
+        .eq('server_id', serverId)
+
+      if (roleIds && roleIds.length > 0) {
+        query = query.in('role_id', roleIds)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      debug.error('Failed to fetch server role assignments:', error)
       return []
     }
   }

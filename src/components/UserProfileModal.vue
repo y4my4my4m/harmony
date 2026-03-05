@@ -73,7 +73,13 @@
             </div>
 
             <div class="user-badges">
-              <div v-if="getUserRoles(user).length" class="roles-container">
+              <div class="roles-container">
+                <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">
+                  Instance Admin
+                </div>
+                <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">
+                  Instance Mod
+                </div>
                 <div 
                   v-for="role in getUserRoles(user)" 
                   :key="role.id"
@@ -308,7 +314,7 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
@@ -333,10 +339,16 @@ const props = defineProps<Props>()
 const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 const serverChannelStore = useServerChannelStore()
 const { closeMobileSidebars, isMobile } = useLayoutState()
+
+const isInServerContext = computed(() => {
+  return route.path.startsWith('/chat/') && !route.path.startsWith('/dm')
+    && !!serverChannelStore.currentServerId
+})
 
 // Reactive computed to track blocked/muted user counts for change detection
 const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size)
@@ -416,8 +428,8 @@ async function loadUserStats(userId: string) {
  * Fetch user roles for the current server context
  */
 async function loadUserRoles(userId: string) {
-  const serverId = serverChannelStore.currentServerId
-  if (!serverId || isLoadingRoles.value) return
+  if (!isInServerContext.value || isLoadingRoles.value) return
+  const serverId = serverChannelStore.currentServerId!
   
   isLoadingRoles.value = true
   try {
@@ -873,13 +885,19 @@ const getUserVerified = (user: any) => {
   return user?.verified || user?.profile?.verified
 }
 
-const getUserRoles = (user: any) => {
-  // First check if we have fetched roles from the server
-  if (fetchedUserRoles.value.length > 0) {
-    return fetchedUserRoles.value
+const getUserRoles = (_user: any) => {
+  if (!isInServerContext.value) {
+    return []
   }
-  // Fall back to roles on user object (if any)
-  return user?.roles || user?.profile?.roles || []
+  return fetchedUserRoles.value
+}
+
+const isInstanceAdmin = (user: any) => {
+  return user?.is_admin || user?.profile?.is_admin || false
+}
+
+const isInstanceModerator = (user: any) => {
+  return user?.is_moderator || user?.profile?.is_moderator || false
 }
 
 const getUserBio = (user: any) => {
@@ -1261,6 +1279,18 @@ onMounted(() => {
   color: #ffffff;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.instance-admin-badge {
+  background: rgba(0, 212, 255, 0.2) !important;
+  border-color: rgba(0, 212, 255, 0.4) !important;
+  color: #00d4ff !important;
+}
+
+.instance-mod-badge {
+  background: rgba(46, 204, 113, 0.2) !important;
+  border-color: rgba(46, 204, 113, 0.4) !important;
+  color: #2ecc71 !important;
 }
 
 .user-stats {

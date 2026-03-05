@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     
     -- Admin & moderation
     is_admin boolean DEFAULT false,
+    is_moderator boolean DEFAULT false,
     is_suspended boolean DEFAULT false,
     suspended_at timestamp with time zone,
     suspension_reason text,

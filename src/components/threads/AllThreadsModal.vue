@@ -167,7 +167,7 @@ const loadThreads = async () => {
   
   loading.value = true
   try {
-    threads.value = await threadService.getThreadsForChannel(props.channelId)
+    threads.value = await threadService.getChannelThreads(props.channelId, { includeArchived: true })
   } catch (error) {
     console.error('Failed to load threads:', error)
     threads.value = []

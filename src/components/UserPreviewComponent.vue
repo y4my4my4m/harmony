@@ -4,7 +4,7 @@
     <h2>{{ user.display_name }}</h2>
     <h4>{{ user.username }}</h4>
     <div class="user-preview-details">
-      <div class="role-pills">
+      <div v-if="user.roles && user.roles.length > 0" class="role-pills">
         <span v-for="role in user.roles" :key="role.id" class="role-pill" :style="{ backgroundColor: role.color }">
           {{ role.name }}
         </span>

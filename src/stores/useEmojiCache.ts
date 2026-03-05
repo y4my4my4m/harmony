@@ -2,6 +2,13 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
+import {
+  getCachedServerEmojis,
+  getAllCachedServerEmojis,
+  setCachedServerEmojis,
+  removeCachedServerEmojis,
+  type CachedServerEmojiData,
+} from '@/services/emojiIndexedDBCache'
 
 interface EmojiCacheEntry {
   emoji: Emoji;
@@ -157,6 +164,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     // ⚡ OPTIMIZED: Initialize with selective server loading
+    // Hydrates from IndexedDB first for instant display, then validates against network.
     async initializeSelective(priorityServerIds: string[] = [], backgroundServerIds: string[] = []) {
       if (this.isInitialized) return;
       
@@ -164,18 +172,56 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       debug.log(`⚡ Priority servers: ${priorityServerIds.length}, Background: ${backgroundServerIds.length}`);
       
       try {
-        // Load priority servers immediately (current server)
-        if (priorityServerIds.length > 0) {
-          debug.log('⚡ Loading priority server emojis...');
-          await this.loadEmojisForServers(priorityServerIds);
+        // --- Phase 1: Hydrate from IndexedDB (instant, no network) ---
+        const allRequestedIds = [...priorityServerIds, ...backgroundServerIds];
+        let hydratedServerIds: string[] = [];
+
+        try {
+          const cachedServers = await getAllCachedServerEmojis();
+          for (const cached of cachedServers) {
+            if (allRequestedIds.includes(cached.serverId)) {
+              this.updateServerCache(
+                cached.serverId,
+                cached.emojis as Emoji[],
+                { name: cached.serverName, icon: cached.serverIcon, allow_cross_server_emojis: cached.allowCrossServer },
+              );
+              hydratedServerIds.push(cached.serverId);
+            }
+          }
+          if (hydratedServerIds.length > 0) {
+            this.rebuildResolvedEmojis();
+            debug.log(`⚡ Hydrated ${hydratedServerIds.length} servers from IndexedDB cache`);
+          }
+        } catch (e) {
+          debug.warn('IndexedDB hydration failed, will fetch from network:', e);
+        }
+
+        // --- Phase 2: Fetch from network (servers not in IndexedDB or stale) ---
+        const priorityMissing = priorityServerIds.filter(id => !hydratedServerIds.includes(id));
+        const backgroundMissing = backgroundServerIds.filter(id => !hydratedServerIds.includes(id));
+
+        if (priorityMissing.length > 0) {
+          debug.log(`⚡ Loading ${priorityMissing.length} priority servers from network...`);
+          await this.loadEmojisForServers(priorityMissing);
         }
         
-        // Load background servers after a delay (other servers)
-        if (backgroundServerIds.length > 0) {
+        if (backgroundMissing.length > 0) {
           setTimeout(async () => {
-            debug.log('🔄 Loading background server emojis...');
-            await this.loadEmojisForServers(backgroundServerIds);
-          }, 1000); // 1 second delay
+            debug.log(`🔄 Loading ${backgroundMissing.length} background servers from network...`);
+            await this.loadEmojisForServers(backgroundMissing);
+          }, 1000);
+        }
+
+        // Revalidate hydrated servers in background (stale-while-revalidate)
+        if (hydratedServerIds.length > 0) {
+          setTimeout(async () => {
+            debug.log(`🔄 Revalidating ${hydratedServerIds.length} cached servers...`);
+            for (const id of hydratedServerIds) {
+              const cache = this.serverCaches.get(id);
+              if (cache) cache.isStale = true;
+            }
+            await this.loadEmojisForServers(hydratedServerIds);
+          }, 2000);
         }
         
         // Set up real-time subscriptions
@@ -303,7 +349,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       return emojiMap;
     },
 
-    // Update cache for a specific server
+    // Update cache for a specific server and persist to IndexedDB
     updateServerCache(serverId: string, emojis: Emoji[], serverDetails?: any) {
       // Remove old cache if it exists
       this.removeServerFromCache(serverId);
@@ -345,10 +391,20 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
       this.serverCaches.set(serverId, serverCache);
       
+      // Write-through to IndexedDB for persistence across page reloads
+      setCachedServerEmojis({
+        serverId,
+        serverName: serverCache.serverName,
+        serverIcon: serverCache.serverIcon,
+        allowCrossServer: serverCache.allowCrossServer,
+        emojis,
+        lastFetched: now.getTime(),
+      });
+      
       debug.log(`📦 Cached ${emojis.length} emojis for server: ${serverCache.serverName}`);
     },
 
-    // Remove server from all caches
+    // Remove server from all caches (memory + IndexedDB)
     removeServerFromCache(serverId: string) {
       const cache = this.serverCaches.get(serverId);
       if (!cache) return;
@@ -371,6 +427,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       }
 
       this.serverCaches.delete(serverId);
+      removeCachedServerEmojis(serverId);
     },
 
     // Rebuild the resolved emojis structure for components

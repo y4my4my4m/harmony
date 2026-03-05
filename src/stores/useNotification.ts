@@ -556,15 +556,33 @@ export const useNotificationStore = defineStore('notification', {
                 return
               }
 
-              // Note: Block/mute filtering AND view context filtering are handled by database triggers/functions
-              // If a notification reaches here, it means the user is NOT viewing the source channel/DM
-              // (Notifications are suppressed at database level if user is viewing the context)
+              // Check if user is currently viewing the source context BEFORE adding to list
+              // This prevents unread count from incrementing for conversations the user is actively in
+              const notificationContext = {
+                server_id: newNotification.data?.location?.server_id || newNotification.data?.server_id,
+                channel_id: newNotification.data?.location?.channel_id || newNotification.data?.channel_id,
+                conversation_id: newNotification.data?.conversation?.id || newNotification.data?.conversation_id,
+                type: newNotification.type
+              }
+              
+              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext)
+              debug.log('🎯 Notification UI decision:', uiDecision)
+              
+              // If user is viewing the source context, auto-mark as read and skip all UI
+              if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
+                debug.log('🔕 Notification suppressed: User is viewing source context')
+                newNotification.is_read = true
+                this.notifications.unshift(newNotification)
+                // Don't update unread count since we marked it read
+                // Also mark as read in the database
+                services.notifications.markAsRead(newNotification.id).catch(() => {})
+                return
+              }
               
               // Check DND - if active, don't show UI but still add to list
               const isDndActive = this.isQuietHours
               if (isDndActive && newNotification.type !== 'server_update') {
                 debug.log('🌙 DND active - notification added silently')
-                // Still add to list but don't show UI
                 this.notifications.unshift(newNotification)
                 this.updateUnreadCount()
                 return
@@ -576,24 +594,6 @@ export const useNotificationStore = defineStore('notification', {
 
               // Format message using client-side formatter
               const formatted = NotificationFormatter.formatNotification(newNotification)
-
-              // ✅ FIX: Use viewContextTracker to check if user is currently viewing the source
-              // This is a client-side check as a safety net (database may also filter but better safe than sorry)
-              const notificationContext = {
-                server_id: newNotification.data?.location?.server_id || newNotification.data?.server_id,
-                channel_id: newNotification.data?.location?.channel_id || newNotification.data?.channel_id,
-                conversation_id: newNotification.data?.conversation?.id || newNotification.data?.conversation_id,
-                type: newNotification.type
-              }
-              
-              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext)
-              debug.log('🎯 Notification UI decision:', uiDecision)
-              
-              // If suppressed, don't show any UI but the notification is still in the list
-              if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
-                debug.log('🔕 Notification suppressed: User is viewing source context')
-                return
-              }
 
               // Process notification through unified notification system
               this.handleRealtimeNotification(newNotification, formatted, uiDecision)
@@ -743,23 +743,9 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
-        // Check if push notifications are enabled - if so, don't show desktop notification
-        // The backend will send the push notification instead
-        // This prevents duplicate notifications on mobile PWA
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          try {
-            const registration = await navigator.serviceWorker.ready
-            const pushSubscription = await registration.pushManager.getSubscription()
-            
-            if (pushSubscription) {
-              // User has push notifications - let backend handle it
-              debug.log('📱 Skipping desktop notification - push notifications active')
-              return
-            }
-          } catch (e) {
-            // If we can't check, proceed with desktop notification
-            debug.log('Could not check push subscription status:', e)
-          }
+        // Only show desktop notifications when the tab isn't focused
+        if (document.hasFocus()) {
+          return
         }
 
         // Use formatter if not provided
@@ -767,13 +753,21 @@ export const useNotificationStore = defineStore('notification', {
           formatted = NotificationFormatter.formatNotification(notification)
         }
 
+        // Use per-context tags so new notifications from the same source replace the previous one
+        // instead of stacking up (e.g., multiple DMs from the same conversation)
+        const contextTag = notification.data?.conversation_id
+          ? `harmony-${notification.type}-conv-${notification.data.conversation_id}`
+          : notification.data?.channel_id
+            ? `harmony-${notification.type}-ch-${notification.data.channel_id}`
+            : `harmony-${notification.type}-${notification.id}`
+
         const notificationOptions = {
           body: formatted.message,
           icon: NotificationFormatter.getAvatarUrl(notification),
           badge: '/img/app_icon_badge.png',
-          tag: `harmony-${notification.type}-${notification.id}`,
+          tag: contextTag,
+          renotify: true,
           silent: false,
-          // Data for service worker click handling
           data: {
             notificationId: notification.id,
             type: notification.type,
@@ -781,28 +775,25 @@ export const useNotificationStore = defineStore('notification', {
           }
         }
 
-        // On mobile PWA, use service worker for notifications
-        // Direct `new Notification()` doesn't work on mobile
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           const registration = await navigator.serviceWorker.ready
           await registration.showNotification(formatted.title, {
             ...notificationOptions,
-            // Service worker notifications need requireInteraction for important ones
             requireInteraction: notification.type === 'mention' || notification.type === 'dm'
           })
-          debug.log(`✅ Service Worker notification shown for ${notification.type}`)
+          debug.log(`✅ Desktop notification shown via SW for ${notification.type}`)
         } else {
-          // Desktop browsers without active service worker - use direct Notification
-          const desktopNotification = new Notification(formatted.title, notificationOptions)
+          const desktopNotification = new Notification(formatted.title, {
+            ...notificationOptions,
+            requireInteraction: notification.type === 'mention' || notification.type === 'dm'
+          })
 
-          // Handle click to navigate and close
           desktopNotification.onclick = () => {
             window.focus()
             this.handleNotificationClick(notification)
             desktopNotification.close()
           }
 
-          // Auto-close non-critical notifications
           if (notification.type !== 'mention' && notification.type !== 'dm') {
             setTimeout(() => desktopNotification.close(), 8000)
           }

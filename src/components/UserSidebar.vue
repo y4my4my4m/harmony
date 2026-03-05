@@ -749,26 +749,26 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
     const roles = await roleService.getServerRoles(serverId);
     serverRoles.value = roles;
     
-    // For each user in the server, we need to fetch their roles
-    // This is done efficiently by checking hoisted roles
     const hoistedRoles = roles.filter(r => r.hoist && !r.is_default);
-    
+
     if (hoistedRoles.length > 0) {
       debug.log(`🎭 UserSidebar: Found ${hoistedRoles.length} hoisted roles for server ${serverId}`);
-      
-      // Fetch role members for each hoisted role
+
+      const hoistedRoleIds = hoistedRoles.map(r => r.id);
+      const roleMap = new Map(hoistedRoles.map(r => [r.id, r]));
+
+      const assignments = await roleService.getRoleMembersForServer(serverId, hoistedRoleIds);
       const newUserRolesMap = new Map<string, ServerRole[]>();
-      
-      for (const role of hoistedRoles) {
-        const members = await roleService.getRoleMembers(role.id);
-        for (const member of members) {
-          if (!newUserRolesMap.has(member.id)) {
-            newUserRolesMap.set(member.id, []);
-          }
-          newUserRolesMap.get(member.id)!.push(role);
+
+      for (const assignment of assignments) {
+        const role = roleMap.get(assignment.role_id);
+        if (!role) continue;
+        if (!newUserRolesMap.has(assignment.user_id)) {
+          newUserRolesMap.set(assignment.user_id, []);
         }
+        newUserRolesMap.get(assignment.user_id)!.push(role);
       }
-      
+
       userRolesMap.value = newUserRolesMap;
       debug.log(`🎭 UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
     }

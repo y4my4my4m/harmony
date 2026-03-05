@@ -387,6 +387,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
@@ -446,6 +447,7 @@ const serverChannelStore = useServerChannelStore();
 const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
+const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
 
@@ -671,7 +673,7 @@ const displayItems = computed((): DisplayItem[] => {
   
   return result;
 });
-const { isCurrentUserServerOwner } = useServerPermissions();
+const { isCurrentUserServerOwner, canManageMessages } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const { isMobile } = useLayoutState();
 const { 
@@ -1680,13 +1682,18 @@ const canEditMessage = (message: Message) => {
 
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
-  
-  // Can't delete messages in remote servers (federated servers)
+
   if (serverChannelStore.currentServer?.is_local_server === false) return false;
-  
+
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
-  return messageUserId === currentUserId || isCurrentUserServerOwner.value;
+
+  if (messageUserId === currentUserId) return true;
+  if (isCurrentUserServerOwner.value) return true;
+  if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
+  if (canManageMessages.value) return true;
+
+  return false;
 };
 
 
@@ -2014,10 +2021,14 @@ const handleDecryptMessage = async (message: Message) => {
       }
       
       debug.log('✅ Message decrypted successfully on click');
+
+      // Trigger reprocessing of other encrypted messages (we may now have the session key)
+      window.dispatchEvent(new CustomEvent('megolm-key-received', {
+        detail: { roomId: messageToDecrypt.channel_id || messageToDecrypt.conversation_id, sessionId: messageToDecrypt.encryption_metadata?.session_id }
+      }));
     }
   } catch (error) {
     debug.log('❌ Could not decrypt message:', error);
-    // Silently fail - the message will remain encrypted
   }
 };
 
@@ -2543,7 +2554,7 @@ const closeInviteModal = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
 }
@@ -2561,7 +2572,7 @@ const closeInviteModal = () => {
 .skeleton-username {
   width: 80px;
   height: 16px;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2570,7 +2581,7 @@ const closeInviteModal = () => {
 .skeleton-timestamp {
   width: 50px;
   height: 12px;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
@@ -2578,7 +2589,7 @@ const closeInviteModal = () => {
 
 .skeleton-text-line {
   height: 14px;
-  background: linear-gradient(90deg, var(--background-quaternary) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;

@@ -445,16 +445,33 @@ export const useChatStore = defineStore('chat', {
     async reprocessEncryptedMessages() {
       try {
         if (this.messages.length > 0) {
-          this.messages = await processMessageDecryption(this.messages);
+          const hasEncrypted = this.messages.some((m: Message) => m.encrypted && !m.decrypted);
+          if (hasEncrypted) {
+            this.messages = await processMessageDecryption(this.messages);
+          }
         }
         for (const cache of this.messageCache.values()) {
           if (cache.messages?.length) {
-            cache.messages = await processMessageDecryption(cache.messages);
+            const hasEncrypted = cache.messages.some((m: Message) => m.encrypted && !m.decrypted);
+            if (hasEncrypted) {
+              cache.messages = await processMessageDecryption(cache.messages);
+            }
           }
         }
       } catch (error) {
         debug.warn('Failed to reprocess encrypted messages:', error);
       }
+    },
+
+    setupEncryptionKeyListener() {
+      if ((this as any)._keyListenerActive) return;
+      (this as any)._keyListenerActive = true;
+
+      const handler = async () => {
+        debug.log('🔑 Key received — re-decrypting encrypted messages');
+        await this.reprocessEncryptedMessages();
+      };
+      window.addEventListener('megolm-key-received', handler);
     },
 
     // Update cache when message is edited
@@ -684,6 +701,9 @@ export const useChatStore = defineStore('chat', {
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore();
       const store = this; // Capture store reference for handlers
+
+      // Ensure encryption key listener is active
+      this.setupEncryptionKeyListener();
 
       debug.log('📡 Creating real-time subscription via RealtimeConnectionManager:', channelName);
       

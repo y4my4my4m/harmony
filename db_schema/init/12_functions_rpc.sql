@@ -701,16 +701,19 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Create notification with spam prevention
--- SECURITY: Only callable by authenticated users where source_user is themselves
--- This prevents users from creating fake notifications from other users
--- Note: notifications table uses: user_id, type, actor_id, post_id, message_id, server_id, read, metadata
+-- SECURITY: Validates caller identity — p_source_user_id must match the authenticated user.
+-- Uses rate limiting for reaction notifications to avoid spam.
+-- Delegates to send_notification_to_user for the actual insert.
 CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
     p_user_id uuid,
     p_type text,
     p_source_user_id uuid,
-    p_post_id uuid DEFAULT NULL,
-    p_message_id uuid DEFAULT NULL,
-    p_server_id uuid DEFAULT NULL
+    p_title text DEFAULT NULL,
+    p_message text DEFAULT NULL,
+    p_data jsonb DEFAULT '{}'::jsonb,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -719,35 +722,70 @@ AS $$
 DECLARE
     v_notification_id uuid;
     v_caller_profile_id uuid;
+    v_rate_limit RECORD;
+    v_should_suppress boolean := false;
+    v_time_threshold timestamp with time zone := NOW() - INTERVAL '2 minutes';
 BEGIN
-    -- SECURITY: Get caller's profile ID
+    -- SECURITY: Verify caller identity
     SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
-    
+
     IF v_caller_profile_id IS NULL THEN
         RAISE EXCEPTION 'Unauthorized: Authentication required';
     END IF;
-    
-    -- SECURITY: Source user must be the caller (prevent impersonation)
+
     IF p_source_user_id != v_caller_profile_id THEN
         RAISE EXCEPTION 'Unauthorized: Cannot create notifications from another user';
     END IF;
-    
-    INSERT INTO notifications (user_id, type, actor_id, post_id, message_id, server_id)
-    VALUES (p_user_id, p_type, p_source_user_id, p_post_id, p_message_id, p_server_id)
-    RETURNING id INTO v_notification_id;
-    
+
+    IF p_type = 'reaction' AND p_source_user_id IS NOT NULL THEN
+        INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
+        VALUES (p_user_id, p_type, p_source_user_id)
+        ON CONFLICT (user_id, notification_type, source_user_id)
+        DO UPDATE SET
+            notification_count = notification_rate_limits.notification_count + 1,
+            last_notification_at = NOW()
+        RETURNING * INTO v_rate_limit;
+
+        SELECT
+            (notification_count > 3) OR
+            (notification_count > 1 AND last_notification_at > v_time_threshold) OR
+            (suppressed_until IS NOT NULL AND suppressed_until > NOW())
+        INTO v_should_suppress
+        FROM notification_rate_limits
+        WHERE user_id = p_user_id AND notification_type = p_type AND source_user_id = p_source_user_id;
+
+        IF v_should_suppress THEN
+            UPDATE notification_rate_limits
+            SET suppressed_until = NOW() + INTERVAL '2 minutes'
+            WHERE user_id = p_user_id AND notification_type = p_type AND source_user_id = p_source_user_id;
+            RETURN NULL;
+        END IF;
+    END IF;
+
+    SELECT send_notification_to_user(
+        p_type,
+        p_user_id,
+        p_data,
+        p_server_id,
+        p_channel_id,
+        p_conversation_id,
+        p_source_user_id,
+        'normal'
+    ) INTO v_notification_id;
+
     RETURN v_notification_id;
 END;
 $$;
 
+COMMENT ON FUNCTION public.create_notification_with_spam_prevention IS
+'Creates notifications with spam prevention. Suppresses repeated notifications from same source within time windows.';
+
 -- Create structured notification
--- SECURITY: This function is for internal/trigger use only
--- Regular users should use create_notification_with_spam_prevention instead
--- Note: notifications table uses metadata column, not data
+-- SECURITY: Caller must be the target user, an admin, or service_role.
 CREATE OR REPLACE FUNCTION public.create_notification_structured(
     p_user_id uuid,
     p_type varchar,
-    p_metadata jsonb DEFAULT '{}'
+    p_data jsonb DEFAULT '{}'
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -757,10 +795,9 @@ DECLARE
     notification_id UUID;
     v_caller_profile_id uuid;
 BEGIN
-    -- SECURITY: Get caller's profile - if authenticated user, verify they're admin or the notification is for them
     SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
-    
-    -- Allow if: caller is admin, or notification target is the caller (self-notification)
+
+    -- Allow service_role (auth.uid() IS NULL) or self-notification or admin
     IF v_caller_profile_id IS NOT NULL THEN
         IF v_caller_profile_id != p_user_id AND NOT EXISTS (
             SELECT 1 FROM profiles WHERE id = v_caller_profile_id AND is_admin = true
@@ -768,15 +805,16 @@ BEGIN
             RAISE EXCEPTION 'Unauthorized: Cannot create notifications for other users';
         END IF;
     END IF;
-    -- Note: service_role calls will have auth.uid() = NULL which is allowed
 
-    INSERT INTO notifications (user_id, type, metadata)
-    VALUES (p_user_id, p_type, p_metadata)
+    INSERT INTO notifications (user_id, type, data, created_at, is_read)
+    VALUES (p_user_id, p_type, p_data, NOW(), false)
     RETURNING id INTO notification_id;
-    
+
     RETURN notification_id;
 END;
 $$;
+
+COMMENT ON FUNCTION public.create_notification_structured IS 'Create notification with structured data';
 
 -- ---------------------------------------------------------------------------
 -- PINNED MESSAGES RPC
@@ -936,7 +974,7 @@ DECLARE
 BEGIN
     DELETE FROM notifications
     WHERE created_at < NOW() - INTERVAL '90 days'
-      AND read = true;
+      AND is_read = true;
     
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
@@ -1116,7 +1154,7 @@ GRANT EXECUTE ON FUNCTION public.get_unused_prekey(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.enable_conversation_encryption(uuid) TO authenticated;
 -- Notification functions (updated signatures to match table columns)
 GRANT EXECUTE ON FUNCTION public.create_notification_structured(uuid, varchar, jsonb) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.create_notification_with_spam_prevention(uuid, text, uuid, uuid, uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_notification_with_spam_prevention(uuid, text, uuid, text, text, jsonb, uuid, uuid, uuid) TO authenticated;
 -- Other functions
 GRANT EXECUTE ON FUNCTION public.count_pinned_messages(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_emoji_metadata_bulk(uuid[]) TO authenticated;

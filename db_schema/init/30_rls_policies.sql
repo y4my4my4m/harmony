@@ -43,8 +43,9 @@ CREATE POLICY "posts_select_public" ON public.posts
         -- Author can always see their own posts
         author_id = public.get_current_profile_id()
         OR (
-            -- Not blocked by the author
+            -- Not blocked by the author AND not blocked by you
             NOT public.is_blocked_by(author_id)
+            AND NOT public.has_blocked(author_id)
             AND (
                 -- Public/unlisted posts
                 visibility IN ('public', 'unlisted')
@@ -253,11 +254,21 @@ CREATE POLICY "messages_insert_member" ON public.messages
         )
     );
 
-CREATE POLICY "messages_update_own" ON public.messages
-    FOR UPDATE USING (user_id = public.get_current_profile_id());
+CREATE POLICY "messages_update_authorized" ON public.messages
+    FOR UPDATE USING (
+        user_id = public.get_current_profile_id()
+        OR public.is_current_user_admin()
+        OR public.is_current_user_moderator()
+        OR public.can_current_user_manage_messages_in_channel(channel_id)
+    );
 
-CREATE POLICY "messages_delete_own" ON public.messages
-    FOR DELETE USING (user_id = public.get_current_profile_id());
+CREATE POLICY "messages_delete_authorized" ON public.messages
+    FOR DELETE USING (
+        user_id = public.get_current_profile_id()
+        OR public.is_current_user_admin()
+        OR public.is_current_user_moderator()
+        OR public.can_current_user_manage_messages_in_channel(channel_id)
+    );
 
 -- ---------------------------------------------------------------------------
 -- USER SERVERS RLS
@@ -278,11 +289,11 @@ CREATE POLICY "Allow all" ON public.user_servers
 -- Allow users to leave servers they're in, or owners to remove members
 CREATE POLICY "Users can leave servers" ON public.user_servers
     FOR DELETE TO authenticated USING (
-        user_id = auth.uid()
+        user_id = public.get_current_profile_id()
         OR EXISTS (
             SELECT 1 FROM public.servers
             WHERE servers.id = user_servers.server_id
-            AND servers.owner = auth.uid()
+            AND owner = public.get_current_profile_id()
         )
     );
 
@@ -320,11 +331,11 @@ CREATE POLICY "Authenticated users can manage participants" ON public.conversati
 
 -- Allow users to update their own participation
 CREATE POLICY "conversation_participants_update_policy" ON public.conversation_participants
-    FOR UPDATE TO authenticated USING (user_id = auth.uid());
+    FOR UPDATE TO authenticated USING (user_id = public.get_current_profile_id());
 
 -- Allow users to leave conversations
 CREATE POLICY "conversation_participants_delete_policy" ON public.conversation_participants
-    FOR DELETE TO authenticated USING (user_id = auth.uid());
+    FOR DELETE TO authenticated USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
 -- NOTIFICATIONS RLS
@@ -350,6 +361,9 @@ ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "user_blocks_select_own" ON public.user_blocks
     FOR SELECT USING (blocker_id = public.get_current_profile_id());
+
+CREATE POLICY "user_blocks_check_if_blocked" ON public.user_blocks
+    FOR SELECT USING (blocked_user_id = public.get_current_profile_id());
 
 CREATE POLICY "user_blocks_insert_own" ON public.user_blocks
     FOR INSERT WITH CHECK (blocker_id = public.get_current_profile_id());
@@ -413,10 +427,39 @@ ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "oauth_providers_select_all" ON public.oauth_providers FOR SELECT USING (true);
 
 ALTER TABLE public.server_roles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "server_roles_select_member" ON public.server_roles FOR SELECT USING (true);
+CREATE POLICY "server_roles_select" ON public.server_roles FOR SELECT USING (true);
+CREATE POLICY "server_roles_insert" ON public.server_roles
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+        OR public.is_current_user_admin()
+    );
+CREATE POLICY "server_roles_update" ON public.server_roles
+    FOR UPDATE USING (
+        NOT is_default AND (
+            EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+            OR public.is_current_user_admin()
+        )
+    );
+CREATE POLICY "server_roles_delete" ON public.server_roles
+    FOR DELETE USING (
+        NOT is_default AND (
+            EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+            OR public.is_current_user_admin()
+        )
+    );
 
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "user_roles_select_all" ON public.user_roles FOR SELECT USING (true);
+CREATE POLICY "user_roles_select" ON public.user_roles FOR SELECT USING (true);
+CREATE POLICY "user_roles_insert" ON public.user_roles
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+        OR public.is_current_user_admin()
+    );
+CREATE POLICY "user_roles_delete" ON public.user_roles
+    FOR DELETE USING (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+        OR public.is_current_user_admin()
+    );
 
 ALTER TABLE public.threads ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "threads_select_member" ON public.threads FOR SELECT USING (true);
@@ -465,6 +508,40 @@ CREATE POLICY "webrtc_settings_insert_admin_only" ON public.instance_webrtc_sett
             AND is_admin = true
         )
     );
+
+-- ---------------------------------------------------------------------------
+-- NOTIFICATION PREFERENCES RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "notification_preferences_select_own" ON public.notification_preferences
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_preferences_insert_own" ON public.notification_preferences
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_preferences_update_own" ON public.notification_preferences
+    FOR UPDATE USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_preferences_delete_own" ON public.notification_preferences
+    FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- NOTIFICATION CHANNELS RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.notification_channels ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "notification_channels_select_own" ON public.notification_channels
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_channels_insert_own" ON public.notification_channels
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_channels_update_own" ON public.notification_channels
+    FOR UPDATE USING (user_id = public.get_current_profile_id());
+
+CREATE POLICY "notification_channels_delete_own" ON public.notification_channels
+    FOR DELETE USING (user_id = public.get_current_profile_id());
 
 DO $$
 BEGIN

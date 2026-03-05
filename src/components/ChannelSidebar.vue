@@ -779,10 +779,25 @@ const loadActiveThreads = async (forceRefresh = false) => {
   
   loadingThreads.value = true;
   try {
+    // Run auto-archive first so the query only returns truly active threads
+    supabase.rpc('auto_archive_threads').then(({ error }) => {
+      if (error) debug.warn('auto_archive_threads RPC failed:', error);
+    });
+
     const threads = await threadService.getServerThreads(serverId, { archived: false });
+
+    // Client-side safety net: filter out threads that should have been archived
+    const now = Date.now();
+    const activeThreads = threads.filter(thread => {
+      if (!thread.last_message_at || !thread.auto_archive_duration) return true;
+      const lastActivity = new Date(thread.last_message_at as any).getTime();
+      const expiresAt = lastActivity + (thread.auto_archive_duration as number) * 60 * 1000;
+      return expiresAt > now;
+    });
+
     // Group threads by channel ID
     const grouped = new Map<string, ThreadWithDetails[]>();
-    for (const thread of threads) {
+    for (const thread of activeThreads) {
       const channelId = thread.channel_id;
       if (!grouped.has(channelId)) {
         grouped.set(channelId, []);

@@ -400,7 +400,7 @@ CREATE TABLE IF NOT EXISTS public.conversation_participants (
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
     role text DEFAULT 'member'::text,
-    joined_at timestamp with time zone DEFAULT now(),
+    joined_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     left_at timestamp with time zone,
     
     -- Last read tracking
@@ -408,8 +408,12 @@ CREATE TABLE IF NOT EXISTS public.conversation_participants (
     last_read_message_id uuid,
     
     -- Notifications
-    muted boolean DEFAULT false,
+    is_muted boolean DEFAULT false,
+
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     
+    CONSTRAINT conversation_participants_role_check CHECK (role = ANY (ARRAY['admin'::text, 'member'::text])),
     UNIQUE(conversation_id, user_id)
 );
 

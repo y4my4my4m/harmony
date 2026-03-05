@@ -221,6 +221,35 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  const reprocessEncryptedDMMessages = async () => {
+    try {
+      const hasEncrypted = currentDMMessages.value.some((m: Message) => m.encrypted && !m.decrypted)
+      if (hasEncrypted) {
+        currentDMMessages.value = await processMessageDecryption(currentDMMessages.value)
+      }
+      for (const cache of messageCache.value.values()) {
+        if (cache.messages?.length) {
+          const hasCacheEncrypted = cache.messages.some((m: Message) => m.encrypted && !m.decrypted)
+          if (hasCacheEncrypted) {
+            cache.messages = await processMessageDecryption(cache.messages)
+          }
+        }
+      }
+    } catch (error) {
+      debug.warn('Failed to reprocess encrypted DM messages:', error)
+    }
+  }
+
+  let _keyListenerActive = false
+  const setupEncryptionKeyListener = () => {
+    if (_keyListenerActive) return
+    _keyListenerActive = true
+    window.addEventListener('megolm-key-received', async () => {
+      debug.log('🔑 Key received — re-decrypting encrypted DM messages')
+      await reprocessEncryptedDMMessages()
+    })
+  }
+
   const removeMessageFromCache = (messageId: string) => {
     // Remove from current messages
     currentDMMessages.value = currentDMMessages.value.filter(msg => msg.id !== messageId)
@@ -1629,6 +1658,9 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     debug.log('🔄 Setting up conversation subscription for:', conversationId)
+
+    // Ensure encryption key listener is active
+    setupEncryptionKeyListener()
     
     // Use RealtimeConnectionManager for automatic reconnection
     const unsubscribe = realtimeConnectionManager.subscribeToTable({
@@ -2533,6 +2565,8 @@ export const useDMStore = defineStore('dm', () => {
     checkMigrationStatus,
     
     // Encryption support
-    updateMessageInCache
+    updateMessageInCache,
+    reprocessEncryptedDMMessages,
+    setupEncryptionKeyListener
   }
 })

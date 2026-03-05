@@ -73,8 +73,14 @@
         <span>Loading emojis...</span>
       </div>
       
-      <div v-for="category in displayedCategories" :key="category.id" class="emoji-section">
-        <h3 class="section-title">{{ category.icon }} {{ category.name }}</h3>
+      <LazyEmojiSection
+        v-for="category in displayedCategories"
+        :key="category.id"
+        :emoji-count="category.emojis.length"
+      >
+        <template #header>
+          <h3 class="section-title">{{ category.icon }} {{ category.name }}</h3>
+        </template>
         <div class="emoji-list unified-list">
           <div
             v-for="emoji in category.emojis"
@@ -84,7 +90,6 @@
             :title="`:${emoji.shortcode}:`"
             @click="selectUnifiedEmoji(emoji)"
           >
-            <!-- SVG pack (twemoji or mutant): show SVG -->
             <img 
               v-if="!isNativePack"
               :src="getEmojiSvgUrl(emoji)" 
@@ -92,11 +97,10 @@
               loading="lazy"
               class="emoji-svg"
             />
-            <!-- Native pack: show unicode -->
             <span v-else class="native-emoji-char">{{ emoji.unicode }}</span>
           </div>
         </div>
-      </div>
+      </LazyEmojiSection>
       
       <!-- No Results -->
       <div v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length" class="no-results">
@@ -121,6 +125,7 @@ import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { EMOJI_CATEGORIES, CATEGORY_ORDER } from '@/utils/emojiConstants';
 import { debug } from '@/utils/debug';
+import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
 
 // --- Types ---
 
@@ -749,12 +754,12 @@ watch(
 }
 
 .emoji-content::-webkit-scrollbar-thumb {
-  background: var(--color-bg-tertiary, #40444b);
+  background: var(--background-quaternary);
   border-radius: 4px;
 }
 
 .emoji-content::-webkit-scrollbar-thumb:hover {
-  background: var(--color-bg-hover, #4f545c);
+  background: var(--border-hover);
 }
 
 @media (max-width: 768px) {

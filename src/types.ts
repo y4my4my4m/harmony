@@ -77,6 +77,7 @@ export interface User {
   bio?: string;
   color?: string;
   is_admin?: boolean;
+  is_moderator?: boolean;
   status: UserStatus;
   roles?: Role[]; // Server-specific roles
   created_at?: string;
@@ -107,6 +108,7 @@ export interface Profile {
   status?: UserStatus;
   color?: string;
   is_admin?: boolean;
+  is_moderator?: boolean;
   // ActivityPub fields
   federated_id?: string;
   ap_id?: string;
@@ -134,9 +136,11 @@ export interface UserData {
   createdAt: string // When the user account was created
   updatedAt?: string // When the profile was last updated in database
   roles?: any[]
+  isAdmin?: boolean
+  isModerator?: boolean
   messageCount?: number
   voiceTime?: number
-  
+
   // Presence data (real-time)
   status: UserStatus
   customStatus?: CustomUserStatus  // Custom status text (Discord-style)

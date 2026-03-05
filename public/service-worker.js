@@ -5,6 +5,7 @@ const CACHE_NAME = 'harmony-v4-mobile'
 const NOTIFICATION_CACHE = 'harmony-notifications-v2'
 const STATIC_CACHE = 'harmony-static-v2'
 const API_CACHE = 'harmony-api-v2'
+const EMOJI_CACHE = 'harmony-emoji-v1'
 
 // Cache strategies
 const STATIC_RESOURCES = [
@@ -41,7 +42,8 @@ self.addEventListener('activate', (event) => {
           if (cacheName !== CACHE_NAME && 
               cacheName !== STATIC_CACHE && 
               cacheName !== API_CACHE && 
-              cacheName !== NOTIFICATION_CACHE) {
+              cacheName !== NOTIFICATION_CACHE &&
+              cacheName !== EMOJI_CACHE) {
             console.log('🗑️ Service Worker: Deleting old cache:', cacheName)
             return caches.delete(cacheName)
           }
@@ -74,6 +76,15 @@ self.addEventListener('push', async (event) => {
     const data = event.data.json()
     console.log('📨 Service Worker: Notification data:', data)
 
+    // Skip push notification if any app window is focused — the realtime
+    // subscription already handles desktop notifications in that case
+    const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false })
+    const hasFocusedClient = windowClients.some(client => client.focused)
+    if (hasFocusedClient) {
+      console.log('🔕 Service Worker: App is focused, skipping push notification')
+      return
+    }
+
     // Discord-like notification logic
     // icon = colored icon for notification body (can be user avatar or app icon)
     // badge = small monochrome icon for status bar (must be white/transparent, 96x96)
@@ -84,7 +95,12 @@ self.addEventListener('push', async (event) => {
       // Badge should be monochrome white for Android status bar
       // Falls back to square icon if badge doesn't exist
       badge: '/img/app_icon_badge.png',
-      tag: data.tag || `harmony-${data.type}-${data.data?.user_id || 'unknown'}`,
+      tag: data.tag || (data.data?.conversation_id
+        ? `harmony-${data.type}-conv-${data.data.conversation_id}`
+        : data.data?.channel_id
+          ? `harmony-${data.type}-ch-${data.data.channel_id}`
+          : `harmony-${data.type}-${data.data?.user_id || 'unknown'}`),
+      renotify: true,
       data: data.data || {},
       requireInteraction: data.type === 'mention' || data.type === 'dm',
       silent: false,
@@ -364,7 +380,15 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Skip ALL image requests to prevent avatar loops
+  // Emoji assets: cache-first for SVGs and JSON in /assets/emojis/
+  // These are immutable static assets that should be served from cache
+  if (requestUrl.hostname === self.location.hostname &&
+      requestUrl.pathname.startsWith('/assets/emojis/')) {
+    event.respondWith(emojiCacheFirst(event.request))
+    return
+  }
+
+  // Skip ALL image requests to prevent avatar loops (emoji SVGs handled above)
   if (event.request.destination === 'image' || 
       requestUrl.pathname.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|bmp)$/i)) {
     return
@@ -519,6 +543,28 @@ async function staleWhileRevalidate(request, cacheName) {
   // Otherwise wait for network
   const networkResponse = await fetchPromise
   return networkResponse || new Response('Resource not available', { status: 503 })
+}
+
+// Cache-first strategy for emoji assets (SVGs and JSON in /assets/emojis/)
+// These are static and rarely change, so we serve from cache and update in background.
+async function emojiCacheFirst(request) {
+  try {
+    const cached = await caches.match(request)
+    if (cached) {
+      return cached
+    }
+
+    const networkResponse = await fetch(request)
+    if (networkResponse.ok) {
+      const cache = await caches.open(EMOJI_CACHE)
+      cache.put(request, networkResponse.clone()).catch(() => {})
+    }
+    return networkResponse
+  } catch (error) {
+    const cached = await caches.match(request)
+    if (cached) return cached
+    return new Response('Emoji asset unavailable', { status: 503 })
+  }
 }
 
 console.log('🚀 Service Worker: Script loaded successfully')

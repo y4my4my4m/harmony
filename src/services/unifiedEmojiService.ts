@@ -19,6 +19,10 @@ import {
   EMOJI_CATEGORIES,
   type EmojiPack 
 } from '@/utils/emojiConstants'
+import {
+  getCachedStaticEmojiData,
+  setCachedStaticEmojiData,
+} from '@/services/emojiIndexedDBCache'
 
 // Re-export type for convenience
 export type { EmojiPack } from '@/utils/emojiConstants'
@@ -80,40 +84,79 @@ const mutantLookups = ref<EmojiLookups | null>(null)
 // Twemoji file map for accurate SVG path resolution
 const twemojiFileMap = ref<Record<string, boolean> | null>(null)
 
+// Cache version — bump this when the static JSON files change to bust the IndexedDB cache
+const EMOJI_DATA_CACHE_VERSION = '1'
+
 /**
- * Load the unified emoji data
+ * Load the unified emoji data.
+ * Tries IndexedDB first for instant hydration, then falls back to network fetch.
  */
 async function loadEmojiData(): Promise<void> {
   if (isLoaded.value || isLoading.value) return
   
   isLoading.value = true
   try {
-    // Load the unified unicode emoji data (source of truth)
-    const dataResponse = await fetch('/assets/emojis/unicode-emoji-data.json')
-    if (dataResponse.ok) {
-      emojiData.value = await dataResponse.json()
-      lookups.value = emojiData.value?.lookups || null
-      debug.log(`📦 Loaded unified emoji data: ${emojiData.value?.totalCount} emojis`)
-    } else {
-      // Fallback to legacy emoji-data.json
-      debug.warn('⚠️ unicode-emoji-data.json not found, trying legacy fallback...')
-      const legacyResponse = await fetch('/assets/emojis/emoji-data.json')
-      if (legacyResponse.ok) {
-        emojiData.value = await legacyResponse.json()
+    // --- Try IndexedDB cache first (instant, no network) ---
+    let loadedFromCache = false
+    try {
+      const [cachedData, cachedFileMap] = await Promise.all([
+        getCachedStaticEmojiData<EmojiData>('unicode-emoji-data', EMOJI_DATA_CACHE_VERSION),
+        getCachedStaticEmojiData<Record<string, boolean>>('twemoji-file-map', EMOJI_DATA_CACHE_VERSION),
+      ])
+
+      if (cachedData) {
+        emojiData.value = cachedData
+        lookups.value = cachedData.lookups || null
+        loadedFromCache = true
+        debug.log(`⚡ Loaded emoji data from IndexedDB cache: ${cachedData.totalCount} emojis`)
+      }
+
+      if (cachedFileMap) {
+        twemojiFileMap.value = cachedFileMap
+        if (loadedFromCache) {
+          debug.log(`⚡ Loaded Twemoji file map from IndexedDB cache`)
+        }
+      }
+    } catch (e) {
+      debug.warn('IndexedDB emoji cache read failed, falling back to network:', e)
+    }
+
+    if (loadedFromCache && twemojiFileMap.value) {
+      isLoaded.value = true
+      return
+    }
+
+    // --- Fetch from network and populate IndexedDB cache ---
+    if (!emojiData.value) {
+      const dataResponse = await fetch('/assets/emojis/unicode-emoji-data.json')
+      if (dataResponse.ok) {
+        emojiData.value = await dataResponse.json()
         lookups.value = emojiData.value?.lookups || null
-        debug.log(`📦 Loaded legacy emoji data: ${emojiData.value?.totalCount} emojis`)
+        debug.log(`📦 Loaded unified emoji data: ${emojiData.value?.totalCount} emojis`)
+        setCachedStaticEmojiData('unicode-emoji-data', emojiData.value, EMOJI_DATA_CACHE_VERSION)
+      } else {
+        debug.warn('⚠️ unicode-emoji-data.json not found, trying legacy fallback...')
+        const legacyResponse = await fetch('/assets/emojis/emoji-data.json')
+        if (legacyResponse.ok) {
+          emojiData.value = await legacyResponse.json()
+          lookups.value = emojiData.value?.lookups || null
+          debug.log(`📦 Loaded legacy emoji data: ${emojiData.value?.totalCount} emojis`)
+          setCachedStaticEmojiData('unicode-emoji-data', emojiData.value, EMOJI_DATA_CACHE_VERSION)
+        }
       }
     }
     
-    // Load Twemoji file map for accurate SVG path resolution
-    try {
-      const fileMapResponse = await fetch('/assets/emojis/twemoji-file-map.json')
-      if (fileMapResponse.ok) {
-        twemojiFileMap.value = await fileMapResponse.json()
-        debug.log(`📦 Loaded Twemoji file map: ${Object.keys(twemojiFileMap.value || {}).length} entries`)
+    if (!twemojiFileMap.value) {
+      try {
+        const fileMapResponse = await fetch('/assets/emojis/twemoji-file-map.json')
+        if (fileMapResponse.ok) {
+          twemojiFileMap.value = await fileMapResponse.json()
+          debug.log(`📦 Loaded Twemoji file map: ${Object.keys(twemojiFileMap.value || {}).length} entries`)
+          setCachedStaticEmojiData('twemoji-file-map', twemojiFileMap.value, EMOJI_DATA_CACHE_VERSION)
+        }
+      } catch (e) {
+        debug.warn('Could not load Twemoji file map, using fallback normalization')
       }
-    } catch (e) {
-      debug.warn('Could not load Twemoji file map, using fallback normalization')
     }
     
     isLoaded.value = true
@@ -131,10 +174,20 @@ async function loadMutantLookups(): Promise<void> {
   if (mutantLookups.value) return
   
   try {
+    const cached = await getCachedStaticEmojiData<EmojiLookups>('mutant-lookups', EMOJI_DATA_CACHE_VERSION)
+    if (cached) {
+      mutantLookups.value = cached
+      debug.log('⚡ Loaded mutant emoji lookups from IndexedDB cache')
+      return
+    }
+  } catch (_) { /* fall through to network */ }
+
+  try {
     const response = await fetch('/assets/emojis/emoji-lookups.json')
     if (response.ok) {
       mutantLookups.value = await response.json()
       debug.log('📦 Loaded mutant emoji lookups')
+      setCachedStaticEmojiData('mutant-lookups', mutantLookups.value, EMOJI_DATA_CACHE_VERSION)
     }
   } catch (error) {
     debug.error('Failed to load mutant lookups:', error)

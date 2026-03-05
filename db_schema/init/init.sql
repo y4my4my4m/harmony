@@ -126,15 +126,19 @@
 \i 95_livekit_tokens.sql
 
 -- ---------------------------------------------------------------------------
--- PHASE 9: Seed Data and Storage
+-- PHASE 9: Seed Data, Storage, and RLS Activation
 -- ---------------------------------------------------------------------------
 \echo ''
-\echo '>>> 98_seed_data.sql - Inserting default configuration...'
-\i 98_seed_data.sql
+\echo '>>> 96_seed_data.sql - Inserting default configuration...'
+\i 96_seed_data.sql
 
 \echo ''
-\echo '>>> 99_storage_buckets.sql - Creating storage buckets...'
-\i 99_storage_buckets.sql
+\echo '>>> 97_storage_buckets.sql - Creating storage buckets...'
+\i 97_storage_buckets.sql
+
+\echo ''
+\echo '>>> 98_enable_rls.sql - Enabling Row Level Security on all tables...'
+\i 98_enable_rls.sql
 
 \echo ''
 \echo '=============================================='
