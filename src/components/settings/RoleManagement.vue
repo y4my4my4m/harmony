@@ -462,18 +462,13 @@ const filteredMembers = computed(() => {
 
 // Methods
 const loadRoles = async () => {
-  console.log('[RoleManagement] loadRoles called, serverId:', props.serverId)
-  if (!props.serverId) {
-    console.warn('[RoleManagement] No serverId, aborting')
-    return
-  }
+  if (!props.serverId) return
   loading.value = true
   try {
     const data = await roleService.getServerRoles(props.serverId, true)
-    console.log('[RoleManagement] getServerRoles returned:', data.length, 'roles', data)
     roles.value = data.sort((a, b) => b.position - a.position)
   } catch (error) {
-    console.error('[RoleManagement] Failed to load roles:', error)
+    console.error('Failed to load roles:', error)
   } finally {
     loading.value = false
   }

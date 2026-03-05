@@ -426,10 +426,39 @@ ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "oauth_providers_select_all" ON public.oauth_providers FOR SELECT USING (true);
 
 ALTER TABLE public.server_roles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "server_roles_select_member" ON public.server_roles FOR SELECT USING (true);
+CREATE POLICY "server_roles_select" ON public.server_roles FOR SELECT USING (true);
+CREATE POLICY "server_roles_insert" ON public.server_roles
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+        OR public.is_current_user_admin()
+    );
+CREATE POLICY "server_roles_update" ON public.server_roles
+    FOR UPDATE USING (
+        NOT is_default AND (
+            EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+            OR public.is_current_user_admin()
+        )
+    );
+CREATE POLICY "server_roles_delete" ON public.server_roles
+    FOR DELETE USING (
+        NOT is_default AND (
+            EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+            OR public.is_current_user_admin()
+        )
+    );
 
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "user_roles_select_all" ON public.user_roles FOR SELECT USING (true);
+CREATE POLICY "user_roles_select" ON public.user_roles FOR SELECT USING (true);
+CREATE POLICY "user_roles_insert" ON public.user_roles
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+        OR public.is_current_user_admin()
+    );
+CREATE POLICY "user_roles_delete" ON public.user_roles
+    FOR DELETE USING (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = server_id AND owner = public.get_current_profile_id())
+        OR public.is_current_user_admin()
+    );
 
 ALTER TABLE public.threads ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "threads_select_member" ON public.threads FOR SELECT USING (true);

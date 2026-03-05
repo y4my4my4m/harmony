@@ -317,7 +317,7 @@ class RoleService {
 
       // Fetch member counts separately
       const roleIds = (data || []).map((r: any) => r.id)
-      let memberCounts: Record<string, number> = {}
+      const memberCounts: Record<string, number> = {}
       if (roleIds.length > 0) {
         const { data: countData } = await supabase
           .from('user_roles')
@@ -609,6 +609,30 @@ class RoleService {
       }))
     } catch (error) {
       debug.error('Failed to fetch role members:', error)
+      return []
+    }
+  }
+
+  /**
+   * Get all role assignments for a server, optionally filtered to specific role IDs.
+   * Single query replaces N+1 per-role fetches.
+   */
+  async getRoleMembersForServer(serverId: string, roleIds?: string[]): Promise<{ user_id: string; role_id: string }[]> {
+    try {
+      let query = supabase
+        .from('user_roles')
+        .select('user_id, role_id')
+        .eq('server_id', serverId)
+
+      if (roleIds && roleIds.length > 0) {
+        query = query.in('role_id', roleIds)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      debug.error('Failed to fetch server role assignments:', error)
       return []
     }
   }
