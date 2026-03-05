@@ -465,26 +465,10 @@ const loadRoles = async () => {
   if (!props.serverId) return
   loading.value = true
   try {
-    // Raw diagnostic query - bypass RoleService entirely
-    const { data: rawData, error: rawError, status, statusText } = await supabase
-      .from('server_roles')
-      .select('id, name, server_id')
-      .eq('server_id', props.serverId)
-
-    console.log('[RoleManagement] RAW supabase response:', {
-      serverId: props.serverId,
-      status,
-      statusText,
-      error: rawError,
-      rowCount: rawData?.length,
-      data: rawData
-    })
-
     const data = await roleService.getServerRoles(props.serverId, true)
-    console.log('[RoleManagement] roleService returned:', data.length, 'roles')
     roles.value = data.sort((a, b) => b.position - a.position)
   } catch (error) {
-    console.error('[RoleManagement] CAUGHT ERROR:', error)
+    console.error('Failed to load roles:', error)
   } finally {
     loading.value = false
   }

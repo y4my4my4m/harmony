@@ -1534,161 +1534,129 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_user_permissions
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_user_permissions(p_user_id uuid, p_server_id uuid, p_channel_id uuid DEFAULT NULL::uuid) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    AS $$
+CREATE OR REPLACE FUNCTION public.get_user_permissions(
+    p_user_id uuid,
+    p_server_id uuid,
+    p_channel_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
 DECLARE
     v_is_owner boolean;
-    v_base_permissions jsonb := '{}'::jsonb;
-    v_channel_allows jsonb := '{}'::jsonb;
-    v_channel_denies jsonb := '{}'::jsonb;
-    v_final_permissions jsonb;
+    v_base_mask bigint := 0;
+    v_allow_mask bigint := 0;
+    v_deny_mask bigint := 0;
+    v_final_mask bigint;
     v_role record;
     v_override record;
+    v_result jsonb := '{}'::jsonb;
+    v_bit_map jsonb := '[
+        "ADMINISTRATOR","VIEW_CHANNEL","MANAGE_CHANNELS","MANAGE_ROLES",
+        "MANAGE_EMOJIS","VIEW_AUDIT_LOG","MANAGE_WEBHOOKS","MANAGE_SERVER",
+        "CREATE_INVITE","KICK_MEMBERS","BAN_MEMBERS","TIMEOUT_MEMBERS",
+        "SEND_MESSAGES","SEND_MESSAGES_IN_THREADS","CREATE_PUBLIC_THREADS","CREATE_PRIVATE_THREADS",
+        "EMBED_LINKS","ATTACH_FILES","ADD_REACTIONS","USE_EXTERNAL_EMOJIS",
+        "MENTION_EVERYONE","MANAGE_MESSAGES","READ_MESSAGE_HISTORY","PIN_MESSAGES",
+        "CONNECT","SPEAK","STREAM","MUTE_MEMBERS","DEAFEN_MEMBERS","MOVE_MEMBERS"
+    ]'::jsonb;
+    v_i int;
+    v_perm_name text;
 BEGIN
-    -- Check if user is server owner
     SELECT (owner = p_user_id) INTO v_is_owner
-    FROM "public"."servers"
-    WHERE id = p_server_id;
-    
-    -- Server owner has all permissions
+    FROM public.servers WHERE id = p_server_id;
+
+    -- Server owner gets all permissions
     IF v_is_owner THEN
-        RETURN jsonb_build_object(
-            'ADMINISTRATOR', true,
-            'VIEW_CHANNEL', true,
-            'MANAGE_CHANNELS', true,
-            'MANAGE_ROLES', true,
-            'MANAGE_EMOJIS', true,
-            'VIEW_AUDIT_LOG', true,
-            'MANAGE_WEBHOOKS', true,
-            'MANAGE_SERVER', true,
-            'CREATE_INVITE', true,
-            'CHANGE_NICKNAME', true,
-            'MANAGE_NICKNAMES', true,
-            'KICK_MEMBERS', true,
-            'BAN_MEMBERS', true,
-            'TIMEOUT_MEMBERS', true,
-            'SEND_MESSAGES', true,
-            'SEND_MESSAGES_IN_THREADS', true,
-            'CREATE_PUBLIC_THREADS', true,
-            'CREATE_PRIVATE_THREADS', true,
-            'EMBED_LINKS', true,
-            'ATTACH_FILES', true,
-            'ADD_REACTIONS', true,
-            'USE_EXTERNAL_EMOJIS', true,
-            'MENTION_EVERYONE', true,
-            'MANAGE_MESSAGES', true,
-            'READ_MESSAGE_HISTORY', true,
-            'SEND_TTS_MESSAGES', true,
-            'CONNECT', true,
-            'SPEAK', true,
-            'STREAM', true,
-            'USE_VAD', true,
-            'PRIORITY_SPEAKER', true,
-            'MUTE_MEMBERS', true,
-            'DEAFEN_MEMBERS', true,
-            'MOVE_MEMBERS', true,
-            'PIN_MESSAGES', true
-        );
-    END IF;
-    
-    -- Start with @everyone role permissions as base
-    SELECT permissions INTO v_base_permissions
-    FROM "public"."server_roles"
-    WHERE server_id = p_server_id AND is_default = true;
-    
-    v_base_permissions := COALESCE(v_base_permissions, '{}'::jsonb);
-    
-    -- Collect permissions from all user's roles (ordered by position)
-    -- Merge on top of @everyone (higher position roles can override)
-    FOR v_role IN
-        SELECT sr.permissions, sr.position
-        FROM "public"."user_roles" ur
-        JOIN "public"."server_roles" sr ON ur.role_id = sr.id
-        WHERE ur.user_id = p_user_id AND ur.server_id = p_server_id
-        ORDER BY sr.position ASC
-    LOOP
-        -- Merge permissions (higher position roles can override)
-        v_base_permissions := v_base_permissions || v_role.permissions;
-    END LOOP;
-    
-    -- If ADMINISTRATOR permission is set, grant all permissions
-    IF (v_base_permissions->>'ADMINISTRATOR')::boolean = true THEN
-        RETURN jsonb_build_object(
-            'ADMINISTRATOR', true,
-            'VIEW_CHANNEL', true,
-            'MANAGE_CHANNELS', true,
-            'MANAGE_ROLES', true,
-            'MANAGE_EMOJIS', true,
-            'VIEW_AUDIT_LOG', true,
-            'MANAGE_WEBHOOKS', true,
-            'MANAGE_SERVER', true,
-            'CREATE_INVITE', true,
-            'CHANGE_NICKNAME', true,
-            'MANAGE_NICKNAMES', true,
-            'KICK_MEMBERS', true,
-            'BAN_MEMBERS', true,
-            'TIMEOUT_MEMBERS', true,
-            'SEND_MESSAGES', true,
-            'SEND_MESSAGES_IN_THREADS', true,
-            'CREATE_PUBLIC_THREADS', true,
-            'CREATE_PRIVATE_THREADS', true,
-            'EMBED_LINKS', true,
-            'ATTACH_FILES', true,
-            'ADD_REACTIONS', true,
-            'USE_EXTERNAL_EMOJIS', true,
-            'MENTION_EVERYONE', true,
-            'MANAGE_MESSAGES', true,
-            'READ_MESSAGE_HISTORY', true,
-            'SEND_TTS_MESSAGES', true,
-            'CONNECT', true,
-            'SPEAK', true,
-            'STREAM', true,
-            'USE_VAD', true,
-            'PRIORITY_SPEAKER', true,
-            'MUTE_MEMBERS', true,
-            'DEAFEN_MEMBERS', true,
-            'MOVE_MEMBERS', true,
-            'PIN_MESSAGES', true
-        );
-    END IF;
-    
-    -- Apply channel-specific overrides if channel_id is provided
-    IF p_channel_id IS NOT NULL THEN
-        -- Get role-based overrides (collect all allows and denies)
-        FOR v_override IN
-            SELECT cpo.allow, cpo.deny
-            FROM "public"."channel_permission_overrides" cpo
-            JOIN "public"."user_roles" ur ON cpo.target_id = ur.role_id AND cpo.target_type = 'role'
-            WHERE cpo.channel_id = p_channel_id AND ur.user_id = p_user_id
-        LOOP
-            v_channel_allows := v_channel_allows || v_override.allow;
-            v_channel_denies := v_channel_denies || v_override.deny;
+        FOR v_i IN 0..29 LOOP
+            v_perm_name := v_bit_map->>v_i;
+            IF v_perm_name IS NOT NULL THEN
+                v_result := v_result || jsonb_build_object(v_perm_name, true);
+            END IF;
         END LOOP;
-        
-        -- Get user-specific overrides (highest priority)
-        SELECT allow, deny INTO v_override
-        FROM "public"."channel_permission_overrides"
-        WHERE channel_id = p_channel_id AND target_type = 'user' AND target_id = p_user_id;
-        
-        IF FOUND THEN
-            v_channel_allows := v_channel_allows || v_override.allow;
-            v_channel_denies := v_channel_denies || v_override.deny;
-        END IF;
-        
-        -- Apply overrides: base + allows - denies
-        v_final_permissions := v_base_permissions || v_channel_allows;
-        
-        -- Remove denied permissions
-        SELECT jsonb_object_agg(key, value)
-        INTO v_final_permissions
-        FROM jsonb_each(v_final_permissions) 
-        WHERE NOT (v_channel_denies ? key AND (v_channel_denies->>key)::boolean = true);
-        
-        RETURN COALESCE(v_final_permissions, '{}'::jsonb);
+        RETURN v_result;
     END IF;
-    
-    RETURN v_base_permissions;
+
+    -- Start with @everyone role
+    SELECT COALESCE(permissions, 0) INTO v_base_mask
+    FROM public.server_roles
+    WHERE server_id = p_server_id AND is_default = true;
+
+    v_base_mask := COALESCE(v_base_mask, 0);
+
+    -- Merge all user's roles (OR the bitmasks)
+    FOR v_role IN
+        SELECT sr.permissions
+        FROM public.user_roles ur
+        JOIN public.server_roles sr ON ur.role_id = sr.id
+        WHERE ur.user_id = p_user_id AND ur.server_id = p_server_id
+    LOOP
+        v_base_mask := v_base_mask | COALESCE(v_role.permissions, 0);
+    END LOOP;
+
+    -- ADMINISTRATOR bit (0) grants everything
+    IF (v_base_mask & 1) != 0 THEN
+        FOR v_i IN 0..29 LOOP
+            v_perm_name := v_bit_map->>v_i;
+            IF v_perm_name IS NOT NULL THEN
+                v_result := v_result || jsonb_build_object(v_perm_name, true);
+            END IF;
+        END LOOP;
+        RETURN v_result;
+    END IF;
+
+    -- Apply channel overrides
+    v_final_mask := v_base_mask;
+    IF p_channel_id IS NOT NULL THEN
+        FOR v_override IN
+            SELECT allow_permissions, deny_permissions
+            FROM public.channel_permission_overrides
+            WHERE channel_id = p_channel_id
+              AND (role_id IN (
+                  SELECT sr.id FROM public.user_roles ur
+                  JOIN public.server_roles sr ON ur.role_id = sr.id
+                  WHERE ur.user_id = p_user_id AND ur.server_id = p_server_id
+              ) OR user_id = p_user_id)
+        LOOP
+            v_allow_mask := v_allow_mask | COALESCE(v_override.allow_permissions, 0);
+            v_deny_mask := v_deny_mask | COALESCE(v_override.deny_permissions, 0);
+        END LOOP;
+
+        v_final_mask := (v_final_mask | v_allow_mask) & ~v_deny_mask;
+    END IF;
+
+    -- Convert bitmask to jsonb result
+    FOR v_i IN 0..29 LOOP
+        v_perm_name := v_bit_map->>v_i;
+        IF v_perm_name IS NOT NULL THEN
+            v_result := v_result || jsonb_build_object(
+                v_perm_name,
+                (v_final_mask & (1::bigint << v_i)) != 0
+            );
+        END IF;
+    END LOOP;
+
+    RETURN v_result;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: has_permission
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.has_permission(
+    p_user_id uuid,
+    p_server_id uuid,
+    p_permission text,
+    p_channel_id uuid DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
+DECLARE
+    v_permissions jsonb;
+BEGIN
+    v_permissions := public.get_user_permissions(p_user_id, p_server_id, p_channel_id);
+    RETURN COALESCE((v_permissions->>p_permission)::boolean, false);
 END;
 $$;
 

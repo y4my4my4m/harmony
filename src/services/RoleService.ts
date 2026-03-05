@@ -169,11 +169,11 @@ export function permissionsToBitmask(permissions: Record<Permission, boolean> | 
 export function bitmaskToPermissions(bitmask: bigint | number | string): Record<Permission, boolean> {
   const permissions: Record<Permission, boolean> = {} as Record<Permission, boolean>
   const mask = BigInt(bitmask || 0)
-  
+
   for (const [permission, bit] of Object.entries(PERMISSION_BITS)) {
     permissions[permission as Permission] = (mask & (BigInt(1) << BigInt(bit))) !== BigInt(0)
   }
-  
+
   return permissions
 }
 
@@ -315,18 +315,14 @@ class RoleService {
         throw error
       }
 
-      console.log('[RoleService] server_roles query returned', data?.length, 'rows')
-
       // Fetch member counts separately
       const roleIds = (data || []).map((r: any) => r.id)
       const memberCounts: Record<string, number> = {}
       if (roleIds.length > 0) {
-        const { data: countData, error: countError } = await supabase
+        const { data: countData } = await supabase
           .from('user_roles')
           .select('role_id')
           .in('role_id', roleIds)
-
-        console.log('[RoleService] user_roles count query:', { count: countData?.length, error: countError })
 
         if (countData) {
           countData.forEach((ur: any) => {
@@ -335,22 +331,15 @@ class RoleService {
         }
       }
 
-      const roles = (data || []).map((r: any) => {
-        try {
-          return {
-            ...r,
-            permissions: bitmaskToPermissions(r.permissions),
-            member_count: memberCounts[r.id] || 0,
-          }
-        } catch (mapError) {
-          console.error('[RoleService] bitmaskToPermissions FAILED for role:', r.name, 'permissions:', r.permissions, 'error:', mapError)
-          throw mapError
-        }
-      }) as ServerRole[]
+      const roles = (data || []).map((r: any) => ({
+        ...r,
+        permissions: bitmaskToPermissions(r.permissions),
+        member_count: memberCounts[r.id] || 0,
+      })) as ServerRole[]
       this.roleCache.set(serverId, roles)
       return roles
     } catch (error) {
-      console.error('[RoleService] getServerRoles FAILED:', error)
+      debug.error('Failed to fetch server roles:', error)
       return []
     }
   }
