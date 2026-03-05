@@ -54,7 +54,7 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
    ```bash
    # Copy example env files
    cp .env.example .env
-   cd backend && cp .env.example .env
+   cp federation-backend/env.template federation-backend/.env
    ```
 
 4. **Set Up Supabase**

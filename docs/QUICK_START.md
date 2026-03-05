@@ -25,7 +25,7 @@ cd harmony
 npm install && npm run build-only
 
 # Configure
-cp env.example .env
+cp .env.example .env
 cp federation-backend/env.template federation-backend/.env
 # Edit .env files with your Supabase credentials
 
