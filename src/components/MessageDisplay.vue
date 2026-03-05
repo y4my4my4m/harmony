@@ -182,11 +182,11 @@
                 {{ getAuthorDisplayName(item.message).value }}
                 <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
-                <span v-if="isInstanceAdmin(item.message)" class="instance-badge admin" title="Instance Admin">
+                <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   ADMIN
                 </span>
-                <span v-else-if="isInstanceModerator(item.message)" class="instance-badge mod" title="Instance Moderator">
+                <span v-else-if="getInstanceBadge(item.message).value === 'mod'" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   MOD
                 </span>
@@ -388,7 +388,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 import { debug } from '@/utils/debug'
-import type { PropType, Ref } from 'vue';
+import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
@@ -821,18 +821,15 @@ const getDiscordUserInfo = (message: Message): { username: string; display_name:
   return message.metadata?.discord_user || null;
 };
 
-const isInstanceAdmin = (message: Message): boolean => {
-  const userId = message.user_id;
-  if (!userId) return false;
-  const profile = getUserProfile(userId).value;
-  return profile?.is_admin === true;
-};
-
-const isInstanceModerator = (message: Message): boolean => {
-  const userId = message.user_id;
-  if (!userId) return false;
-  const profile = getUserProfile(userId).value;
-  return profile?.is_moderator === true && !profile?.is_admin;
+const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null> => {
+  return computed(() => {
+    const userId = message.user_id;
+    if (!userId) return null;
+    const profile = getUserProfile(userId).value;
+    if (profile?.is_admin) return 'admin';
+    if (profile?.is_moderator) return 'mod';
+    return null;
+  });
 };
 
 // Helper functions for bot display

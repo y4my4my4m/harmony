@@ -603,10 +603,13 @@ export const useChatStore = defineStore('chat', {
         // and temp messages never get replaced with real ones
         const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
         if (tempIndex !== -1) {
+          // For own encrypted messages, keep the original plaintext content
+          // so the UI never flashes encrypted glyphs for our own sends
+          const isOwnEncrypted = message.encrypted && message.user_id === userId;
           const realMessage = {
             id: message.id,
             user_id: message.user_id,
-            content: message.content,
+            content: isOwnEncrypted ? content : message.content,
             created_at: new Date(message.created_at),
             channel_id: message.channel_id,
             reply_to: message.reply_to,
@@ -614,7 +617,7 @@ export const useChatStore = defineStore('chat', {
             is_system: message.is_system,
             metadata: message.metadata || undefined,
             encrypted: message.encrypted || false,
-            decrypted: message.decrypted || false,
+            decrypted: isOwnEncrypted ? true : (message.decrypted || false),
             encryption_metadata: message.encryption_metadata
           };
           

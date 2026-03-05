@@ -7,7 +7,7 @@
   />
   
   <!-- Regular embed with header/collapse -->
-  <div v-else class="provider-embed" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
+  <div v-else class="provider-embed" ref="embedWrapper" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
     <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post'">
       <div class="provider-embed__label">
         {{ providerLabel }}
@@ -79,6 +79,7 @@ const emit = defineEmits<{
 const collapsed = ref(false);
 const harmonyPost = ref<TimelinePost | null>(null);
 const harmonyError = ref<string | null>(null);
+const embedWrapper = ref<HTMLElement | null>(null);
 const youtubeContainer = ref<HTMLElement | null>(null);
 const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const isPlaying = ref(false);
@@ -188,11 +189,12 @@ function setupYouTubePlayer() {
   // Subscribe to YouTube player events immediately
   sendListeningEvent();
   
-  // Register video for floating (if messageId is provided)
+  // Register the whole embed wrapper for floating so the header + video float together
   if (props.messageId) {
-    const originalParent = youtubeContainer.value.parentElement as HTMLElement;
+    const floatTarget = embedWrapper.value || youtubeContainer.value;
+    const originalParent = floatTarget.parentElement as HTMLElement;
     if (originalParent) {
-      registerVideo(youtubeContainer.value, originalParent, props.messageId, 'youtube');
+      registerVideo(floatTarget, originalParent, props.messageId, 'youtube');
     }
   }
 }
@@ -243,9 +245,10 @@ function handleYouTubeMessage(event: MessageEvent) {
         }
       }
       
-      // Update data attribute for floating video system
-      if (youtubeContainer.value) {
-        youtubeContainer.value.dataset.isPlaying = String(isVideoPlaying);
+      // Update data attribute on the element registered for floating
+      const floatTarget = embedWrapper.value || youtubeContainer.value;
+      if (floatTarget) {
+        floatTarget.dataset.isPlaying = String(isVideoPlaying);
       }
     }
     

@@ -1429,10 +1429,11 @@ export const useDMStore = defineStore('dm', () => {
       // and temp messages never get replaced with real ones
       const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
       if (tempIndex !== -1) {
+        const isOwnEncrypted = message.encrypted && message.user_id === userId;
         const realMessage: Message = {
           id: message.id,
           user_id: message.user_id,
-          content: message.content,
+          content: isOwnEncrypted ? content : message.content,
           created_at: new Date(message.created_at),
           channel_id: '',
           conversation_id: message.conversation_id,
@@ -1441,7 +1442,7 @@ export const useDMStore = defineStore('dm', () => {
           is_system: message.is_system,
           metadata: message.metadata || undefined,
           encrypted: message.encrypted || false,
-          decrypted: message.decrypted || false,
+          decrypted: isOwnEncrypted ? true : (message.decrypted || false),
           encryption_metadata: message.encryption_metadata
         }
         
