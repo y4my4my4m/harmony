@@ -781,10 +781,9 @@ const mentionUser = () => {
     router.push('/monyverse')
     emit('close')
   } else {
-    const username = props.user.username || props.user.display_name
+    const username = props.user.username
     if (username) {
       emit('mention', username)
-      emit('close')
     }
   }
 }
