@@ -1723,6 +1723,7 @@ const canDeleteMessage = (message: Message) => {
     if (!canEditMessage(message)) return;
     editableMessageId.value = message.id;
     editableMessageContent.value = messagePartsToMarkdown(message.content);
+    hoveredMessageId.value = null;
     nextTick(() => {
       const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
       if (editInput) {
@@ -1758,11 +1759,10 @@ const cancelEdit = () => {
 };
 
 const deleteMessage = (messageId: string) => {
-  // Check if message has a thread
+  hoveredMessageId.value = null;
   const thread = getThreadForMessage(messageId);
   
   if (thread) {
-    // Show confirmation modal for messages with threads
     deleteConfirmConfig.value = {
       messageId,
       hasThread: true,
@@ -1770,7 +1770,6 @@ const deleteMessage = (messageId: string) => {
     };
     showDeleteConfirmModal.value = true;
   } else {
-    // No thread, delete directly
     triggerDestructive();
     chatStore.deleteMessage(messageId);
   }
@@ -1871,6 +1870,7 @@ const handleContextMenuEmojiPicker = () => {
 const replyTo = (message: Message) => {
   const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
   emit('replyingTo', message.id, displayName);
+  hoveredMessageId.value = null;
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
@@ -1882,6 +1882,7 @@ const handleReplyClick = async (replyMessageId: string) => {
 // Thread Logic
 const createThread = (message: Message) => {
   emit('createThread', message);
+  hoveredMessageId.value = null;
 };
 
 const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {

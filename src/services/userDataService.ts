@@ -305,7 +305,7 @@ class UserDataService extends EventTarget {
         debug.log('🔄 Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status')
+          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator')
           .eq('id', userId)
           .single()
         profile = profileData
@@ -411,11 +411,13 @@ class UserDataService extends EventTarget {
           status: finalStatus,
           customStatus: customStatus,
           isOnline: true,
-          isMobile: detectMobileDevice(), // Track if user is on mobile
+          isMobile: detectMobileDevice(),
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
           lastCacheUpdate: new Date().toISOString(),
           createdAt: profile.created_at || new Date().toISOString(),
+          isAdmin: profile.is_admin || false,
+          isModerator: profile.is_moderator || false,
           source: 'database'
         }
         

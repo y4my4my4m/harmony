@@ -144,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import { getServerIconUrl } from '@/utils/serverUtils';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -367,6 +367,10 @@ const hideServerTooltip = () => {
   }
   serverTooltip.value.visible = false;
 };
+
+watch(() => props.folder.is_expanded, (expanded) => {
+  if (!expanded) hideServerTooltip();
+});
 
 // Folder tooltip handlers (emit to parent)
 const showFolderTooltip = (event: MouseEvent) => {
