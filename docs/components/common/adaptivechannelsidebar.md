@@ -159,12 +159,12 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `channel-selected` | string | No description |
-| `create-channel` | string | No description |
-| `conversation-selected` | string | No description |
-| `profile-click` | unknown | No description |
-| `switch-mode` | union | No description |
-| `compose-post` | unknown | No description |
+| `channel-selected` | `string` | No description |
+| `create-channel` | `string` | No description |
+| `conversation-selected` | `string` | No description |
+| `profile-click` | `unknown` | No description |
+| `switch-mode` | `union` | No description |
+| `compose-post` | `unknown` | No description |
 
 ### Event Details
 
@@ -234,36 +234,36 @@ This component exposes no public methods.
     :channels="[]"
     :categories="[]"
     :categoryChannels="() => ({})"
-    @channel-selected="handleChannel-selected"
-    @create-channel="handleCreate-channel"
-    @conversation-selected="handleConversation-selected"
-    @profile-click="handleProfile-click"
-    @switch-mode="handleSwitch-mode"
-    @compose-post="handleCompose-post" />
+    @channel-selected="handleChannelSelected"
+    @create-channel="handleCreateChannel"
+    @conversation-selected="handleConversationSelected"
+    @profile-click="handleProfileClick"
+    @switch-mode="handleSwitchMode"
+    @compose-post="handleComposePost" />
 </template>
 
 <script setup lang="ts">
-const handleChannel-selected = (string) => {
+const handleChannelSelected = (data: string) => {
   // Handle channel-selected event
 }
 
-const handleCreate-channel = (string) => {
+const handleCreateChannel = (data: string) => {
   // Handle create-channel event
 }
 
-const handleConversation-selected = (string) => {
+const handleConversationSelected = (data: string) => {
   // Handle conversation-selected event
 }
 
-const handleProfile-click = (data) => {
+const handleProfileClick = (data: unknown) => {
   // Handle profile-click event
 }
 
-const handleSwitch-mode = (union) => {
+const handleSwitchMode = (data: union) => {
   // Handle switch-mode event
 }
 
-const handleCompose-post = (data) => {
+const handleComposePost = (data: unknown) => {
   // Handle compose-post event
 }
 </script>

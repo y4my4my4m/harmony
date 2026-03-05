@@ -71,11 +71,11 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `toggle-left-sidebar` | unknown | No description |
-| `toggle-right-sidebar` | unknown | No description |
-| `toggle-search` | unknown | No description |
-| `show-pinned` | unknown | No description |
-| `show-threads` | unknown | No description |
+| `toggle-left-sidebar` | `unknown` | No description |
+| `toggle-right-sidebar` | `unknown` | No description |
+| `toggle-search` | `unknown` | No description |
+| `show-pinned` | `unknown` | No description |
+| `show-threads` | `unknown` | No description |
 
 ### Event Details
 
@@ -134,31 +134,31 @@ This component exposes no public methods.
 <template>
   <ChatHeader
     :channel="undefined"
-    @toggle-left-sidebar="handleToggle-left-sidebar"
-    @toggle-right-sidebar="handleToggle-right-sidebar"
-    @toggle-search="handleToggle-search"
-    @show-pinned="handleShow-pinned"
-    @show-threads="handleShow-threads" />
+    @toggle-left-sidebar="handleToggleLeftSidebar"
+    @toggle-right-sidebar="handleToggleRightSidebar"
+    @toggle-search="handleToggleSearch"
+    @show-pinned="handleShowPinned"
+    @show-threads="handleShowThreads" />
 </template>
 
 <script setup lang="ts">
-const handleToggle-left-sidebar = (data) => {
+const handleToggleLeftSidebar = (data: unknown) => {
   // Handle toggle-left-sidebar event
 }
 
-const handleToggle-right-sidebar = (data) => {
+const handleToggleRightSidebar = (data: unknown) => {
   // Handle toggle-right-sidebar event
 }
 
-const handleToggle-search = (data) => {
+const handleToggleSearch = (data: unknown) => {
   // Handle toggle-search event
 }
 
-const handleShow-pinned = (data) => {
+const handleShowPinned = (data: unknown) => {
   // Handle show-pinned event
 }
 
-const handleShow-threads = (data) => {
+const handleShowThreads = (data: unknown) => {
   // Handle show-threads event
 }
 </script>

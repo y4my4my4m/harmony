@@ -137,7 +137,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `toggle-left-sidebar` | unknown | No description |
+| `toggle-left-sidebar` | `unknown` | No description |
 
 ### Event Details
 
@@ -164,11 +164,11 @@ This component exposes no public methods.
 <template>
   <UnifiedContextBar
     :mode="undefined"
-    @toggle-left-sidebar="handleToggle-left-sidebar" />
+    @toggle-left-sidebar="handleToggleLeftSidebar" />
 </template>
 
 <script setup lang="ts">
-const handleToggle-left-sidebar = (data) => {
+const handleToggleLeftSidebar = (data: unknown) => {
   // Handle toggle-left-sidebar event
 }
 </script>

@@ -60,8 +60,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `channelCreated` | any | No description |
+| `close` | `unknown` | No description |
+| `channelCreated` | `any` | No description |
 
 ### Event Details
 
@@ -102,11 +102,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleChannelCreated = (any) => {
+const handleChannelCreated = (data: any) => {
   // Handle channelCreated event
 }
 </script>

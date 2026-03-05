@@ -49,8 +49,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:modelValue` | boolean | No description |
-| `change` | boolean | No description |
+| `update:modelValue` | `boolean` | No description |
+| `change` | `boolean` | No description |
 
 ### Event Details
 
@@ -90,11 +90,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:modelValue = (boolean) => {
+const handleUpdate:modelValue = (data: boolean) => {
   // Handle update:modelValue event
 }
 
-const handleChange = (boolean) => {
+const handleChange = (data: boolean) => {
   // Handle change event
 }
 </script>

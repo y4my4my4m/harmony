@@ -225,22 +225,22 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:is-at-bottom` | boolean | No description |
-| `send-message` | any | No description |
-| `show-all-threads` | unknown | No description |
-| `clear-all-bookmarks` | unknown | No description |
-| `load-more-special-data` | unknown | No description |
-| `switch-feed` | union | No description |
-| `post-created` | TimelinePost | No description |
-| `load-more-posts` | unknown | No description |
-| `reply-to-post` | any | No description |
-| `favorite-post` | string | No description |
-| `reblog-post` | string | No description |
-| `bookmark-post` | string | No description |
-| `delete-post` | string | No description |
-| `show-user-profile` | any | No description |
-| `load-more-messages` | unknown | No description |
-| `back-to-timeline` | unknown | No description |
+| `update:is-at-bottom` | `boolean` | No description |
+| `send-message` | `any` | No description |
+| `show-all-threads` | `unknown` | No description |
+| `clear-all-bookmarks` | `unknown` | No description |
+| `load-more-special-data` | `unknown` | No description |
+| `switch-feed` | `union` | No description |
+| `post-created` | `TimelinePost` | No description |
+| `load-more-posts` | `unknown` | No description |
+| `reply-to-post` | `any` | No description |
+| `favorite-post` | `string` | No description |
+| `reblog-post` | `string` | No description |
+| `bookmark-post` | `string` | No description |
+| `delete-post` | `string` | No description |
+| `show-user-profile` | `any` | No description |
+| `load-more-messages` | `unknown` | No description |
+| `back-to-timeline` | `unknown` | No description |
 
 ### Event Details
 
@@ -387,86 +387,86 @@ This component exposes no public methods.
 <template>
   <UnifiedContentArea
     :mode="undefined"
-    @update:is-at-bottom="handleUpdate:is-at-bottom"
-    @send-message="handleSend-message"
-    @show-all-threads="handleShow-all-threads"
-    @clear-all-bookmarks="handleClear-all-bookmarks"
-    @load-more-special-data="handleLoad-more-special-data"
-    @switch-feed="handleSwitch-feed"
-    @post-created="handlePost-created"
-    @load-more-posts="handleLoad-more-posts"
-    @reply-to-post="handleReply-to-post"
-    @favorite-post="handleFavorite-post"
-    @reblog-post="handleReblog-post"
-    @bookmark-post="handleBookmark-post"
-    @delete-post="handleDelete-post"
-    @show-user-profile="handleShow-user-profile"
-    @load-more-messages="handleLoad-more-messages"
-    @back-to-timeline="handleBack-to-timeline" />
+    @update:is-at-bottom="handleUpdate:isAtBottom"
+    @send-message="handleSendMessage"
+    @show-all-threads="handleShowAllThreads"
+    @clear-all-bookmarks="handleClearAllBookmarks"
+    @load-more-special-data="handleLoadMoreSpecialData"
+    @switch-feed="handleSwitchFeed"
+    @post-created="handlePostCreated"
+    @load-more-posts="handleLoadMorePosts"
+    @reply-to-post="handleReplyToPost"
+    @favorite-post="handleFavoritePost"
+    @reblog-post="handleReblogPost"
+    @bookmark-post="handleBookmarkPost"
+    @delete-post="handleDeletePost"
+    @show-user-profile="handleShowUserProfile"
+    @load-more-messages="handleLoadMoreMessages"
+    @back-to-timeline="handleBackToTimeline" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate:is-at-bottom = (boolean) => {
+const handleUpdate:isAtBottom = (data: boolean) => {
   // Handle update:is-at-bottom event
 }
 
-const handleSend-message = (any) => {
+const handleSendMessage = (data: any) => {
   // Handle send-message event
 }
 
-const handleShow-all-threads = (data) => {
+const handleShowAllThreads = (data: unknown) => {
   // Handle show-all-threads event
 }
 
-const handleClear-all-bookmarks = (data) => {
+const handleClearAllBookmarks = (data: unknown) => {
   // Handle clear-all-bookmarks event
 }
 
-const handleLoad-more-special-data = (data) => {
+const handleLoadMoreSpecialData = (data: unknown) => {
   // Handle load-more-special-data event
 }
 
-const handleSwitch-feed = (union) => {
+const handleSwitchFeed = (data: union) => {
   // Handle switch-feed event
 }
 
-const handlePost-created = (TimelinePost) => {
+const handlePostCreated = (data: TimelinePost) => {
   // Handle post-created event
 }
 
-const handleLoad-more-posts = (data) => {
+const handleLoadMorePosts = (data: unknown) => {
   // Handle load-more-posts event
 }
 
-const handleReply-to-post = (any) => {
+const handleReplyToPost = (data: any) => {
   // Handle reply-to-post event
 }
 
-const handleFavorite-post = (string) => {
+const handleFavoritePost = (data: string) => {
   // Handle favorite-post event
 }
 
-const handleReblog-post = (string) => {
+const handleReblogPost = (data: string) => {
   // Handle reblog-post event
 }
 
-const handleBookmark-post = (string) => {
+const handleBookmarkPost = (data: string) => {
   // Handle bookmark-post event
 }
 
-const handleDelete-post = (string) => {
+const handleDeletePost = (data: string) => {
   // Handle delete-post event
 }
 
-const handleShow-user-profile = (any) => {
+const handleShowUserProfile = (data: any) => {
   // Handle show-user-profile event
 }
 
-const handleLoad-more-messages = (data) => {
+const handleLoadMoreMessages = (data: unknown) => {
   // Handle load-more-messages event
 }
 
-const handleBack-to-timeline = (data) => {
+const handleBackToTimeline = (data: unknown) => {
   // Handle back-to-timeline event
 }
 </script>

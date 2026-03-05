@@ -60,9 +60,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `conversationCreated` | string | No description |
-| `usersAdded` | string | No description |
+| `close` | `unknown` | No description |
+| `conversationCreated` | `string` | No description |
+| `usersAdded` | `string` | No description |
 
 ### Event Details
 
@@ -111,15 +111,15 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleConversationCreated = (string) => {
+const handleConversationCreated = (data: string) => {
   // Handle conversationCreated event
 }
 
-const handleUsersAdded = (string) => {
+const handleUsersAdded = (data: string) => {
   // Handle usersAdded event
 }
 </script>

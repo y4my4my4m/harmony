@@ -49,10 +49,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `toggle-reaction` | string | No description |
-| `show-reaction-tooltip` | MouseEvent | No description |
-| `hide-reaction-tooltip` | unknown | No description |
-| `open-emoji-picker` | string | No description |
+| `toggle-reaction` | `string` | No description |
+| `show-reaction-tooltip` | `MouseEvent` | No description |
+| `hide-reaction-tooltip` | `unknown` | No description |
+| `open-emoji-picker` | `string` | No description |
 
 ### Event Details
 
@@ -103,26 +103,26 @@ This component exposes no public methods.
 <template>
   <MessageReactions
     :message="undefined"
-    @toggle-reaction="handleToggle-reaction"
-    @show-reaction-tooltip="handleShow-reaction-tooltip"
-    @hide-reaction-tooltip="handleHide-reaction-tooltip"
-    @open-emoji-picker="handleOpen-emoji-picker" />
+    @toggle-reaction="handleToggleReaction"
+    @show-reaction-tooltip="handleShowReactionTooltip"
+    @hide-reaction-tooltip="handleHideReactionTooltip"
+    @open-emoji-picker="handleOpenEmojiPicker" />
 </template>
 
 <script setup lang="ts">
-const handleToggle-reaction = (string) => {
+const handleToggleReaction = (data: string) => {
   // Handle toggle-reaction event
 }
 
-const handleShow-reaction-tooltip = (MouseEvent) => {
+const handleShowReactionTooltip = (data: MouseEvent) => {
   // Handle show-reaction-tooltip event
 }
 
-const handleHide-reaction-tooltip = (data) => {
+const handleHideReactionTooltip = (data: unknown) => {
   // Handle hide-reaction-tooltip event
 }
 
-const handleOpen-emoji-picker = (string) => {
+const handleOpenEmojiPicker = (data: string) => {
   // Handle open-emoji-picker event
 }
 </script>

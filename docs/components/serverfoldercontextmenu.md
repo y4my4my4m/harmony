@@ -71,11 +71,11 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `edit-folder` | ServerFolder | No description |
-| `delete-folder` | ServerFolder | No description |
-| `toggle-expanded` | ServerFolder | No description |
-| `mark-as-read` | ServerFolder | No description |
+| `close` | `unknown` | No description |
+| `edit-folder` | `ServerFolder` | No description |
+| `delete-folder` | `ServerFolder` | No description |
+| `toggle-expanded` | `ServerFolder` | No description |
+| `mark-as-read` | `ServerFolder` | No description |
 
 ### Event Details
 
@@ -138,30 +138,30 @@ This component exposes no public methods.
     :folder="undefined"
     :servers="[]"
     @close="handleClose"
-    @edit-folder="handleEdit-folder"
-    @delete-folder="handleDelete-folder"
-    @toggle-expanded="handleToggle-expanded"
-    @mark-as-read="handleMark-as-read" />
+    @edit-folder="handleEditFolder"
+    @delete-folder="handleDeleteFolder"
+    @toggle-expanded="handleToggleExpanded"
+    @mark-as-read="handleMarkAsRead" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleEdit-folder = (ServerFolder) => {
+const handleEditFolder = (data: ServerFolder) => {
   // Handle edit-folder event
 }
 
-const handleDelete-folder = (ServerFolder) => {
+const handleDeleteFolder = (data: ServerFolder) => {
   // Handle delete-folder event
 }
 
-const handleToggle-expanded = (ServerFolder) => {
+const handleToggleExpanded = (data: ServerFolder) => {
   // Handle toggle-expanded event
 }
 
-const handleMark-as-read = (ServerFolder) => {
+const handleMarkAsRead = (data: ServerFolder) => {
   // Handle mark-as-read event
 }
 </script>

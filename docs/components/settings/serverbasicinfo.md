@@ -82,9 +82,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:server` | Server | No description |
-| `update:selectedFile` | union | No description |
-| `file-change` | union | No description |
+| `update:server` | `Server` | No description |
+| `update:selectedFile` | `union` | No description |
+| `file-change` | `union` | No description |
 
 ### Event Details
 
@@ -133,19 +133,19 @@ This component exposes no public methods.
     :permissions="undefined"
     @update:server="handleUpdate:server"
     @update:selectedFile="handleUpdate:selectedFile"
-    @file-change="handleFile-change" />
+    @file-change="handleFileChange" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate:server = (Server) => {
+const handleUpdate:server = (data: Server) => {
   // Handle update:server event
 }
 
-const handleUpdate:selectedFile = (union) => {
+const handleUpdate:selectedFile = (data: union) => {
   // Handle update:selectedFile event
 }
 
-const handleFile-change = (union) => {
+const handleFileChange = (data: union) => {
   // Handle file-change event
 }
 </script>

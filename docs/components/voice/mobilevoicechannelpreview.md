@@ -71,9 +71,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `join` | boolean | No description |
-| `open-chat` | unknown | No description |
+| `close` | `unknown` | No description |
+| `join` | `boolean` | No description |
+| `open-chat` | `unknown` | No description |
 
 ### Event Details
 
@@ -121,19 +121,19 @@ This component exposes no public methods.
     :participants="[]"
     @close="handleClose"
     @join="handleJoin"
-    @open-chat="handleOpen-chat" />
+    @open-chat="handleOpenChat" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleJoin = (boolean) => {
+const handleJoin = (data: boolean) => {
   // Handle join event
 }
 
-const handleOpen-chat = (data) => {
+const handleOpenChat = (data: unknown) => {
   // Handle open-chat event
 }
 </script>

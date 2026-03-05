@@ -49,7 +49,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update-privacy` | any | No description |
+| `update-privacy` | `any` | No description |
 
 ### Event Details
 
@@ -77,11 +77,11 @@ This component exposes no public methods.
   <PrivacySettings
     :profile="undefined"
     :loading="true"
-    @update-privacy="handleUpdate-privacy" />
+    @update-privacy="handleUpdatePrivacy" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate-privacy = (any) => {
+const handleUpdatePrivacy = (data: any) => {
   // Handle update-privacy event
 }
 </script>

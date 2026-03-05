@@ -49,8 +49,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `status-updated` | union | No description |
+| `close` | `unknown` | No description |
+| `status-updated` | `union` | No description |
 
 ### Event Details
 
@@ -86,15 +86,15 @@ This component exposes no public methods.
   <StatusPicker
     :isVisible="true"
     @close="handleClose"
-    @status-updated="handleStatus-updated" />
+    @status-updated="handleStatusUpdated" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleStatus-updated = (union) => {
+const handleStatusUpdated = (data: union) => {
   // Handle status-updated event
 }
 </script>

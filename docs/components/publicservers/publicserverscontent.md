@@ -126,10 +126,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `refresh` | unknown | No description |
-| `joinServer` | string | No description |
-| `leaveServer` | string | No description |
-| `viewOwnerProfile` | string | No description |
+| `refresh` | `unknown` | No description |
+| `joinServer` | `string` | No description |
+| `leaveServer` | `string` | No description |
+| `viewOwnerProfile` | `string` | No description |
 
 ### Event Details
 
@@ -194,19 +194,19 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleRefresh = (data) => {
+const handleRefresh = (data: unknown) => {
   // Handle refresh event
 }
 
-const handleJoinServer = (string) => {
+const handleJoinServer = (data: string) => {
   // Handle joinServer event
 }
 
-const handleLeaveServer = (string) => {
+const handleLeaveServer = (data: string) => {
   // Handle leaveServer event
 }
 
-const handleViewOwnerProfile = (string) => {
+const handleViewOwnerProfile = (data: string) => {
   // Handle viewOwnerProfile event
 }
 </script>

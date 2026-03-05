@@ -82,7 +82,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `switch-feed` | string | No description |
+| `switch-feed` | `string` | No description |
 
 ### Event Details
 
@@ -111,11 +111,11 @@ This component exposes no public methods.
     :mode="undefined"
     :currentView=""example""
     :isMobile="true"
-    @switch-feed="handleSwitch-feed" />
+    @switch-feed="handleSwitchFeed" />
 </template>
 
 <script setup lang="ts">
-const handleSwitch-feed = (string) => {
+const handleSwitchFeed = (data: string) => {
   // Handle switch-feed event
 }
 </script>

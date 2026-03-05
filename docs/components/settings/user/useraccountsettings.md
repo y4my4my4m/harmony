@@ -49,9 +49,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update-profile` | Partial | No description |
-| `upload-avatar` | File | No description |
-| `upload-banner` | File | No description |
+| `update-profile` | `Partial` | No description |
+| `upload-avatar` | `File` | No description |
+| `upload-banner` | `File` | No description |
 
 ### Event Details
 
@@ -95,21 +95,21 @@ This component exposes no public methods.
   <UserAccountSettings
     :profile="undefined"
     :loading="true"
-    @update-profile="handleUpdate-profile"
-    @upload-avatar="handleUpload-avatar"
-    @upload-banner="handleUpload-banner" />
+    @update-profile="handleUpdateProfile"
+    @upload-avatar="handleUploadAvatar"
+    @upload-banner="handleUploadBanner" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate-profile = (Partial) => {
+const handleUpdateProfile = (data: Partial) => {
   // Handle update-profile event
 }
 
-const handleUpload-avatar = (File) => {
+const handleUploadAvatar = (data: File) => {
   // Handle upload-avatar event
 }
 
-const handleUpload-banner = (File) => {
+const handleUploadBanner = (data: File) => {
   // Handle upload-banner event
 }
 </script>

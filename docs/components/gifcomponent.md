@@ -82,9 +82,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `sendGif` | Gif | No description |
-| `resetGifIconClicked` | unknown | No description |
-| `switchToEmoji` | unknown | No description |
+| `sendGif` | `Gif` | No description |
+| `resetGifIconClicked` | `unknown` | No description |
+| `switchToEmoji` | `unknown` | No description |
 
 ### Event Details
 
@@ -133,15 +133,15 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleSendGif = (Gif) => {
+const handleSendGif = (data: Gif) => {
   // Handle sendGif event
 }
 
-const handleResetGifIconClicked = (data) => {
+const handleResetGifIconClicked = (data: unknown) => {
   // Handle resetGifIconClicked event
 }
 
-const handleSwitchToEmoji = (data) => {
+const handleSwitchToEmoji = (data: unknown) => {
   // Handle switchToEmoji event
 }
 </script>

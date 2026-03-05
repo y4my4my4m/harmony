@@ -49,7 +49,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `embed-loaded` | unknown | No description |
+| `embed-loaded` | `unknown` | No description |
 
 ### Event Details
 
@@ -76,11 +76,11 @@ This component exposes no public methods.
 <template>
   <ProviderEmbedSwitch
     :payload="undefined"
-    @embed-loaded="handleEmbed-loaded" />
+    @embed-loaded="handleEmbedLoaded" />
 </template>
 
 <script setup lang="ts">
-const handleEmbed-loaded = (data) => {
+const handleEmbedLoaded = (data: unknown) => {
   // Handle embed-loaded event
 }
 </script>

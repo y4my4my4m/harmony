@@ -170,11 +170,11 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:modelValue` | string | No description |
-| `focus` | FocusEvent | No description |
-| `blur` | FocusEvent | No description |
-| `keydown` | KeyboardEvent | No description |
-| `enter` | KeyboardEvent | No description |
+| `update:modelValue` | `string` | No description |
+| `focus` | `FocusEvent` | No description |
+| `blur` | `FocusEvent` | No description |
+| `keydown` | `KeyboardEvent` | No description |
+| `enter` | `KeyboardEvent` | No description |
 
 ### Event Details
 
@@ -241,23 +241,23 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:modelValue = (string) => {
+const handleUpdate:modelValue = (data: string) => {
   // Handle update:modelValue event
 }
 
-const handleFocus = (FocusEvent) => {
+const handleFocus = (data: FocusEvent) => {
   // Handle focus event
 }
 
-const handleBlur = (FocusEvent) => {
+const handleBlur = (data: FocusEvent) => {
   // Handle blur event
 }
 
-const handleKeydown = (KeyboardEvent) => {
+const handleKeydown = (data: KeyboardEvent) => {
   // Handle keydown event
 }
 
-const handleEnter = (KeyboardEvent) => {
+const handleEnter = (data: KeyboardEvent) => {
   // Handle enter event
 }
 </script>

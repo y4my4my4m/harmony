@@ -60,15 +60,15 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `reply` | TimelinePost | No description |
-| `delete` | string | No description |
-| `edit` | string | No description |
-| `click` | TimelinePost | No description |
-| `user-mention-click` | string | No description |
-| `hashtag-click` | string | No description |
-| `user-click` | any | No description |
-| `show-conversation` | string | No description |
-| `refresh` | string | No description |
+| `reply` | `TimelinePost` | No description |
+| `delete` | `string` | No description |
+| `edit` | `string` | No description |
+| `click` | `TimelinePost` | No description |
+| `user-mention-click` | `string` | No description |
+| `hashtag-click` | `string` | No description |
+| `user-click` | `any` | No description |
+| `show-conversation` | `string` | No description |
+| `refresh` | `string` | No description |
 
 ### Event Details
 
@@ -163,47 +163,47 @@ This component exposes no public methods.
     @delete="handleDelete"
     @edit="handleEdit"
     @click="handleClick"
-    @user-mention-click="handleUser-mention-click"
-    @hashtag-click="handleHashtag-click"
-    @user-click="handleUser-click"
-    @show-conversation="handleShow-conversation"
+    @user-mention-click="handleUserMentionClick"
+    @hashtag-click="handleHashtagClick"
+    @user-click="handleUserClick"
+    @show-conversation="handleShowConversation"
     @refresh="handleRefresh" />
 </template>
 
 <script setup lang="ts">
-const handleReply = (TimelinePost) => {
+const handleReply = (data: TimelinePost) => {
   // Handle reply event
 }
 
-const handleDelete = (string) => {
+const handleDelete = (data: string) => {
   // Handle delete event
 }
 
-const handleEdit = (string) => {
+const handleEdit = (data: string) => {
   // Handle edit event
 }
 
-const handleClick = (TimelinePost) => {
+const handleClick = (data: TimelinePost) => {
   // Handle click event
 }
 
-const handleUser-mention-click = (string) => {
+const handleUserMentionClick = (data: string) => {
   // Handle user-mention-click event
 }
 
-const handleHashtag-click = (string) => {
+const handleHashtagClick = (data: string) => {
   // Handle hashtag-click event
 }
 
-const handleUser-click = (any) => {
+const handleUserClick = (data: any) => {
   // Handle user-click event
 }
 
-const handleShow-conversation = (string) => {
+const handleShowConversation = (data: string) => {
   // Handle show-conversation event
 }
 
-const handleRefresh = (string) => {
+const handleRefresh = (data: string) => {
   // Handle refresh event
 }
 </script>

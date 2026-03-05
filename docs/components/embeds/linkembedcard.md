@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `load` | unknown | No description |
+| `load` | `unknown` | No description |
 
 ### Event Details
 
@@ -69,7 +69,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleLoad = (data) => {
+const handleLoad = (data: unknown) => {
   // Handle load event
 }
 </script>

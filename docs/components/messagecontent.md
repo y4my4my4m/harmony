@@ -137,12 +137,12 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `show-user-profile` | unknown | No description |
-| `image-loaded` | unknown | No description |
-| `open-lightbox` | unknown | No description |
-| `update:message` | unknown | No description |
-| `update:content` | unknown | No description |
-| `cancel-edit` | unknown | No description |
+| `show-user-profile` | `unknown` | No description |
+| `image-loaded` | `unknown` | No description |
+| `open-lightbox` | `unknown` | No description |
+| `update:message` | `unknown` | No description |
+| `update:content` | `unknown` | No description |
+| `cancel-edit` | `unknown` | No description |
 
 ### Event Details
 
@@ -210,36 +210,36 @@ This component exposes no public methods.
   <MessageContent
     :content="undefined"
     :messageId=""example""
-    @show-user-profile="handleShow-user-profile"
-    @image-loaded="handleImage-loaded"
-    @open-lightbox="handleOpen-lightbox"
+    @show-user-profile="handleShowUserProfile"
+    @image-loaded="handleImageLoaded"
+    @open-lightbox="handleOpenLightbox"
     @update:message="handleUpdate:message"
     @update:content="handleUpdate:content"
-    @cancel-edit="handleCancel-edit" />
+    @cancel-edit="handleCancelEdit" />
 </template>
 
 <script setup lang="ts">
-const handleShow-user-profile = (data) => {
+const handleShowUserProfile = (data: unknown) => {
   // Handle show-user-profile event
 }
 
-const handleImage-loaded = (data) => {
+const handleImageLoaded = (data: unknown) => {
   // Handle image-loaded event
 }
 
-const handleOpen-lightbox = (data) => {
+const handleOpenLightbox = (data: unknown) => {
   // Handle open-lightbox event
 }
 
-const handleUpdate:message = (data) => {
+const handleUpdate:message = (data: unknown) => {
   // Handle update:message event
 }
 
-const handleUpdate:content = (data) => {
+const handleUpdate:content = (data: unknown) => {
   // Handle update:content event
 }
 
-const handleCancel-edit = (data) => {
+const handleCancelEdit = (data: unknown) => {
   // Handle cancel-edit event
 }
 </script>

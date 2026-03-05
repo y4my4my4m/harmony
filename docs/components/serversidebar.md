@@ -38,9 +38,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `show-public-servers` | boolean | No description |
-| `switch-to-activitypub` | unknown | No description |
-| `switch-to-chat` | unknown | No description |
+| `show-public-servers` | `boolean` | No description |
+| `switch-to-activitypub` | `unknown` | No description |
+| `switch-to-chat` | `unknown` | No description |
 
 ### Event Details
 
@@ -83,21 +83,21 @@ This component exposes no public methods.
 <template>
   <ServerSidebar
     :servers="[]"
-    @show-public-servers="handleShow-public-servers"
-    @switch-to-activitypub="handleSwitch-to-activitypub"
-    @switch-to-chat="handleSwitch-to-chat" />
+    @show-public-servers="handleShowPublicServers"
+    @switch-to-activitypub="handleSwitchToActivitypub"
+    @switch-to-chat="handleSwitchToChat" />
 </template>
 
 <script setup lang="ts">
-const handleShow-public-servers = (boolean) => {
+const handleShowPublicServers = (data: boolean) => {
   // Handle show-public-servers event
 }
 
-const handleSwitch-to-activitypub = (data) => {
+const handleSwitchToActivitypub = (data: unknown) => {
   // Handle switch-to-activitypub event
 }
 
-const handleSwitch-to-chat = (data) => {
+const handleSwitchToChat = (data: unknown) => {
   // Handle switch-to-chat event
 }
 </script>

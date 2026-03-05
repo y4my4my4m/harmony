@@ -60,10 +60,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `invite-users` | unknown | No description |
-| `edit-channel` | Channel | No description |
-| `delete-channel` | Channel | No description |
+| `close` | `unknown` | No description |
+| `invite-users` | `unknown` | No description |
+| `edit-channel` | `Channel` | No description |
+| `delete-channel` | `Channel` | No description |
 
 ### Event Details
 
@@ -117,25 +117,25 @@ This component exposes no public methods.
     :position="undefined"
     :channel="undefined"
     @close="handleClose"
-    @invite-users="handleInvite-users"
-    @edit-channel="handleEdit-channel"
-    @delete-channel="handleDelete-channel" />
+    @invite-users="handleInviteUsers"
+    @edit-channel="handleEditChannel"
+    @delete-channel="handleDeleteChannel" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleInvite-users = (data) => {
+const handleInviteUsers = (data: unknown) => {
   // Handle invite-users event
 }
 
-const handleEdit-channel = (Channel) => {
+const handleEditChannel = (data: Channel) => {
   // Handle edit-channel event
 }
 
-const handleDelete-channel = (Channel) => {
+const handleDeleteChannel = (data: Channel) => {
   // Handle delete-channel event
 }
 </script>

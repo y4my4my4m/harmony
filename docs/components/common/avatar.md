@@ -115,9 +115,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `click` | unknown | No description |
-| `upload` | File | No description |
-| `edit` | unknown | No description |
+| `click` | `unknown` | No description |
+| `upload` | `File` | No description |
+| `edit` | `unknown` | No description |
 
 ### Event Details
 
@@ -166,15 +166,15 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClick = (data) => {
+const handleClick = (data: unknown) => {
   // Handle click event
 }
 
-const handleUpload = (File) => {
+const handleUpload = (data: File) => {
   // Handle upload event
 }
 
-const handleEdit = (data) => {
+const handleEdit = (data: unknown) => {
   // Handle edit event
 }
 </script>

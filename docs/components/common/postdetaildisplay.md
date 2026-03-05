@@ -38,13 +38,13 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `back` | unknown | No description |
-| `reply` | TimelinePost | No description |
-| `favorite` | string | No description |
-| `reblog` | string | No description |
-| `bookmark` | string | No description |
-| `delete` | string | No description |
-| `user-click` | any | No description |
+| `back` | `unknown` | No description |
+| `reply` | `TimelinePost` | No description |
+| `favorite` | `string` | No description |
+| `reblog` | `string` | No description |
+| `bookmark` | `string` | No description |
+| `delete` | `string` | No description |
+| `user-click` | `any` | No description |
 
 ### Event Details
 
@@ -125,35 +125,35 @@ This component exposes no public methods.
     @reblog="handleReblog"
     @bookmark="handleBookmark"
     @delete="handleDelete"
-    @user-click="handleUser-click" />
+    @user-click="handleUserClick" />
 </template>
 
 <script setup lang="ts">
-const handleBack = (data) => {
+const handleBack = (data: unknown) => {
   // Handle back event
 }
 
-const handleReply = (TimelinePost) => {
+const handleReply = (data: TimelinePost) => {
   // Handle reply event
 }
 
-const handleFavorite = (string) => {
+const handleFavorite = (data: string) => {
   // Handle favorite event
 }
 
-const handleReblog = (string) => {
+const handleReblog = (data: string) => {
   // Handle reblog event
 }
 
-const handleBookmark = (string) => {
+const handleBookmark = (data: string) => {
   // Handle bookmark event
 }
 
-const handleDelete = (string) => {
+const handleDelete = (data: string) => {
   // Handle delete event
 }
 
-const handleUser-click = (any) => {
+const handleUserClick = (data: any) => {
   // Handle user-click event
 }
 </script>

@@ -38,8 +38,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `remove` | number | No description |
-| `update-description` | number | No description |
+| `remove` | `number` | No description |
+| `update-description` | `number` | No description |
 
 ### Event Details
 
@@ -75,15 +75,15 @@ This component exposes no public methods.
   <MonyMediaUpload
     :attachments="[]"
     @remove="handleRemove"
-    @update-description="handleUpdate-description" />
+    @update-description="handleUpdateDescription" />
 </template>
 
 <script setup lang="ts">
-const handleRemove = (number) => {
+const handleRemove = (data: number) => {
   // Handle remove event
 }
 
-const handleUpdate-description = (number) => {
+const handleUpdateDescription = (data: number) => {
   // Handle update-description event
 }
 </script>

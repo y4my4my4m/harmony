@@ -60,9 +60,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `join` | string | No description |
-| `leave` | string | No description |
-| `viewOwnerProfile` | string | No description |
+| `join` | `string` | No description |
+| `leave` | `string` | No description |
+| `viewOwnerProfile` | `string` | No description |
 
 ### Event Details
 
@@ -112,15 +112,15 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleJoin = (string) => {
+const handleJoin = (data: string) => {
   // Handle join event
 }
 
-const handleLeave = (string) => {
+const handleLeave = (data: string) => {
   // Handle leave event
 }
 
-const handleViewOwnerProfile = (string) => {
+const handleViewOwnerProfile = (data: string) => {
   // Handle viewOwnerProfile event
 }
 </script>

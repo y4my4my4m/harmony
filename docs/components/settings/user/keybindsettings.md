@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update-keybinds` | any | No description |
+| `update-keybinds` | `any` | No description |
 
 ### Event Details
 
@@ -65,11 +65,11 @@ This component exposes no public methods.
 <template>
   <KeybindSettings
     :loading="true"
-    @update-keybinds="handleUpdate-keybinds" />
+    @update-keybinds="handleUpdateKeybinds" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate-keybinds = (any) => {
+const handleUpdateKeybinds = (data: any) => {
   // Handle update-keybinds event
 }
 </script>

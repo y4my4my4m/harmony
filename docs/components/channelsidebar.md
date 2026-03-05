@@ -82,8 +82,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `createChannel` | string | No description |
-| `openThread` | ThreadWithDetails | No description |
+| `createChannel` | `string` | No description |
+| `openThread` | `ThreadWithDetails` | No description |
 
 ### Event Details
 
@@ -126,11 +126,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleCreateChannel = (string) => {
+const handleCreateChannel = (data: string) => {
   // Handle createChannel event
 }
 
-const handleOpenThread = (ThreadWithDetails) => {
+const handleOpenThread = (data: ThreadWithDetails) => {
   // Handle openThread event
 }
 </script>

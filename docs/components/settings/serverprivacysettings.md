@@ -71,8 +71,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:isPublic` | boolean | No description |
-| `update:federationEnabled` | boolean | No description |
+| `update:isPublic` | `boolean` | No description |
+| `update:federationEnabled` | `boolean` | No description |
 
 ### Event Details
 
@@ -115,11 +115,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:isPublic = (boolean) => {
+const handleUpdate:isPublic = (data: boolean) => {
   // Handle update:isPublic event
 }
 
-const handleUpdate:federationEnabled = (boolean) => {
+const handleUpdate:federationEnabled = (data: boolean) => {
   // Handle update:federationEnabled event
 }
 </script>

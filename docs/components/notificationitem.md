@@ -38,9 +38,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `click` | Notification | No description |
-| `mark-read` | string | No description |
-| `dismiss` | string | No description |
+| `click` | `Notification` | No description |
+| `mark-read` | `string` | No description |
+| `dismiss` | `string` | No description |
 
 ### Event Details
 
@@ -84,20 +84,20 @@ This component exposes no public methods.
   <NotificationItem
     :notification="undefined"
     @click="handleClick"
-    @mark-read="handleMark-read"
+    @mark-read="handleMarkRead"
     @dismiss="handleDismiss" />
 </template>
 
 <script setup lang="ts">
-const handleClick = (Notification) => {
+const handleClick = (data: Notification) => {
   // Handle click event
 }
 
-const handleMark-read = (string) => {
+const handleMarkRead = (data: string) => {
   // Handle mark-read event
 }
 
-const handleDismiss = (string) => {
+const handleDismiss = (data: string) => {
   // Handle dismiss event
 }
 </script>

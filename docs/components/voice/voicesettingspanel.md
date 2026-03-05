@@ -23,8 +23,8 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `update-settings` | unknown | No description |
+| `close` | `unknown` | No description |
+| `update-settings` | `unknown` | No description |
 
 ### Event Details
 
@@ -59,15 +59,15 @@ This component exposes no public methods.
 <template>
   <VoiceSettingsPanel
     @close="handleClose"
-    @update-settings="handleUpdate-settings" />
+    @update-settings="handleUpdateSettings" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleUpdate-settings = (data) => {
+const handleUpdateSettings = (data: unknown) => {
   // Handle update-settings event
 }
 </script>

@@ -60,12 +60,12 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `toggle-left-sidebar` | unknown | No description |
-| `switch-feed` | string | No description |
-| `open-search` | unknown | No description |
-| `open-composer` | unknown | No description |
-| `refresh-timeline` | unknown | No description |
-| `toggle-right-sidebar` | unknown | No description |
+| `toggle-left-sidebar` | `unknown` | No description |
+| `switch-feed` | `string` | No description |
+| `open-search` | `unknown` | No description |
+| `open-composer` | `unknown` | No description |
+| `refresh-timeline` | `unknown` | No description |
+| `toggle-right-sidebar` | `unknown` | No description |
 
 ### Event Details
 
@@ -132,36 +132,36 @@ This component exposes no public methods.
 <template>
   <MonyHeader
     
-    @toggle-left-sidebar="handleToggle-left-sidebar"
-    @switch-feed="handleSwitch-feed"
-    @open-search="handleOpen-search"
-    @open-composer="handleOpen-composer"
-    @refresh-timeline="handleRefresh-timeline"
-    @toggle-right-sidebar="handleToggle-right-sidebar" />
+    @toggle-left-sidebar="handleToggleLeftSidebar"
+    @switch-feed="handleSwitchFeed"
+    @open-search="handleOpenSearch"
+    @open-composer="handleOpenComposer"
+    @refresh-timeline="handleRefreshTimeline"
+    @toggle-right-sidebar="handleToggleRightSidebar" />
 </template>
 
 <script setup lang="ts">
-const handleToggle-left-sidebar = (data) => {
+const handleToggleLeftSidebar = (data: unknown) => {
   // Handle toggle-left-sidebar event
 }
 
-const handleSwitch-feed = (string) => {
+const handleSwitchFeed = (data: string) => {
   // Handle switch-feed event
 }
 
-const handleOpen-search = (data) => {
+const handleOpenSearch = (data: unknown) => {
   // Handle open-search event
 }
 
-const handleOpen-composer = (data) => {
+const handleOpenComposer = (data: unknown) => {
   // Handle open-composer event
 }
 
-const handleRefresh-timeline = (data) => {
+const handleRefreshTimeline = (data: unknown) => {
   // Handle refresh-timeline event
 }
 
-const handleToggle-right-sidebar = (data) => {
+const handleToggleRightSidebar = (data: unknown) => {
   // Handle toggle-right-sidebar event
 }
 </script>

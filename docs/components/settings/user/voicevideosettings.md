@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update-voice-settings` | any | No description |
+| `update-voice-settings` | `any` | No description |
 
 ### Event Details
 
@@ -65,11 +65,11 @@ This component exposes no public methods.
 <template>
   <VoiceVideoSettings
     :loading="true"
-    @update-voice-settings="handleUpdate-voice-settings" />
+    @update-voice-settings="handleUpdateVoiceSettings" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate-voice-settings = (any) => {
+const handleUpdateVoiceSettings = (data: any) => {
   // Handle update-voice-settings event
 }
 </script>

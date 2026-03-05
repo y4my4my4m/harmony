@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update-advanced` | any | No description |
+| `update-advanced` | `any` | No description |
 
 ### Event Details
 
@@ -65,11 +65,11 @@ This component exposes no public methods.
 <template>
   <AdvancedSettings
     :loading="true"
-    @update-advanced="handleUpdate-advanced" />
+    @update-advanced="handleUpdateAdvanced" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate-advanced = (any) => {
+const handleUpdateAdvanced = (data: any) => {
   // Handle update-advanced event
 }
 </script>

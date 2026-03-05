@@ -38,8 +38,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `files-selected` | unknown | No description |
-| `close` | unknown | No description |
+| `files-selected` | `unknown` | No description |
+| `close` | `unknown` | No description |
 
 ### Event Details
 
@@ -74,16 +74,16 @@ This component exposes no public methods.
 <template>
   <FileUploadMenu
     
-    @files-selected="handleFiles-selected"
+    @files-selected="handleFilesSelected"
     @close="handleClose" />
 </template>
 
 <script setup lang="ts">
-const handleFiles-selected = (data) => {
+const handleFilesSelected = (data: unknown) => {
   // Handle files-selected event
 }
 
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 </script>

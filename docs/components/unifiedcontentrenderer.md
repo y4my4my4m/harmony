@@ -148,11 +148,11 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `user-mention-click` | string | No description |
-| `hashtag-click` | string | No description |
-| `link-click` | string | No description |
-| `image-load` | string | No description |
-| `image-click` | string | No description |
+| `user-mention-click` | `string` | No description |
+| `hashtag-click` | `string` | No description |
+| `link-click` | `string` | No description |
+| `image-load` | `string` | No description |
+| `image-click` | `string` | No description |
 
 ### Event Details
 
@@ -211,31 +211,31 @@ This component exposes no public methods.
 <template>
   <UnifiedContentRenderer
     :content="undefined"
-    @user-mention-click="handleUser-mention-click"
-    @hashtag-click="handleHashtag-click"
-    @link-click="handleLink-click"
-    @image-load="handleImage-load"
-    @image-click="handleImage-click" />
+    @user-mention-click="handleUserMentionClick"
+    @hashtag-click="handleHashtagClick"
+    @link-click="handleLinkClick"
+    @image-load="handleImageLoad"
+    @image-click="handleImageClick" />
 </template>
 
 <script setup lang="ts">
-const handleUser-mention-click = (string) => {
+const handleUserMentionClick = (data: string) => {
   // Handle user-mention-click event
 }
 
-const handleHashtag-click = (string) => {
+const handleHashtagClick = (data: string) => {
   // Handle hashtag-click event
 }
 
-const handleLink-click = (string) => {
+const handleLinkClick = (data: string) => {
   // Handle link-click event
 }
 
-const handleImage-load = (string) => {
+const handleImageLoad = (data: string) => {
   // Handle image-load event
 }
 
-const handleImage-click = (string) => {
+const handleImageClick = (data: string) => {
   // Handle image-click event
 }
 </script>

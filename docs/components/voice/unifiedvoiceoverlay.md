@@ -38,8 +38,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `minimize` | unknown | No description |
+| `close` | `unknown` | No description |
+| `minimize` | `unknown` | No description |
 
 ### Event Details
 
@@ -79,11 +79,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleMinimize = (data) => {
+const handleMinimize = (data: unknown) => {
   // Handle minimize event
 }
 </script>

@@ -126,16 +126,16 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `empty-action` | unknown | No description |
-| `reply` | any | No description |
-| `favorite` | string | No description |
-| `reblog` | string | No description |
-| `bookmark` | string | No description |
-| `delete` | string | No description |
-| `user-click` | any | No description |
-| `hashtag-click` | string | No description |
-| `show-conversation` | string | No description |
-| `load-more` | unknown | No description |
+| `empty-action` | `unknown` | No description |
+| `reply` | `any` | No description |
+| `favorite` | `string` | No description |
+| `reblog` | `string` | No description |
+| `bookmark` | `string` | No description |
+| `delete` | `string` | No description |
+| `user-click` | `any` | No description |
+| `hashtag-click` | `string` | No description |
+| `show-conversation` | `string` | No description |
+| `load-more` | `unknown` | No description |
 
 ### Event Details
 
@@ -234,56 +234,56 @@ This component exposes no public methods.
 <template>
   <PostsContainer
     :posts="[]"
-    @empty-action="handleEmpty-action"
+    @empty-action="handleEmptyAction"
     @reply="handleReply"
     @favorite="handleFavorite"
     @reblog="handleReblog"
     @bookmark="handleBookmark"
     @delete="handleDelete"
-    @user-click="handleUser-click"
-    @hashtag-click="handleHashtag-click"
-    @show-conversation="handleShow-conversation"
-    @load-more="handleLoad-more" />
+    @user-click="handleUserClick"
+    @hashtag-click="handleHashtagClick"
+    @show-conversation="handleShowConversation"
+    @load-more="handleLoadMore" />
 </template>
 
 <script setup lang="ts">
-const handleEmpty-action = (data) => {
+const handleEmptyAction = (data: unknown) => {
   // Handle empty-action event
 }
 
-const handleReply = (any) => {
+const handleReply = (data: any) => {
   // Handle reply event
 }
 
-const handleFavorite = (string) => {
+const handleFavorite = (data: string) => {
   // Handle favorite event
 }
 
-const handleReblog = (string) => {
+const handleReblog = (data: string) => {
   // Handle reblog event
 }
 
-const handleBookmark = (string) => {
+const handleBookmark = (data: string) => {
   // Handle bookmark event
 }
 
-const handleDelete = (string) => {
+const handleDelete = (data: string) => {
   // Handle delete event
 }
 
-const handleUser-click = (any) => {
+const handleUserClick = (data: any) => {
   // Handle user-click event
 }
 
-const handleHashtag-click = (string) => {
+const handleHashtagClick = (data: string) => {
   // Handle hashtag-click event
 }
 
-const handleShow-conversation = (string) => {
+const handleShowConversation = (data: string) => {
   // Handle show-conversation event
 }
 
-const handleLoad-more = (data) => {
+const handleLoadMore = (data: unknown) => {
   // Handle load-more event
 }
 </script>

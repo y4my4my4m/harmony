@@ -93,15 +93,15 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `follow` | string | No description |
-| `unfollow` | string | No description |
-| `mention` | FederatedUser | No description |
-| `block` | string | No description |
-| `unblock` | string | No description |
-| `mute` | string | No description |
-| `unmute` | string | No description |
-| `report` | string | No description |
-| `user-click` | FederatedUser | No description |
+| `follow` | `string` | No description |
+| `unfollow` | `string` | No description |
+| `mention` | `FederatedUser` | No description |
+| `block` | `string` | No description |
+| `unblock` | `string` | No description |
+| `mute` | `string` | No description |
+| `unmute` | `string` | No description |
+| `report` | `string` | No description |
+| `user-click` | `FederatedUser` | No description |
 
 ### Event Details
 
@@ -200,43 +200,43 @@ This component exposes no public methods.
     @mute="handleMute"
     @unmute="handleUnmute"
     @report="handleReport"
-    @user-click="handleUser-click" />
+    @user-click="handleUserClick" />
 </template>
 
 <script setup lang="ts">
-const handleFollow = (string) => {
+const handleFollow = (data: string) => {
   // Handle follow event
 }
 
-const handleUnfollow = (string) => {
+const handleUnfollow = (data: string) => {
   // Handle unfollow event
 }
 
-const handleMention = (FederatedUser) => {
+const handleMention = (data: FederatedUser) => {
   // Handle mention event
 }
 
-const handleBlock = (string) => {
+const handleBlock = (data: string) => {
   // Handle block event
 }
 
-const handleUnblock = (string) => {
+const handleUnblock = (data: string) => {
   // Handle unblock event
 }
 
-const handleMute = (string) => {
+const handleMute = (data: string) => {
   // Handle mute event
 }
 
-const handleUnmute = (string) => {
+const handleUnmute = (data: string) => {
   // Handle unmute event
 }
 
-const handleReport = (string) => {
+const handleReport = (data: string) => {
   // Handle report event
 }
 
-const handleUser-click = (FederatedUser) => {
+const handleUserClick = (data: FederatedUser) => {
   // Handle user-click event
 }
 </script>

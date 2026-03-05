@@ -23,8 +23,8 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `joined` | string | No description |
+| `close` | `unknown` | No description |
+| `joined` | `string` | No description |
 
 ### Event Details
 
@@ -63,11 +63,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleJoined = (string) => {
+const handleJoined = (data: string) => {
   // Handle joined event
 }
 </script>

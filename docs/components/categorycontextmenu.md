@@ -60,10 +60,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `create-channel` | Category | No description |
-| `edit-category` | Category | No description |
-| `delete-category` | Category | No description |
+| `close` | `unknown` | No description |
+| `create-channel` | `Category` | No description |
+| `edit-category` | `Category` | No description |
+| `delete-category` | `Category` | No description |
 
 ### Event Details
 
@@ -117,25 +117,25 @@ This component exposes no public methods.
     :position="undefined"
     :category="undefined"
     @close="handleClose"
-    @create-channel="handleCreate-channel"
-    @edit-category="handleEdit-category"
-    @delete-category="handleDelete-category" />
+    @create-channel="handleCreateChannel"
+    @edit-category="handleEditCategory"
+    @delete-category="handleDeleteCategory" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleCreate-channel = (Category) => {
+const handleCreateChannel = (data: Category) => {
   // Handle create-channel event
 }
 
-const handleEdit-category = (Category) => {
+const handleEditCategory = (data: Category) => {
   // Handle edit-category event
 }
 
-const handleDelete-category = (Category) => {
+const handleDeleteCategory = (data: Category) => {
   // Handle delete-category event
 }
 </script>

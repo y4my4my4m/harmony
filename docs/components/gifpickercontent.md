@@ -38,8 +38,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:showFavorites` | boolean | No description |
-| `sendGif` | Gif | No description |
+| `update:showFavorites` | `boolean` | No description |
+| `sendGif` | `Gif` | No description |
 
 ### Event Details
 
@@ -79,11 +79,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:showFavorites = (boolean) => {
+const handleUpdate:showFavorites = (data: boolean) => {
   // Handle update:showFavorites event
 }
 
-const handleSendGif = (Gif) => {
+const handleSendGif = (data: Gif) => {
   // Handle sendGif event
 }
 </script>

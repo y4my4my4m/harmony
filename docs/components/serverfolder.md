@@ -60,13 +60,13 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `select-server` | string | No description |
-| `open-context-menu` | MouseEvent | No description |
-| `servers-reordered` | Array | No description |
-| `server-dropped` | string | No description |
-| `server-removed` | string | No description |
-| `show-folder-tooltip` | MouseEvent | No description |
-| `hide-folder-tooltip` | unknown | No description |
+| `select-server` | `string` | No description |
+| `open-context-menu` | `MouseEvent` | No description |
+| `servers-reordered` | `Array` | No description |
+| `server-dropped` | `string` | No description |
+| `server-removed` | `string` | No description |
+| `show-folder-tooltip` | `MouseEvent` | No description |
+| `hide-folder-tooltip` | `unknown` | No description |
 
 ### Event Details
 
@@ -143,41 +143,41 @@ This component exposes no public methods.
     :folder="undefined"
     :servers="[]"
     :selectedServerId="undefined"
-    @select-server="handleSelect-server"
-    @open-context-menu="handleOpen-context-menu"
-    @servers-reordered="handleServers-reordered"
-    @server-dropped="handleServer-dropped"
-    @server-removed="handleServer-removed"
-    @show-folder-tooltip="handleShow-folder-tooltip"
-    @hide-folder-tooltip="handleHide-folder-tooltip" />
+    @select-server="handleSelectServer"
+    @open-context-menu="handleOpenContextMenu"
+    @servers-reordered="handleServersReordered"
+    @server-dropped="handleServerDropped"
+    @server-removed="handleServerRemoved"
+    @show-folder-tooltip="handleShowFolderTooltip"
+    @hide-folder-tooltip="handleHideFolderTooltip" />
 </template>
 
 <script setup lang="ts">
-const handleSelect-server = (string) => {
+const handleSelectServer = (data: string) => {
   // Handle select-server event
 }
 
-const handleOpen-context-menu = (MouseEvent) => {
+const handleOpenContextMenu = (data: MouseEvent) => {
   // Handle open-context-menu event
 }
 
-const handleServers-reordered = (Array) => {
+const handleServersReordered = (data: Array) => {
   // Handle servers-reordered event
 }
 
-const handleServer-dropped = (string) => {
+const handleServerDropped = (data: string) => {
   // Handle server-dropped event
 }
 
-const handleServer-removed = (string) => {
+const handleServerRemoved = (data: string) => {
   // Handle server-removed event
 }
 
-const handleShow-folder-tooltip = (MouseEvent) => {
+const handleShowFolderTooltip = (data: MouseEvent) => {
   // Handle show-folder-tooltip event
 }
 
-const handleHide-folder-tooltip = (data) => {
+const handleHideFolderTooltip = (data: unknown) => {
   // Handle hide-folder-tooltip event
 }
 </script>

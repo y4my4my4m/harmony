@@ -82,8 +82,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `message-click` | Message | No description |
+| `close` | `unknown` | No description |
+| `message-click` | `Message` | No description |
 
 ### Event Details
 
@@ -119,15 +119,15 @@ This component exposes no public methods.
   <MessageSearchModal
     :show="true"
     @close="handleClose"
-    @message-click="handleMessage-click" />
+    @message-click="handleMessageClick" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleMessage-click = (Message) => {
+const handleMessageClick = (data: Message) => {
   // Handle message-click event
 }
 </script>

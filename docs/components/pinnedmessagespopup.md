@@ -60,8 +60,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `jump-to-message` | string | No description |
+| `close` | `unknown` | No description |
+| `jump-to-message` | `string` | No description |
 
 ### Event Details
 
@@ -97,15 +97,15 @@ This component exposes no public methods.
   <PinnedMessagesPopup
     :isVisible="true"
     @close="handleClose"
-    @jump-to-message="handleJump-to-message" />
+    @jump-to-message="handleJumpToMessage" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleJump-to-message = (string) => {
+const handleJumpToMessage = (data: string) => {
   // Handle jump-to-message event
 }
 </script>

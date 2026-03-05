@@ -49,11 +49,11 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `toggle-left-sidebar` | unknown | No description |
-| `add-user` | unknown | No description |
-| `toggle-voice-panel` | unknown | No description |
-| `group-updated` | unknown | No description |
-| `incoming-call` | { callerId: string, callType: 'voice' | 'video', conversationId: string } | No description |
+| `toggle-left-sidebar` | `unknown` | No description |
+| `add-user` | `unknown` | No description |
+| `toggle-voice-panel` | `unknown` | No description |
+| `group-updated` | `unknown` | No description |
+| `incoming-call` | `{ callerId: string, callType: 'voice' | 'video', conversationId: string }` | No description |
 
 ### Event Details
 
@@ -112,31 +112,31 @@ This component exposes no public methods.
 <template>
   <DMHeader
     :conversation="undefined"
-    @toggle-left-sidebar="handleToggle-left-sidebar"
-    @add-user="handleAdd-user"
-    @toggle-voice-panel="handleToggle-voice-panel"
-    @group-updated="handleGroup-updated"
-    @incoming-call="handleIncoming-call" />
+    @toggle-left-sidebar="handleToggleLeftSidebar"
+    @add-user="handleAddUser"
+    @toggle-voice-panel="handleToggleVoicePanel"
+    @group-updated="handleGroupUpdated"
+    @incoming-call="handleIncomingCall" />
 </template>
 
 <script setup lang="ts">
-const handleToggle-left-sidebar = (data) => {
+const handleToggleLeftSidebar = (data: unknown) => {
   // Handle toggle-left-sidebar event
 }
 
-const handleAdd-user = (data) => {
+const handleAddUser = (data: unknown) => {
   // Handle add-user event
 }
 
-const handleToggle-voice-panel = (data) => {
+const handleToggleVoicePanel = (data: unknown) => {
   // Handle toggle-voice-panel event
 }
 
-const handleGroup-updated = (data) => {
+const handleGroupUpdated = (data: unknown) => {
   // Handle group-updated event
 }
 
-const handleIncoming-call = ({ callerId: string, callType: 'voice' | 'video', conversationId: string }) => {
+const handleIncomingCall = (data: { callerId: string, callType: 'voice' | 'video', conversationId: string }) => {
   // Handle incoming-call event
 }
 </script>

@@ -148,15 +148,15 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `open-lightbox` | unknown | No description |
-| `show-user-profile` | unknown | No description |
-| `update:message` | unknown | No description |
-| `update:content` | unknown | No description |
-| `cancel-edit` | unknown | No description |
-| `image-loaded` | unknown | No description |
-| `embed-loaded` | unknown | No description |
-| `hashtag-click` | unknown | No description |
-| `decrypt-message` | unknown | No description |
+| `open-lightbox` | `unknown` | No description |
+| `show-user-profile` | `unknown` | No description |
+| `update:message` | `unknown` | No description |
+| `update:content` | `unknown` | No description |
+| `cancel-edit` | `unknown` | No description |
+| `image-loaded` | `unknown` | No description |
+| `embed-loaded` | `unknown` | No description |
+| `hashtag-click` | `unknown` | No description |
+| `decrypt-message` | `unknown` | No description |
 
 ### Event Details
 
@@ -248,51 +248,51 @@ This component exposes no public methods.
   <UnifiedMessageContent
     :content="undefined"
     :messageId=""example""
-    @open-lightbox="handleOpen-lightbox"
-    @show-user-profile="handleShow-user-profile"
+    @open-lightbox="handleOpenLightbox"
+    @show-user-profile="handleShowUserProfile"
     @update:message="handleUpdate:message"
     @update:content="handleUpdate:content"
-    @cancel-edit="handleCancel-edit"
-    @image-loaded="handleImage-loaded"
-    @embed-loaded="handleEmbed-loaded"
-    @hashtag-click="handleHashtag-click"
-    @decrypt-message="handleDecrypt-message" />
+    @cancel-edit="handleCancelEdit"
+    @image-loaded="handleImageLoaded"
+    @embed-loaded="handleEmbedLoaded"
+    @hashtag-click="handleHashtagClick"
+    @decrypt-message="handleDecryptMessage" />
 </template>
 
 <script setup lang="ts">
-const handleOpen-lightbox = (data) => {
+const handleOpenLightbox = (data: unknown) => {
   // Handle open-lightbox event
 }
 
-const handleShow-user-profile = (data) => {
+const handleShowUserProfile = (data: unknown) => {
   // Handle show-user-profile event
 }
 
-const handleUpdate:message = (data) => {
+const handleUpdate:message = (data: unknown) => {
   // Handle update:message event
 }
 
-const handleUpdate:content = (data) => {
+const handleUpdate:content = (data: unknown) => {
   // Handle update:content event
 }
 
-const handleCancel-edit = (data) => {
+const handleCancelEdit = (data: unknown) => {
   // Handle cancel-edit event
 }
 
-const handleImage-loaded = (data) => {
+const handleImageLoaded = (data: unknown) => {
   // Handle image-loaded event
 }
 
-const handleEmbed-loaded = (data) => {
+const handleEmbedLoaded = (data: unknown) => {
   // Handle embed-loaded event
 }
 
-const handleHashtag-click = (data) => {
+const handleHashtagClick = (data: unknown) => {
   // Handle hashtag-click event
 }
 
-const handleDecrypt-message = (data) => {
+const handleDecryptMessage = (data: unknown) => {
   // Handle decrypt-message event
 }
 </script>

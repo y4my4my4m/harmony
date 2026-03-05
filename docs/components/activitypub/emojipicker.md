@@ -38,8 +38,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `emojiSelected` | { content: string; name: string } | No description |
+| `close` | `unknown` | No description |
+| `emojiSelected` | `{ content: string; name: string }` | No description |
 
 ### Event Details
 
@@ -79,11 +79,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleEmojiSelected = ({ content: string; name: string }) => {
+const handleEmojiSelected = (data: { content: string; name: string }) => {
   // Handle emojiSelected event
 }
 </script>

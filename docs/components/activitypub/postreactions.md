@@ -49,8 +49,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `show-reaction-tooltip` | MouseEvent | No description |
-| `hide-reaction-tooltip` | unknown | No description |
+| `show-reaction-tooltip` | `MouseEvent` | No description |
+| `hide-reaction-tooltip` | `unknown` | No description |
 
 ### Event Details
 
@@ -85,16 +85,16 @@ This component exposes no public methods.
 <template>
   <PostReactions
     :post="undefined"
-    @show-reaction-tooltip="handleShow-reaction-tooltip"
-    @hide-reaction-tooltip="handleHide-reaction-tooltip" />
+    @show-reaction-tooltip="handleShowReactionTooltip"
+    @hide-reaction-tooltip="handleHideReactionTooltip" />
 </template>
 
 <script setup lang="ts">
-const handleShow-reaction-tooltip = (MouseEvent) => {
+const handleShowReactionTooltip = (data: MouseEvent) => {
   // Handle show-reaction-tooltip event
 }
 
-const handleHide-reaction-tooltip = (data) => {
+const handleHideReactionTooltip = (data: unknown) => {
   // Handle hide-reaction-tooltip event
 }
 </script>

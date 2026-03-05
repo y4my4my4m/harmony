@@ -71,15 +71,15 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `leave` | unknown | No description |
-| `edit` | ThreadWithDetails | No description |
-| `open-split-view` | ThreadWithDetails | No description |
-| `close-thread` | ThreadWithDetails | No description |
-| `reopen` | ThreadWithDetails | No description |
-| `lock` | ThreadWithDetails | No description |
-| `unlock` | ThreadWithDetails | No description |
-| `delete` | ThreadWithDetails | No description |
+| `close` | `unknown` | No description |
+| `leave` | `unknown` | No description |
+| `edit` | `ThreadWithDetails` | No description |
+| `open-split-view` | `ThreadWithDetails` | No description |
+| `close-thread` | `ThreadWithDetails` | No description |
+| `reopen` | `ThreadWithDetails` | No description |
+| `lock` | `ThreadWithDetails` | No description |
+| `unlock` | `ThreadWithDetails` | No description |
+| `delete` | `ThreadWithDetails` | No description |
 
 ### Event Details
 
@@ -175,8 +175,8 @@ This component exposes no public methods.
     @close="handleClose"
     @leave="handleLeave"
     @edit="handleEdit"
-    @open-split-view="handleOpen-split-view"
-    @close-thread="handleClose-thread"
+    @open-split-view="handleOpenSplitView"
+    @close-thread="handleCloseThread"
     @reopen="handleReopen"
     @lock="handleLock"
     @unlock="handleUnlock"
@@ -184,39 +184,39 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleLeave = (data) => {
+const handleLeave = (data: unknown) => {
   // Handle leave event
 }
 
-const handleEdit = (ThreadWithDetails) => {
+const handleEdit = (data: ThreadWithDetails) => {
   // Handle edit event
 }
 
-const handleOpen-split-view = (ThreadWithDetails) => {
+const handleOpenSplitView = (data: ThreadWithDetails) => {
   // Handle open-split-view event
 }
 
-const handleClose-thread = (ThreadWithDetails) => {
+const handleCloseThread = (data: ThreadWithDetails) => {
   // Handle close-thread event
 }
 
-const handleReopen = (ThreadWithDetails) => {
+const handleReopen = (data: ThreadWithDetails) => {
   // Handle reopen event
 }
 
-const handleLock = (ThreadWithDetails) => {
+const handleLock = (data: ThreadWithDetails) => {
   // Handle lock event
 }
 
-const handleUnlock = (ThreadWithDetails) => {
+const handleUnlock = (data: ThreadWithDetails) => {
   // Handle unlock event
 }
 
-const handleDelete = (ThreadWithDetails) => {
+const handleDelete = (data: ThreadWithDetails) => {
   // Handle delete event
 }
 </script>

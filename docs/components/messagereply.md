@@ -49,7 +49,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:replyMessageId` | string | No description |
+| `update:replyMessageId` | `string` | No description |
 
 ### Event Details
 
@@ -80,7 +80,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:replyMessageId = (string) => {
+const handleUpdate:replyMessageId = (data: string) => {
   // Handle update:replyMessageId event
 }
 </script>

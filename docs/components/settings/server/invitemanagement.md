@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `create-invite` | unknown | No description |
+| `create-invite` | `unknown` | No description |
 
 ### Event Details
 
@@ -65,11 +65,11 @@ This component exposes no public methods.
 <template>
   <InviteManagement
     :serverId=""example""
-    @create-invite="handleCreate-invite" />
+    @create-invite="handleCreateInvite" />
 </template>
 
 <script setup lang="ts">
-const handleCreate-invite = (data) => {
+const handleCreateInvite = (data: unknown) => {
   // Handle create-invite event
 }
 </script>

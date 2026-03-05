@@ -115,13 +115,13 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `loadMoreMessages` | unknown | No description |
-| `toggleEmojiList` | unknown | No description |
-| `sendReaction` | unknown | No description |
-| `replyingTo` | unknown | No description |
-| `update:isAtBottom` | unknown | No description |
-| `createThread` | unknown | No description |
-| `showAllThreads` | unknown | No description |
+| `loadMoreMessages` | `unknown` | No description |
+| `toggleEmojiList` | `unknown` | No description |
+| `sendReaction` | `unknown` | No description |
+| `replyingTo` | `unknown` | No description |
+| `update:isAtBottom` | `unknown` | No description |
+| `createThread` | `unknown` | No description |
+| `showAllThreads` | `unknown` | No description |
 
 ### Event Details
 
@@ -206,31 +206,31 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleLoadMoreMessages = (data) => {
+const handleLoadMoreMessages = (data: unknown) => {
   // Handle loadMoreMessages event
 }
 
-const handleToggleEmojiList = (data) => {
+const handleToggleEmojiList = (data: unknown) => {
   // Handle toggleEmojiList event
 }
 
-const handleSendReaction = (data) => {
+const handleSendReaction = (data: unknown) => {
   // Handle sendReaction event
 }
 
-const handleReplyingTo = (data) => {
+const handleReplyingTo = (data: unknown) => {
   // Handle replyingTo event
 }
 
-const handleUpdate:isAtBottom = (data) => {
+const handleUpdate:isAtBottom = (data: unknown) => {
   // Handle update:isAtBottom event
 }
 
-const handleCreateThread = (data) => {
+const handleCreateThread = (data: unknown) => {
   // Handle createThread event
 }
 
-const handleShowAllThreads = (data) => {
+const handleShowAllThreads = (data: unknown) => {
   // Handle showAllThreads event
 }
 </script>

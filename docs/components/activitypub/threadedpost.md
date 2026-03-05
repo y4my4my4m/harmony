@@ -93,15 +93,15 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `favorite` | string | No description |
-| `reblog` | string | No description |
-| `bookmark` | string | No description |
-| `delete` | string | No description |
-| `user-click` | any | No description |
-| `reply` | ActivityPubPost | No description |
-| `post-created` | ActivityPubPost | No description |
-| `cancel-reply` | unknown | No description |
-| `ref` | string | No description |
+| `favorite` | `string` | No description |
+| `reblog` | `string` | No description |
+| `bookmark` | `string` | No description |
+| `delete` | `string` | No description |
+| `user-click` | `any` | No description |
+| `reply` | `ActivityPubPost` | No description |
+| `post-created` | `ActivityPubPost` | No description |
+| `cancel-reply` | `unknown` | No description |
+| `ref` | `string` | No description |
 
 ### Event Details
 
@@ -199,47 +199,47 @@ This component exposes no public methods.
     @reblog="handleReblog"
     @bookmark="handleBookmark"
     @delete="handleDelete"
-    @user-click="handleUser-click"
+    @user-click="handleUserClick"
     @reply="handleReply"
-    @post-created="handlePost-created"
-    @cancel-reply="handleCancel-reply"
+    @post-created="handlePostCreated"
+    @cancel-reply="handleCancelReply"
     @ref="handleRef" />
 </template>
 
 <script setup lang="ts">
-const handleFavorite = (string) => {
+const handleFavorite = (data: string) => {
   // Handle favorite event
 }
 
-const handleReblog = (string) => {
+const handleReblog = (data: string) => {
   // Handle reblog event
 }
 
-const handleBookmark = (string) => {
+const handleBookmark = (data: string) => {
   // Handle bookmark event
 }
 
-const handleDelete = (string) => {
+const handleDelete = (data: string) => {
   // Handle delete event
 }
 
-const handleUser-click = (any) => {
+const handleUserClick = (data: any) => {
   // Handle user-click event
 }
 
-const handleReply = (ActivityPubPost) => {
+const handleReply = (data: ActivityPubPost) => {
   // Handle reply event
 }
 
-const handlePost-created = (ActivityPubPost) => {
+const handlePostCreated = (data: ActivityPubPost) => {
   // Handle post-created event
 }
 
-const handleCancel-reply = (data) => {
+const handleCancelReply = (data: unknown) => {
   // Handle cancel-reply event
 }
 
-const handleRef = (string) => {
+const handleRef = (data: string) => {
   // Handle ref event
 }
 </script>

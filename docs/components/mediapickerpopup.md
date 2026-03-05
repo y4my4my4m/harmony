@@ -71,8 +71,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `sendGif` | Gif | No description |
-| `sendEmoji` | Emoji | No description |
+| `sendGif` | `Gif` | No description |
+| `sendEmoji` | `Emoji` | No description |
 
 ### Event Details
 
@@ -112,11 +112,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleSendGif = (Gif) => {
+const handleSendGif = (data: Gif) => {
   // Handle sendGif event
 }
 
-const handleSendEmoji = (Emoji) => {
+const handleSendEmoji = (data: Emoji) => {
   // Handle sendEmoji event
 }
 </script>

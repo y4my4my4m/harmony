@@ -275,7 +275,7 @@ ${events && events.length > 0 ? `## Events
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-${events.map(event => `| \`${event.name}\` | ${event.type?.names?.join(', ') || 'unknown'} | ${event.description || 'No description'} |`).join('\n')}
+${events.map(event => `| \`${event.name}\` | \`${event.type?.names?.join(', ') || 'unknown'}\` | ${event.description || 'No description'} |`).join('\n')}
 
 ### Event Details
 
@@ -339,7 +339,7 @@ ${method.returns?.description ? `\n${method.returns.description}` : ''}
 </template>
 
 <script setup lang="ts">
-${events && events.length > 0 ? events.map(e => `const handle${capitalize(e.name)} = (${e.type?.names?.join(', ') || 'data'}) => {
+${events && events.length > 0 ? events.map(e => `const handle${capitalize(e.name)} = (data: ${e.type?.names?.[0] || 'unknown'}) => {
   // Handle ${e.name} event
 }`).join('\n\n') : '// No event handlers needed'}
 </script>
@@ -445,5 +445,5 @@ function getExampleValue(prop) {
 
 function capitalize(str) {
   if (!str) return ''
-  return str.charAt(0).toUpperCase() + str.slice(1)
+  return str.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('')
 }

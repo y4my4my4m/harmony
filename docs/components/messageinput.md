@@ -137,13 +137,13 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:modelValue` | string | No description |
-| `sendMessage` | string | No description |
-| `toggleGiphy` | unknown | No description |
-| `toggleEmojiList` | boolean | No description |
-| `update:replyMessageId` | string | No description |
-| `files-attached` | Array | No description |
-| `upload-status-changed` | boolean | No description |
+| `update:modelValue` | `string` | No description |
+| `sendMessage` | `string` | No description |
+| `toggleGiphy` | `unknown` | No description |
+| `toggleEmojiList` | `boolean` | No description |
+| `update:replyMessageId` | `string` | No description |
+| `files-attached` | `Array` | No description |
+| `upload-status-changed` | `boolean` | No description |
 
 ### Event Details
 
@@ -223,36 +223,36 @@ This component exposes no public methods.
     @toggleGiphy="handleToggleGiphy"
     @toggleEmojiList="handleToggleEmojiList"
     @update:replyMessageId="handleUpdate:replyMessageId"
-    @files-attached="handleFiles-attached"
-    @upload-status-changed="handleUpload-status-changed" />
+    @files-attached="handleFilesAttached"
+    @upload-status-changed="handleUploadStatusChanged" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate:modelValue = (string) => {
+const handleUpdate:modelValue = (data: string) => {
   // Handle update:modelValue event
 }
 
-const handleSendMessage = (string) => {
+const handleSendMessage = (data: string) => {
   // Handle sendMessage event
 }
 
-const handleToggleGiphy = (data) => {
+const handleToggleGiphy = (data: unknown) => {
   // Handle toggleGiphy event
 }
 
-const handleToggleEmojiList = (boolean) => {
+const handleToggleEmojiList = (data: boolean) => {
   // Handle toggleEmojiList event
 }
 
-const handleUpdate:replyMessageId = (string) => {
+const handleUpdate:replyMessageId = (data: string) => {
   // Handle update:replyMessageId event
 }
 
-const handleFiles-attached = (Array) => {
+const handleFilesAttached = (data: Array) => {
   // Handle files-attached event
 }
 
-const handleUpload-status-changed = (boolean) => {
+const handleUploadStatusChanged = (data: boolean) => {
   // Handle upload-status-changed event
 }
 </script>

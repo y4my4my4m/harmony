@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update-language` | string | No description |
+| `update-language` | `string` | No description |
 
 ### Event Details
 
@@ -65,11 +65,11 @@ This component exposes no public methods.
 <template>
   <LanguageSettings
     :loading="true"
-    @update-language="handleUpdate-language" />
+    @update-language="handleUpdateLanguage" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate-language = (string) => {
+const handleUpdateLanguage = (data: string) => {
   // Handle update-language event
 }
 </script>

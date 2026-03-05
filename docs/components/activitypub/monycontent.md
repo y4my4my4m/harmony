@@ -60,9 +60,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `user-mention-click` | string | No description |
-| `hashtag-click` | string | No description |
-| `image-click` | string | No description |
+| `user-mention-click` | `string` | No description |
+| `hashtag-click` | `string` | No description |
+| `image-click` | `string` | No description |
 
 ### Event Details
 
@@ -105,21 +105,21 @@ This component exposes no public methods.
 <template>
   <MonyContent
     :content="undefined"
-    @user-mention-click="handleUser-mention-click"
-    @hashtag-click="handleHashtag-click"
-    @image-click="handleImage-click" />
+    @user-mention-click="handleUserMentionClick"
+    @hashtag-click="handleHashtagClick"
+    @image-click="handleImageClick" />
 </template>
 
 <script setup lang="ts">
-const handleUser-mention-click = (string) => {
+const handleUserMentionClick = (data: string) => {
   // Handle user-mention-click event
 }
 
-const handleHashtag-click = (string) => {
+const handleHashtagClick = (data: string) => {
   // Handle hashtag-click event
 }
 
-const handleImage-click = (string) => {
+const handleImageClick = (data: string) => {
   // Handle image-click event
 }
 </script>

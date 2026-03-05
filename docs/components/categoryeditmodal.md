@@ -49,8 +49,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `updated` | Category | No description |
+| `close` | `unknown` | No description |
+| `updated` | `Category` | No description |
 
 ### Event Details
 
@@ -91,11 +91,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleUpdated = (Category) => {
+const handleUpdated = (data: Category) => {
   // Handle updated event
 }
 </script>

@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `remove-file` | number | No description |
+| `remove-file` | `number` | No description |
 
 ### Event Details
 
@@ -65,11 +65,11 @@ This component exposes no public methods.
 <template>
   <FilePreview
     :files="[]"
-    @remove-file="handleRemove-file" />
+    @remove-file="handleRemoveFile" />
 </template>
 
 <script setup lang="ts">
-const handleRemove-file = (number) => {
+const handleRemoveFile = (data: number) => {
   // Handle remove-file event
 }
 </script>

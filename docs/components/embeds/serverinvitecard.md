@@ -49,7 +49,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `joined` | string | No description |
+| `joined` | `string` | No description |
 
 ### Event Details
 
@@ -81,7 +81,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleJoined = (string) => {
+const handleJoined = (data: string) => {
   // Handle joined event
 }
 </script>

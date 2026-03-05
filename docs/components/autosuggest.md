@@ -93,8 +93,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `select` | SuggestionItem | No description |
-| `update:selectedIndex` | number | No description |
+| `select` | `SuggestionItem` | No description |
+| `update:selectedIndex` | `number` | No description |
 
 ### Event Details
 
@@ -153,11 +153,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleSelect = (SuggestionItem) => {
+const handleSelect = (data: SuggestionItem) => {
   // Handle select event
 }
 
-const handleUpdate:selectedIndex = (number) => {
+const handleUpdate:selectedIndex = (data: number) => {
   // Handle update:selectedIndex event
 }
 </script>

@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `open-settings` | unknown | No description |
+| `open-settings` | `unknown` | No description |
 
 ### Event Details
 
@@ -65,11 +65,11 @@ This component exposes no public methods.
 <template>
   <DeviceSelector
     
-    @open-settings="handleOpen-settings" />
+    @open-settings="handleOpenSettings" />
 </template>
 
 <script setup lang="ts">
-const handleOpen-settings = (data) => {
+const handleOpenSettings = (data: unknown) => {
   // Handle open-settings event
 }
 </script>

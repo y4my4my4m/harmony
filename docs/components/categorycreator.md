@@ -23,8 +23,8 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `showCategoryCreator` | boolean | No description |
-| `createCategory` | string | No description |
+| `showCategoryCreator` | `boolean` | No description |
+| `createCategory` | `string` | No description |
 
 ### Event Details
 
@@ -63,11 +63,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleShowCategoryCreator = (boolean) => {
+const handleShowCategoryCreator = (data: boolean) => {
   // Handle showCategoryCreator event
 }
 
-const handleCreateCategory = (string) => {
+const handleCreateCategory = (data: string) => {
   // Handle createCategory event
 }
 </script>

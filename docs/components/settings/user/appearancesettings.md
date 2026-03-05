@@ -49,7 +49,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update-appearance` | any | No description |
+| `update-appearance` | `any` | No description |
 
 ### Event Details
 
@@ -77,11 +77,11 @@ This component exposes no public methods.
   <AppearanceSettings
     :profile="undefined"
     :loading="true"
-    @update-appearance="handleUpdate-appearance" />
+    @update-appearance="handleUpdateAppearance" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate-appearance = (any) => {
+const handleUpdateAppearance = (data: any) => {
   // Handle update-appearance event
 }
 </script>

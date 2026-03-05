@@ -49,11 +49,11 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `toggle` | unknown | No description |
-| `showCategoryCreator` | boolean | No description |
-| `createChannel` | string | No description |
-| `openInviteModal` | unknown | No description |
-| `serverLeft` | unknown | No description |
+| `toggle` | `unknown` | No description |
+| `showCategoryCreator` | `boolean` | No description |
+| `createChannel` | `string` | No description |
+| `openInviteModal` | `unknown` | No description |
+| `serverLeft` | `unknown` | No description |
 
 ### Event Details
 
@@ -120,23 +120,23 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleToggle = (data) => {
+const handleToggle = (data: unknown) => {
   // Handle toggle event
 }
 
-const handleShowCategoryCreator = (boolean) => {
+const handleShowCategoryCreator = (data: boolean) => {
   // Handle showCategoryCreator event
 }
 
-const handleCreateChannel = (string) => {
+const handleCreateChannel = (data: string) => {
   // Handle createChannel event
 }
 
-const handleOpenInviteModal = (data) => {
+const handleOpenInviteModal = (data: unknown) => {
   // Handle openInviteModal event
 }
 
-const handleServerLeft = (data) => {
+const handleServerLeft = (data: unknown) => {
   // Handle serverLeft event
 }
 </script>

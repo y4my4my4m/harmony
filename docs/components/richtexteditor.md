@@ -71,13 +71,13 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:modelValue` | string | No description |
-| `input` | Event | No description |
-| `keydown` | KeyboardEvent | No description |
-| `focus` | FocusEvent | No description |
-| `blur` | FocusEvent | No description |
-| `cursor-position-changed` | number | No description |
-| `paste` | ClipboardEvent | No description |
+| `update:modelValue` | `string` | No description |
+| `input` | `Event` | No description |
+| `keydown` | `KeyboardEvent` | No description |
+| `focus` | `FocusEvent` | No description |
+| `blur` | `FocusEvent` | No description |
+| `cursor-position-changed` | `number` | No description |
+| `paste` | `ClipboardEvent` | No description |
 
 ### Event Details
 
@@ -157,36 +157,36 @@ This component exposes no public methods.
     @keydown="handleKeydown"
     @focus="handleFocus"
     @blur="handleBlur"
-    @cursor-position-changed="handleCursor-position-changed"
+    @cursor-position-changed="handleCursorPositionChanged"
     @paste="handlePaste" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate:modelValue = (string) => {
+const handleUpdate:modelValue = (data: string) => {
   // Handle update:modelValue event
 }
 
-const handleInput = (Event) => {
+const handleInput = (data: Event) => {
   // Handle input event
 }
 
-const handleKeydown = (KeyboardEvent) => {
+const handleKeydown = (data: KeyboardEvent) => {
   // Handle keydown event
 }
 
-const handleFocus = (FocusEvent) => {
+const handleFocus = (data: FocusEvent) => {
   // Handle focus event
 }
 
-const handleBlur = (FocusEvent) => {
+const handleBlur = (data: FocusEvent) => {
   // Handle blur event
 }
 
-const handleCursor-position-changed = (number) => {
+const handleCursorPositionChanged = (data: number) => {
   // Handle cursor-position-changed event
 }
 
-const handlePaste = (ClipboardEvent) => {
+const handlePaste = (data: ClipboardEvent) => {
   // Handle paste event
 }
 </script>

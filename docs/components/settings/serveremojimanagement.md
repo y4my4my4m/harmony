@@ -93,10 +93,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:emojis` | Array | No description |
-| `update:allowCrossServer` | boolean | No description |
-| `emoji-uploaded` | Emoji | No description |
-| `emoji-deleted` | string | No description |
+| `update:emojis` | `Array` | No description |
+| `update:allowCrossServer` | `boolean` | No description |
+| `emoji-uploaded` | `Emoji` | No description |
+| `emoji-deleted` | `string` | No description |
 
 ### Event Details
 
@@ -154,24 +154,24 @@ This component exposes no public methods.
     :permissions="undefined"
     @update:emojis="handleUpdate:emojis"
     @update:allowCrossServer="handleUpdate:allowCrossServer"
-    @emoji-uploaded="handleEmoji-uploaded"
-    @emoji-deleted="handleEmoji-deleted" />
+    @emoji-uploaded="handleEmojiUploaded"
+    @emoji-deleted="handleEmojiDeleted" />
 </template>
 
 <script setup lang="ts">
-const handleUpdate:emojis = (Array) => {
+const handleUpdate:emojis = (data: Array) => {
   // Handle update:emojis event
 }
 
-const handleUpdate:allowCrossServer = (boolean) => {
+const handleUpdate:allowCrossServer = (data: boolean) => {
   // Handle update:allowCrossServer event
 }
 
-const handleEmoji-uploaded = (Emoji) => {
+const handleEmojiUploaded = (data: Emoji) => {
   // Handle emoji-uploaded event
 }
 
-const handleEmoji-deleted = (string) => {
+const handleEmojiDeleted = (data: string) => {
   // Handle emoji-deleted event
 }
 </script>

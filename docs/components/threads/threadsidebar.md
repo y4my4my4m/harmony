@@ -49,7 +49,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `select-thread` | ThreadWithDetails | No description |
+| `select-thread` | `ThreadWithDetails` | No description |
 
 ### Event Details
 
@@ -76,11 +76,11 @@ This component exposes no public methods.
 <template>
   <ThreadSidebar
     
-    @select-thread="handleSelect-thread" />
+    @select-thread="handleSelectThread" />
 </template>
 
 <script setup lang="ts">
-const handleSelect-thread = (ThreadWithDetails) => {
+const handleSelectThread = (data: ThreadWithDetails) => {
   // Handle select-thread event
 }
 </script>

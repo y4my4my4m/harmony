@@ -38,8 +38,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `view-posts` | FederatedInstance | No description |
+| `close` | `unknown` | No description |
+| `view-posts` | `FederatedInstance` | No description |
 
 ### Event Details
 
@@ -75,15 +75,15 @@ This component exposes no public methods.
   <InstanceDetailModal
     :instance="undefined"
     @close="handleClose"
-    @view-posts="handleView-posts" />
+    @view-posts="handleViewPosts" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleView-posts = (FederatedInstance) => {
+const handleViewPosts = (data: FederatedInstance) => {
   // Handle view-posts event
 }
 </script>

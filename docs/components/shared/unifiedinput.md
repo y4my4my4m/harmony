@@ -324,15 +324,15 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:modelValue` | union | No description |
-| `input` | Event | No description |
-| `change` | Event | No description |
-| `blur` | FocusEvent | No description |
-| `focus` | FocusEvent | No description |
-| `keydown` | KeyboardEvent | No description |
-| `keypress` | KeyboardEvent | No description |
-| `keyup` | KeyboardEvent | No description |
-| `clear` | unknown | No description |
+| `update:modelValue` | `union` | No description |
+| `input` | `Event` | No description |
+| `change` | `Event` | No description |
+| `blur` | `FocusEvent` | No description |
+| `focus` | `FocusEvent` | No description |
+| `keydown` | `KeyboardEvent` | No description |
+| `keypress` | `KeyboardEvent` | No description |
+| `keyup` | `KeyboardEvent` | No description |
+| `clear` | `unknown` | No description |
 
 ### Event Details
 
@@ -464,39 +464,39 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:modelValue = (union) => {
+const handleUpdate:modelValue = (data: union) => {
   // Handle update:modelValue event
 }
 
-const handleInput = (Event) => {
+const handleInput = (data: Event) => {
   // Handle input event
 }
 
-const handleChange = (Event) => {
+const handleChange = (data: Event) => {
   // Handle change event
 }
 
-const handleBlur = (FocusEvent) => {
+const handleBlur = (data: FocusEvent) => {
   // Handle blur event
 }
 
-const handleFocus = (FocusEvent) => {
+const handleFocus = (data: FocusEvent) => {
   // Handle focus event
 }
 
-const handleKeydown = (KeyboardEvent) => {
+const handleKeydown = (data: KeyboardEvent) => {
   // Handle keydown event
 }
 
-const handleKeypress = (KeyboardEvent) => {
+const handleKeypress = (data: KeyboardEvent) => {
   // Handle keypress event
 }
 
-const handleKeyup = (KeyboardEvent) => {
+const handleKeyup = (data: KeyboardEvent) => {
   // Handle keyup event
 }
 
-const handleClear = (data) => {
+const handleClear = (data: unknown) => {
   // Handle clear event
 }
 </script>

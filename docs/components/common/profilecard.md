@@ -126,15 +126,15 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `click` | union | No description |
-| `follow` | string | No description |
-| `unfollow` | string | No description |
-| `message` | union | No description |
-| `mention` | FederatedUser | No description |
-| `mute` | string | No description |
-| `unmute` | string | No description |
-| `block` | string | No description |
-| `unblock` | string | No description |
+| `click` | `union` | No description |
+| `follow` | `string` | No description |
+| `unfollow` | `string` | No description |
+| `message` | `union` | No description |
+| `mention` | `FederatedUser` | No description |
+| `mute` | `string` | No description |
+| `unmute` | `string` | No description |
+| `block` | `string` | No description |
+| `unblock` | `string` | No description |
 
 ### Event Details
 
@@ -237,39 +237,39 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClick = (union) => {
+const handleClick = (data: union) => {
   // Handle click event
 }
 
-const handleFollow = (string) => {
+const handleFollow = (data: string) => {
   // Handle follow event
 }
 
-const handleUnfollow = (string) => {
+const handleUnfollow = (data: string) => {
   // Handle unfollow event
 }
 
-const handleMessage = (union) => {
+const handleMessage = (data: union) => {
   // Handle message event
 }
 
-const handleMention = (FederatedUser) => {
+const handleMention = (data: FederatedUser) => {
   // Handle mention event
 }
 
-const handleMute = (string) => {
+const handleMute = (data: string) => {
   // Handle mute event
 }
 
-const handleUnmute = (string) => {
+const handleUnmute = (data: string) => {
   // Handle unmute event
 }
 
-const handleBlock = (string) => {
+const handleBlock = (data: string) => {
   // Handle block event
 }
 
-const handleUnblock = (string) => {
+const handleUnblock = (data: string) => {
   // Handle unblock event
 }
 </script>

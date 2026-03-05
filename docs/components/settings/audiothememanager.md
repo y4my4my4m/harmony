@@ -104,9 +104,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `themeChanged` | string | No description |
-| `volumeChanged` | number | No description |
-| `tested` | string | No description |
+| `themeChanged` | `string` | No description |
+| `volumeChanged` | `number` | No description |
+| `tested` | `string` | No description |
 
 ### Event Details
 
@@ -155,15 +155,15 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleThemeChanged = (string) => {
+const handleThemeChanged = (data: string) => {
   // Handle themeChanged event
 }
 
-const handleVolumeChanged = (number) => {
+const handleVolumeChanged = (data: number) => {
   // Handle volumeChanged event
 }
 
-const handleTested = (string) => {
+const handleTested = (data: string) => {
   // Handle tested event
 }
 </script>

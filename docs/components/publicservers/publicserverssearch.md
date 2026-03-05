@@ -93,8 +93,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:searchQuery` | string | No description |
-| `update:selectedCategory` | union | No description |
+| `update:searchQuery` | `string` | No description |
+| `update:selectedCategory` | `union` | No description |
 
 ### Event Details
 
@@ -139,11 +139,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:searchQuery = (string) => {
+const handleUpdate:searchQuery = (data: string) => {
   // Handle update:searchQuery event
 }
 
-const handleUpdate:selectedCategory = (union) => {
+const handleUpdate:selectedCategory = (data: union) => {
   // Handle update:selectedCategory event
 }
 </script>

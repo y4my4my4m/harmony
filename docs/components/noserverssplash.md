@@ -23,7 +23,7 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `showPublicServers` | unknown | No description |
+| `showPublicServers` | `unknown` | No description |
 
 ### Event Details
 
@@ -53,7 +53,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleShowPublicServers = (data) => {
+const handleShowPublicServers = (data: unknown) => {
   // Handle showPublicServers event
 }
 </script>

@@ -93,8 +93,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `accept` | boolean | No description |
-| `decline` | unknown | No description |
+| `accept` | `boolean` | No description |
+| `decline` | `unknown` | No description |
 
 ### Event Details
 
@@ -139,11 +139,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleAccept = (boolean) => {
+const handleAccept = (data: boolean) => {
   // Handle accept event
 }
 
-const handleDecline = (data) => {
+const handleDecline = (data: unknown) => {
   // Handle decline event
 }
 </script>

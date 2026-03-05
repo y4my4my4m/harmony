@@ -82,10 +82,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `add-reaction` | { native?: string; name: string; id?: string } | No description |
-| `open-emoji-picker` | unknown | No description |
-| `pin-changed` | unknown | No description |
+| `close` | `unknown` | No description |
+| `add-reaction` | `{ native?: string; name: string; id?: string }` | No description |
+| `open-emoji-picker` | `unknown` | No description |
+| `pin-changed` | `unknown` | No description |
 
 ### Event Details
 
@@ -139,25 +139,25 @@ This component exposes no public methods.
     :position="undefined"
     :message="undefined"
     @close="handleClose"
-    @add-reaction="handleAdd-reaction"
-    @open-emoji-picker="handleOpen-emoji-picker"
-    @pin-changed="handlePin-changed" />
+    @add-reaction="handleAddReaction"
+    @open-emoji-picker="handleOpenEmojiPicker"
+    @pin-changed="handlePinChanged" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleAdd-reaction = ({ native?: string; name: string; id?: string }) => {
+const handleAddReaction = (data: { native?: string; name: string; id?: string }) => {
   // Handle add-reaction event
 }
 
-const handleOpen-emoji-picker = (data) => {
+const handleOpenEmojiPicker = (data: unknown) => {
   // Handle open-emoji-picker event
 }
 
-const handlePin-changed = (data) => {
+const handlePinChanged = (data: unknown) => {
   // Handle pin-changed event
 }
 </script>

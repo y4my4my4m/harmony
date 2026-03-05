@@ -23,7 +23,7 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `conversationSelected` | string | No description |
+| `conversationSelected` | `string` | No description |
 
 ### Event Details
 
@@ -53,7 +53,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleConversationSelected = (string) => {
+const handleConversationSelected = (data: string) => {
   // Handle conversationSelected event
 }
 </script>

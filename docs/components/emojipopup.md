@@ -82,8 +82,8 @@ The desired position relative to the trigger element.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `sendEmoji` | Emoji | Emits the selected emoji object. |
-| `resetEmojiIconClicked` | unknown | Notifies the parent to reset the emojiIconClicked flag. |
+| `sendEmoji` | `Emoji` | Emits the selected emoji object. |
+| `resetEmojiIconClicked` | `unknown` | Notifies the parent to reset the emojiIconClicked flag. |
 
 ### Event Details
 
@@ -123,11 +123,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleSendEmoji = (Emoji) => {
+const handleSendEmoji = (data: Emoji) => {
   // Handle sendEmoji event
 }
 
-const handleResetEmojiIconClicked = (data) => {
+const handleResetEmojiIconClicked = (data: unknown) => {
   // Handle resetEmojiIconClicked event
 }
 </script>

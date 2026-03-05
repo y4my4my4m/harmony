@@ -49,10 +49,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `invite` | unknown | No description |
-| `follow` | unknown | No description |
-| `unfollow` | unknown | No description |
+| `close` | `unknown` | No description |
+| `invite` | `unknown` | No description |
+| `follow` | `unknown` | No description |
+| `unfollow` | `unknown` | No description |
 
 ### Event Details
 
@@ -111,19 +111,19 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleInvite = (data) => {
+const handleInvite = (data: unknown) => {
   // Handle invite event
 }
 
-const handleFollow = (data) => {
+const handleFollow = (data: unknown) => {
   // Handle follow event
 }
 
-const handleUnfollow = (data) => {
+const handleUnfollow = (data: unknown) => {
   // Handle unfollow event
 }
 </script>

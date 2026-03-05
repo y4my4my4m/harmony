@@ -23,8 +23,8 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `joinByUrl` | unknown | No description |
-| `createServer` | unknown | No description |
+| `joinByUrl` | `unknown` | No description |
+| `createServer` | `unknown` | No description |
 
 ### Event Details
 
@@ -63,11 +63,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleJoinByUrl = (data) => {
+const handleJoinByUrl = (data: unknown) => {
   // Handle joinByUrl event
 }
 
-const handleCreateServer = (data) => {
+const handleCreateServer = (data: unknown) => {
   // Handle createServer event
 }
 </script>

@@ -236,7 +236,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `click` | Event | No description |
+| `click` | `Event` | No description |
 
 ### Event Details
 
@@ -284,7 +284,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClick = (Event) => {
+const handleClick = (data: Event) => {
   // Handle click event
 }
 </script>

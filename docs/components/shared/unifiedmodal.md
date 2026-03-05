@@ -203,10 +203,10 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:modelValue` | boolean | No description |
-| `close` | unknown | No description |
-| `open` | unknown | No description |
-| `action` | ModalAction | No description |
+| `update:modelValue` | `boolean` | No description |
+| `close` | `unknown` | No description |
+| `open` | `unknown` | No description |
+| `action` | `ModalAction` | No description |
 
 ### Event Details
 
@@ -329,19 +329,19 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:modelValue = (boolean) => {
+const handleUpdate:modelValue = (data: boolean) => {
   // Handle update:modelValue event
 }
 
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleOpen = (data) => {
+const handleOpen = (data: unknown) => {
   // Handle open event
 }
 
-const handleAction = (ModalAction) => {
+const handleAction = (data: ModalAction) => {
   // Handle action event
 }
 </script>

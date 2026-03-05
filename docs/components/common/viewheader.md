@@ -49,7 +49,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `clear-all` | unknown | No description |
+| `clear-all` | `unknown` | No description |
 
 ### Event Details
 
@@ -76,11 +76,11 @@ This component exposes no public methods.
 <template>
   <ViewHeader
     :viewType=""example""
-    @clear-all="handleClear-all" />
+    @clear-all="handleClearAll" />
 </template>
 
 <script setup lang="ts">
-const handleClear-all = (data) => {
+const handleClearAll = (data: unknown) => {
   // Handle clear-all event
 }
 </script>

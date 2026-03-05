@@ -38,17 +38,17 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `reply-to-post` | TimelinePost | No description |
-| `favorite-post` | string | No description |
-| `reblog-post` | string | No description |
-| `bookmark-post` | string | No description |
-| `delete-post` | string | No description |
-| `show-user-profile` | FederatedUser | No description |
-| `show-conversation` | TimelinePost | No description |
-| `switch-feed` | string | No description |
-| `refresh-timeline` | unknown | No description |
-| `follow-user` | string | No description |
-| `unfollow-user` | string | No description |
+| `reply-to-post` | `TimelinePost` | No description |
+| `favorite-post` | `string` | No description |
+| `reblog-post` | `string` | No description |
+| `bookmark-post` | `string` | No description |
+| `delete-post` | `string` | No description |
+| `show-user-profile` | `FederatedUser` | No description |
+| `show-conversation` | `TimelinePost` | No description |
+| `switch-feed` | `string` | No description |
+| `refresh-timeline` | `unknown` | No description |
+| `follow-user` | `string` | No description |
+| `unfollow-user` | `string` | No description |
 
 ### Event Details
 
@@ -155,61 +155,61 @@ This component exposes no public methods.
 <template>
   <ExploreContent
     :currentView="undefined"
-    @reply-to-post="handleReply-to-post"
-    @favorite-post="handleFavorite-post"
-    @reblog-post="handleReblog-post"
-    @bookmark-post="handleBookmark-post"
-    @delete-post="handleDelete-post"
-    @show-user-profile="handleShow-user-profile"
-    @show-conversation="handleShow-conversation"
-    @switch-feed="handleSwitch-feed"
-    @refresh-timeline="handleRefresh-timeline"
-    @follow-user="handleFollow-user"
-    @unfollow-user="handleUnfollow-user" />
+    @reply-to-post="handleReplyToPost"
+    @favorite-post="handleFavoritePost"
+    @reblog-post="handleReblogPost"
+    @bookmark-post="handleBookmarkPost"
+    @delete-post="handleDeletePost"
+    @show-user-profile="handleShowUserProfile"
+    @show-conversation="handleShowConversation"
+    @switch-feed="handleSwitchFeed"
+    @refresh-timeline="handleRefreshTimeline"
+    @follow-user="handleFollowUser"
+    @unfollow-user="handleUnfollowUser" />
 </template>
 
 <script setup lang="ts">
-const handleReply-to-post = (TimelinePost) => {
+const handleReplyToPost = (data: TimelinePost) => {
   // Handle reply-to-post event
 }
 
-const handleFavorite-post = (string) => {
+const handleFavoritePost = (data: string) => {
   // Handle favorite-post event
 }
 
-const handleReblog-post = (string) => {
+const handleReblogPost = (data: string) => {
   // Handle reblog-post event
 }
 
-const handleBookmark-post = (string) => {
+const handleBookmarkPost = (data: string) => {
   // Handle bookmark-post event
 }
 
-const handleDelete-post = (string) => {
+const handleDeletePost = (data: string) => {
   // Handle delete-post event
 }
 
-const handleShow-user-profile = (FederatedUser) => {
+const handleShowUserProfile = (data: FederatedUser) => {
   // Handle show-user-profile event
 }
 
-const handleShow-conversation = (TimelinePost) => {
+const handleShowConversation = (data: TimelinePost) => {
   // Handle show-conversation event
 }
 
-const handleSwitch-feed = (string) => {
+const handleSwitchFeed = (data: string) => {
   // Handle switch-feed event
 }
 
-const handleRefresh-timeline = (data) => {
+const handleRefreshTimeline = (data: unknown) => {
   // Handle refresh-timeline event
 }
 
-const handleFollow-user = (string) => {
+const handleFollowUser = (data: string) => {
   // Handle follow-user event
 }
 
-const handleUnfollow-user = (string) => {
+const handleUnfollowUser = (data: string) => {
   // Handle unfollow-user event
 }
 </script>

@@ -115,9 +115,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `sendMessage` | Array | No description |
-| `loadMoreMessages` | unknown | No description |
-| `showAllThreads` | unknown | No description |
+| `sendMessage` | `Array` | No description |
+| `loadMoreMessages` | `unknown` | No description |
+| `showAllThreads` | `unknown` | No description |
 
 ### Event Details
 
@@ -166,15 +166,15 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleSendMessage = (Array) => {
+const handleSendMessage = (data: Array) => {
   // Handle sendMessage event
 }
 
-const handleLoadMoreMessages = (data) => {
+const handleLoadMoreMessages = (data: unknown) => {
   // Handle loadMoreMessages event
 }
 
-const handleShowAllThreads = (data) => {
+const handleShowAllThreads = (data: unknown) => {
   // Handle showAllThreads event
 }
 </script>

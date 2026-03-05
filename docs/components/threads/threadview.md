@@ -82,9 +82,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `thread-updated` | ThreadWithDetails | No description |
-| `thread-created` | ThreadWithDetails | No description |
+| `close` | `unknown` | No description |
+| `thread-updated` | `ThreadWithDetails` | No description |
+| `thread-created` | `ThreadWithDetails` | No description |
 
 ### Event Details
 
@@ -128,20 +128,20 @@ This component exposes no public methods.
   <ThreadView
     :isVisible="true"
     @close="handleClose"
-    @thread-updated="handleThread-updated"
-    @thread-created="handleThread-created" />
+    @thread-updated="handleThreadUpdated"
+    @thread-created="handleThreadCreated" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleThread-updated = (ThreadWithDetails) => {
+const handleThreadUpdated = (data: ThreadWithDetails) => {
   // Handle thread-updated event
 }
 
-const handleThread-created = (ThreadWithDetails) => {
+const handleThreadCreated = (data: ThreadWithDetails) => {
   // Handle thread-created event
 }
 </script>

@@ -38,8 +38,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:color` | string | No description |
-| `change` | string | No description |
+| `update:color` | `string` | No description |
+| `change` | `string` | No description |
 
 ### Event Details
 
@@ -79,11 +79,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:color = (string) => {
+const handleUpdate:color = (data: string) => {
   // Handle update:color event
 }
 
-const handleChange = (string) => {
+const handleChange = (data: string) => {
   // Handle change event
 }
 </script>

@@ -49,8 +49,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `showPublicServers` | unknown | No description |
-| `update:showAddServerModal` | boolean | No description |
+| `showPublicServers` | `unknown` | No description |
+| `update:showAddServerModal` | `boolean` | No description |
 
 ### Event Details
 
@@ -90,11 +90,11 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleShowPublicServers = (data) => {
+const handleShowPublicServers = (data: unknown) => {
   // Handle showPublicServers event
 }
 
-const handleUpdate:showAddServerModal = (boolean) => {
+const handleUpdate:showAddServerModal = (data: boolean) => {
   // Handle update:showAddServerModal event
 }
 </script>

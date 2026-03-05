@@ -38,7 +38,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `open` | ThreadData | No description |
+| `open` | `ThreadData` | No description |
 
 ### Event Details
 
@@ -69,7 +69,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleOpen = (ThreadData) => {
+const handleOpen = (data: ThreadData) => {
   // Handle open event
 }
 </script>

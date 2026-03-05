@@ -60,8 +60,8 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `close` | unknown | No description |
-| `select-thread` | ThreadWithDetails | No description |
+| `close` | `unknown` | No description |
+| `select-thread` | `ThreadWithDetails` | No description |
 
 ### Event Details
 
@@ -97,15 +97,15 @@ This component exposes no public methods.
   <AllThreadsModal
     :isVisible="true"
     @close="handleClose"
-    @select-thread="handleSelect-thread" />
+    @select-thread="handleSelectThread" />
 </template>
 
 <script setup lang="ts">
-const handleClose = (data) => {
+const handleClose = (data: unknown) => {
   // Handle close event
 }
 
-const handleSelect-thread = (ThreadWithDetails) => {
+const handleSelectThread = (data: ThreadWithDetails) => {
   // Handle select-thread event
 }
 </script>

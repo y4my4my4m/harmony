@@ -148,7 +148,7 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `click` | MouseEvent | No description |
+| `click` | `MouseEvent` | No description |
 
 ### Event Details
 
@@ -196,7 +196,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleClick = (MouseEvent) => {
+const handleClick = (data: MouseEvent) => {
   // Handle click event
 }
 </script>

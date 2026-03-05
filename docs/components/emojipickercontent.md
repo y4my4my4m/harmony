@@ -23,7 +23,7 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `sendEmoji` | Emoji | No description |
+| `sendEmoji` | `Emoji` | No description |
 
 ### Event Details
 
@@ -53,7 +53,7 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleSendEmoji = (Emoji) => {
+const handleSendEmoji = (data: Emoji) => {
   // Handle sendEmoji event
 }
 </script>

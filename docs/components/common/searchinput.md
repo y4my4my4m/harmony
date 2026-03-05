@@ -82,9 +82,9 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `update:modelValue` | string | No description |
-| `clear` | unknown | No description |
-| `escape` | unknown | No description |
+| `update:modelValue` | `string` | No description |
+| `clear` | `unknown` | No description |
+| `escape` | `unknown` | No description |
 
 ### Event Details
 
@@ -133,15 +133,15 @@ This component exposes no public methods.
 </template>
 
 <script setup lang="ts">
-const handleUpdate:modelValue = (string) => {
+const handleUpdate:modelValue = (data: string) => {
   // Handle update:modelValue event
 }
 
-const handleClear = (data) => {
+const handleClear = (data: unknown) => {
   // Handle clear event
 }
 
-const handleEscape = (data) => {
+const handleEscape = (data: unknown) => {
   // Handle escape event
 }
 </script>
