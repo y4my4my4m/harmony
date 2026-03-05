@@ -51,3 +51,10 @@ webrtc/livekit.yaml
 webrtc/docker-compose.yml
 
 tmp/*
+
+# Playwright test output
+playwright-report/
+test-results/
+
+# HAR debug files
+*.har

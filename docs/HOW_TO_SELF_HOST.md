@@ -31,147 +31,19 @@ A complete guide to deploying your own Harmony instance. Choose the path that fi
 
 ---
 
-## Choose Your Path
+## Quick Start
 
-| Feature | 🌐 Cloud (Free Tier) | 🖥️ Full Self-Host (VPS) |
-|---------|---------------------|-------------------------|
-| **Cost** | **$0/month** | **~$5-12/month** |
-| Chat & Servers | ✅ | ✅ |
-| Timeline/Social | ✅ Local only | ✅ Full federation |
-| Voice/Video | ✅ | ✅ |
-| **Cross-instance federation** | ❌ | ✅ |
-| **Link previews** | ❌ | ✅ |
-| **Bot gateway** | ❌ | ✅ |
-| Control | Limited | Full |
-| Difficulty | Easy | Moderate |
+For automated setup, run the interactive installer:
 
-### Why does federation require a VPS?
+```bash
+bash scripts/install.sh
+```
 
-The federation-backend is a **persistent Node.js service** that:
-- Processes ActivityPub activities in a queue (realtime with pg-boss queue for reliability)
-- Handles incoming federation requests
-- Generates link previews
-- Manages bot connections via WebSocket
-
-**Serverless platforms like Vercel can't run persistent services.** They're designed for short-lived request/response cycles, not long-running processes.
+The installer will guide you through all configuration. The rest of this document covers manual setup.
 
 ---
 
-# 🌐 Path A: Deploy with Free Tier Cloud Services
-
-**Cost: $0/month** (with optional LiveKit Cloud for voice)
-
-This method uses Vercel + Supabase. Perfect for:
-- Personal instances
-- Testing and development
-- Local-only communities (no federation needed)
-
-```
-┌───────────────┐       ┌───────────────┐       ┌───────────────┐
-│    Vercel     │       │    Supabase   │       │ LiveKit Cloud │
-│   (Frontend)  │◄─────►│   (Database)  │◄─────►│(Voice/Video)  │
-│     FREE      │       │     FREE      │       │     FREE      │
-└───────────────┘       └───────────────┘       └───────────────┘
-```
-
-## A1. Set Up Supabase
-
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Wait for database initialization (~2 minutes)
-3. Go to **SQL Editor** and run each file from `db_schema/init/` in order:
-
-   ```
-   00_extensions.sql
-   01_types.sql
-   02_tables_core.sql → 06_tables_misc.sql
-   30_rls_policies.sql
-   50_realtime.sql
-   90_federation_functions.sql
-   95_livekit_tokens.sql
-   98_seed_data.sql
-   99_storage_buckets.sql
-   ```
-
-4. Enable required extensions in **Database > Extensions**:
-   - `pgcrypto` ✅
-   - `pgjwt` ✅ (for voice tokens)
-   - `uuid-ossp` ✅
-
-5. Update your domain:
-   ```sql
-   UPDATE instance_config 
-   SET config_value = '"harmony.yourdomain.com"' 
-   WHERE config_key = 'domain';
-   ```
-
-6. Note your credentials from **Settings > API**:
-   - Project URL: `https://xxxxx.supabase.co`
-   - Anon key: `eyJ...`
-
-## A2. Deploy to Vercel
-
-Vercel hosts **only the frontend**. The `vercel.json` is pre-configured for this.
-
-### One-Click Deploy
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fy4my4my4m%2Fharmony&integration-ids=oac_VqOgBHqhEoFTPzGkPd7L0iH6)
-
-### Manual Deploy
-
-1. Fork this repository to your GitHub
-2. Go to [vercel.com](https://vercel.com) and import your fork
-3. Vercel auto-detects Vite framework
-4. Configure environment variables:
-
-| Variable | Value |
-|----------|-------|
-| `VITE_SUPABASE_URL` | `https://xxxxx.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | Your anon key |
-| `VITE_INSTANCE_DOMAIN` | `harmony.yourdomain.com` |
-| `VITE_INSTANCE_NAME` | `My Harmony` |
-| `VITE_ENABLE_VOICE` | `true` |
-| `VITE_ENABLE_FEDERATION` | `false` |
-
-4. Deploy!
-
-## A3. Add Voice/Video (Optional)
-
-Voice works without a VPS! Tokens are generated directly in Supabase using `pgjwt`.
-
-1. Sign up at [cloud.livekit.io](https://cloud.livekit.io) (free: 500 participant-minutes/month)
-2. Create a project and get your credentials:
-   - API Key: `APIxxxx`
-   - API Secret: `xxxx...`
-   - WebSocket URL: `wss://your-project.livekit.cloud`
-
-3. Add to Vercel environment variables:
-
-| Variable | Value |
-|----------|-------|
-| `VITE_LIVEKIT_URL` | `wss://your-project.livekit.cloud` |
-
-4. Configure LiveKit in Supabase SQL Editor:
-
-```sql
-UPDATE instance_webrtc_settings SET
-  livekit_url = 'wss://your-project.livekit.cloud',
-  livekit_api_key = 'APIxxxx',
-  livekit_api_secret = 'your-secret-here',
-  webrtc_mode = 'sfu';
-```
-
-5. Redeploy Vercel to pick up the new env vars.
-
-## A4. Add Custom Domain
-
-1. In Vercel: **Settings > Domains** → Add `harmony.yourdomain.com`
-2. Configure DNS as shown by Vercel
-3. Update environment variables with your domain
-4. Redeploy
-
----
-
-# 🖥️ Path B: Full Self-Hosting on VPS
+# 🖥️ Full Self-Hosting on VPS
 
 **Cost: ~$5-12/month** for everything
 
@@ -194,7 +66,7 @@ This also gives you a free .cloud domain for your instance.
 
 > 💡 **Tip:** Use code `VPSRATES10` at Hostinger for 10% off
 
-## B1. Initial Server Setup
+## 1. Initial Server Setup
 
 ```bash
 # SSH into your VPS
@@ -224,14 +96,14 @@ cd /opt/harmony
 git clone https://github.com/y4my4my4m/harmony.git .
 ```
 
-## B2. Set Up Supabase
+## 2. Set Up Supabase
 
 You can use **Supabase Cloud** (easier) or **self-host** (full control).
 
 ### Using Supabase Cloud (Recommended)
 
 1. Create project at [supabase.com](https://supabase.com)
-2. Run database schema (see Path A, Step A1)
+2. Go to **SQL Editor** and run each file from `db_schema/init/` in order (00_extensions.sql through 99_storage_buckets.sql)
 3. Note your credentials:
    - Project URL
    - Anon key
@@ -248,13 +120,13 @@ nano .env  # Set strong passwords!
 docker compose up -d
 ```
 
-## B3. Configure Environment
+## 3. Configure Environment
 
 ### Frontend
 
 ```bash
 cd /opt/harmony
-cp env.example .env
+cp .env.example .env
 nano .env
 ```
 
@@ -311,7 +183,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 INSTANCE_DOMAIN=harmony.yourdomain.com
 ```
 
-## B4. Build Frontend
+## 4. Build Frontend
 
 ```bash
 cd /opt/harmony
@@ -320,7 +192,7 @@ npm run build-only
 # Built files are in ./dist
 ```
 
-## B5. Set Up LiveKit
+## 5. Set Up LiveKit
 
 ```bash
 mkdir -p webrtc
@@ -348,7 +220,7 @@ echo "API Key: devkey$(openssl rand -hex 8)"
 echo "API Secret: $(openssl rand -hex 32)"
 ```
 
-## B6. Docker Compose
+## 6. Docker Compose
 
 ```bash
 nano docker-compose.yml
@@ -397,7 +269,7 @@ docker compose up -d
 docker compose logs -f  # Verify everything starts
 ```
 
-## B7. Configure Nginx
+## 7. Configure Nginx
 
 ```bash
 nano /etc/nginx/sites-available/harmony
@@ -461,7 +333,7 @@ certbot --nginx -d harmony.yourdomain.com
 systemctl reload nginx
 ```
 
-## B8. Configure Firewall
+## 8. Configure Firewall
 
 ```bash
 ufw allow 22/tcp       # SSH
@@ -475,7 +347,7 @@ ufw allow 50000:50100/udp  # Media
 ufw enable
 ```
 
-## B9. Verify Installation
+## 9. Verify Installation
 
 ```bash
 # Frontend

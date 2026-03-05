@@ -57,7 +57,7 @@ Frontend → Supabase (Direct, Fast!)
 - **Frontend**: Vue 3 + TypeScript + Pinia + Vite
 - **Database**: Supabase (PostgreSQL + Real-time)
 - **Federation**: Node.js backend (ActivityPub protocol)
-- **Deployment**: Vercel / Docker / Manual
+- **Deployment**: Docker / Manual
 
 ---
 
@@ -95,19 +95,20 @@ npm run dev
 
 Visit: `http://localhost:5173`
 
-### **Option 2: One-Click Deploy**
+### **Option 2: Interactive Installer**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyour-username%2Fharmony)
+```bash
+bash scripts/install.sh
+```
 
-See [INSTALLATION.md](INSTALLATION.md)
+See [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md) for the full manual guide.
 
 ---
 
 ## 📚 **Documentation**
 
 ### **Deployment**
-- [HOW_TO_SELF_HOST.md](HOW_TO_SELF_HOST.md) - **Complete guide** (Cloud free tier or VPS)
-- [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) - Detailed Vercel deployment reference
+- [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md) - **Complete guide** (Cloud free tier or VPS)
 
 ### **Development**
 - [TODO_latest.md](TODO_latest.md) - Technical debt & roadmap
@@ -137,7 +138,7 @@ See [INSTALLATION.md](INSTALLATION.md)
 - ✅ Professional codebase
 
 ### **Deployment**
-- ✅ One-click Vercel
+- ✅ Interactive installer (`scripts/install.sh`)
 - ✅ Docker Compose
 - ✅ Complete documentation
 
