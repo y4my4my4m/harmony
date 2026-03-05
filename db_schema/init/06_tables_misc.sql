@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     data jsonb DEFAULT '{}'::jsonb,
     is_read boolean DEFAULT false,
     is_clicked boolean DEFAULT false,
-    created_at timestamp with time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval),
     read_at timestamp with time zone

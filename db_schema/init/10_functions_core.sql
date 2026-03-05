@@ -666,12 +666,16 @@ EXCEPTION
     WHEN undefined_table OR insufficient_privilege THEN
         v_target_domain := p_job_data->>'target_domain';
         IF v_target_domain IS NOT NULL AND v_target_domain != '' THEN
+            RAISE LOG 'pg-boss not available, using fallback for job % to %', p_job_name, v_target_domain;
             INSERT INTO public.federation_delivery_queue (
-                activity_data, target_inbox_url, target_domain,
-                sender_id, status, priority, next_attempt_at
+                activity_json, inbox_url,
+                sender_id, status, scheduled_at
             ) VALUES (
-                p_job_data, p_job_data->>'target_inbox', v_target_domain,
-                (p_job_data->>'sender_id')::UUID, 'pending', p_priority, NOW()
+                p_job_data,
+                COALESCE(p_job_data->>'target_inbox', 'https://' || v_target_domain || '/inbox'),
+                (p_job_data->>'sender_id')::UUID,
+                'pending',
+                NOW()
             )
             RETURNING id INTO v_job_id;
             RETURN v_job_id;
