@@ -24,6 +24,7 @@
       @replyingTo="replyingTo"
       @createThread="handleCreateThread"
       @showAllThreads="handleShowAllThreads"
+      @mentionUser="(username: string) => { messageContent += `@${username} `; }"
     />
     
     <!-- Encryption status bar -->

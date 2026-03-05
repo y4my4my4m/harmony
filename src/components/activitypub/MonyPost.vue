@@ -41,6 +41,14 @@
           <div class="author-details">
             <div class="author-name" @click="viewProfile(displayAuthor)">
               {{ displayAuthor.display_name || displayAuthor.username }}
+              <span v-if="authorInstanceBadge === 'admin'" class="instance-badge admin" title="Instance Admin">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                ADMIN
+              </span>
+              <span v-else-if="authorInstanceBadge === 'mod'" class="instance-badge mod" title="Instance Moderator">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                MOD
+              </span>
             </div>
             <div class="author-handle">
               <span>{{ displayAuthor.username }}</span>
@@ -538,7 +546,7 @@ const emit = defineEmits<{
 }>();
 
 // Stores and composables
-const { getCurrentUser } = useUserData();
+const { getCurrentUser, getUserProfile } = useUserData();
 const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
 const themeStore = useThemeStore();
@@ -705,8 +713,16 @@ const reblogReferenceUrl = computed(() => {
 
 const displayAuthor = computed(() => {
   const author = (isReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
-  // Use fallback if author is missing to prevent crashes during re-renders
   return author || authorFallback.value;
+});
+
+const authorInstanceBadge = computed(() => {
+  const authorId = displayAuthor.value?.id;
+  if (!authorId) return null;
+  const profile = getUserProfile(authorId).value;
+  if (profile?.is_admin) return 'admin';
+  if (profile?.is_moderator) return 'mod';
+  return null;
 });
 
 const originalInstanceDomain = computed(() => {
@@ -1640,6 +1656,28 @@ const closeLightbox = () => {
 .author-name:hover {
   text-decoration: underline;
   cursor: pointer;
+}
+
+.instance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.3rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+}
+
+.instance-badge.admin {
+  background: linear-gradient(135deg, #d4a017, #b8860b);
+  color: #fff;
+}
+
+.instance-badge.mod {
+  background: linear-gradient(135deg, #2b9e8f, #1a7a6d);
+  color: #fff;
 }
 
 .author-handle {

@@ -316,11 +316,12 @@
   />
 
   <!-- Modern User Profile Modal -->
-  <UserProfileModal 
-    :show="showProfileModal" 
-    :user="selectedUser" 
+  <UserProfileModal
+    :show="showProfileModal"
+    :user="selectedUser"
     @close="closeProfile"
     @invite="openInviteModal"
+    @mention="(username: string) => { emit('mentionUser', username); closeProfile(); }"
   />
 
   <!-- Invite Modal -->
@@ -447,7 +448,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads']);
+const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads', 'mentionUser']);
 
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
