@@ -42,6 +42,7 @@
         :chat-messages="chatMessages"
         :is-loading="isLoading"
         :is-d-m="true"
+        :conversation-id="currentConversation?.id"
         :dm-username="currentDMUsername"
         view-type="dm"
         current-view="dm"
