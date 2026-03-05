@@ -7,7 +7,7 @@
   />
   
   <!-- Regular embed with header/collapse -->
-  <div v-else class="provider-embed" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
+  <div v-else class="provider-embed" ref="embedWrapper" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
     <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post'">
       <div class="provider-embed__label">
         {{ providerLabel }}
@@ -79,6 +79,7 @@ const emit = defineEmits<{
 const collapsed = ref(false);
 const harmonyPost = ref<TimelinePost | null>(null);
 const harmonyError = ref<string | null>(null);
+const embedWrapper = ref<HTMLElement | null>(null);
 const youtubeContainer = ref<HTMLElement | null>(null);
 const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const isPlaying = ref(false);
@@ -185,68 +186,86 @@ function setupYouTubePlayer() {
   // Listen for YouTube Player API messages
   window.addEventListener('message', handleYouTubeMessage);
   
-  // Register video for floating (if messageId is provided)
+  // Subscribe to YouTube player events immediately
+  sendListeningEvent();
+  
+  // Register the whole embed wrapper for floating so the header + video float together
   if (props.messageId) {
-    const originalParent = youtubeContainer.value.parentElement as HTMLElement;
+    const floatTarget = embedWrapper.value || youtubeContainer.value;
+    const originalParent = floatTarget.parentElement as HTMLElement;
     if (originalParent) {
-      registerVideo(youtubeContainer.value, originalParent, props.messageId, 'youtube');
+      registerVideo(floatTarget, originalParent, props.messageId, 'youtube');
     }
   }
 }
 
-function handleYouTubeMessage(event: MessageEvent) {
-  // Only handle messages from YouTube domains
-  if (!event.origin.includes('youtube.com') && !event.origin.includes('youtube-nocookie.com')) return;
+function sendListeningEvent() {
+  if (youtubeIframe.value?.contentWindow) {
+    youtubeIframe.value.contentWindow.postMessage(
+      JSON.stringify({
+        event: 'listening',
+        id: youtubeIframe.value.id || 'ytplayer'
+      }),
+      '*'
+    );
+  }
+}
+
+function updatePlayState(playing: boolean) {
+  isPlaying.value = playing;
   
+  if (playing && props.messageId) {
+    const floatingVideoId = getFloatingVideoMessageId();
+    if (floatingVideoId && floatingVideoId !== props.messageId) {
+      returnToOriginalPosition();
+    }
+  }
+  
+  const floatTarget = embedWrapper.value || youtubeContainer.value;
+  if (floatTarget) {
+    floatTarget.dataset.isPlaying = String(playing);
+  }
+}
+
+function handleYouTubeMessage(event: MessageEvent) {
+  if (!event.origin.includes('youtube.com') && !event.origin.includes('youtube-nocookie.com')) return;
   if (!event.data) return;
   
   try {
-    // YouTube can send both string and object data
     let data = event.data;
     if (typeof data === 'string') {
       data = JSON.parse(data);
     }
     
-    // Check if message is from our iframe
     if (event.source !== youtubeIframe.value?.contentWindow) return;
     
+    // onStateChange: explicit play/pause/etc
     if (data.event === 'onStateChange') {
-      // YouTube player states: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
-      const isVideoPlaying = data.info === 1;
-      isPlaying.value = isVideoPlaying;
-      
-      debug.log('[YouTube] State change:', { info: data.info, isPlaying: isVideoPlaying });
-      
-      // If this video started playing, check if a different video is floating
-      if (isVideoPlaying && props.messageId) {
-        const floatingVideoId = getFloatingVideoMessageId();
-        const thisMessageId = props.messageId;
-        
-        // If another video is floating and it's not this one, return it
-        if (floatingVideoId && floatingVideoId !== thisMessageId) {
-          returnToOriginalPosition();
+      const playing = data.info === 1;
+      debug.log('[YouTube] State change:', { info: data.info, isPlaying: playing });
+      updatePlayState(playing);
+    }
+    
+    // infoDelivery: periodic updates with playerState
+    if (data.event === 'infoDelivery' && data.info != null) {
+      const playerState = data.info.playerState;
+      if (playerState !== undefined) {
+        const playing = playerState === 1;
+        if (playing !== isPlaying.value) {
+          debug.log('[YouTube] infoDelivery state:', { playerState, isPlaying: playing });
+          updatePlayState(playing);
         }
-      }
-      
-      // Update data attribute for floating video system
-      if (youtubeContainer.value) {
-        youtubeContainer.value.dataset.isPlaying = String(isVideoPlaying);
       }
     }
     
-    // Handle ready event to request initial state
     if (data.event === 'onReady') {
       debug.log('[YouTube] Player ready');
-      // Listen for state changes
-      if (youtubeIframe.value && youtubeIframe.value.contentWindow) {
-        youtubeIframe.value.contentWindow.postMessage(
-          JSON.stringify({
-            event: 'listening',
-            id: youtubeIframe.value.id || 'ytplayer'
-          }),
-          '*'
-        );
-      }
+      sendListeningEvent();
+    }
+    
+    // YouTube may send initialDelivery before onReady — subscribe immediately
+    if (data.event === 'initialDelivery') {
+      sendListeningEvent();
     }
   } catch (error) {
     // Not a JSON message or parse error, ignore
@@ -291,6 +310,10 @@ function handleEmbedLoad() {
   if (!embedLoaded.value) {
     embedLoaded.value = true;
     emit('embed-loaded');
+  }
+  // Re-send listening event now that iframe content is loaded
+  if (props.payload.provider === 'youtube') {
+    sendListeningEvent();
   }
 }
 

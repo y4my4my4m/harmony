@@ -583,17 +583,17 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     await Promise.all([
       // Fetch server users
       (async () => {
-        const { getUserIdsForServer } = await import('@/services/usersService')
+        const { getUserIdsForServers } = await import('@/services/usersService')
         const allServers = serverChannelStore.servers
-        
-        await Promise.all(allServers.map(async (server) => {
-          try {
-            const serverUserIds = await getUserIdsForServer(server.id)
-            serverUserIds.forEach(id => baselineUserIds.add(id))
-          } catch (error) {
-            debug.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
+        const serverIds = allServers.map(s => s.id)
+        try {
+          const membersByServer = await getUserIdsForServers(serverIds)
+          for (const [, userIds] of membersByServer) {
+            userIds.forEach(id => baselineUserIds.add(id))
           }
-        }))
+        } catch (error) {
+          debug.warn('⚠️ Failed to batch-load server members:', error)
+        }
       })(),
       
         // Fetch DM contacts (only for non-DM routes or DM list view)

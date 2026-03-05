@@ -40,7 +40,9 @@
       </div>
 
       <!-- Roles/Badges (non-compact only) -->
-      <div v-if="!isCompact && userRoles.length > 0" class="roles-section">
+      <div v-if="!isCompact && (user.is_admin || user.is_moderator || userRoles.length > 0)" class="roles-section">
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance Admin</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance Mod</div>
         <div
           v-for="role in userRoles"
           :key="role.id"
@@ -570,6 +572,18 @@ const vClickOutside = {
   color: #ffffff;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.instance-admin-badge {
+  background: linear-gradient(135deg, rgba(212, 160, 23, 0.3), rgba(184, 134, 11, 0.3));
+  border-color: rgba(212, 160, 23, 0.5);
+  color: #f0d060;
+}
+
+.instance-mod-badge {
+  background: linear-gradient(135deg, rgba(43, 158, 143, 0.3), rgba(26, 122, 109, 0.3));
+  border-color: rgba(43, 158, 143, 0.5);
+  color: #5ed4c4;
 }
 
 /* ===== STATS SECTION ===== */

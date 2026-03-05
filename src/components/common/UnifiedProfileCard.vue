@@ -557,15 +557,15 @@ const vClickOutside = {
 }
 
 .instance-admin-badge {
-  background: rgba(0, 212, 255, 0.2);
-  border-color: rgba(0, 212, 255, 0.4);
-  color: #00d4ff;
+  background: linear-gradient(135deg, rgba(212, 160, 23, 0.3), rgba(184, 134, 11, 0.3));
+  border-color: rgba(212, 160, 23, 0.5);
+  color: #f0d060;
 }
 
 .instance-mod-badge {
-  background: rgba(46, 204, 113, 0.2);
-  border-color: rgba(46, 204, 113, 0.4);
-  color: #2ecc71;
+  background: linear-gradient(135deg, rgba(43, 158, 143, 0.3), rgba(26, 122, 109, 0.3));
+  border-color: rgba(43, 158, 143, 0.5);
+  color: #5ed4c4;
 }
 
 .user-stats {

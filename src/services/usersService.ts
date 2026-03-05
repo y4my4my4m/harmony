@@ -47,6 +47,48 @@ const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
 };
 
 /**
+ * Batch-fetch member IDs for multiple servers in a single query.
+ * Uses the same cache as getUserIdsForServer — only queries uncached servers.
+ */
+const getUserIdsForServers = async (serverIds: string[]): Promise<Map<string, string[]>> => {
+  const now = Date.now()
+  const uncachedIds = serverIds.filter(id => {
+    const cached = serverMemberCache.get(id)
+    return !cached || (now - cached.timestamp) >= MEMBER_CACHE_TTL
+  })
+
+  if (uncachedIds.length > 0) {
+    const { data, error } = await supabase
+      .from('user_servers')
+      .select('user_id, server_id')
+      .in('server_id', uncachedIds)
+
+    if (error) throw error
+
+    const grouped = new Map<string, string[]>()
+    data?.forEach(row => {
+      if (!grouped.has(row.server_id)) grouped.set(row.server_id, [])
+      grouped.get(row.server_id)!.push(row.user_id)
+    })
+    const ts = Date.now()
+    for (const [sid, uids] of grouped) {
+      serverMemberCache.set(sid, { userIds: uids, timestamp: ts })
+    }
+    for (const sid of uncachedIds) {
+      if (!grouped.has(sid)) {
+        serverMemberCache.set(sid, { userIds: [], timestamp: ts })
+      }
+    }
+  }
+
+  const result = new Map<string, string[]>()
+  for (const id of serverIds) {
+    result.set(id, serverMemberCache.get(id)?.userIds || [])
+  }
+  return result
+}
+
+/**
  * Invalidate the member cache for a server (call when members join/leave)
  */
 const invalidateServerMemberCache = (serverId: string): void => {
@@ -93,7 +135,8 @@ const getProfilesWithAvatarUrls = async (userIds: string[]): Promise<Profile[]> 
 };
 
 export { 
-  getUserIdsForServer, 
+  getUserIdsForServer,
+  getUserIdsForServers,
   getProfiles, 
   getProfilesWithAvatarUrls,
   invalidateServerMemberCache,

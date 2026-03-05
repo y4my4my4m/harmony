@@ -336,7 +336,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
+const emit = defineEmits(['close', 'invite', 'follow', 'unfollow', 'mention'])
 
 const router = useRouter()
 const route = useRoute()
@@ -772,16 +772,20 @@ const handleFollowToggle = async () => {
 }
 
 const mentionUser = () => {
-  if (!props.user || !isFederatedUser(props.user)) return
-  
-  // Open the Monyverse composer with a mention
-  activityPubStore.openComposer({
-    content: `${props.user.handle} `
-  })
-  
-  // Navigate to Monyverse and close modal
-  router.push('/monyverse')
-  emit('close')
+  if (!props.user) return
+
+  if (isFederatedUser(props.user)) {
+    activityPubStore.openComposer({
+      content: `${props.user.handle} `
+    })
+    router.push('/monyverse')
+    emit('close')
+  } else {
+    const username = props.user.username
+    if (username) {
+      emit('mention', username)
+    }
+  }
 }
 
 const navigateToProfile = () => {

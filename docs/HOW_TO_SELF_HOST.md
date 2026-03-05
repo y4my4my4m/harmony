@@ -421,6 +421,7 @@ You can mix cloud and self-hosting, or self-host everything, the choice is yours
 2. **Configure admin panel** → set instance name, description
 3. **Invite users** or enable open registration
 4. **Follow users** from other Mastodon/Harmony instances (if federation enabled)
+5. **Set up a status page** → deploy OpenStatus on a separate VPS so users can check availability (see [OPENSTATUS_SETUP.md](OPENSTATUS_SETUP.md))
 
 ---
 

@@ -24,6 +24,7 @@
       @replyingTo="replyingTo"
       @createThread="handleCreateThread"
       @showAllThreads="handleShowAllThreads"
+      @mentionUser="(username: string) => { messageContent += `@${username} `; }"
     />
     
     <!-- Encryption status bar -->
@@ -102,6 +103,7 @@
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import { useDMStore } from '@/stores/useDM';
   import { useThemeStore } from '@/stores/useTheme';
+  import { useDraftsStore } from '@/stores/drafts';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
@@ -150,6 +152,7 @@
   // Remove serverUsersStore as we now use userDataService
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
+  const draftsStore = useDraftsStore();
   
   const showDragDropArea = ref(false);
   const uploading = ref(false);
@@ -166,6 +169,32 @@
   const replyToMessageId = ref('');
   const replyToUserDisplayName = ref('');
   const messageContent = ref('');
+
+  // Draft persistence
+  const draftKey = computed(() => {
+    if (props.isDM && props.conversationId) {
+      return draftsStore.makeKey('conversation', props.conversationId);
+    }
+    if (props.channelId) {
+      return draftsStore.makeKey('channel', props.channelId);
+    }
+    return null;
+  });
+
+  // Load draft when context changes
+  watch(draftKey, (newKey, oldKey) => {
+    if (oldKey && messageContent.value.trim()) {
+      draftsStore.saveDraft(oldKey, messageContent.value);
+    }
+    messageContent.value = newKey ? draftsStore.getDraft(newKey) : '';
+  }, { immediate: true });
+
+  // Save draft on content change (debounced inside the store)
+  watch(messageContent, (val) => {
+    if (draftKey.value) {
+      draftsStore.saveDraft(draftKey.value, val);
+    }
+  });
   
   // Legacy compatibility
   const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs');
@@ -637,6 +666,7 @@
             }
             
             messageContent.value = '';
+            if (draftKey.value) draftsStore.clearDraft(draftKey.value);
             handleDontReply();
           }
         } catch (error: any) {

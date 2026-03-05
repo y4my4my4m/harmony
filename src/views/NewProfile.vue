@@ -711,11 +711,12 @@ const createProfile = async () => {
         const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
         
         if (uploadResult.success && uploadResult.url) {
-          // Update profile with avatar URL only
+          const { normalizeAvatarForStorage } = await import('@/utils/avatarUtils');
+          const normalizedPath = normalizeAvatarForStorage(uploadResult.url) || uploadResult.url;
           await profileStore.updateProfile({
-            avatar_url: uploadResult.url
+            avatar_url: normalizedPath
           });
-          debug.log('Avatar uploaded successfully:', uploadResult.url);
+          debug.log('Avatar uploaded successfully:', normalizedPath);
         } else {
           debug.error('Avatar upload failed:', uploadResult.error);
           toast.warning('Profile created but avatar upload failed. You can update it later in settings.');

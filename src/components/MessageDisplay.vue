@@ -182,6 +182,14 @@
                 {{ getAuthorDisplayName(item.message).value }}
                 <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
+                <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance Admin">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  ADMIN
+                </span>
+                <span v-else-if="getInstanceBadge(item.message).value === 'mod'" class="instance-badge mod" title="Instance Moderator">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  MOD
+                </span>
               </span>
               <span class="timestamp">
                 {{ formatTimestamp(item.message.created_at) }}
@@ -308,11 +316,12 @@
   />
 
   <!-- Modern User Profile Modal -->
-  <UserProfileModal 
-    :show="showProfileModal" 
-    :user="selectedUser" 
+  <UserProfileModal
+    :show="showProfileModal"
+    :user="selectedUser"
     @close="closeProfile"
     @invite="openInviteModal"
+    @mention="(username: string) => { emit('mentionUser', username); closeProfile(); }"
   />
 
   <!-- Invite Modal -->
@@ -380,7 +389,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 import { debug } from '@/utils/debug'
-import type { PropType, Ref } from 'vue';
+import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
@@ -413,7 +422,7 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
-import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
+import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
 
@@ -439,7 +448,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads']);
+const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads', 'mentionUser']);
 
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
@@ -811,6 +820,17 @@ const hasDiscordUserMetadata = (message: Message): boolean => {
 // Helper function to get Discord user info from metadata
 const getDiscordUserInfo = (message: Message): { username: string; display_name: string; avatar_url: string } | null => {
   return message.metadata?.discord_user || null;
+};
+
+const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null> => {
+  return computed(() => {
+    const userId = message.user_id;
+    if (!userId) return null;
+    const profile = getUserProfile(userId).value;
+    if (profile?.is_admin) return 'admin';
+    if (profile?.is_moderator) return 'mod';
+    return null;
+  });
 };
 
 // Helper functions for bot display
@@ -1703,6 +1723,7 @@ const canDeleteMessage = (message: Message) => {
     if (!canEditMessage(message)) return;
     editableMessageId.value = message.id;
     editableMessageContent.value = messagePartsToMarkdown(message.content);
+    hoveredMessageId.value = null;
     nextTick(() => {
       const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
       if (editInput) {
@@ -1721,9 +1742,9 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     return;
   }
   try {
-    // Use unified content parsing system for consistency
     const userDataMap = await resolveMentionsUserData(textContent);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap);
+    const emojiDataMap = await resolveEmojisData(textContent);
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap);
     
     await chatStore.editMessage(messageId, parsedContent);
     cancelEdit();
@@ -1738,11 +1759,10 @@ const cancelEdit = () => {
 };
 
 const deleteMessage = (messageId: string) => {
-  // Check if message has a thread
+  hoveredMessageId.value = null;
   const thread = getThreadForMessage(messageId);
   
   if (thread) {
-    // Show confirmation modal for messages with threads
     deleteConfirmConfig.value = {
       messageId,
       hasThread: true,
@@ -1750,7 +1770,6 @@ const deleteMessage = (messageId: string) => {
     };
     showDeleteConfirmModal.value = true;
   } else {
-    // No thread, delete directly
     triggerDestructive();
     chatStore.deleteMessage(messageId);
   }
@@ -1851,6 +1870,7 @@ const handleContextMenuEmojiPicker = () => {
 const replyTo = (message: Message) => {
   const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
   emit('replyingTo', message.id, displayName);
+  hoveredMessageId.value = null;
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
@@ -1862,6 +1882,7 @@ const handleReplyClick = async (replyMessageId: string) => {
 // Thread Logic
 const createThread = (message: Message) => {
   emit('createThread', message);
+  hoveredMessageId.value = null;
 };
 
 const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
@@ -2242,6 +2263,29 @@ const closeInviteModal = () => {
 
 .bot-badge.discord {
   background: #7289DA;
+}
+
+.instance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.3rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+  text-decoration: none;
+}
+
+.instance-badge.admin {
+  background: linear-gradient(135deg, #d4a017, #b8860b);
+  color: #fff;
+}
+
+.instance-badge.mod {
+  background: linear-gradient(135deg, #2b9e8f, #1a7a6d);
+  color: #fff;
 }
 
 .timestamp {
