@@ -179,7 +179,7 @@
           <div class="message-main">
             <div class="message-meta">
               <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)">
-                {{ getAuthorDisplayName(item.message).value }}
+                <span class="username-text">{{ getAuthorDisplayName(item.message).value }}</span>
                 <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
                 <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance Admin">
@@ -2235,7 +2235,7 @@ const closeInviteModal = () => {
   line-height: 1.375rem;
 }
 
-.username {
+.username-text {
   font-weight: 500;
   font-size: 1rem;
   cursor: pointer;
@@ -2245,11 +2245,8 @@ const closeInviteModal = () => {
   gap: 0.25rem;
 }
 
-.username:hover {
+.username-text:hover {
   text-decoration: underline;
-}
-.username:hover .instance-badge {
-  text-decoration: none;
 }
 
 .bot-badge {
