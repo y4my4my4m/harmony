@@ -7,6 +7,7 @@
  */
 
 import type { Message, MessagePart } from '@/types'
+import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
 // Track decryption failures for debugging
@@ -36,10 +37,28 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     return messages
   }
   
-  if (!encryptionService || !encryptionService.isInitialized()) {
+  if (!encryptionService) {
+    debug.log('ℹ️ Encryption service not available - encrypted messages will show as glyphs')
+    lastDecryptionError = 'Encryption service not available'
+    return messages
+  }
+
+  // Lazy-initialize if needed (matches CoreMessageService behavior)
+  if (!encryptionService.isInitialized()) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        debug.log('🔐 Lazy-initializing encryption for decryption...')
+        await encryptionService.initialize(session.user.id)
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to lazy-initialize encryption for decryption:', error)
+    }
+  }
+
+  if (!encryptionService.isInitialized()) {
     debug.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
     lastDecryptionError = 'Encryption service not initialized'
-    // Preserve original content - UI shows glyphs based on encrypted && !decrypted
     return messages
   }
   

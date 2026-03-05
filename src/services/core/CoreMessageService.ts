@@ -20,7 +20,7 @@ import { userDataService } from '@/services/userDataService'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
 
-// Lazy load Megolm encryption service (room-based encryption with recovery keys)
+// Lazy load and auto-initialize Megolm encryption service
 let megolmEncryptionService: any = null
 async function getEncryptionService() {
   if (!megolmEncryptionService) {
@@ -30,6 +30,17 @@ async function getEncryptionService() {
     } catch (error) {
       debug.warn('⚠️ Megolm encryption service not available:', error)
       megolmEncryptionService = null
+    }
+  }
+  if (megolmEncryptionService && !megolmEncryptionService.isInitialized()) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        debug.log('🔐 Lazy-initializing encryption service...')
+        await megolmEncryptionService.initialize(session.user.id)
+      }
+    } catch (error) {
+      debug.warn('⚠️ Failed to lazy-initialize encryption:', error)
     }
   }
   return megolmEncryptionService

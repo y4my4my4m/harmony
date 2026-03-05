@@ -621,6 +621,14 @@ export const useAuthStore = defineStore('auth', {
         }).catch(error => {
           debug.error('❌ Error resetting view context:', error);
         });
+
+        // Lock encryption and clear stored session
+        import('@/services/encryption/MegolmMessageEncryptionService').then(({ megolmMessageEncryptionService }) => {
+          megolmMessageEncryptionService.lockEncryption();
+          debug.log('🔒 Encryption locked on logout');
+        }).catch(error => {
+          debug.error('❌ Error locking encryption:', error);
+        });
         
       } catch (error) {
         debug.error('❌ Error cleaning up notification system:', error);

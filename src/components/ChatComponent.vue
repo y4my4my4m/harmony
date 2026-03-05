@@ -26,6 +26,18 @@
       @showAllThreads="handleShowAllThreads"
     />
     
+    <!-- Encryption status bar -->
+    <div v-if="encryptionStatus" :class="['encryption-status-bar', encryptionStatus.level]">
+      <span class="encryption-status-icon">{{ encryptionStatus.icon }}</span>
+      <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
+    </div>
+
+    <!-- Send error feedback -->
+    <div v-if="sendError" class="encryption-status-bar error" @click="sendError = null">
+      <span class="encryption-status-icon">⚠️</span>
+      <span class="encryption-status-text">{{ sendError }}</span>
+    </div>
+
     <MessageInput 
       ref="messageInputRef"
       v-model="messageContent"
@@ -141,6 +153,7 @@
   
   const showDragDropArea = ref(false);
   const uploading = ref(false);
+  const sendError = ref<string | null>(null);
   
   // Media picker state (unified GIF + Emoji picker)
   const mediaPickerOpen = ref(false);
@@ -209,6 +222,79 @@
       });
       const gifIconClicked = ref(false);
       const emojiIconClicked = ref(false);
+
+      // Encryption status tracking
+      const encryptionStatusData = ref<{ level: string; icon: string; text: string } | null>(null)
+
+      const encryptionStatus = computed(() => encryptionStatusData.value)
+
+      async function checkEncryptionStatus() {
+        if (props.isDM) {
+          encryptionStatusData.value = null
+          return
+        }
+        const serverId = serverChannelStore.currentServerId
+        if (!serverId) {
+          encryptionStatusData.value = null
+          return
+        }
+        try {
+          const { data: settings } = await supabase
+            .from('server_encryption_settings')
+            .select('encryption_mode')
+            .eq('server_id', serverId)
+            .maybeSingle()
+
+          const mode = settings?.encryption_mode || 'disabled'
+          if (mode === 'disabled') {
+            encryptionStatusData.value = null
+            return
+          }
+
+          const module = await import('@/services/encryption/MegolmMessageEncryptionService')
+          const svc = module.megolmMessageEncryptionService
+          if (!svc.isInitialized()) {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user?.id) await svc.initialize(session.user.id)
+          }
+
+          if (svc.isInitialized() && svc.isUnlocked()) {
+            const hasKey = await svc.hasRecoveryKey()
+            if (hasKey) {
+              encryptionStatusData.value = { level: 'active', icon: '🔐', text: 'End-to-end encrypted' }
+            } else {
+              encryptionStatusData.value = null
+            }
+          } else {
+            const hasKey = svc.isInitialized() ? await svc.hasRecoveryKey() : false
+            if (hasKey) {
+              encryptionStatusData.value = {
+                level: 'locked',
+                icon: '🔓',
+                text: mode === 'required'
+                  ? 'Encryption required — unlock in Settings > Encryption'
+                  : 'Encryption available but locked — messages sent as plaintext'
+              }
+            } else if (mode === 'required') {
+              encryptionStatusData.value = {
+                level: 'error',
+                icon: '⚠️',
+                text: 'Encryption required — set up in Settings > Encryption'
+              }
+            } else {
+              encryptionStatusData.value = null
+            }
+          }
+        } catch {
+          encryptionStatusData.value = null
+        }
+      }
+
+      watch(
+        () => serverChannelStore.currentServerId,
+        () => checkEncryptionStatus(),
+        { immediate: true }
+      )
 
       // Page leave protection
       const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -553,8 +639,13 @@
             messageContent.value = '';
             handleDontReply();
           }
-        } catch (error) {
+        } catch (error: any) {
           debug.error('Error sending message:', error);
+          const msg = error?.message || String(error)
+          if (msg.includes('ENCRYPTION_REQUIRED') || msg.includes('ENCRYPTION_LOCKED')) {
+            sendError.value = msg
+            setTimeout(() => { sendError.value = null }, 6000)
+          }
         }
       };
 
@@ -689,5 +780,36 @@
     font-size: 48px; 
     font-weight: bold;
     color: white;
+  }
+  .encryption-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    line-height: 1;
+    border-top: 1px solid var(--border-color, rgba(255,255,255,0.06));
+  }
+  .encryption-status-bar.active {
+    color: var(--color-success, #43b581);
+    opacity: 0.7;
+  }
+  .encryption-status-bar.locked {
+    color: var(--color-warning, #faa61a);
+    background: rgba(250, 166, 26, 0.06);
+  }
+  .encryption-status-bar.error {
+    color: var(--color-error, #ed4245);
+    background: rgba(237, 66, 69, 0.08);
+    cursor: pointer;
+  }
+  .encryption-status-icon {
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+  .encryption-status-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

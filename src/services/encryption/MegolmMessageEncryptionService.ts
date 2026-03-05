@@ -113,7 +113,16 @@ export class MegolmMessageEncryptionService {
     if (!this.currentUserId) return false
 
     try {
-      const storedData = sessionStorage.getItem(`megolm_session_${this.currentUserId}`)
+      // Check localStorage first (persists across sessions), fall back to sessionStorage (legacy)
+      let storedData = localStorage.getItem(`megolm_session_${this.currentUserId}`)
+      if (!storedData) {
+        storedData = sessionStorage.getItem(`megolm_session_${this.currentUserId}`)
+        if (storedData) {
+          // Migrate from sessionStorage to localStorage
+          localStorage.setItem(`megolm_session_${this.currentUserId}`, storedData)
+          sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+        }
+      }
       if (!storedData) {
         debug.log('🔐 No stored session - encryption locked')
         return false
@@ -124,7 +133,7 @@ export class MegolmMessageEncryptionService {
       
       if (!Array.isArray(words) || words.length < 12) {
         debug.warn('⚠️ Invalid stored session data')
-        sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+        localStorage.removeItem(`megolm_session_${this.currentUserId}`)
         return false
       }
 
@@ -160,20 +169,19 @@ export class MegolmMessageEncryptionService {
       return true
     } catch (error) {
       debug.warn('⚠️ Failed to auto-unlock:', error)
-      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+      localStorage.removeItem(`megolm_session_${this.currentUserId}`)
       return false
     }
   }
 
   /**
-   * Store session for auto-unlock on page refresh
+   * Store session for auto-unlock across browser sessions
    */
   private storeSession(words: string[]): void {
     if (!this.currentUserId) return
     
-    // Store encoded mnemonic in sessionStorage (survives page refresh, cleared on tab close)
     const encoded = btoa(JSON.stringify(words))
-    sessionStorage.setItem(`megolm_session_${this.currentUserId}`, encoded)
+    localStorage.setItem(`megolm_session_${this.currentUserId}`, encoded)
     debug.log('🔐 Session stored for auto-unlock')
   }
 
@@ -182,7 +190,8 @@ export class MegolmMessageEncryptionService {
    */
   lockEncryption(): void {
     if (this.currentUserId) {
-      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+      localStorage.removeItem(`megolm_session_${this.currentUserId}`)
+      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`) // clean up legacy
     }
     megolmService.close()
     recoveryKeyService.clear()
