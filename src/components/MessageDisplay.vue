@@ -2275,6 +2275,7 @@ const closeInviteModal = () => {
   border-radius: 0.1875rem;
   vertical-align: middle;
   margin-left: 0.25rem;
+  text-decoration: none;
 }
 
 .instance-badge.admin {
