@@ -481,9 +481,10 @@ const loadRoles = async () => {
     })
 
     const data = await roleService.getServerRoles(props.serverId, true)
+    console.log('[RoleManagement] roleService returned:', data.length, 'roles')
     roles.value = data.sort((a, b) => b.position - a.position)
   } catch (error) {
-    console.error('Failed to load roles:', error)
+    console.error('[RoleManagement] CAUGHT ERROR:', error)
   } finally {
     loading.value = false
   }
