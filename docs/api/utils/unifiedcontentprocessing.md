@@ -11,6 +11,7 @@ graph TB
         RESOLVEEMOJISDATA[resolveEmojisData]
         RESOLVEHASHTAGSDATA[resolveHashtagsData]
         PARSECONTENTTOMESSAGEPARTS[parseContentToMessageParts]
+        TRIMTRAILINGWHITESPACE[trimTrailingWhitespace]
         CONVERTMESSAGEPARTSTOACTIVITYP[convertMessagePartsToActivityPubHTML]
         CONVERTMESSAGEPARTSTOTEXT[convertMessagePartsToText]
         EXTRACTMENTIONSFROMMESSAGEPART[extractMentionsFromMessageParts]
@@ -28,6 +29,7 @@ graph TB
         FN_RESOLVEEMOJISDATA[resolveEmojisData]
         FN_RESOLVEHASHTAGSDATA[resolveHashtagsData]
         FN_PARSECONTENTTOMESSAGEPARTS[parseContentToMessageParts]
+        FN_TRIMTRAILINGWHITESPACE[trimTrailingWhitespace]
         FN_PARSETEXTFORURLS[parseTextForUrls]
         FN_PARSETEXTFOREMOJIS[parseTextForEmojis]
         FN_CONVERTMESSAGEPARTSTOACTIVITYP[convertMessagePartsToActivityPubHTML]
@@ -48,6 +50,7 @@ graph TB
 - **resolveEmojisData** - function export
 - **resolveHashtagsData** - function export
 - **parseContentToMessageParts** - function export
+- **trimTrailingWhitespace** - function export
 - **convertMessagePartsToActivityPubHTML** - function export
 - **convertMessagePartsToText** - function export
 - **extractMentionsFromMessageParts** - function export
@@ -83,6 +86,8 @@ import type { MessagePart } from '@/types';
 import { getEmoji } from '@/services/emojiService';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
+import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
+import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 
 // Support both UUID-based emojis (legacy) and shortcode emojis (new)
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
@@ -107,7 +112,7 @@ No description available.
 ```typescript
 /**
  * Helper function to efficiently resolve emoji data in batch
- * Supports both UUID-based emojis and shortcode emojis
+ * Supports both UUID-based emojis, shortcode emojis, and unified emoji pack
  */
 export async function resolveEmojisData(content: string): Promise<Record<string, any>>
 ```
@@ -155,6 +160,29 @@ export async function parseContentToMessageParts(
 ): Promise<MessagePart[]>
 ```
 
+### `trimTrailingWhitespace(parts: MessagePart[])`
+
+No description available.
+
+**Parameters:**
+- `parts: MessagePart[]`
+
+**Returns:** `MessagePart[]`
+
+```typescript
+/**
+ * Remove trailing whitespace from message parts array
+ * This is called after parsing to clean up spaces added for typing convenience
+ * (e.g., auto-inserted space after emoji/mention selection)
+ * 
+ * Benefits:
+ * 1. Emojis at the end of messages display at 2x size (single-emoji detection works)
+ * 2. Smaller JSON payloads (no unnecessary {"type":"text","text":" "})
+ * 3. Cleaner message storage
+ */
+export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[]
+```
+
 ### `parseTextForUrls(text: string, emojiDataMap: Record&lt;string, any&gt; = {})`
 
 No description available.
@@ -168,6 +196,7 @@ No description available.
 ```typescript
 /**
  * Parse text for URLs and emojis
+ * URL tracking parameter stripping is handled here to cover the entire app (ActivityPub, DMs, chat, etc.)
  */
 async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]>
 ```
@@ -337,14 +366,14 @@ const walkNode = (node: Node): void =>
 
 ## Source Code Insights
 
-**File Size:** 24304 characters
-**Lines of Code:** 719
-**Imports:** 4
+**File Size:** 30372 characters
+**Lines of Code:** 854
+**Imports:** 6
 
 ## Usage Example
 
 ```typescript
-import { resolveMentionsUserData, resolveEmojisData, resolveHashtagsData, parseContentToMessageParts, convertMessagePartsToActivityPubHTML, convertMessagePartsToText, extractMentionsFromMessageParts, convertActivityPubHTMLToMessageParts, extractActivityPubAttachments, extractActivityPubEmojiTags, parseContentToUnifiedFormat, convertUnifiedToActivityPubHTML, reconstructContentToText, extractHashtagsFromMessageParts } from '@/utils/unifiedContentProcessing'
+import { resolveMentionsUserData, resolveEmojisData, resolveHashtagsData, parseContentToMessageParts, trimTrailingWhitespace, convertMessagePartsToActivityPubHTML, convertMessagePartsToText, extractMentionsFromMessageParts, convertActivityPubHTMLToMessageParts, extractActivityPubAttachments, extractActivityPubEmojiTags, parseContentToUnifiedFormat, convertUnifiedToActivityPubHTML, reconstructContentToText, extractHashtagsFromMessageParts } from '@/utils/unifiedContentProcessing'
 
 // Example usage
 resolveMentionsUserData()

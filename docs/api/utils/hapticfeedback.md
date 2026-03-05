@@ -81,7 +81,9 @@ No description available.
 - `isSupported`
 - `APIs`
 - `feedback`
+- `Note`
 - `stored`
+- `true`
 - `patterns`
 - `light`
 - `medium`
@@ -157,8 +159,8 @@ class HapticFeedbackManager {
 
 ## Source Code Insights
 
-**File Size:** 4403 characters
-**Lines of Code:** 176
+**File Size:** 4584 characters
+**Lines of Code:** 182
 **Imports:** 0
 
 ## Usage Example

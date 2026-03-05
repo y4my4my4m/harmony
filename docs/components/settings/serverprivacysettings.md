@@ -20,6 +20,7 @@ graph TB
 | Name | Type | Default | Required | Description |
 |------|------|---------|----------|-------------|
 | `isPublic` | `boolean` | `undefined` | ✅ | No description |
+| `federationEnabled` | `boolean` | `false` | ✅ | No description |
 | `loading` | `boolean` | `undefined` | ✅ | No description |
 | `permissions` | `ServerPermissions` | `undefined` | ✅ | No description |
 
@@ -32,6 +33,16 @@ No description available.
 - **Type:** `boolean`
 - **Required:** Yes
 - **Default:** `undefined`
+
+
+
+#### `federationEnabled`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** Yes
+- **Default:** `false`
 
 
 
@@ -61,10 +72,19 @@ No description available.
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `update:isPublic` | boolean | No description |
+| `update:federationEnabled` | boolean | No description |
 
 ### Event Details
 
 #### `update:isPublic`
+
+No description available.
+
+**Parameters:** `boolean`
+
+
+
+#### `update:federationEnabled`
 
 No description available.
 
@@ -87,14 +107,20 @@ This component exposes no public methods.
 <template>
   <ServerPrivacySettings
     :isPublic="true"
+    :federationEnabled="true"
     :loading="true"
     :permissions="undefined"
-    @update:isPublic="handleUpdate:isPublic" />
+    @update:isPublic="handleUpdate:isPublic"
+    @update:federationEnabled="handleUpdate:federationEnabled" />
 </template>
 
 <script setup lang="ts">
 const handleUpdate:isPublic = (boolean) => {
   // Handle update:isPublic event
+}
+
+const handleUpdate:federationEnabled = (boolean) => {
+  // Handle update:federationEnabled event
 }
 </script>
 ```

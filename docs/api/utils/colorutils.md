@@ -540,8 +540,8 @@ interface ThemePalette {
 
 ## Source Code Insights
 
-**File Size:** 19736 characters
-**Lines of Code:** 547
+**File Size:** 21162 characters
+**Lines of Code:** 563
 **Imports:** 1
 
 ## Usage Example

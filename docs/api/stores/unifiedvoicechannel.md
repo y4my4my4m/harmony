@@ -10,7 +10,12 @@ graph TB
         USEUNIFIEDVOICECHANNELSTORE[useUnifiedVoiceChannelStore]
     end
     
+    subgraph "Functions"
+        FN_ABORTHANDLER[abortHandler]
+    end
+    
     subgraph "Interfaces"
+        INT_RECENTSPEAKER[RecentSpeaker]
         INT_VOICECHANNELSTATE[VoiceChannelState]
     end
 ```
@@ -20,11 +25,38 @@ graph TB
 
 - **useUnifiedVoiceChannelStore** - const export
 
+## Functions
+
+### `abortHandler()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const abortHandler = () =>
+```
 
 
 
 
 ## Interfaces
+
+### RecentSpeaker
+
+No description available.
+
+```typescript
+interface RecentSpeaker {
+
+  userId: string;
+  lastSpokeAt: number;
+
+}
+```
 
 ### VoiceChannelState
 
@@ -41,15 +73,13 @@ interface VoiceChannelState {
   sessionStartTime: Date | null; // Track when the user joined the channel
   callStartTime: Date | null; // Track when the call started (first user joined)
   
-  // Users and their states
-  allUsers: UserMediaState[];
-  localState: UserMediaState;
-  
-  // Streams
-  localStream: MediaStream | null;
-  remoteStreams: Map<string, MediaStream>;
-  
-  //
+  // Federation state
+  isFederatedChannel: boolean;
+  federatedTokenSubscription: RealtimeChannel | null;
+  pendingFederatedJoin: {
+    channelId: string;
+    serverId: string;
+    timeout
   // ...
 }
 ```
@@ -63,9 +93,9 @@ interface VoiceChannelState {
 
 ## Source Code Insights
 
-**File Size:** 32300 characters
-**Lines of Code:** 951
-**Imports:** 11
+**File Size:** 73950 characters
+**Lines of Code:** 2009
+**Imports:** 16
 
 ## Usage Example
 
@@ -73,7 +103,7 @@ interface VoiceChannelState {
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 
 // Example usage
-// Use the exported functionality
+abortHandler()
 ```
 
 ---

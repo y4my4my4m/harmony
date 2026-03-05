@@ -24,6 +24,14 @@
     "slots": 0
   },
   {
+    "name": "AllThreadsModal",
+    "path": "threads/allthreadsmodal.md",
+    "relativePath": "threads/AllThreadsModal.vue",
+    "props": 3,
+    "events": 2,
+    "slots": 0
+  },
+  {
     "name": "AppearanceSettings",
     "path": "settings/user/appearancesettings.md",
     "relativePath": "settings/user/AppearanceSettings.vue",
@@ -172,15 +180,23 @@
     "path": "channelsidebar.md",
     "relativePath": "ChannelSidebar.vue",
     "props": 5,
-    "events": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ChatBubble",
+    "path": "icons/chatbubble.md",
+    "relativePath": "icons/ChatBubble.vue",
+    "props": 0,
+    "events": 0,
     "slots": 0
   },
   {
     "name": "ChatComponent",
     "path": "chatcomponent.md",
     "relativePath": "ChatComponent.vue",
-    "props": 6,
-    "events": 2,
+    "props": 8,
+    "events": 3,
     "slots": 0
   },
   {
@@ -188,7 +204,7 @@
     "path": "chat/chatheader.md",
     "relativePath": "chat/ChatHeader.vue",
     "props": 4,
-    "events": 4,
+    "events": 5,
     "slots": 0
   },
   {
@@ -248,6 +264,14 @@
     "slots": 0
   },
   {
+    "name": "ConfettiEffect",
+    "path": "easteregg/confettieffect.md",
+    "relativePath": "easteregg/ConfettiEffect.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
     "name": "ConfirmationModal",
     "path": "confirmationmodal.md",
     "relativePath": "ConfirmationModal.vue",
@@ -301,6 +325,14 @@
     "relativePath": "icons/Delete.vue",
     "props": 0,
     "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "DeviceSelector",
+    "path": "voice/deviceselector.md",
+    "relativePath": "voice/DeviceSelector.vue",
+    "props": 1,
+    "events": 1,
     "slots": 0
   },
   {
@@ -365,6 +397,14 @@
     "relativePath": "activitypub/EmojiPicker.vue",
     "props": 1,
     "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "EmojiPickerContent",
+    "path": "emojipickercontent.md",
+    "relativePath": "EmojiPickerContent.vue",
+    "props": 0,
+    "events": 1,
     "slots": 0
   },
   {
@@ -460,6 +500,14 @@
     "path": "gifcomponent.md",
     "relativePath": "GifComponent.vue",
     "props": 5,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "GifPickerContent",
+    "path": "gifpickercontent.md",
+    "relativePath": "GifPickerContent.vue",
+    "props": 1,
     "events": 2,
     "slots": 0
   },
@@ -568,6 +616,14 @@
     "slots": 0
   },
   {
+    "name": "JoinFederatedServer",
+    "path": "joinfederatedserver.md",
+    "relativePath": "JoinFederatedServer.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
     "name": "JumpIcon",
     "path": "icons/jumpicon.md",
     "relativePath": "icons/JumpIcon.vue",
@@ -616,11 +672,19 @@
     "slots": 0
   },
   {
+    "name": "LazyEmojiSection",
+    "path": "lazyemojisection.md",
+    "relativePath": "LazyEmojiSection.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 2
+  },
+  {
     "name": "LinkEmbedCard",
     "path": "embeds/linkembedcard.md",
     "relativePath": "embeds/LinkEmbedCard.vue",
     "props": 1,
-    "events": 0,
+    "events": 1,
     "slots": 0
   },
   {
@@ -672,6 +736,14 @@
     "slots": 0
   },
   {
+    "name": "MediaPickerPopup",
+    "path": "mediapickerpopup.md",
+    "relativePath": "MediaPickerPopup.vue",
+    "props": 4,
+    "events": 2,
+    "slots": 0
+  },
+  {
     "name": "MentionIcon",
     "path": "icons/mentionicon.md",
     "relativePath": "icons/MentionIcon.vue",
@@ -692,22 +764,22 @@
     "path": "messagecontextmenu.md",
     "relativePath": "MessageContextMenu.vue",
     "props": 5,
-    "events": 1,
+    "events": 4,
     "slots": 0
   },
   {
     "name": "MessageDisplay",
     "path": "messagedisplay.md",
     "relativePath": "MessageDisplay.vue",
-    "props": 7,
-    "events": 5,
+    "props": 8,
+    "events": 7,
     "slots": 0
   },
   {
     "name": "MessageInput",
     "path": "messageinput.md",
     "relativePath": "MessageInput.vue",
-    "props": 5,
+    "props": 10,
     "events": 7,
     "slots": 0
   },
@@ -716,7 +788,7 @@
     "path": "messagereactions.md",
     "relativePath": "MessageReactions.vue",
     "props": 2,
-    "events": 3,
+    "events": 4,
     "slots": 0
   },
   {
@@ -749,6 +821,14 @@
     "relativePath": "icons/MicMuted.vue",
     "props": 0,
     "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MobileVoiceChannelPreview",
+    "path": "voice/mobilevoicechannelpreview.md",
+    "relativePath": "voice/MobileVoiceChannelPreview.vue",
+    "props": 4,
+    "events": 3,
     "slots": 0
   },
   {
@@ -880,11 +960,27 @@
     "slots": 0
   },
   {
+    "name": "PerformanceMonitoring",
+    "path": "admin/performancemonitoring.md",
+    "relativePath": "admin/PerformanceMonitoring.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
     "name": "PersistentVoiceConnection",
     "path": "persistentvoiceconnection.md",
     "relativePath": "PersistentVoiceConnection.vue",
     "props": 0,
     "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PinnedMessagesPopup",
+    "path": "pinnedmessagespopup.md",
+    "relativePath": "PinnedMessagesPopup.vue",
+    "props": 3,
+    "events": 2,
     "slots": 0
   },
   {
@@ -940,7 +1036,7 @@
     "path": "embeds/providerembedswitch.md",
     "relativePath": "embeds/ProviderEmbedSwitch.vue",
     "props": 2,
-    "events": 0,
+    "events": 1,
     "slots": 0
   },
   {
@@ -964,7 +1060,7 @@
     "path": "publicservers/publicserversfooter.md",
     "relativePath": "PublicServers/PublicServersFooter.vue",
     "props": 0,
-    "events": 1,
+    "events": 2,
     "slots": 0
   },
   {
@@ -1032,6 +1128,14 @@
     "slots": 0
   },
   {
+    "name": "RecentSpeakers",
+    "path": "voice/recentspeakers.md",
+    "relativePath": "voice/RecentSpeakers.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
     "name": "RecoveryKeySetupWizard",
     "path": "encryption/recoverykeysetupwizard.md",
     "relativePath": "encryption/RecoveryKeySetupWizard.vue",
@@ -1060,7 +1164,7 @@
     "path": "richtexteditor.md",
     "relativePath": "RichTextEditor.vue",
     "props": 4,
-    "events": 6,
+    "events": 7,
     "slots": 0
   },
   {
@@ -1068,6 +1172,14 @@
     "path": "icons/robot.md",
     "relativePath": "icons/Robot.vue",
     "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "RoleManagement",
+    "path": "settings/rolemanagement.md",
+    "relativePath": "settings/RoleManagement.vue",
+    "props": 1,
     "events": 0,
     "slots": 0
   },
@@ -1132,7 +1244,7 @@
     "path": "serverdropdown.md",
     "relativePath": "ServerDropdown.vue",
     "props": 2,
-    "events": 4,
+    "events": 5,
     "slots": 0
   },
   {
@@ -1152,10 +1264,34 @@
     "slots": 0
   },
   {
+    "name": "ServerFolder",
+    "path": "serverfolder.md",
+    "relativePath": "ServerFolder.vue",
+    "props": 3,
+    "events": 7,
+    "slots": 0
+  },
+  {
+    "name": "ServerFolderContextMenu",
+    "path": "serverfoldercontextmenu.md",
+    "relativePath": "ServerFolderContextMenu.vue",
+    "props": 4,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "ServerFolderSettingsModal",
+    "path": "serverfoldersettingsmodal.md",
+    "relativePath": "ServerFolderSettingsModal.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
     "name": "ServerIcon",
     "path": "common/servericon.md",
     "relativePath": "common/ServerIcon.vue",
-    "props": 10,
+    "props": 11,
     "events": 3,
     "slots": 0
   },
@@ -1187,8 +1323,8 @@
     "name": "ServerPrivacySettings",
     "path": "settings/serverprivacysettings.md",
     "relativePath": "settings/ServerPrivacySettings.vue",
-    "props": 3,
-    "events": 1,
+    "props": 4,
+    "events": 2,
     "slots": 0
   },
   {
@@ -1248,11 +1384,67 @@
     "slots": 0
   },
   {
+    "name": "StatusPicker",
+    "path": "statuspicker.md",
+    "relativePath": "StatusPicker.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Thread",
+    "path": "icons/thread.md",
+    "relativePath": "icons/Thread.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ThreadContextMenu",
+    "path": "threads/threadcontextmenu.md",
+    "relativePath": "threads/ThreadContextMenu.vue",
+    "props": 4,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "ThreadEditModal",
+    "path": "threadeditmodal.md",
+    "relativePath": "ThreadEditModal.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
     "name": "ThreadedPost",
     "path": "activitypub/threadedpost.md",
     "relativePath": "activitypub/ThreadedPost.vue",
     "props": 6,
     "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "ThreadIndicator",
+    "path": "threads/threadindicator.md",
+    "relativePath": "threads/ThreadIndicator.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "ThreadSidebar",
+    "path": "threads/threadsidebar.md",
+    "relativePath": "threads/ThreadSidebar.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "ThreadView",
+    "path": "threads/threadview.md",
+    "relativePath": "threads/ThreadView.vue",
+    "props": 5,
+    "events": 3,
     "slots": 0
   },
   {
@@ -1268,6 +1460,14 @@
     "path": "icons/trash.md",
     "relativePath": "icons/Trash.vue",
     "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "TypingIndicator",
+    "path": "typingindicator.md",
+    "relativePath": "TypingIndicator.vue",
+    "props": 1,
     "events": 0,
     "slots": 0
   },
@@ -1291,8 +1491,8 @@
     "name": "UnifiedContentArea",
     "path": "common/unifiedcontentarea.md",
     "relativePath": "common/UnifiedContentArea.vue",
-    "props": 16,
-    "events": 15,
+    "props": 18,
+    "events": 16,
     "slots": 0
   },
   {
@@ -1324,7 +1524,7 @@
     "path": "unifiedmessagecontent.md",
     "relativePath": "UnifiedMessageContent.vue",
     "props": 11,
-    "events": 8,
+    "events": 9,
     "slots": 0
   },
   {
@@ -1339,7 +1539,7 @@
     "name": "UnifiedProfileCard",
     "path": "common/unifiedprofilecard.md",
     "relativePath": "common/UnifiedProfileCard.vue",
-    "props": 9,
+    "props": 10,
     "events": 9,
     "slots": 0
   },
@@ -1501,6 +1701,14 @@
     "relativePath": "voice/VoiceSettingsPanel.vue",
     "props": 0,
     "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "VoiceUserContextMenu",
+    "path": "voice/voiceusercontextmenu.md",
+    "relativePath": "voice/VoiceUserContextMenu.vue",
+    "props": 4,
+    "events": 1,
     "slots": 0
   },
   {

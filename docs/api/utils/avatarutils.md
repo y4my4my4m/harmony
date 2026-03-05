@@ -25,12 +25,13 @@ graph TB
 
 ## Functions
 
-### `getAvatarUrl(avatarUrl: string | null | undefined)`
+### `getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256)`
 
 No description available.
 
 **Parameters:**
 - `avatarUrl: string | null | undefined`
+- `size: number = 256`
 
 **Returns:** `string`
 
@@ -38,9 +39,9 @@ No description available.
 /**
  * Normalizes avatar URL to ensure consistent display across the application
  * Handles both full URLs and path-only formats
- * Always returns the proper public URL for Supabase storage paths
+ * Always returns the proper public URL for Supabase storage paths with optimization
  */
-export function getAvatarUrl(avatarUrl: string | null | undefined): string
+export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string
 ```
 
 ### `normalizeAvatarForStorage(avatarUrl: string | null | undefined)`
@@ -73,8 +74,8 @@ export function normalizeAvatarForStorage(avatarUrl: string | null | undefined):
 
 ## Source Code Insights
 
-**File Size:** 2160 characters
-**Lines of Code:** 63
+**File Size:** 3740 characters
+**Lines of Code:** 93
 **Imports:** 1
 
 ## Usage Example

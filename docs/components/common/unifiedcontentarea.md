@@ -25,6 +25,8 @@ graph TB
 | `isDM` | `boolean` | `false` | ❌ | No description |
 | `channelId` | `string` | `undefined` | ❌ | No description |
 | `conversationId` | `string` | `undefined` | ❌ | No description |
+| `channelName` | `string` | `undefined` | ❌ | No description |
+| `dmUsername` | `string` | `undefined` | ❌ | No description |
 | `viewType` | `ViewType` | `ViewType.TIMELINE` | ❌ | No description |
 | `currentView` | `string` | `'home'` | ❌ | No description |
 | `posts` | `Array` | `() => []` | ❌ | No description |
@@ -89,6 +91,26 @@ No description available.
 
 
 #### `conversationId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `channelName`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `dmUsername`
 
 No description available.
 
@@ -205,6 +227,7 @@ No description available.
 |------|------------|-------------|
 | `update:is-at-bottom` | boolean | No description |
 | `send-message` | any | No description |
+| `show-all-threads` | unknown | No description |
 | `clear-all-bookmarks` | unknown | No description |
 | `load-more-special-data` | unknown | No description |
 | `switch-feed` | union | No description |
@@ -234,6 +257,14 @@ No description available.
 No description available.
 
 **Parameters:** `any`
+
+
+
+#### `show-all-threads`
+
+No description available.
+
+**Parameters:** `unknown`
 
 
 
@@ -358,6 +389,7 @@ This component exposes no public methods.
     :mode="undefined"
     @update:is-at-bottom="handleUpdate:is-at-bottom"
     @send-message="handleSend-message"
+    @show-all-threads="handleShow-all-threads"
     @clear-all-bookmarks="handleClear-all-bookmarks"
     @load-more-special-data="handleLoad-more-special-data"
     @switch-feed="handleSwitch-feed"
@@ -380,6 +412,10 @@ const handleUpdate:is-at-bottom = (boolean) => {
 
 const handleSend-message = (any) => {
   // Handle send-message event
+}
+
+const handleShow-all-threads = (data) => {
+  // Handle show-all-threads event
 }
 
 const handleClear-all-bookmarks = (data) => {

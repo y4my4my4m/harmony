@@ -235,6 +235,15 @@ const createProfile = async () =>
 
 
 
+## Constants
+
+### OAUTH_PROVIDERS
+
+No description available.
+
+```typescript
+const OAUTH_PROVIDERS = ['google', 'github', 'twitch'] as const
+```
 
 
 ## Vue Component
@@ -248,8 +257,8 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 42643 characters
-**Lines of Code:** 1785
+**File Size:** 48942 characters
+**Lines of Code:** 1929
 **Imports:** 9
 
 ## Usage Example

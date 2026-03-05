@@ -10,6 +10,7 @@ graph TB
     end
     
     subgraph "Functions"
+        FN_ISVALIDUUID[isValidUUID]
         FN_RECORDEMOJIUSAGE[recordEmojiUsage]
         FN_GETDETAILEDEMOJIANALYTICS[getDetailedEmojiAnalytics]
         FN_GETUSEREMOJISTATS[getUserEmojiStats]
@@ -31,6 +32,19 @@ graph TB
 
 
 ## Functions
+
+### `isValidUUID(str: string)`
+
+No description available.
+
+**Parameters:**
+- `str: string`
+
+**Returns:** `boolean`
+
+```typescript
+function isValidUUID(str: string): boolean
+```
 
 ### `recordEmojiUsage(emojiId: string, userId: string, serverId: string, contextType: 'message' | 'reaction', contextId?: string)`
 
@@ -277,8 +291,8 @@ const cleanFileName = (originalName: string) =>
 
 ## Source Code Insights
 
-**File Size:** 17349 characters
-**Lines of Code:** 542
+**File Size:** 17863 characters
+**Lines of Code:** 555
 **Imports:** 5
 
 ## Usage Example
@@ -287,7 +301,7 @@ const cleanFileName = (originalName: string) =>
 import { emojiService } from '@/services/emojiService'
 
 // Example usage
-recordEmojiUsage()
+isValidUUID()
 ```
 
 ---

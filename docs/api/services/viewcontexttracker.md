@@ -9,6 +9,7 @@ graph TB
     subgraph "ViewContextTracker Service"
         VIEWCONTEXT[ViewContext]
         NOTIFICATIONUIDECISION[NotificationUIDecision]
+        VIEWCONTEXTTRACKER[ViewContextTracker]
         VIEWCONTEXTTRACKER[viewContextTracker]
     end
     
@@ -27,6 +28,7 @@ graph TB
 
 - **ViewContext** - interface export
 - **NotificationUIDecision** - interface export
+- **ViewContextTracker** - class export
 - **viewContextTracker** - const export
 
 
@@ -109,14 +111,14 @@ interface NotificationUIDecision {
 
 ## Source Code Insights
 
-**File Size:** 3385 characters
+**File Size:** 3392 characters
 **Lines of Code:** 121
 **Imports:** 1
 
 ## Usage Example
 
 ```typescript
-import { ViewContext, NotificationUIDecision, viewContextTracker } from '@/services/ViewContextTracker'
+import { ViewContext, NotificationUIDecision, ViewContextTracker, viewContextTracker } from '@/services/ViewContextTracker'
 
 // Example usage
 // Use the exported functionality

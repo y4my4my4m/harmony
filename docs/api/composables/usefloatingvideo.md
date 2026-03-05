@@ -380,7 +380,7 @@ interface VideoElement {
 
 ## Source Code Insights
 
-**File Size:** 21947 characters
+**File Size:** 21961 characters
 **Lines of Code:** 737
 **Imports:** 1
 

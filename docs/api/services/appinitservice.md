@@ -53,6 +53,7 @@ import { useVisualTheme } from '@/composables/useVisualTheme'
 import { setLocale } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { debug } from '@/utils/debug'
 
 /**
@@ -91,7 +92,7 @@ None
 /**
  * Apply default settings for new users or fallback
  */
-export function applyDefaultSettings()
+export async function applyDefaultSettings()
 ```
 
 ### `exportUserSettings()`
@@ -139,9 +140,9 @@ export async function importUserSettings(settings: any)
 
 ## Source Code Insights
 
-**File Size:** 2830 characters
-**Lines of Code:** 114
-**Imports:** 5
+**File Size:** 3096 characters
+**Lines of Code:** 119
+**Imports:** 6
 
 ## Usage Example
 

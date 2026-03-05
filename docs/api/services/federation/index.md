@@ -26,8 +26,8 @@ graph TB
 
 ## Source Code Insights
 
-**File Size:** 1442 characters
-**Lines of Code:** 37
+**File Size:** 1807 characters
+**Lines of Code:** 49
 **Imports:** 0
 
 ## Usage Example

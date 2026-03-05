@@ -50,10 +50,12 @@ import { supabase } from '@/supabase'
 import { UserStatus, type UserData, type UserContext, type CustomUserStatus } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 /**
  * Detect if user is on a mobile device
+ * Touch-enabled desktops/laptops with a mouse are NOT considered mobile
  */
 function detectMobileDevice(): boolean
 ```
@@ -72,6 +74,7 @@ No description available.
 - `catch`
 - `getCustomStatusFromLocalStorage`
 - `saveCustomStatusToLocalStorage`
+- `parseCustomStatus`
 - `setupActivityTracking`
 - `handleActivityResumed`
 - `handleAutomaticStatusChange`
@@ -104,8 +107,10 @@ No description available.
 - `isUserDataStale`
 - `updateCurrentUserStatus`
 - `setCustomStatus`
+- `setRichPresence`
 - `clearCustomStatus`
 - `getCustomStatus`
+- `getUserCustomStatus`
 - `isCurrentUserMobile`
 - `updatePresenceStatus`
 - `updateCurrentUserProfile`
@@ -149,6 +154,7 @@ No description available.
 - `MAX_HEARTBEAT_FAILURES`
 - `user`
 - `username`
+- `IMPORTANT`
 - `userId`
 - `channel`
 - `functionality`
@@ -163,11 +169,25 @@ No description available.
 - `null`
 - `customStatus`
 - `expired`
+- `format`
+- `undefined`
+- `directly`
+- `it`
+- `status`
+- `customStatusJson`
+- `expiresAt`
+- `text`
+- `emoji`
+- `emoji_url`
+- `type`
+- `details`
+- `state`
+- `setAt`
+- `empty`
 - `tracking`
 - `events`
 - `resumption`
 - `userData`
-- `status`
 - `choice`
 - `inactivity`
 - `Online`
@@ -179,7 +199,6 @@ No description available.
 - `loaded`
 - `data`
 - `handling`
-- `IMPORTANT`
 - `finalStatus`
 - `Primary`
 - `that`
@@ -191,6 +210,14 @@ No description available.
 - `backupStatus`
 - `consistency`
 - `app`
+- `p_user_id`
+- `p_type`
+- `p_text`
+- `p_emoji`
+- `p_emoji_url`
+- `p_details`
+- `p_state`
+- `p_duration_minutes`
 - `id`
 - `displayName`
 - `avatarUrl`
@@ -198,6 +225,8 @@ No description available.
 - `bio`
 - `color`
 - `domain`
+- `DB`
+- `Check`
 - `isLocal`
 - `isOnline`
 - `isMobile`
@@ -225,7 +254,6 @@ No description available.
 - `online_at`
 - `failed`
 - `churn`
-- `state`
 - `userCount`
 - `globallyOnlineUserIds`
 - `false`
@@ -237,7 +265,6 @@ No description available.
 - `NOTE`
 - `repeatedly`
 - `loss`
-- `type`
 - `context`
 - `progress`
 - `userIds`
@@ -272,7 +299,6 @@ No description available.
 - `contextId`
 - `leftUserId`
 - `updatedProfile`
-- `it`
 - `changed`
 - `react`
 - `loading`
@@ -280,16 +306,24 @@ No description available.
 - `payloads`
 - `broadcast`
 - `immediately`
+- `pattern`
+- `uuidPattern`
+- `federated`
 - `missingUserIds`
+- `loadUsersData`
+- `instance`
 - `updatedAt`
+- `isAdmin`
+- `isModerator`
 - `created_at`
 - `updated_at`
 - `roles`
+- `is_admin`
+- `is_moderator`
 - `is_local`
 - `last_seen`
 - `forceRefresh`
 - `efficiently`
-- `format`
 - `results`
 - `refresh`
 - `age`
@@ -300,8 +334,13 @@ No description available.
 - `Expected`
 - `channels`
 - `clear`
+- `durationMinutes`
 - `persistence`
-- `undefined`
+- `federation`
+- `updated`
+- `options`
+- `provided`
+- `cache`
 - `mobile`
 - `sufficient`
 - `subscription`
@@ -332,9 +371,9 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 60216 characters
-**Lines of Code:** 1670
-**Imports:** 5
+**File Size:** 67384 characters
+**Lines of Code:** 1865
+**Imports:** 6
 
 ## Usage Example
 

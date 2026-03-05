@@ -70,9 +70,15 @@ No description available.
 - `switch`
 - `getBlockedInstances`
 - `getInstanceConfig`
+- `settings`
+- `updateWebRTCSettings`
+- `updateFederationSettings`
 - `setInstanceConfig`
 - `setInstanceConfigs`
 - `checkAdminPermissions`
+- `checkModeratorPermissions`
+- `checkAdminOrModPermissions`
+- `setModeratorStatus`
 - `exportLogs`
 - `updateInstanceTrust`
 - `updateInstanceBlock`
@@ -80,15 +86,25 @@ No description available.
 - `addInstanceFromDomain`
 - `getFederatedInstances`
 - `getInstanceStats`
-- `discoverInstance`
-- `fetchInstanceInfo`
 - `addFederatedInstance`
 - `updateFederatedInstance`
 - `deleteFederatedInstance`
 - `searchActivityPubInstances`
+- `discoverInstance`
+- `probeNodeinfo`
+- `probeMastodonAPI`
+- `probeActivityPubActor`
+- `getPopularInstances`
+- `fetch`
+- `getInstancesBySoftware`
+- `nodes`
 - `getDiscoveredInstances`
 - `refreshInstanceInfo`
 - `getUserServers`
+- `getKeyConsistencyReport`
+- `triggerMaintenanceTask`
+- `runKeyGenerationSweep`
+- `runOrphanedKeyCleanup`
 
 **Properties:**
 - `statistics`
@@ -106,12 +122,29 @@ No description available.
 - `postsToday`
 - `stats`
 - `error`
-- `instancesResult`
+- `endpointHealthResult`
+- `metrics`
+- `endpoints`
+- `totalEndpoints`
+- `deadEndpoints`
+- `healthyEndpoints`
+- `endpointsWithFailures`
+- `totalFailures`
+- `totalSuccesses`
+- `totalAttempts`
+- `successRate`
 - `pending_deliveries`
 - `successful_deliveries`
 - `failed_deliveries`
 - `active_instances`
-- `metrics`
+- `endpoint_health`
+- `total_endpoints`
+- `dead_endpoints`
+- `healthy_endpoints`
+- `endpoints_with_failures`
+- `total_failures`
+- `total_successes`
+- `success_rate`
 - `calculation`
 - `federationStats`
 - `time`
@@ -180,7 +213,27 @@ No description available.
 - `blocked_at`
 - `blocked_by`
 - `configuration`
-- `yet`
+- `webrtcSettings`
+- `mode`
+- `livekitUrl`
+- `allowFederatedVoice`
+- `maxStageListeners`
+- `exists`
+- `it`
+- `data`
+- `defaults`
+- `instanceName`
+- `instanceDescription`
+- `registrationOpen`
+- `requiresApproval`
+- `oauthProviders`
+- `parsed`
+- `value`
+- `values`
+- `succeeds`
+- `present`
+- `cases`
+- `quotes`
 - `chat`
 - `maxServerSize`
 - `maxMessageLength`
@@ -190,26 +243,44 @@ No description available.
 - `retryAttempts`
 - `enableOutbound`
 - `enableInbound`
+- `webrtc`
 - `name`
 - `description`
-- `registrationOpen`
-- `requiresApproval`
 - `config`
 - `null`
+- `settings`
+- `webrtc_mode`
+- `livekit_url`
+- `allow_federated_voice`
+- `max_stage_listeners`
+- `updated_at`
+- `false`
+- `true`
+- `federationEnabled`
+- `inboundEnabled`
+- `outboundEnabled`
+- `autoAcceptFollows`
+- `p_user_id`
+- `p_federation_enabled`
+- `p_inbound_enabled`
+- `p_outbound_enabled`
+- `p_auto_accept_follows`
 - `pair`
+- `permissions`
 - `key`
-- `value`
-- `request`
-- `config_key`
-- `config_value`
-- `updated_by`
-- `silently`
-- `values`
+- `format`
+- `automatically`
+- `JSONB`
+- `jsonbValue`
+- `p_key`
+- `p_value`
+- `p_description`
+- `updated`
 - `configs`
 - `admin`
-- `false`
-- `permissions`
-- `format`
+- `moderator`
+- `isModerator`
+- `is_moderator`
 - `headers`
 - `csvContent`
 - `type`
@@ -248,39 +319,49 @@ No description available.
 - `blocked_instances`
 - `trusted_instances`
 - `recently_discovered`
-- `cleanDomain`
-- `API`
-- `nodeinfoResponse`
-- `nodeinfo`
-- `links`
-- `link`
-- `nodeinfoLink`
-- `issues`
-- `secureNodeinfoUrl`
-- `infoResponse`
-- `Fallback`
-- `mastodonResponse`
-- `check`
-- `actorResponse`
 - `manually`
 - `options`
 - `forceAdd`
-- `exists`
-- `data`
+- `cleanDomain`
 - `instanceData`
 - `connection_count`
 - `discovery_method`
 - `existing`
-- `settings`
 - `instanceId`
 - `updates`
 - `logging`
-- `online`
-- `services`
-- `APIs`
-- `TODO`
-- `validation`
-- `matching`
+- `probing`
+- `directly`
+- `result`
+- `at`
+- `nodeinfoResult`
+- `fallback`
+- `mastodonResult`
+- `resort`
+- `actorResult`
+- `location`
+- `wellKnownResponse`
+- `signal`
+- `wellKnown`
+- `URL`
+- `nodeinfoUrl`
+- `nodeinfo`
+- `nodeinfoResponse`
+- `v1`
+- `response`
+- `continue`
+- `actor`
+- `webfingerUrl`
+- `compatible`
+- `removed`
+- `method`
+- `body`
+- `softwarename`
+- `active_users_monthly`
+- `local_posts`
+- `sorted`
+- `b`
+- `variables`
 - `interaction_count`
 - `with`
 - `interactions`
@@ -299,6 +380,28 @@ No description available.
 - `server`
 - `serversWithCounts`
 - `servers`
+- `MAINTENANCE`
+- `pairs`
+- `users_missing_keys`
+- `users_with_inconsistent_keys`
+- `inconsistent_users`
+- `user_id`
+- `username`
+- `has_public_key`
+- `has_private_key`
+- `endpoint`
+- `consistency`
+- `report`
+- `backend`
+- `run`
+- `task`
+- `success`
+- `job_id`
+- `message`
+- `errorData`
+- `maintenance`
+- `triggered`
+- `states`
 
 
 ## Interfaces
@@ -333,6 +436,15 @@ interface FederationStats {
   successful_deliveries: number;
   failed_deliveries: number;
   active_instances: number;
+  endpoint_health: {
+    total_endpoints: number;
+    dead_endpoints: number;
+    healthy_endpoints: number;
+    endpoints_with_failures: number;
+    total_failures: number;
+    total_successes: number;
+    success_rate: number;
+  };
 
 }
 ```
@@ -353,6 +465,7 @@ interface AdminUser {
   domain?: string;
   is_local?: boolean; // Indicates if the user is local or remote
   is_admin: boolean;
+  is_moderator: boolean;
   is_suspended: boolean;
   suspended_at?: string;
   suspension_reason?: string;
@@ -500,8 +613,8 @@ interface InstanceStats {
 
 ## Source Code Insights
 
-**File Size:** 34604 characters
-**Lines of Code:** 1182
+**File Size:** 53559 characters
+**Lines of Code:** 1749
 **Imports:** 2
 
 ## Usage Example

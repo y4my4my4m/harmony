@@ -12,6 +12,10 @@ graph TB
     subgraph "Functions"
         FN_HANDLETOGGLESEARCH[handleToggleSearch]
         FN_HANDLESEARCHMESSAGECLICK[handleSearchMessageClick]
+        FN_HANDLEJUMPTOMESSAGE[handleJumpToMessage]
+        FN_HANDLESELECTTHREAD[handleSelectThread]
+        FN_CLOSETHREADVIEW[closeThreadView]
+        FN_HANDLETHREADUPDATED[handleThreadUpdated]
         FN_HANDLEKEYDOWN[handleKeyDown]
         FN_HANDLECHANNELSELECTED[handleChannelSelected]
         FN_HANDLECREATECHANNEL[handleCreateChannel]
@@ -56,6 +60,58 @@ No description available.
 
 ```typescript
 const handleSearchMessageClick = (message: any, searchQuery?: string) =>
+```
+
+### `handleJumpToMessage(messageId: string)`
+
+No description available.
+
+**Parameters:**
+- `messageId: string`
+
+**Returns:** `Unknown`
+
+```typescript
+const handleJumpToMessage = (messageId: string) =>
+```
+
+### `handleSelectThread(thread: any)`
+
+No description available.
+
+**Parameters:**
+- `thread: any`
+
+**Returns:** `Unknown`
+
+```typescript
+const handleSelectThread = (thread: any) =>
+```
+
+### `closeThreadView()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const closeThreadView = () =>
+```
+
+### `handleThreadUpdated(thread: any)`
+
+No description available.
+
+**Parameters:**
+- `thread: any`
+
+**Returns:** `Unknown`
+
+```typescript
+const handleThreadUpdated = (thread: any) =>
 ```
 
 ### `handleKeyDown(event: KeyboardEvent)`
@@ -197,9 +253,9 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 16880 characters
-**Lines of Code:** 598
-**Imports:** 16
+**File Size:** 18685 characters
+**Lines of Code:** 657
+**Imports:** 19
 
 ## Usage Example
 

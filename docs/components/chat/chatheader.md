@@ -72,21 +72,14 @@ No description available.
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `toggle-left-sidebar` | unknown | No description |
-| `toggle-voice-panel` | unknown | No description |
 | `toggle-right-sidebar` | unknown | No description |
 | `toggle-search` | unknown | No description |
+| `show-pinned` | unknown | No description |
+| `show-threads` | unknown | No description |
 
 ### Event Details
 
 #### `toggle-left-sidebar`
-
-No description available.
-
-**Parameters:** `unknown`
-
-
-
-#### `toggle-voice-panel`
 
 No description available.
 
@@ -103,6 +96,22 @@ No description available.
 
 
 #### `toggle-search`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `show-pinned`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `show-threads`
 
 No description available.
 
@@ -127,16 +136,14 @@ This component exposes no public methods.
     :channel="undefined"
     @toggle-left-sidebar="handleToggle-left-sidebar"
     @toggle-right-sidebar="handleToggle-right-sidebar"
-    @toggle-search="handleToggle-search" />
+    @toggle-search="handleToggle-search"
+    @show-pinned="handleShow-pinned"
+    @show-threads="handleShow-threads" />
 </template>
 
 <script setup lang="ts">
 const handleToggle-left-sidebar = (data) => {
   // Handle toggle-left-sidebar event
-}
-
-const handleToggle-voice-panel = (data) => {
-  // Handle toggle-voice-panel event
 }
 
 const handleToggle-right-sidebar = (data) => {
@@ -145,6 +152,14 @@ const handleToggle-right-sidebar = (data) => {
 
 const handleToggle-search = (data) => {
   // Handle toggle-search event
+}
+
+const handleShow-pinned = (data) => {
+  // Handle show-pinned event
+}
+
+const handleShow-threads = (data) => {
+  // Handle show-threads event
 }
 </script>
 ```

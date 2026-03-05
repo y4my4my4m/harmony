@@ -36,7 +36,20 @@ No description available.
 
 ## Events
 
-This component emits no events.
+| Name | Parameters | Description |
+|------|------------|-------------|
+| `load` | unknown | No description |
+
+### Event Details
+
+#### `load`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -51,11 +64,14 @@ This component exposes no public methods.
 ```vue
 <template>
   <LinkEmbedCard
-    :payload="undefined" />
+    :payload="undefined"
+    @load="handleLoad" />
 </template>
 
 <script setup lang="ts">
-// No event handlers needed
+const handleLoad = (data) => {
+  // Handle load event
+}
 </script>
 ```
 

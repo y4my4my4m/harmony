@@ -26,6 +26,8 @@ graph TB
         FN_GETUSERMESSAGECOUNT[getUserMessageCount]
         FN_GETUSERVOICETIME[getUserVoiceTime]
         FN_GETUSERBANNERURL[getUserBannerUrl]
+        FN_ISUSERLOCAL[isUserLocal]
+        FN_GETUSERDOMAIN[getUserDomain]
         FN_FETCHUSERPROFILE[fetchUserProfile]
         FN_FETCHMULTIPLEUSERPROFILES[fetchMultipleUserProfiles]
         FN_ENSUREPROFILESAVAILABLE[ensureProfilesAvailable]
@@ -175,15 +177,16 @@ No description available.
 ```typescript
 /**
    * Get user avatar URL for current user
+   * Always use getAvatarUrl to handle null/undefined and optimization
    */
   const getUserAvatarUrlCurrent = computed(() => {
     forceUpdate.value // Force reactivity
     const currentUser = userDataService.getCurrentUser()
-    if (currentUser?.isLocal) {
-      return getAvatarUrl(currentUser?.avatarUrl)
+    if (!currentUser) {
+      return '/default_avatar.webp'
     }
-    // Fallback for non-local users
-    return currentUser?.avatarUrl || '/default_avatar.png'
+    // Always use getAvatarUrl - it handles null/undefined and optimization
+    return getAvatarUrl(currentUser.avatarUrl)
   })
   
   /**
@@ -204,6 +207,7 @@ No description available.
 ```typescript
 /**
    * Get user status text
+   * Takes into account whether user is actually online (present)
    */
   const getUserStatusText = (userId: string) =>
 ```
@@ -375,6 +379,38 @@ No description available.
    * Get user banner URL
    */
   const getUserBannerUrl = (userId: string) =>
+```
+
+### `isUserLocal(userId: string)`
+
+No description available.
+
+**Parameters:**
+- `userId: string`
+
+**Returns:** `Unknown`
+
+```typescript
+/**
+   * Check if user is a local user (not federated)
+   */
+  const isUserLocal = (userId: string) =>
+```
+
+### `getUserDomain(userId: string)`
+
+No description available.
+
+**Parameters:**
+- `userId: string`
+
+**Returns:** `Unknown`
+
+```typescript
+/**
+   * Get user's domain (for federated users)
+   */
+  const getUserDomain = (userId: string) =>
 ```
 
 ### `fetchUserProfile(userId: string, forceRefresh: boolean = false)`
@@ -825,8 +861,8 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 16586 characters
-**Lines of Code:** 621
+**File Size:** 17582 characters
+**Lines of Code:** 652
 **Imports:** 5
 
 ## Usage Example

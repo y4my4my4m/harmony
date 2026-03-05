@@ -44,6 +44,7 @@ None
  */
 
 import type { Message, MessagePart } from '@/types'
+import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
 // Track decryption failures for debugging
@@ -84,9 +85,9 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
 
 ## Source Code Insights
 
-**File Size:** 4422 characters
-**Lines of Code:** 118
-**Imports:** 2
+**File Size:** 5040 characters
+**Lines of Code:** 137
+**Imports:** 3
 
 ## Usage Example
 

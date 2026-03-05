@@ -104,8 +104,8 @@ const NOTIFICATION_RETRY_CONFIG = {
 
 ## Source Code Insights
 
-**File Size:** 43861 characters
-**Lines of Code:** 1298
+**File Size:** 44929 characters
+**Lines of Code:** 1318
 **Imports:** 11
 
 ## Usage Example

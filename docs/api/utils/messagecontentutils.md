@@ -89,8 +89,8 @@ export function isSingleEmojiMessage(parts: MessagePart[]): boolean
 
 ## Source Code Insights
 
-**File Size:** 1906 characters
-**Lines of Code:** 88
+**File Size:** 2529 characters
+**Lines of Code:** 106
 **Imports:** 1
 
 ## Usage Example

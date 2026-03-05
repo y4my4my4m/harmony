@@ -195,7 +195,7 @@ graph TB
     DOCKER --> NGINX
     REALTIME --> VUE
     AUTH --> VUE
-`
+\`\`\`
 
 ## Core Architecture Principles
 

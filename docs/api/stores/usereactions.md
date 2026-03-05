@@ -155,9 +155,9 @@ None
 
 ## Source Code Insights
 
-**File Size:** 12769 characters
-**Lines of Code:** 371
-**Imports:** 6
+**File Size:** 14156 characters
+**Lines of Code:** 401
+**Imports:** 7
 
 ## Usage Example
 

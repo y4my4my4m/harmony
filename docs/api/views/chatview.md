@@ -13,6 +13,7 @@ graph TB
         FN_LOADMESSAGES[loadMessages]
         FN_FETCHMOREMESSAGES[fetchMoreMessages]
         FN_HANDLESENDMESSAGE[handleSendMessage]
+        FN_HANDLESHOWALLTHREADS[handleShowAllThreads]
         FN_SCROLLTOMESSAGE[scrollToMessage]
         FN_HIGHLIGHTSEARCHTEXT[highlightSearchText]
     end
@@ -64,6 +65,19 @@ No description available.
 
 ```typescript
 const handleSendMessage = (message: any) =>
+```
+
+### `handleShowAllThreads()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const handleShowAllThreads = () =>
 ```
 
 ### `scrollToMessage(messageId: string)`
@@ -128,8 +142,8 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 11190 characters
-**Lines of Code:** 337
+**File Size:** 12785 characters
+**Lines of Code:** 378
 **Imports:** 10
 
 ## Usage Example

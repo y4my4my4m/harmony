@@ -192,8 +192,8 @@ interface ComposerActionsOptions {
 
 ## Source Code Insights
 
-**File Size:** 6122 characters
-**Lines of Code:** 203
+**File Size:** 6228 characters
+**Lines of Code:** 207
 **Imports:** 5
 
 ## Usage Example

@@ -34,6 +34,7 @@ graph TB
         FN_TOGGLEREDUCEMOTION[toggleReduceMotion]
         FN_TOGGLESCREENREADERSUPPORT[toggleScreenReaderSupport]
         FN_UPDATESETTINGS[updateSettings]
+        FN_RESET[reset]
         FN_RESETTODEFAULTS[resetToDefaults]
         FN_SETCUSTOMPRIMARYCOLOR[setCustomPrimaryColor]
         FN_SETCUSTOMBACKGROUNDLIGHTNESS[setCustomBackgroundLightness]
@@ -79,6 +80,7 @@ import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 export interface VisualThemeSettings {
   theme: 'dark' | 'light' | 'midnight' | 'custom'
@@ -108,6 +110,8 @@ const PRESET_THEMES = {
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
+    secondary: '#7289da',
+    accent: '#ff7675',
   },
   light: {
     primary: '#5865f2',
@@ -117,6 +121,8 @@ const PRESET_THEMES = {
     textSecondary: '#4e5058',
     borderPrimary: 'rgba(0, 0, 0, 0.12)',
     isLightTheme: true,
+    secondary: '#7289da',
+    accent: '#ff7675',
   },
   midnight: {
     primary: '#5865f2',
@@ -126,6 +132,8 @@ const PRESET_THEMES = {
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
+    secondary: '#7289da',
+    accent: '#ff7675',
   },
 }
 
@@ -483,6 +491,23 @@ No description available.
   function updateSettings(newSettings: Partial<VisualThemeSettings>)
 ```
 
+### `reset()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `void`
+
+```typescript
+/**
+   * Reset theme system completely (call on logout)
+   * This ensures the next user gets a fresh theme initialization
+   */
+  function reset()
+```
+
 ### `resetToDefaults()`
 
 No description available.
@@ -596,9 +621,9 @@ const PRESET_THEMES = {
 
 ## Source Code Insights
 
-**File Size:** 18783 characters
-**Lines of Code:** 607
-**Imports:** 6
+**File Size:** 21036 characters
+**Lines of Code:** 658
+**Imports:** 7
 
 ## Usage Example
 

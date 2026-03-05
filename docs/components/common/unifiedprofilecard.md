@@ -26,6 +26,7 @@ graph TB
 | `showFollowBtn` | `boolean` | `true` | ❌ | No description |
 | `showMoreActions` | `boolean` | `true` | ❌ | No description |
 | `showInstanceBadge` | `boolean` | `true` | ❌ | No description |
+| `showRoles` | `boolean` | `false` | ❌ | No description |
 | `hasStats` | `boolean` | `true` | ❌ | No description |
 | `maxBioLength` | `number` | `120` | ❌ | No description |
 
@@ -98,6 +99,16 @@ No description available.
 - **Type:** `boolean`
 - **Required:** No
 - **Default:** `true`
+
+
+
+#### `showRoles`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
 
 
 

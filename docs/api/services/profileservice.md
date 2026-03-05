@@ -21,13 +21,7 @@ graph TB
     end
     
     subgraph "Functions"
-        FN_UPDATEUSERSTATUS[updateUserStatus]
-        FN_GETPROFILE[getProfile]
-        FN_GETPROFILEWITHAVATARURL[getProfileWithAvatarUrl]
-        FN_GETPROFILEBYAUTHUSERID[getProfileByAuthUserId]
-        FN_UPDATEPROFILE[updateProfile]
-        FN_UPLOADAVATAR[uploadAvatar]
-        FN_UPLOADBANNER[uploadBanner]
+        FN_FETCHPROMISE[fetchPromise]
     end
     
     subgraph "Interfaces"
@@ -57,98 +51,17 @@ graph TB
 
 ## Functions
 
-### `updateUserStatus(userId: string, status: number)`
+### `fetchPromise(async ()`
 
 No description available.
 
 **Parameters:**
-- `userId: string`
-- `status: number`
+- `async (`
 
 **Returns:** `Unknown`
 
 ```typescript
-export const updateUserStatus = (userId: string, status: number) =>
-```
-
-### `getProfile(userId: string)`
-
-No description available.
-
-**Parameters:**
-- `userId: string`
-
-**Returns:** `Unknown`
-
-```typescript
-export const getProfile = (userId: string) =>
-```
-
-### `getProfileWithAvatarUrl(userId: string)`
-
-No description available.
-
-**Parameters:**
-- `userId: string`
-
-**Returns:** `Unknown`
-
-```typescript
-export const getProfileWithAvatarUrl = (userId: string) =>
-```
-
-### `getProfileByAuthUserId(authUserId: string)`
-
-No description available.
-
-**Parameters:**
-- `authUserId: string`
-
-**Returns:** `Unknown`
-
-```typescript
-export const getProfileByAuthUserId = (authUserId: string) =>
-```
-
-### `updateProfile(profileData: ProfileData)`
-
-No description available.
-
-**Parameters:**
-- `profileData: ProfileData`
-
-**Returns:** `Unknown`
-
-```typescript
-export const updateProfile = (profileData: ProfileData) =>
-```
-
-### `uploadAvatar(file: File, userId: string)`
-
-No description available.
-
-**Parameters:**
-- `file: File`
-- `userId: string`
-
-**Returns:** `Unknown`
-
-```typescript
-export const uploadAvatar = (file: File, userId: string) =>
-```
-
-### `uploadBanner(file: File, userId: string)`
-
-No description available.
-
-**Parameters:**
-- `file: File`
-- `userId: string`
-
-**Returns:** `Unknown`
-
-```typescript
-export const uploadBanner = (file: File, userId: string) =>
+const fetchPromise = (async () =>
 ```
 
 
@@ -180,13 +93,18 @@ No description available.
 
 **Properties:**
 - `instance`
+- `deduplication`
+- `pendingFetches`
+- `Cache`
+- `cache`
+- `timestamp`
+- `CACHE_TTL`
 - `profile`
 - `lookup`
 - `context`
 - `data`
 - `error`
 - `automatically`
-- `cache`
 - `auth_user_id`
 - `userDataService`
 - `ID`
@@ -210,13 +128,20 @@ No description available.
 - `details`
 - `status`
 - `supabase`
+- `caching`
 - `useCache`
-- `service`
+- `first`
+- `cached`
+- `ProfileService`
+- `pending`
+- `promise`
+- `fetchPromise`
+- `result`
+- `fetch`
 - `null`
 - `userId`
 - `url`
 - `imports`
-- `result`
 - `URL`
 - `avatar_url`
 - `success`
@@ -267,8 +192,8 @@ interface ProfileServiceError {
 
 ## Source Code Insights
 
-**File Size:** 11877 characters
-**Lines of Code:** 433
+**File Size:** 13318 characters
+**Lines of Code:** 462
 **Imports:** 5
 
 ## Usage Example
@@ -277,7 +202,7 @@ interface ProfileServiceError {
 import { ProfileData, ProfileServiceError, ProfileService, profileService, updateUserStatus, getProfile, getProfileWithAvatarUrl, getProfileByAuthUserId, updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 
 // Example usage
-updateUserStatus()
+fetchPromise()
 ```
 
 ---

@@ -34,7 +34,7 @@
     "Enum",
     "Class",
     "Interface",
-    "Type alias",
+    "TypeAlias",
     "Constructor",
     "Property",
     "Method",
@@ -57,7 +57,6 @@
     "notDocumented": false
   },
   "searchInComments": true,
-  "searchInDocuments": true,
   "exclude": [
     "**/node_modules/**",
     "**/dist/**",
@@ -68,7 +67,6 @@
     "**/node_modules/**"
   ],
   "excludeInternal": true,
-  "stripInternal": true,
   "cleanOutputDir": true,
   "logLevel": "Info",
   "pretty": true,
@@ -76,7 +74,6 @@
   "hideGenerator": false,
   "customCss": "./docs/assets/custom.css",
   "gaID": "",
-  "includeHierarchySummary": true,
   "visibilityFilters": {
     "protected": false,
     "private": false,

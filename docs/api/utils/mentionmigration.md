@@ -143,7 +143,7 @@ export function parseDisplayMention(displayMention: string): MentionContent | nu
 
 ## Source Code Insights
 
-**File Size:** 3706 characters
+**File Size:** 3752 characters
 **Lines of Code:** 121
 **Imports:** 2
 

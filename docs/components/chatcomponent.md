@@ -25,6 +25,8 @@ graph TB
 | `isDM` | `boolean` | `false` | ❌ | No description |
 | `channelId` | `string` | `undefined` | ❌ | No description |
 | `conversationId` | `string` | `undefined` | ❌ | No description |
+| `channelName` | `string` | `undefined` | ❌ | No description |
+| `dmUsername` | `string` | `undefined` | ❌ | No description |
 
 ### Props Details
 
@@ -88,6 +90,26 @@ No description available.
 
 
 
+#### `channelName`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `dmUsername`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
 
 ## Events
 
@@ -95,6 +117,7 @@ No description available.
 |------|------------|-------------|
 | `sendMessage` | Array | No description |
 | `loadMoreMessages` | unknown | No description |
+| `showAllThreads` | unknown | No description |
 
 ### Event Details
 
@@ -107,6 +130,14 @@ No description available.
 
 
 #### `loadMoreMessages`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `showAllThreads`
 
 No description available.
 
@@ -130,7 +161,8 @@ This component exposes no public methods.
   <ChatComponent
     :messages="[]"
     @sendMessage="handleSendMessage"
-    @loadMoreMessages="handleLoadMoreMessages" />
+    @loadMoreMessages="handleLoadMoreMessages"
+    @showAllThreads="handleShowAllThreads" />
 </template>
 
 <script setup lang="ts">
@@ -140,6 +172,10 @@ const handleSendMessage = (Array) => {
 
 const handleLoadMoreMessages = (data) => {
   // Handle loadMoreMessages event
+}
+
+const handleShowAllThreads = (data) => {
+  // Handle showAllThreads event
 }
 </script>
 ```

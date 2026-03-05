@@ -48,9 +48,9 @@ const handleBeforeUnload = (_event: BeforeUnloadEvent) =>
 
 ## Source Code Insights
 
-**File Size:** 20400 characters
-**Lines of Code:** 543
-**Imports:** 8
+**File Size:** 26964 characters
+**Lines of Code:** 675
+**Imports:** 9
 
 ## Usage Example
 

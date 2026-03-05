@@ -48,11 +48,17 @@ No description available.
 - `editMessage`
 - `deleteMessage`
 - `toggleReaction`
+- `isValidUUID`
 - `getMessageReactions`
 - `getBatchMessageReactions`
 - `loadChannelMessages`
 - `loadConversationMessages`
 - `loadMessage`
+- `pinMessage`
+- `unpinMessage`
+- `getPinnedChannelMessages`
+- `getPinnedDMMessages`
+- `getPinnedCount`
 - `getCurrentUserProfileId`
 - `createError`
 
@@ -75,9 +81,14 @@ No description available.
 - `added`
 - `newCount`
 - `result`
-- `response`
-- `supabase`
+- `isNativeEmoji`
+- `field`
+- `countQuery`
 - `count`
+- `response`
+- `UUID`
+- `4122`
+- `uuidRegex`
 - `emoji_id`
 - `emoji_name`
 - `users`
@@ -93,7 +104,32 @@ No description available.
 - `hasMore`
 - `nextCursor`
 - `API`
-- `data`
+- `PINNING`
+- `DM`
+- `p_message_id`
+- `successfully`
+- `true`
+- `channel`
+- `separately`
+- `supabase`
+- `ascending`
+- `useUserData`
+- `id`
+- `created_at`
+- `channel_id`
+- `conversation_id`
+- `user_id`
+- `reply_to`
+- `is_pinned`
+- `pinned_at`
+- `pinned_by`
+- `metadata`
+- `conversation`
+- `component`
+- `p_channel_id`
+- `p_conversation_id`
+- `0`
+- `OPTIMIZED`
 - `code`
 - `details`
 
@@ -137,8 +173,8 @@ interface CreateDMMessageData {
 
 ## Source Code Insights
 
-**File Size:** 12133 characters
-**Lines of Code:** 384
+**File Size:** 17328 characters
+**Lines of Code:** 557
 **Imports:** 4
 
 ## Usage Example

@@ -282,7 +282,7 @@ interface NodeInfoResponse {
 No description available.
 
 ```typescript
-const INSTANCE_DOMAIN = import.meta.env.VITE_DOMAIN || 'har.mony.lol'
+const INSTANCE_DOMAIN = import.meta.env.VITE_DOMAIN as string
 ```
 
 ### ACTIVITYPUB_CONFIG
@@ -298,7 +298,7 @@ export const ACTIVITYPUB_CONFIG = {
 
 ## Source Code Insights
 
-**File Size:** 6202 characters
+**File Size:** 6194 characters
 **Lines of Code:** 245
 **Imports:** 1
 

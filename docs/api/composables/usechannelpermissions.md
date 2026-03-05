@@ -39,30 +39,30 @@ None
 export function useChannelPermissions()
 ```
 
-### `canViewChannel(channelId: string)`
+### `canViewChannel(_channelId: string)`
 
 No description available.
 
 **Parameters:**
-- `channelId: string`
+- `_channelId: string`
 
 **Returns:** `Unknown`
 
 ```typescript
-const canViewChannel = (channelId: string) =>
+const canViewChannel = (_channelId: string) =>
 ```
 
-### `canAccessChannel(channelId: string)`
+### `canAccessChannel(_channelId: string)`
 
 No description available.
 
 **Parameters:**
-- `channelId: string`
+- `_channelId: string`
 
 **Returns:** `Unknown`
 
 ```typescript
-const canAccessChannel = (channelId: string) =>
+const canAccessChannel = (_channelId: string) =>
 ```
 
 ### `getDragCursor(itemType: 'channel' | 'category', isDragging = false)`
@@ -106,9 +106,9 @@ const validateDragAndDrop = (itemType: string, dropType: string) =>
 
 ## Source Code Insights
 
-**File Size:** 3950 characters
-**Lines of Code:** 139
-**Imports:** 4
+**File Size:** 3408 characters
+**Lines of Code:** 118
+**Imports:** 2
 
 ## Usage Example
 

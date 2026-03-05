@@ -24,6 +24,11 @@ graph TB
 | `modelValue` | `string` | `''` | ❌ | No description |
 | `replyMessageId` | `string` | `''` | ❌ | No description |
 | `replyUserDisplayName` | `string` | `''` | ❌ | No description |
+| `channelName` | `string` | `undefined` | ❌ | No description |
+| `username` | `string` | `undefined` | ❌ | No description |
+| `channelId` | `string` | `undefined` | ❌ | No description |
+| `threadId` | `string` | `undefined` | ❌ | No description |
+| `conversationId` | `string` | `undefined` | ❌ | No description |
 
 ### Props Details
 
@@ -74,6 +79,56 @@ No description available.
 - **Type:** `string`
 - **Required:** No
 - **Default:** `''`
+
+
+
+#### `channelName`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `username`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `channelId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `threadId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `conversationId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `undefined`
 
 
 

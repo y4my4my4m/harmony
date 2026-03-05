@@ -95,8 +95,8 @@ interface PublicServersFilters {
 
 ## Source Code Insights
 
-**File Size:** 10940 characters
-**Lines of Code:** 348
+**File Size:** 11113 characters
+**Lines of Code:** 349
 **Imports:** 4
 
 ## Usage Example

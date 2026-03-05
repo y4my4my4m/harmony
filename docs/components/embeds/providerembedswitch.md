@@ -47,7 +47,20 @@ No description available.
 
 ## Events
 
-This component emits no events.
+| Name | Parameters | Description |
+|------|------------|-------------|
+| `embed-loaded` | unknown | No description |
+
+### Event Details
+
+#### `embed-loaded`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -62,11 +75,14 @@ This component exposes no public methods.
 ```vue
 <template>
   <ProviderEmbedSwitch
-    :payload="undefined" />
+    :payload="undefined"
+    @embed-loaded="handleEmbed-loaded" />
 </template>
 
 <script setup lang="ts">
-// No event handlers needed
+const handleEmbed-loaded = (data) => {
+  // Handle embed-loaded event
+}
 </script>
 ```
 

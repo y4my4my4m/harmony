@@ -192,8 +192,8 @@ interface UserStats {
 
 ## Source Code Insights
 
-**File Size:** 14336 characters
-**Lines of Code:** 458
+**File Size:** 14346 characters
+**Lines of Code:** 459
 **Imports:** 4
 
 ## Usage Example

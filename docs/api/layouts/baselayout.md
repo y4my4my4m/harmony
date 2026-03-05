@@ -10,6 +10,7 @@ graph TB
     end
     
     subgraph "Functions"
+        FN_IF[if]
         FN_HANDLEGLOBALCALLACCEPT[handleGlobalCallAccept]
         FN_HANDLEGLOBALCALLDECLINE[handleGlobalCallDecline]
         FN_INITIALIZEAPP[initializeApp]
@@ -25,6 +26,20 @@ graph TB
 
 
 ## Functions
+
+### `if(typeof useUserData !== 'function')`
+
+No description available.
+
+**Parameters:**
+- `typeof useUserData !== 'function'`
+
+**Returns:** `void`
+
+```typescript
+function
+    if (typeof useUserData !== 'function')
+```
 
 ### `handleGlobalCallAccept(acceptWithVideo: boolean)`
 
@@ -162,8 +177,8 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 31726 characters
-**Lines of Code:** 950
+**File Size:** 34746 characters
+**Lines of Code:** 1015
 **Imports:** 18
 
 ## Usage Example
@@ -172,7 +187,7 @@ This is a Vue component file.
 import { BaseLayout } from '@/layouts/BaseLayout'
 
 // Example usage
-handleGlobalCallAccept()
+if()
 ```
 
 ---

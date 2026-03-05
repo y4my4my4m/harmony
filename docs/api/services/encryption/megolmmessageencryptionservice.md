@@ -45,7 +45,8 @@ No description available.
 - `initialize`
 - `catch`
 - `tryAutoUnlock`
-- `storeSession`
+- `storeSessionKeys`
+- `clearLegacyStorage`
 - `lockEncryption`
 - `initializeWithRecoveryKey`
 - `setupNewEncryption`
@@ -85,17 +86,21 @@ No description available.
 - `true`
 - `session`
 - `false`
+- `storedKeys`
+- `key`
+- `result`
+- `fallback`
 - `storedData`
-- `mnemonic`
 - `words`
 - `derivedKeys`
-- `key`
+- `Migrate`
+- `encryptionKey`
+- `backupKey`
+- `signingKey`
+- `phrase`
+- `mnemonic`
 - `exists`
 - `backup`
-- `result`
-- `refresh`
-- `encoded`
-- `phrase`
 - `failed`
 - `shares`
 - `claimedCount`
@@ -193,11 +198,9 @@ No description available.
 - `derivedKey`
 - `combined`
 - `storage`
-- `encryptionKey`
 - `0`
 - `parallel`
 - `p_share_id`
-- `errors`
 - `us`
 - `decrypt`
 - `decrypted`
@@ -264,9 +267,9 @@ interface MegolmEncryptedMessageData {
 
 ## Source Code Insights
 
-**File Size:** 29872 characters
-**Lines of Code:** 953
-**Imports:** 6
+**File Size:** 31308 characters
+**Lines of Code:** 981
+**Imports:** 7
 
 ## Usage Example
 

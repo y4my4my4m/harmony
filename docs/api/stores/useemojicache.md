@@ -84,9 +84,9 @@ interface EmojiMetadata {
 
 ## Source Code Insights
 
-**File Size:** 21282 characters
-**Lines of Code:** 673
-**Imports:** 4
+**File Size:** 23711 characters
+**Lines of Code:** 730
+**Imports:** 5
 
 ## Usage Example
 

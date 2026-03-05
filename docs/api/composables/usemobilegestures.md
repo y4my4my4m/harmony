@@ -195,8 +195,8 @@ interface DragCallbacks {
 
 ## Source Code Insights
 
-**File Size:** 7596 characters
-**Lines of Code:** 244
+**File Size:** 8759 characters
+**Lines of Code:** 256
 **Imports:** 1
 
 ## Usage Example

@@ -54,8 +54,8 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
 
 ## Source Code Insights
 
-**File Size:** 1640 characters
-**Lines of Code:** 41
+**File Size:** 2472 characters
+**Lines of Code:** 58
 **Imports:** 1
 
 ## Usage Example

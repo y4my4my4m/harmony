@@ -52,6 +52,7 @@ No description available.
 | `toggle-reaction` | string | No description |
 | `show-reaction-tooltip` | MouseEvent | No description |
 | `hide-reaction-tooltip` | unknown | No description |
+| `open-emoji-picker` | string | No description |
 
 ### Event Details
 
@@ -79,6 +80,14 @@ No description available.
 
 
 
+#### `open-emoji-picker`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
 
 ## Slots
 
@@ -96,7 +105,8 @@ This component exposes no public methods.
     :message="undefined"
     @toggle-reaction="handleToggle-reaction"
     @show-reaction-tooltip="handleShow-reaction-tooltip"
-    @hide-reaction-tooltip="handleHide-reaction-tooltip" />
+    @hide-reaction-tooltip="handleHide-reaction-tooltip"
+    @open-emoji-picker="handleOpen-emoji-picker" />
 </template>
 
 <script setup lang="ts">
@@ -110,6 +120,10 @@ const handleShow-reaction-tooltip = (MouseEvent) => {
 
 const handleHide-reaction-tooltip = (data) => {
   // Handle hide-reaction-tooltip event
+}
+
+const handleOpen-emoji-picker = (string) => {
+  // Handle open-emoji-picker event
 }
 </script>
 ```

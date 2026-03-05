@@ -93,8 +93,13 @@ No description available.
 
 **Methods:**
 - `constructor`
-- `updateInputDevice`
+- `loadStreamQualitySettings`
 - `catch`
+- `saveStreamQualitySettings`
+- `getVideoConstraints`
+- `switch`
+- `updateStreamQuality`
+- `updateInputDevice`
 - `updateOutputDevice`
 - `updateVideoDevice`
 - `joinChannel`
@@ -102,6 +107,7 @@ No description available.
 - `toggleVideo`
 - `toggleScreenShare`
 - `toggleMute`
+- `setMuted`
 - `toggleDeafen`
 - `getLocalStream`
 - `getLocalState`
@@ -119,7 +125,6 @@ No description available.
 - `setupSignaling`
 - `requestChannelState`
 - `handleSignalingMessage`
-- `switch`
 - `handleUserJoined`
 - `handleUserLeft`
 - `handleMediaStateUpdate`
@@ -173,12 +178,33 @@ No description available.
 - `noiseSuppression`
 - `autoGainControl`
 - `sampleRate`
+- `streamQualitySettings`
+- `resolution`
+- `frameRate`
+- `audioBitrate`
 - `selection`
 - `selectedInputDevice`
 - `selectedOutputDevice`
 - `selectedVideoDevice`
 - `Encryption`
 - `encryptionEnabled`
+- `localStorage`
+- `saved`
+- `setting`
+- `number`
+- `360`
+- `480`
+- `720`
+- `1080`
+- `available`
+- `width`
+- `default`
+- `tracks`
+- `quality`
+- `applyConstraints`
+- `videoTracks`
+- `constraints`
+- `updated`
 - `API`
 - `stream`
 - `to`
@@ -186,7 +212,6 @@ No description available.
 - `method`
 - `device`
 - `currentMuteState`
-- `tracks`
 - `audioTracks`
 - `newAudioStream`
 - `audio`
@@ -200,30 +225,30 @@ No description available.
 - `elements`
 - `user`
 - `enabled`
-- `videoTracks`
+- `baseVideoConstraints`
 - `videoConstraints`
-- `width`
-- `height`
-- `frameRate`
 - `newVideoStream`
 - `newVideoTrack`
 - `videoSender`
 - `experience`
 - `channel`
+- `cancellation`
 - `connection`
+- `cleanup`
 - `presence`
+- `signaling`
 - `users`
 - `sync`
 - `type`
 - `from`
 - `data`
 - `timestamp`
+- `check`
 - `true`
 - `false`
 - `leaving`
 - `media`
 - `null`
-- `signaling`
 - `context`
 - `oldChannelId`
 - `active`
@@ -239,17 +264,30 @@ No description available.
 - `checkState`
 - `offer`
 - `update`
+- `screenShareVideoTrackId`
+- `screenShareAudioTrackId`
+- `framerate`
+- `screenVideoConstraints`
 - `screenStream`
+- `height`
 - `screenVideoTrack`
 - `screenAudioTrack`
+- `audioLabel`
 - `first`
 - `screenshare`
 - `Renegotiate`
-- `available`
-- `ending`
+- `hasScreenAudio`
+- `failed`
+- `gone`
 - `sharing`
+- `videoTrackId`
+- `audioTrackId`
+- `ID`
+- `IDs`
 - `share`
 - `audioTrack`
+- `change`
+- `muted`
 - `mute`
 - `GETTERS`
 - `SYSTEM`
@@ -261,7 +299,6 @@ No description available.
 - `status`
 - `fallback`
 - `ideal`
-- `default`
 - `save`
 - `fallbackConstraints`
 - `choose`
@@ -276,7 +313,6 @@ No description available.
 - `speaking`
 - `now`
 - `Note`
-- `failed`
 - `config`
 - `event`
 - `message`
@@ -325,16 +361,11 @@ No description available.
 - `toggled`
 - `wasPlaying`
 - `isNowPlaying`
-- `muted`
 - `MANAGEMENT`
+- `devices`
 - `inputDevice`
 - `outputDevice`
 - `videoDevice`
-- `stored`
-- `constraints`
-- `input`
-- `output`
-- `existing`
 - `panel`
 - `value`
 - `needed`
@@ -418,9 +449,9 @@ interface ChannelState {
 
 ## Source Code Insights
 
-**File Size:** 57375 characters
-**Lines of Code:** 1630
-**Imports:** 3
+**File Size:** 66892 characters
+**Lines of Code:** 1868
+**Imports:** 5
 
 ## Usage Example
 

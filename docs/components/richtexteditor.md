@@ -77,6 +77,7 @@ No description available.
 | `focus` | FocusEvent | No description |
 | `blur` | FocusEvent | No description |
 | `cursor-position-changed` | number | No description |
+| `paste` | ClipboardEvent | No description |
 
 ### Event Details
 
@@ -128,6 +129,14 @@ No description available.
 
 
 
+#### `paste`
+
+No description available.
+
+**Parameters:** `ClipboardEvent`
+
+
+
 
 ## Slots
 
@@ -148,7 +157,8 @@ This component exposes no public methods.
     @keydown="handleKeydown"
     @focus="handleFocus"
     @blur="handleBlur"
-    @cursor-position-changed="handleCursor-position-changed" />
+    @cursor-position-changed="handleCursor-position-changed"
+    @paste="handlePaste" />
 </template>
 
 <script setup lang="ts">
@@ -174,6 +184,10 @@ const handleBlur = (FocusEvent) => {
 
 const handleCursor-position-changed = (number) => {
   // Handle cursor-position-changed event
+}
+
+const handlePaste = (ClipboardEvent) => {
+  // Handle paste event
 }
 </script>
 ```

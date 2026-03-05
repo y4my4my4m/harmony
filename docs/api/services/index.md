@@ -63,9 +63,9 @@ interface ServiceError {
 
 ## Source Code Insights
 
-**File Size:** 4218 characters
-**Lines of Code:** 150
-**Imports:** 7
+**File Size:** 5372 characters
+**Lines of Code:** 189
+**Imports:** 11
 
 ## Usage Example
 

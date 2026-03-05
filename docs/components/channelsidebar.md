@@ -83,6 +83,7 @@ No description available.
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `createChannel` | string | No description |
+| `openThread` | ThreadWithDetails | No description |
 
 ### Event Details
 
@@ -91,6 +92,14 @@ No description available.
 No description available.
 
 **Parameters:** `string`
+
+
+
+#### `openThread`
+
+No description available.
+
+**Parameters:** `ThreadWithDetails`
 
 
 
@@ -112,12 +121,17 @@ This component exposes no public methods.
     :channels="undefined"
     :categoryChannels="undefined"
     :currentChannelId=""example""
-    @createChannel="handleCreateChannel" />
+    @createChannel="handleCreateChannel"
+    @openThread="handleOpenThread" />
 </template>
 
 <script setup lang="ts">
 const handleCreateChannel = (string) => {
   // Handle createChannel event
+}
+
+const handleOpenThread = (ThreadWithDetails) => {
+  // Handle openThread event
 }
 </script>
 ```

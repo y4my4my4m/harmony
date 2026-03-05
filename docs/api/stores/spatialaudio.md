@@ -101,8 +101,8 @@ interface SpatialAudioState {
 
 ## Source Code Insights
 
-**File Size:** 12189 characters
-**Lines of Code:** 363
+**File Size:** 12058 characters
+**Lines of Code:** 360
 **Imports:** 2
 
 ## Usage Example

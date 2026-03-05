@@ -148,18 +148,19 @@ No description available.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
-| `show-user-profile` | unknown | No description |
 | `open-lightbox` | unknown | No description |
+| `show-user-profile` | unknown | No description |
 | `update:message` | unknown | No description |
 | `update:content` | unknown | No description |
 | `cancel-edit` | unknown | No description |
 | `image-loaded` | unknown | No description |
+| `embed-loaded` | unknown | No description |
 | `hashtag-click` | unknown | No description |
 | `decrypt-message` | unknown | No description |
 
 ### Event Details
 
-#### `show-user-profile`
+#### `open-lightbox`
 
 No description available.
 
@@ -167,7 +168,7 @@ No description available.
 
 
 
-#### `open-lightbox`
+#### `show-user-profile`
 
 No description available.
 
@@ -207,6 +208,14 @@ No description available.
 
 
 
+#### `embed-loaded`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 #### `hashtag-click`
 
 No description available.
@@ -239,23 +248,24 @@ This component exposes no public methods.
   <UnifiedMessageContent
     :content="undefined"
     :messageId=""example""
-    @show-user-profile="handleShow-user-profile"
     @open-lightbox="handleOpen-lightbox"
+    @show-user-profile="handleShow-user-profile"
     @update:message="handleUpdate:message"
     @update:content="handleUpdate:content"
     @cancel-edit="handleCancel-edit"
     @image-loaded="handleImage-loaded"
+    @embed-loaded="handleEmbed-loaded"
     @hashtag-click="handleHashtag-click"
     @decrypt-message="handleDecrypt-message" />
 </template>
 
 <script setup lang="ts">
-const handleShow-user-profile = (data) => {
-  // Handle show-user-profile event
-}
-
 const handleOpen-lightbox = (data) => {
   // Handle open-lightbox event
+}
+
+const handleShow-user-profile = (data) => {
+  // Handle show-user-profile event
 }
 
 const handleUpdate:message = (data) => {
@@ -272,6 +282,10 @@ const handleCancel-edit = (data) => {
 
 const handleImage-loaded = (data) => {
   // Handle image-loaded event
+}
+
+const handleEmbed-loaded = (data) => {
+  // Handle embed-loaded event
 }
 
 const handleHashtag-click = (data) => {

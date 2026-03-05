@@ -101,6 +101,7 @@ export default withMermaid(defineConfig({
           collapsed: true,
           items: [
             { text: 'Useactivitypubusersearch', link: '/api/composables/useactivitypubusersearch' },
+            { text: 'Useadaptivegrid', link: '/api/composables/useadaptivegrid' },
             { text: 'Useapplicationstate', link: '/api/composables/useapplicationstate' },
             { text: 'Useaudiothemecommon', link: '/api/composables/useaudiothemecommon' },
             { text: 'Useautosuggest', link: '/api/composables/useautosuggest' },
@@ -111,8 +112,12 @@ export default withMermaid(defineConfig({
             { text: 'Usecomposerstate', link: '/api/composables/usecomposerstate' },
             { text: 'Usecontentrenderer', link: '/api/composables/usecontentrenderer' },
             { text: 'Usedebounce', link: '/api/composables/usedebounce' },
+            { text: 'Useemojiloader', link: '/api/composables/useemojiloader' },
             { text: 'Usefloatingvideo', link: '/api/composables/usefloatingvideo' },
+            { text: 'Usefrequentemojis', link: '/api/composables/usefrequentemojis' },
             { text: 'Usehapticsettings', link: '/api/composables/usehapticsettings' },
+            { text: 'Usekeybinds', link: '/api/composables/usekeybinds' },
+            { text: 'Usekonamicode', link: '/api/composables/usekonamicode' },
             { text: 'Uselayoutstate', link: '/api/composables/uselayoutstate' },
             { text: 'Useloadingstate', link: '/api/composables/useloadingstate' },
             { text: 'Uselocalmessagesearch', link: '/api/composables/uselocalmessagesearch' },
@@ -124,7 +129,9 @@ export default withMermaid(defineConfig({
             { text: 'Usepostreactions', link: '/api/composables/usepostreactions' },
             { text: 'Useprofilepresence', link: '/api/composables/useprofilepresence' },
             { text: 'Usepushnotifications', link: '/api/composables/usepushnotifications' },
+            { text: 'Usepushtotalk', link: '/api/composables/usepushtotalk' },
             { text: 'Useserverpermissions', link: '/api/composables/useserverpermissions' },
+            { text: 'Usetypingindicator', link: '/api/composables/usetypingindicator' },
             { text: 'Useunreadcounts', link: '/api/composables/useunreadcounts' },
             { text: 'Useuserdata', link: '/api/composables/useuserdata' },
             { text: 'Useuserstate', link: '/api/composables/useuserstate' },
@@ -170,11 +177,17 @@ export default withMermaid(defineConfig({
             { text: 'Conversationservice', link: '/api/services/conversationservice' },
             { text: 'Dmcallpermissions', link: '/api/services/dmcallpermissions' },
             { text: 'Dmcallsignaling', link: '/api/services/dmcallsignaling' },
+            { text: 'Eastereggservice', link: '/api/services/eastereggservice' },
+            { text: 'Emojiindexeddbcache', link: '/api/services/emojiindexeddbcache' },
+            { text: 'Emojipackservice', link: '/api/services/emojipackservice' },
             { text: 'Emojiservice', link: '/api/services/emojiservice' },
             { text: 'Fileservice', link: '/api/services/fileservice' },
+            { text: 'Gifservice', link: '/api/services/gifservice' },
             { text: 'Globaldmcalllistener', link: '/api/services/globaldmcalllistener' },
             { text: 'Interactionservice', link: '/api/services/interactionservice' },
             { text: 'Inviteservice', link: '/api/services/inviteservice' },
+            { text: 'Livekitwebrtc', link: '/api/services/livekitwebrtc' },
+            { text: 'Loggingservice', link: '/api/services/loggingservice' },
             { text: 'Membershipservice', link: '/api/services/membershipservice' },
             { text: 'Messageservice', link: '/api/services/messageservice' },
             { text: 'Notificationformatter', link: '/api/services/notificationformatter' },
@@ -184,6 +197,7 @@ export default withMermaid(defineConfig({
             { text: 'Profileservice', link: '/api/services/profileservice' },
             { text: 'Pwamanager', link: '/api/services/pwamanager' },
             { text: 'Realtimeconnectionmanager', link: '/api/services/realtimeconnectionmanager' },
+            { text: 'Roleservice', link: '/api/services/roleservice' },
             { text: 'Routeawareinitialization', link: '/api/services/routeawareinitialization' },
             { text: 'Searchservice', link: '/api/services/searchservice' },
             { text: 'Servermembershipservice', link: '/api/services/servermembershipservice' },
@@ -192,11 +206,16 @@ export default withMermaid(defineConfig({
             { text: 'Spatialaudio', link: '/api/services/spatialaudio' },
             { text: 'Statepersistence', link: '/api/services/statepersistence' },
             { text: 'Statuslifecycledebugger', link: '/api/services/statuslifecycledebugger' },
+            { text: 'Threadservice', link: '/api/services/threadservice' },
             { text: 'Trendingservice', link: '/api/services/trendingservice' },
+            { text: 'Typingindicatorservice', link: '/api/services/typingindicatorservice' },
+            { text: 'Unifiedemojiservice', link: '/api/services/unifiedemojiservice' },
             { text: 'Unifiedwebrtc', link: '/api/services/unifiedwebrtc' },
             { text: 'Userdataservice', link: '/api/services/userdataservice' },
             { text: 'Usersservice', link: '/api/services/usersservice' },
             { text: 'Viewcontexttracker', link: '/api/services/viewcontexttracker' },
+            { text: 'Voicesettingsservice', link: '/api/services/voicesettingsservice' },
+            { text: 'Webrtcmanager', link: '/api/services/webrtcmanager' },
             {
               text: 'Core Services',
               collapsed: true,
@@ -218,6 +237,7 @@ export default withMermaid(defineConfig({
                 { text: 'Megolmservice', link: '/api/services/encryption/megolmservice' },
                 { text: 'Messageencryptionservice', link: '/api/services/encryption/messageencryptionservice' },
                 { text: 'Recoverykeyservice', link: '/api/services/encryption/recoverykeyservice' },
+                { text: 'Securesessionkeystore', link: '/api/services/encryption/securesessionkeystore' },
                 { text: 'Signalprotocolservice', link: '/api/services/encryption/signalprotocolservice' },
                 { text: 'Signalprotocolservicebrowser', link: '/api/services/encryption/signalprotocolservicebrowser' },
                 { text: 'Webrtcencryptionservice', link: '/api/services/encryption/webrtcencryptionservice' }
@@ -228,7 +248,8 @@ export default withMermaid(defineConfig({
               collapsed: true,
               items: [
                 { text: 'Federationactivityservice', link: '/api/services/federation/federationactivityservice' },
-                { text: 'Federationdecisionservice', link: '/api/services/federation/federationdecisionservice' }
+                { text: 'Federationdecisionservice', link: '/api/services/federation/federationdecisionservice' },
+                { text: 'Federationserverservice', link: '/api/services/federation/federationserverservice' }
               ]
             }
           ]
@@ -246,6 +267,7 @@ export default withMermaid(defineConfig({
             { text: 'Usechat', link: '/api/stores/usechat' },
             { text: 'Usedm', link: '/api/stores/usedm' },
             { text: 'Useemojicache', link: '/api/stores/useemojicache' },
+            { text: 'Useinstancesettings', link: '/api/stores/useinstancesettings' },
             { text: 'Usenotification', link: '/api/stores/usenotification' },
             { text: 'Useprofile', link: '/api/stores/useprofile' },
             { text: 'Usepublicservers', link: '/api/stores/usepublicservers' },
@@ -267,11 +289,13 @@ export default withMermaid(defineConfig({
           collapsed: true,
           items: [
             { text: 'Avatarutils', link: '/api/utils/avatarutils' },
+            { text: 'Backgroundutils', link: '/api/utils/backgroundutils' },
             { text: 'Bannerutils', link: '/api/utils/bannerutils' },
             { text: 'Botutils', link: '/api/utils/botutils' },
             { text: 'Colorutils', link: '/api/utils/colorutils' },
             { text: 'Debug', link: '/api/utils/debug' },
             { text: 'Embeddetection', link: '/api/utils/embeddetection' },
+            { text: 'Emojiconstants', link: '/api/utils/emojiconstants' },
             { text: 'Emojiutils', link: '/api/utils/emojiutils' },
             { text: 'Fileupload', link: '/api/utils/fileupload' },
             { text: 'Getfromuser', link: '/api/utils/getfromuser' },
@@ -291,7 +315,9 @@ export default withMermaid(defineConfig({
             { text: 'Serverutils', link: '/api/utils/serverutils' },
             { text: 'Settingsutils', link: '/api/utils/settingsutils' },
             { text: 'Syntaxhighlighter', link: '/api/utils/syntaxhighlighter' },
-            { text: 'Unifiedcontentprocessing', link: '/api/utils/unifiedcontentprocessing' }
+            { text: 'Unifiedcontentprocessing', link: '/api/utils/unifiedcontentprocessing' },
+            { text: 'Urltrackerstripper', link: '/api/utils/urltrackerstripper' },
+            { text: 'Userscopedstorage', link: '/api/utils/userscopedstorage' }
           ]
         },
         {
@@ -299,6 +325,7 @@ export default withMermaid(defineConfig({
           collapsed: true,
           items: [
             { text: 'Adminpanel', link: '/api/views/adminpanel' },
+            { text: 'Authcallbackview', link: '/api/views/authcallbackview' },
             { text: 'Bookmarksview', link: '/api/views/bookmarksview' },
             { text: 'Chatview', link: '/api/views/chatview' },
             { text: 'Dmview', link: '/api/views/dmview' },
@@ -314,6 +341,7 @@ export default withMermaid(defineConfig({
             { text: 'Registerview', link: '/api/views/registerview' },
             { text: 'Resetpasswordview', link: '/api/views/resetpasswordview' },
             { text: 'Serversettings', link: '/api/views/serversettings' },
+            { text: 'Threadfullview', link: '/api/views/threadfullview' },
             { text: 'Timelineview', link: '/api/views/timelineview' },
             { text: 'Userprofileview', link: '/api/views/userprofileview' },
             { text: 'Usersettings', link: '/api/views/usersettings' }
@@ -338,6 +366,7 @@ export default withMermaid(defineConfig({
             { text: 'Maincontentareaheader', link: '/components/maincontentareaheader' },
             { text: 'Mainnavigation', link: '/components/mainnavigation' },
             { text: 'Sidebarcomponent', link: '/components/sidebarcomponent' },
+            { text: 'Threadsidebar', link: '/components/threads/threadsidebar' },
             { text: 'Viewheader', link: '/components/common/viewheader' }
           ]
         },
@@ -346,6 +375,7 @@ export default withMermaid(defineConfig({
           collapsed: true,
           items: [
             { text: 'Chat Component', link: '/components/chat/chat-component' },
+            { text: 'Chatbubble', link: '/components/icons/chatbubble' },
             { text: 'Chatcomponent', link: '/components/chatcomponent' },
             { text: 'Chatheader', link: '/components/chat/chatheader' },
             { text: 'Groupchatinvitemodal', link: '/components/dm/groupchatinvitemodal' },
@@ -356,6 +386,7 @@ export default withMermaid(defineConfig({
             { text: 'Messagereactions', link: '/components/messagereactions' },
             { text: 'Messagereply', link: '/components/messagereply' },
             { text: 'Messagesearchmodal', link: '/components/search/messagesearchmodal' },
+            { text: 'Pinnedmessagespopup', link: '/components/pinnedmessagespopup' },
             { text: 'Richtextdemo', link: '/components/demo/richtextdemo' },
             { text: 'Richtexteditor', link: '/components/richtexteditor' },
             { text: 'Unifiedmessagecontent', link: '/components/unifiedmessagecontent' }
@@ -371,6 +402,7 @@ export default withMermaid(defineConfig({
             { text: 'Channelsidebar', link: '/components/channelsidebar' },
             { text: 'Createchannel', link: '/components/createchannel' },
             { text: 'Createserver', link: '/components/createserver' },
+            { text: 'Joinfederatedserver', link: '/components/joinfederatedserver' },
             { text: 'Noserverssplash', link: '/components/noserverssplash' },
             { text: 'Publicservers', link: '/components/publicservers' },
             { text: 'Publicserverscontent', link: '/components/publicservers/publicserverscontent' },
@@ -380,6 +412,9 @@ export default withMermaid(defineConfig({
             { text: 'Servercard', link: '/components/common/servercard' },
             { text: 'Servercardskeleton', link: '/components/common/servercardskeleton' },
             { text: 'Serverdropdown', link: '/components/serverdropdown' },
+            { text: 'Serverfolder', link: '/components/serverfolder' },
+            { text: 'Serverfoldercontextmenu', link: '/components/serverfoldercontextmenu' },
+            { text: 'Serverfoldersettingsmodal', link: '/components/serverfoldersettingsmodal' },
             { text: 'Servericon', link: '/components/common/servericon' },
             { text: 'Serverinvitecard', link: '/components/embeds/serverinvitecard' },
             { text: 'Serverinviteicon', link: '/components/icons/serverinviteicon' },
@@ -408,19 +443,24 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'Emojiicon', link: '/components/icons/emojiicon' },
             { text: 'Emojiimporter', link: '/components/admin/emojiimporter' },
+            { text: 'Emojipickercontent', link: '/components/emojipickercontent' },
             { text: 'Emojipopup', link: '/components/emojipopup' },
             { text: 'Emojiui', link: '/components/emojiui' },
             { text: 'Filepreview', link: '/components/filepreview' },
             { text: 'Fileuploadmenu', link: '/components/fileuploadmenu' },
             { text: 'Gif', link: '/components/icons/gif' },
             { text: 'Gifcomponent', link: '/components/gifcomponent' },
-            { text: 'Markdowncontent', link: '/components/markdowncontent' }
+            { text: 'Gifpickercontent', link: '/components/gifpickercontent' },
+            { text: 'Lazyemojisection', link: '/components/lazyemojisection' },
+            { text: 'Markdowncontent', link: '/components/markdowncontent' },
+            { text: 'Mediapickerpopup', link: '/components/mediapickerpopup' }
           ]
         },
         {
           text: 'Modals & Dialogs',
           collapsed: true,
           items: [
+            { text: 'Allthreadsmodal', link: '/components/threads/allthreadsmodal' },
             { text: 'Basemodal', link: '/components/common/basemodal' },
             { text: 'Categorycontextmenu', link: '/components/categorycontextmenu' },
             { text: 'Categoryeditmodal', link: '/components/categoryeditmodal' },
@@ -430,6 +470,8 @@ export default withMermaid(defineConfig({
             { text: 'Inviteaccept', link: '/components/inviteaccept' },
             { text: 'Invitemodal', link: '/components/invitemodal' },
             { text: 'Keyrecoverymodal', link: '/components/encryption/keyrecoverymodal' },
+            { text: 'Threadcontextmenu', link: '/components/threads/threadcontextmenu' },
+            { text: 'Threadeditmodal', link: '/components/threadeditmodal' },
             { text: 'Unifiedconfirmationmodal', link: '/components/shared/unifiedconfirmationmodal' },
             { text: 'Unifiedcontextbar', link: '/components/common/unifiedcontextbar' },
             { text: 'Unifiedmodal', link: '/components/shared/unifiedmodal' }
@@ -462,6 +504,9 @@ export default withMermaid(defineConfig({
           text: 'Voice & Video',
           collapsed: true,
           items: [
+            { text: 'Deviceselector', link: '/components/voice/deviceselector' },
+            { text: 'Mobilevoicechannelpreview', link: '/components/voice/mobilevoicechannelpreview' },
+            { text: 'Recentspeakers', link: '/components/voice/recentspeakers' },
             { text: 'Screensharepip', link: '/components/voice/screensharepip' },
             { text: 'Spatialaudiopanel', link: '/components/voice/spatialaudiopanel' },
             { text: 'Unifiedvoicedock', link: '/components/voice/unifiedvoicedock' },
@@ -469,7 +514,8 @@ export default withMermaid(defineConfig({
             { text: 'Unifiedvoiceusercard', link: '/components/voice/unifiedvoiceusercard' },
             { text: 'Voicechannelparticipants', link: '/components/voice/voicechannelparticipants' },
             { text: 'Voicechanneluserlist', link: '/components/voice/voicechanneluserlist' },
-            { text: 'Voicesettingspanel', link: '/components/voice/voicesettingspanel' }
+            { text: 'Voicesettingspanel', link: '/components/voice/voicesettingspanel' },
+            { text: 'Voiceusercontextmenu', link: '/components/voice/voiceusercontextmenu' }
           ]
         },
         {
@@ -489,6 +535,7 @@ export default withMermaid(defineConfig({
             { text: 'Languagesettings', link: '/components/settings/user/languagesettings' },
             { text: 'Notificationsettings', link: '/components/settings/user/notificationsettings' },
             { text: 'Privacysettings', link: '/components/settings/user/privacysettings' },
+            { text: 'Rolemanagement', link: '/components/settings/rolemanagement' },
             { text: 'Serveradvancedsettings', link: '/components/settings/serveradvancedsettings' },
             { text: 'Serverbasicinfo', link: '/components/settings/serverbasicinfo' },
             { text: 'Serverbotssettings', link: '/components/settings/serverbotssettings' },
@@ -522,6 +569,7 @@ export default withMermaid(defineConfig({
             { text: 'Codeblock', link: '/components/common/codeblock' },
             { text: 'Cog', link: '/components/icons/cog' },
             { text: 'Colorpicker', link: '/components/common/colorpicker' },
+            { text: 'Confettieffect', link: '/components/easteregg/confettieffect' },
             { text: 'Copy', link: '/components/icons/copy' },
             { text: 'Declineicon', link: '/components/icons/declineicon' },
             { text: 'Delete', link: '/components/icons/delete' },
@@ -556,6 +604,7 @@ export default withMermaid(defineConfig({
             { text: 'Notificationitem', link: '/components/notificationitem' },
             { text: 'Notificationtoast', link: '/components/notificationtoast' },
             { text: 'Palette', link: '/components/icons/palette' },
+            { text: 'Performancemonitoring', link: '/components/admin/performancemonitoring' },
             { text: 'Persistentvoiceconnection', link: '/components/persistentvoiceconnection' },
             { text: 'Plus', link: '/components/icons/plus' },
             { text: 'Postdetaildisplay', link: '/components/common/postdetaildisplay' },
@@ -575,8 +624,13 @@ export default withMermaid(defineConfig({
             { text: 'Shield', link: '/components/icons/shield' },
             { text: 'Spacetimegrid', link: '/components/spacetimegrid' },
             { text: 'Speaker', link: '/components/icons/speaker' },
+            { text: 'Statuspicker', link: '/components/statuspicker' },
+            { text: 'Thread', link: '/components/icons/thread' },
+            { text: 'Threadindicator', link: '/components/threads/threadindicator' },
+            { text: 'Threadview', link: '/components/threads/threadview' },
             { text: 'Toggleswitch', link: '/components/common/toggleswitch' },
             { text: 'Trash', link: '/components/icons/trash' },
+            { text: 'Typingindicator', link: '/components/typingindicator' },
             { text: 'Unifiedbutton', link: '/components/shared/unifiedbutton' },
             { text: 'Unifiedcontentarea', link: '/components/common/unifiedcontentarea' },
             { text: 'Unifiedcontentrenderer', link: '/components/unifiedcontentrenderer' },

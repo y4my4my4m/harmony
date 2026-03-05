@@ -126,6 +126,7 @@ No description available.
 - `inFlightRequests`
 - `PROFILE_CACHE_TTL`
 - `minutes`
+- `string`
 - `entry`
 - `null`
 - `now`
@@ -162,7 +163,7 @@ No description available.
 - `federatedCount`
 - `timeline`
 - `about`
-- `data`
+- `user`
 - `p_user_id`
 - `p_limit`
 - `p_max_id`
@@ -208,6 +209,7 @@ No description available.
 - `thread`
 - `reply_context`
 - `pagination`
+- `data`
 - `format`
 - `replies`
 - `METHODS`
@@ -241,7 +243,6 @@ No description available.
 - `is_deleted`
 - `deleted_at`
 - `triggers`
-- `user`
 - `ap_id`
 - `follower_id`
 - `following_id`
@@ -430,7 +431,6 @@ No description available.
 - `utility`
 - `batch`
 - `processedContent`
-- `string`
 - `parsed`
 - `text`
 - `information`
@@ -472,8 +472,8 @@ interface InFlightRequest {
 
 ## Source Code Insights
 
-**File Size:** 88487 characters
-**Lines of Code:** 2841
+**File Size:** 88859 characters
+**Lines of Code:** 2846
 **Imports:** 4
 
 ## Usage Example

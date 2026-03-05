@@ -9,12 +9,14 @@ graph TB
     subgraph "DMCallSignaling Service"
         CALLSIGNAL[CallSignal]
         ACTIVECALL[ActiveCall]
+        FEDERATEDCALLINFO[FederatedCallInfo]
         DMCALLSIGNALING[dmCallSignaling]
     end
     
     subgraph "Interfaces"
         INT_CALLSIGNAL[CallSignal]
         INT_ACTIVECALL[ActiveCall]
+        INT_FEDERATEDCALLINFO[FederatedCallInfo]
     end
     
     subgraph "Classes"
@@ -27,6 +29,7 @@ graph TB
 
 - **CallSignal** - interface export
 - **ActiveCall** - interface export
+- **FederatedCallInfo** - interface export
 - **dmCallSignaling** - const export
 
 
@@ -50,6 +53,13 @@ No description available.
 - `getActiveCall`
 - `hasActiveCall`
 - `getCallParticipants`
+- `initiateFederatedCall`
+- `catch`
+- `acceptFederatedCall`
+- `declineFederatedCall`
+- `endFederatedCall`
+- `handleFederatedCallTimeout`
+- `isFederatedCall`
 - `cleanup`
 
 **Properties:**
@@ -90,6 +100,45 @@ No description available.
 - `caller`
 - `exists`
 - `calls`
+- `METHODS`
+- `Realtime`
+- `callerFederatedId`
+- `calleeFederatedId`
+- `to`
+- `backend`
+- `configResponse`
+- `config`
+- `null`
+- `roomName`
+- `room`
+- `data`
+- `tokenResponse`
+- `method`
+- `headers`
+- `body`
+- `roomType`
+- `ActivityPub`
+- `inviteResponse`
+- `livekitUrl`
+- `callInfo`
+- `callerInstanceUrl`
+- `isFederated`
+- `token`
+- `wsUrl`
+- `instance`
+- `info`
+- `otherParticipantFederatedId`
+- `ringing`
+- `onIncomingCall`
+- `callId`
+- `callerName`
+- `callerAvatar`
+- `accepted`
+- `state`
+- `rejected`
+- `ended`
+- `federated`
+- `false`
 - `timers`
 
 
@@ -108,6 +157,11 @@ interface CallSignal {
   timestamp: number
   conversationId: string
   reason?: 'timeout' | 'busy' | 'blocked' | 'dnd' // Decline/busy reasons
+  // Federated call fields
+  isFederated?: boolean
+  callerFederatedId?: string
+  livekitUrl?: string
+  roomName?: string
 
 }
 ```
@@ -126,6 +180,28 @@ interface ActiveCall {
   participants: string[] // user IDs currently in call
   startedAt: Date
   timeoutTimer?: number // Timer ID for call timeout
+  // Federated call fields
+  isFederated?: boolean
+  callerFederatedId?: string
+  calleeFederatedId?: string
+  livekitUrl?: string
+  roomName?: string
+
+}
+```
+
+### FederatedCallInfo
+
+No description available.
+
+```typescript
+interface FederatedCallInfo {
+
+  callerFederatedId: string
+  calleeFederatedId: string
+  callerInstanceUrl: string
+  livekitUrl: string
+  roomName: string
 
 }
 ```
@@ -139,14 +215,14 @@ interface ActiveCall {
 
 ## Source Code Insights
 
-**File Size:** 10889 characters
-**Lines of Code:** 409
+**File Size:** 21483 characters
+**Lines of Code:** 766
 **Imports:** 3
 
 ## Usage Example
 
 ```typescript
-import { CallSignal, ActiveCall, dmCallSignaling } from '@/services/DMCallSignaling'
+import { CallSignal, ActiveCall, FederatedCallInfo, dmCallSignaling } from '@/services/DMCallSignaling'
 
 // Example usage
 // Use the exported functionality

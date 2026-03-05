@@ -47,13 +47,12 @@ No description available.
 - `switch`
 
 **Properties:**
+- `table`
 - `callerId`
 - `receiverId`
 - `conversationId`
 - `permissions`
 - `receiver`
-- `table`
-- `TODO`
 - `isBlocked`
 - `result`
 - `allowed`
@@ -61,7 +60,6 @@ No description available.
 - `message`
 - `hasBlockedReceiver`
 - `mode`
-- `later`
 - `isDND`
 - `isBusy`
 - `conversation`
@@ -116,8 +114,8 @@ interface CallPermissionCheck {
 
 ## Source Code Insights
 
-**File Size:** 8141 characters
-**Lines of Code:** 264
+**File Size:** 7585 characters
+**Lines of Code:** 258
 **Imports:** 4
 
 ## Usage Example

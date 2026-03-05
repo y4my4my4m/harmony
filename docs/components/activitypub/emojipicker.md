@@ -39,7 +39,7 @@ No description available.
 | Name | Parameters | Description |
 |------|------------|-------------|
 | `close` | unknown | No description |
-| `emojiSelected` | EmojiItem | No description |
+| `emojiSelected` | { content: string; name: string } | No description |
 
 ### Event Details
 
@@ -55,7 +55,7 @@ No description available.
 
 No description available.
 
-**Parameters:** `EmojiItem`
+**Parameters:** `{ content: string; name: string }`
 
 
 
@@ -83,7 +83,7 @@ const handleClose = (data) => {
   // Handle close event
 }
 
-const handleEmojiSelected = (EmojiItem) => {
+const handleEmojiSelected = ({ content: string; name: string }) => {
   // Handle emojiSelected event
 }
 </script>

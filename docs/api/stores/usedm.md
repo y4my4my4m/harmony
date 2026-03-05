@@ -20,6 +20,8 @@ graph TB
         FN_LOADCACHEDMESSAGES[loadCachedMessages]
         FN_ADDMESSAGETOCACHE[addMessageToCache]
         FN_UPDATEMESSAGEINCACHE[updateMessageInCache]
+        FN_REPROCESSENCRYPTEDDMMESSAGES[reprocessEncryptedDMMessages]
+        FN_SETUPENCRYPTIONKEYLISTENER[setupEncryptionKeyListener]
         FN_REMOVEMESSAGEFROMCACHE[removeMessageFromCache]
         FN_FETCHREPLYMESSAGE[fetchReplyMessage]
         FN_CHECKCACHE[checkCache]
@@ -160,6 +162,32 @@ No description available.
 
 ```typescript
 const updateMessageInCache = (messageId: string, updatedMessage: Message) =>
+```
+
+### `reprocessEncryptedDMMessages()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const reprocessEncryptedDMMessages = async () =>
+```
+
+### `setupEncryptionKeyListener()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const setupEncryptionKeyListener = () =>
 ```
 
 ### `removeMessageFromCache(messageId: string)`
@@ -776,8 +804,21 @@ No description available.
 
 ```typescript
 /**
-   * Enhanced ActivityPub federation for group DMs
-   * Handles private mentions to multiple recipients
+   * ActivityPub federation for group DMs
+   * 
+   * NOTE: Federation is handled AUTOMATICALLY by the federation-backend service.
+   * The DatabaseListener.handleNewDM() function handles:
+   * 1. Getting all conversation participants
+   * 2. Filtering to remote/federated users only
+   * 3. Creating private ActivityPub Notes with direct addressing (to: [recipient])
+   * 4. Adding proper mention tags for all participants
+   * 5. Delivering to each external participant's inbox via DeliveryQueue
+   * 6. Handling delivery failures and retries
+   * 
+   * This client-side function is for validation/logging only.
+   * The actual federation happens when a message is inserted into the messages table.
+   * 
+   * @see federation-backend/src/listeners/DatabaseListener.ts handleNewDM()
    */
   const federateGroupDMMessage = async (
     message: any,
@@ -891,8 +932,8 @@ interface DMCache {
 
 ## Source Code Insights
 
-**File Size:** 92294 characters
-**Lines of Code:** 2514
+**File Size:** 94569 characters
+**Lines of Code:** 2572
 **Imports:** 13
 
 ## Usage Example

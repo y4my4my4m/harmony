@@ -177,8 +177,8 @@ export function useViewContextTracking()
 
 ## Source Code Insights
 
-**File Size:** 5280 characters
-**Lines of Code:** 161
+**File Size:** 5867 characters
+**Lines of Code:** 175
 **Imports:** 6
 
 ## Usage Example

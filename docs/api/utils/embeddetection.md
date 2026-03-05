@@ -32,6 +32,7 @@ graph TB
         FN_ISYOUTUBEURL[isYouTubeUrl]
         FN_ISSPOTIFYURL[isSpotifyUrl]
         FN_EXTRACTYOUTUBEID[extractYouTubeId]
+        FN_PARSEYOUTUBETIME[parseYouTubeTime]
         FN_BUILDYOUTUBEEMBEDURL[buildYouTubeEmbedUrl]
         FN_BUILDSPOTIFYEMBEDURL[buildSpotifyEmbedUrl]
     end
@@ -185,6 +186,23 @@ No description available.
 export function extractYouTubeId(url: URL): string | null
 ```
 
+### `parseYouTubeTime(url: URL)`
+
+No description available.
+
+**Parameters:**
+- `url: URL`
+
+**Returns:** `number | null`
+
+```typescript
+/**
+ * Parse YouTube time parameter to seconds.
+ * Handles: ?t=90, ?t=1m30s, ?t=1h2m30s, &t=90, youtu.be/id?t=90
+ */
+function parseYouTubeTime(url: URL): number | null
+```
+
 ### `buildYouTubeEmbedUrl(url: URL)`
 
 No description available.
@@ -224,8 +242,8 @@ export function buildSpotifyEmbedUrl(url: URL): string | null
 
 ## Source Code Insights
 
-**File Size:** 4037 characters
-**Lines of Code:** 141
+**File Size:** 4897 characters
+**Lines of Code:** 167
 **Imports:** 1
 
 ## Usage Example

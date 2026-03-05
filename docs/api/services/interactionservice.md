@@ -109,6 +109,7 @@ No description available.
 - `format`
 - `transformedRequests`
 - `transformedResult`
+- `OPTIMIZED`
 - `message`
 - `code`
 - `details`
@@ -156,8 +157,8 @@ interface RelationshipInfo {
 
 ## Source Code Insights
 
-**File Size:** 13284 characters
-**Lines of Code:** 416
+**File Size:** 13188 characters
+**Lines of Code:** 412
 **Imports:** 4
 
 ## Usage Example

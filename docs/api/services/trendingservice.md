@@ -135,8 +135,9 @@ No description available.
 - `postsMap`
 - `orderedPosts`
 - `nextCursor`
+- `OPTIMIZED`
 - `users`
-- `userError`
+- `context`
 - `currentUserId`
 - `engagement`
 - `TODO`
@@ -338,8 +339,8 @@ interface ExploreFilters {
 
 ## Source Code Insights
 
-**File Size:** 24236 characters
-**Lines of Code:** 763
+**File Size:** 24520 characters
+**Lines of Code:** 764
 **Imports:** 3
 
 ## Usage Example

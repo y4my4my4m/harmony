@@ -66,11 +66,16 @@ No description available.
 - `Conversation`
 - `editMessage`
 - `deleteMessage`
+- `isValidUUID`
 - `toggleReaction`
 - `getMessageReactions`
 - `getBatchMessageReactions`
 - `populateReactionsStoreCache`
 - `loadChannelMessages`
+- `loadRemoteChannelMessages`
+- `loadCachedRemoteMessages`
+- `parseRemoteContent`
+- `input`
 - `loadConversationMessages`
 - `loadMessage`
 - `getCurrentUserProfileId`
@@ -129,20 +134,30 @@ No description available.
 - `Megolm`
 - `supabase`
 - `is_deleted`
+- `UUID`
+- `4122`
+- `uuidRegex`
 - `lookup`
+- `emojis`
 - `messageId`
 - `emojiId`
 - `added`
 - `hadRaceCondition`
 - `profileId`
+- `isNativeEmoji`
 - `Core`
-- `exists`
+- `type`
+- `existingReactionQuery`
+- `deleteQuery`
+- `custom_emoji_content`
+- `reactionData`
 - `message_id`
-- `reaction`
-- `emoji_id`
 - `condition`
+- `above`
+- `raceCheckQuery`
 - `SIMPLIFIED`
 - `transformedReactions`
+- `emoji_id`
 - `emoji`
 - `id`
 - `name`
@@ -161,13 +176,19 @@ No description available.
 - `reactionsStore`
 - `cache`
 - `functionality`
+- `pagination`
+- `channels`
 - `NOTE`
 - `options`
 - `limit`
 - `before`
 - `after`
 - `signal`
+- `server`
+- `isRemoteChannel`
+- `remote`
 - `query`
+- `view`
 - `ascending`
 - `messages`
 - `messageList`
@@ -177,6 +198,46 @@ No description available.
 - `reactionsByMessage`
 - `seamlessly`
 - `decryptedMessages`
+- `backend`
+- `params`
+- `response`
+- `headers`
+- `remoteMessages`
+- `format`
+- `created_at`
+- `updated_at`
+- `author`
+- `display`
+- `hasReactionsFromResponse`
+- `them`
+- `needed`
+- `is_native`
+- `empty`
+- `elements`
+- `result`
+- `processedContent`
+- `newlines`
+- `formats`
+- `src`
+- `alt`
+- `imgRegex`
+- `srcMatch`
+- `isEmoji`
+- `attributes`
+- `altMatch`
+- `titleMatch`
+- `dataMatch`
+- `emojiName`
+- `placeholder`
+- `the`
+- `tags`
+- `text`
+- `placeholders`
+- `delimiter`
+- `parts`
+- `Match`
+- `emojiMatch`
+- `emojiUrl`
 - `null`
 - `ID`
 - `lookups`
@@ -224,8 +285,8 @@ interface CoreMessageServiceError {
 
 ## Source Code Insights
 
-**File Size:** 30926 characters
-**Lines of Code:** 850
+**File Size:** 42908 characters
+**Lines of Code:** 1174
 **Imports:** 5
 
 ## Usage Example

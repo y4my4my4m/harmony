@@ -42,14 +42,23 @@ const fetchPromise = (async () =>
 
 
 
+## Constants
+
+### MAX_CATEGORIES_PER_SERVER
+
+No description available.
+
+```typescript
+const MAX_CATEGORIES_PER_SERVER = 25
+```
 
 
 
 
 ## Source Code Insights
 
-**File Size:** 78931 characters
-**Lines of Code:** 2157
+**File Size:** 98954 characters
+**Lines of Code:** 2697
 **Imports:** 9
 
 ## Usage Example

@@ -11,10 +11,6 @@ graph TB
         SPATIALAUDIOSERVICE[spatialAudioService]
     end
     
-    subgraph "Functions"
-        FN_UPDATELOOP[updateLoop]
-    end
-    
     subgraph "Interfaces"
         INT_SPATIALAUDIONODE[SpatialAudioNode]
         INT_IMPULSERESPONSECACHE[ImpulseResponseCache]
@@ -31,20 +27,6 @@ graph TB
 - **SpatialAudioService** - class export
 - **spatialAudioService** - const export
 
-## Functions
-
-### `updateLoop()`
-
-No description available.
-
-**Parameters:**
-None
-
-**Returns:** `Unknown`
-
-```typescript
-const updateLoop = () =>
-```
 
 
 ## Classes
@@ -135,6 +117,10 @@ No description available.
 - `tracks`
 - `audioTracks`
 - `exists`
+- `debugging`
+- `id`
+- `live`
+- `liveTracks`
 - `source`
 - `effect`
 - `channelCount`
@@ -155,6 +141,7 @@ No description available.
 - `isConnected`
 - `lastGain`
 - `lastPanning`
+- `audioContextState`
 - `hasReverb`
 - `pannerType`
 - `effects`
@@ -222,11 +209,8 @@ No description available.
 - `audioY`
 - `level`
 - `audioZ`
-- `angleDegrees`
 - `recalculation`
 - `store`
-- `running`
-- `updateLoop`
 - `null`
 - `CREATION`
 - `capabilities`
@@ -289,9 +273,9 @@ No description available.
 - `status`
 - `isEnabled`
 - `activeUsers`
-- `audioContextState`
 - `State`
 - `Initialized`
+- `running`
 - `Connected`
 - `value`
 - `type`
@@ -354,8 +338,8 @@ interface ImpulseResponseCache {
 
 ## Source Code Insights
 
-**File Size:** 42022 characters
-**Lines of Code:** 1162
+**File Size:** 42940 characters
+**Lines of Code:** 1177
 **Imports:** 2
 
 ## Usage Example
@@ -364,7 +348,7 @@ interface ImpulseResponseCache {
 import { SpatialAudioService, spatialAudioService } from '@/services/spatialAudio'
 
 // Example usage
-updateLoop()
+// Use the exported functionality
 ```
 
 ---

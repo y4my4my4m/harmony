@@ -26,6 +26,7 @@ graph TB
 | `isLoading` | `boolean` | `false` | ❌ | No description |
 | `channelId` | `string` | `undefined` | ❌ | No description |
 | `conversationId` | `string` | `undefined` | ❌ | No description |
+| `hideThreadActions` | `boolean` | `false` | ❌ | No description |
 
 ### Props Details
 
@@ -99,6 +100,16 @@ No description available.
 
 
 
+#### `hideThreadActions`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
 
 ## Events
 
@@ -109,6 +120,8 @@ No description available.
 | `sendReaction` | unknown | No description |
 | `replyingTo` | unknown | No description |
 | `update:isAtBottom` | unknown | No description |
+| `createThread` | unknown | No description |
+| `showAllThreads` | unknown | No description |
 
 ### Event Details
 
@@ -152,6 +165,22 @@ No description available.
 
 
 
+#### `createThread`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `showAllThreads`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -171,7 +200,9 @@ This component exposes no public methods.
     @toggleEmojiList="handleToggleEmojiList"
     @sendReaction="handleSendReaction"
     @replyingTo="handleReplyingTo"
-    @update:isAtBottom="handleUpdate:isAtBottom" />
+    @update:isAtBottom="handleUpdate:isAtBottom"
+    @createThread="handleCreateThread"
+    @showAllThreads="handleShowAllThreads" />
 </template>
 
 <script setup lang="ts">
@@ -193,6 +224,14 @@ const handleReplyingTo = (data) => {
 
 const handleUpdate:isAtBottom = (data) => {
   // Handle update:isAtBottom event
+}
+
+const handleCreateThread = (data) => {
+  // Handle createThread event
+}
+
+const handleShowAllThreads = (data) => {
+  // Handle showAllThreads event
 }
 </script>
 ```

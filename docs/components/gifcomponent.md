@@ -84,6 +84,7 @@ No description available.
 |------|------------|-------------|
 | `sendGif` | Gif | No description |
 | `resetGifIconClicked` | unknown | No description |
+| `switchToEmoji` | unknown | No description |
 
 ### Event Details
 
@@ -96,6 +97,14 @@ No description available.
 
 
 #### `resetGifIconClicked`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `switchToEmoji`
 
 No description available.
 
@@ -119,7 +128,8 @@ This component exposes no public methods.
   <GifComponent
     
     @sendGif="handleSendGif"
-    @resetGifIconClicked="handleResetGifIconClicked" />
+    @resetGifIconClicked="handleResetGifIconClicked"
+    @switchToEmoji="handleSwitchToEmoji" />
 </template>
 
 <script setup lang="ts">
@@ -129,6 +139,10 @@ const handleSendGif = (Gif) => {
 
 const handleResetGifIconClicked = (data) => {
   // Handle resetGifIconClicked event
+}
+
+const handleSwitchToEmoji = (data) => {
+  // Handle switchToEmoji event
 }
 </script>
 ```

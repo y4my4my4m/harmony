@@ -23,9 +23,18 @@ This component has no props.
 
 | Name | Parameters | Description |
 |------|------------|-------------|
+| `joinByUrl` | unknown | No description |
 | `createServer` | unknown | No description |
 
 ### Event Details
+
+#### `joinByUrl`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
 
 #### `createServer`
 
@@ -49,10 +58,15 @@ This component exposes no public methods.
 ```vue
 <template>
   <PublicServersFooter
+    @joinByUrl="handleJoinByUrl"
     @createServer="handleCreateServer" />
 </template>
 
 <script setup lang="ts">
+const handleJoinByUrl = (data) => {
+  // Handle joinByUrl event
+}
+
 const handleCreateServer = (data) => {
   // Handle createServer event
 }

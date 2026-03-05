@@ -14,6 +14,9 @@ graph TB
         FN_TOGGLESIDEBAR[toggleSidebar]
         FN_CLOSESIDEBAR[closeSidebar]
         FN_HANDLESIDEBARSWIPE[handleSidebarSwipe]
+        FN_ONSETTINGSTOUCHSTART[onSettingsTouchStart]
+        FN_ONSETTINGSTOUCHMOVE[onSettingsTouchMove]
+        FN_ONSETTINGSTOUCHEND[onSettingsTouchEnd]
         FN_SETACTIVESECTION[setActiveSection]
         FN_CLOSESETTINGS[closeSettings]
         FN_HANDLELOGOUT[handleLogout]
@@ -89,6 +92,45 @@ None
 
 ```typescript
 const handleSidebarSwipe = () =>
+```
+
+### `onSettingsTouchStart(event: TouchEvent)`
+
+No description available.
+
+**Parameters:**
+- `event: TouchEvent`
+
+**Returns:** `Unknown`
+
+```typescript
+const onSettingsTouchStart = (event: TouchEvent) =>
+```
+
+### `onSettingsTouchMove(event: TouchEvent)`
+
+No description available.
+
+**Parameters:**
+- `event: TouchEvent`
+
+**Returns:** `Unknown`
+
+```typescript
+const onSettingsTouchMove = (event: TouchEvent) =>
+```
+
+### `onSettingsTouchEnd(event: TouchEvent)`
+
+No description available.
+
+**Parameters:**
+- `event: TouchEvent`
+
+**Returns:** `Unknown`
+
+```typescript
+const onSettingsTouchEnd = (event: TouchEvent) =>
 ```
 
 ### `setActiveSection(sectionId: string)`
@@ -293,9 +335,9 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 23755 characters
-**Lines of Code:** 899
-**Imports:** 35
+**File Size:** 25470 characters
+**Lines of Code:** 944
+**Imports:** 36
 
 ## Usage Example
 

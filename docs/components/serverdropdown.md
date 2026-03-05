@@ -53,6 +53,7 @@ No description available.
 | `showCategoryCreator` | boolean | No description |
 | `createChannel` | string | No description |
 | `openInviteModal` | unknown | No description |
+| `serverLeft` | unknown | No description |
 
 ### Event Details
 
@@ -88,6 +89,14 @@ No description available.
 
 
 
+#### `serverLeft`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -106,7 +115,8 @@ This component exposes no public methods.
     @toggle="handleToggle"
     @showCategoryCreator="handleShowCategoryCreator"
     @createChannel="handleCreateChannel"
-    @openInviteModal="handleOpenInviteModal" />
+    @openInviteModal="handleOpenInviteModal"
+    @serverLeft="handleServerLeft" />
 </template>
 
 <script setup lang="ts">
@@ -124,6 +134,10 @@ const handleCreateChannel = (string) => {
 
 const handleOpenInviteModal = (data) => {
   // Handle openInviteModal event
+}
+
+const handleServerLeft = (data) => {
+  // Handle serverLeft event
 }
 </script>
 ```

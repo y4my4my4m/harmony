@@ -63,6 +63,7 @@ No description available.
 - `true`
 - `data`
 - `ID`
+- `profile`
 - `exists`
 - `authUser`
 - `profileId`
@@ -77,9 +78,9 @@ No description available.
 - `cache`
 - `changes`
 - `state`
+- `in`
 - `newUserId`
 - `cachedUserId`
-- `spam`
 - `etc`
 - `is`
 - `methods`
@@ -124,8 +125,8 @@ interface UnauthenticatedContext {
 
 ## Source Code Insights
 
-**File Size:** 6019 characters
-**Lines of Code:** 214
+**File Size:** 6388 characters
+**Lines of Code:** 222
 **Imports:** 3
 
 ## Usage Example

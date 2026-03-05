@@ -62,8 +62,8 @@ import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
-// Get federation backend URL from environment
-const FEDERATION_BACKEND_URL = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation'
+// Federation backend base path (proxied via nginx)
+const FEDERATION_BACKEND_URL = '/api/federation'
 
 // Push notification state (shared across all composable instances)
 const isSupported = ref(false)
@@ -283,6 +283,7 @@ None
 /**
  * Initialize push notification system
  * Safe to call multiple times - will only initialize once
+ * Only fetches VAPID key if running as PWA or user has existing subscription
  */
 async function initialize(): Promise<void>
 ```
@@ -336,7 +337,7 @@ interface PushSubscriptionInfo {
 No description available.
 
 ```typescript
-const FEDERATION_BACKEND_URL = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/api/federation'
+const FEDERATION_BACKEND_URL = '/api/federation'
 ```
 
 
@@ -344,8 +345,8 @@ const FEDERATION_BACKEND_URL = import.meta.env.VITE_FEDERATION_BACKEND_URL || '/
 
 ## Source Code Insights
 
-**File Size:** 13514 characters
-**Lines of Code:** 497
+**File Size:** 14188 characters
+**Lines of Code:** 514
 **Imports:** 3
 
 ## Usage Example

@@ -29,6 +29,7 @@ graph TB
 | `interactive` | `boolean` | `false` | ❌ | No description |
 | `loading` | `boolean` | `false` | ❌ | No description |
 | `shape` | `ImageShape` | `'rounded'` | ❌ | No description |
+| `showTitle` | `boolean` | `true` | ❌ | No description |
 
 ### Props Details
 
@@ -129,6 +130,16 @@ No description available.
 - **Type:** `ImageShape`
 - **Required:** No
 - **Default:** `'rounded'`
+
+
+
+#### `showTitle`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `true`
 
 
 

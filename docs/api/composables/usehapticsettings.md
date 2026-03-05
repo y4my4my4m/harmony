@@ -45,6 +45,7 @@ None
 import { ref, watch } from 'vue'
 import { hapticManager, type HapticPattern } from '@/utils/hapticFeedback'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 
 // Shared state across all composable instances
 const isEnabled = ref(true)
@@ -132,9 +133,9 @@ export function useHapticSettings()
 
 ## Source Code Insights
 
-**File Size:** 3600 characters
-**Lines of Code:** 115
-**Imports:** 3
+**File Size:** 3620 characters
+**Lines of Code:** 116
+**Imports:** 4
 
 ## Usage Example
 

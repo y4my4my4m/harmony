@@ -199,7 +199,7 @@ interface ApplicationState {
 No description available.
 
 ```typescript
-const STORAGE_KEY = 'harmony-app-state'
+const STORAGE_KEY = 'app-state' // Will be prefixed with user ID by userStorage
 ```
 
 ### STATE_VERSION
@@ -231,9 +231,9 @@ const DEFAULT_APP_STATE: ApplicationState = {
 
 ## Source Code Insights
 
-**File Size:** 14644 characters
-**Lines of Code:** 534
-**Imports:** 1
+**File Size:** 14735 characters
+**Lines of Code:** 535
+**Imports:** 2
 
 ## Usage Example
 

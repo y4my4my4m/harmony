@@ -12,6 +12,7 @@ graph TB
     
     subgraph "Functions"
         FN_CHECKCACHE[checkCache]
+        FN_HANDLER[handler]
     end
 ```
 
@@ -35,6 +36,19 @@ None
 const checkCache = () =>
 ```
 
+### `handler()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const handler = async () =>
+```
+
 
 
 
@@ -48,8 +62,8 @@ const checkCache = () =>
 
 ## Source Code Insights
 
-**File Size:** 38632 characters
-**Lines of Code:** 1009
+**File Size:** 40211 characters
+**Lines of Code:** 1048
 **Imports:** 10
 
 ## Usage Example

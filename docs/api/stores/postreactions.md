@@ -238,8 +238,8 @@ interface PostReactionGroup {
 
 ## Source Code Insights
 
-**File Size:** 14015 characters
-**Lines of Code:** 403
+**File Size:** 14309 characters
+**Lines of Code:** 408
 **Imports:** 4
 
 ## Usage Example

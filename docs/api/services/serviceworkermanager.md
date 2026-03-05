@@ -71,7 +71,6 @@ No description available.
 - `detail`
 - `skipWaiting`
 - `type`
-- `resources`
 - `true`
 - `permission`
 - `null`
@@ -129,8 +128,8 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 12235 characters
-**Lines of Code:** 429
+**File Size:** 12344 characters
+**Lines of Code:** 431
 **Imports:** 1
 
 ## Usage Example

@@ -24,15 +24,24 @@ graph TB
 
 
 
+## Constants
+
+### PROFILE_EXEMPT_ROUTES
+
+No description available.
+
+```typescript
+const PROFILE_EXEMPT_ROUTES = new Set([
+```
 
 
 
 
 ## Source Code Insights
 
-**File Size:** 10977 characters
-**Lines of Code:** 375
-**Imports:** 6
+**File Size:** 11799 characters
+**Lines of Code:** 403
+**Imports:** 5
 
 ## Usage Example
 

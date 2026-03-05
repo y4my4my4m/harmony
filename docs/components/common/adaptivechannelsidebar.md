@@ -28,7 +28,7 @@ graph TB
 | `isDM` | `boolean` | `false` | ❌ | No description |
 | `followingCount` | `number` | `0` | ❌ | No description |
 | `followersCount` | `number` | `0` | ❌ | No description |
-| `instanceDomain` | `string` | `'har.mony.lol'` | ❌ | No description |
+| `instanceDomain` | `string` | `import.meta.env.VITE_DOMAIN as string` | ❌ | No description |
 | `instanceUserCount` | `number` | `0` | ❌ | No description |
 | `instancePostCount` | `number` | `0` | ❌ | No description |
 
@@ -130,7 +130,7 @@ No description available.
 
 - **Type:** `string`
 - **Required:** No
-- **Default:** `'har.mony.lol'`
+- **Default:** `import.meta.env.VITE_DOMAIN as string`
 
 
 
@@ -161,9 +161,9 @@ No description available.
 |------|------------|-------------|
 | `channel-selected` | string | No description |
 | `create-channel` | string | No description |
-| `switch-mode` | union | No description |
 | `conversation-selected` | string | No description |
 | `profile-click` | unknown | No description |
+| `switch-mode` | union | No description |
 | `compose-post` | unknown | No description |
 
 ### Event Details
@@ -184,14 +184,6 @@ No description available.
 
 
 
-#### `switch-mode`
-
-No description available.
-
-**Parameters:** `union`
-
-
-
 #### `conversation-selected`
 
 No description available.
@@ -205,6 +197,14 @@ No description available.
 No description available.
 
 **Parameters:** `unknown`
+
+
+
+#### `switch-mode`
+
+No description available.
+
+**Parameters:** `union`
 
 
 
@@ -236,9 +236,9 @@ This component exposes no public methods.
     :categoryChannels="() => ({})"
     @channel-selected="handleChannel-selected"
     @create-channel="handleCreate-channel"
-    @switch-mode="handleSwitch-mode"
     @conversation-selected="handleConversation-selected"
     @profile-click="handleProfile-click"
+    @switch-mode="handleSwitch-mode"
     @compose-post="handleCompose-post" />
 </template>
 
@@ -251,16 +251,16 @@ const handleCreate-channel = (string) => {
   // Handle create-channel event
 }
 
-const handleSwitch-mode = (union) => {
-  // Handle switch-mode event
-}
-
 const handleConversation-selected = (string) => {
   // Handle conversation-selected event
 }
 
 const handleProfile-click = (data) => {
   // Handle profile-click event
+}
+
+const handleSwitch-mode = (union) => {
+  // Handle switch-mode event
 }
 
 const handleCompose-post = (data) => {

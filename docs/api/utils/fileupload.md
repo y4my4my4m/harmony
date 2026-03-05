@@ -11,12 +11,14 @@ graph TB
         UPLOADFILE[uploadFile]
         UPLOADAVATAR[uploadAvatar]
         UPLOADSERVERICON[uploadServerIcon]
+        DOWNLOADANDUPLOADIMAGE[downloadAndUploadImage]
         DELETEFILE[deleteFile]
     end
     
     subgraph "Functions"
         FN_UPLOADFILE[uploadFile]
         FN_UPLOADSERVERICON[uploadServerIcon]
+        FN_DOWNLOADANDUPLOADIMAGE[downloadAndUploadImage]
         FN_DELETEFILE[deleteFile]
     end
     
@@ -32,6 +34,7 @@ graph TB
 - **uploadFile** - function export
 - **uploadAvatar** - function export
 - **uploadServerIcon** - function export
+- **downloadAndUploadImage** - function export
 - **deleteFile** - function export
 
 ## Functions
@@ -101,6 +104,32 @@ export async function uploadAvatar(file: File, userId: string): Promise<UploadRe
 export async function uploadServerIcon(file: File, serverId: string): Promise<UploadResult>
 ```
 
+### `downloadAndUploadImage(imageUrl: string, userId: string, type: 'avatar' | 'banner' = 'avatar')`
+
+No description available.
+
+**Parameters:**
+- `imageUrl: string`
+- `userId: string`
+- `type: 'avatar' | 'banner' = 'avatar'`
+
+**Returns:** `Promise&lt;UploadResult&gt;`
+
+```typescript
+/**
+ * Download an image from a URL and upload it to Supabase storage
+ * @param imageUrl The URL of the image to download
+ * @param userId The user ID
+ * @param type 'avatar' or 'banner'
+ * @returns Promise<UploadResult>
+ */
+export async function downloadAndUploadImage(
+  imageUrl: string,
+  userId: string,
+  type: 'avatar' | 'banner' = 'avatar'
+): Promise<UploadResult>
+```
+
 ### `deleteFile(bucket: string, path: string)`
 
 No description available.
@@ -150,14 +179,14 @@ interface UploadResult {
 
 ## Source Code Insights
 
-**File Size:** 3394 characters
-**Lines of Code:** 134
+**File Size:** 5500 characters
+**Lines of Code:** 199
 **Imports:** 2
 
 ## Usage Example
 
 ```typescript
-import { UploadResult, uploadFile, uploadAvatar, uploadServerIcon, deleteFile } from '@/utils/fileUpload'
+import { UploadResult, uploadFile, uploadAvatar, uploadServerIcon, downloadAndUploadImage, deleteFile } from '@/utils/fileUpload'
 
 // Example usage
 uploadFile()

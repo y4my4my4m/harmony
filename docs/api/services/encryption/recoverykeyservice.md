@@ -50,6 +50,7 @@ No description available.
 - `getEncryptionKey`
 - `getBackupKey`
 - `isLoaded`
+- `setDerivedKeys`
 - `clear`
 - `encryptForBackup`
 - `decryptFromBackup`
@@ -107,6 +108,7 @@ No description available.
 - `signingKey`
 - `null`
 - `loaded`
+- `keys`
 - `memory`
 - `ENCRYPTION`
 - `dataBytes`
@@ -182,8 +184,8 @@ const WORDLIST = [
 
 ## Source Code Insights
 
-**File Size:** 31321 characters
-**Lines of Code:** 681
+**File Size:** 31576 characters
+**Lines of Code:** 690
 **Imports:** 1
 
 ## Usage Example

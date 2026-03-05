@@ -20,18 +20,26 @@ graph TB
         FN_EXPORTLOGS[exportLogs]
         FN_BLOCKINSTANCE[blockInstance]
         FN_UNBLOCKINSTANCE[unblockInstance]
+        FN_TOGGLEMODERATOR[toggleModerator]
         FN_MODERATEUSER[moderateUser]
         FN_NAVIGATETOUSERPOSTS[navigateToUserPosts]
         FN_NAVIGATETOUSERSERVERS[navigateToUserServers]
         FN_CLOSESERVERSMODAL[closeServersModal]
         FN_NAVIGATETOSERVER[navigateToServer]
         FN_SAVECONFIG[saveConfig]
+        FN_SAVEINSTANCEBRANDING[saveInstanceBranding]
+        FN_SAVEOAUTHPROVIDERS[saveOAuthProviders]
         FN_FORMATUPTIME[formatUptime]
         FN_FORMATNUMBER[formatNumber]
         FN_FORMATDATE[formatDate]
         FN_FORMATTIME[formatTime]
         FN_GETACTIVITYICON[getActivityIcon]
         FN_REFRESHFEDERATIONDATA[refreshFederationData]
+        FN_LOADFEDERATIONSTATS[loadFederationStats]
+        FN_GETENDPOINTHEALTHCLASS[getEndpointHealthClass]
+        FN_REFRESHKEYCONSISTENCY[refreshKeyConsistency]
+        FN_RUNKEYGENERATIONSWEEP[runKeyGenerationSweep]
+        FN_RUNORPHANCLEANUP[runOrphanCleanup]
         FN_LOADINSTANCESTATS[loadInstanceStats]
         FN_LOADFEDERATEDINSTANCES[loadFederatedInstances]
         FN_DEBOUNCEDSEARCHINSTANCES[debouncedSearchInstances]
@@ -186,6 +194,19 @@ No description available.
 const unblockInstance = async (domain: string) =>
 ```
 
+### `toggleModerator(user: any)`
+
+No description available.
+
+**Parameters:**
+- `user: any`
+
+**Returns:** `Unknown`
+
+```typescript
+const toggleModerator = async (user: any) =>
+```
+
 ### `moderateUser(user: any, action: string)`
 
 No description available.
@@ -265,6 +286,32 @@ None
 const saveConfig = async () =>
 ```
 
+### `saveInstanceBranding()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const saveInstanceBranding = async () =>
+```
+
+### `saveOAuthProviders()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const saveOAuthProviders = async () =>
+```
+
 ### `formatUptime(timestamp: number)`
 
 No description available.
@@ -341,6 +388,71 @@ None
 
 ```typescript
 const refreshFederationData = async () =>
+```
+
+### `loadFederationStats()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const loadFederationStats = async () =>
+```
+
+### `getEndpointHealthClass(health: FederationStats['endpoint_health'])`
+
+No description available.
+
+**Parameters:**
+- `health: FederationStats['endpoint_health']`
+
+**Returns:** `Unknown`
+
+```typescript
+const getEndpointHealthClass = (health: FederationStats['endpoint_health']) =>
+```
+
+### `refreshKeyConsistency()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const refreshKeyConsistency = async () =>
+```
+
+### `runKeyGenerationSweep()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const runKeyGenerationSweep = async () =>
+```
+
+### `runOrphanCleanup()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
+```typescript
+const runOrphanCleanup = async () =>
 ```
 
 ### `loadInstanceStats()`
@@ -573,9 +685,9 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 69595 characters
-**Lines of Code:** 2705
-**Imports:** 9
+**File Size:** 93832 characters
+**Lines of Code:** 3419
+**Imports:** 12
 
 ## Usage Example
 

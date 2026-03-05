@@ -11,6 +11,9 @@ graph TB
     
     subgraph "Functions"
         FN_GETUSERIDSFORSERVER[getUserIdsForServer]
+        FN_FETCHPROMISE[fetchPromise]
+        FN_INVALIDATESERVERMEMBERCACHE[invalidateServerMemberCache]
+        FN_CLEARALLMEMBERCACHES[clearAllMemberCaches]
         FN_GETPROFILES[getProfiles]
         FN_GETPROFILESWITHAVATARURLS[getProfilesWithAvatarUrls]
     end
@@ -32,6 +35,51 @@ No description available.
 
 ```typescript
 const getUserIdsForServer = async (serverId: string): Promise<string[]> =>
+```
+
+### `fetchPromise(async ()`
+
+No description available.
+
+**Parameters:**
+- `async (`
+
+**Returns:** `Unknown`
+
+```typescript
+const fetchPromise = (async () =>
+```
+
+### `invalidateServerMemberCache(serverId: string)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+
+**Returns:** `void`
+
+```typescript
+/**
+ * Invalidate the member cache for a server (call when members join/leave)
+ */
+const invalidateServerMemberCache = (serverId: string): void =>
+```
+
+### `clearAllMemberCaches()`
+
+No description available.
+
+**Parameters:**
+None
+
+**Returns:** `void`
+
+```typescript
+/**
+ * Clear all member caches
+ */
+const clearAllMemberCaches = (): void =>
 ```
 
 ### `getProfiles(userIds: string[])`
@@ -67,14 +115,23 @@ const getProfilesWithAvatarUrls = async (userIds: string[]): Promise<Profile[]> 
 
 
 
+## Constants
+
+### MEMBER_CACHE_TTL
+
+No description available.
+
+```typescript
+const MEMBER_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
+```
 
 
 
 
 ## Source Code Insights
 
-**File Size:** 1616 characters
-**Lines of Code:** 49
+**File Size:** 2970 characters
+**Lines of Code:** 101
 **Imports:** 2
 
 ## Usage Example

@@ -10,13 +10,14 @@ graph TB
     end
     
     subgraph "Functions"
+        FN_FORMATREPLIESPOLICY[formatRepliesPolicy]
         FN_LOADLISTS[loadLists]
-        FN_HANDLELOADMORE[handleLoadMore]
-        FN_HANDLEREFRESH[handleRefresh]
-    end
-    
-    subgraph "Interfaces"
-        INT_PROPS[Props]
+        FN_OPENLIST[openList]
+        FN_EDITLIST[editList]
+        FN_CONFIRMDELETELIST[confirmDeleteList]
+        FN_CLOSEMODAL[closeModal]
+        FN_HANDLESUBMIT[handleSubmit]
+        FN_HANDLEDELETE[handleDelete]
     end
 ```
 
@@ -24,6 +25,19 @@ graph TB
 
 
 ## Functions
+
+### `formatRepliesPolicy(policy: string)`
+
+No description available.
+
+**Parameters:**
+- `policy: string`
+
+**Returns:** `Unknown`
+
+```typescript
+const formatRepliesPolicy = (policy: string) =>
+```
 
 ### `loadLists()`
 
@@ -38,7 +52,46 @@ None
 const loadLists = async () =>
 ```
 
-### `handleLoadMore()`
+### `openList(list: UserList)`
+
+No description available.
+
+**Parameters:**
+- `list: UserList`
+
+**Returns:** `Unknown`
+
+```typescript
+const openList = (list: UserList) =>
+```
+
+### `editList(list: UserList)`
+
+No description available.
+
+**Parameters:**
+- `list: UserList`
+
+**Returns:** `Unknown`
+
+```typescript
+const editList = (list: UserList) =>
+```
+
+### `confirmDeleteList(list: UserList)`
+
+No description available.
+
+**Parameters:**
+- `list: UserList`
+
+**Returns:** `Unknown`
+
+```typescript
+const confirmDeleteList = (list: UserList) =>
+```
+
+### `closeModal()`
 
 No description available.
 
@@ -48,10 +101,10 @@ None
 **Returns:** `Unknown`
 
 ```typescript
-const handleLoadMore = async () =>
+const closeModal = () =>
 ```
 
-### `handleRefresh()`
+### `handleSubmit()`
 
 No description available.
 
@@ -61,26 +114,25 @@ None
 **Returns:** `Unknown`
 
 ```typescript
-const handleRefresh = () =>
+const handleSubmit = async () =>
 ```
 
-
-
-
-## Interfaces
-
-### Props
+### `handleDelete()`
 
 No description available.
 
+**Parameters:**
+None
+
+**Returns:** `Unknown`
+
 ```typescript
-interface Props {
-
-  currentView: string
-  viewType: string
-
-}
+const handleDelete = async () =>
 ```
+
+
+
+
 
 
 
@@ -98,8 +150,8 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 1757 characters
-**Lines of Code:** 84
+**File Size:** 15257 characters
+**Lines of Code:** 639
 **Imports:** 4
 
 ## Usage Example
@@ -108,7 +160,7 @@ This is a Vue component file.
 import { ListsView } from '@/views/ListsView'
 
 // Example usage
-loadLists()
+formatRepliesPolicy()
 ```
 
 ---

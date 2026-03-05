@@ -50,6 +50,7 @@ No description available.
 - `toggleReblog`
 - `toggleBookmark`
 - `toggleReaction`
+- `isValidUUID`
 - `loadTimelinePosts`
 - `loadPost`
 - `getPostReactions`
@@ -78,10 +79,14 @@ No description available.
 - `bookmarked`
 - `emojiId`
 - `coreResult`
-- `response`
-- `supabase`
+- `isNativeEmoji`
+- `field`
+- `countQuery`
 - `count`
 - `added`
+- `UUID`
+- `4122`
+- `uuidRegex`
 - `timelineType`
 - `options`
 - `limit`
@@ -100,7 +105,7 @@ No description available.
 - `username`
 - `display_name`
 - `reactions`
-- `data`
+- `OPTIMIZED`
 - `message`
 - `details`
 
@@ -148,8 +153,8 @@ interface UpdatePostData {
 
 ## Source Code Insights
 
-**File Size:** 12383 characters
-**Lines of Code:** 376
+**File Size:** 12934 characters
+**Lines of Code:** 391
 **Imports:** 4
 
 ## Usage Example

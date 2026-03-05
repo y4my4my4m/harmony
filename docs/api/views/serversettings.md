@@ -237,9 +237,9 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 19690 characters
-**Lines of Code:** 808
-**Imports:** 16
+**File Size:** 19487 characters
+**Lines of Code:** 779
+**Imports:** 18
 
 ## Usage Example
 
