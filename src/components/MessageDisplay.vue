@@ -2248,6 +2248,9 @@ const closeInviteModal = () => {
 .username:hover {
   text-decoration: underline;
 }
+.username:hover .instance-badge {
+  text-decoration: none;
+}
 
 .bot-badge {
   display: inline-block;
