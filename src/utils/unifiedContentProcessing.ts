@@ -177,11 +177,13 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
       const unresolvedEmojis = Array.from(uniqueEmojiNames).filter(name => !emojiDataMap[name])
       
       if (unresolvedEmojis.length > 0) {
-        // Only try to resolve if emoji data is already loaded
-        // If not loaded, emojis will render as :shortcode: text until data loads
-        // This prevents loading 823KB of emoji data on initial page load
+        // Load emoji data on demand if not yet loaded — one-time cost (~823KB),
+        // cached for all subsequent calls
+        if (!unifiedEmojiLoaded.value) {
+          await loadEmojiData()
+        }
+
         if (unifiedEmojiLoaded.value) {
-          // Emoji data is already loaded, try to resolve
           for (const emojiName of unresolvedEmojis) {
             // Try to resolve from unified emoji service
             const resolved = resolveEmoji(emojiName);
@@ -207,11 +209,6 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
             }
           }
         }
-        // If emoji data is not loaded, don't add to map - will render as :shortcode: text
-        // Emoji data will load lazily when:
-        // - User opens emoji picker
-        // - User searches for emojis
-        // - Component explicitly needs emoji resolution (and triggers load)
       }
     }
   } catch (error) {

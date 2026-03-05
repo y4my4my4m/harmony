@@ -1130,6 +1130,15 @@ show_summary() {
 
     printf "  ${DIM}For the full manual guide: docs/HOW_TO_SELF_HOST.md${RESET}\n"
     echo ""
+
+    if [[ "$MODE" == "production" ]]; then
+        printf "  ${BOLD}Status Page (recommended)${RESET}\n"
+        echo ""
+        printf "    Deploy OpenStatus on a ${BOLD}separate VPS${RESET} so users can check\n"
+        printf "    your instance status even when this server is down.\n"
+        printf "    See: ${CYAN}docs/OPENSTATUS_SETUP.md${RESET}\n"
+        echo ""
+    fi
 }
 
 # ---------------------------------------------------------------------------

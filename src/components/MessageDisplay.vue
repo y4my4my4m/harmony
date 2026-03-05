@@ -182,6 +182,14 @@
                 {{ getAuthorDisplayName(item.message).value }}
                 <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
+                <span v-if="isInstanceAdmin(item.message)" class="instance-badge admin" title="Instance Admin">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  ADMIN
+                </span>
+                <span v-else-if="isInstanceModerator(item.message)" class="instance-badge mod" title="Instance Moderator">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  MOD
+                </span>
               </span>
               <span class="timestamp">
                 {{ formatTimestamp(item.message.created_at) }}
@@ -413,7 +421,7 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
-import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
+import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
 
@@ -811,6 +819,20 @@ const hasDiscordUserMetadata = (message: Message): boolean => {
 // Helper function to get Discord user info from metadata
 const getDiscordUserInfo = (message: Message): { username: string; display_name: string; avatar_url: string } | null => {
   return message.metadata?.discord_user || null;
+};
+
+const isInstanceAdmin = (message: Message): boolean => {
+  const userId = message.user_id;
+  if (!userId) return false;
+  const profile = getUserProfile(userId).value;
+  return profile?.is_admin === true;
+};
+
+const isInstanceModerator = (message: Message): boolean => {
+  const userId = message.user_id;
+  if (!userId) return false;
+  const profile = getUserProfile(userId).value;
+  return profile?.is_moderator === true && !profile?.is_admin;
 };
 
 // Helper functions for bot display
@@ -1721,9 +1743,9 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     return;
   }
   try {
-    // Use unified content parsing system for consistency
     const userDataMap = await resolveMentionsUserData(textContent);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap);
+    const emojiDataMap = await resolveEmojisData(textContent);
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap);
     
     await chatStore.editMessage(messageId, parsedContent);
     cancelEdit();
@@ -2242,6 +2264,28 @@ const closeInviteModal = () => {
 
 .bot-badge.discord {
   background: #7289DA;
+}
+
+.instance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.3rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+}
+
+.instance-badge.admin {
+  background: linear-gradient(135deg, #d4a017, #b8860b);
+  color: #fff;
+}
+
+.instance-badge.mod {
+  background: linear-gradient(135deg, #2b9e8f, #1a7a6d);
+  color: #fff;
 }
 
 .timestamp {

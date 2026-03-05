@@ -198,6 +198,7 @@ import EmojiPopup from '@/components/EmojiPopup.vue'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
+import { useDraftsStore } from '@/stores/drafts'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { recordEmojiUsage } from '@/services/emojiService'
 import { debug } from '@/utils/debug'
@@ -229,6 +230,7 @@ const {
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
+const draftsStore = useDraftsStore()
 
 // Current user ID for MessageDisplay
 const currentUserId = computed(() => authStore.session?.user?.id)
@@ -278,6 +280,25 @@ const joining = ref(false)
 const showOptions = ref(false)
 const messageText = ref('')
 const sending = ref(false)
+
+// Draft persistence for threads
+const threadDraftKey = computed(() => {
+  const id = props.threadId || props.initialThread?.id
+  return id ? draftsStore.makeKey('thread', id) : null
+})
+
+watch(threadDraftKey, (newKey, oldKey) => {
+  if (oldKey && messageText.value.trim()) {
+    draftsStore.saveDraft(oldKey, messageText.value)
+  }
+  messageText.value = newKey ? draftsStore.getDraft(newKey) : ''
+}, { immediate: true })
+
+watch(messageText, (val) => {
+  if (threadDraftKey.value) {
+    draftsStore.saveDraft(threadDraftKey.value, val)
+  }
+})
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 
@@ -533,8 +554,8 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       messages.value.push(newMessage)
       // Update cache
       threadService.addMessageToCache(targetThreadId, newMessage)
-      messageText.value = '' // Clear the input
-      // Clear reply state
+      messageText.value = ''
+      if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
       // Scroll to bottom

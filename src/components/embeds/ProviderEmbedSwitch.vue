@@ -185,12 +185,27 @@ function setupYouTubePlayer() {
   // Listen for YouTube Player API messages
   window.addEventListener('message', handleYouTubeMessage);
   
+  // Subscribe to YouTube player events immediately
+  sendListeningEvent();
+  
   // Register video for floating (if messageId is provided)
   if (props.messageId) {
     const originalParent = youtubeContainer.value.parentElement as HTMLElement;
     if (originalParent) {
       registerVideo(youtubeContainer.value, originalParent, props.messageId, 'youtube');
     }
+  }
+}
+
+function sendListeningEvent() {
+  if (youtubeIframe.value?.contentWindow) {
+    youtubeIframe.value.contentWindow.postMessage(
+      JSON.stringify({
+        event: 'listening',
+        id: youtubeIframe.value.id || 'ytplayer'
+      }),
+      '*'
+    );
   }
 }
 
@@ -234,19 +249,9 @@ function handleYouTubeMessage(event: MessageEvent) {
       }
     }
     
-    // Handle ready event to request initial state
     if (data.event === 'onReady') {
       debug.log('[YouTube] Player ready');
-      // Listen for state changes
-      if (youtubeIframe.value && youtubeIframe.value.contentWindow) {
-        youtubeIframe.value.contentWindow.postMessage(
-          JSON.stringify({
-            event: 'listening',
-            id: youtubeIframe.value.id || 'ytplayer'
-          }),
-          '*'
-        );
-      }
+      sendListeningEvent();
     }
   } catch (error) {
     // Not a JSON message or parse error, ignore
@@ -291,6 +296,10 @@ function handleEmbedLoad() {
   if (!embedLoaded.value) {
     embedLoaded.value = true;
     emit('embed-loaded');
+  }
+  // Re-send listening event now that iframe content is loaded
+  if (props.payload.provider === 'youtube') {
+    sendListeningEvent();
   }
 }
 

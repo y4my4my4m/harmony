@@ -330,7 +330,13 @@ Only `CoreMessageService` is complete. The modular core service architecture is 
 - create channel/create category triggers twice (probably realtime + actual rest call?)
 - threads don't properly use cache like channels do
 
-
+### ActivityPub Extensions & Federation Standardization
+- [ ] Submit a FEP (Fediverse Enhancement Proposal) for chat-server federation patterns based on `harmony:ChatServer`
+- [ ] Propose `harmony:ChatServer` as a standard Group subtype for chat applications
+- [ ] Consolidate voice namespace (`harmony.social/ns/voice`) under the primary `harmonyapp.dev/ns#`
+- [ ] Design E2EE key exchange over ActivityPub for cross-instance encrypted channels
+- [ ] Implement `/.well-known/harmony-instance` endpoint for Harmony-to-Harmony instance discovery
+- [ ] See `docs/ACTIVITYPUB_EXTENSIONS.md` for the full extension specification
 
 *This document should be updated as issues are resolved or new ones discovered.*
 
