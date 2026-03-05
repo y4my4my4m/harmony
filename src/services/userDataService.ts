@@ -636,25 +636,25 @@ class UserDataService extends EventTarget {
     }
     
     const userData: UserData = {
+      ...existing,
       id: userId,
       username: presence.username || existing?.username || 'Unknown',
       displayName: presence.display_name || presence.username || existing?.displayName || 'Unknown',
       avatarUrl: presence.avatar_url || existing?.avatarUrl,
       bannerUrl: existing?.bannerUrl,
       bio: existing?.bio,
-      // 🎨 Use color from presence if provided (real-time color sync)
       color: presence.color || existing?.color,
       domain: existing?.domain,
       isLocal: existing?.isLocal ?? true,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
-      isOnline: true, // They're in global presence with a visible status, so they're online
+      isOnline: true,
       isMobile: presence.is_mobile || existing?.isMobile || false,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
       createdAt: existing?.createdAt || new Date().toISOString(),
-      source: 'presence' // Global presence is still presence source
+      source: 'presence'
     }
     
     this.users.set(userId, userData)
@@ -688,19 +688,19 @@ class UserDataService extends EventTarget {
     }
     
     const userData: UserData = {
+      ...existing,
       id: userId,
       username: presence.username || existing?.username || 'Unknown',
       displayName: presence.display_name || presence.username || existing?.displayName || 'Unknown',
       avatarUrl: presence.avatar_url || existing?.avatarUrl,
       bannerUrl: presence.banner_url || existing?.bannerUrl,
       bio: existing?.bio,
-      // 🎨 Use color from presence if provided (real-time color sync)
       color: presence.color || existing?.color,
       domain: existing?.domain || import.meta.env.VITE_DOMAIN as string,
       isLocal: existing?.isLocal ?? true,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
-      isOnline: true, // They're in context presence with a visible status, so they're online
+      isOnline: true,
       isMobile: presence.is_mobile || existing?.isMobile || false,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
