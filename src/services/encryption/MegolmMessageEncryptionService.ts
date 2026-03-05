@@ -16,6 +16,7 @@ import { supabase } from '@/supabase'
 import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmKeyBackupService } from './MegolmKeyBackupService'
+import { secureSessionKeyStore } from './SecureSessionKeyStore'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -113,85 +114,100 @@ export class MegolmMessageEncryptionService {
     if (!this.currentUserId) return false
 
     try {
-      // Check localStorage first (persists across sessions), fall back to sessionStorage (legacy)
+      // Try IndexedDB first (non-extractable CryptoKeys — preferred)
+      const storedKeys = await secureSessionKeyStore.load(this.currentUserId)
+      if (storedKeys) {
+        debug.log('🔐 Found stored CryptoKeys in IndexedDB — auto-unlocking...')
+
+        // Set derived keys directly (no mnemonic needed)
+        recoveryKeyService.setDerivedKeys(storedKeys)
+
+        // Initialize Megolm service with the encryption key
+        await megolmService.initialize(this.currentUserId, storedKeys.encryptionKey)
+        await this.ensureIdentityKeyPair()
+
+        try {
+          const result = await megolmKeyBackupService.restoreFromBackup()
+          if (result.outboundCount + result.inboundCount > 0) {
+            debug.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
+          }
+        } catch { /* ignore */ }
+
+        try {
+          await megolmKeyBackupService.processPendingRequestsToMe()
+        } catch { /* ignore */ }
+
+        debug.log('✅ Auto-unlocked encryption from IndexedDB keys')
+        return true
+      }
+
+      // Legacy fallback: migrate from localStorage/sessionStorage mnemonic
       let storedData = localStorage.getItem(`megolm_session_${this.currentUserId}`)
+        || sessionStorage.getItem(`megolm_session_${this.currentUserId}`)
+
       if (!storedData) {
-        storedData = sessionStorage.getItem(`megolm_session_${this.currentUserId}`)
-        if (storedData) {
-          // Migrate from sessionStorage to localStorage
-          localStorage.setItem(`megolm_session_${this.currentUserId}`, storedData)
-          sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
-        }
-      }
-      if (!storedData) {
-        debug.log('🔐 No stored session - encryption locked')
+        debug.log('🔐 No stored session — encryption locked')
         return false
       }
 
-      // Decode the stored mnemonic
       const words = JSON.parse(atob(storedData)) as string[]
-      
       if (!Array.isArray(words) || words.length < 12) {
-        debug.warn('⚠️ Invalid stored session data')
-        localStorage.removeItem(`megolm_session_${this.currentUserId}`)
+        debug.warn('⚠️ Invalid stored legacy session data')
+        this.clearLegacyStorage()
         return false
       }
 
-      debug.log('🔐 Found stored session - auto-unlocking...')
-      
-      // Derive keys from mnemonic
+      debug.log('🔐 Found legacy mnemonic — migrating to IndexedDB...')
       const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
-
-      // Initialize Megolm service with encryption key
       await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
-
-      // Ensure identity key pair exists
       await this.ensureIdentityKeyPair()
 
-      // Try to restore from backup
+      // Migrate: store non-extractable keys in IndexedDB, then purge mnemonic
+      await secureSessionKeyStore.store(this.currentUserId, derivedKeys)
+      this.clearLegacyStorage()
+
       try {
         const result = await megolmKeyBackupService.restoreFromBackup()
         if (result.outboundCount + result.inboundCount > 0) {
           debug.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
         }
-      } catch (error) {
-        // Ignore backup restore errors during auto-unlock
-      }
+      } catch { /* ignore */ }
 
-      // Process any pending key requests to us (from while we were offline)
       try {
         await megolmKeyBackupService.processPendingRequestsToMe()
-      } catch (error) {
-        // Ignore errors during auto-unlock
-      }
+      } catch { /* ignore */ }
 
-      debug.log('✅ Auto-unlocked encryption from stored session')
+      debug.log('✅ Auto-unlocked and migrated to secure IndexedDB storage')
       return true
     } catch (error) {
       debug.warn('⚠️ Failed to auto-unlock:', error)
-      localStorage.removeItem(`megolm_session_${this.currentUserId}`)
       return false
     }
   }
 
   /**
-   * Store session for auto-unlock across browser sessions
+   * Store derived keys securely in IndexedDB as non-extractable CryptoKey objects.
+   * The raw mnemonic is never persisted.
    */
-  private storeSession(words: string[]): void {
+  private async storeSessionKeys(keys: { encryptionKey: CryptoKey; backupKey: CryptoKey; signingKey: CryptoKey }): Promise<void> {
     if (!this.currentUserId) return
-    
-    const encoded = btoa(JSON.stringify(words))
-    localStorage.setItem(`megolm_session_${this.currentUserId}`, encoded)
-    debug.log('🔐 Session stored for auto-unlock')
+    await secureSessionKeyStore.store(this.currentUserId, keys)
+  }
+
+  /** Remove legacy mnemonic from localStorage/sessionStorage */
+  private clearLegacyStorage(): void {
+    if (!this.currentUserId) return
+    localStorage.removeItem(`megolm_session_${this.currentUserId}`)
+    sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
   }
 
   /**
    * Clear stored session (lock encryption)
    */
-  lockEncryption(): void {
+  async lockEncryption(): Promise<void> {
     if (this.currentUserId) {
-      localStorage.removeItem(`megolm_session_${this.currentUserId}`)
-      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`) // clean up legacy
+      await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
+      this.clearLegacyStorage()
     }
     megolmService.close()
     recoveryKeyService.clear()
@@ -244,8 +260,9 @@ export class MegolmMessageEncryptionService {
       debug.warn('⚠️ Failed to process pending key requests:', error)
     }
 
-    // Store session for auto-unlock on page refresh
-    this.storeSession(words)
+    // Store non-extractable CryptoKeys in IndexedDB (mnemonic is NOT persisted)
+    await this.storeSessionKeys(derivedKeys)
+    this.clearLegacyStorage()
 
     debug.log('✅ Encryption initialized with recovery key')
   }
@@ -318,8 +335,9 @@ export class MegolmMessageEncryptionService {
       debug.warn('⚠️ Failed to create initial backup:', backupError)
     }
 
-    // Store session for auto-unlock on page refresh
-    this.storeSession(words)
+    // Store non-extractable CryptoKeys in IndexedDB (mnemonic is NOT persisted)
+    await this.storeSessionKeys(derivedKeys)
+    this.clearLegacyStorage()
 
     debug.log('🔐 Encryption setup complete!')
     debug.log(`   isUnlocked: ${this.isUnlocked()}`)
@@ -761,7 +779,7 @@ export class MegolmMessageEncryptionService {
         supabase.rpc('claim_session_share', {
           p_share_id: share.share_id,
           p_user_id: this.currentUserId
-        }).catch(() => {}) // Ignore claim errors
+        }).then(() => {}, () => {})
 
         return true
       } catch {
@@ -914,8 +932,9 @@ export class MegolmMessageEncryptionService {
   async resetEncryption(): Promise<void> {
     if (!this.currentUserId) return
 
-    // Clear stored session
-    sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+    // Clear stored keys
+    await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
+    this.clearLegacyStorage()
 
     // Delete backup
     await megolmKeyBackupService.deleteBackup()
@@ -945,9 +964,9 @@ export class MegolmMessageEncryptionService {
    * Cleanup on logout
    */
   async cleanup(): Promise<void> {
-    // Clear stored session
     if (this.currentUserId) {
-      sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
+      await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
+      this.clearLegacyStorage()
     }
     megolmService.close()
     recoveryKeyService.clear()

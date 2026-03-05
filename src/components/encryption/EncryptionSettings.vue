@@ -529,17 +529,39 @@ async function resetEncryption() {
 }
 
 // Handle setup complete
-function handleSetupComplete() {
+async function handleSetupComplete() {
   showSetupWizard.value = false
-  loadEncryptionStatus()
+  await loadEncryptionStatus()
   toast.success('Encryption enabled!')
+  await autoSyncAfterEnable()
 }
 
 // Handle recovery complete
-function handleRecoveryComplete() {
+async function handleRecoveryComplete() {
   showRecoveryModal.value = false
-  loadEncryptionStatus()
+  await loadEncryptionStatus()
   toast.success('Encryption restored!')
+  await autoSyncAfterEnable()
+}
+
+async function autoSyncAfterEnable() {
+  try {
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+    const claimed = await megolmMessageEncryptionService.claimPendingSessionShares()
+    if (claimed > 0) {
+      toast.info(`Synced ${claimed} session key${claimed > 1 ? 's' : ''}`)
+    }
+
+    // Re-decrypt any encrypted messages that are currently visible
+    const { useChatStore } = await import('@/stores/useChat')
+    const chatStore = useChatStore()
+    await chatStore.reprocessEncryptedMessages()
+
+    // Dispatch event so DM store also reprocesses
+    window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
+  } catch (error) {
+    // Non-critical — encryption is already enabled
+  }
 }
 
 onMounted(() => {

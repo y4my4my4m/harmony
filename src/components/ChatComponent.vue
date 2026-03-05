@@ -27,10 +27,10 @@
     />
     
     <!-- Encryption status bar -->
-    <div v-if="encryptionStatus" :class="['encryption-status-bar', encryptionStatus.level]">
+    <!-- <div v-if="encryptionStatus" :class="['encryption-status-bar', encryptionStatus.level]">
       <span class="encryption-status-icon">{{ encryptionStatus.icon }}</span>
       <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
-    </div>
+    </div> -->
 
     <!-- Send error feedback -->
     <div v-if="sendError" class="encryption-status-bar error" @click="sendError = null">

@@ -2021,10 +2021,14 @@ const handleDecryptMessage = async (message: Message) => {
       }
       
       debug.log('✅ Message decrypted successfully on click');
+
+      // Trigger reprocessing of other encrypted messages (we may now have the session key)
+      window.dispatchEvent(new CustomEvent('megolm-key-received', {
+        detail: { roomId: messageToDecrypt.channel_id || messageToDecrypt.conversation_id, sessionId: messageToDecrypt.encryption_metadata?.session_id }
+      }));
     }
   } catch (error) {
     debug.log('❌ Could not decrypt message:', error);
-    // Silently fail - the message will remain encrypted
   }
 };
 
