@@ -165,9 +165,12 @@
                   class="media-image"
                 />
                 <video 
-                  v-else-if="media.type === 'video'" 
+                  v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
                   :src="media.url" 
                   controls
+                  :loop="media.type === 'gifv'"
+                  :autoplay="media.type === 'gifv'"
+                  :muted="media.type === 'gifv'"
                   class="media-video"
                 >
                   Your browser does not support the video tag.
@@ -207,13 +210,22 @@
                 class="media-image"
               />
               <video 
-                v-else-if="media.type === 'video'" 
+                v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
                 :src="media.url" 
                 controls
+                :loop="media.type === 'gifv'"
+                :autoplay="media.type === 'gifv'"
+                :muted="media.type === 'gifv'"
                 class="media-video"
               >
                 Your browser does not support the video tag.
               </video>
+              <audio
+                v-else-if="media.type === 'audio'"
+                :src="media.url"
+                controls
+                class="media-audio"
+              ></audio>
             </div>
           </div>
         </div>
@@ -710,6 +722,11 @@ const reblogReferenceUrl = computed(() => {
          props.post.metadata?.quote_url || 
          null;
 });
+
+const isVideoMediaUrl = (url: string): boolean => {
+  if (!url) return false;
+  return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?.*)?$/i.test(url);
+};
 
 const displayAuthor = computed(() => {
   const author = (isReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
