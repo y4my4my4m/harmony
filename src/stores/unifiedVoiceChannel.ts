@@ -93,6 +93,9 @@ interface VoiceChannelState {
   
   // Counter to force reactivity when streams update (Map doesn't trigger Vue reactivity well)
   streamUpdateCounter: number;
+  
+  // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
+  connectionMode: 'livekit' | 'p2p' | null;
 }
 
 // =============================================================================
@@ -158,7 +161,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       audioBitrate: 128
     },
     
-    streamUpdateCounter: 0
+    streamUpdateCounter: 0,
+    
+    connectionMode: null
   }),
 
   // =============================================================================
@@ -280,11 +285,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
       return speaking;
     },
-    
-    // Get the active WebRTC service mode (livekit or p2p)
-    connectionMode: () => {
-      return webrtcManager.getActiveService();
-    }
   },
 
   // =============================================================================
@@ -425,7 +425,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         throw new Error('Failed to join WebRTC channel');
       }
       
-      debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
+      this.connectionMode = webrtcManager.getActiveService();
+      debug.log(`🔌 [VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType})`);
       
       // Final cancellation check before marking as connected
       if (abortSignal?.aborted) {
@@ -588,6 +589,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
                 throw new Error('Failed to connect to remote LiveKit server');
               }
               
+              this.connectionMode = 'livekit';
               debug.log('🔌 [VoiceChannel] Connected to federated voice channel via LiveKit');
               
               // Update store state
@@ -1301,6 +1303,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Channel events
       webrtcManager.on('channel-joined', (data) => {
         debug.log('✅ Channel joined:', data);
+        this.connectionMode = webrtcManager.getActiveService();
       });
 
       webrtcManager.on('channel-left', (data) => {
@@ -1974,6 +1977,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.fullscreenUserId = null;
       this.pipActive = false;
       this.pipUserId = null;
+      this.connectionMode = null;
     },
 
     /**
