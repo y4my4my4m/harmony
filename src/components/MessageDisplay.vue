@@ -2280,22 +2280,16 @@ const closeInviteModal = () => {
   top: -1px;
 }
 
-.instance-badge.admin {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
-    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
-  );
-  color: #fff;
+.instance-badge.admin
+.instance-badge.mod {
+  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  transition: all 0.2s ease;
 }
 
-.instance-badge.mod {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
-    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
-  );
+.username:hover .instance-badge.admin, 
+.username:hover .instance-badge.mod {
   color: #fff;
+  background:  var(--harmony-accent);
 }
 
 .timestamp {

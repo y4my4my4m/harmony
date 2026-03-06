@@ -41,8 +41,8 @@
 
       <!-- Roles/Badges (non-compact only) -->
       <div v-if="!isCompact && (user.is_admin || user.is_moderator || userRoles.length > 0)" class="roles-section">
-        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance Admin</div>
-        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance Mod</div>
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">INSTANCE MOD</div>
         <div
           v-for="role in userRoles"
           :key="role.id"

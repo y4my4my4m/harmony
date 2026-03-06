@@ -32,8 +32,8 @@
 
       <!-- Instance & Server Badges -->
       <div v-if="!isCompact && (hasInstanceBadge || userRoles.length > 0)" class="user-roles">
-        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance Admin</div>
-        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance Mod</div>
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">INSTANCE MOD</div>
         <div
           v-for="role in userRoles"
           :key="role.id"
@@ -698,7 +698,8 @@ const vClickOutside = {
   color: var(--error-primary);
 }
 
-.instance-badge {
+/* Federation/domain badge (absolute top-right) */
+.instance-badge:not(.admin):not(.mod) {
   position: absolute;
   top: var(--space-3);
   right: var(--space-3);
@@ -711,6 +712,18 @@ const vClickOutside = {
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+.user-roles .instance-admin-badge {
+  background: linear-gradient(135deg, rgba(212, 160, 23, 0.3), rgba(184, 134, 11, 0.3));
+  border-color: rgba(212, 160, 23, 0.5);
+  color: #f0d060;
+}
+
+.user-roles .instance-mod-badge {
+  background: linear-gradient(135deg, rgba(43, 158, 143, 0.3), rgba(26, 122, 109, 0.3));
+  border-color: rgba(43, 158, 143, 0.5);
+  color: #5ed4c4;
 }
 
 .spinning {

@@ -121,10 +121,10 @@
                     <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                   </svg>
                 </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="sidebar-instance-badge admin" title="Instance Admin">
+                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="sidebar-instance-badge mod" title="Instance Mod">
+                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
               </div>
@@ -200,10 +200,10 @@
                     <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                   </svg>
                 </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="sidebar-instance-badge admin" title="Instance Admin">
+                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="sidebar-instance-badge mod" title="Instance Mod">
+                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
               </div>
@@ -279,10 +279,10 @@
                     <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                   </svg>
                 </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="sidebar-instance-badge admin" title="Instance Admin">
+                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="sidebar-instance-badge mod" title="Instance Mod">
+                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
               </div>
@@ -358,10 +358,10 @@
                     <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                   </svg>
                 </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="sidebar-instance-badge admin" title="Instance Admin">
+                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="sidebar-instance-badge mod" title="Instance Mod">
+                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
               </div>
@@ -419,10 +419,10 @@
                     <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                   </svg>
                 </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="sidebar-instance-badge admin" title="Instance Admin">
+                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="sidebar-instance-badge mod" title="Instance Mod">
+                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
               </div>
@@ -516,10 +516,10 @@
                     <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                   </svg>
                 </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="sidebar-instance-badge admin" title="Instance Admin">
+                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="sidebar-instance-badge mod" title="Instance Mod">
+                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
               </div>
@@ -1346,20 +1346,23 @@ const closeInviteModal = () => {
   opacity: 1;
 }
 
-.sidebar-instance-badge {
-  display: flex;
+.instance-badge {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  vertical-align: middle;
+  margin-left: 0.25rem;
   flex-shrink: 0;
-  opacity: 0.85;
+  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  transition: color 0.15s ease, background 0.15s ease;
+  padding: 0.125rem;
+  border-radius: 0.1875rem;
 }
 
-.sidebar-instance-badge.admin {
-  color: #d4a017;
-}
-
-.sidebar-instance-badge.mod {
-  color: #2b9e8f;
+.user-item:hover .instance-badge.admin,
+.user-item:hover .instance-badge.mod {
+  color: #fff;
+  background: var(--harmony-accent);
 }
 
 .user-domain {

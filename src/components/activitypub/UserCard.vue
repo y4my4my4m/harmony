@@ -10,8 +10,16 @@
       />
       
       <div class="user-details">
-        <div class="user-name">
-          {{ user.display_name || user.username }}
+        <div class="user-name-row">
+          <span class="user-name">{{ user.display_name || user.username }}</span>
+          <span v-if="user.is_admin" class="instance-badge admin" title="Instance Admin">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            ADMIN
+          </span>
+          <span v-else-if="user.is_moderator" class="instance-badge mod" title="Instance Moderator">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            MOD
+          </span>
         </div>
         <div class="user-handle">@{{ handle }}</div>
         
@@ -99,8 +107,8 @@
       </div>
     </div>
 
-    <!-- Instance Badge (for federated users) -->
-    <div v-if="!user.is_local && showInstanceBadge" class="instance-badge" :title="`From ${user.domain}`">
+    <!-- Domain badge (for federated users) -->
+    <div v-if="!user.is_local && showInstanceBadge" class="domain-badge" :title="`From ${user.domain}`">
       <Icon name="federation" />
       <span>{{ user.domain }}</span>
     </div>
@@ -523,7 +531,7 @@ onBeforeUnmount(() => {
   background: rgba(242, 63, 66, 0.1);
 }
 
-.instance-badge {
+.domain-badge {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
@@ -536,6 +544,42 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.user-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.instance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.3rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+}
+
+.instance-badge.admin {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
+    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
+  );
+  color: #fff;
+}
+
+.instance-badge.mod {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
+    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
+  );
+  color: #fff;
 }
 
 .spinning {

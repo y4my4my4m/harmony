@@ -1668,6 +1668,7 @@ const closeLightbox = () => {
   overflow: hidden;
   white-space: nowrap;
   user-select: text;
+  margin-bottom: 4px;
 }
 
 .author-name:hover {
@@ -1685,16 +1686,29 @@ const closeLightbox = () => {
   border-radius: 0.1875rem;
   vertical-align: middle;
   margin-left: 0.25rem;
+  text-decoration: none;
+  position: relative;
+  top: -1px;
 }
 
 .instance-badge.admin {
-  background: linear-gradient(135deg, #d4a017, #b8860b);
+  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  transition: all 0.5s ease;
+}
+
+.author-name:hover .instance-badge.admin {
   color: #fff;
+  background: var(--harmony-accent);
 }
 
 .instance-badge.mod {
-  background: linear-gradient(135deg, #2b9e8f, #1a7a6d);
+  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  transition: all 0.5s ease;
+}
+
+.author-name:hover .instance-badge.mod {
   color: #fff;
+  background: var(--harmony-accent);
 }
 
 .author-handle {
@@ -1785,9 +1799,9 @@ const closeLightbox = () => {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0.5rem 2.5rem;
   background: transparent;
-  border: 1px solid #374151;
+  border: 1px solid #3741515b;
   border-radius: 0.375rem;
   color: var(--text-secondary);
   font-size: 0.75rem;

@@ -72,12 +72,8 @@
               <p class="username">{{ displayHandle }}</p>
             </div>
             
-            <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">
-              Instance Admin
-            </div>
-            <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">
-              Instance Mod
-            </div>
+            <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
+            <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">INSTANCE MOD</div>
 
             <div class="user-badges">
               <div class="roles-container">
