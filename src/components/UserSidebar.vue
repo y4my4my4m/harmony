@@ -123,11 +123,9 @@
                 </span>
                 <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
                 </span>
                 <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
                 </span>
               </div>
               <span 
@@ -204,11 +202,9 @@
                 </span>
                 <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
                 </span>
                 <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
                 </span>
               </div>
               <span 
@@ -285,11 +281,9 @@
                 </span>
                 <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
                 </span>
                 <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
                 </span>
               </div>
               <span 
@@ -366,11 +360,9 @@
                 </span>
                 <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
                 </span>
                 <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
                 </span>
               </div>
               <span 
@@ -429,11 +421,9 @@
                 </span>
                 <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
                 </span>
                 <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
                 </span>
               </div>
               <!-- Custom Status -->
@@ -528,11 +518,9 @@
                 </span>
                 <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
                 </span>
                 <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
                 </span>
               </div>
               <span 
@@ -1361,32 +1349,20 @@ const closeInviteModal = () => {
 .instance-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 0.125rem 0.3rem;
-  border-radius: 0.1875rem;
+  justify-content: center;
   vertical-align: middle;
   margin-left: 0.25rem;
   flex-shrink: 0;
+  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  transition: color 0.15s ease, background 0.15s ease;
+  padding: 0.125rem;
+  border-radius: 0.1875rem;
 }
 
-.instance-badge.admin {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
-    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
-  );
+.user-item:hover .instance-badge.admin,
+.user-item:hover .instance-badge.mod {
   color: #fff;
-}
-
-.instance-badge.mod {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
-    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
-  );
-  color: #fff;
+  background: var(--harmony-accent);
 }
 
 .user-domain {

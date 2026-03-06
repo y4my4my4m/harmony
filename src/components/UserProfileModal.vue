@@ -72,14 +72,8 @@
               <p class="username">{{ displayHandle }}</p>
             </div>
             
-            <span v-if="isInstanceAdmin(user)" class="instance-badge admin" title="Instance Admin">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-              ADMIN
-            </span>
-            <span v-else-if="isInstanceModerator(user)" class="instance-badge mod" title="Instance Moderator">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-              MOD
-            </span>
+            <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
+            <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">INSTANCE MOD</div>
 
             <div class="user-badges">
               <div class="roles-container">
@@ -1288,34 +1282,16 @@ onMounted(() => {
   letter-spacing: 0.1em;
 }
 
-.instance-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 0.125rem 0.3rem;
-  border-radius: 0.1875rem;
-  vertical-align: middle;
-  margin-right: 0.25rem;
+.instance-admin-badge {
+  background: rgba(0, 212, 255, 0.2) !important;
+  border-color: rgba(0, 212, 255, 0.4) !important;
+  color: #00d4ff !important;
 }
 
-.instance-badge.admin {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
-    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
-  );
-  color: #fff;
-}
-
-.instance-badge.mod {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
-    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
-  );
-  color: #fff;
+.instance-mod-badge {
+  background: rgba(46, 204, 113, 0.2) !important;
+  border-color: rgba(46, 204, 113, 0.4) !important;
+  color: #2ecc71 !important;
 }
 
 .user-stats {

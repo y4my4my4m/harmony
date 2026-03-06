@@ -41,14 +41,8 @@
 
       <!-- Roles/Badges (non-compact only) -->
       <div v-if="!isCompact && (user.is_admin || user.is_moderator || userRoles.length > 0)" class="roles-section">
-        <span v-if="user.is_admin" class="instance-badge admin" title="Instance Admin">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-          ADMIN
-        </span>
-        <span v-else-if="user.is_moderator" class="instance-badge mod" title="Instance Moderator">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-          MOD
-        </span>
+        <div v-if="user.is_admin" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
+        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">INSTANCE MOD</div>
         <div
           v-for="role in userRoles"
           :key="role.id"
@@ -580,34 +574,16 @@ const vClickOutside = {
   letter-spacing: 0.1em;
 }
 
-.instance-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 0.125rem 0.3rem;
-  border-radius: 0.1875rem;
-  vertical-align: middle;
-  margin-right: 0.25rem;
+.instance-admin-badge {
+  background: linear-gradient(135deg, rgba(212, 160, 23, 0.3), rgba(184, 134, 11, 0.3));
+  border-color: rgba(212, 160, 23, 0.5);
+  color: #f0d060;
 }
 
-.instance-badge.admin {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
-    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
-  );
-  color: #fff;
-}
-
-.instance-badge.mod {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
-    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
-  );
-  color: #fff;
+.instance-mod-badge {
+  background: linear-gradient(135deg, rgba(43, 158, 143, 0.3), rgba(26, 122, 109, 0.3));
+  border-color: rgba(43, 158, 143, 0.5);
+  color: #5ed4c4;
 }
 
 /* ===== STATS SECTION ===== */
