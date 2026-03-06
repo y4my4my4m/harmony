@@ -39,6 +39,10 @@ interface InstanceSettings {
   instanceName: string
   instanceDescription: string
   
+  // Legal / policy URLs
+  termsUrl: string
+  privacyUrl: string
+  
   // Registration
   openRegistration: boolean
   approvalRequired: boolean
@@ -53,10 +57,8 @@ interface InstanceSettings {
   fileUploadsEnabled: boolean
   
   // Limits
-  maxPostLength: number
-  maxMessageLength: number
-  maxServerSize: number
-
+  maxPos
+  // ...
 }
 ```
 
@@ -101,8 +103,8 @@ const CACHE_DURATION = 5 * 60 * 1000
 
 ## Source Code Insights
 
-**File Size:** 7614 characters
-**Lines of Code:** 253
+**File Size:** 8072 characters
+**Lines of Code:** 267
 **Imports:** 3
 
 ## Usage Example

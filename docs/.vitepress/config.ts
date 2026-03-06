@@ -24,9 +24,10 @@ export default withMermaid(defineConfig({
     
     nav: [
       { text: 'Guide', link: '/guide/' },
+      { text: 'Bot API', link: '/bot-api' },
+      { text: 'Plugins', link: '/plugins/' },
       { text: 'API Reference', link: '/api/' },
       { text: 'Components', link: '/components/' },
-      { text: 'Examples', link: '/examples/' },
       { text: 'System Flows', link: '/flows/' }
     ],
     
@@ -89,6 +90,26 @@ export default withMermaid(defineConfig({
         }
       ],
       
+      '/bot-api': [
+        {
+          text: 'Bot API',
+          items: [
+            { text: 'API Reference', link: '/bot-api' },
+            { text: 'Gateway Setup', link: '/BOT_GATEWAY_SETUP' }
+          ]
+        }
+      ],
+
+      '/plugins/': [
+        {
+          text: 'Plugins',
+          items: [
+            { text: 'Plugin System', link: '/plugins/' },
+            { text: 'Discord Bridge', link: '/plugins/discord-bridge' }
+          ]
+        }
+      ],
+
       '/api/': [
         {
           text: 'Overview',
