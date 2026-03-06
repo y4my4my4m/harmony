@@ -183,7 +183,7 @@
             {{ $t('auth.termsPrefix') || 'By registering, you agree to our' }}
             <a v-if="instanceSettings.settings.termsUrl" :href="instanceSettings.settings.termsUrl" target="_blank" rel="noopener">{{ $t('auth.termsOfService') || 'Terms of Service' }}</a>
             <template v-if="instanceSettings.settings.termsUrl && instanceSettings.settings.privacyUrl">
-              {{ $t('auth.and') || 'and' }}
+              {{ $t('auth.and') || ' and ' }}
             </template>
             <a v-if="instanceSettings.settings.privacyUrl" :href="instanceSettings.settings.privacyUrl" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') || 'Privacy Policy' }}</a>
           </p>
