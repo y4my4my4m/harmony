@@ -1799,9 +1799,9 @@ const closeLightbox = () => {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0.5rem 2.5rem;
   background: transparent;
-  border: 1px solid #374151;
+  border: 1px solid #3741515b;
   border-radius: 0.375rem;
   color: var(--text-secondary);
   font-size: 0.75rem;
