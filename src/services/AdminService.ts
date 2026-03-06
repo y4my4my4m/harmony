@@ -539,12 +539,14 @@ class AdminService {
       let registrationOpen = true
       let requiresApproval = false
       let oauthProviders: string[] | Record<string, boolean> = []
+      let termsUrl = ''
+      let privacyUrl = ''
 
       try {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -591,6 +593,12 @@ class AdminService {
                 case 'oauth_providers':
                   oauthProviders = value
                   break
+                case 'terms_url':
+                  termsUrl = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'privacy_url':
+                  privacyUrl = (typeof value === 'string' ? value : String(value)) || ''
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -621,7 +629,9 @@ class AdminService {
           domain: domain,
           registrationOpen: registrationOpen,
           requiresApproval: requiresApproval,
-          oauthProviders: oauthProviders
+          oauthProviders: oauthProviders,
+          termsUrl: termsUrl,
+          privacyUrl: privacyUrl
         }
       };
     } catch (error) {

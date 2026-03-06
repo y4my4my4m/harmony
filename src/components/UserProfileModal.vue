@@ -71,15 +71,16 @@
               </h1>
               <p class="username">{{ displayHandle }}</p>
             </div>
+            
+            <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">
+              Instance Admin
+            </div>
+            <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">
+              Instance Mod
+            </div>
 
             <div class="user-badges">
               <div class="roles-container">
-                <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">
-                  Instance Admin
-                </div>
-                <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">
-                  Instance Mod
-                </div>
                 <div 
                   v-for="role in getUserRoles(user)" 
                   :key="role.id"

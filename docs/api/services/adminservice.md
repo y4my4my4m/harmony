@@ -227,6 +227,8 @@ No description available.
 - `registrationOpen`
 - `requiresApproval`
 - `oauthProviders`
+- `termsUrl`
+- `privacyUrl`
 - `parsed`
 - `value`
 - `values`
@@ -613,8 +615,8 @@ interface InstanceStats {
 
 ## Source Code Insights
 
-**File Size:** 53559 characters
-**Lines of Code:** 1749
+**File Size:** 53995 characters
+**Lines of Code:** 1759
 **Imports:** 2
 
 ## Usage Example

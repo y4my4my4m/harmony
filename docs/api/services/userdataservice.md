@@ -234,6 +234,8 @@ No description available.
 - `lastHeartbeat`
 - `lastCacheUpdate`
 - `createdAt`
+- `isAdmin`
+- `isModerator`
 - `source`
 - `initialStatus`
 - `error`
@@ -313,8 +315,6 @@ No description available.
 - `loadUsersData`
 - `instance`
 - `updatedAt`
-- `isAdmin`
-- `isModerator`
 - `created_at`
 - `updated_at`
 - `roles`
@@ -371,8 +371,8 @@ No description available.
 
 ## Source Code Insights
 
-**File Size:** 67384 characters
-**Lines of Code:** 1865
+**File Size:** 67187 characters
+**Lines of Code:** 1867
 **Imports:** 6
 
 ## Usage Example

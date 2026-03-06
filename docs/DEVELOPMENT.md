@@ -549,7 +549,7 @@ Use JSDoc for code documentation:
  * 
  * @example
  * ```typescript
- * const message = await chatService.sendMessage('channel-1', 'Hello!', {
+ * const message = await services.messages.sendMessage('channel-1', 'Hello!', {
  *   attachments: ['file-1.jpg']
  * })
  * ```

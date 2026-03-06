@@ -932,8 +932,8 @@ interface DMCache {
 
 ## Source Code Insights
 
-**File Size:** 94569 characters
-**Lines of Code:** 2572
+**File Size:** 94702 characters
+**Lines of Code:** 2573
 **Imports:** 13
 
 ## Usage Example

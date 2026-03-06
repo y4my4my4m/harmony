@@ -12,6 +12,7 @@ graph TB
     subgraph "Functions"
         FN_GETUSERIDSFORSERVER[getUserIdsForServer]
         FN_FETCHPROMISE[fetchPromise]
+        FN_GETUSERIDSFORSERVERS[getUserIdsForServers]
         FN_INVALIDATESERVERMEMBERCACHE[invalidateServerMemberCache]
         FN_CLEARALLMEMBERCACHES[clearAllMemberCaches]
         FN_GETPROFILES[getProfiles]
@@ -48,6 +49,23 @@ No description available.
 
 ```typescript
 const fetchPromise = (async () =>
+```
+
+### `getUserIdsForServers(serverIds: string[])`
+
+No description available.
+
+**Parameters:**
+- `serverIds: string[]`
+
+**Returns:** `Promise&lt;Map&lt;string, string[]&gt;&gt;`
+
+```typescript
+/**
+ * Batch-fetch member IDs for multiple servers in a single query.
+ * Uses the same cache as getUserIdsForServer — only queries uncached servers.
+ */
+const getUserIdsForServers = async (serverIds: string[]): Promise<Map<string, string[]>> =>
 ```
 
 ### `invalidateServerMemberCache(serverId: string)`
@@ -130,8 +148,8 @@ const MEMBER_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
 ## Source Code Insights
 
-**File Size:** 2970 characters
-**Lines of Code:** 101
+**File Size:** 4293 characters
+**Lines of Code:** 144
 **Imports:** 2
 
 ## Usage Example

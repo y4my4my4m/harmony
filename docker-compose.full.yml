@@ -128,7 +128,9 @@ services:
       - "443:443"
     volumes:
       - ./dist:/usr/share/nginx/html:ro
-      - ./dev/nginx-harmony.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docs/.vitepress/dist:/usr/share/nginx/docs:ro
+      - ./dev/nginx-harmony.conf:/etc/nginx/conf.d/harmony.conf:ro
+      - ./dev/nginx-docs.conf:/etc/nginx/conf.d/docs.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - harmony

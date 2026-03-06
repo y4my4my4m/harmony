@@ -179,11 +179,13 @@
           </div>
 
           <!-- Terms -->
-          <p v-if="!isLogin" class="terms">
+          <p v-if="!isLogin && (instanceSettings.settings.termsUrl || instanceSettings.settings.privacyUrl)" class="terms">
             {{ $t('auth.termsPrefix') || 'By registering, you agree to our' }}
-            <a href="/terms" target="_blank">{{ $t('auth.termsOfService') || 'Terms of Service' }}</a>
-            {{ $t('auth.and') || 'and' }}
-            <a href="/privacy" target="_blank">{{ $t('auth.privacyPolicy') || 'Privacy Policy' }}</a>
+            <a v-if="instanceSettings.settings.termsUrl" :href="instanceSettings.settings.termsUrl" target="_blank" rel="noopener">{{ $t('auth.termsOfService') || 'Terms of Service' }}</a>
+            <template v-if="instanceSettings.settings.termsUrl && instanceSettings.settings.privacyUrl">
+              {{ $t('auth.and') || ' and ' }}
+            </template>
+            <a v-if="instanceSettings.settings.privacyUrl" :href="instanceSettings.settings.privacyUrl" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') || 'Privacy Policy' }}</a>
           </p>
         </div>
       </div>
@@ -350,6 +352,7 @@ import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/useTheme'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useToast } from 'vue-toastification'
 import { supabase } from '@/supabase'
 import { getRandomLoginBackground } from '@/utils/backgroundUtils'
@@ -369,6 +372,7 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
 
 // All available OAuth Providers (removed Apple - requires paid $99/year developer account)

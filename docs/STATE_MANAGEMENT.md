@@ -27,7 +27,6 @@ graph TB
     
     subgraph "Federation Domain"
         ACTIVITYPUB[useActivityPub.ts]
-        FEDERATION[useFederation.ts]
     end
     
     subgraph "UI Domain"
@@ -314,7 +313,7 @@ export const useChatStore = defineStore('chat', {
   actions: {
     async sendMessage(content: string) {
       // API call
-      const message = await chatService.sendMessage(content)
+      const message = await services.messages.sendMessage(content)
       
       // State mutation
       this.messages.push(message)

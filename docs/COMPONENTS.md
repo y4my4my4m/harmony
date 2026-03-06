@@ -27,7 +27,7 @@ graph TD
     
     subgraph "Chat Components"
         CHAT[ChatComponent.vue]
-        MSG_LIST[MessageList.vue]
+        MSG_LIST[MessageDisplay.vue]
         MSG_INPUT[MessageInput.vue]
         CHANNEL_LIST[ChannelSidebar.vue]
         USER_LIST[UserSidebar.vue]
@@ -162,7 +162,7 @@ interface ChatComponentProps {
 }
 ```
 
-#### MessageList.vue
+#### MessageDisplay.vue
 **Purpose**: Message display container
 **Features**:
 - Virtual scrolling for performance

@@ -721,6 +721,17 @@ generate_nginx_config() {
     fi
 
     print_success "Generated ${BOLD}dev/nginx-harmony.conf${RESET} from template"
+
+    # Generate docs nginx config
+    local docs_template="$PROJECT_DIR/dev/nginx-docs.template.conf"
+    local docs_output="$PROJECT_DIR/dev/nginx-docs.conf"
+
+    if [[ -f "$docs_template" ]]; then
+        sed -e "s/YOUR_DOMAIN/$DOMAIN/g" \
+            -e "s|/path/to/harmony|$PROJECT_DIR|g" \
+            "$docs_template" > "$docs_output"
+        print_success "Generated ${BOLD}dev/nginx-docs.conf${RESET} from template"
+    fi
 }
 
 generate_docker_compose() {
@@ -832,7 +843,9 @@ services:"
       - \"443:443\"
     volumes:
       - ./dist:/usr/share/nginx/html:ro
-      - ./dev/nginx-harmony.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docs/.vitepress/dist:/usr/share/nginx/docs:ro
+      - ./dev/nginx-harmony.conf:/etc/nginx/conf.d/harmony.conf:ro
+      - ./dev/nginx-docs.conf:/etc/nginx/conf.d/docs.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - harmony"
@@ -872,21 +885,45 @@ install_nginx_config() {
     fi
 
     echo ""
-    printf "  ${BOLD}Install nginx config?${RESET}\n"
-    print_info "This will copy the generated config to /etc/nginx/sites-available/"
-    print_info "and create a symlink in sites-enabled/."
+    printf "  ${BOLD}Install nginx configs?${RESET}\n"
+    print_info "This will copy configs to /etc/nginx/sites-available/"
+    print_info "and create symlinks in sites-enabled/."
     echo ""
 
-    if prompt_yn "Install nginx config?" "y"; then
-        sudo cp "$PROJECT_DIR/dev/nginx-harmony.conf" /etc/nginx/sites-available/harmony
-        sudo ln -sf /etc/nginx/sites-available/harmony /etc/nginx/sites-enabled/harmony
-        sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+    if prompt_yn "Install nginx configs?" "y"; then
+        local skip_app=false
+        local skip_docs=false
+
+        if [[ -f /etc/nginx/sites-available/harmony ]]; then
+            if ! prompt_yn "/etc/nginx/sites-available/harmony already exists. Overwrite?" "n"; then
+                skip_app=true
+            fi
+        fi
+
+        if [[ -f /etc/nginx/sites-available/harmony-docs ]]; then
+            if ! prompt_yn "/etc/nginx/sites-available/harmony-docs already exists. Overwrite?" "n"; then
+                skip_docs=true
+            fi
+        fi
+
+        if ! $skip_app; then
+            sudo cp "$PROJECT_DIR/dev/nginx-harmony.conf" /etc/nginx/sites-available/harmony
+            sudo ln -sf /etc/nginx/sites-available/harmony /etc/nginx/sites-enabled/harmony
+            print_success "Installed sites-available/harmony"
+        fi
+
+        if ! $skip_docs && [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]]; then
+            sudo cp "$PROJECT_DIR/dev/nginx-docs.conf" /etc/nginx/sites-available/harmony-docs
+            sudo ln -sf /etc/nginx/sites-available/harmony-docs /etc/nginx/sites-enabled/harmony-docs
+            print_success "Installed sites-available/harmony-docs"
+        fi
 
         if sudo nginx -t 2>/dev/null; then
-            print_success "Nginx config installed and validated"
+            print_success "Nginx config validated"
             sudo systemctl reload nginx 2>/dev/null && print_success "Nginx reloaded" || true
         else
             print_error "Nginx config validation failed. Check the config manually."
+            print_info "Your existing nginx configs were not affected."
         fi
     fi
 }
@@ -903,9 +940,9 @@ setup_ssl() {
 
     if prompt_yn "Run certbot?" "y"; then
         if require_cmd certbot; then
-            sudo certbot --nginx -d "$DOMAIN" ${ENABLE_VOICE:+-d "$LIVEKIT_SUBDOMAIN"} || {
+            sudo certbot --nginx -d "$DOMAIN" -d "docs.$DOMAIN" ${ENABLE_VOICE:+-d "$LIVEKIT_SUBDOMAIN"} || {
                 print_warn "Certbot failed. You can run it manually later:"
-                printf "  ${CYAN}sudo certbot --nginx -d %s${RESET}\n" "$DOMAIN"
+                printf "  ${CYAN}sudo certbot --nginx -d %s -d docs.%s${RESET}\n" "$DOMAIN" "$DOMAIN"
             }
         else
             print_warn "certbot not found. Install it first:"
@@ -1098,6 +1135,7 @@ show_summary() {
     [[ -f "$PROJECT_DIR/webrtc/livekit.yaml" ]] && printf "    ${CHECK} webrtc/livekit.yaml\n"
     [[ -f "$PROJECT_DIR/docker-compose.yml" ]] && printf "    ${CHECK} docker-compose.yml\n"
     [[ -f "$PROJECT_DIR/dev/nginx-harmony.conf" ]] && printf "    ${CHECK} dev/nginx-harmony.conf\n"
+    [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]] && printf "    ${CHECK} dev/nginx-docs.conf\n"
     echo ""
 
     if $ENABLE_VOICE; then

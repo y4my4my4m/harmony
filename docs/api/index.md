@@ -111,7 +111,7 @@ graph TB
 
 ### Pinia Stores
 
-17 files documented.
+18 files documented.
 
 - [useTheme](/api/stores/usetheme)
 - [useServerUsers](/api/stores/useserverusers)
@@ -129,6 +129,7 @@ graph TB
 - [spatialAudio](/api/stores/spatialaudio)
 - [server](/api/stores/server)
 - [postReactions](/api/stores/postreactions)
+- [drafts](/api/stores/drafts)
 - [auth](/api/stores/auth)
 
 ### Vue Composables
@@ -269,4 +270,4 @@ graph TB
 
 ---
 
-*Last generated: 2026-03-05T07:08:47.348Z*
+*Last generated: 2026-03-06T08:55:50.147Z*

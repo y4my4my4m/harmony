@@ -31,7 +31,9 @@ The Harmony Bot API provides a Discord-compatible interface for creating bots th
 ### 3. Connect Your Bot
 
 ```javascript
-const { HarmonyClient } = require('@harmony/bot-client') // or use our example
+// See bot-plugins/discord-bridge/ for a reference implementation
+// Connect to the bot gateway WebSocket at wss://your-domain/bot-gateway/gateway
+const WebSocket = require('ws')
 
 const client = new HarmonyClient('YOUR_BOT_TOKEN')
 
@@ -781,19 +783,19 @@ bot.on('messageCreate', async (message) => {
 | `message.author.id` | `message.author.id` |
 | `client.user` | `bot.user` |
 
-## 📦 Official Client Libraries
+## Bot Gateway Connection
 
 ### JavaScript/TypeScript
 
-```bash
-npm install @harmony/bot-client
-```
+Connect to the bot gateway via WebSocket:
 
 ```javascript
-import { HarmonyClient } from '@harmony/bot-client'
+// See bot-plugins/discord-bridge/ for a full reference implementation
+const ws = new WebSocket('wss://your-domain/bot-gateway/gateway')
 
-const bot = new HarmonyClient(process.env.BOT_TOKEN)
-await bot.connect()
+ws.on('open', () => {
+  ws.send(JSON.stringify({ type: 'identify', token: process.env.BOT_TOKEN }))
+})
 ```
 
 ### Python

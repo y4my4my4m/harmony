@@ -50,7 +50,7 @@ graph TB
     subgraph "Backend"
         SUPABASE_DB[(Supabase Database)]
         REALTIME[Realtime Subscriptions]
-        EDGE_FUNC[Edge Functions]
+        FED_BACKEND[Federation Backend]
     end
     
     subgraph "Federation"
@@ -64,8 +64,8 @@ graph TB
     CHAT_SERVICE --> SUPABASE_DB
     SUPABASE_DB --> REALTIME
     REALTIME --> CHAT_STORE
-    CHAT_SERVICE --> EDGE_FUNC
-    EDGE_FUNC --> ACTIVITYPUB
+    SUPABASE_DB --> FED_BACKEND
+    FED_BACKEND --> ACTIVITYPUB
     ACTIVITYPUB --> REMOTE_SERVERS
 `
 
@@ -79,7 +79,7 @@ graph TB
 6. **Real-time Update**: Supabase sends real-time update to all connected clients
 7. **Store Update**: Chat store receives the update and updates local state
 8. **Component Reactivity**: MessageDisplay component reactively updates UI
-9. **Federation**: Edge function sends ActivityPub activity to federated servers
+9. **Federation**: Database triggers queue federation jobs, delivered by the federation backend
 
 ## State Flow Patterns
 
@@ -100,7 +100,7 @@ async function sendMessage(content: string) {
   
   try {
     // 2. Send to server
-    const result = await chatService.sendMessage(content)
+    const result = await services.messages.sendMessage(content)
     
     // 3. Replace optimistic message with server response
     const index = messages.value.findIndex(m => m.id === optimisticMessage.id)
@@ -147,16 +147,16 @@ export const useChatStore = defineStore('chat', () => {
 ```mermaid
 sequenceDiagram
     participant Local
-    participant EdgeFunc
+    participant FedBackend
     participant RemoteServer
     participant RemoteUser
     
-    Local->>EdgeFunc: Send ActivityPub Activity
-    EdgeFunc->>RemoteServer: POST /inbox
+    Local->>FedBackend: Queue federation job (via DB trigger)
+    FedBackend->>RemoteServer: POST /inbox (signed)
     RemoteServer->>RemoteUser: Deliver Activity
     RemoteUser->>RemoteServer: Create Response
-    RemoteServer->>EdgeFunc: POST /inbox
-    EdgeFunc->>Local: Store Response
+    RemoteServer->>FedBackend: POST /inbox (signed)
+    FedBackend->>Local: Store in database
 `
 
 ## Error Handling Flow
@@ -208,4 +208,4 @@ graph TB
 
 ---
 
-> 📝 **Next Steps**: Learn about [State Management](./state.md) for detailed information about Pinia stores.
+> **Next Steps**: Learn about [State Management](./state.md) for detailed information about Pinia stores.

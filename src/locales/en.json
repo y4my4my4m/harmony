@@ -89,7 +89,7 @@
     "orContinueWith": "or",
     "termsPrefix": "By registering, you agree to our",
     "termsOfService": "Terms of Service",
-    "and": "and",
+    "and": " and ",
     "privacyPolicy": "Privacy Policy",
     "oauth": {
       "google": "Continue with Google",

@@ -20,6 +20,10 @@ interface InstanceSettings {
   instanceName: string
   instanceDescription: string
   
+  // Legal / policy URLs
+  termsUrl: string
+  privacyUrl: string
+  
   // Registration
   openRegistration: boolean
   approvalRequired: boolean
@@ -50,6 +54,8 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   domain: import.meta.env.VITE_INSTANCE_DOMAIN || window.location.hostname,
   instanceName: import.meta.env.VITE_INSTANCE_NAME || 'Harmony',
   instanceDescription: '',
+  termsUrl: import.meta.env.VITE_TERMS_URL || '',
+  privacyUrl: import.meta.env.VITE_PRIVACY_URL || '',
   openRegistration: true,
   approvalRequired: false,
   federationEnabled: true,
@@ -161,6 +167,8 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           federationEnabled: this.settings.federationEnabled,
           inbound: this.settings.federationInboundEnabled,
           outbound: this.settings.federationOutboundEnabled,
+          termsUrl: this.settings.termsUrl,
+          privacyUrl: this.settings.privacyUrl,
         })
 
       } catch (error) {
@@ -186,6 +194,12 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             break
           case 'instance_description':
             this.settings.instanceDescription = value || ''
+            break
+          case 'terms_url':
+            this.settings.termsUrl = value || ''
+            break
+          case 'privacy_url':
+            this.settings.privacyUrl = value || ''
             break
           case 'open_registration':
             this.settings.openRegistration = value === true || value === 'true'

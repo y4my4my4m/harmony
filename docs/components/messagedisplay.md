@@ -122,6 +122,7 @@ No description available.
 | `update:isAtBottom` | `unknown` | No description |
 | `createThread` | `unknown` | No description |
 | `showAllThreads` | `unknown` | No description |
+| `mentionUser` | `unknown` | No description |
 
 ### Event Details
 
@@ -181,6 +182,14 @@ No description available.
 
 
 
+#### `mentionUser`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -202,7 +211,8 @@ This component exposes no public methods.
     @replyingTo="handleReplyingTo"
     @update:isAtBottom="handleUpdate:isAtBottom"
     @createThread="handleCreateThread"
-    @showAllThreads="handleShowAllThreads" />
+    @showAllThreads="handleShowAllThreads"
+    @mentionUser="handleMentionUser" />
 </template>
 
 <script setup lang="ts">
@@ -232,6 +242,10 @@ const handleCreateThread = (data: unknown) => {
 
 const handleShowAllThreads = (data: unknown) => {
   // Handle showAllThreads event
+}
+
+const handleMentionUser = (data: unknown) => {
+  // Handle mentionUser event
 }
 </script>
 ```

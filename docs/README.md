@@ -12,20 +12,22 @@ Visit: `http://localhost:3001`
 
 ---
 
-## 📋 Legacy Documentation Index
+## Documentation Index
 
 - [Architecture Overview](./ARCHITECTURE.md)
-- [Getting Started](./GETTING_STARTED.md)
 - [Development Guide](./DEVELOPMENT.md)
 - [API Reference](./API_REFERENCE.md)
-- [Database Schema](./DATABASE.md)
 - [Federation System](./FEDERATION.md)
 - [Component Library](./COMPONENTS.md)
 - [State Management](./STATE_MANAGEMENT.md)
 - [Service Layer](./SERVICES.md)
-- [Security](./SECURITY.md)
-- [Performance](./PERFORMANCE.md)
-- [Deployment](./DEPLOYMENT.md)
+- [E2EE Implementation](./E2EE_IMPLEMENTATION.md)
+- [Bot API](./BOT_API.md)
+- [Plugin System](./PLUGIN_SYSTEM.md)
+- [ActivityPub Extensions](./ACTIVITYPUB_EXTENSIONS.md)
+- [Self-Hosting Guide](./HOW_TO_SELF_HOST.md)
+- [Push Notifications](./PUSH_NOTIFICATIONS.md)
+- [OpenStatus Setup](./OPENSTATUS_SETUP.md)
 
 ## 🏗️ Quick Architecture Overview
 
@@ -50,7 +52,7 @@ graph TB
     
     subgraph "Backend Infrastructure"
         SUPA[Supabase]
-        EDGE[Edge Functions]
+        FEDB[Federation Backend]
         STORAGE[Storage Buckets]
         REALTIME[Realtime Subscriptions]
     end
@@ -70,7 +72,7 @@ graph TB
     AUTH --> SUPA
     CHAT --> SUPA
     VOICE --> SUPA
-    FED --> EDGE
+    FED --> FEDB
     NOTIF --> SUPA
     SUPA --> STORAGE
     SUPA --> REALTIME
@@ -109,7 +111,8 @@ harmony/
 │   └── assets/           # Static assets and styles
 ├── docs/                 # Documentation (this directory)
 ├── db_schema/           # Database schema and migrations
-├── supabase/            # Supabase edge functions
+├── federation-backend/  # Node.js ActivityPub backend
+├── bot-gateway/         # Bot API gateway
 ├── src-tauri/           # Tauri desktop app configuration
 └── public/              # Public assets
 ```

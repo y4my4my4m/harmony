@@ -53,6 +53,7 @@ No description available.
 | `invite` | `unknown` | No description |
 | `follow` | `unknown` | No description |
 | `unfollow` | `unknown` | No description |
+| `mention` | `unknown` | No description |
 
 ### Event Details
 
@@ -88,6 +89,14 @@ No description available.
 
 
 
+#### `mention`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
 
 ## Slots
 
@@ -107,7 +116,8 @@ This component exposes no public methods.
     @close="handleClose"
     @invite="handleInvite"
     @follow="handleFollow"
-    @unfollow="handleUnfollow" />
+    @unfollow="handleUnfollow"
+    @mention="handleMention" />
 </template>
 
 <script setup lang="ts">
@@ -125,6 +135,10 @@ const handleFollow = (data: unknown) => {
 
 const handleUnfollow = (data: unknown) => {
   // Handle unfollow event
+}
+
+const handleMention = (data: unknown) => {
+  // Handle mention event
 }
 </script>
 ```
