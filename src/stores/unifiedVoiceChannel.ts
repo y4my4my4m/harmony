@@ -1810,6 +1810,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * (music, videos, games) should play in stereo, not be spatially positioned
      */
     addUserToSpatialAudio(userId: string): void {
+      const spatialStore = useSpatialAudioStore();
+      if (!spatialStore.settings.enabled) {
+        return;
+      }
+      
       // Check if user is screensharing - if so, skip spatial audio
       // Screenshare audio should be played normally (stereo) not spatially
       const userState = this.allUsers.find(u => u.userId === userId);
@@ -1821,7 +1826,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       // Initialize remote user position if not set (never local user here)
-      const spatialStore = useSpatialAudioStore();
       if (!spatialStore.userPositions.has(userId)) {
         spatialStore.initializeUserPosition(userId, false); // false = remote user
         debug.log('🎧 Initialized position for new user:', userId);
@@ -1844,20 +1848,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return;
         }
         
+        // Re-check that spatial audio is still enabled (may have changed during the delay)
+        if (!useSpatialAudioStore().settings.enabled) {
+          return;
+        }
+        
         // Get the MediaStream for this user from WebRTC service
         const userStream = webrtcManager.getUserStream(userId);
         if (userStream) {
           spatialAudioService.setupSpatialForUser(userId, userStream);
           
-          // If spatial audio is enabled, mute traditional audio for this user
-          const spatialStore = useSpatialAudioStore();
-          if (spatialStore.settings.enabled) {
-            debug.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
-            webrtcManager.setTraditionalAudioEnabled(false);
-            
-            // Force spatial effects update for new user
-            spatialAudioService.updateSpatialEffects();
-          }
+          debug.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
+          webrtcManager.setTraditionalAudioEnabled(false);
+          
+          // Force spatial effects update for new user
+          spatialAudioService.updateSpatialEffects();
         } else {
           debug.warn('No media stream found for user:', userId);
         }
