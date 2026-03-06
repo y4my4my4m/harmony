@@ -54,24 +54,10 @@ graph TB
 
 ### Core System Flows
 
-- **[Authentication Flow](/flows/auth)** - User login, registration, and session management
-- **[Chat Message Flow](/flows/chat)** - Real-time messaging and channel communication
-- **[Federation Flow](/flows/federation)** - ActivityPub federation and cross-instance communication
-- **[Real-time Updates](/flows/realtime)** - WebSocket subscriptions and live data updates
-
-### Component Interactions
-
-- **[State Management Flow](/flows/state)** - Pinia store interactions and data flow
-- **[Router Navigation](/flows/navigation)** - Vue Router and layout switching
-- **[File Upload Flow](/flows/uploads)** - Media upload and storage handling
-- **[Notification System](/flows/notifications)** - Push notifications and user alerts
-
-### Advanced Features
-
-- **[Voice/Video Calling](/flows/voice)** - WebRTC connection establishment
-- **[Presence System](/flows/presence)** - User online/offline status tracking
-- **[Moderation Flow](/flows/moderation)** - Content moderation and admin actions
-- **[Federation Discovery](/flows/discovery)** - Instance discovery and connection
+- **[Authentication Flow](/flows/auth)** - User login, registration, session management, OAuth, and MFA
+- **[Chat Message Flow](/flows/chat)** - Message sending with encryption decisions, realtime delivery, and rendering
+- **[Federation Flow](/flows/federation)** - ActivityPub federation, job queue, HTTP signatures, and discovery
+- **[Real-time Updates](/flows/realtime)** - Supabase Realtime subscriptions, reconnection, and presence
 
 ## System Architecture Layers
 
@@ -306,12 +292,10 @@ flowchart TD
 
 Choose a specific flow diagram to explore:
 
-1. **Start with [Authentication Flow](/flows/auth)** - Understanding user sessions
-2. **Learn [Chat Message Flow](/flows/chat)** - Core messaging functionality  
-3. **Explore [Federation Flow](/flows/federation)** - Cross-instance communication
-4. **Study [Real-time Updates](/flows/realtime)** - Live data synchronization
-
-Each flow diagram includes detailed sequence diagrams, implementation notes, and troubleshooting guides.
+1. **[Authentication Flow](/flows/auth)** - User sessions, OAuth, and MFA
+2. **[Chat Message Flow](/flows/chat)** - Core messaging with encryption
+3. **[Federation Flow](/flows/federation)** - Cross-instance ActivityPub communication
+4. **[Real-time Updates](/flows/realtime)** - Live data synchronization
 
 ---
 

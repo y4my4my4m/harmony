@@ -73,7 +73,8 @@ my-bridge/
 Use the reference implementation from `discord-bridge/src/HarmonyClient.ts`:
 
 ```typescript
-import { HarmonyClient } from '@harmony/bot-client' // or copy implementation
+// Copy the HarmonyClient implementation from bot-plugins/discord-bridge/src/
+import { HarmonyClient } from './HarmonyClient'
 
 const harmonyClient = new HarmonyClient(
   config.harmony.token,
@@ -451,19 +452,17 @@ HarmonyPluginManager.register({
 - Slash commands
 - Interactive messages
 
-## 📚 Resources
+## Resources
 
 - [Bot API Reference](./BOT_API.md)
-- [Discord Bridge Source](../bot-plugins/discord-bridge/)
-- [Example Bots](../bot-plugins/examples/)
+- [Discord Bridge Source](../bot-plugins/discord-bridge/) — Reference implementation
 
-## 💬 Community Plugins
+## Community Plugins
 
-Submit your plugin to be featured:
-1. Create plugin following this guide
-2. Add README with setup instructions
-3. Submit PR to `bot-plugins/community/`
-4. We'll review and feature it!
+Want to contribute a plugin?
+1. Create a plugin following this guide
+2. Add a README with setup instructions
+3. Submit a PR to the repository
 
 ## 🎉 Plugin Ideas
 

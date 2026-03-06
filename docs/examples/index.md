@@ -17,7 +17,7 @@ This section provides practical examples of how to use Harmony's components, ser
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useChatStore } from '@/stores/useChat'
-import MessageList from '@/components/chat/MessageList.vue'
+import MessageDisplay from '@/components/MessageDisplay.vue'
 import MessageInput from '@/components/chat/MessageInput.vue'
 
 const chatStore = useChatStore()

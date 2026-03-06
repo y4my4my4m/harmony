@@ -62,8 +62,8 @@ const handler = async () =>
 
 ## Source Code Insights
 
-**File Size:** 40211 characters
-**Lines of Code:** 1048
+**File Size:** 40495 characters
+**Lines of Code:** 1051
 **Imports:** 10
 
 ## Usage Example

@@ -177,7 +177,7 @@ This is a Vue component file.
 
 ## Source Code Insights
 
-**File Size:** 34746 characters
+**File Size:** 34762 characters
 **Lines of Code:** 1015
 **Imports:** 18
 

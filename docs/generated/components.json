@@ -772,7 +772,7 @@
     "path": "messagedisplay.md",
     "relativePath": "MessageDisplay.vue",
     "props": 8,
-    "events": 7,
+    "events": 8,
     "slots": 0
   },
   {
@@ -1636,7 +1636,7 @@
     "path": "userprofilemodal.md",
     "relativePath": "UserProfileModal.vue",
     "props": 2,
-    "events": 4,
+    "events": 5,
     "slots": 0
   },
   {

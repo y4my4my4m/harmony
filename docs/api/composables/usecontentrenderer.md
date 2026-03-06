@@ -246,8 +246,8 @@ interface ContentRenderResult {
 
 ## Source Code Insights
 
-**File Size:** 17217 characters
-**Lines of Code:** 470
+**File Size:** 17728 characters
+**Lines of Code:** 482
 **Imports:** 7
 
 ## Usage Example

@@ -112,7 +112,7 @@ export const useChatStore = defineStore('chat', () => {
     addMessage(currentChannelId.value, tempMessage)
     
     try {
-      const result = await chatService.sendMessage(
+      const result = await services.messages.sendMessage(
         currentChannelId.value,
         content
       )

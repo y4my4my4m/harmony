@@ -32,7 +32,7 @@ graph TB
         SUPABASE[Supabase Backend]
         REALTIME[Real-time Subscriptions]
         STORAGE[File Storage]
-        EDGE[Edge Functions]
+        FEDB[Federation Backend]
     end
     
     subgraph "External Services"
@@ -56,13 +56,13 @@ graph TB
     CHAT_SVC --> SUPABASE
     CHAT_SVC --> REALTIME
     VOICE_SVC --> WEBRTC
-    FED_SVC --> EDGE
+    FED_SVC --> FEDB
     FED_SVC --> ACTIVITYPUB
     NOTIF_SVC --> PUSH
     PWA_SVC --> SW_SVC
     
     SUPABASE --> STORAGE
-    EDGE --> SUPABASE
+    FEDB --> SUPABASE
 ```
 
 ## 📋 Core Architectural Principles
@@ -163,7 +163,7 @@ components/
 ├── chat/            # Chat-specific components
 │   ├── ChatComponent.vue
 │   ├── MessageInput.vue
-│   └── MessageList.vue
+│   └── MessageDisplay.vue
 ├── voice/           # Voice/video components
 │   ├── VoiceChannel.vue
 │   └── VideoCall.vue
@@ -221,7 +221,7 @@ export const useChatStore = defineStore('chat', {
   actions: {
     async sendMessage(content: string) {
       // Service handles business logic
-      const message = await chatService.sendMessage(content)
+      const message = await services.messages.sendMessage(content)
       // Store manages state
       this.messages.push(message)
     }
@@ -250,7 +250,7 @@ supabase
 
 ### Backend
 - **Supabase**: PostgreSQL database with real-time features
-- **Edge Functions**: Serverless functions for federation
+- **Federation Backend**: Node.js backend for ActivityPub federation
 - **Row Level Security**: Database-level security policies
 - **Storage Buckets**: File and media storage
 

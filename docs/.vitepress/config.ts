@@ -4,13 +4,13 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 export default withMermaid(defineConfig({
   title: 'Harmony Documentation',
   description: 'Federated Social Platform with Chat - Complete Developer Guide',
-  base: '/harmony/',
+  base: '/',
   
   // Ignore dead links during build (some docs are still being developed)
   ignoreDeadLinks: true,
   
   head: [
-    ['link', { rel: 'icon', href: '/harmony/favicon.ico' }],
+    ['link', { rel: 'icon', href: '/favicon.ico' }],
     ['meta', { name: 'theme-color', content: '#646cff' }]
   ],
   

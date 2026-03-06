@@ -86,7 +86,7 @@ Harmony follows modern software architecture principles:
 - **Frontend**: Vue 3 with Composition API and TypeScript
 - **State Management**: Pinia stores with reactive patterns
 - **Backend**: Supabase (PostgreSQL + real-time subscriptions)
-- **Federation**: ActivityPub protocol with edge functions
+- **Federation**: ActivityPub protocol via Node.js federation backend
 - **Real-time**: WebSocket subscriptions and WebRTC
 
 ## Community & Support

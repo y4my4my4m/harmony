@@ -366,8 +366,8 @@ const walkNode = (node: Node): void =>
 
 ## Source Code Insights
 
-**File Size:** 30372 characters
-**Lines of Code:** 854
+**File Size:** 30015 characters
+**Lines of Code:** 851
 **Imports:** 6
 
 ## Usage Example

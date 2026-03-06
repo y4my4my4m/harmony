@@ -202,7 +202,7 @@ graph TB
 - [MediaPickerPopup](./mediapickerpopup.md) - 4 props, 2 events
 - [MessageContent](./messagecontent.md) - 10 props, 6 events
 - [MessageContextMenu](./messagecontextmenu.md) - 5 props, 4 events
-- [MessageDisplay](./messagedisplay.md) - 8 props, 7 events
+- [MessageDisplay](./messagedisplay.md) - 8 props, 8 events
 - [MessageInput](./messageinput.md) - 10 props, 7 events
 - [MessageReactions](./messagereactions.md) - 2 props, 4 events
 - [MessageReply](./messagereply.md) - 2 props, 1 events
@@ -232,7 +232,7 @@ graph TB
 - [UnifiedMessageContent](./unifiedmessagecontent.md) - 11 props, 9 events
 - [UserPreviewComponent](./userpreviewcomponent.md) - 2 props
 - [UserProfileComponent](./userprofilecomponent.md) - 1 props
-- [UserProfileModal](./userprofilemodal.md) - 2 props, 4 events
+- [UserProfileModal](./userprofilemodal.md) - 2 props, 5 events
 - [UserSidebar](./usersidebar.md) - 1 props
 
 ### Search
@@ -395,7 +395,7 @@ graph TB
 | [MentionIcon](./icons/mentionicon.md) | 2 | 0 | 0 | `icons/MentionIcon.vue` |
 | [MessageContent](./messagecontent.md) | 10 | 6 | 0 | `MessageContent.vue` |
 | [MessageContextMenu](./messagecontextmenu.md) | 5 | 4 | 0 | `MessageContextMenu.vue` |
-| [MessageDisplay](./messagedisplay.md) | 8 | 7 | 0 | `MessageDisplay.vue` |
+| [MessageDisplay](./messagedisplay.md) | 8 | 8 | 0 | `MessageDisplay.vue` |
 | [MessageInput](./messageinput.md) | 10 | 7 | 0 | `MessageInput.vue` |
 | [MessageReactions](./messagereactions.md) | 2 | 4 | 0 | `MessageReactions.vue` |
 | [MessageReply](./messagereply.md) | 2 | 1 | 0 | `MessageReply.vue` |
@@ -503,7 +503,7 @@ graph TB
 | [UserDataDebugPanel](./debug/userdatadebugpanel.md) | 0 | 0 | 0 | `debug/UserDataDebugPanel.vue` |
 | [UserPreviewComponent](./userpreviewcomponent.md) | 2 | 0 | 0 | `UserPreviewComponent.vue` |
 | [UserProfileComponent](./userprofilecomponent.md) | 1 | 0 | 0 | `UserProfileComponent.vue` |
-| [UserProfileModal](./userprofilemodal.md) | 2 | 4 | 0 | `UserProfileModal.vue` |
+| [UserProfileModal](./userprofilemodal.md) | 2 | 5 | 0 | `UserProfileModal.vue` |
 | [UserSearchModal](./activitypub/usersearchmodal.md) | 0 | 2 | 0 | `activitypub/UserSearchModal.vue` |
 | [UserSidebar](./usersidebar.md) | 1 | 0 | 0 | `UserSidebar.vue` |
 | [ViewHeader](./common/viewheader.md) | 2 | 1 | 0 | `common/ViewHeader.vue` |
@@ -517,4 +517,4 @@ graph TB
 
 ---
 
-*Last generated: 2026-03-05T07:18:12.372Z*
+*Last generated: 2026-03-05T23:18:26.265Z*

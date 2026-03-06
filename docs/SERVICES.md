@@ -582,7 +582,7 @@ export const useChatStore = defineStore('chat', () => {
   const userDataService = new UserDataService()
   
   const sendMessage = async (content: string) => {
-    const message = await chatService.sendMessage({
+    const message = await services.messages.sendMessage({
       content,
       channelId: currentChannelId.value,
       authorId: currentUserId.value
@@ -676,7 +676,7 @@ describe('ChatService', () => {
       })
     })
     
-    const result = await chatService.sendMessage(messageData)
+    const result = await services.messages.sendMessage(messageData)
     
     expect(result.id).toBe('msg-1')
     expect(result.content).toBe('Hello world')
@@ -697,7 +697,7 @@ describe('Service Integration', () => {
     expect(authResult.success).toBe(true)
     
     // Send message
-    const message = await chatService.sendMessage({
+    const message = await services.messages.sendMessage({
       content: 'Integration test',
       channelId: testChannelId,
       authorId: authResult.user.id
