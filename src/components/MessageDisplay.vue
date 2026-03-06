@@ -2276,15 +2276,25 @@ const closeInviteModal = () => {
   vertical-align: middle;
   margin-left: 0.25rem;
   text-decoration: none;
+  position: relative;
+  top: -1px;
 }
 
 .instance-badge.admin {
-  background: linear-gradient(135deg, #d4a017, #b8860b);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
+    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
+  );
   color: #fff;
 }
 
 .instance-badge.mod {
-  background: linear-gradient(135deg, #2b9e8f, #1a7a6d);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
+    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
+  );
   color: #fff;
 }
 
