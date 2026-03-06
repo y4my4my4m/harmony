@@ -721,6 +721,32 @@
                 This description appears as the subtitle on the login/register page.
               </span>
             </div>
+            <div class="setting-group">
+              <label>Terms of Service URL</label>
+              <input
+                v-model="instanceConfig.termsUrl"
+                type="url"
+                class="cyber-input"
+                placeholder="https://example.com/terms"
+                @input="instanceBrandingChanged = true"
+              />
+              <span class="setting-hint">
+                Link to your Terms of Service. Shown on the registration page. Leave empty to hide.
+              </span>
+            </div>
+            <div class="setting-group">
+              <label>Privacy Policy URL</label>
+              <input
+                v-model="instanceConfig.privacyUrl"
+                type="url"
+                class="cyber-input"
+                placeholder="https://example.com/privacy"
+                @input="instanceBrandingChanged = true"
+              />
+              <span class="setting-hint">
+                Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
+              </span>
+            </div>
             <button 
               @click="saveInstanceBranding" 
               class="save-btn" 
@@ -1069,6 +1095,8 @@ const instanceConfig = ref({
   name: 'Harmony Instance',
   domain: import.meta.env.VITE_DOMAIN as string,
   description: 'A federated social platform',
+  termsUrl: '',
+  privacyUrl: '',
   openRegistration: true,
   approvalRequired: false
 })
@@ -1290,6 +1318,8 @@ const loadInstanceConfig = async () => {
         name: config.instance.name || 'Harmony Instance',
         domain: config.instance.domain || import.meta.env.VITE_DOMAIN as string,
         description: config.instance.description || 'A federated social platform',
+        termsUrl: config.instance.termsUrl || '',
+        privacyUrl: config.instance.privacyUrl || '',
         openRegistration: config.instance.registrationOpen ?? true,
         approvalRequired: config.instance.requiresApproval ?? false
       }
@@ -1571,6 +1601,22 @@ const saveInstanceBranding = async () => {
       instanceConfig.value.description,
       authStore.session.user.id,
       'Description of this instance'
+    )
+
+    // Save terms URL
+    await adminService.setInstanceConfig(
+      'terms_url',
+      instanceConfig.value.termsUrl,
+      authStore.session.user.id,
+      'URL to the Terms of Service page'
+    )
+
+    // Save privacy URL
+    await adminService.setInstanceConfig(
+      'privacy_url',
+      instanceConfig.value.privacyUrl,
+      authStore.session.user.id,
+      'URL to the Privacy Policy page'
     )
 
     instanceBrandingChanged.value = false
