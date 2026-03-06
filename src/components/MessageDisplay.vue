@@ -2281,12 +2281,13 @@ const closeInviteModal = () => {
 }
 
 .instance-badge.admin {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
-    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
-  );
+  color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  transition: all 0.5s ease;
+}
+
+.username:hover .instance-badge.admin {
   color: #fff;
+  background:  var(--harmony-accent);
 }
 
 .instance-badge.mod {
