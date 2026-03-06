@@ -891,19 +891,39 @@ install_nginx_config() {
     echo ""
 
     if prompt_yn "Install nginx configs?" "y"; then
-        sudo cp "$PROJECT_DIR/dev/nginx-harmony.conf" /etc/nginx/sites-available/harmony
-        sudo ln -sf /etc/nginx/sites-available/harmony /etc/nginx/sites-enabled/harmony
+        local skip_app=false
+        local skip_docs=false
 
-        if [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]]; then
+        if [[ -f /etc/nginx/sites-available/harmony ]]; then
+            if ! prompt_yn "/etc/nginx/sites-available/harmony already exists. Overwrite?" "n"; then
+                skip_app=true
+            fi
+        fi
+
+        if [[ -f /etc/nginx/sites-available/harmony-docs ]]; then
+            if ! prompt_yn "/etc/nginx/sites-available/harmony-docs already exists. Overwrite?" "n"; then
+                skip_docs=true
+            fi
+        fi
+
+        if ! $skip_app; then
+            sudo cp "$PROJECT_DIR/dev/nginx-harmony.conf" /etc/nginx/sites-available/harmony
+            sudo ln -sf /etc/nginx/sites-available/harmony /etc/nginx/sites-enabled/harmony
+            print_success "Installed sites-available/harmony"
+        fi
+
+        if ! $skip_docs && [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]]; then
             sudo cp "$PROJECT_DIR/dev/nginx-docs.conf" /etc/nginx/sites-available/harmony-docs
             sudo ln -sf /etc/nginx/sites-available/harmony-docs /etc/nginx/sites-enabled/harmony-docs
+            print_success "Installed sites-available/harmony-docs"
         fi
 
         if sudo nginx -t 2>/dev/null; then
-            print_success "Nginx configs installed and validated"
+            print_success "Nginx config validated"
             sudo systemctl reload nginx 2>/dev/null && print_success "Nginx reloaded" || true
         else
             print_error "Nginx config validation failed. Check the config manually."
+            print_info "Your existing nginx configs were not affected."
         fi
     fi
 }
