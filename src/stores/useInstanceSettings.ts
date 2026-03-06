@@ -167,6 +167,8 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           federationEnabled: this.settings.federationEnabled,
           inbound: this.settings.federationInboundEnabled,
           outbound: this.settings.federationOutboundEnabled,
+          termsUrl: this.settings.termsUrl,
+          privacyUrl: this.settings.privacyUrl,
         })
 
       } catch (error) {
