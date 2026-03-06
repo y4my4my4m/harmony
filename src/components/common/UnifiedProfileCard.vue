@@ -32,8 +32,14 @@
 
       <!-- Instance & Server Badges -->
       <div v-if="!isCompact && (hasInstanceBadge || userRoles.length > 0)" class="user-roles">
-        <div v-if="user.is_admin" class="role-badge instance-admin-badge">Instance Admin</div>
-        <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">Instance Mod</div>
+        <span v-if="user.is_admin" class="instance-badge admin" title="Instance Admin">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+          ADMIN
+        </span>
+        <span v-else-if="user.is_moderator" class="instance-badge mod" title="Instance Moderator">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+          MOD
+        </span>
         <div
           v-for="role in userRoles"
           :key="role.id"
@@ -698,7 +704,8 @@ const vClickOutside = {
   color: var(--error-primary);
 }
 
-.instance-badge {
+/* Federation/domain badge (absolute top-right) */
+.instance-badge:not(.admin):not(.mod) {
   position: absolute;
   top: var(--space-3);
   right: var(--space-3);
@@ -711,6 +718,40 @@ const vClickOutside = {
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+/* Instance admin/mod pill (in user-roles) */
+.user-roles .instance-badge {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.3rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+  background: transparent;
+  border: none;
+}
+
+.user-roles .instance-badge.admin {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--harmony-accent) 20%, transparent),
+    color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
+  );
+  color: #fff;
+}
+
+.user-roles .instance-badge.mod {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--harmony-primary) 20%, transparent),
+    color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
+  );
+  color: #fff;
 }
 
 .spinning {
