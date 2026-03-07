@@ -53,7 +53,7 @@
           v-else-if="part && part.type === 'role_mention'"
           class="mention role-mention"
           :style="part.roleColor ? { '--role-color': part.roleColor, color: part.roleColor, background: part.roleColor + '1a' } : {}"
-        >@{{ part.roleName }}</span>
+        >@{{ part.roleName?.replace(/^@/, '') }}</span>
         
         <!-- Emojis (custom server or unified pack) -->
         <template v-else-if="part && part.type === 'emoji'">

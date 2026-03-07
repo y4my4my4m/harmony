@@ -19,9 +19,15 @@
       <slot :suggestion="suggestion" :selected="index === props.selectedIndex">
         <!-- Default fallback rendering -->
         <div class="suggest-item-default">
+          <!-- Command icon -->
+          <div v-if="suggestion.isCommand" class="suggest-icon command-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
+            </svg>
+          </div>
           <!-- Role icon -->
           <div 
-            v-if="suggestion.isRole" 
+            v-else-if="suggestion.isRole" 
             class="suggest-icon role-icon"
             :style="{ backgroundColor: suggestion.roleColor || '#99AAB5' }"
           >
@@ -49,13 +55,20 @@
           <div class="suggest-text">
             <div class="suggest-name-row">
               <!-- Role name with color -->
-              <span v-if="suggestion.isRole" class="suggest-name role-name" :style="{ color: suggestion.roleColor || '#99AAB5' }">
-                @{{ suggestion.display_name || suggestion.name }}
+              <span v-if="suggestion.isCommand" class="suggest-name command-name">
+                {{ suggestion.display_name || suggestion.name }}
+              </span>
+              <span v-else-if="suggestion.isRole" class="suggest-name role-name" :style="{ color: suggestion.roleColor || '#99AAB5' }">
+                @{{ (suggestion.display_name || suggestion.name || '').replace(/^@/, '') }}
               </span>
               <span class="suggest-name" v-else-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
               <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
+              <!-- Command description -->
+              <span v-if="suggestion.isCommand && suggestion.description" class="suggest-description">
+                {{ suggestion.description }}
+              </span>
               <!-- Role badge -->
-              <span v-if="suggestion.isRole" class="bridge-badge role-badge" title="Role">
+              <span v-else-if="suggestion.isRole" class="bridge-badge role-badge" title="Role">
                 Role
               </span>
               <!-- Discord badge for bridged users -->
@@ -65,7 +78,7 @@
                 </svg>
               </span>
             </div>
-            <span v-if="suggestion.username && !suggestion.isRole" class="suggest-username">{{ suggestion.username }}</span>
+            <span v-if="suggestion.username && !suggestion.isRole && !suggestion.isCommand" class="suggest-username">{{ suggestion.username }}</span>
             <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
           </div>
         </div>
@@ -300,6 +313,29 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .role-name {
   font-weight: 600;
+}
+
+.command-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-color, #5865f2);
+  color: white;
+}
+
+.command-name {
+  font-weight: 600;
+  color: var(--accent-color, #5865f2);
+}
+
+.suggest-description {
+  font-size: 0.75rem;
+  color: var(--text-muted, #949ba4);
+  margin-left: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .selected .bridge-badge {

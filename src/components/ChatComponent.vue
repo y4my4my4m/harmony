@@ -91,6 +91,16 @@
       @thread-updated="handleThreadUpdated"
       @thread-created="handleThreadCreated"
     />
+
+    <KickBanModal
+      v-if="showKickBanModal && !props.isDM"
+      :show="showKickBanModal"
+      :mode="kickBanMode"
+      :user="kickBanTargetUser"
+      :server-id="serverChannelStore.currentServerId!"
+      @close="showKickBanModal = false"
+      @done="handleKickBanDone"
+    />
   </div>
 </template>
 
@@ -98,6 +108,7 @@
   import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
+  import KickBanModal from './moderation/KickBanModal.vue';
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
@@ -157,6 +168,25 @@
   const showDragDropArea = ref(false);
   const uploading = ref(false);
   const sendError = ref<string | null>(null);
+
+  // Slash command moderation modal
+  const showKickBanModal = ref(false);
+  const kickBanMode = ref<'kick' | 'ban'>('kick');
+  const kickBanTargetUser = ref({ id: '', username: '', display_name: '', avatar_url: null as string | null });
+
+  function handleSlashCommand(e: Event) {
+    const { command } = (e as CustomEvent).detail;
+    if (command === 'kick' || command === 'ban') {
+      if (props.isDM || !serverChannelStore.currentServerId) return;
+      kickBanMode.value = command;
+      kickBanTargetUser.value = { id: '', username: '', display_name: '', avatar_url: null };
+      showKickBanModal.value = true;
+    }
+  }
+
+  function handleKickBanDone(result: { success: boolean }) {
+    showKickBanModal.value = false;
+  }
   
   // Media picker state (unified GIF + Emoji picker)
   const mediaPickerOpen = ref(false);
@@ -340,10 +370,12 @@
 
       onMounted(() => {
         window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('harmony-command', handleSlashCommand);
       });
 
       onUnmounted(() => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener('harmony-command', handleSlashCommand);
       });
 
       const replyingTo = (messageId: string, replyingTo: string) => {

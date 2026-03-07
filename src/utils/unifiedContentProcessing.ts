@@ -135,7 +135,7 @@ export async function resolveRoleMentionsData(
     const { data } = await query;
     if (data) {
       for (const role of data) {
-        map[role.id] = { name: role.name, color: role.color };
+        map[role.id] = { name: role.name.replace(/^@/, ''), color: role.color };
       }
     }
   } catch (err) {

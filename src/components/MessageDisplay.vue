@@ -461,7 +461,7 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
-import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
+import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
 
@@ -1817,7 +1817,8 @@ const saveEdit = async (messageId: string, newContent?: string) => {
   try {
     const userDataMap = await resolveMentionsUserData(textContent);
     const emojiDataMap = await resolveEmojisData(textContent);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap);
+    const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
     
     await chatStore.editMessage(messageId, parsedContent);
     cancelEdit();

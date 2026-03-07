@@ -3,7 +3,7 @@
     <div v-if="show" class="modal-overlay" @click="$emit('close')">
       <div class="modal-container" @click.stop>
         <div class="modal-header" :class="{ 'ban-header': mode === 'ban' }">
-          <h2 class="modal-title">{{ mode === 'ban' ? `Ban ${displayName}` : `Kick ${displayName}` }}</h2>
+          <h2 class="modal-title">{{ mode === 'ban' ? 'Ban Member' : 'Kick Member' }}</h2>
           <button class="modal-close" @click="$emit('close')">
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -12,19 +12,46 @@
         </div>
 
         <div class="modal-body">
-          <div class="user-preview">
-            <img
-              :src="user.avatar_url || '/default_avatar.png'"
-              :alt="displayName"
-              class="user-avatar"
+          <!-- Member selector (when no user pre-selected) -->
+          <div v-if="needsMemberSelect" class="form-group">
+            <label for="member-search">Member</label>
+            <input
+              id="member-search"
+              v-model="memberSearch"
+              type="text"
+              class="form-input"
+              placeholder="Search for a member..."
+              autocomplete="off"
             />
-            <div class="user-info">
-              <span class="user-display-name">{{ displayName }}</span>
-              <span class="user-username">@{{ user.username }}</span>
+            <div v-if="filteredMembers.length > 0" class="member-list">
+              <div
+                v-for="m in filteredMembers"
+                :key="m.id"
+                class="member-option"
+                :class="{ 'selected': selectedMember?.id === m.id }"
+                @click="selectedMember = m"
+              >
+                <img :src="m.avatar_url || '/default_avatar.png'" class="member-option-avatar" />
+                <span>{{ m.display_name || m.username }}</span>
+                <span class="member-option-username">@{{ m.username }}</span>
+              </div>
             </div>
           </div>
 
-          <div v-if="mode === 'ban'" class="warning-banner">
+          <!-- User preview (when user is known) -->
+          <div v-if="targetUser" class="user-preview">
+            <img
+              :src="targetUser.avatar_url || '/default_avatar.png'"
+              :alt="targetDisplayName"
+              class="user-avatar"
+            />
+            <div class="user-info">
+              <span class="user-display-name">{{ targetDisplayName }}</span>
+              <span class="user-username">@{{ targetUser.username }}</span>
+            </div>
+          </div>
+
+          <div v-if="mode === 'ban' && targetUser" class="warning-banner">
             This user will be permanently banned from the server and will not be able to rejoin until unbanned.
           </div>
 
@@ -56,7 +83,7 @@
             class="btn-confirm"
             :class="{ 'btn-ban': mode === 'ban' }"
             @click="confirm"
-            :disabled="isLoading"
+            :disabled="isLoading || !targetUser"
           >
             <span v-if="isLoading" class="loading-spinner"></span>
             <span v-else>{{ mode === 'ban' ? 'Ban' : 'Kick' }}</span>
@@ -68,13 +95,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { moderationService, DELETE_MESSAGE_OPTIONS, type DeleteMessageDuration } from '@/services/ModerationService'
+import { userDataService } from '@/services/userDataService'
+import { useServerChannelStore } from '@/stores/useServerChannel'
+
+interface MemberInfo {
+  id: string
+  username: string
+  display_name?: string | null
+  avatar_url?: string | null
+}
 
 const props = defineProps<{
   show: boolean
   mode: 'kick' | 'ban'
-  user: { id: string; username: string; display_name?: string | null; avatar_url?: string | null }
+  user: MemberInfo
   serverId: string
 }>()
 
@@ -83,23 +119,63 @@ const emit = defineEmits<{
   done: [result: { success: boolean; messagesDeleted?: number }]
 }>()
 
+const serverChannelStore = useServerChannelStore()
 const reason = ref('')
 const deleteSeconds = ref<DeleteMessageDuration>(0)
 const isLoading = ref(false)
 const deleteOptions = DELETE_MESSAGE_OPTIONS
 
-const displayName = computed(() => props.user.display_name || props.user.username)
+const memberSearch = ref('')
+const selectedMember = ref<MemberInfo | null>(null)
+const serverMembers = ref<MemberInfo[]>([])
+
+const needsMemberSelect = computed(() => !props.user.id)
+
+const targetUser = computed<MemberInfo | null>(() => {
+  if (props.user.id) return props.user;
+  return selectedMember.value;
+})
+
+const targetDisplayName = computed(() => targetUser.value?.display_name || targetUser.value?.username || '')
+
+const filteredMembers = computed(() => {
+  const q = memberSearch.value.toLowerCase();
+  if (!q) return serverMembers.value.slice(0, 10);
+  return serverMembers.value
+    .filter(m => m.username?.toLowerCase().includes(q) || m.display_name?.toLowerCase().includes(q))
+    .slice(0, 10);
+})
+
+watch(() => props.show, async (visible) => {
+  if (visible && needsMemberSelect.value) {
+    const userIds = userDataService.getUsersInContext(props.serverId);
+    serverMembers.value = userIds
+      .map(id => {
+        const p = userDataService.getUserProfile(id);
+        return p ? { id, username: p.username, display_name: p.displayName, avatar_url: p.avatarUrl } : null;
+      })
+      .filter((m): m is MemberInfo => m !== null);
+  }
+  if (!visible) {
+    memberSearch.value = '';
+    selectedMember.value = null;
+    reason.value = '';
+    deleteSeconds.value = 0;
+  }
+})
 
 async function confirm() {
+  if (!targetUser.value) return;
   isLoading.value = true
   try {
     const action = props.mode === 'ban' ? moderationService.banMember : moderationService.kickMember
-    const result = await action(props.serverId, props.user.id, reason.value || undefined, deleteSeconds.value)
+    const result = await action(props.serverId, targetUser.value.id, reason.value || undefined, deleteSeconds.value)
     emit('done', result)
   } finally {
     isLoading.value = false
     reason.value = ''
     deleteSeconds.value = 0
+    selectedMember.value = null
   }
 }
 </script>
@@ -301,6 +377,60 @@ async function confirm() {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.form-input {
+  background: var(--bg-tertiary, #1e1f22);
+  border: 1px solid var(--border-color, #3f4147);
+  border-radius: 4px;
+  padding: 10px;
+  color: var(--text-primary, #f2f3f5);
+  font-size: 0.9rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-color, #5865f2);
+}
+
+.member-list {
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary, #1e1f22);
+  border: 1px solid var(--border-color, #3f4147);
+}
+
+.member-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-primary, #f2f3f5);
+}
+.member-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.member-option.selected {
+  background: rgba(88, 101, 242, 0.2);
+}
+
+.member-option-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.member-option-username {
+  color: var(--text-muted, #949ba4);
+  font-size: 0.78rem;
+  margin-left: auto;
 }
 
 @media (max-width: 480px) {

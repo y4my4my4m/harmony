@@ -436,6 +436,38 @@ BEGIN
     END IF;
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- Fix: rename '@everyone' role to 'everyone' (@ is display, not name)
+-- ---------------------------------------------------------------------------
+UPDATE public.server_roles
+SET name = 'everyone'
+WHERE is_default = true AND name = '@everyone';
+
+-- Update the trigger function for new servers
+CREATE OR REPLACE FUNCTION public.create_default_server_role()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    everyone_role_id uuid;
+    admin_role_id uuid;
+BEGIN
+    INSERT INTO server_roles (server_id, name, color, position, is_default, is_admin, permissions)
+    VALUES (NEW.id, 'everyone', '#99AAB5', 0, true, false, 104324161)
+    RETURNING id INTO everyone_role_id;
+
+    INSERT INTO server_roles (server_id, name, color, position, is_default, is_admin, permissions)
+    VALUES (NEW.id, 'Admin', '#e74c3c', 1, false, true, 2147483647)
+    RETURNING id INTO admin_role_id;
+
+    INSERT INTO user_roles (user_id, role_id, server_id, assigned_by)
+    VALUES (NEW.owner, admin_role_id, NEW.id, NEW.owner);
+
+    RETURN NEW;
+END;
+$$;
+
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;

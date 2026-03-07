@@ -39,6 +39,8 @@ import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { userDataService } from '@/services/userDataService';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { roleService } from '@/services/RoleService';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 
 interface Props {
   modelValue: string;
@@ -68,9 +70,40 @@ const emit = defineEmits<Emits>();
 const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
 const emojiCache = useEmojiCacheStore();
+const serverChannelStore = useServerChannelStore();
 const { resolveEmoji, isNativePack, getSvgUrl, isLoaded: unifiedLoaded } = useUnifiedEmoji();
 const isRendering = ref(false);
 const skipNextWatch = ref(false); // Flag to skip watch when manually rendering
+
+// Cache of role ID → { name, color } for displaying role mentions in the editor
+const roleDisplayCache = new Map<string, { name: string; color: string | null }>();
+
+async function resolveRoleDisplay(roleId: string): Promise<{ name: string; color: string | null }> {
+  if (roleDisplayCache.has(roleId)) return roleDisplayCache.get(roleId)!;
+  const serverId = serverChannelStore.currentServerId;
+  if (serverId) {
+    try {
+      const roles = await roleService.getRolesForServer(serverId);
+      for (const role of roles) {
+        roleDisplayCache.set(role.id, { name: role.name.replace(/^@/, ''), color: role.color });
+      }
+      if (roleDisplayCache.has(roleId)) return roleDisplayCache.get(roleId)!;
+    } catch { /* fall through */ }
+  }
+  try {
+    const role = await roleService.getRole(roleId);
+    if (role) {
+      const entry = { name: role.name.replace(/^@/, ''), color: role.color };
+      roleDisplayCache.set(roleId, entry);
+      return entry;
+    }
+  } catch { /* fall through */ }
+  return { name: 'Unknown Role', color: null };
+}
+
+function getCachedRoleDisplay(roleId: string): { name: string; color: string | null } | null {
+  return roleDisplayCache.get(roleId) || null;
+}
 
 const hasContent = computed(() => {
   if (!editorRef.value) return false;
@@ -400,14 +433,42 @@ const processMentionsInText = (text: string): DocumentFragment => {
     }
     
     if (match[1]) {
-      // Role mention
+      // Role mention – show @RoleName visually, keep @role:UUID for extraction
       const roleId = match[2];
+      const cached = getCachedRoleDisplay(roleId);
+      const rawName = cached?.name || 'loading...';
+      const roleName = rawName.replace(/^@/, '');
+      const roleColor = cached?.color;
+
       const span = document.createElement('span');
       span.className = 'editor-mention editor-role-mention';
       span.contentEditable = 'false';
       span.setAttribute('data-role-id', roleId);
-      span.setAttribute('data-display-text', match[0]);
-      span.textContent = match[0]; // Will be resolved to role name on render
+      span.setAttribute('data-display-text', match[0]); // @role:UUID for getPlainText
+      span.textContent = `@${roleName}`;
+      if (roleColor) {
+        span.style.color = roleColor;
+        span.style.backgroundColor = roleColor + '1a';
+      }
+
+      // If not cached yet, resolve async and re-render
+      if (!cached) {
+        resolveRoleDisplay(roleId).then(() => {
+          if (editorRef.value && !isRendering.value) {
+            const el = editorRef.value.querySelector(`[data-role-id="${roleId}"]`);
+            if (el) {
+              const resolved = getCachedRoleDisplay(roleId);
+              if (resolved) {
+                el.textContent = `@${resolved.name.replace(/^@/, '')}`;
+                if (resolved.color) {
+                  (el as HTMLElement).style.color = resolved.color;
+                  (el as HTMLElement).style.backgroundColor = resolved.color + '1a';
+                }
+              }
+            }
+          }
+        });
+      }
       fragment.appendChild(span);
     } else if (match[3]) {
       // User mention
@@ -1000,7 +1061,18 @@ watch(() => props.modelValue, (newValue) => {
   }
 });
 
-onMounted(() => {
+onMounted(async () => {
+  // Pre-warm role cache so role mentions resolve instantly
+  const serverId = serverChannelStore.currentServerId;
+  if (serverId) {
+    try {
+      const roles = await roleService.getRolesForServer(serverId);
+      for (const role of roles) {
+        roleDisplayCache.set(role.id, { name: role.name.replace(/^@/, ''), color: role.color });
+      }
+    } catch { /* non-critical */ }
+  }
+
   if (props.modelValue) {
     renderContent(props.modelValue);
   }
@@ -1213,5 +1285,9 @@ onMounted(() => {
 .rich-text-editor :deep(.editor-mention:hover) {
   background-color: rgba(88, 101, 242, 0.3);
   text-decoration: underline;
+}
+
+.rich-text-editor :deep(.editor-role-mention) {
+  font-weight: 600;
 }
 </style>
