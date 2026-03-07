@@ -700,6 +700,8 @@ class UserDataService extends EventTarget {
       color: presence.color || existing?.color,
       domain: existing?.domain || import.meta.env.VITE_DOMAIN as string,
       isLocal: existing?.isLocal ?? true,
+      isAdmin: existing?.isAdmin ?? false,
+      isModerator: existing?.isModerator ?? false,
       status: userStatus,
       customStatus: presence.custom_status || existing?.customStatus,
       isOnline: true,
@@ -712,6 +714,12 @@ class UserDataService extends EventTarget {
     }
     
     this.users.set(userId, userData)
+    
+    // If we have no prior DB data, backfill from database so roles are populated
+    if (!existing) {
+      this.loadUsersData([userId]).catch(() => {})
+    }
+    
     this.emitEvent('user-updated', { userId })
   }
   

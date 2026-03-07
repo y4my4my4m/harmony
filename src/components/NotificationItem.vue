@@ -101,6 +101,7 @@
             @click="toggleRead"
             class="action-btn read-toggle"
             :class="{ active: !notification.is_read }"
+            :title="notification.is_read ? 'Mark as unread' : 'Mark as read'"
             :aria-label="notification.is_read ? 'Mark as unread' : 'Mark as read'"
           >
             <MarkReadIcon v-if="notification.is_read" class="action-icon" />
@@ -111,6 +112,7 @@
           <button 
             @click="handleDismiss"
             class="action-btn dismiss-btn"
+            title="Dismiss notification"
             aria-label="Dismiss notification"
           >
             <DismissIcon class="action-icon" />
