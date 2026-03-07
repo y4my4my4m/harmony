@@ -503,6 +503,7 @@ class DMCallSignalingService {
     const call = this.activeCalls.get(signal.conversationId)
     
     switch (signal.type) {
+      case 'accept':
       case 'join':
         if (call) {
           if (!call.participants.includes(signal.callerId)) {

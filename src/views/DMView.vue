@@ -334,12 +334,13 @@ const handleIncomingCall = (payload: { callerId: string, callType: 'voice' | 'vi
 const handleAcceptCall = async (acceptWithVideo: boolean) => {
   if (!incomingCall.value) return
   
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) return
-  
   try {
-    // Send accept signal
-    await dmCallSignaling.acceptCall(incomingCall.value.conversationId, currentUserId)
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    if (!profileId) return
+    
+    // Send accept signal (must use profile ID to match leaveCall)
+    await dmCallSignaling.acceptCall(incomingCall.value.conversationId, profileId)
     
     // Join the voice channel
     const dmChannelId = `dm-${incomingCall.value.conversationId}`
@@ -366,12 +367,13 @@ const handleAcceptCall = async (acceptWithVideo: boolean) => {
 const handleDeclineCall = async () => {
   if (!incomingCall.value) return
   
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) return
-  
   try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    if (!profileId) return
+    
     // Send decline signal
-    await dmCallSignaling.declineCall(incomingCall.value.conversationId, currentUserId)
+    await dmCallSignaling.declineCall(incomingCall.value.conversationId, profileId)
     toast.info('Call declined')
   } catch (error) {
     debug.error('Error declining call:', error)
