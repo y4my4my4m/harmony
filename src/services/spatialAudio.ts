@@ -518,6 +518,25 @@ export class SpatialAudioService {
   }
 
   /**
+   * Set per-user volume (from the UI volume slider).
+   * Applied on outputGain so it stacks with spatial distance attenuation
+   * without conflicting with the inputGain used for spatial effects.
+   * @param volume 0-200, where 100 is normal (matches the UI scale)
+   */
+  setUserVolume(userId: string, volume: number): void {
+    const node = this.spatialNodes.get(userId);
+    if (!node || !this.audioContext || !node.isConnected) return;
+
+    try {
+      const linearGain = Math.max(0, Math.min(2, volume / 100));
+      const currentTime = this.audioContext.currentTime;
+      node.outputGain.gain.setTargetAtTime(linearGain, currentTime, 0.05);
+    } catch (error) {
+      debug.error('Failed to set spatial volume for user:', userId, error);
+    }
+  }
+
+  /**
    * Set user panning with smooth transitions and accurate spatial positioning
    */
   private setUserPanning(userId: string, panning: number): void {

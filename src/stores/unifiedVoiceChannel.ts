@@ -1518,20 +1518,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      // Audio levels
+      // Audio levels (also drives the speaking indicator for remote users)
       webrtcManager.on('audio-level', (data) => {
+        const speaking = data.level > 20;
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
-          // Track recent speakers when audio level exceeds threshold
-          if (data.level > 20 && !this.localState.isMuted) {
+          if (speaking && !this.localState.isMuted) {
             this.updateRecentSpeakers(data.userId);
           }
         } else {
           const user = this.allUsers.find(u => u.userId === data.userId);
           if (user) {
             user.audioLevel = data.level;
-            // Track recent speakers when audio level exceeds threshold
-            if (data.level > 20) {
+            user.isSpeaking = speaking;
+            if (speaking) {
               this.updateRecentSpeakers(data.userId);
             }
           }

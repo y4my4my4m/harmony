@@ -639,6 +639,12 @@ class WebRTCManagerService implements WebRTCManager {
     } else if (this.activeService === 'p2p') {
       unifiedWebRTC.setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
     }
+    
+    // Also apply to spatial audio chain (operates on the outputGain node,
+    // so it works even when traditional audio elements are muted)
+    import('./spatialAudio').then(({ spatialAudioService }) => {
+      spatialAudioService.setUserVolume(userId, volume);
+    }).catch(() => {});
   }
   
   /**
