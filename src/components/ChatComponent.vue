@@ -112,7 +112,7 @@
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
-  import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
+  import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
   import { supabase } from '@/supabase';
@@ -564,16 +564,11 @@
       const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
         debug.log('🔧 Using unified content parsing for:', input);
         
-        // Use efficient batch mention resolution
         const userDataMap = await resolveMentionsUserData(input);
-        
-        // Use unified emoji resolution - includes both server emojis AND unified pack
         const emojiDataMap = await resolveEmojisData(input);
+        const roleDataMap = await resolveRoleMentionsData(input, serverChannelStore.currentServerId || undefined);
         
-        debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length);
-        
-        // Parse with unified system (now with emoji data)
-        const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap);
+        const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, roleDataMap);
         
         debug.log('🔧 Final parsed message parts:', result);
         return result;

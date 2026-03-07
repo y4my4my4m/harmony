@@ -47,6 +47,13 @@
           class="mention" 
           @click="handleMentionClick(part)"
         >{{ renderer.formatMentionDisplay(part) }}</span>
+
+        <!-- Role mentions -->
+        <span
+          v-else-if="part && part.type === 'role_mention'"
+          class="mention role-mention"
+          :style="part.roleColor ? { '--role-color': part.roleColor, color: part.roleColor, background: part.roleColor + '1a' } : {}"
+        >@{{ part.roleName }}</span>
         
         <!-- Emojis (custom server or unified pack) -->
         <template v-else-if="part && part.type === 'emoji'">
@@ -522,6 +529,13 @@ const formatFileSize = (bytes: number): string => {
 .mention:hover {
   background-color: var(--harmony-primary);
   color: rgba(255,255,255,0.9);
+}
+
+.role-mention {
+  cursor: default;
+}
+.role-mention:hover {
+  filter: brightness(1.15);
 }
 
 /* Make HTML content selectable */

@@ -43,6 +43,17 @@
           <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" />
           {{ isBlocked ? 'Unblock User' : 'Block User' }}
         </div>
+        <template v-if="isInServerContext && !isCurrentUser">
+          <div class="action-divider"></div>
+          <div v-if="canKick" class="action-item danger" @click="openKickModal">
+            <Icon name="log-out" class="action-item-icon" />
+            Kick from Server
+          </div>
+          <div v-if="canBan" class="action-item danger" @click="openBanModal">
+            <Icon name="ban" class="action-item-icon" />
+            Ban from Server
+          </div>
+        </template>
       </div>
 
       <!-- Main Profile Content -->
@@ -305,6 +316,16 @@
       </div>
     </div>
   </BaseModal>
+
+  <KickBanModal
+    v-if="user && isInServerContext"
+    :show="showKickBanModal"
+    :mode="kickBanMode"
+    :user="{ id: user.id, username: user.username || '', display_name: (user as any).display_name || user.username || '', avatar_url: (user as any).avatar_url || null }"
+    :server-id="serverChannelStore.currentServerId!"
+    @close="showKickBanModal = false"
+    @done="handleKickBanDone"
+  />
 </template>
 
 <script setup lang="ts">
@@ -319,9 +340,10 @@ import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl } from '@/utils/bannerUtils'
 import { coreProfileService } from '@/services/core/CoreProfileService'
-import { roleService, type ServerRole } from '@/services/RoleService'
+import { roleService, type ServerRole, Permission } from '@/services/RoleService'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
+import KickBanModal from './moderation/KickBanModal.vue'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 
@@ -384,6 +406,12 @@ const isLoadingUserStats = ref(false)
 // Server roles for the user (from current server context)
 const fetchedUserRoles = ref<ServerRole[]>([])
 const isLoadingRoles = ref(false)
+
+// Moderation state
+const showKickBanModal = ref(false)
+const kickBanMode = ref<'kick' | 'ban'>('kick')
+const canKick = ref(false)
+const canBan = ref(false)
 
 // Get the current instance domain
 const currentDomain = import.meta.env.VITE_DOMAIN as string
@@ -738,14 +766,23 @@ const sendDirectMessage = async () => {
     return
   }
   
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) return
-
   emit('close')
 
   try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    const currentProfileId = await authContextService.getCurrentProfileId()
+    if (!currentProfileId) {
+      debug.error('Cannot send DM: no profile ID')
+      return
+    }
+
     const { useDMStore } = await import('@/stores/useDM')
     const dmStore = useDMStore()
+
+    // Ensure conversations are loaded before checking
+    if (dmStore.conversations.length === 0) {
+      await dmStore.fetchUserConversations(currentProfileId)
+    }
 
     // Check if a conversation already exists in the loaded list
     const existing = dmStore.conversations.find(c => c.other_user?.id === props.user!.id)
@@ -754,16 +791,15 @@ const sendDirectMessage = async () => {
       return
     }
 
-    // Find or create the conversation via the DB RPC
-    const conversationId = await dmStore.createOrGetConversation(currentUserId, props.user.id)
+    // Find or create the conversation via the DB RPC (needs profile IDs)
+    const conversationId = await dmStore.createOrGetConversation(currentProfileId, props.user.id)
     if (conversationId) {
       router.push(`/dm/${conversationId}`)
     } else {
-      router.push('/dm')
+      debug.error('Failed to create DM conversation: RPC returned null')
     }
   } catch (error) {
     debug.error('Failed to open DM:', error)
-    router.push('/dm')
   }
 }
 
@@ -891,6 +927,51 @@ const toggleMute = async () => {
     showActionsMenu.value = false
   } catch (error) {
     debug.error('Failed to toggle mute:', error)
+  }
+}
+
+const openKickModal = () => {
+  kickBanMode.value = 'kick'
+  showKickBanModal.value = true
+  showActionsMenu.value = false
+}
+
+const openBanModal = () => {
+  kickBanMode.value = 'ban'
+  showKickBanModal.value = true
+  showActionsMenu.value = false
+}
+
+const handleKickBanDone = (result: { success: boolean; messagesDeleted?: number }) => {
+  showKickBanModal.value = false
+  if (result.success) {
+    emit('close')
+  }
+}
+
+async function loadModerationPermissions() {
+  if (!isInServerContext.value || !props.user || isCurrentUser.value) {
+    canKick.value = false
+    canBan.value = false
+    return
+  }
+  const serverId = serverChannelStore.currentServerId
+  if (!serverId) return
+
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    if (!profileId) return
+
+    const [kick, ban] = await Promise.all([
+      roleService.hasPermission(profileId, serverId, Permission.KICK_MEMBERS),
+      roleService.hasPermission(profileId, serverId, Permission.BAN_MEMBERS),
+    ])
+    canKick.value = kick
+    canBan.value = ban
+  } catch {
+    canKick.value = false
+    canBan.value = false
   }
 }
 
@@ -1031,6 +1112,8 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       // Load user roles for current server context
       // This shows the user's roles in the server where the modal was opened
       loadUserRoles(props.user.id)
+
+      loadModerationPermissions()
       
       // Ensure followed users are loaded in the store for accurate follow button state
       if (!activityPubStore.followsLoaded) {

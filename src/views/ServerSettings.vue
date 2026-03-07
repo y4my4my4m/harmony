@@ -113,6 +113,12 @@
             :server-id="serverId"
           />
 
+          <!-- Bans Section -->
+          <ServerBans
+            v-if="activeSection === 'bans'"
+            :server-id="serverId"
+          />
+
           <!-- Emoji Management Section -->
           <ServerEmojiManagement
             v-if="activeSection === 'emoji'"
@@ -182,6 +188,7 @@ import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings
 import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
 import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
+import ServerBans from '@/components/settings/server/ServerBans.vue'
 
 interface Props {
   serverId: string
@@ -245,6 +252,7 @@ const availableSections = computed(() => {
   const sections = [
     { id: 'overview', label: t('server.overview') },
     { id: 'roles', label: t('server.roles', 'Roles') },
+    { id: 'bans', label: 'Bans' },
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }

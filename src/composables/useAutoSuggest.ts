@@ -935,6 +935,8 @@ export function useAutoSuggest(
           // For bridged Discord users, use mention_text since it contains the special d!ID:username format
           if (suggestion.isBridged && suggestion.mention_text) {
             insertText = suggestion.mention_text + ' '; // Use special bridged user format
+          } else if (suggestion.isRole && suggestion.mention_text) {
+            insertText = suggestion.mention_text + ' '; // @role:UUID format for reliable parsing
           } else if (suggestion.display_text) {
             insertText = suggestion.display_text + ' '; // Human-readable @username or @username@domain
           } else {

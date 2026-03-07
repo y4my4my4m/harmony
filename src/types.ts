@@ -254,6 +254,13 @@ export interface MentionContent {
   displayName?: string;
 }
 
+export interface RoleMentionContent {
+  type: 'role_mention';
+  roleId: string;
+  roleName: string;
+  roleColor: string | null;
+}
+
 export interface EmojiContent {
   type: 'emoji';
   emoji: Emoji;
@@ -296,7 +303,7 @@ export interface SystemContent {
 
 export type EncryptedPayloadMap = Record<string, string>
 
-export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
+export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
 
 export interface Reaction {
   id: string;

@@ -380,11 +380,26 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
       return { success: false, error: 'Not authenticated' }
     }
 
+    // Get current device's push subscription endpoint so the test
+    // notification is only delivered to this device.
+    let currentEndpoint: string | undefined
+    try {
+      const registration = await navigator.serviceWorker?.ready
+      const subscription = await registration?.pushManager?.getSubscription()
+      if (subscription) {
+        currentEndpoint = subscription.endpoint
+      }
+    } catch {
+      // Fall back to sending to all devices
+    }
+
     const response = await fetch(`${FEDERATION_BACKEND_URL}/push/test`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(currentEndpoint ? { endpoint: currentEndpoint } : {})
     })
 
     const data = await response.json()

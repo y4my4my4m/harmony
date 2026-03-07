@@ -380,51 +380,52 @@ const setCursorPosition = (targetPosition: number) => {
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
-  // Match mentions in ActivityPub format:
-  // @username@domain (remote mention)
-  // @username (local mention)
-  const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
-  
-  debug.log('🔧 processMentionsInText called with:', text);
+  // Match role mentions, then user mentions
+  // @role:UUID - role mention
+  // @username@domain - remote user mention
+  // @username - local user mention
+  const mentionRegex = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)/g;
   
   let lastIndex = 0;
   let match;
   
   while ((match = mentionRegex.exec(text)) !== null) {
-    debug.log('🔧 Found mention match:', match);
     const matchStart = match.index;
     const matchEnd = match.index + match[0].length;
     
-    // Add text before the mention
     if (matchStart > lastIndex) {
       const textBefore = text.substring(lastIndex, matchStart);
-      // Convert spaces to &nbsp; for proper rendering
       const textNode = document.createTextNode(textBefore.replace(/ /g, '\u00A0'));
       fragment.appendChild(textNode);
     }
     
-    // Create mention element with rich metadata
-    const username = match[1];
-    const domain = match[2]; // Domain can be matched after @ or .
-    const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
-    fragment.appendChild(mentionElement);
+    if (match[1]) {
+      // Role mention
+      const roleId = match[2];
+      const span = document.createElement('span');
+      span.className = 'editor-mention editor-role-mention';
+      span.contentEditable = 'false';
+      span.setAttribute('data-role-id', roleId);
+      span.setAttribute('data-display-text', match[0]);
+      span.textContent = match[0]; // Will be resolved to role name on render
+      fragment.appendChild(span);
+    } else if (match[3]) {
+      // User mention
+      const username = match[4];
+      const domain = match[5];
+      const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
+      fragment.appendChild(mentionElement);
+    }
     
     lastIndex = matchEnd;
   }
   
-  // Add remaining text after last mention
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
-    debug.log('🔧 Adding remaining text after mentions:', JSON.stringify(remainingText));
-    // Convert spaces to &nbsp; for proper cursor positioning after mention elements
     const textNode = document.createTextNode(remainingText.replace(/ /g, '\u00A0'));
     fragment.appendChild(textNode);
   }
   
-  // If no mentions found, just return the text as a text node
-  // Removed redundant fallback block that appended the full text again.
-  
-  debug.log('🔧 Fragment children count:', fragment.childNodes.length);
   return fragment;
 };
 

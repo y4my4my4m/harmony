@@ -111,6 +111,40 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
 }
 
 /**
+ * Extract role UUIDs from @role:UUID mentions and look up their name/color
+ */
+export async function resolveRoleMentionsData(
+  content: string,
+  serverId?: string
+): Promise<Record<string, { name: string; color: string | null }>> {
+  const roleRegex = /@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/g;
+  const roleIds = new Set<string>();
+  let match;
+  while ((match = roleRegex.exec(content)) !== null) {
+    roleIds.add(match[1]);
+  }
+  if (roleIds.size === 0) return {};
+
+  const map: Record<string, { name: string; color: string | null }> = {};
+  try {
+    const query = supabase
+      .from('server_roles')
+      .select('id, name, color')
+      .in('id', Array.from(roleIds));
+    if (serverId) query.eq('server_id', serverId);
+    const { data } = await query;
+    if (data) {
+      for (const role of data) {
+        map[role.id] = { name: role.name, color: role.color };
+      }
+    }
+  } catch (err) {
+    debug.warn('Error resolving role mention data:', err);
+  }
+  return map;
+}
+
+/**
  * Helper function to efficiently resolve emoji data in batch
  * Supports both UUID-based emojis, shortcode emojis, and unified emoji pack
  */
@@ -274,15 +308,17 @@ export async function parseContentToMessageParts(
   content: string,
   usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean; displayName?: string }> = {},
   emojiDataMap: Record<string, any> = {},
-  hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {}
+  hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {},
+  roleDataMap: Record<string, { name: string; color: string | null }> = {}
 ): Promise<MessagePart[]> {
   if (!content) return [{ type: 'text', text: '' }];
 
-  // Parse mentions, hashtags, URLs, and emojis in order of appearance
-  // Combined regex to match mentions, hashtags in one pass
-  // Includes compact Discord mention format: @d!ID:username
-  // Unicode-aware: \p{L} = any letter, \p{N} = any number (includes CJK, etc.)
-  const combinedRegex = /(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
+  // Parse role mentions, Discord bridged mentions, user mentions, and hashtags
+  // @role:UUID - role mention
+  // @d!ID:username - Discord bridged user
+  // @username or @username@domain - user mention
+  // #hashtag - hashtag
+  const combinedRegex = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
   const parts: MessagePart[] = [];
   
   let lastIndex = 0;
@@ -296,13 +332,23 @@ export async function parseContentToMessageParts(
     }
     
     if (match[1]) {
-      // This is a Discord bridged mention: @d!ID:username (compact format)
-      const discordId = match[2];
-      const discordUsername = match[3];
+      // Role mention: @role:UUID
+      const roleId = match[2];
+      const roleData = roleDataMap[roleId];
+      parts.push({
+        type: 'role_mention',
+        roleId,
+        roleName: roleData?.name || 'Unknown Role',
+        roleColor: roleData?.color || null,
+      } as MessagePart);
+    } else if (match[3]) {
+      // Discord bridged mention: @d!ID:username (compact format)
+      const discordId = match[4];
+      const discordUsername = match[5];
       
       parts.push({
         type: 'mention',
-        userId: discordId, // Store Discord ID directly for translation to <@ID>
+        userId: discordId,
         username: discordUsername,
         domain: 'discord.com',
         isLocal: false,
@@ -310,22 +356,19 @@ export async function parseContentToMessageParts(
         isBridged: true,
         bridgeSource: 'discord'
       } as MessagePart);
-    } else if (match[4]) {
-      // This is a regular mention (@username or @username@domain)
-      const username = match[5];
-      const domain = match[6];
+    } else if (match[6]) {
+      // Regular mention (@username or @username@domain)
+      const username = match[7];
+      const domain = match[8];
       
-      // Look up user data from provided map (efficient batch lookup)
       const mentionKey = domain ? `${username}@${domain}` : username;
       const userData = usernameToUserDataMap[mentionKey] || usernameToUserDataMap[username];
       
-      // Fall back to domain-based logic if user data not available
       const currentDomain = import.meta.env.VITE_DOMAIN as string;
       const isLocal = userData?.isLocal ?? (!domain || domain === currentDomain);
       const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
       const displayName = userData?.displayName ?? username;
       
-      // Always include domain for federation - use current domain for local users
       const finalDomain = domain || currentDomain;
       
       parts.push({
@@ -336,9 +379,9 @@ export async function parseContentToMessageParts(
         isLocal: isLocal,
         displayName: displayName
       });
-    } else if (match[7]) {
-      // This is a hashtag (#tagname)
-      const hashtagName = match[7];
+    } else if (match[9]) {
+      // Hashtag (#tagname)
+      const hashtagName = match[9];
       const normalizedName = hashtagName.toLowerCase();
       
       // Look up hashtag data from provided map
