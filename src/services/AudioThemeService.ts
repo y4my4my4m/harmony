@@ -148,36 +148,36 @@ export class AudioThemeService {
       }
     })
 
-    // Professional theme - Subtle and refined
+    // Futuristic theme - Subtle and refined
     this.registerTheme({
-      id: 'professional',
-      name: 'Professional',
-      description: 'Subtle and refined audio cues for business environments',
+      id: 'futuristic',
+      name: 'Futuristic',
+      description: 'Futuristic audio cues for a modern and engaging experience',
       author: 'Harmony Team',
       version: '1.0.0',
       isBuiltIn: true,
-      preview: '/assets/sounds/discord/professional-preview.webp',
+      preview: '/assets/sounds/futuristic/futuristic-preview.webp',
       sounds: {
-        // Professional notification sounds (using existing assets)
-        mention: '/assets/sounds/discord/mention.mp3', // Repurposed
-        dm: '/assets/sounds/discord/dm.mp3',
-        reaction: '/assets/sounds/discord/reaction.mp3',
-        voice_channel_activity: '/assets/sounds/discord/voice_connect.mp3',
+        // Futuristic notification sounds (using existing assets)
+        mention: '/assets/sounds/futuristic/mention.mp3', // Repurposed
+        dm: '/assets/sounds/futuristic/dm.mp3',
+        reaction: '/assets/sounds/futuristic/reaction.mp3',
+        voice_channel_activity: '/assets/sounds/futuristic/voice_connect.mp3',
         
-        // Professional voice actions
-        voice_connect: '/assets/sounds/discord/voice_connect.mp3',
-        voice_disconnect: '/assets/sounds/discord/voice_disconnect.mp3',
-        call_incoming: '/assets/sounds/discord/call_incoming.mp3',
-        call_outgoing: '/assets/sounds/discord/call_incoming.mp3',
-        call_ended: '/assets/sounds/discord/voice_disconnect.mp3',
-        mic_on: '/assets/sounds/discord/mic_on.mp3',
-        mic_off: '/assets/sounds/discord/mic_off.mp3',
-        deafen_on: '/assets/sounds/discord/deafen_on.mp3',
-        deafen_off: '/assets/sounds/discord/deafen_off.mp3',
-        camera_on: '/assets/sounds/discord/camera_on.mp3',
-        camera_off: '/assets/sounds/discord/camera_off.mp3',
-        screenshare_on: '/assets/sounds/discord/screenshare_on.mp3',
-        screenshare_off: '/assets/sounds/discord/screenshare_off.mp3',
+        // Futuristic voice actions
+        voice_connect: '/assets/sounds/futuristic/voice_connect.mp3',
+        voice_disconnect: '/assets/sounds/futuristic/voice_disconnect.mp3',
+        call_incoming: '/assets/sounds/futuristic/call_incoming.mp3',
+        call_outgoing: '/assets/sounds/futuristic/call_incoming.mp3',
+        call_ended: '/assets/sounds/futuristic/voice_disconnect.mp3',
+        mic_on: '/assets/sounds/futuristic/mic_on.mp3',
+        mic_off: '/assets/sounds/futuristic/mic_off.mp3',
+        deafen_on: '/assets/sounds/futuristic/deafen_on.mp3',
+        deafen_off: '/assets/sounds/futuristic/deafen_off.mp3',
+        camera_on: '/assets/sounds/futuristic/camera_on.mp3',
+        camera_off: '/assets/sounds/futuristic/camera_off.mp3',
+        screenshare_on: '/assets/sounds/futuristic/screenshare_on.mp3',
+        screenshare_off: '/assets/sounds/futuristic/screenshare_off.mp3',
         
         // Minimal UI sounds
         ui_click: '/assets/sounds/default/click.mp3',
