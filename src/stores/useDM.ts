@@ -1641,8 +1641,10 @@ export const useDMStore = defineStore('dm', () => {
   const setupConversationSubscription = (conversationId: string) => {
     const channelName = `dm-conversation-${conversationId}`
     
-    // Check if already subscribed to this exact conversation
-    if (realtimeConnectionManager.hasSubscription(channelName)) {
+    // Check if already fully subscribed (messages + reactions)
+    const reactionsChannelName = `dm-reactions-${conversationId}`
+    if (realtimeConnectionManager.hasSubscription(channelName) && 
+        realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
       debug.log('📡 Already subscribed to conversation:', channelName)
       return
     }
@@ -1654,35 +1656,61 @@ export const useDMStore = defineStore('dm', () => {
 
     debug.log('🔄 Setting up conversation subscription for:', conversationId)
 
-    // Ensure encryption key listener is active
     setupEncryptionKeyListener()
-    
-    // Use RealtimeConnectionManager for automatic reconnection
-    const unsubscribe = realtimeConnectionManager.subscribeToTable({
-      channelName,
-      table: 'messages',
-      filter: `conversation_id=eq.${conversationId}`,
-      
-      // Handle new messages
-      onInsert: async (payload) => {
-        debug.log('🔔 New DM message received:', payload.new)
+
+    // Subscribe to messages
+    if (!realtimeConnectionManager.hasSubscription(channelName)) {
+      const unsubscribe = realtimeConnectionManager.subscribeToTable({
+        channelName,
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
         
-        const message = payload.new as any
-        
-        // Skip if message already exists (from optimistic update)
-        if (currentDMMessages.value.findIndex(m => m.id === message.id) !== -1) {
-          debug.log('⚠️ Real message already exists, skipping real-time duplicate')
-          return
-        }
-        
-        // Check for temp message (race condition fallback)
-        const tempMessageIndex = currentDMMessages.value.findIndex(m => 
-          m.id.startsWith('temp-') && m.user_id === message.user_id
-        )
-        
-        if (tempMessageIndex !== -1) {
-          debug.warn('⚠️ Temp message still exists during real-time, replacing now')
-          let resolvedMessage: Message = {
+        onInsert: async (payload) => {
+          debug.log('🔔 New DM message received:', payload.new)
+          
+          const message = payload.new as any
+          
+          if (currentDMMessages.value.findIndex(m => m.id === message.id) !== -1) {
+            debug.log('⚠️ Real message already exists, skipping real-time duplicate')
+            return
+          }
+          
+          const tempMessageIndex = currentDMMessages.value.findIndex(m => 
+            m.id.startsWith('temp-') && m.user_id === message.user_id
+          )
+          
+          if (tempMessageIndex !== -1) {
+            debug.warn('⚠️ Temp message still exists during real-time, replacing now')
+            let resolvedMessage: Message = {
+              id: message.id,
+              user_id: message.user_id,
+              content: message.content,
+              created_at: new Date(message.created_at),
+              channel_id: '',
+              conversation_id: message.conversation_id,
+              reply_to: message.reply_to,
+              reactions: message.reactions || [],
+              is_system: message.is_system,
+              metadata: message.metadata || null,
+              encrypted: message.encrypted || false,
+              encryption_metadata: message.encryption_metadata
+            }
+            
+            try {
+              ensureMessageEmbeds(resolvedMessage)
+              if (resolvedMessage.encrypted) {
+                const decrypted = await processMessageDecryption([resolvedMessage])
+                resolvedMessage = decrypted[0]
+              }
+            } catch (error) {
+              debug.warn('Failed to process DM message:', error)
+            }
+            
+            currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage)
+            return
+          }
+          
+          let formattedMessage: Message = {
             id: message.id,
             user_id: message.user_id,
             content: message.content,
@@ -1698,124 +1726,86 @@ export const useDMStore = defineStore('dm', () => {
           }
           
           try {
-            ensureMessageEmbeds(resolvedMessage)
-            if (resolvedMessage.encrypted) {
-              const decrypted = await processMessageDecryption([resolvedMessage])
-              resolvedMessage = decrypted[0]
+            if (formattedMessage.encrypted) {
+              const decrypted = await processMessageDecryption([formattedMessage])
+              formattedMessage = decrypted[0]
             }
           } catch (error) {
-            debug.warn('Failed to process DM message:', error)
+            debug.warn('Failed to decrypt real-time DM message:', error)
           }
           
-          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage)
-          return
-        }
+          addMessageToCache(formattedMessage)
+        },
         
-        // Create formatted message
-        let formattedMessage: Message = {
-          id: message.id,
-          user_id: message.user_id,
-          content: message.content,
-          created_at: new Date(message.created_at),
-          channel_id: '',
-          conversation_id: message.conversation_id,
-          reply_to: message.reply_to,
-          reactions: message.reactions || [],
-          is_system: message.is_system,
-          metadata: message.metadata || null,
-          encrypted: message.encrypted || false,
-          encryption_metadata: message.encryption_metadata
-        }
-        
-        // Decrypt if encrypted
-        try {
-          if (formattedMessage.encrypted) {
-            const decrypted = await processMessageDecryption([formattedMessage])
-            formattedMessage = decrypted[0]
+        onUpdate: async (payload) => {
+          debug.log('🔄 DM message updated:', payload.new)
+          const message = payload.new as any
+          
+          if (message.is_deleted) {
+            removeMessageFromCache(message.id)
+            debug.log('🗑️ DM message soft-deleted via real-time:', message.id)
+            return
           }
-        } catch (error) {
-          debug.warn('Failed to decrypt real-time DM message:', error)
-        }
-        
-        addMessageToCache(formattedMessage)
-      },
-      
-      // Handle message updates
-      onUpdate: async (payload) => {
-        debug.log('🔄 DM message updated:', payload.new)
-        const message = payload.new as any
-        
-        // Handle soft delete (federated message deletions use UPDATE with is_deleted = true)
-        if (message.is_deleted) {
-          removeMessageFromCache(message.id)
-          debug.log('🗑️ DM message soft-deleted via real-time:', message.id)
-          return
-        }
-        
-        // Fetch reactions if the message has any
-        let formattedReactions: any[] = []
-        if (message.reactions && message.reactions.length > 0) {
+          
+          let formattedReactions: any[] = []
+          if (message.reactions && message.reactions.length > 0) {
+            try {
+              const { data: reactions, error: reactionsError } = await supabase
+                .rpc('get_message_reactions', { message_id: message.id })
+              
+              if (!reactionsError && reactions) {
+                formattedReactions = reactions
+              }
+            } catch (error) {
+              debug.error('Error fetching reactions for updated DM message:', error)
+            }
+          }
+          
+          let updatedMessage: Message = {
+            id: message.id,
+            user_id: message.user_id,
+            content: message.content,
+            created_at: new Date(message.created_at),
+            channel_id: '',
+            conversation_id: message.conversation_id,
+            reply_to: message.reply_to,
+            reactions: formattedReactions,
+            is_system: message.is_system,
+            metadata: message.metadata || null,
+            encrypted: message.encrypted || false,
+            encryption_metadata: message.encryption_metadata
+          }
+          
           try {
-            const { data: reactions, error: reactionsError } = await supabase
-              .rpc('get_message_reactions', { message_id: message.id })
-            
-            if (!reactionsError && reactions) {
-              formattedReactions = reactions
+            if (updatedMessage.encrypted) {
+              const decrypted = await processMessageDecryption([updatedMessage])
+              updatedMessage = decrypted[0]
             }
           } catch (error) {
-            debug.error('Error fetching reactions for updated DM message:', error)
+            debug.warn('Failed to decrypt updated DM message:', error)
           }
-        }
+          
+          updateMessageInCache(message.id, updatedMessage)
+        },
         
-        let updatedMessage: Message = {
-          id: message.id,
-          user_id: message.user_id,
-          content: message.content,
-          created_at: new Date(message.created_at),
-          channel_id: '',
-          conversation_id: message.conversation_id,
-          reply_to: message.reply_to,
-          reactions: formattedReactions,
-          is_system: message.is_system,
-          metadata: message.metadata || null,
-          encrypted: message.encrypted || false,
-          encryption_metadata: message.encryption_metadata
-        }
+        onDelete: (payload) => {
+          debug.log('🗑️ DM message deleted:', payload.old)
+          const payloadOld = payload.old as any
+          removeMessageFromCache(payloadOld.id)
+        },
         
-        // Decrypt if encrypted
-        try {
-          if (updatedMessage.encrypted) {
-            const decrypted = await processMessageDecryption([updatedMessage])
-            updatedMessage = decrypted[0]
-          }
-        } catch (error) {
-          debug.warn('Failed to decrypt updated DM message:', error)
+        onStatusChange: (status, name) => {
+          debug.log(`📡 ${name} status: ${status}`)
         }
-        
-        updateMessageInCache(message.id, updatedMessage)
-      },
-      
-      // Handle message deletions
-      onDelete: (payload) => {
-        debug.log('🗑️ DM message deleted:', payload.old)
-        const payloadOld = payload.old as any
-        removeMessageFromCache(payloadOld.id)
-      },
-      
-      // Handle connection status changes
-      onStatusChange: (status, name) => {
-        debug.log(`📡 ${name} status: ${status}`)
-      }
-    })
+      })
 
-    // Store the unsubscribe function
-    currentSubscription.value = unsubscribe
-    dmSubscriptions.value.set(channelName, unsubscribe)
+      currentSubscription.value = unsubscribe
+      dmSubscriptions.value.set(channelName, unsubscribe)
+    }
 
-    // Subscribe to reactions for this conversation's messages
-    const reactionsStore = useReactionsStore()
-    const reactionsChannelName = `dm-reactions-${conversationId}`
+    // Subscribe to reactions (mirrors useChat.ts channel-reactions pattern)
     if (!realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
+      const reactionsStore = useReactionsStore()
       const reactionsUnsubscribe = realtimeConnectionManager.subscribeToTable({
         channelName: reactionsChannelName,
         table: 'reactions',
