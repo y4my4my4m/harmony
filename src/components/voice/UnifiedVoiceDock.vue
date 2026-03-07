@@ -41,7 +41,12 @@
         </div>
         <div class="user-details">
           <span class="user-name">{{ currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User' }}</span>
-          <span class="channel-name">{{ channelName }}</span>
+          <span class="channel-name">
+            {{ channelName }}
+            <span class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
+              {{ voiceStore.connectionMode === 'livekit' ? 'SFU' : voiceStore.connectionMode === 'p2p' ? 'P2P' : '' }}
+            </span>
+          </span>
         </div>
       </div>
 
@@ -1396,13 +1401,34 @@ onUnmounted(() => {
 }
 
 .channel-name {
-  /* color: var(--text-secondary); */
   color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 65px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dock-connection-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 14px;
+  flex-shrink: 0;
+}
+
+.dock-connection-badge.livekit {
+  background: rgba(87, 242, 135, 0.2);
+  color: #57f287;
+}
+
+.dock-connection-badge.p2p {
+  background: rgba(88, 101, 242, 0.2);
+  color: #5865f2;
 }
 
 /* Voice Controls */
