@@ -59,7 +59,7 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 
 4. **Set Up Supabase**
    - Create a Supabase project
-   - Import schema from `harmonious/supabase_schema_backup_latest.sql`
+   - Import schema from `db_schema/init/` (run `init.sql` which loads all numbered SQL files)
    - Copy your project URL and keys to `.env` files
 
 5. **Start Development**
@@ -333,14 +333,14 @@ Look for issues labeled `good first issue`:
 
 - GitHub Issues - Bug reports and feature requests
 - GitHub Discussions - General questions and ideas
-- Discord - Real-time chat (link in README)
+- Harmony - Join our own Harmony instance for real-time chat (link in README)
 
 ### Getting Help
 
 - Check existing documentation
 - Search closed issues
-- Ask in Discussions
-- Join Discord for quick questions
+- Ask in GitHub Discussions
+- Join our Harmony instance for quick questions
 
 ## Recognition
 

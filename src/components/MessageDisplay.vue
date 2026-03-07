@@ -2354,7 +2354,7 @@ const closeInviteModal = () => {
 .username:hover .instance-badge.admin, 
 .username:hover .instance-badge.mod {
   color: #fff;
-  background:  var(--harmony-accent);
+  background:  var(--harmony-secondary);
 }
 
 .timestamp {

@@ -112,41 +112,31 @@ onMounted(() => {
 </script>
 
 <style>
+  /* Figtree – self-hosted variable font (OFL-1.1) */
   @font-face {
-    font-family: 'gg sans';
+    font-family: 'Figtree';
     font-style: normal;
-    font-weight: 300;
-    src: local('gg sans Normal Regular'), url('/assets/fonts/gg_sans_Regular.woff') format('woff');
+    font-weight: 300 900;
+    font-display: swap;
+    src: url('/assets/fonts/Figtree-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
   }
-  
   @font-face {
-    font-family: 'gg sans';
+    font-family: 'Figtree';
     font-style: normal;
-    font-weight: 400;
-    src: local('gg sans Medium Regular'), url('/assets/fonts/gg_sans_Medium.woff') format('woff');
+    font-weight: 300 900;
+    font-display: swap;
+    src: url('/assets/fonts/Figtree-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
   }
 
-  @font-face {
-    font-family: 'gg sans';
-    font-style: normal;
-    font-weight: 700;
-    src: local('gg sans SemiBold Regular'), url('/assets/fonts/gg_sans_Semibold.woff') format('woff');
-  }
-  @font-face {
-    font-family: 'gg sans';
-    font-style: normal;
-    font-weight: 900;
-    src: local('gg sans Bold'), url('/assets/fonts/gg_sans_Bold.woff') format('woff');
-  }
-  
   /* Global styles */
   html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    font-family: 'gg sans', Arial, sans-serif;
-    font-weight:100!important;
+    font-family:  'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   #app {

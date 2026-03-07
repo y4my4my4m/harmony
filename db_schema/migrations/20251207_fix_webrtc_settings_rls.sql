@@ -11,6 +11,7 @@ DECLARE
 BEGIN
     -- Drop all existing policies on instance_webrtc_settings
     DROP POLICY IF EXISTS "Anyone can read webrtc settings" ON "public"."instance_webrtc_settings";
+    DROP POLICY IF EXISTS "webrtc_settings_select_admin_only" ON "public"."instance_webrtc_settings";
     DROP POLICY IF EXISTS "Admins can update webrtc settings" ON "public"."instance_webrtc_settings";
     DROP POLICY IF EXISTS "Admins can insert webrtc settings" ON "public"."instance_webrtc_settings";
     DROP POLICY IF EXISTS "Admins can delete webrtc settings" ON "public"."instance_webrtc_settings";
@@ -27,13 +28,21 @@ BEGIN
 END
 $$;
 
--- Allow anyone (including unauthenticated) to read WebRTC settings
--- This is safe as WebRTC settings are not sensitive
--- Don't specify TO clause to allow all roles (authenticated and anon)
-CREATE POLICY "Anyone can read webrtc settings" 
+-- SECURITY: This table contains livekit_api_secret which MUST NOT be exposed!
+-- Only admins can read the full table. Use get_livekit_config() RPC for safe access.
+CREATE POLICY "webrtc_settings_select_admin_only" 
     ON "public"."instance_webrtc_settings" 
     FOR SELECT 
-    USING (true);
+    USING (
+        EXISTS (
+            SELECT 1
+            FROM "public"."profiles"
+            WHERE (
+                "profiles"."auth_user_id" = "auth"."uid"() 
+                AND "profiles"."is_admin" = true
+            )
+        )
+    );
 
 -- Allow admins to insert WebRTC settings (for initial setup)
 CREATE POLICY "Admins can insert webrtc settings" 
@@ -93,8 +102,6 @@ CREATE POLICY "Admins can delete webrtc settings"
 -- Ensure RLS is enabled (should already be, but make sure)
 ALTER TABLE "public"."instance_webrtc_settings" ENABLE ROW LEVEL SECURITY;
 
--- Grant table permissions to authenticated users (RLS policies will control access)
-GRANT SELECT ON "public"."instance_webrtc_settings" TO "authenticated";
-GRANT SELECT ON "public"."instance_webrtc_settings" TO "anon";
-GRANT INSERT, UPDATE, DELETE ON "public"."instance_webrtc_settings" TO "authenticated";
+-- Grant table permissions (RLS policies will control actual row-level access)
+GRANT SELECT, INSERT, UPDATE, DELETE ON "public"."instance_webrtc_settings" TO "authenticated";
 

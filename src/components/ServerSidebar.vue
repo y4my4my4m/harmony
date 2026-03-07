@@ -1036,7 +1036,7 @@ const removeServerFromFolder = async () => {
   font-size: 24px;
   font-weight: bold;
   color: #ffffff;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Figtree', sans-serif;
   transition: transform 0.2s ease;
 }
 

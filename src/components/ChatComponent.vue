@@ -777,10 +777,6 @@
     min-height: 0; /* Important for flex child with overflow */
     position: relative;
     /* custom wallpapers/styling for users */
-    /* background:#000; */
-    /* background-image: url('https://wallpaperswide.com/download/counter_strike_cs_go-wallpaper-1920x1080.jpg'); */
-    /* background-image: url('https://example.invalid/background.jpg'); */
-    /* background-size:cover; */
   }
   /* .chat-container::before {
     position:absolute;

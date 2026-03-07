@@ -669,15 +669,13 @@ const toggleRecoveryCode = () => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 .reset-password-wrapper {
   min-height: 100vh;
   background: var(--random-bg) center center;
   background-size: cover;
   background-attachment: fixed;
   position: relative;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .bg-overlay {

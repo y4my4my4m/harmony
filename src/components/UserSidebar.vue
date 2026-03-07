@@ -1362,7 +1362,7 @@ const closeInviteModal = () => {
 .user-item:hover .instance-badge.admin,
 .user-item:hover .instance-badge.mod {
   color: #fff;
-  background: var(--harmony-accent);
+  background: var(--harmony-secondary);
 }
 
 .user-domain {

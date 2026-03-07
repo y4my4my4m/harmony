@@ -853,8 +853,6 @@ onMounted(async () => {
 /* ========================================
    CSS Variables & Base Styles
    ======================================== */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
-
 .auth-wrapper {
   --primary: #6366f1;
   --primary-hover: #818cf8;
@@ -873,7 +871,7 @@ onMounted(async () => {
   min-height: 100vh;
   width: 100%;
   display: flex;
-  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg-image) center/cover no-repeat fixed;
   background-position: calc(50% + var(--bg-offset-x, 0px)) calc(50% + var(--bg-offset-y, 0px));
   position: relative;
