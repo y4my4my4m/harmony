@@ -170,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
@@ -427,7 +427,11 @@ const loadSuggestedUsers = async () => {
 onMounted(() => {
   loadTrendingHashtags()
   loadSuggestedUsers()
-  activityPubStore.fetchInstanceStats() // Uses cached values if fresh, otherwise fetches
+  activityPubStore.fetchInstanceStats()
+})
+
+onUnmounted(() => {
+  activityPubStore.cleanupRealtimeSubscriptions()
 })
 
 // Track view context in database for notification suppression

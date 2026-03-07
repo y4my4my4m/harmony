@@ -1506,6 +1506,7 @@ onUnmounted(() => {
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
   }
+  chatStore.highlightMessage = (_messageId: string) => {};
 });
 
 // --- METHODS ---

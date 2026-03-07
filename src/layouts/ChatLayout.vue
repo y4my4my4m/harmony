@@ -382,6 +382,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown)
+
+  const chatStore = useChatStore()
+  const dmStore = useDMStore()
+  chatStore.unsubscribeFromMessages()
+  dmStore.cleanup()
 })
 
 const handleChannelSelected = (channelId: string) => {
