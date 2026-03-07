@@ -1901,11 +1901,11 @@ const isMessageShaking = (messageId: string): boolean => {
 
 // Handle opening emoji picker from inline add reaction button
 const handleOpenEmojiPicker = (messageId: string, event: MouseEvent) => {
-  // Find the message object from the store
+  hideTooltip();
+  
   const message = props.messages.find(m => m.id === messageId);
   if (!message) return;
   
-  // Emit with proper parameters: (isReaction: boolean, message: Message, triggerElement: HTMLElement)
   emit('toggleEmojiList', true, message, event.currentTarget as HTMLElement);
 };
 

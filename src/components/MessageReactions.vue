@@ -124,10 +124,11 @@ const hasUserReacted = (emojiId: string) => {
 const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   if (!currentUserId.value) return;
   
-  // Haptic feedback on reaction
+  // Dismiss tooltip immediately so it doesn't linger if the chip is removed from DOM
+  emit('hide-reaction-tooltip');
+  
   triggerReaction();
   
-  // Record emoji usage for frequently used emojis
   recordEmojiUsage({
     id: emojiId,
     name: emoji.name || emojiId,

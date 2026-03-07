@@ -69,7 +69,8 @@
                 :key="emoji.unicode"
                 class="emoji-btn quick-emoji frequent-emoji"
                 @click="selectEmoji(emoji)"
-                :title="emoji.name"
+                @pointerenter="hoveredEmojiName = emoji.name"
+                @pointerleave="hoveredEmojiName = null"
               >
                 <img 
                   v-if="!isNativePack && emoji.svgUrl" 
@@ -91,7 +92,8 @@
                 :key="emoji.unicode"
                 class="emoji-btn quick-emoji"
                 @click="selectEmoji(emoji)"
-                :title="emoji.name"
+                @pointerenter="hoveredEmojiName = emoji.name"
+                @pointerleave="hoveredEmojiName = null"
               >
                 <img 
                   v-if="!isNativePack && emoji.svgUrl" 
@@ -126,7 +128,8 @@
                   :key="emoji.unicode"
                   class="emoji-btn"
                   @click="selectEmoji(emoji)"
-                  :title="emoji.name"
+                  @pointerenter="hoveredEmojiName = emoji.name"
+                  @pointerleave="hoveredEmojiName = null"
                 >
                   <img 
                     v-if="!isNativePack && emoji.svgUrl" 
@@ -141,6 +144,11 @@
             </div>
           </div>
         </template>
+      </div>
+
+      <!-- Emoji preview bar -->
+      <div class="emoji-preview-bar">
+        <span v-if="hoveredEmojiName" class="emoji-preview-name">:{{ hoveredEmojiName }}:</span>
       </div>
     </div>
   </div>
@@ -191,6 +199,7 @@ const {
 // State
 const selectedCategory = ref('people');
 const showPackMenu = ref(false);
+const hoveredEmojiName = ref<string | null>(null);
 
 // Computed
 const currentPackName = computed(() => {
@@ -585,5 +594,22 @@ onMounted(() => {
     width: 20px;
     height: 20px;
   }
+}
+
+.emoji-preview-bar {
+  height: 28px;
+  padding: 0 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.emoji-preview-name {
+  font-size: 12px;
+  color: var(--color-text-secondary, var(--text-secondary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
