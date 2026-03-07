@@ -708,14 +708,7 @@ const handleCloseDM = () => {
 const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
-      // Leave call (keeps call active for other participants)
-      debug.log('📞 Leaving voice call...')
-      
-      const profileId = await authContextService.getCurrentProfileId()
-      if (profileId) {
-        await dmCallSignaling.leaveCall(props.conversation.id, profileId)
-      }
-      
+      // leaveVoiceChannel() handles DM call signaling cleanup automatically
       await voiceStore.leaveVoiceChannel()
       toast.info('Left call')
     } else {

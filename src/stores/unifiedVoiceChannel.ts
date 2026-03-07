@@ -3,6 +3,7 @@ import { nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
+import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -800,6 +801,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Clear saved voice channel state (user manually left)
         this.clearVoiceChannelState();
+        
+        // If this is a DM call, notify the signaling layer
+        if (channelId?.startsWith('dm-')) {
+          try {
+            const { authContextService } = await import('@/services/AuthContextService');
+            const profileId = await authContextService.getCurrentProfileId();
+            const conversationId = channelId.replace('dm-', '');
+            if (profileId && conversationId) {
+              await dmCallSignaling.leaveCall(conversationId, profileId);
+            }
+          } catch (e) {
+            debug.warn('Failed to send DM call leave signal:', e);
+          }
+        }
         
         // Leave WebRTC (webrtcManager handles both local and federated)
         await webrtcManager.leaveChannel();
