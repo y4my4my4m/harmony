@@ -579,6 +579,16 @@ export const useAuthStore = defineStore('auth', {
         debug.error('❌ Error clearing server channel store:', error)
       }
 
+      // Reset push notification state so the next user doesn't inherit it
+      try {
+        const { usePushNotifications } = await import('@/composables/usePushNotifications')
+        const pushNotifications = usePushNotifications()
+        pushNotifications.resetState()
+        debug.log('✅ Push notification state reset on logout')
+      } catch (error) {
+        debug.error('❌ Error resetting push notification state:', error)
+      }
+
       // Cleanup state persistence before logout
       try {
         const { statePersistence } = await import('@/services/StatePersistence')

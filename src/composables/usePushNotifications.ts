@@ -322,15 +322,49 @@ async function fetchSubscriptions(): Promise<void> {
 }
 
 /**
- * Check current subscription status (local browser only, no API call)
+ * Check if this browser's push subscription belongs to the current user.
+ * A PushSubscription is browser-level, not user-level. When users switch
+ * accounts we must verify the subscription is registered server-side for
+ * the logged-in user, not a previous one.
  */
 async function checkSubscriptionStatus(): Promise<void> {
   try {
     const subscription = await getCurrentSubscription()
-    isSubscribed.value = !!subscription
+    if (!subscription) {
+      isSubscribed.value = false
+      return
+    }
+
+    // If we already fetched the user's server-side subscriptions, check
+    // whether this browser's endpoint is among them.
+    if (subscriptions.value.length > 0) {
+      const endpoint = subscription.endpoint
+      const belongsToUser = subscriptions.value.some(s => s.endpoint === endpoint)
+      isSubscribed.value = belongsToUser
+      return
+    }
+
+    // Subscriptions not loaded yet -- fetch them now and compare
+    await fetchSubscriptions()
+    const endpoint = subscription.endpoint
+    isSubscribed.value = subscriptions.value.some(s => s.endpoint === endpoint)
   } catch (err) {
     debug.error('Failed to check subscription status:', err)
   }
+}
+
+/**
+ * Reset push notification state on logout.
+ * Does NOT unsubscribe from the browser so the subscription can be
+ * quickly re-associated when the same user logs back in.
+ */
+function resetState(): void {
+  isSubscribed.value = false
+  subscriptions.value = []
+  error.value = null
+  isInitialized = false
+  isInitializing = false
+  debug.log('🔔 Push notification state reset (logout)')
 }
 
 /**
@@ -507,7 +541,8 @@ export function usePushNotifications() {
     deleteSubscription,
     fetchSubscriptions,
     sendTestNotification,
-    checkSubscriptionStatus
+    checkSubscriptionStatus,
+    resetState
   }
 }
 
