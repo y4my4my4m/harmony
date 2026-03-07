@@ -1848,7 +1848,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       // Small delay to ensure MediaStream is properly set up
-      this._spatialAudioDebounceTimers[userId] = setTimeout(() => {
+      this._spatialAudioDebounceTimers[userId] = setTimeout(async () => {
         delete this._spatialAudioDebounceTimers[userId];
         
         // Double-check screenshare status (might have changed)
@@ -1866,7 +1866,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Get the MediaStream for this user from WebRTC service
         const userStream = webrtcManager.getUserStream(userId);
         if (userStream) {
-          spatialAudioService.setupSpatialForUser(userId, userStream);
+          await spatialAudioService.setupSpatialForUser(userId, userStream);
           spatialAudioService.updateSpatialEffects();
         } else {
           debug.warn('No media stream found for user:', userId);

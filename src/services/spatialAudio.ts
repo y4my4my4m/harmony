@@ -701,12 +701,15 @@ export class SpatialAudioService {
     // Use PannerNode for advanced spatial positioning with HRTF
     const pannerNode = this.audioContext.createPanner();
     
-    // Configure panner using settings from store
-    pannerNode.panningModel = 'HRTF'; // Use HRTF for binaural 3D positioning
-    pannerNode.distanceModel = spatialStore.settings.distanceModel;
+    // Configure panner using settings from store.
+    // Distance attenuation is handled manually via the inputGain node in
+    // updateSpatialEffects(), so disable the PannerNode's own distance model
+    // to avoid double-attenuation (which was cutting volume to ~50%).
+    pannerNode.panningModel = 'HRTF';
+    pannerNode.distanceModel = 'inverse';
     pannerNode.refDistance = 1;
-    pannerNode.maxDistance = spatialStore.settings.maxDistance;
-    pannerNode.rolloffFactor = spatialStore.settings.rolloffFactor;
+    pannerNode.maxDistance = 10000;
+    pannerNode.rolloffFactor = 0;
     
     debug.log('🎧 Created PannerNode with settings:', {
       panningModel: pannerNode.panningModel,

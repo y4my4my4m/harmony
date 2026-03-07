@@ -62,7 +62,7 @@ export default defineComponent({
     display: block;
     transition: transform .2s, filter .2s;
     transform: scale(var(--scaleFactor));
-    background-image: url('/assets/emoji_ui.png');
+    background-image: url('/assets/emoji_sheet.webp');
     background-position: calc(-1 * var(--sprite-col) * var(--custom-emoji-sprite-size)) calc(-1 * var(--sprite-row) * var(--custom-emoji-sprite-size));
     background-size: calc(20 * var(--custom-emoji-sprite-size)) calc(4 * var(--custom-emoji-sprite-size));
     filter: grayscale(var(--grayscaleFactor));
