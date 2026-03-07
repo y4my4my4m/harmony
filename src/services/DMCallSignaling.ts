@@ -531,7 +531,9 @@ class DMCallSignalingService {
   }
 
   /**
-   * Update the system message to show the call has ended with duration info
+   * Update the system message to show the call has ended with duration info.
+   * TODO: Replace with a SECURITY DEFINER RPC function so any conversation
+   * participant can finalize, not just the message owner (callerId).
    */
   private async finalizeCallMessage(call: ActiveCall): Promise<void> {
     if (!call.systemMessageId) return
