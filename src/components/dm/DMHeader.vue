@@ -325,7 +325,9 @@ const isInVoiceCall = computed(() => voiceStore.isConnected && voiceStore.curren
 const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
 
 // Active call state for any DM (1:1 or group)
+// Reading callStateVersion establishes a reactive dependency so Vue re-evaluates on changes
 const hasActiveCallNotJoined = computed(() => {
+  dmCallSignaling.callStateVersion.value
   const hasActiveCall = dmCallSignaling.hasActiveCall(props.conversation.id)
   const isUserInCall = isInVoiceCall.value
   

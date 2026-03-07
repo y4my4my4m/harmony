@@ -150,7 +150,9 @@ const incomingCall = ref<{ callerId: string, callType: 'voice' | 'video', conver
 const toast = useToast()
 
 // Active call banner state
+// Reading callStateVersion establishes a reactive dependency so Vue re-evaluates on changes
 const showCallBanner = computed(() => {
+  dmCallSignaling.callStateVersion.value
   if (!currentConversation.value) return false
   const hasActiveCall = dmCallSignaling.hasActiveCall(currentConversation.value.id)
   const dmChannelId = `dm-${currentConversation.value.id}`
