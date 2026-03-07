@@ -441,9 +441,8 @@ class DMCallSignalingService {
     } else if (userId === call.callerId) {
       // The call initiator (message owner) is leaving but others remain.
       // Finalize now since only the owner can update the message (RLS).
-      // If others re-join or call continues, a new system message would be created.
       await this.finalizeCallMessage(call)
-      this.bumpVersion()
+      this.deleteActiveCall(conversationId)
     }
     
     await this.sendSignal(conversationId, signal)
