@@ -2345,7 +2345,7 @@ const closeInviteModal = () => {
   top: -1px;
 }
 
-.instance-badge.admin
+.instance-badge.admin,
 .instance-badge.mod {
   color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
   transition: all 0.2s ease;
