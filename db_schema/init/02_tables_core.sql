@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at timestamp with time zone,
     username text UNIQUE,
     display_name text,
-    avatar_url text DEFAULT '/default_avatar.png'::text,
+    avatar_url text DEFAULT '/default_avatar.webp'::text,
     bio text,
     color character varying,
     status smallint DEFAULT 0,
