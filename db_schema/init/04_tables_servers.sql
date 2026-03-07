@@ -23,8 +23,6 @@ CREATE TABLE IF NOT EXISTS public.servers (
     -- Settings
     public boolean DEFAULT false,
     allow_cross_server_emojis boolean DEFAULT true,
-    verification_level smallint DEFAULT 0,
-    default_notification_level smallint DEFAULT 0,
     
     -- Federation
     is_local_server boolean DEFAULT true,

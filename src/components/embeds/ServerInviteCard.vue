@@ -176,7 +176,6 @@ async function loadInviteData() {
     // Step 3: Get member count (use centralized service with caching)
     const { getServerMemberCount, isUserMemberOfServer } = await import('@/services/serverMembershipService')
     const memberCount = await getServerMemberCount(server.id);
-    serverData.value.member_count = memberCount;
 
     // Step 4: Check if current user is already a member (use centralized service)
     if (authStore.session?.user?.id) {
@@ -184,12 +183,7 @@ async function loadInviteData() {
       isJoined.value = isMember;
     }
 
-    // Use getServerIconUrl to construct the full icon URL from the relative path
     const iconUrl = getServerIconUrl(server.icon);
-    debug.log('🎫 Server icon processing:', { 
-      rawIcon: server.icon, 
-      constructedUrl: iconUrl 
-    });
     
     serverData.value = {
       name: server.name,

@@ -18,6 +18,7 @@
         @mouseenter="showSidebarTooltip($event, 'Direct Messages')"
         @mouseleave="hideSidebarTooltip"
       >
+        <div class="server-pill" :class="{ 'visible': isDMSelected, 'has-unread': dmUnreadMentions > 0 && !isDMSelected }"></div>
         <svg viewBox="0 0 24 24" class="dm-icon">
           <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
         </svg>
@@ -34,6 +35,7 @@
         @mouseenter="showSidebarTooltip($event, 'Monyverse')"
         @mouseleave="hideSidebarTooltip"
       >
+        <div class="server-pill" :class="{ 'visible': isMonyverseSelected, 'has-unread': unreadCount > 0 && !isMonyverseSelected }"></div>
         <div class="monyverse-icon">#</div>
         <div v-if="unreadCount > 0" class="unread-badge">
           {{ unreadCount > 99 ? '99+' : unreadCount }}
@@ -117,6 +119,7 @@
           @mouseenter="showSidebarTooltip($event, item.name)"
           @mouseleave="hideSidebarTooltip"
         >
+          <div class="server-pill" :class="{ 'visible': isSelected(item.id), 'has-unread': hasServerUnread(item.id) && !isSelected(item.id) }"></div>
           <ServerIcon
             :id="item.id"
             :src="item.icon"
@@ -230,6 +233,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
+import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { isActivityPubRoute } from '@/types/viewTypes';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import ServerFolder from '@/components/ServerFolder.vue';
@@ -288,6 +292,7 @@ const editingFolder = ref<ServerFolderType | null>(null);
 const serverChannelStore = useServerChannelStore();
 const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
+const { getServerUnreadMessages } = useUnreadCounts();
 const router = useRouter();
 const route = useRoute();
 
@@ -334,6 +339,10 @@ const getFolderServers = (folderId: string): Server[] => {
 
 const getServerUnreadMentions = (serverId: string): number => {
   return notificationStore.unreadServerMentions(serverId);
+};
+
+const hasServerUnread = (serverId: string): boolean => {
+  return getServerUnreadMessages(serverId) > 0 || getServerUnreadMentions(serverId) > 0;
 };
 
 const isSelected = (serverId: string) => {
@@ -1153,28 +1162,35 @@ const removeServerFromFolder = async () => {
   left: 5px;
 }
 
-.dm-button::before,
-.monyverse-button::before,
-.portal::before,
-.server-item::before {
-  opacity: 0;
-  content: "";
+/* Discord-style white pill indicator */
+.server-pill {
   position: absolute;
-  transition: all 0.2s ease-in-out;
-  left: -25px;
-  top: 17px;
-  border-radius: 50%;
-  width: 8px;
-  height: 8px;
-  background-color: var(--vt-c-divider-dark-1);
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 0;
+  background: #ffffff;
+  border-radius: 0 4px 4px 0;
+  opacity: 0;
+  transition: all 0.15s ease;
 }
 
-.dm-button:hover::before,
-.monyverse-button:hover::before,
-.portal:hover::before,
-.server-item:hover::before {
-  left: -16px;
+.server-pill.visible {
   opacity: 1;
+  height: 36px;
+}
+
+.server-pill.has-unread {
+  opacity: 1;
+  height: 8px;
+}
+
+.server-item-wrapper:hover .server-pill,
+.dm-button:hover .server-pill,
+.monyverse-button:hover .server-pill {
+  opacity: 1;
+  height: 20px;
 }
 
 .dm-button.selected,

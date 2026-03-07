@@ -101,16 +101,18 @@
             @click="toggleRead"
             class="action-btn read-toggle"
             :class="{ active: !notification.is_read }"
+            :title="notification.is_read ? 'Mark as unread' : 'Mark as read'"
             :aria-label="notification.is_read ? 'Mark as unread' : 'Mark as read'"
           >
-            <MarkReadIcon v-if="notification.is_read" class="action-icon" />
-            <UnreadIcon v-else class="action-icon" />
+            <UnreadIcon v-if="notification.is_read" class="action-icon" />
+            <MarkReadIcon v-else class="action-icon" />
           </button>
           
           <!-- Dismiss -->
           <button 
             @click="handleDismiss"
             class="action-btn dismiss-btn"
+            title="Dismiss notification"
             aria-label="Dismiss notification"
           >
             <DismissIcon class="action-icon" />
@@ -245,119 +247,67 @@ const isClickable = computed(() =>
   NotificationFormatter.isClickable(props.notification)
 )
 
+// Extract text from a MessagePart array or JSON string
+const extractMessagePartText = (content: any): string | null => {
+  if (!content) return null
+
+  if (typeof content === 'string') {
+    if (content.startsWith('[')) {
+      try { content = JSON.parse(content) } catch { return content }
+    } else {
+      return content
+    }
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => {
+        if (part.type === 'text') return part.text
+        if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+        if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+        if (part.type === 'hashtag') return `#${part.name}`
+        if (part.type === 'url') return part.url
+        return ''
+      })
+      .join(' ')
+      .trim() || null
+  }
+
+  if (typeof content === 'object') return null
+  return String(content)
+}
+
+const truncatePreview = (text: string | null, maxLen = 100): string | null => {
+  if (!text) return null
+  return text.length > maxLen ? text.substring(0, maxLen) + '...' : text
+}
+
 // Rich content computed properties
 const messagePreview = computed(() => {
   const data = props.notification.data
   
   // For ActivityPub reactions, show the post preview (your post that was reacted to)
   if (props.notification.type === 'activitypub_reaction') {
-    let preview = data.post?.content_preview || data.post_content
-    
-    // If no preview, try to extract from post content array
-    if (!preview && Array.isArray(data.post?.content)) {
-      preview = data.post.content
-        .map((part: any) => {
-          if (part.type === 'text') return part.text
-          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
-          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
-          if (part.type === 'hashtag') return `#${part.name}`
-          if (part.type === 'url') return part.url
-          return ''
-        })
-        .join(' ')
-        .trim()
-    }
-    
-    // Fallback to post_content if it's a string
-    if (!preview && typeof data.post_content === 'string') {
-      preview = data.post_content
-    }
-    
-    // Truncate if too long
-    if (preview && preview.length > 100) {
-      preview = preview.substring(0, 100) + '...'
-    }
-    
-    // Just return the preview - title already says "reacted to your post:"
-    return preview || null
+    const preview = extractMessagePartText(data.post?.content_preview)
+      || extractMessagePartText(data.post_content)
+      || extractMessagePartText(data.post?.content)
+    return truncatePreview(preview)
   }
   
   // For ActivityPub mentions, check post structure
   if (props.notification.type === 'activitypub_mention') {
-    let preview = data.post?.content_preview || data.post_content
-    
-    // If no preview, try to extract from post content array
-    if (!preview && Array.isArray(data.post?.content)) {
-      preview = data.post.content
-        .map((part: any) => {
-          if (part.type === 'text') return part.text
-          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
-          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
-          if (part.type === 'hashtag') return `#${part.name}`
-          if (part.type === 'url') return part.url
-          return ''
-        })
-        .join(' ')
-        .trim()
-    }
-    
-    // Fallback to post_content if it's a string
-    if (!preview && typeof data.post_content === 'string') {
-      preview = data.post_content
-    }
-    
-    // Truncate if too long
-    if (preview && preview.length > 100) {
-      preview = preview.substring(0, 100) + '...'
-    }
-    
-    return preview || null
+    const preview = extractMessagePartText(data.post?.content_preview)
+      || extractMessagePartText(data.post_content)
+      || extractMessagePartText(data.post?.content)
+    return truncatePreview(preview)
   }
   
   // For chat mentions/DMs, prioritize structured message.content_preview
-  let preview = data.message?.content_preview
+  const preview = extractMessagePartText(data.message?.content_preview)
+    || extractMessagePartText(data.preview || data.content_preview)
+    || extractMessagePartText(data.message?.content || data.content)
   
-  // Fallback to legacy format
-  if (!preview) {
-    preview = data.preview || data.content_preview
-  }
-  
-  // Handle MessagePart[] content (either array or JSON string)
-  if (!preview) {
-    let content = data.message?.content || data.content
-    
-    // Parse JSON string if needed
-    if (typeof content === 'string' && content.startsWith('[')) {
-      try {
-        content = JSON.parse(content)
-      } catch (e) {
-        // Use string as-is if parsing fails
-        preview = content
-      }
-    }
-    
-    // Convert MessagePart[] array to text
-    if (Array.isArray(content)) {
-      preview = content
-        .map((part: any) => {
-          if (part.type === 'text') return part.text
-          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
-          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
-          if (part.type === 'url') return part.url
-          if (part.type === 'hashtag') return `#${part.name}`
-          return ''
-        })
-        .join('')
-        .trim()
-    }
-  }
-  
-  // Truncate if too long
-  if (preview && preview.length > 100) {
-    preview = preview.substring(0, 100) + '...'
-  }
-  
-  return preview || null
+  return truncatePreview(preview)
 })
 
 const channelInfo = computed(() => {

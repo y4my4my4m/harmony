@@ -92,6 +92,7 @@
             @mouseenter="showServerTooltip($event, server.name)"
             @mouseleave="hideServerTooltip"
           >
+            <div class="server-pill" :class="{ 'visible': isSelected(server.id), 'has-unread': hasServerUnread(server.id) && !isSelected(server.id) }"></div>
             <ServerIcon
               :id="server.id"
               :src="server.icon"
@@ -149,6 +150,7 @@ import ServerIcon from '@/components/common/ServerIcon.vue';
 import { getServerIconUrl } from '@/utils/serverUtils';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useNotificationStore } from '@/stores/useNotification';
+import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import type { Server, ServerFolder } from '@/types';
 
 interface Props {
@@ -172,6 +174,7 @@ const emit = defineEmits<Emits>();
 
 const serverChannelStore = useServerChannelStore();
 const notificationStore = useNotificationStore();
+const { getServerUnreadMessages } = useUnreadCounts();
 
 const isDraggingOver = ref(false);
 const showServerMenu = ref(false);
@@ -203,6 +206,10 @@ const isSelected = (serverId: string) => {
 
 const getServerUnreadMentions = (serverId: string): number => {
   return notificationStore.unreadServerMentions(serverId);
+};
+
+const hasServerUnread = (serverId: string): boolean => {
+  return getServerUnreadMessages(serverId) > 0 || getServerUnreadMentions(serverId) > 0;
 };
 
 const toggleExpanded = () => {
@@ -652,6 +659,34 @@ const onIconError = (event: Event) => {
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.server-pill {
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 0;
+  background: #ffffff;
+  border-radius: 0 4px 4px 0;
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+
+.server-pill.visible {
+  opacity: 1;
+  height: 36px;
+}
+
+.server-pill.has-unread {
+  opacity: 1;
+  height: 8px;
+}
+
+.folder-server-item:hover .server-pill {
+  opacity: 1;
+  height: 20px;
 }
 
 /* Hover indicator for collapsed */

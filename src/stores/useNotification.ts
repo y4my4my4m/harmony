@@ -27,6 +27,7 @@ interface NotificationState {
   realtimeSubscription: any
   lastNotificationTime: Map<string, number>
   isInitialized: boolean
+  fullListLoaded: boolean
   hasPermission: boolean
   currentFilter: string
   // Cache for profileId to avoid repeated lookups
@@ -123,6 +124,7 @@ export const useNotificationStore = defineStore('notification', {
     realtimeSubscription: null,
     lastNotificationTime: new Map(),
     isInitialized: false,
+    fullListLoaded: false,
     hasPermission: false,
     currentFilter: 'all',
     cachedProfileId: null,
@@ -374,14 +376,14 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * ⚡ OPTIMIZED: Initialize only unread count (not full notification list)
-     * For faster initial page load - full list loads when notification panel is opened
+     * Initialize notification store: loads unread notifications for badge computation
+     * and sets up realtime subscription for new notifications.
      */
     async initializeUnreadCountOnly(userId: string) {
       if (this.isInitialized) return
       
       try {
-        debug.log('🔔 Notification Store: Fast initialization (unread count only)')
+        debug.log('🔔 Notification Store: Initializing with unread notifications')
         
         // Check notification permission
         this.hasPermission = await this.checkNotificationPermission()
@@ -392,17 +394,28 @@ export const useNotificationStore = defineStore('notification', {
         // Get profile ID for queries
         const profileId = await this.getProfileId(userId)
         
-        // ✅ Load ONLY unread count (not full notification list)
-        const { data: countData, error: countError } = await supabase
-          .rpc('get_unread_notification_count', { p_user_id: profileId })
-        
-        if (countError) {
-          debug.error('Failed to get unread count:', countError)
-          this.unreadCount = 0
-        } else {
-          this.unreadCount = countData || 0
-          debug.log(`✅ Unread notification count: ${this.unreadCount}`)
+        // Load unread notifications so sidebar badge getters (unreadDMs,
+        // unreadServerMentions, ActivityPub count) work immediately on page load.
+        try {
+          const { data, error } = await supabase
+            .from('notifications')
+            .select('id, type, is_read, data, created_at, user_id')
+            .eq('user_id', profileId)
+            .eq('is_read', false)
+            .order('created_at', { ascending: false })
+            .limit(200)
+
+          if (error) {
+            debug.error('Failed to load unread notifications:', error)
+          } else {
+            this.notifications = data || []
+            debug.log(`✅ Loaded ${this.notifications.length} unread notifications for badges`)
+          }
+        } catch (err) {
+          debug.error('Failed to load unread notifications:', err)
         }
+        
+        this.updateUnreadCount()
         
         // Setup realtime subscription for new notifications
         this.setupContextAwareRealtimeSubscription(userId)
@@ -411,18 +424,18 @@ export const useNotificationStore = defineStore('notification', {
         this.setupDndCheck()
         
         this.isInitialized = true
-        debug.log('✅ Notification Store: Fast initialization complete')
+        debug.log('✅ Notification Store: Initialization complete')
       } catch (error) {
-        debug.error('❌ Notification Store: Failed to initialize unread count:', error)
+        debug.error('❌ Notification Store: Failed to initialize:', error)
         this.unreadCount = 0
       }
     },
 
     /**
-     * ⚡ Load full notification list (called when notification panel is opened)
+     * Load full notification list including read ones (called when notification panel is opened)
      */
     async loadFullNotificationList(userId: string) {
-      if (this.notifications.length > 0) {
+      if (this.fullListLoaded) {
         debug.log('📝 Full notification list already loaded')
         return
       }
@@ -431,6 +444,7 @@ export const useNotificationStore = defineStore('notification', {
         this.isLoading = true
         debug.log('📝 Loading full notification list...')
         await this.fetchNotifications(userId)
+        this.fullListLoaded = true
         debug.log('✅ Full notification list loaded')
       } catch (error) {
         debug.error('❌ Failed to load full notification list:', error)

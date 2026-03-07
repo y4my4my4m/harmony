@@ -15,6 +15,37 @@ export interface NotificationMessage {
   shortTitle?: string // For badges/compact views
 }
 
+/**
+ * Safely extract a text string from content that may be a string,
+ * a MessagePart[] array, or a JSON-encoded array string.
+ */
+function extractContentText(content: any): string | null {
+  if (!content) return null
+  if (typeof content === 'string') {
+    if (content.startsWith('[')) {
+      try { content = JSON.parse(content) } catch { return content }
+    } else {
+      return content
+    }
+  }
+  if (Array.isArray(content)) {
+    const text = content
+      .map((part: any) => {
+        if (part.type === 'text') return part.text
+        if (part.type === 'mention') return `@${part.username || ''}`
+        if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji || ''}:`
+        if (part.type === 'hashtag') return `#${part.name || ''}`
+        if (part.type === 'url') return part.url || ''
+        return ''
+      })
+      .join(' ')
+      .trim()
+    return text || null
+  }
+  if (typeof content === 'object') return null
+  return String(content)
+}
+
 // Message templates - easy to replace for internationalization
 const MESSAGE_TEMPLATES = {
   mention: {
@@ -25,11 +56,13 @@ const MESSAGE_TEMPLATES = {
       return `${senderName} mentioned you in #${channelName}`
     },
     message: (data: any) => {
-      const preview = data.message?.content_preview || data.preview || data.content_preview
-      if (preview && preview.length > 100) {
-        return preview.substring(0, 100) + '...'
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.preview || data.content_preview)
+        || extractContentText(data.message?.content)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
       }
-      return preview || 'Click to view message'
+      return 'Click to view message'
     },
     shortTitle: (data: any) => {
       const channelName = data.location?.channel_name || data.channel_name || 'channel'
@@ -47,49 +80,13 @@ const MESSAGE_TEMPLATES = {
       return `${senderUsername}${handle} sent you a message`
     },
     message: (data: any) => {
-      // Prioritize structured message.content_preview
-      let preview = data.message?.content_preview
-      
-      // Handle MessagePart[] content from federated DMs
-      if (!preview) {
-        const content = data.message?.content || data.content
-        
-        if (Array.isArray(content)) {
-          // Convert MessagePart[] to plain text
-          preview = content.map(part => {
-            if (part.type === 'text') return part.text
-            if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
-            if (part.type === 'emoji') return `:${part.emoji.name}:`
-            if (part.type === 'hashtag') return `#${part.name}`
-            if (part.type === 'url') return part.url
-            return ''
-          }).join('').trim()
-        }
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.message?.content || data.content)
+        || extractContentText(data.preview || data.content_preview)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
       }
-      
-      // Legacy format fallbacks
-      if (!preview) {
-        preview = data.preview || data.content_preview
-      }
-      
-      // If preview is a JSON string, parse it
-      if (typeof preview === 'string' && preview.startsWith('[')) {
-        try {
-          const parsed = JSON.parse(preview)
-          if (Array.isArray(parsed)) {
-            preview = parsed.map(p => p.text || '').join('').trim()
-          }
-        } catch (e) {
-          // Use as-is if parsing fails
-        }
-      }
-      
-      // Truncate long previews
-      if (preview && preview.length > 100) {
-        preview = preview.substring(0, 100) + '...'
-      }
-      
-      return preview || 'Click to view message'
+      return 'Click to view message'
     },
     shortTitle: (data: any) => {
       const sender = data.sender
@@ -186,25 +183,27 @@ const MESSAGE_TEMPLATES = {
   activitypub_favorite: {
     title: (data: any) => `${data.user.display_name || data.user.username} favorited your post`,
     message: (data: any) => {
-      if (data.post_content) {
-        const content = data.post_content.substring(0, 120);
-        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
+      if (text) {
+        const truncated = text.substring(0, 120)
+        return `"${truncated}${text.length > 120 ? '...' : ''}"`
       }
       return 'Click to see the post';
     },
-    shortTitle: (data: any) => `Post favorited`
+    shortTitle: () => `Post favorited`
   },
 
   activitypub_reblog: {
     title: (data: any) => `${data.user.display_name || data.user.username} reblogged your post`,
     message: (data: any) => {
-      if (data.post_content) {
-        const content = data.post_content.substring(0, 120);
-        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
+      if (text) {
+        const truncated = text.substring(0, 120)
+        return `"${truncated}${text.length > 120 ? '...' : ''}"`
       }
       return 'Click to see the post';
     },
-    shortTitle: (data: any) => `Post reblogged`
+    shortTitle: () => `Post reblogged`
   },
 
   activitypub_mention: {
@@ -214,11 +213,10 @@ const MESSAGE_TEMPLATES = {
       return `${displayName}${domain} mentioned you`
     },
     message: (data: any) => {
-      const content = data.post?.content_preview || 'Click to see the mention'
-      
-      if (content && content !== 'Click to see the mention') {
-        // Content is already truncated and cleaned in the inbox function
-        return `"${content}${content.length >= 120 ? '...' : ''}"`
+      const text = extractContentText(data.post?.content_preview) || extractContentText(data.post_content)
+      if (text) {
+        const truncated = text.substring(0, 120)
+        return `"${truncated}${text.length >= 120 ? '...' : ''}"`
       }
       return 'Click to see the mention'
     },
@@ -228,13 +226,14 @@ const MESSAGE_TEMPLATES = {
   activitypub_reply: {
     title: (data: any) => `${data.author.display_name || data.author.username} replied to your post`,
     message: (data: any) => {
-      if (data.post_content) {
-        const content = data.post_content.substring(0, 120);
-        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
+      if (text) {
+        const truncated = text.substring(0, 120)
+        return `"${truncated}${text.length > 120 ? '...' : ''}"`
       }
       return 'Click to see the reply';
     },
-    shortTitle: (data: any) => `New reply`
+    shortTitle: () => `New reply`
   },
 
   activitypub_reaction: {
@@ -250,35 +249,13 @@ const MESSAGE_TEMPLATES = {
       return `@${username} reacted to your post:`
     },
     message: (data: any) => {
-      // Show preview of YOUR post (the post that was reacted to)
-      const postContent = data.post?.content_preview || data.post_content
-      let preview = ''
-      
-      if (postContent) {
-        // Handle MessagePart[] array
-        if (Array.isArray(postContent)) {
-          const textParts = postContent
-            .map((part: any) => {
-              if (part.type === 'text') return part.text
-              if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
-              if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
-              if (part.type === 'hashtag') return `#${part.name}`
-              return ''
-            })
-            .join(' ')
-            .trim()
-          
-          if (textParts) {
-            preview = textParts.length > 100 ? textParts.substring(0, 100) + '...' : textParts
-          }
-        } else if (typeof postContent === 'string') {
-          // Handle string content
-          preview = postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent
-        }
+      const text = extractContentText(data.post?.content_preview)
+        || extractContentText(data.post_content)
+      if (text) {
+        const truncated = text.substring(0, 100)
+        return truncated + (text.length > 100 ? '...' : '')
       }
-      
-      // Just show the preview without "Your post:" prefix since title already says "reacted to your post:"
-      return preview || 'Click to view post'
+      return 'Click to view post'
     },
     shortTitle: (data: any) => {
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'

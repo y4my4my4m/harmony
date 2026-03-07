@@ -138,7 +138,19 @@
                     </template>
                   </div>
                 </template>
-                <!-- Default system message (join/leave, etc.) -->
+                <!-- Member join system message -->
+                <template v-else-if="item.message.metadata?.type === 'member_join'">
+                  <div class="system-icon">👋</div>
+                  <div class="system-text">
+                    <span 
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: getUserColor(item.message.user_id).value }"
+                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    has joined the server
+                  </div>
+                </template>
+                <!-- Default system message -->
                 <template v-else>
                   <div class="system-icon">👋</div>
                   <div class="system-text">
