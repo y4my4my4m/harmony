@@ -155,6 +155,7 @@ AS $$
 DECLARE
     v_text_category_id uuid;
     v_voice_category_id uuid;
+    v_general_channel_id uuid;
 BEGIN
     -- Create default TEXT CHANNELS category
     INSERT INTO channel_categories (server_id, name, "order")
@@ -163,7 +164,8 @@ BEGIN
     
     -- Create default general text channel
     INSERT INTO channels (server_id, name, type, category, "order")
-    VALUES (NEW.id, 'general', 0, v_text_category_id, 0);
+    VALUES (NEW.id, 'general', 0, v_text_category_id, 0)
+    RETURNING id INTO v_general_channel_id;
     
     -- Create default VOICE CHANNELS category
     INSERT INTO channel_categories (server_id, name, "order")
@@ -173,6 +175,11 @@ BEGIN
     -- Create default voice channel
     INSERT INTO channels (server_id, name, type, category, "order")
     VALUES (NEW.id, 'General', 1, v_voice_category_id, 0);
+    
+    -- Create server_settings row with system_channel_id pointing to general
+    INSERT INTO server_settings (server_id, system_channel_id)
+    VALUES (NEW.id, v_general_channel_id)
+    ON CONFLICT (server_id) DO UPDATE SET system_channel_id = EXCLUDED.system_channel_id;
     
     RETURN NEW;
 END;
@@ -1034,7 +1041,13 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    v_channel_id := get_default_channel(NEW.server_id);
+    SELECT system_channel_id INTO v_channel_id
+    FROM server_settings
+    WHERE server_id = NEW.server_id;
+
+    IF v_channel_id IS NULL THEN
+        v_channel_id := get_default_channel(NEW.server_id);
+    END IF;
 
     IF v_channel_id IS NULL THEN
         RETURN NEW;

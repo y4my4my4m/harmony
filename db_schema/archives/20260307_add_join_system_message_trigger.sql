@@ -1,8 +1,7 @@
 BEGIN;
 
 -- Create a trigger function that inserts a system message when a user joins a server.
--- Uses the server's system_channel_id (from server_settings) or falls back to
--- get_default_channel() to find the appropriate channel.
+-- Uses server_settings.system_channel_id, falling back to get_default_channel().
 
 CREATE OR REPLACE FUNCTION public.handle_member_join_system_message()
 RETURNS trigger
@@ -13,12 +12,17 @@ AS $$
 DECLARE
     v_channel_id uuid;
 BEGIN
-    -- Only fire for accepted members (skip pending invites)
     IF NEW.status IS NOT NULL AND NEW.status != 'accepted' THEN
         RETURN NEW;
     END IF;
 
-    v_channel_id := get_default_channel(NEW.server_id);
+    SELECT system_channel_id INTO v_channel_id
+    FROM server_settings
+    WHERE server_id = NEW.server_id;
+
+    IF v_channel_id IS NULL THEN
+        v_channel_id := get_default_channel(NEW.server_id);
+    END IF;
 
     IF v_channel_id IS NULL THEN
         RETURN NEW;
@@ -37,7 +41,40 @@ BEGIN
 END;
 $$;
 
--- Drop existing trigger if present (idempotent)
+-- Also update trigger_create_default_server_structure to auto-create server_settings
+CREATE OR REPLACE FUNCTION public.trigger_create_default_server_structure()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_text_category_id uuid;
+    v_voice_category_id uuid;
+    v_general_channel_id uuid;
+BEGIN
+    INSERT INTO channel_categories (server_id, name, "order")
+    VALUES (NEW.id, 'Text Channels', 0)
+    RETURNING id INTO v_text_category_id;
+    
+    INSERT INTO channels (server_id, name, type, category, "order")
+    VALUES (NEW.id, 'general', 0, v_text_category_id, 0)
+    RETURNING id INTO v_general_channel_id;
+    
+    INSERT INTO channel_categories (server_id, name, "order")
+    VALUES (NEW.id, 'Voice Channels', 1)
+    RETURNING id INTO v_voice_category_id;
+    
+    INSERT INTO channels (server_id, name, type, category, "order")
+    VALUES (NEW.id, 'General', 1, v_voice_category_id, 0);
+    
+    INSERT INTO server_settings (server_id, system_channel_id)
+    VALUES (NEW.id, v_general_channel_id)
+    ON CONFLICT (server_id) DO UPDATE SET system_channel_id = EXCLUDED.system_channel_id;
+    
+    RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS trigger_member_join_system_message ON public.user_servers;
 
 CREATE TRIGGER trigger_member_join_system_message
