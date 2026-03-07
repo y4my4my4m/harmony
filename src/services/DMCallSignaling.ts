@@ -264,17 +264,16 @@ class DMCallSignalingService {
       // Update system message to show missed call
       await this.finalizeCallMessage(call)
       
-      // Send timeout signal to all participants
-      for (const participantId of call.participants) {
-        await this.sendSignalToUser(participantId, {
-          type: 'timeout',
-          callerId,
-          callType: call.callType,
-          timestamp: Date.now(),
-          conversationId,
-          reason: 'timeout'
-        })
-      }
+      // Broadcast timeout on the conversation channel so the caller's DMHeader
+      // receives it and stops the ringtone
+      await this.sendSignal(conversationId, {
+        type: 'timeout',
+        callerId,
+        callType: call.callType,
+        timestamp: Date.now(),
+        conversationId,
+        reason: 'timeout'
+      })
       
       this.deleteActiveCall(conversationId)
     } else {
@@ -315,10 +314,10 @@ class DMCallSignalingService {
       call.allParticipants.push(userId)
     }
     
-    // Send accept signal to the caller's user channel
-    await this.sendSignalToUser(call.callerId, signal)
+    // Broadcast on the conversation channel so the caller's DMHeader receives it
+    await this.sendSignal(conversationId, signal)
     
-    debug.log('✅ Accept signal sent to caller:', call.callerId)
+    debug.log('✅ Accept signal sent on conversation channel:', conversationId)
   }
 
   /**
