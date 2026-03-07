@@ -58,6 +58,12 @@ CREATE TRIGGER auto_set_member_instance
     FOR EACH ROW
     EXECUTE FUNCTION public.set_member_instance();
 
+-- System message when a user joins a server
+CREATE TRIGGER trigger_member_join_system_message
+    AFTER INSERT ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_member_join_system_message();
+
 -- Prevent deletion of protected roles
 CREATE TRIGGER trigger_prevent_protected_role_deletion
     BEFORE DELETE ON public.server_roles
@@ -175,6 +181,25 @@ CREATE TRIGGER trigger_check_message_emoji_reaction_limit
     BEFORE INSERT ON public.reactions
     FOR EACH ROW
     EXECUTE FUNCTION public.check_message_emoji_reaction_limit();
+
+-- ---------------------------------------------------------------------------
+-- UNIFIED NOTIFICATION TRIGGERS (follows, reactions, post interactions)
+-- ---------------------------------------------------------------------------
+
+CREATE TRIGGER trigger_unified_notification_follows
+    AFTER INSERT ON public.follows
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_unified_notification_processing();
+
+CREATE TRIGGER trigger_unified_notification_interactions
+    AFTER INSERT ON public.post_interactions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_unified_notification_processing();
+
+CREATE TRIGGER trigger_unified_notification_reactions
+    AFTER INSERT ON public.reactions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_unified_notification_processing();
 
 -- ---------------------------------------------------------------------------
 -- PUSH SUBSCRIPTION TRIGGERS
