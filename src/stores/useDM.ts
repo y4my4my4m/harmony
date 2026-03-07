@@ -1545,7 +1545,11 @@ export const useDMStore = defineStore('dm', () => {
     
     // Clean up current subscription
     if (currentSubscription.value) {
-      currentSubscription.value.unsubscribe()
+      if (typeof currentSubscription.value === 'function') {
+        currentSubscription.value()
+      } else {
+        currentSubscription.value.unsubscribe?.()
+      }
       currentSubscription.value = null
     }
     
