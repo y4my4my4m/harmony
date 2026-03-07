@@ -27,6 +27,19 @@
       </div>
     </div>
 
+    <!-- Active Call Banner -->
+    <div v-if="showCallBanner" class="dm-call-banner">
+      <div class="call-banner-content">
+        <span class="call-banner-icon">
+          <Icon name="phone" :size="16" />
+        </span>
+        <span class="call-banner-text">A call is in progress</span>
+        <button class="call-banner-join" @click="joinCallFromBanner">
+          Join Call
+        </button>
+      </div>
+    </div>
+
     <!-- DM Content -->
     <div class="dm-content">
       <!-- Show FollowersList when no conversation is selected -->
@@ -81,6 +94,7 @@ import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
+import Icon from '@/components/common/Icon.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
 import FollowersList from '@/components/dm/FollowersList.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
@@ -134,6 +148,42 @@ const incomingCall = ref<{ callerId: string, callType: 'voice' | 'video', conver
 
 // Toast
 const toast = useToast()
+
+// Active call banner state
+const showCallBanner = computed(() => {
+  if (!currentConversation.value) return false
+  const hasActiveCall = dmCallSignaling.hasActiveCall(currentConversation.value.id)
+  const dmChannelId = `dm-${currentConversation.value.id}`
+  const isUserInCall = voiceStore.isConnected && voiceStore.currentChannelId === dmChannelId
+  return hasActiveCall && !isUserInCall
+})
+
+const joinCallFromBanner = async () => {
+  if (!currentConversation.value) return
+  const dmChannelId = `dm-${currentConversation.value.id}`
+  
+  if (voiceStore.isConnected) {
+    toast.error('You are already in a call')
+    return
+  }
+  
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    await dmCallSignaling.joinCall(currentConversation.value.id, profileId)
+    
+    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+    if (success) {
+      toast.success('Joined call')
+      voiceStore.isOverlayVisible = true
+    } else {
+      toast.error('Failed to join call')
+    }
+  } catch (error) {
+    debug.error('Error joining call from banner:', error)
+    toast.error('Failed to join call')
+  }
+}
 
 // Computed
 const chatMessages = computed(() => dmStore.currentDMMessages)
@@ -525,6 +575,53 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 .dm-content {
   flex: 1;
   overflow: hidden;
+}
+
+.dm-call-banner {
+  flex-shrink: 0;
+  background: var(--accent-color, #5865f2);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.call-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.call-banner-icon {
+  display: flex;
+  align-items: center;
+  animation: pulse-call 2s ease-in-out infinite;
+}
+
+@keyframes pulse-call {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.call-banner-text {
+  flex: 1;
+}
+
+.call-banner-join {
+  background: #fff;
+  color: var(--accent-color, #5865f2);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.call-banner-join:hover {
+  opacity: 0.9;
 }
 
 /* Mobile styles */

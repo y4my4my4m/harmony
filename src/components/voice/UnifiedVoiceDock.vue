@@ -523,15 +523,29 @@ const dockParticipantsDropdownStyle = computed((): Record<string, string> => {
   }
 });
 
-// Get first user with active video or screenshare (for minimized preview)
+// Get the best user to show in the minimized preview.
+// Prefer remote participants -- showing your own camera in a tiny preview is rarely useful.
 const activeVideoUser = computed(() => {
-  // First check for screensharing users (higher priority)
-  const screensharing = voiceStore.allParticipants.find((p: any) => p.isScreenSharing);
-  if (screensharing) return screensharing;
+  const localId = voiceStore.localState?.userId;
+  const all = voiceStore.allParticipants;
+  const remote = all.filter((p: any) => p.userId !== localId);
   
-  // Then check for video-enabled users
-  const withVideo = voiceStore.allParticipants.find((p: any) => p.isVideoEnabled && !p.isScreenSharing);
-  return withVideo || null;
+  // 1. Remote screenshare (highest priority)
+  const remoteScreen = remote.find((p: any) => p.isScreenSharing);
+  if (remoteScreen) return remoteScreen;
+  
+  // 2. Remote camera
+  const remoteVideo = remote.find((p: any) => p.isVideoEnabled && !p.isScreenSharing);
+  if (remoteVideo) return remoteVideo;
+  
+  // 3. Local screenshare (useful to confirm what you're sharing)
+  const local = all.find((p: any) => p.userId === localId);
+  if (local?.isScreenSharing) return local;
+  
+  // 4. Local camera only if no one else has video
+  if (local?.isVideoEnabled) return local;
+  
+  return null;
 });
 
 const activeVideoStream = computed(() => {

@@ -1540,6 +1540,24 @@ export class UnifiedWebRTCService {
       connection = this.connections.get(from)!;
     }
     
+    // Ensure user is tracked in allUserStates so they appear in the participant list.
+    // Offers can arrive before the state-sync response that normally adds users.
+    if (!this.allUserStates.has(from)) {
+      const defaultState: UserMediaState = {
+        userId: from,
+        isAudioEnabled: true,
+        isVideoEnabled: false,
+        isScreenSharing: false,
+        isMuted: false,
+        isDeafened: false,
+        isSpeaking: false,
+        audioLevel: 0,
+      };
+      this.allUserStates.set(from, defaultState);
+      this.emit('user-joined', { userId: from, mediaState: defaultState });
+      debug.log('👤 Added user from offer to allUserStates:', from);
+    }
+    
     try {
       await connection.peerConnection.setRemoteDescription(offer);
       const answer = await connection.peerConnection.createAnswer();

@@ -9,6 +9,7 @@ import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { dmCallPermissions } from './DMCallPermissions'
 import { dmCallSignaling, type CallSignal } from './DMCallSignaling'
+import { authContextService } from './AuthContextService'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 
@@ -30,11 +31,21 @@ class GlobalDMCallListenerService {
   public showIncomingCallModal = ref(false)
 
   /**
-   * Initialize: Just subscribe to dm-calls:{userId}
+   * Initialize: Subscribe to dm-calls:{profileId}
+   * Resolves the profile ID from auth user ID so signals match what callers send.
    */
-  async initialize(userId: string): Promise<void> {
+  async initialize(authUserId: string): Promise<void> {
+    // Resolve auth user ID to profile ID (callers send to dm-calls:{profileId})
+    let profileId: string
+    try {
+      profileId = await authContextService.getCurrentProfileId()
+    } catch {
+      debug.error('❌ Could not resolve profile ID for call listener, falling back to auth ID')
+      profileId = authUserId
+    }
+    
     // Don't re-initialize if already done
-    if (this.userChannel && this.currentUserId === userId) {
+    if (this.userChannel && this.currentUserId === profileId) {
       debug.log('ℹ️ Global call listener already initialized for this user')
       return
     }
@@ -44,12 +55,12 @@ class GlobalDMCallListenerService {
       this.userChannel.unsubscribe()
     }
     
-    this.currentUserId = userId
-    const channelName = `dm-calls:${userId}`
+    this.currentUserId = profileId
+    const channelName = `dm-calls:${profileId}`
     
     debug.log(`📞 ================================================`)
     debug.log(`📞 INITIALIZING GLOBAL CALL LISTENER`)
-    debug.log(`📞 User: ${userId}`)
+    debug.log(`📞 User: ${profileId}`)
     debug.log(`📞 Channel: ${channelName}`)
     debug.log(`📞 ================================================`)
     
