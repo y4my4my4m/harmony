@@ -124,13 +124,14 @@
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: getUserColor(item.message.user_id).value }"
                     >{{ getUserDisplayName(item.message.user_id).value }}</span>
-                    started a {{ item.message.metadata?.call_type || 'voice' }} call
                     <template v-if="item.message.metadata?.type === 'call_ended'">
+                      started a {{ item.message.metadata?.call_type || 'voice' }} call that lasted
                       <span class="call-duration">
-                        — {{ formatCallDuration(item.message.metadata?.duration_seconds || 0) }}
+                        {{ formatCallDuration(item.message.metadata?.duration_seconds || 0) }}
                       </span>
                     </template>
-                    <template v-if="item.message.metadata?.type === 'call_started'">
+                    <template v-else>
+                      started a {{ item.message.metadata?.call_type || 'voice' }} call
                       <button class="call-join-btn" @click="joinCallFromSystemMessage(item.message)">
                         Join Call
                       </button>

@@ -542,21 +542,38 @@ class DMCallSignalingService {
     const endedAt = new Date()
     const durationSeconds = Math.floor((endedAt.getTime() - call.startedAt.getTime()) / 1000)
     
+    const newMetadata = {
+      type: 'call_ended',
+      call_type: call.callType,
+      started_at: call.startedAt.toISOString(),
+      ended_at: endedAt.toISOString(),
+      duration_seconds: durationSeconds,
+      participants: call.allParticipants,
+    }
+    
     try {
       await supabase.from('messages').update({
-        metadata: {
-          type: 'call_ended',
-          call_type: call.callType,
-          started_at: call.startedAt.toISOString(),
-          ended_at: endedAt.toISOString(),
-          duration_seconds: durationSeconds,
-          participants: call.allParticipants,
-        }
+        metadata: newMetadata
       }).eq('id', call.systemMessageId)
       
       debug.log('📞 Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')
     } catch (error) {
       debug.error('Failed to finalize call system message:', error)
+    }
+    
+    // Update the local DM message cache immediately so the UI reflects the change
+    // without waiting for Supabase realtime
+    try {
+      const { useDMStore } = await import('@/stores/useDM')
+      const dmStore = useDMStore()
+      const messages = dmStore.currentDMMessages
+      const msgIndex = messages.findIndex((m: any) => m.id === call.systemMessageId)
+      if (msgIndex !== -1) {
+        messages[msgIndex] = { ...messages[msgIndex], metadata: newMetadata }
+        debug.log('📞 Updated local message cache for call system message')
+      }
+    } catch {
+      // Store not available, realtime will handle it
     }
   }
 
