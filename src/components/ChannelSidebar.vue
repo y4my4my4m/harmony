@@ -1628,8 +1628,6 @@ watch(() => props.currentServer?.id, () => {
   .server-header {
     width:100%;
   }
-
-
   /* Enhanced touch targets for mobile */
   .channel-item,
   .category-header {
@@ -1733,6 +1731,10 @@ watch(() => props.currentServer?.id, () => {
 
   .channel-name {
     font-size: 15px;
+  }
+
+  .category-arrow {
+    margin: 5px 3px auto 0;
   }
 }
 </style>
