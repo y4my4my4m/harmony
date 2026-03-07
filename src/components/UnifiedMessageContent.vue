@@ -106,6 +106,13 @@
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >{{ formatMentionDisplay(part) }}</span>
+
+        <!-- Role mentions -->
+        <span
+          v-else-if="part && typeof part === 'object' && part.type === 'role_mention'"
+          class="mention role-mention"
+          :style="part.roleColor ? { color: part.roleColor, backgroundColor: part.roleColor + '1a' } : {}"
+        >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span>
         
         <!-- Hashtags -->
         <span 
@@ -1069,6 +1076,16 @@ export default defineComponent({
 .mention:hover {
   background-color: var(--harmony-primary);
   color: rgba(255,255,255,0.9);
+}
+
+.role-mention {
+  font-weight: 600;
+  cursor: default;
+}
+
+.role-mention:hover {
+  filter: brightness(1.15);
+  background-color: unset;
 }
 
 /* Hashtag styling */
