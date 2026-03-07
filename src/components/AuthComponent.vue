@@ -10,7 +10,7 @@
       <div class="auth-branding">
         <div class="brand-content">
           <div class="logo-container" @click="themeStore.testAudio('ui_click')">
-            <img src="/icon_3d.png" alt="Harmony Logo" class="brand-logo" />
+            <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
             <div class="logo-pulse"></div>
           </div>
           
@@ -59,7 +59,7 @@
         >
           <!-- Mobile Logo -->
           <div class="mobile-logo">
-            <img src="/icon_3d.png" alt="Harmony" />
+            <img src="/icon_3d.webp" alt="Harmony" />
             <h1 class="mobile-title">{{ instanceName }}</h1>
           </div>
 

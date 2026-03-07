@@ -24,7 +24,7 @@
       <div class="auth-branding">
         <div class="brand-content">
           <div class="logo-container">
-            <img src="/icon_3d.png" alt="Harmony Logo" class="brand-logo" />
+            <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
             <div class="logo-glow"></div>
           </div>
           <h1 class="brand-title">

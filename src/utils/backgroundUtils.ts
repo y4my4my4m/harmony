@@ -95,7 +95,7 @@ export async function getRandom404Image(): Promise<string> {
   }
 
   // Fallback to legacy pattern
-  const legacyImages = ['/404.webp', '/404_2.webp']
+  const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
   const randomIndex = Math.floor(Math.random() * legacyImages.length)
   return legacyImages[randomIndex]
 }

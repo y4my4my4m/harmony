@@ -5,7 +5,7 @@
       <div v-if="status === 'loading'" class="callback-content">
         <div class="loader">
           <div class="loader-ring"></div>
-          <img src="/icon_3d.png" alt="Harmony" class="loader-logo" />
+          <img src="/icon_3d.webp" alt="Harmony" class="loader-logo" />
         </div>
         <h2>{{ $t('auth.callback.signingIn') || 'Signing you in...' }}</h2>
         <p>{{ $t('auth.callback.pleaseWait') || 'Please wait while we complete your authentication.' }}</p>

@@ -9,7 +9,7 @@ The 404 page system has been redesigned to be professional, DRY (Don't Repeat Yo
 ### Components
 
 1. **`NotFound404.vue`** - Core reusable 404 component
-   - Handles random image selection from `/404.webp` and `/404_2.webp`
+   - Handles random image selection from `/backgrounds/404/1.webp` and `/backgrounds/404/2.webp`
    - Provides different content for authenticated vs unauthenticated users
    - Context-aware navigation suggestions
    - Professional styling with accessibility features
@@ -48,7 +48,7 @@ The router already has a professional setup with two different 404 routes:
 
 #### Technical Features
 
-- **Random Image Selection**: Chooses between `404.webp` and `404_2.webp`
+- **Random Image Selection**: Chooses between `backgrounds/404/1.webp` and `backgrounds/404/2.webp`
 - **Error Handling**: Fallback to alternate image if one fails to load
 - **Context Awareness**: Different messages based on route (social, chat, settings)
 - **Mobile Responsive**: Optimized layouts for all screen sizes

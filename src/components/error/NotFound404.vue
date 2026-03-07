@@ -181,7 +181,7 @@ const selectRandomImage = async () => {
   } catch (error) {
     debug.warn('Failed to load 404 image from manifest, using fallback:', error)
     // Fallback to legacy images
-    const legacyImages = ['/404.webp', '/404_2.webp']
+    const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
     const randomIndex = Math.floor(Math.random() * legacyImages.length)
     selectedImage.value = legacyImages[randomIndex]
   }
@@ -191,7 +191,7 @@ const handleImageError = () => {
   debug.warn('Failed to load 404 image:', selectedImage.value)
   imageError.value = true
   // Try fallback legacy images
-  const legacyImages = ['/404.webp', '/404_2.webp']
+  const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
   const currentIndex = legacyImages.indexOf(selectedImage.value)
   const fallbackIndex = currentIndex === 0 ? 1 : 0
   if (fallbackIndex !== currentIndex) {
