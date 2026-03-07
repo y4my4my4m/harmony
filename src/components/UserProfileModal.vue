@@ -894,11 +894,11 @@ const getUserRoles = (_user: any) => {
 }
 
 const isInstanceAdmin = (user: any) => {
-  return user?.is_admin || user?.profile?.is_admin || false
+  return user?.is_admin || user?.isAdmin || user?.profile?.is_admin || false
 }
 
 const isInstanceModerator = (user: any) => {
-  return user?.is_moderator || user?.profile?.is_moderator || false
+  return user?.is_moderator || user?.isModerator || user?.profile?.is_moderator || false
 }
 
 const getUserBio = (user: any) => {

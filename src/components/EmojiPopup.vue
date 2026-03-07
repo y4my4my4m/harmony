@@ -22,26 +22,23 @@
             :key="emoji.id"
             class="emoji-item"
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
-            :title="`:${emoji.name}:`"
             @click="selectFrequentEmoji(emoji)"
+            @pointerenter="hoveredEmojiName = emoji.name"
+            @pointerleave="hoveredEmojiName = null"
           >
-            <!-- Custom server emoji with URL (not a local asset path) -->
             <img 
               v-if="getFrequentEmojiDisplayUrl(emoji)"
               :src="getFrequentEmojiDisplayUrl(emoji)"
               :alt="emoji.name"
               class="frequent-emoji-img"
             />
-            <!-- SVG pack emoji -->
             <img 
               v-else-if="!isNativePack && getFrequentEmojiSvgUrl(emoji)"
               :src="getFrequentEmojiSvgUrl(emoji)"
               :alt="emoji.name"
               class="frequent-emoji-img"
             />
-            <!-- Native unicode emoji -->
             <span v-else-if="emoji.native">{{ emoji.native }}</span>
-            <!-- Fallback to name -->
             <span v-else class="emoji-shortcode">:{{ emoji.name }}:</span>
           </div>
         </div>
@@ -56,10 +53,9 @@
               v-for="emoji in group.emojis"
               :key="emoji.id"
               class="emoji-item"
-              :title="`:${emoji.display_name}:`"
               @click="selectEmoji(emoji)"
-              @mouseover="hoveredEmojiId = emoji.id"
-              @mouseleave="hoveredEmojiId = null"
+              @pointerenter="hoveredEmojiName = emoji.display_name"
+              @pointerleave="hoveredEmojiName = null"
             >
               <img :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" />
             </div>
@@ -87,8 +83,9 @@
             :key="emoji.shortcode"
             class="emoji-item"
             :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
-            :title="`:${emoji.shortcode}:`"
             @click="selectUnifiedEmoji(emoji)"
+            @pointerenter="hoveredEmojiName = emoji.shortcode"
+            @pointerleave="hoveredEmojiName = null"
           >
             <img 
               v-if="!isNativePack"
@@ -110,6 +107,11 @@
           <small>{{ noResultsInfo.subtitle }}</small>
         </div>
       </div>
+    </div>
+
+    <!-- Emoji preview bar -->
+    <div class="emoji-preview-bar">
+      <span v-if="hoveredEmojiName" class="emoji-preview-name">:{{ hoveredEmojiName }}:</span>
     </div>
   </div>
 </template>
@@ -197,7 +199,7 @@ const {
 const emojiPopup = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
-const hoveredEmojiId = ref<string | null>(null);
+const hoveredEmojiName = ref<string | null>(null);
 
 // --- Composables ---
 
@@ -760,6 +762,23 @@ watch(
 
 .emoji-content::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
+}
+
+.emoji-preview-bar {
+  height: 28px;
+  padding: 0 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.emoji-preview-name {
+  font-size: 12px;
+  color: var(--color-text-secondary, var(--text-secondary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {

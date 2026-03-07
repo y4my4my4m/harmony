@@ -95,6 +95,18 @@
   user-select: auto;
 }
 
+.emoji-icon,
+.inline-emoji,
+.emoji-svg,
+.frequent-emoji-img,
+.emoji-img,
+.reaction-emoji,
+.md-emoji {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  pointer-events: auto;
+}
+
 body {
   min-height: 100vh;
   color: var(--color-text);

@@ -1566,14 +1566,18 @@ export const useDMStore = defineStore('dm', () => {
     
     if (subscription) {
       debug.log(`🗑️ Cleaning up conversation subscription: ${channelName}`)
-      // Check if it's a function (RealtimeConnectionManager unsubscribe) or a channel
       if (typeof subscription === 'function') {
-        subscription() // Call unsubscribe function from RealtimeConnectionManager
+        subscription()
       } else {
-      supabase.removeChannel(subscription)
+        supabase.removeChannel(subscription)
       }
       dmSubscriptions.value.delete(channelName)
     }
+
+    // Clean up reactions subscription for this conversation
+    const reactionsChannelName = `dm-reactions-${conversationId}`
+    realtimeConnectionManager.unsubscribe(reactionsChannelName)
+    dmSubscriptions.value.delete(reactionsChannelName)
   }
 
   /**
@@ -1619,21 +1623,9 @@ export const useDMStore = defineStore('dm', () => {
         }
       })
 
-      // Note: For DM reactions, we subscribe per-conversation in setupConversationSubscription
-      // instead of subscribing to ALL reactions globally. This is more scalable.
-      // The per-conversation subscription handles reactions for the active conversation.
-      
-      // Only subscribe to reactions if we have active conversations
-      // We'll handle this in the conversation-specific subscription instead
-      const reactionsChannelName = `dm-reactions-${userId}`
-      // Skip global reactions subscription - we handle it per-conversation
-      const reactionsUnsubscribe = () => {
-        debug.log('📡 DM reactions handled per-conversation, no global subscription needed')
-      }
+      // DM reactions are subscribed per-conversation in setupConversationSubscription
 
-      // Store the unsubscribe functions
       dmSubscriptions.value.set(conversationsChannelName, conversationsUnsubscribe)
-      dmSubscriptions.value.set(reactionsChannelName, reactionsUnsubscribe)
 
     } catch (error) {
       debug.error('❌ Error setting up DM realtime subscriptions:', error)
@@ -1817,6 +1809,29 @@ export const useDMStore = defineStore('dm', () => {
     // Store the unsubscribe function
     currentSubscription.value = unsubscribe
     dmSubscriptions.value.set(channelName, unsubscribe)
+
+    // Subscribe to reactions for this conversation's messages
+    const reactionsStore = useReactionsStore()
+    const reactionsChannelName = `dm-reactions-${conversationId}`
+    if (!realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
+      const reactionsUnsubscribe = realtimeConnectionManager.subscribeToTable({
+        channelName: reactionsChannelName,
+        table: 'reactions',
+        onInsert: (payload) => {
+          const messageId = (payload.new as any)?.message_id
+          if (messageId && currentDMMessages.value.some(m => m.id === messageId)) {
+            reactionsStore.handleRealtimeUpdate(payload)
+          }
+        },
+        onDelete: (payload) => {
+          const messageId = (payload.old as any)?.message_id
+          if (messageId && currentDMMessages.value.some(m => m.id === messageId)) {
+            reactionsStore.handleRealtimeUpdate(payload)
+          }
+        },
+      })
+      dmSubscriptions.value.set(reactionsChannelName, reactionsUnsubscribe)
+    }
     
     debug.log(`📝 Stored DM subscription for ${channelName}, total subscriptions: ${dmSubscriptions.value.size}`)
   }

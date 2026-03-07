@@ -1073,24 +1073,23 @@ class UserDataService extends EventTarget {
       if (updatedProfile.username !== undefined) {
         userData.username = updatedProfile.username
       }
+      if (updatedProfile.custom_status !== undefined) {
+        userData.customStatus = this.parseCustomStatus(updatedProfile.custom_status)
+      }
       
       userData.lastCacheUpdate = new Date().toISOString()
       userData.source = 'database'
       
-      // Emit update event so UI components can react
       this.emitEvent('user-updated', { userId })
       
       debug.log(`✅ Updated user data for ${userData.displayName} in server ${serverId}`)
     } else {
-      // If we don't have the user data, load it fresh from the database
       debug.log(`🔄 Loading fresh user data for ${userId} after profile update`)
       await this.loadUsersData([userId])
       
-      // Emit event after loading
       this.emitEvent('user-updated', { userId })
     }
     
-    // Also emit a context-specific update event
     this.emitEvent('context-updated', { 
       contextId: serverId, 
       type: 'profile-update', 
@@ -1131,11 +1130,13 @@ class UserDataService extends EventTarget {
       if (profileUpdates.username !== undefined) {
         userData.username = profileUpdates.username
       }
+      if (profileUpdates.customStatus !== undefined) {
+        userData.customStatus = profileUpdates.customStatus
+      }
       
       userData.lastCacheUpdate = new Date().toISOString()
-      userData.source = 'presence' // Updated via real-time broadcast
+      userData.source = 'presence'
       
-      // Emit update event so UI components can react immediately
       this.emitEvent('user-updated', { userId })
       
       debug.log(`✅ Updated user data for ${userData.displayName} from broadcast`)
@@ -1216,6 +1217,8 @@ class UserDataService extends EventTarget {
         })
         
         debug.log(`✅ Loaded ${profiles.length} user profiles from database`)
+        
+        this.emitEvent('data-refreshed', { userIds: profiles.map((p: any) => p.id) })
       }
       
     } catch (error) {
@@ -1423,11 +1426,11 @@ class UserDataService extends EventTarget {
       // Continue - local state is updated
     }
     
-    // Update presence to broadcast custom status
-    await this.updatePresenceStatus(userData.status)
+    // Broadcast custom status change to users in shared contexts
+    await this.broadcastProfileToContexts({ customStatus })
     
     this.emitEvent('custom-status-changed', { userId: this.currentUserId, customStatus })
-    debug.log('✅ Custom status updated')
+    debug.log('✅ Custom status updated and broadcast')
   }
 
   /**
@@ -1598,6 +1601,7 @@ class UserDataService extends EventTarget {
     bio?: string
     color?: string
     username?: string
+    customStatus?: CustomUserStatus | undefined
   }): Promise<void> {
     if (!this.currentUserId) return
     
