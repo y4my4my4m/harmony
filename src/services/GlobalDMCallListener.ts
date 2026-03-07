@@ -36,12 +36,27 @@ class GlobalDMCallListenerService {
    */
   async initialize(authUserId: string): Promise<void> {
     // Resolve auth user ID to profile ID (callers send to dm-calls:{profileId})
-    let profileId: string
+    let profileId: string | null = null
     try {
       profileId = await authContextService.getCurrentProfileId()
     } catch {
-      debug.error('❌ Could not resolve profile ID for call listener, falling back to auth ID')
-      profileId = authUserId
+      // authContextService failed -- try a direct DB lookup as fallback
+      debug.warn('⚠️ authContextService failed, trying direct profile lookup')
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('auth_user_id', authUserId)
+          .single()
+        profileId = data?.id ?? null
+      } catch {
+        debug.error('❌ Direct profile lookup also failed')
+      }
+    }
+    
+    if (!profileId) {
+      debug.error('❌ Could not resolve profile ID for call listener - call notifications will not work until next login')
+      return
     }
     
     // Don't re-initialize if already done

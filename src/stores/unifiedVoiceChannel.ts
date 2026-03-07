@@ -1453,17 +1453,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             'video:', data.mediaState.isVideoEnabled, 'screen:', data.mediaState.isScreenSharing);
           
           // Handle screenshare state change for spatial audio
-          // When user starts screensharing: disable spatial audio, enable traditional
-          // When user stops screensharing: re-enable spatial audio
+          // Screenshare audio uses its own separate audio element, so we only
+          // need to add/remove the user from spatial processing -- NOT toggle
+          // traditional audio globally (that would clobber all other users).
           if (oldState && oldState.isScreenSharing !== data.mediaState.isScreenSharing) {
             const spatialStore = useSpatialAudioStore();
             if (data.mediaState.isScreenSharing) {
-              // User started screensharing - switch to traditional audio
-              debug.log('🔊 User started screensharing, switching to traditional audio:', data.userId);
+              debug.log('🔊 User started screensharing, removing from spatial audio:', data.userId);
               this.removeUserFromSpatialAudio(data.userId);
-              webrtcManager.setTraditionalAudioEnabled(true);
             } else if (spatialStore.settings.enabled) {
-              // User stopped screensharing - restore spatial audio if enabled
               debug.log('🎧 User stopped screensharing, restoring spatial audio:', data.userId);
               this.addUserToSpatialAudio(data.userId);
             }
@@ -1816,12 +1814,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       // Check if user is screensharing - if so, skip spatial audio
-      // Screenshare audio should be played normally (stereo) not spatially
+      // Screenshare audio plays through its own separate audio element
       const userState = this.allUsers.find(u => u.userId === userId);
       if (userState?.isScreenSharing) {
         debug.log('🎧 Skipping spatial audio for screensharing user:', userId);
-        // Make sure traditional audio is enabled for this user
-        webrtcManager.setTraditionalAudioEnabled(true);
         return;
       }
       
@@ -1844,7 +1840,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const currentUserState = this.allUsers.find(u => u.userId === userId);
         if (currentUserState?.isScreenSharing) {
           debug.log('🎧 User started screensharing, skipping spatial audio:', userId);
-          webrtcManager.setTraditionalAudioEnabled(true);
           return;
         }
         
@@ -1857,11 +1852,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const userStream = webrtcManager.getUserStream(userId);
         if (userStream) {
           spatialAudioService.setupSpatialForUser(userId, userStream);
-          
-          debug.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
-          webrtcManager.setTraditionalAudioEnabled(false);
-          
-          // Force spatial effects update for new user
           spatialAudioService.updateSpatialEffects();
         } else {
           debug.warn('No media stream found for user:', userId);

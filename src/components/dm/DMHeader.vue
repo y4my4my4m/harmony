@@ -789,6 +789,19 @@ const joinActiveCall = async () => {
       return
     }
     
+    // For 1-on-1 DMs, verify call permissions before joining
+    if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+      const permissionCheck = await dmCallPermissions.canReceiveCall(
+        profileId,
+        props.conversation.other_user.id,
+        props.conversation.id
+      )
+      if (!permissionCheck.allowed) {
+        toast.error(permissionCheck.message || 'Cannot join this call')
+        return
+      }
+    }
+    
     const dmChannelId = `dm-${props.conversation.id}`
     
     // Send join signal
