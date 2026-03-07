@@ -437,6 +437,159 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- Trigger: handle role mention notifications on new channel messages
+-- Detects role_mention parts and creates notifications for all role members
+-- For is_default roles (@everyone), notifies all server members.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_role_mention_notifications()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_server_id uuid;
+    v_channel_id uuid;
+    v_channel_name text;
+    v_server_name text;
+    v_sender_profile record;
+    v_role_id uuid;
+    v_role_is_default boolean;
+    v_member_id uuid;
+    content_part jsonb;
+    content_preview text;
+BEGIN
+    IF NEW.channel_id IS NULL OR NEW.is_system THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT c.server_id, c.name INTO v_server_id, v_channel_name
+    FROM channels c WHERE c.id = NEW.channel_id;
+    IF v_server_id IS NULL THEN RETURN NEW; END IF;
+
+    SELECT s.name INTO v_server_name FROM servers s WHERE s.id = v_server_id;
+
+    -- Check if content has any role_mention parts
+    IF jsonb_typeof(NEW.content) != 'array' THEN RETURN NEW; END IF;
+
+    -- Quick check: skip if no role_mention in content
+    IF NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(NEW.content) elem
+        WHERE elem->>'type' = 'role_mention'
+    ) THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT p.id, p.username, p.display_name, p.avatar_url
+    INTO v_sender_profile
+    FROM profiles p WHERE p.id = NEW.user_id;
+
+    content_preview := LEFT(
+        (SELECT string_agg(elem->>'text', ' ')
+         FROM jsonb_array_elements(NEW.content) elem
+         WHERE elem->>'type' = 'text'), 100);
+
+    v_channel_id := NEW.channel_id;
+
+    FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+    LOOP
+        IF content_part->>'type' = 'role_mention' THEN
+            v_role_id := (content_part->>'roleId')::uuid;
+            IF v_role_id IS NULL THEN CONTINUE; END IF;
+
+            SELECT is_default INTO v_role_is_default
+            FROM server_roles WHERE id = v_role_id AND server_id = v_server_id;
+
+            IF NOT FOUND THEN CONTINUE; END IF;
+
+            IF v_role_is_default THEN
+                -- @everyone: notify all server members except sender
+                FOR v_member_id IN
+                    SELECT us.user_id FROM user_servers us
+                    WHERE us.server_id = v_server_id
+                      AND us.status = 'accepted'
+                      AND us.user_id != NEW.user_id
+                LOOP
+                    PERFORM send_notification_to_user(
+                        'mention', v_member_id,
+                        jsonb_build_object(
+                            'sender', jsonb_build_object(
+                                'user_id', v_sender_profile.id,
+                                'username', v_sender_profile.username,
+                                'display_name', v_sender_profile.display_name,
+                                'avatar_url', v_sender_profile.avatar_url
+                            ),
+                            'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
+                            'location', jsonb_build_object(
+                                'server_id', v_server_id::text,
+                                'server_name', v_server_name,
+                                'channel_id', v_channel_id::text,
+                                'channel_name', v_channel_name
+                            ),
+                            'message_id', NEW.id,
+                            'mentioned_by', NEW.user_id,
+                            'sender_username', v_sender_profile.username,
+                            'sender_display_name', v_sender_profile.display_name,
+                            'server_id', v_server_id::text,
+                            'server_name', v_server_name,
+                            'channel_id', v_channel_id::text,
+                            'channel_name', v_channel_name,
+                            'preview', content_preview
+                        ),
+                        v_server_id, v_channel_id, NULL, NEW.user_id, 'normal'
+                    );
+                END LOOP;
+            ELSE
+                -- Specific role: notify members who have this role
+                FOR v_member_id IN
+                    SELECT ur.user_id FROM user_roles ur
+                    WHERE ur.role_id = v_role_id
+                      AND ur.server_id = v_server_id
+                      AND ur.user_id != NEW.user_id
+                LOOP
+                    PERFORM send_notification_to_user(
+                        'mention', v_member_id,
+                        jsonb_build_object(
+                            'sender', jsonb_build_object(
+                                'user_id', v_sender_profile.id,
+                                'username', v_sender_profile.username,
+                                'display_name', v_sender_profile.display_name,
+                                'avatar_url', v_sender_profile.avatar_url
+                            ),
+                            'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
+                            'location', jsonb_build_object(
+                                'server_id', v_server_id::text,
+                                'server_name', v_server_name,
+                                'channel_id', v_channel_id::text,
+                                'channel_name', v_channel_name
+                            ),
+                            'message_id', NEW.id,
+                            'mentioned_by', NEW.user_id,
+                            'sender_username', v_sender_profile.username,
+                            'sender_display_name', v_sender_profile.display_name,
+                            'server_id', v_server_id::text,
+                            'server_name', v_server_name,
+                            'channel_id', v_channel_id::text,
+                            'channel_name', v_channel_name,
+                            'preview', content_preview
+                        ),
+                        v_server_id, v_channel_id, NULL, NEW.user_id, 'normal'
+                    );
+                END LOOP;
+            END IF;
+        END IF;
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trigger_role_mention_notifications ON public.messages;
+CREATE TRIGGER trigger_role_mention_notifications
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.channel_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_role_mention_notifications();
+
+-- ---------------------------------------------------------------------------
 -- Fix: rename '@everyone' role to 'everyone' (@ is display, not name)
 -- ---------------------------------------------------------------------------
 UPDATE public.server_roles
