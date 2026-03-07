@@ -591,10 +591,37 @@ CREATE TRIGGER trigger_role_mention_notifications
 
 -- ---------------------------------------------------------------------------
 -- Fix: rename '@everyone' role to 'everyone' (@ is display, not name)
+-- Must temporarily disable the protection trigger that blocks renames.
 -- ---------------------------------------------------------------------------
+ALTER TABLE public.server_roles DISABLE TRIGGER ALL;
+
 UPDATE public.server_roles
 SET name = 'everyone'
 WHERE is_default = true AND name = '@everyone';
+
+ALTER TABLE public.server_roles ENABLE TRIGGER ALL;
+
+-- Update the protection trigger to use the new name
+CREATE OR REPLACE FUNCTION public.prevent_protected_role_modification()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.is_admin = true AND NEW.is_admin = false THEN
+        RAISE EXCEPTION 'Cannot remove admin status from the Admin role.';
+    END IF;
+
+    IF OLD.is_default = true AND NEW.is_default = false THEN
+        RAISE EXCEPTION 'Cannot remove default status from the everyone role.';
+    END IF;
+
+    IF (OLD.is_admin = true OR OLD.is_default = true) AND OLD.name != NEW.name THEN
+        RAISE EXCEPTION 'Cannot rename protected roles.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
 
 -- Update the trigger function for new servers
 CREATE OR REPLACE FUNCTION public.create_default_server_role()
