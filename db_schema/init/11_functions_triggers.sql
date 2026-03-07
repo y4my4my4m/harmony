@@ -1029,27 +1029,16 @@ SET search_path TO 'public'
 AS $$
 DECLARE
     v_channel_id uuid;
-    v_username text;
 BEGIN
     IF NEW.status IS NOT NULL AND NEW.status != 'accepted' THEN
         RETURN NEW;
     END IF;
 
-    SELECT system_channel_id INTO v_channel_id
-    FROM server_settings
-    WHERE server_id = NEW.server_id;
-
-    IF v_channel_id IS NULL THEN
-        v_channel_id := get_default_channel(NEW.server_id);
-    END IF;
+    v_channel_id := get_default_channel(NEW.server_id);
 
     IF v_channel_id IS NULL THEN
         RETURN NEW;
     END IF;
-
-    SELECT COALESCE(display_name, username) INTO v_username
-    FROM profiles
-    WHERE id = NEW.user_id;
 
     INSERT INTO messages (channel_id, user_id, content, is_system, metadata)
     VALUES (
