@@ -47,6 +47,9 @@ WHERE system_channel_id IS NULL;
 ALTER TABLE public.servers DROP COLUMN IF EXISTS verification_level;
 ALTER TABLE public.servers DROP COLUMN IF EXISTS default_notification_level;
 
+-- Ensure server_membership_events has the payload column (older dev DBs may be missing it)
+ALTER TABLE public.server_membership_events ADD COLUMN IF NOT EXISTS payload jsonb DEFAULT '{}'::jsonb;
+
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;
