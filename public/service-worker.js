@@ -64,7 +64,9 @@ self.addEventListener('activate', (event) => {
 // Note: Caching strategies are implemented later in the file with enhanced versions
 
 // Enhanced notification handling with proper Discord-like behavior
-self.addEventListener('push', async (event) => {
+// IMPORTANT: event.waitUntil() must be called synchronously (before any await)
+// or the browser may terminate the service worker before the notification is shown.
+self.addEventListener('push', (event) => {
   console.log('🔔 Service Worker: Push event received', event)
   
   if (!event.data) {
@@ -72,6 +74,10 @@ self.addEventListener('push', async (event) => {
     return
   }
 
+  event.waitUntil(handlePushEvent(event))
+})
+
+async function handlePushEvent(event) {
   try {
     const data = event.data.json()
     console.log('📨 Service Worker: Notification data:', data)
@@ -85,15 +91,9 @@ self.addEventListener('push', async (event) => {
       return
     }
 
-    // Discord-like notification logic
-    // icon = colored icon for notification body (can be user avatar or app icon)
-    // badge = small monochrome icon for status bar (must be white/transparent, 96x96)
     const notificationOptions = {
       body: data.message || data.body,
-      // Use avatar if available, otherwise colored app icon for notification body
       icon: data.data?.avatar_url || data.icon || '/favicon/android-icon-192x192.png',
-      // Badge should be monochrome white for Android status bar
-      // Falls back to square icon if badge doesn't exist
       badge: '/img/app_icon_badge.png',
       tag: data.tag || (data.data?.conversation_id
         ? `harmony-${data.type}-conv-${data.data.conversation_id}`
@@ -108,76 +108,96 @@ self.addEventListener('push', async (event) => {
       actions: getNotificationActions(data.type),
       image: data.data?.image_url,
       vibrate: getVibrationPattern(data.type),
-      // Non-standard: Accent color for Android (may not work on all browsers)
-      // This is the equivalent of Android's setColor() but for web
       color: '#5865f2'
     }
 
     // Store notification for later retrieval
     await storeNotification(data)
 
+    // Update app icon badge count (works from service worker on Android Chrome)
+    try {
+      const notifications = await self.registration.getNotifications()
+      const badgeCount = notifications.length + 1
+      if (navigator.setAppBadge) {
+        await navigator.setAppBadge(badgeCount)
+      }
+    } catch (e) {
+      // Badging API not supported in this context — safe to ignore
+    }
+
     // Show notification with proper title
     const title = data.title || getDefaultTitle(data.type)
-    
-    event.waitUntil(
-      self.registration.showNotification(title, notificationOptions)
-    )
+    await self.registration.showNotification(title, notificationOptions)
 
   } catch (error) {
     console.error('❌ Service Worker: Error handling push event:', error)
   }
-})
+}
 
 // Enhanced notification click handling
-self.addEventListener('notificationclick', async (event) => {
+self.addEventListener('notificationclick', (event) => {
   console.log('🖱️ Service Worker: Notification clicked', event)
-  
   event.notification.close()
+  event.waitUntil(handleNotificationClick(event))
+})
 
+async function handleNotificationClick(event) {
   const data = event.notification.data
   const action = event.action
 
-  // Handle notification actions
+  // Update badge count after closing
+  await updateBadgeCount()
+
   if (action === 'reply' && (data.conversation_id || data.server_id)) {
-    event.waitUntil(handleQuickReply(data))
-    return
+    return handleQuickReply(data)
   }
 
   if (action === 'mark_read') {
-    event.waitUntil(markAsRead(data))
-    return
+    return markAsRead(data)
   }
 
   if (action === 'dismiss') {
-    return // Just close the notification
+    return
   }
 
   // Default click behavior - navigate to the content
   const url = getNavigationUrl(data)
-  
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-      // Check if Harmony is already open
-      const harmonyClient = clientList.find(client => 
-        client.url.includes('localhost') || client.url.includes('harmony')
-      )
-
-      if (harmonyClient) {
-        // Focus existing window and navigate
-        return harmonyClient.focus().then(() => {
-          return harmonyClient.postMessage({
-            type: 'NAVIGATE_TO_NOTIFICATION',
-            data: data,
-            url: url
-          })
-        })
-      } else {
-        // Open new window
-        return self.clients.openWindow(url)
-      }
-    })
+  const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  const harmonyClient = clientList.find(client =>
+    client.url.includes('localhost') || client.url.includes('harmony')
   )
+
+  if (harmonyClient) {
+    await harmonyClient.focus()
+    return harmonyClient.postMessage({
+      type: 'NAVIGATE_TO_NOTIFICATION',
+      data: data,
+      url: url
+    })
+  } else {
+    return self.clients.openWindow(url)
+  }
+}
+
+// Update badge when notifications are swiped away
+self.addEventListener('notificationclose', (event) => {
+  event.waitUntil(updateBadgeCount())
 })
+
+async function updateBadgeCount() {
+  try {
+    const notifications = await self.registration.getNotifications()
+    if (navigator.setAppBadge) {
+      if (notifications.length > 0) {
+        await navigator.setAppBadge(notifications.length)
+      } else {
+        await navigator.clearAppBadge()
+      }
+    }
+  } catch (e) {
+    // Badging API not available — safe to ignore
+  }
+}
 
 // Handle background sync for offline notifications
 self.addEventListener('sync', (event) => {
