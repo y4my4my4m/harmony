@@ -1576,8 +1576,10 @@ export const useDMStore = defineStore('dm', () => {
 
     // Clean up reactions subscription for this conversation
     const reactionsChannelName = `dm-reactions-${conversationId}`
-    realtimeConnectionManager.unsubscribe(reactionsChannelName)
-    dmSubscriptions.value.delete(reactionsChannelName)
+    if (dmSubscriptions.value.has(reactionsChannelName)) {
+      realtimeConnectionManager.unsubscribe(reactionsChannelName)
+      dmSubscriptions.value.delete(reactionsChannelName)
+    }
   }
 
   /**

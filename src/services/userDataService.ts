@@ -1121,6 +1121,9 @@ class UserDataService extends EventTarget {
       if (profileUpdates.avatarUrl !== undefined) {
         userData.avatarUrl = profileUpdates.avatarUrl
       }
+      if (profileUpdates.bannerUrl !== undefined) {
+        userData.bannerUrl = profileUpdates.bannerUrl
+      }
       if (profileUpdates.bio !== undefined) {
         userData.bio = profileUpdates.bio
       }
@@ -1130,7 +1133,7 @@ class UserDataService extends EventTarget {
       if (profileUpdates.username !== undefined) {
         userData.username = profileUpdates.username
       }
-      if (profileUpdates.customStatus !== undefined) {
+      if ('customStatus' in profileUpdates) {
         userData.customStatus = profileUpdates.customStatus
       }
       
