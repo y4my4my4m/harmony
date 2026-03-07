@@ -545,7 +545,41 @@ export const useAuthStore = defineStore('auth', {
         debug.error('❌ Error clearing ActivityPub timeline:', error)
       }
       
-      // ✅ PERFORMANCE FIX: Cleanup state persistence before logout
+      // Clear chat store caches to prevent data leakage between users
+      try {
+        const { useChatStore } = await import('@/stores/useChat')
+        const chatStore = useChatStore()
+        chatStore.unsubscribeFromMessages()
+        chatStore.clearAllCaches()
+        chatStore.replyMessageCache.clear()
+        chatStore.jumpedToMessages.clear()
+        chatStore.$reset()
+        debug.log('✅ Chat store cleared on logout')
+      } catch (error) {
+        debug.error('❌ Error clearing chat store:', error)
+      }
+
+      // Clear DM store to prevent conversation leakage between users
+      try {
+        const { useDMStore } = await import('@/stores/useDM')
+        const dmStore = useDMStore()
+        dmStore.cleanup()
+        debug.log('✅ DM store cleared on logout')
+      } catch (error) {
+        debug.error('❌ Error clearing DM store:', error)
+      }
+
+      // Clear server channel store
+      try {
+        const { useServerChannelStore } = await import('@/stores/useServerChannel')
+        const serverStore = useServerChannelStore()
+        serverStore.$reset()
+        debug.log('✅ Server channel store cleared on logout')
+      } catch (error) {
+        debug.error('❌ Error clearing server channel store:', error)
+      }
+
+      // Cleanup state persistence before logout
       try {
         const { statePersistence } = await import('@/services/StatePersistence')
         await statePersistence.cleanup()

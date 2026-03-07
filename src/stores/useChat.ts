@@ -530,9 +530,12 @@ export const useChatStore = defineStore('chat', {
       debug.log(`Invalidated cache for channel: ${channelId}`);
     },
 
-    // Clear all caches
     clearAllCaches() {
       this.messageCache.clear();
+      this.replyMessageCache.clear();
+      this.fetchingReplyMessages.clear();
+      this.jumpedToMessages.clear();
+      this.messageGaps.clear();
       debug.log('Cleared all message caches');
     },
 
