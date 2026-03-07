@@ -164,13 +164,13 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       debug.log('🎧 Toggling spatial audio:', this.settings.enabled ? 'ON' : 'OFF');
       
       try {
-        // Import services
+        // Import services - use webrtcManager for transport-agnostic audio control
         const { spatialAudioService } = await import('@/services/spatialAudio');
-        const { unifiedWebRTC } = await import('@/services/unifiedWebRTC');
+        const { webrtcManager } = await import('@/services/webrtcManager');
         
         if (this.settings.enabled) {
           // First disable traditional audio to prevent double output
-          unifiedWebRTC.setTraditionalAudioEnabled(false);
+          webrtcManager.setTraditionalAudioEnabled(false);
           debug.log('🔇 Traditional audio disabled');
           
           // Then enable spatial audio - this will create AudioContext if needed
@@ -178,8 +178,8 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
           debug.log('🎧 Spatial audio enabled');
           
           // Setup spatial audio for any existing users
-          const allUsers = unifiedWebRTC.getAllUsers();
-          const localUserId = unifiedWebRTC.getLocalState().userId;
+          const allUsers = webrtcManager.getAllUsers();
+          const localUserId = webrtcManager.getLocalState().userId;
           
           // Initialize local user position at center if not set
           if (!this.userPositions.has(localUserId)) {
@@ -194,7 +194,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
                 debug.log(`🎧 Initialized position for user: ${user.userId}`);
               }
               
-              const userStream = unifiedWebRTC.getUserStream(user.userId);
+              const userStream = webrtcManager.getUserStream(user.userId);
               if (userStream) {
                 debug.log(`🎧 Setting up spatial audio for existing user: ${user.userId}`);
                 await spatialAudioService.setupSpatialForUser(user.userId, userStream);
@@ -212,7 +212,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
           debug.log('🎧 Spatial audio disabled');
           
           // Re-enable traditional HTMLAudioElement playback
-          unifiedWebRTC.setTraditionalAudioEnabled(true);
+          webrtcManager.setTraditionalAudioEnabled(true);
           debug.log('🔊 Traditional audio re-enabled');
         }
         

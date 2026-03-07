@@ -3,6 +3,7 @@ import { nextTick } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
+import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -93,6 +94,9 @@ interface VoiceChannelState {
   
   // Counter to force reactivity when streams update (Map doesn't trigger Vue reactivity well)
   streamUpdateCounter: number;
+  
+  // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
+  connectionMode: 'livekit' | 'p2p' | null;
 }
 
 // =============================================================================
@@ -158,7 +162,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       audioBitrate: 128
     },
     
-    streamUpdateCounter: 0
+    streamUpdateCounter: 0,
+    
+    connectionMode: null
   }),
 
   // =============================================================================
@@ -280,11 +286,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
       return speaking;
     },
-    
-    // Get the active WebRTC service mode (livekit or p2p)
-    connectionMode: () => {
-      return webrtcManager.getActiveService();
-    }
   },
 
   // =============================================================================
@@ -425,7 +426,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         throw new Error('Failed to join WebRTC channel');
       }
       
-      debug.log(`🔌 [VoiceChannel] Connected via ${webrtcManager.getActiveService()?.toUpperCase() || 'unknown'} mode (${roomType})`);
+      this.connectionMode = webrtcManager.getActiveService();
+      debug.log(`🔌 [VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType})`);
       
       // Final cancellation check before marking as connected
       if (abortSignal?.aborted) {
@@ -588,6 +590,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
                 throw new Error('Failed to connect to remote LiveKit server');
               }
               
+              this.connectionMode = 'livekit';
               debug.log('🔌 [VoiceChannel] Connected to federated voice channel via LiveKit');
               
               // Update store state
@@ -798,6 +801,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Clear saved voice channel state (user manually left)
         this.clearVoiceChannelState();
+        
+        // If this is a DM call, notify the signaling layer
+        if (channelId?.startsWith('dm-')) {
+          try {
+            const { authContextService } = await import('@/services/AuthContextService');
+            const profileId = await authContextService.getCurrentProfileId();
+            const conversationId = channelId.replace('dm-', '');
+            if (profileId && conversationId) {
+              await dmCallSignaling.leaveCall(conversationId, profileId);
+            }
+          } catch (e) {
+            debug.warn('Failed to send DM call leave signal:', e);
+          }
+        }
         
         // Leave WebRTC (webrtcManager handles both local and federated)
         await webrtcManager.leaveChannel();
@@ -1301,6 +1318,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Channel events
       webrtcManager.on('channel-joined', (data) => {
         debug.log('✅ Channel joined:', data);
+        this.connectionMode = webrtcManager.getActiveService();
       });
 
       webrtcManager.on('channel-left', (data) => {
@@ -1450,17 +1468,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             'video:', data.mediaState.isVideoEnabled, 'screen:', data.mediaState.isScreenSharing);
           
           // Handle screenshare state change for spatial audio
-          // When user starts screensharing: disable spatial audio, enable traditional
-          // When user stops screensharing: re-enable spatial audio
+          // Screenshare audio uses its own separate audio element, so we only
+          // need to add/remove the user from spatial processing -- NOT toggle
+          // traditional audio globally (that would clobber all other users).
           if (oldState && oldState.isScreenSharing !== data.mediaState.isScreenSharing) {
             const spatialStore = useSpatialAudioStore();
             if (data.mediaState.isScreenSharing) {
-              // User started screensharing - switch to traditional audio
-              debug.log('🔊 User started screensharing, switching to traditional audio:', data.userId);
+              debug.log('🔊 User started screensharing, removing from spatial audio:', data.userId);
               this.removeUserFromSpatialAudio(data.userId);
-              webrtcManager.setTraditionalAudioEnabled(true);
             } else if (spatialStore.settings.enabled) {
-              // User stopped screensharing - restore spatial audio if enabled
               debug.log('🎧 User stopped screensharing, restoring spatial audio:', data.userId);
               this.addUserToSpatialAudio(data.userId);
             }
@@ -1517,20 +1533,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      // Audio levels
+      // Audio levels (also drives the speaking indicator for remote users)
       webrtcManager.on('audio-level', (data) => {
+        const speaking = data.level > 20;
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
-          // Track recent speakers when audio level exceeds threshold
-          if (data.level > 20 && !this.localState.isMuted) {
+          if (speaking && !this.localState.isMuted) {
             this.updateRecentSpeakers(data.userId);
           }
         } else {
           const user = this.allUsers.find(u => u.userId === data.userId);
           if (user) {
             user.audioLevel = data.level;
-            // Track recent speakers when audio level exceeds threshold
-            if (data.level > 20) {
+            user.isSpeaking = speaking;
+            if (speaking) {
               this.updateRecentSpeakers(data.userId);
             }
           }
@@ -1807,18 +1823,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * (music, videos, games) should play in stereo, not be spatially positioned
      */
     addUserToSpatialAudio(userId: string): void {
+      const spatialStore = useSpatialAudioStore();
+      if (!spatialStore.settings.enabled) {
+        return;
+      }
+      
       // Check if user is screensharing - if so, skip spatial audio
-      // Screenshare audio should be played normally (stereo) not spatially
+      // Screenshare audio plays through its own separate audio element
       const userState = this.allUsers.find(u => u.userId === userId);
       if (userState?.isScreenSharing) {
         debug.log('🎧 Skipping spatial audio for screensharing user:', userId);
-        // Make sure traditional audio is enabled for this user
-        webrtcManager.setTraditionalAudioEnabled(true);
         return;
       }
       
       // Initialize remote user position if not set (never local user here)
-      const spatialStore = useSpatialAudioStore();
       if (!spatialStore.userPositions.has(userId)) {
         spatialStore.initializeUserPosition(userId, false); // false = remote user
         debug.log('🎧 Initialized position for new user:', userId);
@@ -1837,7 +1855,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const currentUserState = this.allUsers.find(u => u.userId === userId);
         if (currentUserState?.isScreenSharing) {
           debug.log('🎧 User started screensharing, skipping spatial audio:', userId);
-          webrtcManager.setTraditionalAudioEnabled(true);
+          return;
+        }
+        
+        // Re-check that spatial audio is still enabled (may have changed during the delay)
+        if (!useSpatialAudioStore().settings.enabled) {
           return;
         }
         
@@ -1845,16 +1867,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const userStream = webrtcManager.getUserStream(userId);
         if (userStream) {
           spatialAudioService.setupSpatialForUser(userId, userStream);
-          
-          // If spatial audio is enabled, mute traditional audio for this user
-          const spatialStore = useSpatialAudioStore();
-          if (spatialStore.settings.enabled) {
-            debug.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
-            webrtcManager.setTraditionalAudioEnabled(false);
-            
-            // Force spatial effects update for new user
-            spatialAudioService.updateSpatialEffects();
-          }
+          spatialAudioService.updateSpatialEffects();
         } else {
           debug.warn('No media stream found for user:', userId);
         }
@@ -1974,6 +1987,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.fullscreenUserId = null;
       this.pipActive = false;
       this.pipUserId = null;
+      this.connectionMode = null;
     },
 
     /**

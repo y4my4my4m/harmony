@@ -64,8 +64,12 @@
               {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
             </h2>
             <div class="conversation-status">
+              <span v-if="hasActiveCallNotJoined" class="call-status">
+                <Icon name="phone" :size="12" class="call-icon" />
+                Call in progress
+              </span>
               <!-- Show federated handle for remote users -->
-              <span v-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
+              <span v-else-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
                 {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
               </span>
               <span v-else-if="otherUserStatus !== 'offline'" class="status">
@@ -92,7 +96,7 @@
         </svg>
       </button>
       
-      <!-- Join Call Button (for group calls when call is active but user not in it) -->
+      <!-- Join Call Button (when a call is active but user is not in it) -->
       <button
         v-if="hasActiveCallNotJoined"
         class="action-btn join-call-btn"
@@ -286,6 +290,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
+import { authContextService } from '@/services/AuthContextService'
 import { userDataService } from '@/services/userDataService'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -319,13 +324,14 @@ const emit = defineEmits<{
 const isInVoiceCall = computed(() => voiceStore.isConnected && voiceStore.currentChannelId?.startsWith('dm-'))
 const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
 
-// Active call state for group DMs
+// Active call state for any DM (1:1 or group)
+// Reading callStateVersion establishes a reactive dependency so Vue re-evaluates on changes
 const hasActiveCallNotJoined = computed(() => {
+  dmCallSignaling.callStateVersion.value
   const hasActiveCall = dmCallSignaling.hasActiveCall(props.conversation.id)
   const isUserInCall = isInVoiceCall.value
-  const isGroupConversation = props.conversation.type === 'group'
   
-  return isGroupConversation && hasActiveCall && !isUserInCall
+  return hasActiveCall && !isUserInCall
 })
 
 // Use clean status system
@@ -504,12 +510,12 @@ const handleCallSignal = async (signal: CallSignal) => {
     case 'join':
     case 'leave':
     case 'accept':
-      // Update participant count
+      dmCallSignaling.handleRemoteSignal(signal)
       updateActiveCallParticipants()
       break
       
     case 'end':
-      // Call ended by someone else
+      dmCallSignaling.handleRemoteSignal(signal)
       if (isInVoiceCall.value) {
         voiceStore.leaveVoiceChannel()
         toast.info('Call ended')
@@ -702,23 +708,15 @@ const handleCloseDM = () => {
 const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
-      // End call
-      debug.log('📞 Ending voice call...')
-      
-      const currentUserId = authStore.session?.user?.id
-      if (currentUserId) {
-        // Send end signal to other participants
-        await dmCallSignaling.endCall(props.conversation.id, currentUserId)
-      }
-      
+      // leaveVoiceChannel() handles DM call signaling cleanup automatically
       await voiceStore.leaveVoiceChannel()
-      toast.info('Call ended')
+      toast.info('Left call')
     } else {
       // Start voice call
       debug.log('📞 Starting DM voice call...')
       
-      const currentUserId = authStore.session?.user?.id
-      if (!currentUserId) {
+      const profileId = await authContextService.getCurrentProfileId()
+      if (!profileId) {
         toast.error('Authentication required')
         return
       }
@@ -732,7 +730,7 @@ const toggleVoiceCall = async () => {
       // For 1-on-1 DMs, check permissions
       if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
         const permissionCheck = await dmCallPermissions.canReceiveCall(
-          currentUserId,
+          profileId,
           props.conversation.other_user.id,
           props.conversation.id
         )
@@ -746,7 +744,7 @@ const toggleVoiceCall = async () => {
       // Create a virtual channel ID for this DM conversation
       const dmChannelId = `dm-${props.conversation.id}`
       
-      // Get receiver IDs
+      // Get receiver IDs (already profile IDs from conversation participants)
       const receiverIds = getReceiverIds()
       if (receiverIds.length === 0) {
         toast.error('No participants to call')
@@ -754,7 +752,7 @@ const toggleVoiceCall = async () => {
       }
       
       // Send call initiation signal to other participant(s)
-      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'voice', receiverIds)
+      await dmCallSignaling.initiateCall(props.conversation.id, profileId, 'voice', receiverIds)
       
       // Use the voice store to join (this will show the voice overlay UI)
       // Use 'dm' as serverId to indicate it's a DM call
@@ -777,19 +775,32 @@ const toggleVoiceCall = async () => {
   }
 }
 
-// Join an active call (for group DMs)
+// Join an active call
 const joinActiveCall = async () => {
   try {
-    const currentUserId = authStore.session?.user?.id
-    if (!currentUserId) {
+    const profileId = await authContextService.getCurrentProfileId()
+    if (!profileId) {
       toast.error('Authentication required')
       return
+    }
+    
+    // For 1-on-1 DMs, verify call permissions before joining
+    if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+      const permissionCheck = await dmCallPermissions.canReceiveCall(
+        profileId,
+        props.conversation.other_user.id,
+        props.conversation.id
+      )
+      if (!permissionCheck.allowed) {
+        toast.error(permissionCheck.message || 'Cannot join this call')
+        return
+      }
     }
     
     const dmChannelId = `dm-${props.conversation.id}`
     
     // Send join signal
-    await dmCallSignaling.joinCall(props.conversation.id, currentUserId)
+    await dmCallSignaling.joinCall(props.conversation.id, profileId)
     
     // Join the voice channel
     const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
@@ -811,8 +822,8 @@ const joinActiveCall = async () => {
 
 const toggleVideoCall = async () => {
   try {
-    const currentUserId = authStore.session?.user?.id
-    if (!currentUserId) {
+    const profileId = await authContextService.getCurrentProfileId()
+    if (!profileId) {
       toast.error('Authentication required')
       return
     }
@@ -827,7 +838,7 @@ const toggleVideoCall = async () => {
       // For 1-on-1 DMs, check permissions
       if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
         const permissionCheck = await dmCallPermissions.canReceiveCall(
-          currentUserId,
+          profileId,
           props.conversation.other_user.id,
           props.conversation.id
         )
@@ -841,7 +852,7 @@ const toggleVideoCall = async () => {
       // Start video call (voice + video)
       const dmChannelId = `dm-${props.conversation.id}`
       
-      // Get receiver IDs
+      // Get receiver IDs (already profile IDs from conversation participants)
       const receiverIds = getReceiverIds()
       if (receiverIds.length === 0) {
         toast.error('No participants to call')
@@ -849,7 +860,7 @@ const toggleVideoCall = async () => {
       }
       
       // Send video call initiation signal
-      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'video', receiverIds)
+      await dmCallSignaling.initiateCall(props.conversation.id, profileId, 'video', receiverIds)
       
       // Join voice channel
       const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')

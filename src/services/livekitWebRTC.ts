@@ -298,6 +298,9 @@ export class LiveKitWebRTCService {
   private remoteMicAudioElements = new Map<string, HTMLAudioElement>();
   private remoteScreenShareAudioElements = new Map<string, HTMLAudioElement>();
   
+  // When true, mic audio elements are muted (spatial audio is handling playback)
+  private traditionalAudioMuted = false;
+  
   // Volume settings (0-200, 100 = normal)
   private userMicVolumes = new Map<string, number>();
   private userScreenShareVolumes = new Map<string, number>();
@@ -670,6 +673,7 @@ export class LiveKitWebRTCService {
     this.remoteScreenShareAudioElements.clear();
     this.userMicVolumes.clear();
     this.userScreenShareVolumes.clear();
+    this.traditionalAudioMuted = false;
     
     const oldChannelId = this.channelId;
     this.channelId = null;
@@ -1181,6 +1185,18 @@ export class LiveKitWebRTCService {
   // =============================================================================
   
   /**
+   * Mute/unmute all remote mic audio elements.
+   * Used by spatial audio to silence the dry signal while the wet (spatial) signal plays.
+   */
+  setTraditionalAudioEnabled(enabled: boolean): void {
+    this.traditionalAudioMuted = !enabled;
+    debug.log(`🔊 [LiveKit] Setting traditional audio enabled: ${enabled} for ${this.remoteMicAudioElements.size} mic elements`);
+    for (const audioElement of this.remoteMicAudioElements.values()) {
+      audioElement.muted = !enabled;
+    }
+  }
+
+  /**
    * Set volume for a user's microphone audio (0-200, 100 = normal)
    */
   setUserMicVolume(participantId: string, volume: number): void {
@@ -1668,11 +1684,16 @@ export class LiveKitWebRTCService {
             // Store mic audio element
             this.remoteMicAudioElements.set(participant.identity, audioElement);
             
+            // Mute if spatial audio has taken over playback
+            if (this.traditionalAudioMuted) {
+              audioElement.muted = true;
+            }
+            
             // Apply saved mic volume or default to 100%
             const savedVolume = this.userMicVolumes.get(participant.identity) ?? 100;
             audioElement.volume = savedVolume / 100;
             
-            debug.log('🔊 [LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume);
+            debug.log('🔊 [LiveKit] Mic audio attached for:', lookupId, 'volume:', savedVolume, 'muted:', audioElement.muted);
           }
         }
       } else if (track.kind === Track.Kind.Video) {

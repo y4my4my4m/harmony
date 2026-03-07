@@ -9,6 +9,7 @@ import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { dmCallPermissions } from './DMCallPermissions'
 import { dmCallSignaling, type CallSignal } from './DMCallSignaling'
+import { authContextService } from './AuthContextService'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 
@@ -30,11 +31,36 @@ class GlobalDMCallListenerService {
   public showIncomingCallModal = ref(false)
 
   /**
-   * Initialize: Just subscribe to dm-calls:{userId}
+   * Initialize: Subscribe to dm-calls:{profileId}
+   * Resolves the profile ID from auth user ID so signals match what callers send.
    */
-  async initialize(userId: string): Promise<void> {
+  async initialize(authUserId: string): Promise<void> {
+    // Resolve auth user ID to profile ID (callers send to dm-calls:{profileId})
+    let profileId: string | null = null
+    try {
+      profileId = await authContextService.getCurrentProfileId()
+    } catch {
+      // authContextService failed -- try a direct DB lookup as fallback
+      debug.warn('⚠️ authContextService failed, trying direct profile lookup')
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('auth_user_id', authUserId)
+          .single()
+        profileId = data?.id ?? null
+      } catch {
+        debug.error('❌ Direct profile lookup also failed')
+      }
+    }
+    
+    if (!profileId) {
+      debug.error('❌ Could not resolve profile ID for call listener - call notifications will not work until next login')
+      return
+    }
+    
     // Don't re-initialize if already done
-    if (this.userChannel && this.currentUserId === userId) {
+    if (this.userChannel && this.currentUserId === profileId) {
       debug.log('ℹ️ Global call listener already initialized for this user')
       return
     }
@@ -44,12 +70,12 @@ class GlobalDMCallListenerService {
       this.userChannel.unsubscribe()
     }
     
-    this.currentUserId = userId
-    const channelName = `dm-calls:${userId}`
+    this.currentUserId = profileId
+    const channelName = `dm-calls:${profileId}`
     
     debug.log(`📞 ================================================`)
     debug.log(`📞 INITIALIZING GLOBAL CALL LISTENER`)
-    debug.log(`📞 User: ${userId}`)
+    debug.log(`📞 User: ${profileId}`)
     debug.log(`📞 Channel: ${channelName}`)
     debug.log(`📞 ================================================`)
     
@@ -99,11 +125,19 @@ class GlobalDMCallListenerService {
 
     switch (signal.type) {
       case 'initiate':
+        // Register the call on the callee side so hasActiveCall() works
+        dmCallSignaling.registerRemoteCall(
+          signal.conversationId,
+          signal.callerId,
+          signal.callType,
+          signal.systemMessageId
+        )
         await this.handleIncomingCall(signal.conversationId, signal)
         break
         
       case 'accept':
         debug.log('✅ Call accepted by other party')
+        dmCallSignaling.handleRemoteSignal(signal)
         // Clear timeout since call was answered
         const activeCall = dmCallSignaling.getActiveCall(signal.conversationId)
         if (activeCall?.timeoutTimer) {
@@ -123,11 +157,18 @@ class GlobalDMCallListenerService {
         break
         
       case 'timeout':
+        dmCallSignaling.handleRemoteSignal(signal)
         toast.warning('No answer - call timed out')
         break
         
       case 'end':
+        dmCallSignaling.handleRemoteSignal(signal)
         toast.info('Call ended')
+        break
+      
+      case 'join':
+      case 'leave':
+        dmCallSignaling.handleRemoteSignal(signal)
         break
     }
   }

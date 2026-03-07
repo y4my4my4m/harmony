@@ -250,26 +250,11 @@ export class SpatialAudioService {
       // Create audio source directly from MediaStream (better quality than HTMLAudioElement)
       const source = this.audioContext.createMediaStreamSource(mediaStream);
       
-      // Convert stereo to mono for better spatial audio effect
-      const channelCount = audioTracks[0]?.getSettings().channelCount || 2;
-      debug.log(`🎧 Audio source channel count: ${channelCount}`);
-      
-      // If stereo, create a mono downmix for spatial audio
-      let monoSource: AudioNode = source;
-      if (channelCount > 1) {
-        const splitter = this.audioContext.createChannelSplitter(channelCount);
-        const merger = this.audioContext.createChannelMerger(1); // Merge to mono
-        source.connect(splitter);
-        // Connect all channels to a single output channel
-        for (let i = 0; i < channelCount; i++) {
-          splitter.connect(merger, i, 0);
-        }
-        monoSource = merger;
-        debug.log('🎧 Converted stereo to mono for spatial audio');
-      }
-      
-      // Create professional audio processing chain
-      const processingChain = await this.createAudioProcessingChain(monoSource);
+      // PannerNode with HRTF natively downmixes to mono internally.
+      // We force the input gain node to mono so the downmix happens cleanly
+      // through the Web Audio API's built-in channel interpretation rules
+      // (proper equal-power attenuation instead of naive channel summing).
+      const processingChain = await this.createAudioProcessingChain(source);
       
       // Store the complete node configuration
       const spatialNode: SpatialAudioNode = {
@@ -320,7 +305,12 @@ export class SpatialAudioService {
     const spatialStore = useSpatialAudioStore();
     
     // Input gain for volume control before processing
+    // Force mono downmix here so the PannerNode receives consistent mono input.
+    // channelInterpretation 'speakers' uses equal-power downmix (no amplitude doubling).
     const inputGain = this.audioContext.createGain();
+    inputGain.channelCount = 1;
+    inputGain.channelCountMode = 'explicit';
+    inputGain.channelInterpretation = 'speakers';
     inputGain.gain.value = 1.0;
     
     // Output gain for final volume control
@@ -524,6 +514,25 @@ export class SpatialAudioService {
       node.gainNode.gain.setTargetAtTime(clampedGain, currentTime, transitionTime);
     } catch (error) {
       debug.error('❌ Failed to set gain for user:', userId, error);
+    }
+  }
+
+  /**
+   * Set per-user volume (from the UI volume slider).
+   * Applied on outputGain so it stacks with spatial distance attenuation
+   * without conflicting with the inputGain used for spatial effects.
+   * @param volume 0-200, where 100 is normal (matches the UI scale)
+   */
+  setUserVolume(userId: string, volume: number): void {
+    const node = this.spatialNodes.get(userId);
+    if (!node || !this.audioContext || !node.isConnected) return;
+
+    try {
+      const linearGain = Math.max(0, Math.min(2, volume / 100));
+      const currentTime = this.audioContext.currentTime;
+      node.outputGain.gain.setTargetAtTime(linearGain, currentTime, 0.05);
+    } catch (error) {
+      debug.error('Failed to set spatial volume for user:', userId, error);
     }
   }
 

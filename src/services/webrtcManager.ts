@@ -620,11 +620,13 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   /**
-   * Set traditional audio enabled (P2P only, for spatial audio)
+   * Set traditional audio enabled (for spatial audio dry/wet switching)
    */
   setTraditionalAudioEnabled(enabled: boolean): void {
     if (this.activeService === 'p2p') {
       unifiedWebRTC.setTraditionalAudioEnabled(enabled);
+    } else if (this.activeService === 'livekit') {
+      livekitWebRTC.setTraditionalAudioEnabled(enabled);
     }
   }
 
@@ -637,6 +639,12 @@ class WebRTCManagerService implements WebRTCManager {
     } else if (this.activeService === 'p2p') {
       unifiedWebRTC.setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
     }
+    
+    // Also apply to spatial audio chain (operates on the outputGain node,
+    // so it works even when traditional audio elements are muted)
+    import('./spatialAudio').then(({ spatialAudioService }) => {
+      spatialAudioService.setUserVolume(userId, volume);
+    }).catch(() => {});
   }
   
   /**

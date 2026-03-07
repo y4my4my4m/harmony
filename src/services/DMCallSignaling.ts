@@ -5,6 +5,7 @@
  * No database needed - pure real-time signaling
  */
 
+import { ref } from 'vue'
 import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { debug } from '@/utils/debug'
@@ -16,6 +17,7 @@ export interface CallSignal {
   timestamp: number
   conversationId: string
   reason?: 'timeout' | 'busy' | 'blocked' | 'dnd' // Decline/busy reasons
+  systemMessageId?: string // DB message ID for the call system message
   // Federated call fields
   isFederated?: boolean
   callerFederatedId?: string
@@ -29,8 +31,10 @@ export interface ActiveCall {
   callType: 'voice' | 'video'
   callerId: string
   participants: string[] // user IDs currently in call
+  allParticipants: string[] // everyone who ever joined (for the ended message)
   startedAt: Date
   timeoutTimer?: number // Timer ID for call timeout
+  systemMessageId: string | null // DB message ID for the call system message
   // Federated call fields
   isFederated?: boolean
   callerFederatedId?: string
@@ -51,6 +55,21 @@ class DMCallSignalingService {
   private channels: Map<string, RealtimeChannel> = new Map()
   private activeCalls: Map<string, ActiveCall> = new Map()
   private listeners: Map<string, Set<(signal: CallSignal) => void>> = new Map()
+  
+  // Reactive counter so Vue computeds that read call state re-evaluate on changes.
+  // Components should read callStateVersion.value inside their computed to track changes.
+  public callStateVersion = ref(0)
+  private bumpVersion() { this.callStateVersion.value++ }
+  
+  private setActiveCall(conversationId: string, call: ActiveCall) {
+    this.activeCalls.set(conversationId, call)
+    this.bumpVersion()
+  }
+  
+  private deleteActiveCall(conversationId: string) {
+    this.activeCalls.delete(conversationId)
+    this.bumpVersion()
+  }
   
   private readonly CALL_TIMEOUT_MS = 30000 // 30 seconds
 
@@ -152,12 +171,35 @@ class DMCallSignalingService {
     callType: 'voice' | 'video',
     receiverIds: string[] // Who to call
   ): Promise<void> {
+    const startedAt = new Date()
+    
+    // Insert system message for the call
+    let systemMessageId: string | null = null
+    try {
+      const { data: msg } = await supabase.from('messages').insert({
+        user_id: callerId,
+        conversation_id: conversationId,
+        content: [{ type: 'text', text: 'started a call' }],
+        is_system: true,
+        metadata: {
+          type: 'call_started',
+          call_type: callType,
+          started_at: startedAt.toISOString(),
+          participants: [callerId],
+        }
+      }).select('id').single()
+      systemMessageId = msg?.id ?? null
+    } catch (error) {
+      debug.error('Failed to insert call system message:', error)
+    }
+    
     const signal: CallSignal = {
       type: 'initiate',
       callerId,
       callType,
       timestamp: Date.now(),
-      conversationId
+      conversationId,
+      systemMessageId: systemMessageId ?? undefined,
     }
     
     // Setup timeout timer
@@ -166,14 +208,16 @@ class DMCallSignalingService {
     }, this.CALL_TIMEOUT_MS)
     
     // Track active call
-    this.activeCalls.set(conversationId, {
+    this.setActiveCall(conversationId, {
       conversationId,
       channelId: `dm-${conversationId}`,
       callType,
       callerId,
       participants: [callerId],
-      startedAt: new Date(),
-      timeoutTimer
+      allParticipants: [callerId],
+      startedAt,
+      timeoutTimer,
+      systemMessageId,
     })
     
     // Send signal to each receiver's user channel
@@ -217,6 +261,9 @@ class DMCallSignalingService {
     if (call.participants.length === 1 && call.participants[0] === callerId) {
       debug.log('⏰ Call timeout - no answer after 30 seconds')
       
+      // Update system message to show missed call
+      await this.finalizeCallMessage(call)
+      
       // Send timeout signal to all participants
       for (const participantId of call.participants) {
         await this.sendSignalToUser(participantId, {
@@ -229,7 +276,7 @@ class DMCallSignalingService {
         })
       }
       
-      this.activeCalls.delete(conversationId)
+      this.deleteActiveCall(conversationId)
     } else {
       debug.log('⏰ Timeout fired but call was answered (has', call.participants.length, 'participants)')
     }
@@ -263,6 +310,9 @@ class DMCallSignalingService {
     // Add to participants
     if (!call.participants.includes(userId)) {
       call.participants.push(userId)
+    }
+    if (!call.allParticipants.includes(userId)) {
+      call.allParticipants.push(userId)
     }
     
     // Send accept signal to the caller's user channel
@@ -298,7 +348,7 @@ class DMCallSignalingService {
     await this.sendSignal(conversationId, signal)
     
     // Remove from active calls
-    this.activeCalls.delete(conversationId)
+    this.deleteActiveCall(conversationId)
   }
 
   /**
@@ -315,6 +365,11 @@ class DMCallSignalingService {
       clearTimeout(call.timeoutTimer)
     }
     
+    // Finalize system message
+    if (call) {
+      await this.finalizeCallMessage(call)
+    }
+    
     const signal: CallSignal = {
       type: 'end',
       callerId: userId,
@@ -324,7 +379,7 @@ class DMCallSignalingService {
     }
     
     // Remove from active calls
-    this.activeCalls.delete(conversationId)
+    this.deleteActiveCall(conversationId)
     
     await this.sendSignal(conversationId, signal)
   }
@@ -351,6 +406,9 @@ class DMCallSignalingService {
     if (!call.participants.includes(userId)) {
       call.participants.push(userId)
     }
+    if (!call.allParticipants.includes(userId)) {
+      call.allParticipants.push(userId)
+    }
     
     await this.sendSignal(conversationId, signal)
   }
@@ -376,9 +434,15 @@ class DMCallSignalingService {
     // Remove from participants
     call.participants = call.participants.filter(id => id !== userId)
     
-    // If no participants left, end call
     if (call.participants.length === 0) {
-      this.activeCalls.delete(conversationId)
+      // Last person left -- finalize the system message
+      await this.finalizeCallMessage(call)
+      this.deleteActiveCall(conversationId)
+    } else if (userId === call.callerId) {
+      // The call initiator (message owner) is leaving but others remain.
+      // Finalize now since only the owner can update the message (RLS).
+      await this.finalizeCallMessage(call)
+      this.deleteActiveCall(conversationId)
     }
     
     await this.sendSignal(conversationId, signal)
@@ -403,6 +467,113 @@ class DMCallSignalingService {
    */
   getCallParticipants(conversationId: string): string[] {
     return this.activeCalls.get(conversationId)?.participants || []
+  }
+
+  /**
+   * Register a remote call (callee side) so hasActiveCall() works for all participants.
+   * Called by GlobalDMCallListener when an initiate signal is received.
+   */
+  registerRemoteCall(
+    conversationId: string,
+    callerId: string,
+    callType: 'voice' | 'video',
+    systemMessageId?: string
+  ): void {
+    if (this.activeCalls.has(conversationId)) return
+    
+    this.setActiveCall(conversationId, {
+      conversationId,
+      channelId: `dm-${conversationId}`,
+      callType,
+      callerId,
+      participants: [callerId],
+      allParticipants: [callerId],
+      startedAt: new Date(),
+      systemMessageId: systemMessageId ?? null,
+    })
+    debug.log('📞 Registered remote call for conversation:', conversationId)
+  }
+
+  /**
+   * Handle an incoming signal to update local activeCalls state.
+   * Called by GlobalDMCallListener for end/leave/join signals.
+   */
+  handleRemoteSignal(signal: CallSignal): void {
+    const call = this.activeCalls.get(signal.conversationId)
+    
+    switch (signal.type) {
+      case 'accept':
+      case 'join':
+        if (call) {
+          if (!call.participants.includes(signal.callerId)) {
+            call.participants.push(signal.callerId)
+          }
+          if (!call.allParticipants.includes(signal.callerId)) {
+            call.allParticipants.push(signal.callerId)
+          }
+          this.bumpVersion()
+        }
+        break
+      case 'leave':
+        if (call) {
+          call.participants = call.participants.filter(id => id !== signal.callerId)
+          if (call.participants.length === 0) {
+            this.deleteActiveCall(signal.conversationId)
+          } else {
+            this.bumpVersion()
+          }
+        }
+        break
+      case 'end':
+        this.deleteActiveCall(signal.conversationId)
+        break
+    }
+  }
+
+  /**
+   * Update the system message to show the call has ended with duration info.
+   * TODO: Replace with a SECURITY DEFINER RPC function so any conversation
+   * participant can finalize, not just the message owner (callerId).
+   */
+  private async finalizeCallMessage(call: ActiveCall): Promise<void> {
+    if (!call.systemMessageId) return
+    
+    const endedAt = new Date()
+    const durationSeconds = Math.floor((endedAt.getTime() - call.startedAt.getTime()) / 1000)
+    
+    const newMetadata = {
+      type: 'call_ended',
+      call_type: call.callType,
+      started_at: call.startedAt.toISOString(),
+      ended_at: endedAt.toISOString(),
+      duration_seconds: durationSeconds,
+      participants: call.allParticipants,
+    }
+    
+    try {
+      await supabase.from('messages').update({
+        metadata: newMetadata
+      }).eq('id', call.systemMessageId)
+      
+      debug.log('📞 Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')
+    } catch (error) {
+      debug.error('Failed to finalize call system message:', error)
+    }
+    
+    // Update the local DM message cache immediately so the UI reflects the change
+    // without waiting for Supabase realtime
+    try {
+      const { useDMStore } = await import('@/stores/useDM')
+      const dmStore = useDMStore()
+      const messages = dmStore.currentDMMessages
+      const msgIndex = messages.findIndex((m: any) => m.id === call.systemMessageId)
+      if (msgIndex !== -1) {
+        messages[msgIndex] = { ...messages[msgIndex], metadata: newMetadata }
+        debug.log('📞 Updated local message cache for call system message')
+      }
+    } catch {
+      // Store not available, realtime will handle it
+    }
   }
 
   // =============================================================================
@@ -495,7 +666,7 @@ class DMCallSignalingService {
         roomName,
       }
       
-      this.activeCalls.set(conversationId, {
+      this.setActiveCall(conversationId, {
         conversationId,
         channelId: roomName,
         callType,
@@ -610,7 +781,7 @@ class DMCallSignalingService {
         })
       }
       
-      this.activeCalls.delete(conversationId)
+      this.deleteActiveCall(conversationId)
     } catch (error) {
       debug.error('❌ [Federated] Failed to decline call:', error)
     }
@@ -649,7 +820,7 @@ class DMCallSignalingService {
         })
       }
       
-      this.activeCalls.delete(conversationId)
+      this.deleteActiveCall(conversationId)
     } catch (error) {
       debug.error('❌ [Federated] Failed to end call:', error)
     }
@@ -666,7 +837,7 @@ class DMCallSignalingService {
     
     // Only timeout if still ringing
     if (call.participants.length === 1) {
-      this.activeCalls.delete(conversationId)
+      this.deleteActiveCall(conversationId)
       
       // Notify UI of timeout
       const listeners = this.listeners.get(conversationId)
@@ -722,11 +893,11 @@ class DMCallSignalingService {
       })
       .on('broadcast', { event: 'call-rejected' }, (payload) => {
         debug.log('📞 [Federated] Call rejected:', payload.payload)
-        this.activeCalls.delete(payload.payload.callId)
+        this.deleteActiveCall(payload.payload.callId)
       })
       .on('broadcast', { event: 'call-ended' }, (payload) => {
         debug.log('📞 [Federated] Call ended:', payload.payload)
-        this.activeCalls.delete(payload.payload.callId)
+        this.deleteActiveCall(payload.payload.callId)
       })
       .subscribe()
     
