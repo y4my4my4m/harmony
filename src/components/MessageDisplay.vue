@@ -111,6 +111,32 @@
                     >all threads</span>.
                   </div>
                 </template>
+                <!-- Call system message (started / ended) -->
+                <template v-else-if="item.message.metadata?.type === 'call_started' || item.message.metadata?.type === 'call_ended'">
+                  <div class="system-icon call-icon-container">
+                    <svg viewBox="0 0 24 24" width="18" height="18" class="call-system-icon" :class="{ active: item.message.metadata?.type === 'call_started' }">
+                      <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" fill="currentColor"/>
+                    </svg>
+                  </div>
+                  <div class="system-text call-system-text">
+                    <span 
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: getUserColor(item.message.user_id).value }"
+                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    started a {{ item.message.metadata?.call_type || 'voice' }} call
+                    <template v-if="item.message.metadata?.type === 'call_ended'">
+                      <span class="call-duration">
+                        — {{ formatCallDuration(item.message.metadata?.duration_seconds || 0) }}
+                      </span>
+                    </template>
+                    <template v-if="item.message.metadata?.type === 'call_started'">
+                      <button class="call-join-btn" @click="joinCallFromSystemMessage(item.message)">
+                        Join Call
+                      </button>
+                    </template>
+                  </div>
+                </template>
                 <!-- Default system message (join/leave, etc.) -->
                 <template v-else>
                   <div class="system-icon">👋</div>
@@ -1674,6 +1700,44 @@ const formatSystemTimestamp = (timestamp: Date) => {
   return `${format(date, 'MMM d, yyyy')}<br/>${format(date, 'p')}`;
 };
 
+const formatCallDuration = (seconds: number): string => {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
+};
+
+const joinCallFromSystemMessage = async (message: any) => {
+  const conversationId = message.conversation_id || props.conversationId;
+  if (!conversationId) return;
+  
+  try {
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
+    const { dmCallSignaling } = await import('@/services/DMCallSignaling');
+    const { authContextService } = await import('@/services/AuthContextService');
+    const voiceStore = useUnifiedVoiceChannelStore();
+    
+    if (voiceStore.isConnected) {
+      debug.log('Already in a call');
+      return;
+    }
+    
+    const profileId = await authContextService.getCurrentProfileId();
+    const dmChannelId = `dm-${conversationId}`;
+    
+    await dmCallSignaling.joinCall(conversationId, profileId);
+    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm');
+    if (success) {
+      voiceStore.isOverlayVisible = true;
+    }
+  } catch (error) {
+    debug.error('Failed to join call from system message:', error);
+  }
+};
+
 const formatDateSeparator = (timestamp: Date): string => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
@@ -2783,6 +2847,50 @@ const closeInviteModal = () => {
 .system-thread-link:hover,
 .system-threads-link:hover {
   text-decoration: underline;
+}
+
+/* Call system messages */
+.call-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-system-icon {
+  color: var(--text-secondary);
+}
+
+.call-system-icon.active {
+  color: #57f287;
+}
+
+.call-system-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.call-duration {
+  color: var(--text-muted, #72767d);
+  font-size: 0.8rem;
+}
+
+.call-join-btn {
+  background: #57f287;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: opacity 0.15s;
+}
+
+.call-join-btn:hover {
+  opacity: 0.85;
 }
 
 .system-timestamp {

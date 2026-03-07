@@ -508,12 +508,12 @@ const handleCallSignal = async (signal: CallSignal) => {
     case 'join':
     case 'leave':
     case 'accept':
-      // Update participant count
+      dmCallSignaling.handleRemoteSignal(signal)
       updateActiveCallParticipants()
       break
       
     case 'end':
-      // Call ended by someone else
+      dmCallSignaling.handleRemoteSignal(signal)
       if (isInVoiceCall.value) {
         voiceStore.leaveVoiceChannel()
         toast.info('Call ended')
@@ -706,16 +706,16 @@ const handleCloseDM = () => {
 const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
-      // End call
-      debug.log('📞 Ending voice call...')
+      // Leave call (keeps call active for other participants)
+      debug.log('📞 Leaving voice call...')
       
       const profileId = await authContextService.getCurrentProfileId()
       if (profileId) {
-        await dmCallSignaling.endCall(props.conversation.id, profileId)
+        await dmCallSignaling.leaveCall(props.conversation.id, profileId)
       }
       
       await voiceStore.leaveVoiceChannel()
-      toast.info('Call ended')
+      toast.info('Left call')
     } else {
       // Start voice call
       debug.log('📞 Starting DM voice call...')

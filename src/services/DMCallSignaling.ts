@@ -16,6 +16,7 @@ export interface CallSignal {
   timestamp: number
   conversationId: string
   reason?: 'timeout' | 'busy' | 'blocked' | 'dnd' // Decline/busy reasons
+  systemMessageId?: string // DB message ID for the call system message
   // Federated call fields
   isFederated?: boolean
   callerFederatedId?: string
@@ -29,8 +30,10 @@ export interface ActiveCall {
   callType: 'voice' | 'video'
   callerId: string
   participants: string[] // user IDs currently in call
+  allParticipants: string[] // everyone who ever joined (for the ended message)
   startedAt: Date
   timeoutTimer?: number // Timer ID for call timeout
+  systemMessageId: string | null // DB message ID for the call system message
   // Federated call fields
   isFederated?: boolean
   callerFederatedId?: string
@@ -152,12 +155,35 @@ class DMCallSignalingService {
     callType: 'voice' | 'video',
     receiverIds: string[] // Who to call
   ): Promise<void> {
+    const startedAt = new Date()
+    
+    // Insert system message for the call
+    let systemMessageId: string | null = null
+    try {
+      const { data: msg } = await supabase.from('messages').insert({
+        user_id: callerId,
+        conversation_id: conversationId,
+        content: [{ type: 'text', text: 'started a call' }],
+        is_system: true,
+        metadata: {
+          type: 'call_started',
+          call_type: callType,
+          started_at: startedAt.toISOString(),
+          participants: [callerId],
+        }
+      }).select('id').single()
+      systemMessageId = msg?.id ?? null
+    } catch (error) {
+      debug.error('Failed to insert call system message:', error)
+    }
+    
     const signal: CallSignal = {
       type: 'initiate',
       callerId,
       callType,
       timestamp: Date.now(),
-      conversationId
+      conversationId,
+      systemMessageId: systemMessageId ?? undefined,
     }
     
     // Setup timeout timer
@@ -172,8 +198,10 @@ class DMCallSignalingService {
       callType,
       callerId,
       participants: [callerId],
-      startedAt: new Date(),
-      timeoutTimer
+      allParticipants: [callerId],
+      startedAt,
+      timeoutTimer,
+      systemMessageId,
     })
     
     // Send signal to each receiver's user channel
@@ -216,6 +244,9 @@ class DMCallSignalingService {
     // Only timeout if still ringing (only caller in participants)
     if (call.participants.length === 1 && call.participants[0] === callerId) {
       debug.log('⏰ Call timeout - no answer after 30 seconds')
+      
+      // Update system message to show missed call
+      await this.finalizeCallMessage(call)
       
       // Send timeout signal to all participants
       for (const participantId of call.participants) {
@@ -263,6 +294,9 @@ class DMCallSignalingService {
     // Add to participants
     if (!call.participants.includes(userId)) {
       call.participants.push(userId)
+    }
+    if (!call.allParticipants.includes(userId)) {
+      call.allParticipants.push(userId)
     }
     
     // Send accept signal to the caller's user channel
@@ -315,6 +349,11 @@ class DMCallSignalingService {
       clearTimeout(call.timeoutTimer)
     }
     
+    // Finalize system message
+    if (call) {
+      await this.finalizeCallMessage(call)
+    }
+    
     const signal: CallSignal = {
       type: 'end',
       callerId: userId,
@@ -351,6 +390,9 @@ class DMCallSignalingService {
     if (!call.participants.includes(userId)) {
       call.participants.push(userId)
     }
+    if (!call.allParticipants.includes(userId)) {
+      call.allParticipants.push(userId)
+    }
     
     await this.sendSignal(conversationId, signal)
   }
@@ -376,8 +418,9 @@ class DMCallSignalingService {
     // Remove from participants
     call.participants = call.participants.filter(id => id !== userId)
     
-    // If no participants left, end call
+    // If no participants left, finalize the call
     if (call.participants.length === 0) {
+      await this.finalizeCallMessage(call)
       this.activeCalls.delete(conversationId)
     }
     
@@ -403,6 +446,90 @@ class DMCallSignalingService {
    */
   getCallParticipants(conversationId: string): string[] {
     return this.activeCalls.get(conversationId)?.participants || []
+  }
+
+  /**
+   * Register a remote call (callee side) so hasActiveCall() works for all participants.
+   * Called by GlobalDMCallListener when an initiate signal is received.
+   */
+  registerRemoteCall(
+    conversationId: string,
+    callerId: string,
+    callType: 'voice' | 'video',
+    systemMessageId?: string
+  ): void {
+    if (this.activeCalls.has(conversationId)) return
+    
+    this.activeCalls.set(conversationId, {
+      conversationId,
+      channelId: `dm-${conversationId}`,
+      callType,
+      callerId,
+      participants: [callerId],
+      allParticipants: [callerId],
+      startedAt: new Date(),
+      systemMessageId: systemMessageId ?? null,
+    })
+    debug.log('📞 Registered remote call for conversation:', conversationId)
+  }
+
+  /**
+   * Handle an incoming signal to update local activeCalls state.
+   * Called by GlobalDMCallListener for end/leave/join signals.
+   */
+  handleRemoteSignal(signal: CallSignal): void {
+    const call = this.activeCalls.get(signal.conversationId)
+    
+    switch (signal.type) {
+      case 'join':
+        if (call) {
+          if (!call.participants.includes(signal.callerId)) {
+            call.participants.push(signal.callerId)
+          }
+          if (!call.allParticipants.includes(signal.callerId)) {
+            call.allParticipants.push(signal.callerId)
+          }
+        }
+        break
+      case 'leave':
+        if (call) {
+          call.participants = call.participants.filter(id => id !== signal.callerId)
+          if (call.participants.length === 0) {
+            this.activeCalls.delete(signal.conversationId)
+          }
+        }
+        break
+      case 'end':
+        this.activeCalls.delete(signal.conversationId)
+        break
+    }
+  }
+
+  /**
+   * Update the system message to show the call has ended with duration info
+   */
+  private async finalizeCallMessage(call: ActiveCall): Promise<void> {
+    if (!call.systemMessageId) return
+    
+    const endedAt = new Date()
+    const durationSeconds = Math.floor((endedAt.getTime() - call.startedAt.getTime()) / 1000)
+    
+    try {
+      await supabase.from('messages').update({
+        metadata: {
+          type: 'call_ended',
+          call_type: call.callType,
+          started_at: call.startedAt.toISOString(),
+          ended_at: endedAt.toISOString(),
+          duration_seconds: durationSeconds,
+          participants: call.allParticipants,
+        }
+      }).eq('id', call.systemMessageId)
+      
+      debug.log('📞 Finalized call system message:', call.systemMessageId, 'duration:', durationSeconds, 's')
+    } catch (error) {
+      debug.error('Failed to finalize call system message:', error)
+    }
   }
 
   // =============================================================================

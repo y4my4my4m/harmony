@@ -125,11 +125,19 @@ class GlobalDMCallListenerService {
 
     switch (signal.type) {
       case 'initiate':
+        // Register the call on the callee side so hasActiveCall() works
+        dmCallSignaling.registerRemoteCall(
+          signal.conversationId,
+          signal.callerId,
+          signal.callType,
+          signal.systemMessageId
+        )
         await this.handleIncomingCall(signal.conversationId, signal)
         break
         
       case 'accept':
         debug.log('✅ Call accepted by other party')
+        dmCallSignaling.handleRemoteSignal(signal)
         // Clear timeout since call was answered
         const activeCall = dmCallSignaling.getActiveCall(signal.conversationId)
         if (activeCall?.timeoutTimer) {
@@ -149,11 +157,18 @@ class GlobalDMCallListenerService {
         break
         
       case 'timeout':
+        dmCallSignaling.handleRemoteSignal(signal)
         toast.warning('No answer - call timed out')
         break
         
       case 'end':
+        dmCallSignaling.handleRemoteSignal(signal)
         toast.info('Call ended')
+        break
+      
+      case 'join':
+      case 'leave':
+        dmCallSignaling.handleRemoteSignal(signal)
         break
     }
   }
