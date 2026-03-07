@@ -240,6 +240,8 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  let _userUpdatedHandler: ((event: any) => void) | null = null
+  let _userDataServiceRef: any = null
   let _keyListenerActive = false
   const setupEncryptionKeyListener = () => {
     if (_keyListenerActive) return
@@ -1592,7 +1594,7 @@ export const useDMStore = defineStore('dm', () => {
       
       // Listen to user profile updates from the centralized cache
       const { userDataService } = await import('@/services/userDataService')
-      userDataService.addEventListener('user-updated', (event: any) => {
+      const userUpdatedHandler = (event: any) => {
         const { userId: updatedUserId } = event.detail
         
         const updatedConversations = conversations.value.filter(conv => 
@@ -1604,7 +1606,10 @@ export const useDMStore = defineStore('dm', () => {
             loadConversationUserProfile(conv.id)
           }
         }
-      })
+      }
+      _userUpdatedHandler = userUpdatedHandler
+      _userDataServiceRef = userDataService
+      userDataService.addEventListener('user-updated', userUpdatedHandler)
       
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore()
@@ -1860,6 +1865,13 @@ export const useDMStore = defineStore('dm', () => {
 
   const cleanup = () => {
     debug.log('🧹 Cleaning up DM store')
+    
+    // Remove user-updated listener
+    if (_userUpdatedHandler && _userDataServiceRef) {
+      _userDataServiceRef.removeEventListener('user-updated', _userUpdatedHandler)
+      _userUpdatedHandler = null
+      _userDataServiceRef = null
+    }
     
     // Cleanup subscriptions
     cleanupRealtimeSubscriptions()

@@ -1696,19 +1696,15 @@ const closeLightbox = () => {
   transition: all 0.5s ease;
 }
 
-.author-name:hover .instance-badge.admin {
-  color: #fff;
-  background: var(--harmony-accent);
-}
-
 .instance-badge.mod {
   color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
   transition: all 0.5s ease;
 }
 
+.author-name:hover .instance-badge.admin,
 .author-name:hover .instance-badge.mod {
   color: #fff;
-  background: var(--harmony-accent);
+  background: var(--harmony-secondary);
 }
 
 .author-handle {

@@ -23,8 +23,9 @@ export const useChatStore = defineStore('chat', {
     maxCacheSize: 50, // Maximum number of channels to cache
     currentChannelId: null as string | null,
     
-    // Cache for individual reply messages
+    // Cache for individual reply messages (bounded to prevent unbounded growth)
     replyMessageCache: new Map<string, Message>(),
+    maxReplyCacheSize: 200,
     fetchingReplyMessages: new Set<string>(),
     
     // Jump-to-message functionality
@@ -83,8 +84,11 @@ export const useChatStore = defineStore('chat', {
         // Note: Reactions are now loaded via batch loading in MessageService
         // Individual fetches removed for performance
 
-        // Cache the message
         this.replyMessageCache.set(messageId, message);
+        if (this.replyMessageCache.size > this.maxReplyCacheSize) {
+          const oldestKey = this.replyMessageCache.keys().next().value;
+          if (oldestKey) this.replyMessageCache.delete(oldestKey);
+        }
         return message;
       } catch (error) {
         debug.error('Error fetching reply message:', error);
@@ -471,7 +475,17 @@ export const useChatStore = defineStore('chat', {
         debug.log('🔑 Key received — re-decrypting encrypted messages');
         await this.reprocessEncryptedMessages();
       };
+      (this as any)._keyListenerHandler = handler;
       window.addEventListener('megolm-key-received', handler);
+    },
+
+    cleanupEncryptionKeyListener() {
+      if (!(this as any)._keyListenerActive) return;
+      if ((this as any)._keyListenerHandler) {
+        window.removeEventListener('megolm-key-received', (this as any)._keyListenerHandler);
+        (this as any)._keyListenerHandler = null;
+      }
+      (this as any)._keyListenerActive = false;
     },
 
     // Update cache when message is edited
@@ -516,9 +530,12 @@ export const useChatStore = defineStore('chat', {
       debug.log(`Invalidated cache for channel: ${channelId}`);
     },
 
-    // Clear all caches
     clearAllCaches() {
       this.messageCache.clear();
+      this.replyMessageCache.clear();
+      this.fetchingReplyMessages.clear();
+      this.jumpedToMessages.clear();
+      this.messageGaps.clear();
       debug.log('Cleared all message caches');
     },
 
@@ -918,10 +935,11 @@ export const useChatStore = defineStore('chat', {
         this.currentSubscription = null;
       }
       
-      // Also cleanup reactions subscription if exists
       if (this.currentChannelId) {
         realtimeConnectionManager.unsubscribe(`channel-reactions-${this.currentChannelId}`);
       }
+
+      this.cleanupEncryptionKeyListener();
     },
 
     /**

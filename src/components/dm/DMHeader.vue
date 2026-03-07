@@ -300,6 +300,24 @@ const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
 const authStore = useAuthStore()
 
+// Caller ringing state
+let callerRingtoneInterval: ReturnType<typeof setInterval> | null = null
+const stopCallerRinging = () => {
+  if (callerRingtoneInterval) {
+    clearInterval(callerRingtoneInterval)
+    callerRingtoneInterval = null
+  }
+}
+const startCallerRinging = async () => {
+  stopCallerRinging()
+  const { useThemeStore } = await import('@/stores/useTheme')
+  const themeStore = useThemeStore()
+  themeStore.testAudio('call_outgoing')
+  callerRingtoneInterval = setInterval(() => {
+    themeStore.testAudio('call_outgoing')
+  }, 3000)
+}
+
 // Active call tracking
 const activeCallParticipantCount = ref(0)
 
@@ -508,13 +526,19 @@ const handleCallSignal = async (signal: CallSignal) => {
       break
       
     case 'join':
-    case 'leave':
     case 'accept':
+      stopCallerRinging()
+      dmCallSignaling.handleRemoteSignal(signal)
+      updateActiveCallParticipants()
+      break
+    
+    case 'leave':
       dmCallSignaling.handleRemoteSignal(signal)
       updateActiveCallParticipants()
       break
       
     case 'end':
+      stopCallerRinging()
       dmCallSignaling.handleRemoteSignal(signal)
       if (isInVoiceCall.value) {
         voiceStore.leaveVoiceChannel()
@@ -524,18 +548,18 @@ const handleCallSignal = async (signal: CallSignal) => {
       break
       
     case 'decline':
-      // Someone declined the call
+      stopCallerRinging()
       const declineMsg = dmCallPermissions.getDeclineReasonMessage(signal.reason)
       toast.info(declineMsg)
       break
       
     case 'busy':
-      // User is busy
+      stopCallerRinging()
       toast.info('User is busy')
       break
       
     case 'timeout':
-      // Call timed out (no answer)
+      stopCallerRinging()
       if (isInVoiceCall.value) {
         voiceStore.leaveVoiceChannel()
       }
@@ -602,6 +626,7 @@ watch(
 onUnmounted(() => {
   cleanupPresenceTracking()
   unsubscribeFromCallSignals()
+  stopCallerRinging()
 })
 
 // Computed
@@ -760,9 +785,8 @@ const toggleVoiceCall = async () => {
       
       if (success) {
         toast.success('Calling...')
-        // Show the voice overlay in maximized mode (for caller)
+        startCallerRinging()
         voiceStore.isOverlayVisible = true
-        // Small delay to ensure it renders fully maximized
         await new Promise(resolve => setTimeout(resolve, 100))
         debug.log('✅ Voice overlay opened for caller (maximized)')
       } else {

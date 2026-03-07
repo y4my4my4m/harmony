@@ -730,18 +730,41 @@ const copyUserId = async () => {
   }
 }
 
-const sendDirectMessage = () => {
+const sendDirectMessage = async () => {
   if (!props.user) return
   
-  // Check if user is blocked - don't allow DMing blocked users
   if (isBlocked.value) {
     debug.warn('Cannot send DM to blocked user')
     return
   }
   
-  // Navigate to DM with this user
-  router.push(`/dm/${props.user.id}`)
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return
+
   emit('close')
+
+  try {
+    const { useDMStore } = await import('@/stores/useDM')
+    const dmStore = useDMStore()
+
+    // Check if a conversation already exists in the loaded list
+    const existing = dmStore.conversations.find(c => c.other_user?.id === props.user!.id)
+    if (existing) {
+      router.push(`/dm/${existing.id}`)
+      return
+    }
+
+    // Find or create the conversation via the DB RPC
+    const conversationId = await dmStore.createOrGetConversation(currentUserId, props.user.id)
+    if (conversationId) {
+      router.push(`/dm/${conversationId}`)
+    } else {
+      router.push('/dm')
+    }
+  } catch (error) {
+    debug.error('Failed to open DM:', error)
+    router.push('/dm')
+  }
 }
 
 const openSettings = () => {

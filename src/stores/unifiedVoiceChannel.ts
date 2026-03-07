@@ -439,8 +439,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Update store state
       this.currentChannelId = channelId;
       this.currentServerId = serverId;
-      // Use the optimized getter from serverChannelStore
-      this.currentChannelName = serverChannelStore.getChannelNameById(channelId) || 'Voice Channel';
+      // For DM calls, derive name from the conversation; for server channels, use serverChannelStore
+      if (serverId === 'dm' && channelId.startsWith('dm-')) {
+        const conversationId = channelId.replace('dm-', '');
+        const { useDMStore } = await import('@/stores/useDM');
+        const dmStore = useDMStore();
+        const conv = dmStore.conversations.find((c: any) => c.id === conversationId);
+        this.currentChannelName = conv?.name
+          || conv?.other_user?.display_name
+          || conv?.other_user?.username
+          || 'DM Call';
+      } else {
+        this.currentChannelName = serverChannelStore.getChannelNameById(channelId) || 'Voice Channel';
+      }
       this.isConnected = true;
       this.isConnecting = false; // Connection attempt complete
       this.connectionAbortController = null; // Clear abort controller on success
@@ -1848,7 +1859,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       // Small delay to ensure MediaStream is properly set up
-      this._spatialAudioDebounceTimers[userId] = setTimeout(() => {
+      this._spatialAudioDebounceTimers[userId] = setTimeout(async () => {
         delete this._spatialAudioDebounceTimers[userId];
         
         // Double-check screenshare status (might have changed)
@@ -1866,7 +1877,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Get the MediaStream for this user from WebRTC service
         const userStream = webrtcManager.getUserStream(userId);
         if (userStream) {
-          spatialAudioService.setupSpatialForUser(userId, userStream);
+          await spatialAudioService.setupSpatialForUser(userId, userStream);
           spatialAudioService.updateSpatialEffects();
         } else {
           debug.warn('No media stream found for user:', userId);

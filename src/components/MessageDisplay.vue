@@ -1506,6 +1506,7 @@ onUnmounted(() => {
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
   }
+  chatStore.highlightMessage = (_messageId: string) => {};
 });
 
 // --- METHODS ---
@@ -1751,18 +1752,13 @@ const formatDateSeparator = (timestamp: Date): string => {
 const canEditMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
   
-  // Can't edit optimistic messages (temporary IDs starting with "temp-")
   if (message.id.startsWith('temp-')) return false;
-  
-  // Can't edit messages that are still sending
   if (message.sending) return false;
-  
-  // Can't edit messages in remote servers (federated servers)
   if (serverChannelStore.currentServer?.is_local_server === false) return false;
   
-  const currentUserId = authStore.session.user.id;
+  const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;
-  return messageUserId === currentUserId || isCurrentUserServerOwner.value;
+  return messageUserId === currentProfileId || isCurrentUserServerOwner.value;
 };
 
 const canDeleteMessage = (message: Message) => {
@@ -1770,10 +1766,10 @@ const canDeleteMessage = (message: Message) => {
 
   if (serverChannelStore.currentServer?.is_local_server === false) return false;
 
-  const currentUserId = authStore.session.user.id;
+  const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;
 
-  if (messageUserId === currentUserId) return true;
+  if (messageUserId === currentProfileId) return true;
   if (isCurrentUserServerOwner.value) return true;
   if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
   if (canManageMessages.value) return true;
@@ -2354,7 +2350,7 @@ const closeInviteModal = () => {
 .username:hover .instance-badge.admin, 
 .username:hover .instance-badge.mod {
   color: #fff;
-  background:  var(--harmony-accent);
+  background:  var(--harmony-secondary);
 }
 
 .timestamp {
