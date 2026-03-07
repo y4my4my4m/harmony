@@ -620,11 +620,13 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   /**
-   * Set traditional audio enabled (P2P only, for spatial audio)
+   * Set traditional audio enabled (for spatial audio dry/wet switching)
    */
   setTraditionalAudioEnabled(enabled: boolean): void {
     if (this.activeService === 'p2p') {
       unifiedWebRTC.setTraditionalAudioEnabled(enabled);
+    } else if (this.activeService === 'livekit') {
+      livekitWebRTC.setTraditionalAudioEnabled(enabled);
     }
   }
 
