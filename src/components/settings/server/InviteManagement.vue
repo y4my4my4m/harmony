@@ -420,7 +420,7 @@ const loadUserData = async (invites: Invite[]) => {
   userIds.forEach(userId => {
     userData[userId] = {
       display_name: `User ${userId.slice(0, 8)}`,
-      avatar_url: '/default-avatar.png'
+      avatar_url: '/default_avatar.webp'
     }
   })
   
@@ -468,7 +468,7 @@ const getCreatorName = (userId: string): string => {
 }
 
 const getCreatorAvatar = (userId: string): string => {
-  return users.value[userId]?.avatar_url || '/default-avatar.png'
+  return users.value[userId]?.avatar_url || '/default_avatar.webp'
 }
 
 const formatTimeRemaining = (expiresAt: string): string => {

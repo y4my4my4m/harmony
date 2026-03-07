@@ -670,7 +670,7 @@ const bannerStyle = computed(() => {
 // Methods
 const handleAvatarError = (event: Event) => {
   const target = event.target as HTMLImageElement
-  target.src = '/default-avatar.png'
+  target.src = '/default_avatar.webp'
 }
 
 const formatJoinDate = (dateString: string | undefined) => {

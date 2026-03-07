@@ -186,7 +186,7 @@
                   class="member-item available"
                   @click="addMemberToRole(member.id)"
                 >
-                  <img :src="member.avatar_url || '/default-avatar.png'" class="member-avatar" />
+                  <img :src="member.avatar_url || '/default_avatar.webp'" class="member-avatar" />
                   <span class="member-name">{{ member.display_name || member.username }}</span>
                   <button class="add-member-btn" title="Add to role">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -225,7 +225,7 @@
                   :key="member.id"
                   class="member-item"
                 >
-                  <img :src="member.avatar_url || '/default-avatar.png'" class="member-avatar" />
+                  <img :src="member.avatar_url || '/default_avatar.webp'" class="member-avatar" />
                   <span class="member-name">
                     {{ member.display_name || member.username }}
                     <span v-if="isServerOwner(member.id)" class="owner-badge">Owner</span>
