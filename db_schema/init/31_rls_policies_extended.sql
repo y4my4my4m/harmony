@@ -591,6 +591,52 @@ CREATE POLICY "user_list_members_delete" ON public.user_list_members
         )
     );
 
+-- ---------------------------------------------------------------------------
+-- INSTANCE FUNDING RLS
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "funding_select_all" ON public.instance_funding;
+CREATE POLICY "funding_select_all" ON public.instance_funding
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "funding_modify_admin" ON public.instance_funding;
+CREATE POLICY "funding_modify_admin" ON public.instance_funding
+    FOR ALL TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    );
+
+DROP POLICY IF EXISTS "tiers_select_all" ON public.instance_supporter_tiers;
+CREATE POLICY "tiers_select_all" ON public.instance_supporter_tiers
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "tiers_modify_admin" ON public.instance_supporter_tiers;
+CREATE POLICY "tiers_modify_admin" ON public.instance_supporter_tiers
+    FOR ALL TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    );
+
+DROP POLICY IF EXISTS "supporters_select_all" ON public.instance_supporters;
+CREATE POLICY "supporters_select_all" ON public.instance_supporters
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "supporters_modify_admin" ON public.instance_supporters;
+CREATE POLICY "supporters_modify_admin" ON public.instance_supporters
+    FOR ALL TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    );
+
+DROP POLICY IF EXISTS "donation_history_select_admin" ON public.instance_donation_history;
+CREATE POLICY "donation_history_select_admin" ON public.instance_donation_history
+    FOR SELECT TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+        OR user_id = auth.uid()
+    );
+
+DROP POLICY IF EXISTS "donation_history_modify_admin" ON public.instance_donation_history;
+CREATE POLICY "donation_history_modify_admin" ON public.instance_donation_history
+    FOR ALL TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    );
+
 DO $$
 BEGIN
     RAISE NOTICE 'Extended RLS policies created successfully';

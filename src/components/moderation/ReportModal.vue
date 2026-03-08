@@ -21,6 +21,18 @@
             </div>
           </div>
 
+          <!-- Proof: message preview -->
+          <div v-if="reportType === 'message' && targetMessagePreview" class="proof-section">
+            <label>Reported message</label>
+            <blockquote class="proof-quote">{{ targetMessagePreview }}</blockquote>
+          </div>
+
+          <!-- Proof: post preview -->
+          <div v-if="reportType === 'post' && targetPostPreview" class="proof-section">
+            <label>Reported post</label>
+            <blockquote class="proof-quote">{{ targetPostPreview }}</blockquote>
+          </div>
+
           <!-- Reason selection -->
           <div class="form-group">
             <label>Why are you reporting this?</label>
@@ -88,6 +100,10 @@ interface Props {
   reportType: 'user' | 'post' | 'message' | 'server'
   targetUserId?: string
   targetPostId?: string
+  targetMessageId?: string
+  targetServerId?: string
+  targetMessagePreview?: string
+  targetPostPreview?: string
   targetUser?: {
     username: string
     display_name?: string
@@ -125,6 +141,8 @@ const submitReport = async () => {
     const report = await reportService.createReport({
       reported_user_id: props.targetUserId,
       reported_post_id: props.targetPostId,
+      reported_message_id: props.targetMessageId,
+      reported_server_id: props.targetServerId,
       report_type: props.reportType,
       reason: selectedReason.value,
       comment: comment.value || undefined
@@ -223,6 +241,35 @@ const submitReport = async () => {
   display: block;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.proof-section {
+  margin-bottom: 20px;
+}
+
+.proof-section label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.proof-quote {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--harmony-primary, #5865f2);
+  background: var(--background-secondary, #2b2d31);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 .form-group {

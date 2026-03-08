@@ -3,8 +3,6 @@
     <!-- Chat Mode Context Bar -->
     <div v-if="mode === 'chat'" class="context-content chat-context">
       <div class="context-left">
-      </div>
-      <div class="context-center">
         <button 
           v-if="isMobile"
           class="mobile-menu-btn"
@@ -13,7 +11,8 @@
         >
           <Icon name="menu" />
         </button>
-        
+      </div>
+      <div class="context-center">
         <div class="context-title">
           <div class="server-info" v-if="!isDM && currentServer">
             <ServerIcon 
@@ -36,12 +35,28 @@
           </div>
         </div>
       </div>
+      <div class="context-right">
+        <div
+          v-if="fundingConfig && fundingConfig.enabled && fundingConfig.show_in_context_bar && fundingConfig.goal_amount"
+          class="funding-indicator"
+          @click="$emit('open-funding')"
+          :title="fundingTooltip"
+        >
+          <div class="funding-progress-track">
+            <div class="funding-progress-fill" :style="{ width: fundingPercent + '%' }"></div>
+          </div>
+          <span class="funding-text">
+            {{ formatCurrency(fundingConfig.current_amount, fundingConfig.goal_currency) }}
+            /
+            {{ formatCurrency(fundingConfig.goal_amount, fundingConfig.goal_currency) }}
+          </span>
+        </div>
+      </div>
     </div>
     
     <!-- ActivityPub Mode Context Bar -->
     <div v-else-if="mode === 'activitypub'" class="context-content activitypub-context">
-      <div class="context-left"></div>
-      <div class="context-center">
+      <div class="context-left">
         <button 
           v-if="isMobile"
           class="mobile-menu-btn"
@@ -50,7 +65,8 @@
         >
           <Icon name="menu" />
         </button>
-        
+      </div>
+      <div class="context-center">
         <div class="context-title">
           <div class="feed-info">
             <Icon :name="currentTab.icon" />
@@ -60,6 +76,7 @@
           </div>
         </div>
       </div>
+      <div class="context-right"></div>
     </div>
   </div>
 </template>
@@ -69,6 +86,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
 import type { Server, Channel } from '@/types';
+import type { FundingConfig } from '@/services/FundingService';
 import ServerIcon from './ServerIcon.vue';
 
 const { t } = useI18n();
@@ -88,6 +106,9 @@ interface Props {
   // ActivityPub mode props
   currentView?: 'home' | 'local' | 'public' | 'trending' | 'instances';
   instanceDomain?: string;
+
+  // Funding
+  fundingConfig?: FundingConfig | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -97,10 +118,12 @@ const props = withDefaults(defineProps<Props>(), {
   voicePanelOpen: false,
   isDM: false,
   currentView: 'home',
+  fundingConfig: null,
 });
 
 defineEmits<{
   'toggle-left-sidebar': [];
+  'open-funding': [];
 }>();
 
 const feedTabs = [
@@ -111,12 +134,28 @@ const feedTabs = [
   { id: 'instances', label: t('activitypub.instances'), icon: 'server' }
 ];
 
-const currentTab= computed(() => {
+const currentTab = computed(() => {
   const tab = feedTabs.find(tab => tab.id === props.currentView);
   return tab
     ? { id: tab.id, title: tab.label, icon: tab.icon }
     : { id: 'unknown', title: t('activitypub.timeline'), icon: 'globe' };
 });
+
+const fundingPercent = computed(() => {
+  if (!props.fundingConfig?.goal_amount) return 0;
+  return Math.min(100, Math.round((props.fundingConfig.current_amount / props.fundingConfig.goal_amount) * 100));
+});
+
+const fundingTooltip = computed(() => {
+  if (!props.fundingConfig) return '';
+  return `${fundingPercent.value}% funded${props.fundingConfig.goal_description ? ' — ' + props.fundingConfig.goal_description : ''}`;
+});
+
+const formatCurrency = (amount: number, currency: string) => {
+  const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', JPY: '¥' };
+  const symbol = symbols[currency] || currency + ' ';
+  return symbol + amount.toFixed(0);
+};
 </script>
 
 <style scoped>
@@ -149,6 +188,16 @@ const currentTab= computed(() => {
 .context-center {
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 0 auto;
+  min-width: 0;
+}
+
+.context-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   flex: 1;
   min-width: 0;
@@ -179,7 +228,6 @@ const currentTab= computed(() => {
 }
 
 .context-title {
-  flex: 1;
   min-width: 0;
 }
 
@@ -222,6 +270,42 @@ const currentTab= computed(() => {
 }
 .channel-name {
   margin-left: 10px;
+}
+
+/* Funding indicator */
+.funding-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.funding-indicator:hover {
+  background: var(--background-hover);
+}
+
+.funding-progress-track {
+  width: 60px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.funding-progress-fill {
+  height: 100%;
+  background: var(--harmony-primary, #5865f2);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.funding-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .context-actions {
@@ -289,6 +373,10 @@ const currentTab= computed(() => {
   
   .context-actions {
     gap: 4px;
+  }
+
+  .funding-indicator {
+    display: none;
   }
 }
 </style>

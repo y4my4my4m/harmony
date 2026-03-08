@@ -263,6 +263,7 @@
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   MOD
                 </span>
+                <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)" />
               </span>
               <span class="timestamp">
                 {{ formatTimestamp(item.message.created_at) }}
@@ -442,9 +443,22 @@
     :message="contextMenuMessage"
     :channel-id="props.channelId"
     :conversation-id="props.conversationId"
+    :current-user-id="props.currentUserId"
     @close="closeContextMenu"
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
+    @report="handleReportMessage"
+  />
+
+  <!-- Report Modal -->
+  <ReportModal
+    v-if="showReportModal"
+    report-type="message"
+    :target-user-id="reportTargetUserId"
+    :target-message-id="reportTargetMessageId"
+    :target-message-preview="reportTargetMessagePreview"
+    :target-user="reportTargetUser"
+    @close="showReportModal = false"
   />
 
   <!-- Delete Message Confirmation Modal (for messages with threads) -->
@@ -490,6 +504,8 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
+import ReportModal from '@/components/moderation/ReportModal.vue';
+import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
@@ -1091,6 +1107,13 @@ const deleteConfirmConfig = ref({
 const contextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const contextMenuMessage = ref<Message | null>(null);
+
+// Report modal state
+const showReportModal = ref(false);
+const reportTargetUserId = ref<string | undefined>();
+const reportTargetMessageId = ref<string | undefined>();
+const reportTargetMessagePreview = ref<string | undefined>();
+const reportTargetUser = ref<{ username: string; display_name?: string; avatar_url?: string } | undefined>();
 
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
@@ -1972,6 +1995,35 @@ const handleContextMenuEmojiPicker = () => {
   if (!contextMenuMessage.value) return;
   // Emit with proper parameters for reaction mode
   emit('toggleEmojiList', true, contextMenuMessage.value, undefined);
+};
+
+// Handle reporting a message from context menu
+const handleReportMessage = (message: Message) => {
+  const authorId = message.user_id || (message as any).author_id;
+  reportTargetUserId.value = authorId;
+  reportTargetMessageId.value = message.id;
+
+  let preview = '';
+  if (Array.isArray(message.content)) {
+    preview = message.content
+      .filter((p: any) => p.type === 'text')
+      .map((p: any) => p.text)
+      .join(' ');
+  } else if (typeof message.content === 'string') {
+    preview = message.content;
+  }
+  reportTargetMessagePreview.value = preview.slice(0, 200) || undefined;
+
+  const profile = getUserProfile(authorId);
+  const displayName = getUserDisplayName(authorId);
+  const avatarUrl = getUserAvatarUrl(authorId);
+  reportTargetUser.value = {
+    username: profile?.value?.username || displayName?.value || 'Unknown',
+    display_name: displayName?.value || undefined,
+    avatar_url: avatarUrl?.value || undefined,
+  };
+
+  showReportModal.value = true;
 };
 
 // Reply Logic

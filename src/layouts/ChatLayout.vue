@@ -19,6 +19,7 @@
         :current-channel="currentChannel"
         :is-d-m="isDM"
         :current-view="currentView"
+        :funding-config="fundingConfig"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
         @toggle-search="handleToggleSearch"
@@ -183,6 +184,7 @@ import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { fundingService, type FundingConfig } from '@/services/FundingService'
 
 // Props
 interface Props {
@@ -487,9 +489,16 @@ const navigateToDefaultIfNeeded = async () => {
 // Watch for route changes and servers loading
 watch(() => [route.name, route.params, serverChannelStore.servers.length], navigateToDefaultIfNeeded, { immediate: false })
 
+// Funding config for context bar
+const fundingConfig = ref<FundingConfig | null>(null)
+const loadFundingConfig = async () => {
+  fundingConfig.value = await fundingService.getFundingConfig()
+}
+
 // Initialize on mount
 onMounted(() => {
   navigateToDefaultIfNeeded()
+  loadFundingConfig()
 })
 </script>
 

@@ -1164,6 +1164,128 @@ GRANT EXECUTE ON FUNCTION public.end_user_session(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_session_heartbeat(text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_session_context(text, uuid, uuid, uuid) TO authenticated;
 
+-- ---------------------------------------------------------------------------
+-- REPORTS RPCs
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_pending_reports_count()
+RETURNS integer
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+    SELECT COUNT(*)::integer FROM public.reports WHERE status = 'pending';
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_reports_with_details(
+    p_status text DEFAULT NULL,
+    p_limit integer DEFAULT 50,
+    p_offset integer DEFAULT 0
+)
+RETURNS TABLE(
+    id uuid,
+    reporter_username text,
+    reporter_display_name text,
+    reporter_avatar_url text,
+    reported_user_username text,
+    reported_user_display_name text,
+    reported_user_avatar_url text,
+    reported_post_preview text,
+    reported_message_preview text,
+    reason text,
+    comment text,
+    report_type text,
+    source text,
+    source_instance text,
+    status text,
+    resolution_note text,
+    created_at timestamptz
+)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        r.id,
+        reporter.username::text,
+        reporter.display_name::text,
+        reporter.avatar_url::text,
+        reported_user.username::text,
+        reported_user.display_name::text,
+        reported_user.avatar_url::text,
+        CASE
+            WHEN r.reported_post_id IS NOT NULL THEN
+                LEFT(
+                    COALESCE(
+                        (SELECT p.content->0->>'text' FROM public.posts p WHERE p.id = r.reported_post_id),
+                        '[Post content unavailable]'
+                    ),
+                    200
+                )
+            ELSE NULL
+        END::text,
+        CASE
+            WHEN r.reported_message_id IS NOT NULL THEN
+                LEFT(
+                    COALESCE(
+                        (SELECT
+                            CASE
+                                WHEN m.content IS NOT NULL AND jsonb_typeof(m.content) = 'array' THEN
+                                    m.content->0->>'text'
+                                WHEN m.content IS NOT NULL THEN
+                                    m.content::text
+                                ELSE '[Message content unavailable]'
+                            END
+                        FROM public.messages m WHERE m.id = r.reported_message_id),
+                        '[Message content unavailable]'
+                    ),
+                    200
+                )
+            ELSE NULL
+        END::text,
+        r.reason,
+        r.comment,
+        r.report_type,
+        r.source,
+        r.source_instance,
+        r.status,
+        r.resolution_note,
+        r.created_at
+    FROM public.reports r
+    LEFT JOIN public.profiles reporter ON reporter.id = r.reporter_id
+    LEFT JOIN public.profiles reported_user ON reported_user.id = r.reported_user_id
+    WHERE (p_status IS NULL OR r.status = p_status)
+    ORDER BY r.created_at DESC
+    LIMIT p_limit
+    OFFSET p_offset;
+END;
+$$;
+
+-- Supporter badge RPC
+CREATE OR REPLACE FUNCTION public.get_supporter_badge(p_user_id uuid)
+RETURNS TABLE(
+    tier_name text,
+    badge_icon text,
+    badge_color text,
+    is_active boolean
+)
+LANGUAGE sql STABLE
+AS $$
+    SELECT
+        t.name AS tier_name,
+        t.badge_icon,
+        t.badge_color,
+        s.is_active
+    FROM public.instance_supporters s
+    LEFT JOIN public.instance_supporter_tiers t ON t.id = s.tier_id
+    WHERE s.user_id = p_user_id
+      AND s.is_active = true
+      AND (s.expires_at IS NULL OR s.expires_at > NOW())
+    LIMIT 1;
+$$;
+
+-- Report/funding grants
+GRANT EXECUTE ON FUNCTION public.get_pending_reports_count() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_reports_with_details(text, integer, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_supporter_badge(uuid) TO authenticated;
+
 DO $$
 BEGIN
     RAISE NOTICE 'RPC functions created successfully';

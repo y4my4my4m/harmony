@@ -6,6 +6,8 @@ export interface Report {
   reporter_id: string
   reported_user_id?: string
   reported_post_id?: string
+  reported_message_id?: string
+  reported_server_id?: string
   reason: string
   comment?: string
   status: 'pending' | 'investigating' | 'resolved' | 'dismissed'
@@ -26,9 +28,31 @@ export interface Report {
   }
 }
 
+export interface ReportWithDetails {
+  id: string
+  reporter_username: string
+  reporter_display_name: string
+  reporter_avatar_url: string
+  reported_user_username: string | null
+  reported_user_display_name: string | null
+  reported_user_avatar_url: string | null
+  reported_post_preview: string | null
+  reported_message_preview: string | null
+  reason: string
+  comment: string | null
+  report_type: string
+  source: string
+  source_instance: string | null
+  status: string
+  resolution_note: string | null
+  created_at: string
+}
+
 export interface CreateReportParams {
   reported_user_id?: string
   reported_post_id?: string
+  reported_message_id?: string
+  reported_server_id?: string
   report_type: 'user' | 'post' | 'message' | 'server'
   reason: string
   comment?: string
@@ -65,8 +89,10 @@ class ReportService {
         .from('reports')
         .insert({
           reporter_id: user.id,
-          reported_user_id: params.reported_user_id,
-          reported_post_id: params.reported_post_id,
+          reported_user_id: params.reported_user_id || null,
+          reported_post_id: params.reported_post_id || null,
+          reported_message_id: params.reported_message_id || null,
+          reported_server_id: params.reported_server_id || null,
           report_type: params.report_type,
           reason: params.reason,
           comment: params.comment || null,
@@ -116,12 +142,12 @@ class ReportService {
   }
 
   async getReports(options: {
-    status?: string
+    status?: string | null
     limit?: number
     offset?: number
-  } = {}): Promise<{ reports: Report[]; total: number }> {
+  } = {}): Promise<{ reports: ReportWithDetails[]; total: number }> {
     try {
-      const { status = 'pending', limit = 25, offset = 0 } = options
+      const { status = null, limit = 25, offset = 0 } = options
 
       const { data, error } = await supabase.rpc('get_reports_with_details', {
         p_status: status,
@@ -144,18 +170,27 @@ class ReportService {
   async updateReportStatus(
     reportId: string,
     status: 'investigating' | 'resolved' | 'dismissed',
-    resolutionNotes?: string
+    resolutionNote?: string
   ): Promise<boolean> {
     try {
+      const updateData: Record<string, unknown> = {
+        status,
+        updated_at: new Date().toISOString(),
+      }
+
+      if (resolutionNote !== undefined) {
+        updateData.resolution_note = resolutionNote
+      }
+
+      if (status === 'resolved' || status === 'dismissed') {
+        const { data: { user } } = await supabase.auth.getUser()
+        updateData.resolved_at = new Date().toISOString()
+        updateData.resolved_by = user?.id
+      }
+
       const { error } = await supabase
         .from('reports')
-        .update({
-          status,
-          updated_at: new Date().toISOString(),
-          metadata: resolutionNotes
-            ? { resolution_notes: resolutionNotes }
-            : undefined
-        })
+        .update(updateData)
         .eq('id', reportId)
 
       if (error) throw error

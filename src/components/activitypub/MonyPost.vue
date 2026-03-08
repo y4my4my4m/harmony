@@ -49,6 +49,7 @@
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 MOD
               </span>
+              <SupporterBadge v-if="displayAuthor.id" :user-id="displayAuthor.id" />
             </div>
             <div class="author-handle">
               <span>{{ displayAuthor.username }}</span>
@@ -435,10 +436,31 @@
             <Icon name="loader" class="spinning" />
             <span>Loading...</span>
           </div>
+
+          <div v-if="!canDelete" class="dropdown-divider"></div>
+          <button
+            v-if="!canDelete"
+            class="dropdown-item danger"
+            @click="openReportModal"
+          >
+            <Icon name="flag" />
+            <span>Report Post</span>
+          </button>
         </div>
       </div>
     </div>
     </div>
+
+    <!-- Report Modal -->
+    <ReportModal
+      v-if="showReportModal"
+      report-type="post"
+      :target-user-id="displayAuthor.id"
+      :target-post-id="post.id"
+      :target-post-preview="postTextPreview"
+      :target-user="{ username: displayAuthor.username, display_name: displayAuthor.display_name, avatar_url: displayAuthor.avatar_url }"
+      @close="showReportModal = false"
+    />
 
     <!-- Inline Reply Composer -->
     <Composer 
@@ -528,6 +550,8 @@ import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
+import ReportModal from '@/components/moderation/ReportModal.vue';
+import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
 import router from '@/router';
@@ -995,6 +1019,27 @@ const canDelete = computed(() => {
   const currentUser = getCurrentUser.value;
   return currentUser?.id === props.post.author.id;
 });
+
+// Report
+const showReportModal = ref(false);
+const postTextPreview = computed(() => {
+  const content = props.post.content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((p: any) => p.type === 'text' || p.text)
+      .map((p: any) => p.text)
+      .join(' ')
+      .slice(0, 200);
+  }
+  if (typeof content === 'string') {
+    return content.replace(/<[^>]+>/g, '').slice(0, 200);
+  }
+  return '';
+});
+const openReportModal = () => {
+  showMenu.value = false;
+  showReportModal.value = true;
+};
 
 const visibilityIcon = computed(() => {
   switch (props.post.visibility) {

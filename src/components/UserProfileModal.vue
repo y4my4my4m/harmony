@@ -85,6 +85,7 @@
             
             <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
             <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">INSTANCE MOD</div>
+            <SupporterBadge v-if="user?.id" :user-id="user.id" />
 
             <div class="user-badges">
               <div class="roles-container">
@@ -346,6 +347,7 @@ import Icon from './common/Icon.vue'
 import KickBanModal from './moderation/KickBanModal.vue'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
+import SupporterBadge from './common/SupporterBadge.vue'
 
 const { t } = useI18n()
 
