@@ -11,7 +11,7 @@ BEGIN;
 GRANT SELECT ON public.instance_announcements TO authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.instance_announcements TO authenticated;
 
-GRANT SELECT, INSERT ON public.announcement_reads TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.announcement_reads TO authenticated;
 
 GRANT EXECUTE ON FUNCTION public.get_unread_announcements(uuid) TO authenticated;
 
