@@ -33,7 +33,7 @@
                   class="member-option"
                   @click="selectMember(m)"
                 >
-                  <img :src="m.avatar_url || '/default_avatar.png'" class="member-option-avatar" />
+                  <Avatar :src="m.avatar_url" :alt="m.display_name || m.username" size="xs" />
                   <span>{{ m.display_name || m.username }}</span>
                   <span class="member-option-username">@{{ m.username }}</span>
                 </div>
@@ -46,10 +46,10 @@
 
           <!-- User preview (when user is known) -->
           <div v-if="targetUser" class="user-preview">
-            <img
-              :src="targetUser.avatar_url || '/default_avatar.png'"
+            <Avatar
+              :src="targetUser.avatar_url"
               :alt="targetDisplayName"
-              class="user-avatar"
+              size="sm"
             />
             <div class="user-info">
               <span class="user-display-name">{{ targetDisplayName }}</span>
@@ -112,6 +112,7 @@ import { userDataService } from '@/services/userDataService'
 import { getUserIdsForServer, getProfiles } from '@/services/usersService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
+import Avatar from '@/components/common/Avatar.vue'
 
 interface MemberInfo {
   id: string
@@ -299,12 +300,6 @@ async function confirm() {
   border-radius: 8px;
 }
 
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
 
 .user-info {
   display: flex;
@@ -490,12 +485,6 @@ async function confirm() {
   background: rgba(88, 101, 242, 0.2);
 }
 
-.member-option-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
 
 .member-option-username {
   color: var(--text-muted, #949ba4);

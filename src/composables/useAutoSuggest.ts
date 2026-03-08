@@ -5,6 +5,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import { roleService } from '@/services/RoleService';
+import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
@@ -109,6 +110,7 @@ export function useAutoSuggest(
 ) {
   const emojiCacheStore = useEmojiCacheStore();
   const serverChannelStore = useServerChannelStore();
+  const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   const { searchEmojis: searchUnifiedEmojis, isLoaded: unifiedLoaded, isNativePack, getSvgUrl } = useUnifiedEmoji();
 
   // Merge config with defaults
@@ -432,17 +434,22 @@ export function useAutoSuggest(
     return [];
   });
 
-  // Combined suggestions based on current trigger type
-  const SLASH_COMMANDS: { id: string; name: string; description: string }[] = [
-    { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server' },
-    { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server' },
+  // Slash commands filtered by user permissions
+  const SLASH_COMMANDS: { id: string; name: string; description: string; permission: string }[] = [
+    { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
+    { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {
     if (state.value.triggerType !== 'command') return [];
     const query = (state.value.query || '').toLowerCase();
+    const isOwner = isCurrentUserServerOwner.value;
     return SLASH_COMMANDS
-      .filter(cmd => cmd.name.includes(query))
+      .filter(cmd => {
+        if (!cmd.name.includes(query)) return false;
+        if (isOwner) return true;
+        return hasCurrentUserPermission(Permission[cmd.permission as keyof typeof Permission]);
+      })
       .map(cmd => ({
         id: cmd.id,
         name: cmd.name,

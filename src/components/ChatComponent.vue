@@ -129,6 +129,7 @@
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
   import { useUserData } from '@/composables/useUserData';
+  import { useServerPermissions } from '@/composables/useServerPermissions';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
@@ -164,6 +165,7 @@
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const draftsStore = useDraftsStore();
+  const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   
   const showDragDropArea = ref(false);
   const uploading = ref(false);
@@ -178,6 +180,10 @@
     const { command } = (e as CustomEvent).detail;
     if (command === 'kick' || command === 'ban') {
       if (props.isDM || !serverChannelStore.currentServerId) return;
+      
+      const requiredPerm = command === 'kick' ? Permission.KICK_MEMBERS : Permission.BAN_MEMBERS;
+      if (!isCurrentUserServerOwner.value && !hasCurrentUserPermission(requiredPerm)) return;
+      
       kickBanMode.value = command;
       kickBanTargetUser.value = { id: '', username: '', display_name: '', avatar_url: null };
       showKickBanModal.value = true;
