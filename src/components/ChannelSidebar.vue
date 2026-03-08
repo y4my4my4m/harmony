@@ -1372,7 +1372,7 @@ watch(() => props.currentServer?.id, () => {
   height: 12px;
   transition: transform 0.2s ease;
   flex-shrink: 0;
-  margin: 2px 3px auto 0;
+  margin: auto 3px auto 0;
 }
 
 .category-arrow.rotated {
