@@ -97,6 +97,7 @@ DECLARE
     v_target_position integer;
     v_target_is_owner boolean;
     v_deleted_count integer := 0;
+    v_system_channel_id uuid;
 BEGIN
     v_caller_id := public.get_current_profile_id();
     IF v_caller_id IS NULL THEN
@@ -159,6 +160,23 @@ BEGIN
         'messages_deleted', v_deleted_count
     ));
 
+    -- System message in the system channel
+    SELECT system_channel_id INTO v_system_channel_id
+    FROM public.server_settings WHERE server_id = p_server_id;
+    IF v_system_channel_id IS NULL THEN
+        v_system_channel_id := public.get_default_channel(p_server_id);
+    END IF;
+    IF v_system_channel_id IS NOT NULL THEN
+        INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
+        VALUES (
+            v_system_channel_id,
+            p_user_id,
+            jsonb_build_array(jsonb_build_object('type', 'text', 'text', 'was kicked from the server')),
+            true,
+            jsonb_build_object('type', 'member_kick', 'kicked_by', v_caller_id, 'reason', COALESCE(p_reason, ''))
+        );
+    END IF;
+
     RETURN jsonb_build_object(
         'success', true,
         'messages_deleted', v_deleted_count
@@ -186,6 +204,7 @@ DECLARE
     v_target_is_owner boolean;
     v_deleted_count integer := 0;
     v_already_banned boolean;
+    v_system_channel_id uuid;
 BEGIN
     v_caller_id := public.get_current_profile_id();
     IF v_caller_id IS NULL THEN
@@ -261,6 +280,23 @@ BEGIN
         'reason', COALESCE(p_reason, ''),
         'messages_deleted', v_deleted_count
     ));
+
+    -- System message in the system channel
+    SELECT system_channel_id INTO v_system_channel_id
+    FROM public.server_settings WHERE server_id = p_server_id;
+    IF v_system_channel_id IS NULL THEN
+        v_system_channel_id := public.get_default_channel(p_server_id);
+    END IF;
+    IF v_system_channel_id IS NOT NULL THEN
+        INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
+        VALUES (
+            v_system_channel_id,
+            p_user_id,
+            jsonb_build_array(jsonb_build_object('type', 'text', 'text', 'was banned from the server')),
+            true,
+            jsonb_build_object('type', 'member_ban', 'banned_by', v_caller_id, 'reason', COALESCE(p_reason, ''))
+        );
+    END IF;
 
     RETURN jsonb_build_object(
         'success', true,

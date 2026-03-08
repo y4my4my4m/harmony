@@ -150,6 +150,40 @@
                     has joined the server
                   </div>
                 </template>
+                <!-- Member kick system message -->
+                <template v-else-if="item.message.metadata?.type === 'member_kick'">
+                  <div class="system-icon">🚪</div>
+                  <div class="system-text">
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: getUserColor(item.message.user_id).value }"
+                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    was kicked<template v-if="item.message.metadata?.kicked_by"> by
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.metadata.kicked_by)"
+                      :style="{ color: getUserColor(item.message.metadata.kicked_by).value }"
+                    >{{ getUserDisplayName(item.message.metadata.kicked_by).value }}</span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
+                  </div>
+                </template>
+                <!-- Member ban system message -->
+                <template v-else-if="item.message.metadata?.type === 'member_ban'">
+                  <div class="system-icon">🔨</div>
+                  <div class="system-text">
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: getUserColor(item.message.user_id).value }"
+                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    was banned<template v-if="item.message.metadata?.banned_by"> by
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.metadata.banned_by)"
+                      :style="{ color: getUserColor(item.message.metadata.banned_by).value }"
+                    >{{ getUserDisplayName(item.message.metadata.banned_by).value }}</span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
+                  </div>
+                </template>
                 <!-- Default system message -->
                 <template v-else>
                   <div class="system-icon">👋</div>
