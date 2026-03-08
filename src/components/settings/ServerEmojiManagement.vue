@@ -94,7 +94,7 @@
       <div class="emoji-list-header">
         <div class="header-left">
           <h3 class="emoji-list-title">{{ $t('server.customEmojis') }}</h3>
-          <div class="emoji-count">{{ emojis.length }} / 50</div>
+          <div class="emoji-count">{{ emojis.length }} / {{ maxEmojis }}</div>
         </div>
         
         <div class="header-right" v-if="emojis.length > 0">
@@ -234,16 +234,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { uploadEmoji, deleteEmoji, renameEmoji, bulkUploadEmojis, bulkDeleteEmojis } from '@/services/emojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import type { Emoji } from '@/types'
 
 const { t } = useI18n()
+const instanceSettings = useInstanceSettingsStore()
+
+// Use instance config limit; 0 = unlimited, fallback to 50 when not loaded
+const maxEmojis = computed(() => {
+  const limit = instanceSettings.settings.maxCustomEmojisPerServer
+  return limit > 0 ? limit : 50
+})
 
 interface EmojiPermissions {
   canUpload: boolean
@@ -356,8 +364,8 @@ const handleEmojiFile = async (file: File) => {
     return
   }
 
-  if (props.emojis.length >= 50) {
-    toast.error(t('server.maxEmojisReached'))
+  if (props.emojis.length >= maxEmojis.value) {
+    toast.error(t('server.maxEmojisReached', { max: maxEmojis.value }))
     return
   }
 
@@ -431,8 +439,8 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     return
   }
 
-  if (props.emojis.length + validFiles.length > 50) {
-    toast.error(t('server.cannotUploadEmojisLimit', { count: validFiles.length, current: props.emojis.length }))
+  if (props.emojis.length + validFiles.length > maxEmojis.value) {
+    toast.error(t('server.cannotUploadEmojisLimit', { count: validFiles.length, current: props.emojis.length, max: maxEmojis.value }))
     return
   }
 

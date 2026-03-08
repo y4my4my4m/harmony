@@ -41,6 +41,7 @@ interface InstanceSettings {
   maxPostLength: number
   maxMessageLength: number
   maxServerSize: number
+  maxCustomEmojisPerServer: number
 }
 
 interface InstanceSettingsState {
@@ -66,6 +67,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   maxPostLength: 500,
   maxMessageLength: 2000,
   maxServerSize: 1000,
+  maxCustomEmojisPerServer: 50,
 }
 
 // Cache duration: 5 minutes
@@ -228,6 +230,11 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           case 'max_server_size':
             if (typeof value === 'number') this.settings.maxServerSize = value
             break
+          case 'max_custom_emojis_per_server': {
+            const num = typeof value === 'number' ? value : parseInt(String(value), 10)
+            if (!isNaN(num) && num >= 0) this.settings.maxCustomEmojisPerServer = num
+            break
+          }
           case 'federation_settings':
             // Handle nested federation_settings object
             if (value && typeof value === 'object') {
