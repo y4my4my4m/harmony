@@ -14,7 +14,7 @@
         <div class="modal-body">
           <!-- Target info -->
           <div v-if="targetUser" class="target-info">
-            <img :src="targetUser.avatar_url || '/default_avatar.webp'" class="target-avatar" :alt="targetUser.username" />
+            <Avatar :src="targetUser.avatar_url" :alt="targetUser.username" size="sm" class="target-avatar" />
             <div>
               <span class="target-name">{{ targetUser.display_name || targetUser.username }}</span>
               <span class="target-handle">@{{ targetUser.username }}</span>
@@ -82,6 +82,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { reportService, REPORT_REASONS, type ReportReason } from '@/services/ReportService'
+import Avatar from '@/components/common/Avatar.vue'
 
 interface Props {
   reportType: 'user' | 'post' | 'message' | 'server'
@@ -208,10 +209,7 @@ const submitReport = async () => {
 }
 
 .target-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .target-name {
@@ -248,8 +246,8 @@ const submitReport = async () => {
 .reason-option {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
   border: 1px solid var(--border-color, #3f4147);
   border-radius: 6px;
   cursor: pointer;
@@ -269,7 +267,17 @@ const submitReport = async () => {
 }
 
 .reason-option input[type="radio"] {
+  flex-shrink: 0;
+  margin: 0;
+  width: 18px;
+  height: 18px;
   accent-color: var(--harmony-primary, #5865f2);
+  vertical-align: middle;
+}
+
+.reason-option span {
+  flex: 1;
+  padding-right: 8px;
 }
 
 textarea {
