@@ -2676,9 +2676,6 @@ const closeInviteModal = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
 }
 
 .skeleton-content {
@@ -2694,36 +2691,42 @@ const closeInviteModal = () => {
 .skeleton-username {
   width: 80px;
   height: 16px;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
 }
 
 .skeleton-timestamp {
   width: 50px;
   height: 12px;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
 }
 
 .skeleton-text-line {
   height: 14px;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
   margin-bottom: 6px;
 }
 
+.skeleton-avatar,
+.skeleton-username,
+.skeleton-timestamp,
+.skeleton-text-line {
+  background-color: var(--background-quaternary, #2b2d31);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
 @keyframes skeleton-shimmer {
   0% {
-    background-position: -200% 0;
+    background-position: 100% 0;
   }
   100% {
-    background-position: 200% 0;
+    background-position: -100% 0;
   }
 }
 

@@ -72,18 +72,12 @@ withDefaults(defineProps<Props>(), {
   width: 64px;
   height: 64px;
   border-radius: 16px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-status {
   width: 60px;
   height: 20px;
   border-radius: 10px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-content {
@@ -95,9 +89,6 @@ withDefaults(defineProps<Props>(), {
   height: 24px;
   border-radius: 4px;
   margin-bottom: 12px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-description {
@@ -108,9 +99,6 @@ withDefaults(defineProps<Props>(), {
   height: 16px;
   border-radius: 4px;
   margin-bottom: 8px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-line.short {
@@ -132,9 +120,6 @@ withDefaults(defineProps<Props>(), {
   width: 80px;
   height: 16px;
   border-radius: 4px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-owner {
@@ -147,18 +132,12 @@ withDefaults(defineProps<Props>(), {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-owner-name {
   width: 60px;
   height: 14px;
   border-radius: 4px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-actions {
@@ -170,17 +149,33 @@ withDefaults(defineProps<Props>(), {
   width: 80px;
   height: 36px;
   border-radius: 8px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 25%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 75%);
+}
+
+.skeleton-icon,
+.skeleton-status,
+.skeleton-name,
+.skeleton-line,
+.skeleton-stat,
+.skeleton-avatar,
+.skeleton-owner-name,
+.skeleton-button {
+  background-color: rgba(255, 255, 255, 0.06);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.8s ease-in-out infinite;
 }
 
 @keyframes shimmer {
   0% {
-    background-position: -200% 0;
+    background-position: 100% 0;
   }
   100% {
-    background-position: 200% 0;
+    background-position: -100% 0;
   }
 }
 
