@@ -193,6 +193,31 @@ class ReportService {
         .eq('id', reportId)
 
       if (error) throw error
+
+      // Notify the reporter about the status change
+      try {
+        const { data: report } = await supabase
+          .from('reports')
+          .select('reporter_id, report_type')
+          .eq('id', reportId)
+          .single()
+
+        if (report?.reporter_id) {
+          await supabase.rpc('send_notification_to_user', {
+            notification_type: 'report_update',
+            to_user_id: report.reporter_id,
+            notification_data: {
+              report_id: reportId,
+              status,
+              report_type: report.report_type,
+              resolution_note: resolutionNote || null,
+            },
+          })
+        }
+      } catch (notifError) {
+        debug.warn('Failed to send report status notification:', notifError)
+      }
+
       return true
     } catch (error) {
       debug.error('Failed to update report status:', error)

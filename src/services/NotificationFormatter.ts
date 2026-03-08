@@ -267,6 +267,27 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => `${data.follower.display_name || data.follower.username} wants to follow you`,
     message: (data: any) => `${data.follower.handle || '@' + data.follower.username} sent you a follow request`,
     shortTitle: (data: any) => `Follow request`
+  },
+
+  report_update: {
+    title: (data: any) => {
+      const status = data.status || 'updated'
+      switch (status) {
+        case 'investigating': return 'Your report is being reviewed'
+        case 'resolved': return 'Your report has been resolved'
+        case 'dismissed': return 'Your report has been reviewed'
+        default: return 'Report status updated'
+      }
+    },
+    message: (data: any) => {
+      const type = data.report_type || 'content'
+      const status = data.status || 'updated'
+      const note = data.resolution_note
+      let msg = `Your ${type} report has been ${status}.`
+      if (note) msg += ` Note: ${note}`
+      return msg
+    },
+    shortTitle: () => 'Report update'
   }
 } as const
 
