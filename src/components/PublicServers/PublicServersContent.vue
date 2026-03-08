@@ -221,7 +221,7 @@ const loadMore = () => {
 .loading-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -266,7 +266,7 @@ const loadMore = () => {
 .empty-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 
@@ -283,7 +283,7 @@ const loadMore = () => {
   border: none;
   border-radius: 8px;
   padding: 12px 24px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -315,7 +315,7 @@ const loadMore = () => {
 .section-title {
   font-size: 18px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -373,7 +373,12 @@ const loadMore = () => {
 .load-more-btn:hover {
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+  color: var(--text-primary);
+}
+
+.error-svg {
+  width: 32px;
+  height: 32px;
 }
 
 /* Mobile responsive */

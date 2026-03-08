@@ -577,7 +577,7 @@ const vClickOutside = {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -653,7 +653,7 @@ const vClickOutside = {
 .follow-btn.following {
   background: var(--success-primary);
   border-color: var(--success-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .follow-btn.following:hover {
@@ -664,7 +664,7 @@ const vClickOutside = {
 .message-btn {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .message-btn:hover {

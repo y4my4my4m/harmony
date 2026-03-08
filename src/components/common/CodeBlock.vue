@@ -394,14 +394,14 @@ export default defineComponent({
 
 .copy-button:hover {
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
   transform: translateY(0);
 }
 
 .copy-button.copied {
   background-color: #3ba55c;
   border-color: #3ba55c;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .copy-button :deep(svg) {

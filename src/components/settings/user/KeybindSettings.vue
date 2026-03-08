@@ -372,7 +372,7 @@ onUnmounted(() => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -400,7 +400,7 @@ onUnmounted(() => {
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -458,7 +458,7 @@ onUnmounted(() => {
 .keybind-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -481,7 +481,7 @@ onUnmounted(() => {
   background-color: var(--h-chat-darker);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 12px;
   font-family: monospace;
   cursor: pointer;

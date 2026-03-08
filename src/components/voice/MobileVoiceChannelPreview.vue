@@ -320,7 +320,7 @@ const handleOpenChat = () => {
 
 .control-btn.mute-btn.active {
   background: var(--harmony-danger, #ed4245);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .join-btn {
@@ -333,7 +333,7 @@ const handleOpenChat = () => {
   background: var(--harmony-success, #3ba55d);
   border: none;
   border-radius: 24px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;

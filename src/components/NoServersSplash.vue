@@ -59,9 +59,10 @@
 
         <div class="action-card join-card" @click="togglePublicServers">
           <div class="card-icon">
-            <svg viewBox="0 0 24 24" class="icon">
+            <!-- <svg viewBox="0 0 24 24" class="icon">
               <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25Z" fill="currentColor"/>
-            </svg>
+            </svg> -->
+            <svg fill="#FFF" width="24px" height="24px" viewBox="0 0 24 24" role="img" class="icon" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M6.353 0v2.824H4.94v2.823H3.53v2.824H2.118v2.823H.706v2.824h8.47v2.823H7.765v2.824H6.353v2.823h1.412v-1.412h1.411v-1.411h1.412v-1.412H12V16.94h1.412v-1.41h1.412v-1.411h1.411v-1.412h1.412v-1.412h1.412V9.882h1.412V8.471h1.411V7.059h-4.235V5.647h1.412V4.235h1.412V2.824h1.411V1.412h1.412V0zm0 22.588H4.94V24h1.412zM7.765 2.824h9.882v1.411h-1.412v1.412h-1.411V7.06h-1.412v1.41H12v1.411h1.412v1.412H12V9.882h-1.412v1.412H9.176V9.882H7.765v1.412H6.353V9.882H4.94V8.471h1.412V5.647h1.412zM6.353 8.47v1.411h1.412v-1.41zm2.823 1.411h1.412v-1.41H9.176zm5.648 0h1.411v1.412h-1.411z"/></svg>
           </div>
           <div class="card-content">
             <h3 class="card-title">{{ $t('server.discoverCommunities') }}</h3>
@@ -291,7 +292,7 @@ const getParticleStyle = (index: number) => {
   position: relative;
   width: 64px;
   height: 64px;
-  color: #ffffff;
+  color: var(--text-primary);
   overflow: visible;
   border-radius: 50%;
   z-index: 1;
@@ -308,7 +309,7 @@ const getParticleStyle = (index: number) => {
 .welcome-title {
   font-size: 42px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 12px;
   background: linear-gradient(135deg, #ffffff, var(--text-secondary));
   -webkit-background-clip: text;
@@ -417,7 +418,7 @@ const getParticleStyle = (index: number) => {
 .card-icon .icon {
   width: 24px;
   height: 24px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .card-content {
@@ -427,7 +428,7 @@ const getParticleStyle = (index: number) => {
 .card-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -449,7 +450,7 @@ const getParticleStyle = (index: number) => {
   padding: 4px 8px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -462,7 +463,7 @@ const getParticleStyle = (index: number) => {
 }
 
 .action-card:hover .card-arrow {
-  color: #ffffff;
+  color: var(--text-primary);
   transform: translateX(4px);
 }
 
@@ -505,7 +506,7 @@ const getParticleStyle = (index: number) => {
 .federated-icon .icon {
   width: 22px;
   height: 22px;
-  color: white;
+  color: var(--text-primary);
 }
 
 .federated-text {
@@ -518,7 +519,7 @@ const getParticleStyle = (index: number) => {
 .federated-label {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .federated-desc {
@@ -563,7 +564,7 @@ const getParticleStyle = (index: number) => {
 .info-text h4 {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 

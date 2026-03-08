@@ -345,11 +345,13 @@ interface Props {
   quoteAuthor?: FederatedUser;
   isOpen?: boolean;
   defaultVisibility?: Post['visibility'];
+  initialContent?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isOpen: true,
-  defaultVisibility: 'public'
+  defaultVisibility: 'public',
+  initialContent: ''
 });
 
 // Emits
@@ -452,12 +454,12 @@ const placeholder = computed(() => {
 
 const headerTitle = computed(() => {
   if (props.type === 'reply') {
-    return t('activitypub.replyToMony');
+    return t('activitypub.replyToPost');
   }
   if (props.type === 'quote') {
     return 'Quote Post';
   }
-  return t('activitypub.createAMony');
+  return t('activitypub.createAPost');
 });
 
 const submitButtonText = computed(() => {
@@ -468,7 +470,7 @@ const submitButtonText = computed(() => {
   }
   if (props.type === 'reply') return t('activitypub.reply');
   if (props.type === 'quote') return 'Quote';
-  return t('activitypub.mony');
+  return t('activitypub.post');
 });
 
 const wrapperComponent = computed(() => {
@@ -741,6 +743,9 @@ onMounted(() => {
       ? `@${username}@${domain} `
       : `@${username} `;
     content.value = mention;
+  } else if (props.type === 'post' && props.initialContent?.trim()) {
+    // Pre-fill content for new posts (e.g. when mentioning from profile)
+    content.value = props.initialContent;
   }
 
   // Focus editor after mount and move cursor to end
@@ -757,7 +762,7 @@ onMounted(() => {
   });
 });
 
-// Watch for modal open state
+// Watch for modal open state and initial content
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen && props.mode === 'modal') {
     nextTick(() => {
@@ -765,6 +770,13 @@ watch(() => props.isOpen, (isOpen) => {
     });
   }
 });
+
+watch(() => props.initialContent, (val) => {
+  if (props.type === 'post' && val?.trim()) {
+    content.value = val;
+    nextTick(() => richEditorRef.value?.setCursorPosition(content.value.length));
+  }
+}, { immediate: true });
 
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
@@ -871,7 +883,7 @@ const vClickOutside = {
 .composer-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -887,7 +899,7 @@ const vClickOutside = {
 
 .close-button:hover {
   background-color: var(--bg-tertiary);
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Reply Context */
@@ -929,7 +941,7 @@ const vClickOutside = {
 
 .author-name {
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .author-handle {
@@ -1027,7 +1039,7 @@ const vClickOutside = {
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border-primary);
   border-radius: 0.5rem;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.875rem;
 }
 
@@ -1066,7 +1078,7 @@ const vClickOutside = {
   gap: 0.5rem;
   background-color: rgba(0, 0, 0, 0.8);
   border-radius: 0.5rem;
-  color: white;
+  color: var(--text-primary);
   font-weight: 500;
   pointer-events: none;
   z-index: 10;
@@ -1140,7 +1152,7 @@ const vClickOutside = {
 
 .option-button:hover {
   background-color: #374151;
-  color: white;
+  color: var(--text-primary);
 }
 
 .option-button.active {
@@ -1184,7 +1196,7 @@ const vClickOutside = {
   padding: 0.75rem;
   background: none;
   border: none;
-  color: white;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   border-radius: 0.5rem;
@@ -1227,7 +1239,7 @@ const vClickOutside = {
 
 .cancel-button:hover {
   background-color: #374151;
-  color: white;
+  color: var(--text-primary);
 }
 
 .post-button {
@@ -1238,7 +1250,7 @@ const vClickOutside = {
   background-color: var(--harmony-primary);
   border: none;
   border-radius: 0.5rem;
-  color: white;
+  color: var(--text-primary);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1291,7 +1303,7 @@ const vClickOutside = {
 
 .suggest-name {
   font-weight: 500;
-  color: white;
+  color: var(--text-primary);
 }
 
 .suggest-username,

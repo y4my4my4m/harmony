@@ -576,7 +576,7 @@ function handleComplete() {
 .btn-copy {
   padding: 12px 20px;
   background: var(--primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 6px;
   cursor: pointer;

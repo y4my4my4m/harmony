@@ -1391,7 +1391,7 @@ onUnmounted(() => {
 }
 
 .user-name {
-  /* color: #ffffff; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
   font-weight: 600;
   font-size: 14px;
@@ -1456,21 +1456,21 @@ onUnmounted(() => {
 
 .control-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.3);
   transform: scale(1.05);
 }
 
 .control-btn.active {
   background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(0, 212, 170, 0.6);
   box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
 }
 
 .control-btn.muted {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(237, 66, 69, 0.6);
   box-shadow: 0 4px 12px rgba(237, 66, 69, 0.3);
 }
@@ -1482,7 +1482,7 @@ onUnmounted(() => {
 
 .control-btn.ptt-active {
   background: linear-gradient(145deg, #00d4aa, #00b894) !important;
-  color: white !important;
+  color: var(--text-primary) !important;
   border-color: rgba(0, 212, 170, 0.6) !important;
   box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
   animation: ptt-pulse 0.5s ease-in-out infinite;
@@ -1513,12 +1513,12 @@ onUnmounted(() => {
 
 .ptt-indicator.active {
   background: #00d4aa;
-  color: white;
+  color: var(--text-primary);
 }
 
 .control-btn.deafened {
   background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(250, 166, 26, 0.6);
   box-shadow: 0 4px 12px rgba(250, 166, 26, 0.3);
 }
@@ -1530,7 +1530,7 @@ onUnmounted(() => {
 
 .control-btn.spatial-enabled {
   background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(0, 212, 170, 0.6);
   box-shadow: 0 0 10px rgba(0, 212, 170, 0.4);
 }
@@ -1608,19 +1608,19 @@ onUnmounted(() => {
 
 .expand-btn:hover {
   background: linear-gradient(145deg, #5865f2, #4752c4);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(88, 101, 242, 0.6);
 }
 
 .minimize-btn:hover {
   background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(250, 166, 26, 0.6);
 }
 
 .leave-btn:hover {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(237, 66, 69, 0.6);
 }
 
@@ -1699,7 +1699,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -1708,7 +1708,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 4px;
   padding: 4px 6px;
-  color: #fff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 12px;
@@ -1766,7 +1766,7 @@ onUnmounted(() => {
 }
 
 .minimized-info .channel-name {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
@@ -1812,25 +1812,25 @@ onUnmounted(() => {
 
 .mini-control-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
 .mini-control-btn.muted {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(237, 66, 69, 0.6);
 }
 
 .mini-control-btn.deafened {
   background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(250, 166, 26, 0.6);
 }
 
 .mini-control-btn.leave {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(237, 66, 69, 0.6);
 }
 
@@ -1862,14 +1862,14 @@ onUnmounted(() => {
 
 .participants-dropdown-btn:hover:not(.active) {
   background: linear-gradient(145deg, #36393f63, #40444b59);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.3);
   transform: translateY(2px);
 }
 
 .participants-dropdown-btn.active {
   background: linear-gradient(145deg, #36393f63, #40444b59);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(2px);
 }

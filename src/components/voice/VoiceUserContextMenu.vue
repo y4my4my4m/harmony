@@ -617,7 +617,7 @@ watch(
 .display-name {
   font-weight: 600;
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -737,13 +737,13 @@ watch(
 
 .preset-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 .preset-btn.active {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border-color: #5865f2;
 }
 
@@ -757,7 +757,7 @@ watch(
 }
 
 .preset-btn.active .boost-indicator {
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Stream Quality Options */
@@ -803,13 +803,13 @@ watch(
 
 .quality-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 .quality-btn.active {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border-color: #5865f2;
 }
 
@@ -836,7 +836,7 @@ watch(
 
 .menu-action:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .menu-action.active {

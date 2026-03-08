@@ -254,7 +254,7 @@ const getTypeIcon = (type: NotificationType) => {
   align-items: center;
   justify-content: center;
   background: var(--toast-color, var(--h-brand));
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .toast-content {
@@ -266,7 +266,7 @@ const getTypeIcon = (type: NotificationType) => {
   margin: 0 0 4px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   line-height: 1.3;
   display: flex;
   align-items: center;
@@ -312,7 +312,7 @@ const getTypeIcon = (type: NotificationType) => {
 
 .toast-action-btn.primary {
   background: var(--h-brand);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .toast-action-btn.primary:hover {
@@ -332,7 +332,7 @@ const getTypeIcon = (type: NotificationType) => {
 
 .toast-action-btn.danger {
   background: #f04747;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .toast-action-btn.danger:hover {

@@ -110,7 +110,7 @@ defineEmits<Emits>()
   border: none;
   border-radius: 10px;
   padding: 14px 24px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -130,6 +130,7 @@ defineEmits<Emits>()
   background: linear-gradient(135deg, #57f287, #3ba55d);
   opacity: 0;
   transition: opacity 0.3s ease;
+  z-index:-1;
 }
 
 .create-server-btn:hover::before {

@@ -149,7 +149,7 @@ defineEmits<{
 
 .explore-btn {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .explore-btn:hover {

@@ -802,7 +802,7 @@ onMounted(() => {
   gap: 8px;
   padding: 10px 16px;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 4px;
   font-size: 14px;
@@ -1454,7 +1454,7 @@ onMounted(() => {
 
 .save-btn {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
   padding: 10px 20px;
   border-radius: 4px;

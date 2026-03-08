@@ -1064,7 +1064,7 @@ const getDefaultGroupName = (): string => {
 
 .join-call-btn {
   background: #43b581 !important;
-  color: white !important;
+  color: var(--text-primary) !important;
   padding: 8px 16px !important;
   width: auto !important;
   gap: 8px;
@@ -1184,7 +1184,7 @@ const getDefaultGroupName = (): string => {
 .federated-indicator svg {
   width: 10px;
   height: 10px;
-  color: white;
+  color: var(--text-primary);
 }
 
 .federated-handle {
@@ -1367,7 +1367,7 @@ const getDefaultGroupName = (): string => {
   width: 24px;
   height: 24px;
   background: var(--primary-color);
-  color: white;
+  color: var(--text-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1429,7 +1429,7 @@ const getDefaultGroupName = (): string => {
 .modal-footer .btn-primary {
   background: var(--primary-color);
   border: none;
-  color: white;
+  color: var(--text-primary);
 }
 
 .modal-footer .btn-primary:hover {

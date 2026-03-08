@@ -1,5 +1,20 @@
 <template>
   <div class="hashtag-view">
+    <!-- Mony Header (search, compose, refresh, sidebar) -->
+    <div class="mony-header-container">
+      <MonyHeader
+        :current-view="(props.currentView as string) ?? 'trending'"
+        :is-mobile="isMobile"
+        :right-sidebar-open="(props.rightSidebarOpen ?? false)"
+        @switch-feed="handleSwitchFeed"
+        @refresh-timeline="handleRefresh"
+        @open-composer="handleOpenComposer"
+        @open-search="handleOpenSearch"
+        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+        @toggle-right-sidebar="$emit('toggleRightSidebar')"
+      />
+    </div>
+
     <!-- Hashtag Header -->
     <div class="hashtag-header">
       <button class="back-button" @click="goBack">
@@ -7,9 +22,17 @@
       </button>
       <div class="hashtag-info">
         <h1 class="hashtag-title">#{{ hashtag }}</h1>
-        <span class="post-count" v-if="!isLoading">
-          {{ posts.length }} {{ posts.length === 1 ? 'post' : 'posts' }}
-        </span>
+        <div class="hashtag-stats" v-if="!isLoading">
+          <span class="post-count">
+            {{ hashtagStats?.total_uses || posts.length }} {{ (hashtagStats?.total_uses || posts.length) === 1 ? 'post' : 'posts' }}
+          </span>
+          <span v-if="hashtagStats?.daily_uses" class="daily-stat">
+            {{ hashtagStats.daily_uses }} today
+          </span>
+          <span v-if="hashtagStats?.last_used_at" class="last-used">
+            Last used {{ formatTimeAgo(hashtagStats.last_used_at) }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -64,7 +87,9 @@ import { debug } from '@/utils/debug'
 import { trendingService } from '@/services/TrendingService'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useLayoutState } from '@/composables/useLayoutState'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
+import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { TimelinePost } from '@/types'
 
@@ -73,9 +98,19 @@ interface Props {
   hashtag: string
   currentView?: string
   viewType?: string
+  rightSidebarOpen?: boolean
 }
 
 const props = defineProps<Props>()
+
+// Emits (for layout events)
+const emit = defineEmits<{
+  toggleLeftSidebar: []
+  toggleRightSidebar: []
+  openSearch: []
+}>()
+
+const { isMobile } = useLayoutState()
 
 // Router
 const router = useRouter()
@@ -90,6 +125,7 @@ const isLoading = ref(false)
 const isLoadingMore = ref(false)
 const hasMore = ref(false)
 const cursor = ref<string | null>(null)
+const hashtagStats = ref<any>(null)
 
 // Post interactions
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
@@ -135,9 +171,44 @@ const goBack = () => {
   router.back()
 }
 
+const handleRefresh = () => {
+  loadPosts()
+  loadHashtagStats()
+}
+
+const handleSwitchFeed = (feed: string) => {
+  router.push({ name: 'Social', params: { timeline: feed } })
+}
+
+const handleOpenComposer = () => {
+  activityPubStore.openComposer()
+}
+
+const handleOpenSearch = () => {
+  emit('openSearch')
+}
+
+const loadHashtagStats = async () => {
+  try {
+    hashtagStats.value = await trendingService.getHashtagStats(props.hashtag)
+  } catch (error) {
+    debug.error('Failed to load hashtag stats:', error)
+  }
+}
+
+const formatTimeAgo = (dateStr: string): string => {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  if (hours < 1) return 'just now'
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return `${Math.floor(days / 30)}mo ago`
+}
+
 // Event handlers
 const handleReply = (post: TimelinePost) => {
-  activityPubStore.openComposer(post.id)
+  activityPubStore.openComposer({ replyTo: post.id })
 }
 
 const handleFavorite = async (postId: string) => {
@@ -182,6 +253,7 @@ watch(() => props.hashtag, (newTag, oldTag) => {
 // Load on mount
 onMounted(() => {
   loadPosts()
+  loadHashtagStats()
 })
 </script>
 
@@ -193,6 +265,15 @@ onMounted(() => {
   background-color: var(--background-primary, #111827);
   color: var(--text-primary, #f3f4f6);
   overflow: hidden;
+}
+
+.mony-header-container {
+  flex-shrink: 0;
+}
+
+.hashtag-view .mony-post {
+  max-width: 680px;
+  margin: 20px auto;
 }
 
 .hashtag-header {
@@ -236,9 +317,27 @@ onMounted(() => {
   margin: 0;
 }
 
+.hashtag-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .post-count {
   font-size: 0.875rem;
   color: var(--text-secondary, #9ca3af);
+}
+
+.daily-stat {
+  font-size: 0.8rem;
+  color: var(--harmony-primary, #5865f2);
+  font-weight: 500;
+}
+
+.last-used {
+  font-size: 0.8rem;
+  color: var(--text-tertiary, #6b7280);
 }
 
 .loading-state,

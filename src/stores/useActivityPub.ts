@@ -718,26 +718,29 @@ export const useActivityPubStore = defineStore('activitypub', {
         const { userDataService } = await import('@/services/userDataService');
         const currentUser = userDataService.getCurrentUser();
         const isOwnPost = currentUser?.id === completePost.author_id;
-        
+        let addedToFeed = false;
+
         // Add to public feed if public
         if (completePost.visibility === 'public') {
           this.publicFeed.posts.unshift(completePost);
+          addedToFeed = true;
           debug.log('✅ Added post to public feed:', completePost.id);
           // Limit feed size
           if (this.publicFeed.posts.length > 100) {
             this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
           }
         }
-        
+
         // Add to local feed if local
         if (completePost.is_local && completePost.visibility === 'public') {
           this.localFeed.posts.unshift(completePost);
+          addedToFeed = true;
           debug.log('✅ Added post to local feed:', completePost.id);
           if (this.localFeed.posts.length > 100) {
             this.localFeed.posts = this.localFeed.posts.slice(0, 100);
           }
         }
-        
+
         // Add to home feed if:
         // 1. Following the author, OR
         // 2. It's the current user's own post (so they see their own posts in home)
@@ -747,9 +750,10 @@ export const useActivityPubStore = defineStore('activitypub', {
           isFollowing: this.followedUsers.has(completePost.author_id),
           shouldAddToHome
         });
-        
+
         if (shouldAddToHome) {
           this.homeFeed.posts.unshift(completePost);
+          addedToFeed = true;
           // Only increment unread for posts from others
           if (!isOwnPost) {
             this.unreadCount++;
@@ -758,6 +762,11 @@ export const useActivityPubStore = defineStore('activitypub', {
           if (this.homeFeed.posts.length > 100) {
             this.homeFeed.posts = this.homeFeed.posts.slice(0, 100);
           }
+        }
+
+        // Play sound when a new post from someone else is displayed via realtime
+        if (addedToFeed && !isOwnPost) {
+          this.playNewPostSound();
         }
       } catch (error) {
         debug.error('❌ Failed to handle realtime post creation:', error);
@@ -809,8 +818,32 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     handleRealtimePostDelete(post: any) {
       debug.log('🗑️ Post deleted:', post);
-      
+
       this.removePostFromAllFeeds(post.id);
+    },
+
+    /**
+     * Play sound when a new post arrives via realtime (not on initial load)
+     * Respects notification preferences: sound_notifications, activitypub_sound_notifications, DND
+     */
+    async playNewPostSound() {
+      try {
+        const { useNotificationStore } = await import('@/stores/useNotification');
+        const { useThemeStore } = await import('@/stores/useTheme');
+        const notificationStore = useNotificationStore();
+        const themeStore = useThemeStore();
+
+        if (!notificationStore.preferences?.sound_notifications || notificationStore.isQuietHours) return;
+        if (!notificationStore.preferences.activitypub_sound_notifications) return;
+
+        if (!themeStore.isInitialized) {
+          await themeStore.initialize();
+        }
+        await themeStore.playAudio('ui_notification');
+        debug.log('🔊 Played new post sound');
+      } catch (err) {
+        debug.warn('Failed to play new post sound:', err);
+      }
     },
 
     /**

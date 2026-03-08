@@ -114,7 +114,7 @@ export default defineComponent({
 
 .menu-item:hover {
   background-color: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .menu-icon {

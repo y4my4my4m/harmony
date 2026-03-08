@@ -760,13 +760,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   font-size: 18px;
 }
 
 .panel-title h3 {
   margin: 0;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
   font-weight: 600;
 }
@@ -800,13 +800,13 @@ onUnmounted(() => {
 
 .control-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 .control-btn.active {
   background: linear-gradient(145deg, #5865f2, #4752c4);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(88, 101, 242, 0.6);
 }
 
@@ -817,7 +817,7 @@ onUnmounted(() => {
 
 .close-btn:hover {
   background: #ed4245;
-  color: white;
+  color: var(--text-primary);
   border-color: #ed4245;
 }
 
@@ -870,13 +870,13 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  color: #ffffff;
+  color: var(--text-primary);
   padding: 6px 8px;
   font-size: 12px;
 }
 
 .setting-value {
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 500;
 }
@@ -918,7 +918,7 @@ onUnmounted(() => {
 .checkbox-input:checked + .checkbox-custom::after {
   content: '✓';
   position: absolute;
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   top: 50%;
   left: 50%;
@@ -1047,7 +1047,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
 }
 
@@ -1057,7 +1057,7 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.8);
-  color: white;
+  color: var(--text-primary);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 10px;
@@ -1071,7 +1071,7 @@ onUnmounted(() => {
   top: -8px;
   right: -8px;
   background: rgba(88, 101, 242, 0.9);
-  color: white;
+  color: var(--text-primary);
   padding: 2px 4px;
   border-radius: 8px;
   font-size: 8px;
@@ -1170,7 +1170,7 @@ onUnmounted(() => {
 
 .action-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.2);
 }
 

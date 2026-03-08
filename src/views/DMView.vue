@@ -592,7 +592,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
 }

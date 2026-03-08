@@ -182,7 +182,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  color: white;
+  color: var(--text-primary);
 }
 
 .update-icon {
@@ -204,7 +204,7 @@ onUnmounted(() => {
   margin: 0 0 4px;
   font-size: 16px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .update-text p {
@@ -248,7 +248,7 @@ onUnmounted(() => {
 
 .update-btn.secondary {
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: var(--text-primary);
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 

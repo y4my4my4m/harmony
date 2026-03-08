@@ -2360,7 +2360,7 @@ const closeInviteModal = () => {
 .bot-badge {
   display: inline-block;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   font-size: 0.625rem;
   font-weight: 600;
   padding: 0.125rem 0.25rem;
@@ -2396,7 +2396,7 @@ const closeInviteModal = () => {
 
 .username:hover .instance-badge.admin, 
 .username:hover .instance-badge.mod {
-  color: #fff;
+  color: var(--text-primary);
   background:  var(--harmony-secondary);
 }
 
@@ -2594,7 +2594,7 @@ const closeInviteModal = () => {
 .beginning-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin-bottom: 4px;
   line-height: 1.4;
 }
@@ -2646,7 +2646,7 @@ const closeInviteModal = () => {
 .tooltip {
   position: fixed;
   background-color: #18191c;
-  color: #ffffff;
+  color: var(--text-primary);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.875rem;

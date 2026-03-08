@@ -1064,7 +1064,7 @@ onMounted(() => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -1085,7 +1085,7 @@ onMounted(() => {
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 20px 0;
 }
 
@@ -1112,7 +1112,7 @@ onMounted(() => {
 .setting-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -1157,7 +1157,7 @@ onMounted(() => {
 
 .radio-label {
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -1203,7 +1203,7 @@ onMounted(() => {
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  /* color: #ffffff; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
 }
 
@@ -1218,7 +1218,7 @@ onMounted(() => {
   background-color: #ed4245;
   border: none;
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -1256,7 +1256,7 @@ onMounted(() => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1271,7 +1271,7 @@ onMounted(() => {
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .loading-spinner {
@@ -1331,7 +1331,7 @@ onMounted(() => {
 .subsection-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -1373,7 +1373,7 @@ onMounted(() => {
   background-color: var(--h-chat-darker);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   transition: border-color 0.15s ease;
 }
@@ -1409,7 +1409,7 @@ onMounted(() => {
 }
 
 .toggle-password-btn:hover {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .error-message {
@@ -1477,7 +1477,7 @@ onMounted(() => {
 .step-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -1495,7 +1495,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   padding: 16px;
-  background-color: #ffffff;
+  background-color: var(--text-primary);
   border-radius: 6px;
   margin-bottom: 16px;
 }
@@ -1534,7 +1534,7 @@ onMounted(() => {
   flex: 1;
   font-family: 'Courier New', monospace;
   font-size: 13px;
-  color: #ffffff;
+  color: var(--text-primary);
   background-color: var(--h-chat-darker);
   padding: 6px 10px;
   border-radius: 3px;
@@ -1555,7 +1555,7 @@ onMounted(() => {
 }
 
 .btn-copy:hover {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-copy svg {
@@ -1573,7 +1573,7 @@ onMounted(() => {
 .recovery-code {
   font-family: 'Courier New', monospace;
   font-size: 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   background-color: var(--h-chat);
   padding: 10px;
   border-radius: 4px;
@@ -1613,7 +1613,7 @@ onMounted(() => {
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 

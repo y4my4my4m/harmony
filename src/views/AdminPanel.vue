@@ -604,6 +604,24 @@
             </div>
           </div>
         </div>
+
+        <!-- User Pagination -->
+        <div v-if="userPagination.total > userPagination.limit" class="pagination">
+          <button
+            @click="loadPreviousUsers"
+            :disabled="userPagination.offset === 0"
+            class="pagination-btn"
+          >Previous</button>
+          <span class="pagination-info">
+            {{ userPagination.offset + 1 }}–{{ Math.min(userPagination.offset + userPagination.limit, userPagination.total) }}
+            of {{ userPagination.total }}
+          </span>
+          <button
+            @click="loadNextUsers"
+            :disabled="userPagination.offset + userPagination.limit >= userPagination.total"
+            class="pagination-btn"
+          >Next</button>
+        </div>
       </div>
 
       <!-- Recent Activity -->
@@ -619,17 +637,151 @@
           </select>
         </div>
         <div class="activity-feed">
-          <div v-for="event in recentActivity" :key="event.id" class="activity-item">
-            <div class="activity-icon" :class="event.type">
+          <div v-for="event in filteredRecentActivity" :key="event.id" class="activity-item">
+            <div class="activity-icon" :class="getActivityCategory(event.type)">
               <Icon :name="getActivityIcon(event.type)" :size="16" />
             </div>
             <div class="activity-content">
-              <div class="activity-message">{{ event.message }}</div>
+              <div class="activity-message">{{ formatActivityMessage(event) }}</div>
               <div class="activity-meta">
                 <span class="activity-time">{{ formatTime(event.timestamp) }}</span>
                 <span class="activity-source">{{ event.source }}</span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Announcements -->
+      <div class="admin-module announcements-module">
+        <div class="module-header">
+          <Icon name="message-square" :size="20" />
+          <h2>Announcements</h2>
+          <button @click="showAnnouncementForm = true" class="primary-btn-sm">
+            <Icon name="plus" :size="14" />
+            Create
+          </button>
+        </div>
+        <p class="module-hint">Instance-wide announcements shown to users. Create and manage them here.</p>
+        <div v-if="showAnnouncementForm" class="announcement-form">
+          <h4>{{ editingAnnouncementId ? 'Edit' : 'New' }} Announcement</h4>
+          <div class="form-row">
+            <label>Title</label>
+            <input v-model="announcementForm.title" class="cyber-input" placeholder="Announcement title" />
+          </div>
+          <div class="form-row">
+            <label>Content (supports basic HTML)</label>
+            <textarea v-model="announcementForm.content" class="cyber-input" rows="4" placeholder="Announcement content"></textarea>
+          </div>
+          <div class="form-row">
+            <label>Icon (emoji or name: info, warning, megaphone)</label>
+            <input v-model="announcementForm.icon" class="cyber-input" placeholder="info" />
+          </div>
+          <div class="form-row">
+            <label>Image URL (optional)</label>
+            <input v-model="announcementForm.image_url" class="cyber-input" type="url" placeholder="https://..." />
+          </div>
+          <div class="form-row checks">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="announcementForm.is_pinned" />
+              <span class="toggle-slider"></span>
+              Pinned
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" v-model="announcementForm.show_popup" />
+              <span class="toggle-slider"></span>
+              Show popup
+            </label>
+            <label class="toggle-label" v-if="editingAnnouncementId">
+              <input type="checkbox" v-model="announcementForm.is_active" />
+              <span class="toggle-slider"></span>
+              Active
+            </label>
+          </div>
+          <div class="form-actions">
+            <button @click="saveAnnouncement" class="primary-btn-sm" :disabled="!announcementForm.title || !announcementForm.content">
+              {{ editingAnnouncementId ? 'Update' : 'Create' }}
+            </button>
+            <button @click="cancelAnnouncementForm" class="cyber-btn-sm">Cancel</button>
+          </div>
+        </div>
+        <div class="announcements-list">
+          <div v-for="a in announcements" :key="a.id" class="announcement-item">
+            <div class="announcement-meta">
+              <span class="announcement-icon">{{ getAnnouncementIcon(a.icon) }}</span>
+              <span class="announcement-title">{{ a.title }}</span>
+              <span v-if="a.is_pinned" class="badge">Pinned</span>
+              <span v-if="!a.is_active" class="badge inactive">Inactive</span>
+            </div>
+            <div class="announcement-actions">
+              <button @click="editAnnouncement(a)" class="action-btn-sm" title="Edit">
+                <Icon name="edit" :size="14" />
+              </button>
+              <button @click="deleteAnnouncement(a.id)" class="danger-btn-sm" title="Delete">
+                <Icon name="trash" :size="14" />
+              </button>
+            </div>
+          </div>
+          <div v-if="announcements.length === 0 && !loadingStates.announcements" class="empty-state">
+            No announcements. Create one to notify users.
+          </div>
+        </div>
+      </div>
+
+      <!-- Featured Communities -->
+      <div class="admin-module featured-module">
+        <div class="module-header">
+          <Icon name="star" :size="20" />
+          <h2>Featured Communities</h2>
+          <button @click="loadFeaturedServers" class="action-btn" :disabled="loadingStates.featuredServers">
+            <Icon v-if="loadingStates.featuredServers" name="loader" :size="16" class="spin" />
+            <Icon v-else name="refresh-cw" :size="16" />
+            Refresh
+          </button>
+        </div>
+        <p class="module-hint">Pin public servers to the top of the community discovery page. Featured servers appear first.</p>
+        <div v-if="loadingStates.featuredServers" class="loading-state">
+          <div class="loading-spinner"></div>
+          <span>Loading communities...</span>
+        </div>
+        <div v-else class="featured-servers-list">
+          <div
+            v-for="server in featuredServersList"
+            :key="server.id"
+            class="featured-server-item"
+            :class="{ featured: server.is_featured }"
+          >
+            <div class="server-icon-wrap">
+              <img
+                :src="getServerIconUrl(server.icon)"
+                :alt="server.name"
+                class="server-icon"
+              />
+              <span v-if="server.is_featured" class="featured-badge">
+                <Icon name="star" :size="12" />
+              </span>
+            </div>
+            <div class="server-details">
+              <div class="server-name">{{ server.name }}</div>
+              <div class="server-meta">
+                {{ server.member_count ?? 0 }} members
+                <span v-if="server.is_featured" class="featured-order">#{{ server.featured_order }}</span>
+              </div>
+            </div>
+            <button
+              @click="toggleFeaturedServer(server)"
+              class="action-btn-sm"
+              :class="server.is_featured ? 'unpin-btn' : 'pin-btn'"
+              :disabled="featuredServerToggling.has(server.id)"
+              :title="server.is_featured ? 'Remove from featured' : 'Add to featured'"
+            >
+              <Icon v-if="featuredServerToggling.has(server.id)" name="loader" :size="14" class="spin" />
+              <Icon v-else :name="server.is_featured ? 'x' : 'star'" :size="14" />
+              {{ server.is_featured ? 'Unpin' : 'Pin' }}
+            </button>
+          </div>
+          <div v-if="featuredServersList.length === 0 && !loadingStates.featuredServers" class="empty-state">
+            No public communities yet. Create public servers to feature them.
           </div>
         </div>
       </div>
@@ -679,6 +831,11 @@
               <label>Delivery Retry Attempts</label>
               <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
             </div>
+            <div class="setting-group">
+              <label>Max Custom Emojis per Server</label>
+              <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
+              <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
+            </div>
             <div class="setting-row">
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.federation.enableOutbound" />
@@ -690,6 +847,17 @@
                 <span class="toggle-slider"></span>
                 Enable Inbound Federation
               </label>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h3>Trending & Discovery</h3>
+            <div class="setting-group">
+              <label>Trending Posts</label>
+              <button type="button" class="cyber-btn-sm" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
+                {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
+              </button>
+              <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
             </div>
           </div>
 
@@ -970,6 +1138,9 @@ import Avatar from '@/components/common/Avatar.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
+import { trendingService } from '@/services/TrendingService'
+import { announcementService, type Announcement } from '@/services/AnnouncementService'
+import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
 
 const authStore = useAuthStore()
@@ -1033,6 +1204,9 @@ const loadingStates = ref({
   keyConsistency: false,
   keySweep: false,
   orphanCleanup: false,
+  trendingRefresh: false,
+  announcements: false,
+  featuredServers: false,
 })
 
 // Key consistency state
@@ -1047,6 +1221,32 @@ const keyConsistency = ref<{
   }>;
   status: 'ok' | 'needs_attention';
 } | null>(null)
+
+// Announcements
+const announcements = ref<Announcement[]>([])
+const showAnnouncementForm = ref(false)
+const editingAnnouncementId = ref<string | null>(null)
+const announcementForm = ref({
+  title: '',
+  content: '',
+  icon: 'info',
+  image_url: '',
+  is_pinned: false,
+  show_popup: true,
+  is_active: true,
+})
+
+// Featured communities
+const featuredServersList = ref<Array<{
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  is_featured: boolean;
+  featured_order: number;
+  member_count?: number;
+}>>([])
+const featuredServerToggling = ref<Set<string>>(new Set())
 
 // User servers modal
 const showServersModal = ref(false)
@@ -1121,6 +1321,7 @@ const config = ref({
   federation: {
     maxPostLength: 500,
     retryAttempts: 3,
+    maxCustomEmojisPerServer: 0,
     enableOutbound: true,
     enableInbound: true
   },
@@ -1171,6 +1372,15 @@ const healthStatus = computed(() => {
   return { class: 'error', text: 'Critical Issues' }
 })
 
+// Filter recent activity by category and format JSON details for display
+const filteredRecentActivity = computed(() => {
+  let list = recentActivity.value
+  if (activityFilter.value !== 'all') {
+    list = list.filter(e => getActivityCategory(e.type) === activityFilter.value)
+  }
+  return list
+})
+
 const userFilters = computed(() => [
   { key: 'all', label: 'All Users', count: users.value.length },
   { key: 'local', label: 'Local', count: users.value.filter(u => u.is_local).length },
@@ -1206,7 +1416,7 @@ const filteredUsers = computed(() => {
     )
   }
 
-  return filtered.slice(0, 50) // Limit results
+  return filtered
 })
 
 // Watch for config changes
@@ -1224,6 +1434,8 @@ const loadInitialData = async () => {
       loadSystemHealth(),
       loadInstanceConfig(),
       loadRecentActivity(),
+      loadAnnouncements(),
+      loadFeaturedServers(),
       loadInstanceStats(),
       loadFederatedInstances(),
       loadFederationStats(),
@@ -1236,6 +1448,133 @@ const loadInitialData = async () => {
   }
 }
 
+const loadAnnouncements = async () => {
+  loadingStates.value.announcements = true
+  try {
+    announcements.value = await announcementService.getAllAnnouncements()
+  } catch (error) {
+    debug.error('Failed to load announcements:', error)
+    announcements.value = []
+  } finally {
+    loadingStates.value.announcements = false
+  }
+}
+
+const loadFeaturedServers = async () => {
+  loadingStates.value.featuredServers = true
+  try {
+    featuredServersList.value = await adminService.getPublicServersForAdmin()
+  } catch (error) {
+    debug.error('Failed to load featured servers:', error)
+    featuredServersList.value = []
+  } finally {
+    loadingStates.value.featuredServers = false
+  }
+}
+
+const toggleFeaturedServer = async (server: { id: string; name: string; is_featured: boolean; featured_order: number }) => {
+  if (featuredServerToggling.value.has(server.id)) return
+  featuredServerToggling.value = new Set([...featuredServerToggling.value, server.id])
+  try {
+    const newFeatured = !server.is_featured
+    const order = newFeatured
+      ? Math.max(0, ...featuredServersList.value.filter(s => s.is_featured).map(s => s.featured_order), -1) + 1
+      : 0
+    await adminService.setServerFeatured(server.id, newFeatured, order)
+    toast.success(newFeatured ? `Featured "${server.name}"` : `Removed "${server.name}" from featured`)
+    await loadFeaturedServers()
+    usePublicServersStore().fetchPublicServers(true)
+  } catch (error: any) {
+    debug.error('Failed to toggle featured:', error)
+    toast.error(error.message || 'Failed to update featured status')
+  } finally {
+    featuredServerToggling.value = new Set([...featuredServerToggling.value].filter(id => id !== server.id))
+  }
+}
+
+const getAnnouncementIcon = (icon: string | undefined) => {
+  if (!icon) return '📢'
+  const icons: Record<string, string> = {
+    info: 'ℹ️',
+    warning: '⚠️',
+    megaphone: '📢',
+  }
+  return icons[icon] || (icon.length <= 2 ? icon : '📢')
+}
+
+const saveAnnouncement = async () => {
+  if (!announcementForm.value.title || !announcementForm.value.content) return
+  try {
+    if (editingAnnouncementId.value) {
+      await announcementService.updateAnnouncement(editingAnnouncementId.value, {
+        title: announcementForm.value.title,
+        content: announcementForm.value.content,
+        icon: announcementForm.value.icon || 'info',
+        image_url: announcementForm.value.image_url || undefined,
+        is_pinned: announcementForm.value.is_pinned,
+        show_popup: announcementForm.value.show_popup,
+        is_active: announcementForm.value.is_active,
+      })
+      toast.success('Announcement updated')
+    } else {
+      await announcementService.createAnnouncement({
+        title: announcementForm.value.title,
+        content: announcementForm.value.content,
+        icon: announcementForm.value.icon || 'info',
+        image_url: announcementForm.value.image_url || undefined,
+        is_pinned: announcementForm.value.is_pinned,
+        show_popup: announcementForm.value.show_popup,
+      })
+      toast.success('Announcement created')
+    }
+    cancelAnnouncementForm()
+    await loadAnnouncements()
+  } catch (error: any) {
+    debug.error('Failed to save announcement:', error)
+    toast.error(error.message || 'Failed to save announcement')
+  }
+}
+
+const cancelAnnouncementForm = () => {
+  showAnnouncementForm.value = false
+  editingAnnouncementId.value = null
+  announcementForm.value = {
+    title: '',
+    content: '',
+    icon: 'info',
+    image_url: '',
+    is_pinned: false,
+    show_popup: true,
+    is_active: true,
+  }
+}
+
+const editAnnouncement = (a: Announcement) => {
+  editingAnnouncementId.value = a.id
+  announcementForm.value = {
+    title: a.title,
+    content: a.content,
+    icon: a.icon || 'info',
+    image_url: a.image_url || '',
+    is_pinned: a.is_pinned ?? false,
+    show_popup: a.show_popup ?? true,
+    is_active: (a as any).is_active ?? true,
+  }
+  showAnnouncementForm.value = true
+}
+
+const deleteAnnouncement = async (id: string) => {
+  if (!confirm('Delete this announcement?')) return
+  try {
+    await announcementService.deleteAnnouncement(id)
+    toast.success('Announcement deleted')
+    await loadAnnouncements()
+  } catch (error: any) {
+    debug.error('Failed to delete announcement:', error)
+    toast.error(error.message || 'Failed to delete')
+  }
+}
+
 const loadRecentActivity = async () => {
   try {
     const activity = await adminService.getRecentActivity(20)
@@ -1244,6 +1583,7 @@ const loadRecentActivity = async () => {
       id: event.id,
       type: event.action_type,
       message: event.details,
+      targetUsername: event.target_username,
       timestamp: new Date(event.created_at),
       source: `Admin: ${event.admin_username}`,
       admin_id: event.admin_id
@@ -1286,13 +1626,30 @@ const loadSystemStats = async () => {
   }
 }
 
+const userPagination = ref({ offset: 0, limit: 25, total: 0 })
+
 const loadUsers = async () => {
   try {
-    users.value = await adminService.getUsers(100)
+    const result = await adminService.getUsers(
+      userPagination.value.limit,
+      userPagination.value.offset
+    )
+    users.value = result.users
+    userPagination.value.total = result.total
   } catch (error) {
     debug.error('Failed to load users:', error)
     users.value = []
   }
+}
+
+const loadNextUsers = () => {
+  userPagination.value.offset += userPagination.value.limit
+  loadUsers()
+}
+
+const loadPreviousUsers = () => {
+  userPagination.value.offset = Math.max(0, userPagination.value.offset - userPagination.value.limit)
+  loadUsers()
 }
 
 const loadSystemHealth = async () => {
@@ -1312,21 +1669,32 @@ const loadSystemHealth = async () => {
 
 const loadInstanceConfig = async () => {
   try {
-    const config = await adminService.getInstanceConfig()
-    if (config?.instance) {
+    const cfg = await adminService.getInstanceConfig()
+    if (cfg) {
+      if (cfg.chat) {
+        config.value.chat = { ...config.value.chat, ...cfg.chat }
+      }
+      if (cfg.federation) {
+        config.value.federation = { ...config.value.federation, ...cfg.federation }
+      }
+      if (cfg.webrtc) {
+        config.value.webrtc = { ...config.value.webrtc, ...cfg.webrtc }
+      }
+    }
+    if (cfg?.instance) {
       instanceConfig.value = {
-        name: config.instance.name || 'Harmony Instance',
-        domain: config.instance.domain || import.meta.env.VITE_DOMAIN as string,
-        description: config.instance.description || 'A federated social platform',
-        termsUrl: config.instance.termsUrl || '',
-        privacyUrl: config.instance.privacyUrl || '',
-        openRegistration: config.instance.registrationOpen ?? true,
-        approvalRequired: config.instance.requiresApproval ?? false
+        name: cfg.instance.name || 'Harmony Instance',
+        domain: cfg.instance.domain || import.meta.env.VITE_DOMAIN as string,
+        description: cfg.instance.description || 'A federated social platform',
+        termsUrl: cfg.instance.termsUrl || '',
+        privacyUrl: cfg.instance.privacyUrl || '',
+        openRegistration: cfg.instance.registrationOpen ?? true,
+        approvalRequired: cfg.instance.requiresApproval ?? false
       }
       
       // Load OAuth providers
-      if (config.instance.oauthProviders) {
-        const providers = config.instance.oauthProviders
+      if (cfg.instance.oauthProviders) {
+        const providers = cfg.instance.oauthProviders
         if (Array.isArray(providers)) {
           // If it's an array like ["google", "github"]
           oauthProviders.value = {
@@ -1360,6 +1728,19 @@ const loadInstanceConfig = async () => {
 
 const refreshData = async () => {
   await loadInitialData()
+}
+
+const refreshTrendingPosts = async () => {
+  loadingStates.value.trendingRefresh = true
+  try {
+    await trendingService.updateTrendingScores()
+    toast.success('Trending posts refreshed')
+  } catch (error: any) {
+    debug.error('Failed to refresh trending:', error)
+    toast.error(error.message || 'Failed to refresh trending posts')
+  } finally {
+    loadingStates.value.trendingRefresh = false
+  }
 }
 
 const exportLogs = () => {
@@ -1557,6 +1938,7 @@ const saveConfig = async () => {
     // Save federation-specific settings
     await adminService.setInstanceConfig('max_post_length', config.value.federation.maxPostLength, userId)
     await adminService.setInstanceConfig('federation_retry_attempts', config.value.federation.retryAttempts, userId)
+    await adminService.setInstanceConfig('max_custom_emojis_per_server', config.value.federation.maxCustomEmojisPerServer ?? 0, userId)
 
     // Save WebRTC settings
     await adminService.updateWebRTCSettings({
@@ -1686,8 +2068,91 @@ const formatTime = (date: Date) => {
   return date.toLocaleTimeString()
 }
 
+const getActivityCategory = (type: string): string => {
+  if (!type) return 'other'
+  const t = type.toLowerCase()
+  if (t.startsWith('instance_') || t.includes('federation') || t.includes('add_instance')) return 'federation'
+  if (t.startsWith('user_') || t.includes('moderate') || t.includes('report') || t.includes('suspend')) return 'moderation'
+  if (t.includes('security') || t.includes('login') || t.includes('config')) return 'security'
+  return 'other'
+}
+
+const CONFIG_KEY_LABELS: Record<string, string> = {
+  instance_name: 'Instance name',
+  instance_description: 'Instance description',
+  terms_url: 'Terms URL',
+  privacy_url: 'Privacy URL',
+  max_post_length: 'Max post length',
+  max_server_size: 'Max server size',
+  max_message_length: 'Max message length',
+  max_custom_emojis_per_server: 'Max custom emojis per server',
+  allow_file_uploads: 'Allow file uploads',
+  enable_voice_channels: 'Enable voice channels',
+  federation_retry_attempts: 'Federation retry attempts',
+  oauth_providers: 'OAuth providers'
+}
+
+const formatConfigValue = (v: unknown): string => {
+  if (v == null || (typeof v === 'string' && v === '')) return '(empty)'
+  if (Array.isArray(v)) return v.join(', ')
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+const formatActivityMessage = (event: { type: string; message: string | object; targetUsername?: string }) => {
+  const raw = event.message
+  const targetUser = event.targetUsername
+  if (raw == null || raw === '') {
+    if (event.type?.startsWith('user_') && targetUser) {
+      const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : event.type
+      return `${verb} @${targetUser}`
+    }
+    return event.type || 'Event'
+  }
+  try {
+    const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (typeof obj !== 'object' || obj === null) return String(raw)
+
+    // Config change: key, new_value, old_value
+    if (obj.key != null && ('new_value' in obj || 'old_value' in obj)) {
+      const label = CONFIG_KEY_LABELS[obj.key] || obj.key.replace(/_/g, ' ')
+      const newVal = formatConfigValue(obj.new_value)
+      const oldVal = formatConfigValue(obj.old_value)
+      if (oldVal !== '(empty)' && newVal !== oldVal) {
+        return `${label}: ${newVal} (was ${oldVal})`
+      }
+      return `${label}: ${newVal}`
+    }
+
+    // User moderation with target
+    if ((event.type?.startsWith('user_') || obj.action === 'suspend' || obj.action === 'delete' || obj.action === 'unsuspend') && (targetUser || obj.user_id)) {
+      const who = targetUser ? `@${targetUser}` : (obj.user_id ? `user ${String(obj.user_id).slice(0, 8)}…` : '')
+      const reason = obj.reason ? ` — ${obj.reason}` : ''
+      const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : ''
+      return `${verb || 'Moderated'} ${who}${reason}`.trim()
+    }
+
+    // Build human-readable message from common keys
+    const parts: string[] = []
+    if (obj.domain) parts.push(obj.domain)
+    if (obj.reason) parts.push(`— ${obj.reason}`)
+    if (obj.action) parts.push(`(${obj.action})`)
+    if (obj.user_id && !targetUser) parts.push(`user: ${obj.user_id}`)
+    if (targetUser) parts.unshift(`@${targetUser}`)
+    if (parts.length) return parts.join(' ')
+
+    // Fallback: format key-value pairs
+    return Object.entries(obj)
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join(', ')
+  } catch {
+    return typeof raw === 'string' ? raw : String(raw)
+  }
+}
+
 const getActivityIcon = (type: string) => {
-  switch (type) {
+  const cat = getActivityCategory(type)
+  switch (cat) {
     case 'federation': return 'federation'
     case 'security': return 'shield'
     case 'moderation': return 'gavel'
@@ -2322,7 +2787,7 @@ const handleAddInstance = () => {
   background: var(--accent-color);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -2734,7 +3199,7 @@ const handleAddInstance = () => {
 
 .tab-btn.active {
   background: var(--accent-color);
-  color: white;
+  color: var(--text-primary);
 }
 
 .discovery-content {
@@ -2879,7 +3344,7 @@ const handleAddInstance = () => {
 .filter-btn:hover, .filter-btn.active {
   background: var(--accent-color);
   border-color: var(--accent-color);
-  color: white;
+  color: var(--text-primary);
 }
 
 .search-bar {
@@ -3155,6 +3620,96 @@ const handleAddInstance = () => {
   color: #ff453a;
 }
 
+.activity-icon.other {
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--text-secondary);
+}
+
+/* Announcements module */
+.module-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 16px 24px;
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
+}
+.announcement-form {
+  margin: 0 24px 20px;
+  padding: 20px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+.announcement-form h4 { margin: 0 0 16px 0; }
+.announcement-form .form-row { margin-bottom: 12px; }
+.announcement-form .form-row label { display: block; font-size: 13px; margin-bottom: 4px; color: var(--text-secondary); }
+.announcement-form .form-row.checks { display: flex; gap: 16px; flex-wrap: wrap; }
+.announcement-form .form-actions { display: flex; gap: 8px; margin-top: 16px; }
+.announcements-list { padding: 0 24px 24px; }
+.announcement-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+}
+.announcement-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.announcement-icon { font-size: 18px; }
+.announcement-title { font-weight: 600; color: var(--text-primary); }
+.announcement-item .badge.inactive { background: var(--background-quaternary); color: var(--text-muted); }
+.announcement-actions { display: flex; gap: 4px; }
+
+/* Featured Communities Module */
+.featured-module .module-hint { margin: 0 24px 16px; font-size: 13px; color: var(--text-secondary); }
+.featured-servers-list { display: flex; flex-direction: column; gap: 8px; padding: 0 24px 24px; }
+.featured-server-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+.featured-server-item:hover { border-color: var(--accent-color); }
+.featured-server-item.featured {
+  border-color: rgba(255, 193, 7, 0.5);
+  background: rgba(255, 193, 7, 0.05);
+}
+.server-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+.server-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.featured-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  color: var(--accent-color);
+  background: var(--background-secondary);
+  border-radius: 50%;
+  padding: 2px;
+}
+.server-details { flex: 1; min-width: 0; }
+.server-details .server-name { font-weight: 600; color: var(--text-primary); }
+.server-details .server-meta { font-size: 13px; color: var(--text-secondary); }
+.featured-order { margin-left: 8px; opacity: 0.8; }
+.featured-server-item .action-btn-sm.pin-btn { color: var(--accent-color); }
+.featured-server-item .action-btn-sm.unpin-btn { color: var(--text-secondary); }
+.featured-server-item .action-btn-sm { display: flex; align-items: center; gap: 6px; }
+
 .activity-content {
   flex: 1;
 }
@@ -3215,7 +3770,7 @@ const handleAddInstance = () => {
   background: var(--accent-color);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;

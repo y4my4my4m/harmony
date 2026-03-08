@@ -61,6 +61,7 @@ export interface AdminActivity {
   action_type: string;
   target_type: string;
   target_id?: string;
+  target_username?: string;
   details: string;
   metadata?: any;
   ip_address?: string;
@@ -283,10 +284,14 @@ class AdminService {
   }
 
   /**
-   * Get users with admin-relevant information
+   * Get users with admin-relevant information (paginated)
    */
-  async getUsers(limit: number = 100): Promise<AdminUser[]> {
+  async getUsers(limit: number = 25, offset: number = 0): Promise<{ users: AdminUser[]; total: number }> {
     try {
+      const { count: total } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -306,42 +311,45 @@ class AdminService {
           federated_id
         `)
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .range(offset, offset + limit - 1);
 
       if (error) throw error;
 
-      // Transform data to include post and server counts
-      const usersWithCounts = await Promise.all(
-        (data || []).map(async (user) => {
-          // Get user's post count
-          const { count: postCount } = await supabase
-            .from('posts')
-            .select('*', { count: 'exact', head: true })
-            .eq('author_id', user.id);
+      const users = data || [];
+      if (users.length === 0) {
+        return { users: [], total: total || 0 };
+      }
 
-          // Get user's server count (for local users)
-          let serverCount = 0;
-          if (user.is_local) {
-            const { count } = await supabase
-              .from('user_servers')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id);
-            serverCount = count || 0;
-          }
+      // Batch-fetch post and server counts (avoids N+1)
+      const userIds = users.map((u) => u.id);
+      const { data: countRows, error: countsError } = await supabase.rpc('get_admin_user_counts', {
+        p_user_ids: userIds
+      });
 
-          return {
-            ...user,
-            ap_actor_id: undefined, // Not available in current schema
-            postCount: postCount || 0,
-            serverCount,
-            handle: !user.is_local
-              ? `@${user.username}@${user.domain}` 
-              : `@${user.username}`
-          };
-        })
-      );
+      const countMap = new Map<string, { postCount: number; serverCount: number }>();
+      if (!countsError && countRows) {
+        for (const row of countRows as { user_id: string; post_count: string; server_count: string }[]) {
+          countMap.set(row.user_id, {
+            postCount: Number(row.post_count) || 0,
+            serverCount: Number(row.server_count) || 0
+          });
+        }
+      }
 
-      return usersWithCounts;
+      const usersWithCounts = users.map((user) => {
+        const counts = countMap.get(user.id) ?? { postCount: 0, serverCount: 0 };
+        return {
+          ...user,
+          ap_actor_id: undefined, // Not available in current schema
+          postCount: counts.postCount,
+          serverCount: user.is_local ? counts.serverCount : 0,
+          handle: !user.is_local
+            ? `@${user.username}@${user.domain}`
+            : `@${user.username}`
+        };
+      });
+
+      return { users: usersWithCounts, total: total || 0 };
     } catch (error) {
       debug.error('Failed to get users:', error);
       throw error;
@@ -349,32 +357,90 @@ class AdminService {
   }
 
   /**
-   * Get recent admin activity
+   * Get recent admin activity from audit log
    */
   async getRecentActivity(limit: number = 20): Promise<AdminActivity[]> {
     try {
-      // For now, simulate recent activity from various system events
-      // In a real system, this would come from an admin_logs table
-      const mockActivity: AdminActivity[] = [
-        {
-          id: '1',
-          admin_id: 'admin-1',
-          admin_username: 'admin',
-          action_type: 'user_moderation',
-          target_type: 'user',
-          target_id: undefined,
-          details: 'System initialized',
-          metadata: {},
-          ip_address: '127.0.0.1',
-          user_agent: 'Harmony Admin Panel',
-          created_at: new Date().toISOString()
-        }
-      ];
+      const { data, error } = await supabase
+        .from('admin_audit_log')
+        .select(`
+          *,
+          admin:profiles!admin_id(username, display_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-      return mockActivity.slice(0, limit);
+      if (error) {
+        debug.warn('admin_audit_log query failed, falling back to empty:', error);
+        return [];
+      }
+
+      const entries = (data || []).map((entry: any) => ({
+        id: entry.id,
+        admin_id: entry.admin_id,
+        admin_username: entry.admin?.username || 'Unknown',
+        action_type: entry.action_type || 'unknown',
+        target_type: entry.target_type || 'system',
+        target_id: entry.target_id,
+        details: entry.action_details ? (typeof entry.action_details === 'string' ? entry.action_details : JSON.stringify(entry.action_details)) : '',
+        metadata: entry.action_details || {},
+        ip_address: entry.ip_address,
+        user_agent: entry.user_agent || '',
+        created_at: entry.created_at
+      }));
+
+      // Resolve target usernames for user moderation actions
+      const userTargetIds = entries
+        .filter((e: AdminActivity) => e.target_type === 'user' && e.target_id)
+        .map((e: AdminActivity) => e.target_id!)
+        .filter((id, i, arr) => arr.indexOf(id) === i);
+
+      if (userTargetIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', userTargetIds);
+
+        const idToUsername = new Map((profiles || []).map((p: { id: string; username: string }) => [p.id, p.username || 'unknown']));
+
+        for (const entry of entries) {
+          if (entry.target_type === 'user' && entry.target_id) {
+            entry.target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}…`;
+          }
+        }
+      }
+
+      return entries;
     } catch (error) {
       debug.error('Failed to get recent activity:', error);
       return [];
+    }
+  }
+
+  /**
+   * Log an admin action to the audit log
+   */
+  async logAdminAction(params: {
+    action: string;
+    targetType: string;
+    targetId?: string;
+    details?: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from('admin_audit_log')
+        .insert({
+          admin_id: user.id,
+          action_type: params.action,
+          target_type: params.targetType,
+          target_id: params.targetId,
+          action_details: params.details || {}
+        });
+    } catch (error) {
+      debug.error('Failed to log admin action:', error);
     }
   }
 
@@ -418,6 +484,13 @@ class AdminService {
       }
 
       debug.log(`User ${userId} ${action}ed successfully by admin ${adminId}`);
+
+      await this.logAdminAction({
+        action: `user_${action}`,
+        targetType: 'user',
+        targetId: userId,
+        details: { reason, action }
+      });
     } catch (error) {
       debug.error('Failed to moderate user:', error);
       throw error;
@@ -542,11 +615,21 @@ class AdminService {
       let termsUrl = ''
       let privacyUrl = ''
 
+      let maxServerSize = 1000
+      let maxMessageLength = 2000
+      let allowFileUploads = true
+      let enableVoiceChannels = true
+      let maxPostLength = 500
+      let retryAttempts = 3
+      let maxCustomEmojisPerServer = 0
+      let enableOutbound = true
+      let enableInbound = true
+
       try {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -599,6 +682,27 @@ class AdminService {
                 case 'privacy_url':
                   privacyUrl = (typeof value === 'string' ? value : String(value)) || ''
                   break
+                case 'max_server_size':
+                  maxServerSize = typeof value === 'number' ? value : parseInt(String(value), 10) || 1000
+                  break
+                case 'max_message_length':
+                  maxMessageLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 2000
+                  break
+                case 'allow_file_uploads':
+                  allowFileUploads = value === true || value === 'true'
+                  break
+                case 'enable_voice_channels':
+                  enableVoiceChannels = value === true || value === 'true'
+                  break
+                case 'max_post_length':
+                  maxPostLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 500
+                  break
+                case 'federation_retry_attempts':
+                  retryAttempts = typeof value === 'number' ? value : parseInt(String(value), 10) || 3
+                  break
+                case 'max_custom_emojis_per_server':
+                  maxCustomEmojisPerServer = typeof value === 'number' ? value : parseInt(String(value), 10) || 0
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -611,16 +715,17 @@ class AdminService {
       
       return {
         chat: {
-          maxServerSize: 1000,
-          maxMessageLength: 2000,
-          allowFileUploads: true,
-          enableVoiceChannels: true
+          maxServerSize,
+          maxMessageLength,
+          allowFileUploads,
+          enableVoiceChannels
         },
         federation: {
-          maxPostLength: 500,
-          retryAttempts: 3,
-          enableOutbound: true,
-          enableInbound: true
+          maxPostLength,
+          retryAttempts,
+          maxCustomEmojisPerServer,
+          enableOutbound,
+          enableInbound
         },
         webrtc: webrtcSettings,
         instance: {
@@ -943,8 +1048,19 @@ class AdminService {
    */
   async addInstanceFromDomain(domain: string, trusted: boolean, adminId: string): Promise<void> {
     try {
-      // First try to discover instance info
-      const instanceInfo = await this.discoverInstance(domain);
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+
+      const { data: existing } = await supabase
+        .from('federated_instances')
+        .select('id')
+        .eq('domain', cleanDomain)
+        .maybeSingle();
+
+      if (existing) {
+        throw new Error(`Instance "${cleanDomain}" is already added`);
+      }
+
+      const instanceInfo = await this.discoverInstance(cleanDomain);
       
       const { error } = await supabase
         .from('federated_instances')
@@ -1508,9 +1624,16 @@ class AdminService {
 
   /**
    * Get instances from user interactions (follows, posts, etc.)
+   * Excludes instances already in federated_instances (approved/known).
    */
   async getDiscoveredInstances(limit: number = 20): Promise<{ domain: string; user_count: number; interaction_count: number }[]> {
     try {
+      // Get domains already in federated_instances (approved/known) to exclude
+      const { data: knownData } = await supabase
+        .from('federated_instances')
+        .select('domain');
+      const knownDomains = new Set((knownData || []).map((r: { domain: string }) => r.domain?.toLowerCase()).filter(Boolean));
+
       // Get instances that users have interacted with
       const { data, error } = await supabase
         .from('profiles')
@@ -1520,12 +1643,15 @@ class AdminService {
         
       if (error) throw error;
 
-      // Count instances and interactions
+      // Count instances and interactions, excluding already-known
       const instanceCounts = new Map<string, number>();
       
       data?.forEach(profile => {
         if (profile.domain) {
-          instanceCounts.set(profile.domain, (instanceCounts.get(profile.domain) || 0) + 1);
+          const domain = profile.domain.toLowerCase();
+          if (!knownDomains.has(domain)) {
+            instanceCounts.set(domain, (instanceCounts.get(domain) || 0) + 1);
+          }
         }
       });
 
@@ -1627,35 +1753,103 @@ class AdminService {
 
       if (error) throw error;
 
-      // Get member counts for each server
-      const serversWithCounts = await Promise.all(
-        (data || []).map(async (membership: any) => {
-          const server = membership.servers;
-          if (!server) return null;
+      const memberships = (data || []) as Array<{ created_at: string; server_id: string; servers: { id: string; name: string; icon: string | null; owner: string } | null }>;
+      const servers = memberships.map((m) => m.servers).filter(Boolean) as Array<{ id: string; name: string; icon: string | null; owner: string }>;
+      if (servers.length === 0) return [];
 
-          // Get member count
-          const { count } = await supabase
-            .from('user_servers')
-            .select('*', { count: 'exact', head: true })
-            .eq('server_id', server.id);
+      // Batch-fetch member counts (avoids N+1)
+      const serverIds = servers.map((s) => s.id);
+      const { data: countRows } = await supabase.rpc('get_server_member_counts', {
+        p_server_ids: serverIds
+      });
+      const countMap = new Map<string, number>();
+      if (countRows) {
+        for (const row of countRows as { server_id: string; member_count: string }[]) {
+          countMap.set(row.server_id, Number(row.member_count) || 0);
+        }
+      }
 
+      return memberships
+        .filter((m) => m.servers)
+        .map((membership) => {
+          const server = membership.servers!;
           return {
             id: server.id,
             name: server.name,
-            icon_url: server.icon, // servers table uses 'icon' not 'icon_url'
-            member_count: count || 0,
-            owner_id: server.owner, // servers table uses 'owner' not 'owner_id'
+            icon_url: server.icon,
+            member_count: countMap.get(server.id) ?? 0,
+            owner_id: server.owner,
             is_owner: server.owner === userId,
-            joined_at: membership.created_at // user_servers uses 'created_at' not 'joined_at'
+            joined_at: membership.created_at
           };
-        })
-      );
-
-      return serversWithCounts.filter(Boolean) as any[];
+        });
     } catch (error) {
       debug.error('Failed to get user servers:', error);
       return [];
     }
+  }
+
+  /**
+   * Get public servers for admin (featured communities management)
+   */
+  async getPublicServersForAdmin(): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    is_featured: boolean;
+    featured_order: number;
+    member_count?: number;
+  }>> {
+    try {
+      const { data: servers, error } = await supabase
+        .from('servers')
+        .select('id, name, description, icon, is_featured, featured_order')
+        .eq('public', true)
+        .neq('is_local_server', false)
+        .order('is_featured', { ascending: false })
+        .order('featured_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const list = servers || [];
+      if (list.length === 0) return [];
+
+      // Batch-fetch member counts (avoids N+1)
+      const serverIds = list.map((s) => s.id);
+      const { data: countRows } = await supabase.rpc('get_server_member_counts', {
+        p_server_ids: serverIds
+      });
+      const countMap = new Map<string, number>();
+      if (countRows) {
+        for (const row of countRows as { server_id: string; member_count: string }[]) {
+          countMap.set(row.server_id, Number(row.member_count) || 0);
+        }
+      }
+
+      return list.map((s) => ({ ...s, member_count: countMap.get(s.id) ?? 0 }));
+    } catch (error) {
+      debug.error('Failed to get public servers for admin:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Set server featured status (instance admin only)
+   */
+  async setServerFeatured(
+    serverId: string,
+    isFeatured: boolean,
+    order = 0
+  ): Promise<void> {
+    const { error } = await supabase.rpc('set_server_featured', {
+      p_server_id: serverId,
+      p_is_featured: isFeatured,
+      p_order: order,
+    });
+    if (error) throw error;
   }
 
   // ============================================================================

@@ -326,7 +326,7 @@ onUnmounted(() => {
 
 .pip-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .pip-video-container {

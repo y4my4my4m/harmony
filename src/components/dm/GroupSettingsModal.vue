@@ -502,7 +502,7 @@ async function deleteGroup() {
 
 .upload-btn {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .upload-btn:hover:not(:disabled) {
@@ -623,7 +623,7 @@ async function deleteGroup() {
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);

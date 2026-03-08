@@ -131,7 +131,7 @@ const logStats = () => {
   border-radius: 8px;
   padding: 16px;
   margin: 16px;
-  color: #fff;
+  color: var(--text-primary);
   font-family: monospace;
   max-width: 500px;
 }
@@ -201,7 +201,7 @@ const logStats = () => {
 .debug-button {
   background: #333;
   border: 1px solid #555;
-  color: #fff;
+  color: var(--text-primary);
   padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;

@@ -360,7 +360,7 @@ onMounted(async () => {
 
 .toggle-btn.active {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .count {
@@ -374,7 +374,7 @@ onMounted(async () => {
 
 .toggle-btn.active .count {
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: var(--text-primary);
 }
 
 .loading-state,
@@ -423,7 +423,7 @@ onMounted(async () => {
   gap: 8px;
   padding: 12px 24px;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   text-decoration: none;
   border-radius: 8px;
   font-weight: 600;

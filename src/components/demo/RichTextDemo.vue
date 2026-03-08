@@ -128,7 +128,7 @@ watch(testText, (newValue) => {
 
 .demo-section h3 {
   margin-top: 0;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .text-output, .parsed-output, .highlighted-output {
@@ -154,7 +154,7 @@ watch(testText, (newValue) => {
   border: 1px solid #40444b;
   border-radius: 4px;
   background: #40444b;
-  color: #ffffff;
+  color: var(--text-primary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   resize: vertical;
 }
@@ -199,19 +199,19 @@ watch(testText, (newValue) => {
 
 .node-bold .node-content {
   font-weight: bold;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .node-italic .node-content {
   font-style: italic;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .node-code .node-content {
   background: rgba(79, 84, 92, 0.32);
   padding: 2px 4px;
   border-radius: 3px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .node-codeblock .node-content {
@@ -235,7 +235,7 @@ select {
   border: 1px solid #40444b;
   border-radius: 4px;
   background: #40444b;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Syntax highlighting classes */
@@ -270,7 +270,7 @@ select {
 }
 
 .syntax-variable {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .syntax-text {

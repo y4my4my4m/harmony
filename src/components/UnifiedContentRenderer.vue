@@ -70,9 +70,10 @@
             class="emoji-icon"
             :class="{ 'single': renderer.isSingleEmoji.value }"
             :src="getEmojiDisplayUrl(part.emoji)"
-            :alt="part.emoji?.name"
+            :alt="`:${part.emoji?.name || '?'}:`"
             :title="`:${part.emoji?.name}:`"
             draggable="false"
+            @error="(e) => handleEmojiError(e)"
           />
         </template>
         
@@ -310,6 +311,18 @@ const handleImageLoad = (url: string) => {
 
 const handleImageClick = (url: string) => {
   emit('image-click', url);
+};
+
+const handleEmojiError = (e: Event) => {
+  const img = e.target as HTMLImageElement;
+  if (!img) return;
+  img.onerror = null;
+  img.style.display = 'none';
+  const fallback = document.createElement('span');
+  fallback.className = 'emoji-icon emoji-fallback';
+  fallback.textContent = '?';
+  fallback.title = img.alt || '?';
+  img.parentNode?.insertBefore(fallback, img);
 };
 
 const handleLinkClick = (url: string, event: Event) => {
@@ -588,7 +601,7 @@ const formatFileSize = (bytes: number): string => {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
-  color: #fff;
+  color: var(--text-primary);
 
 }
 
@@ -600,6 +613,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* Emojis */
 .emoji-icon,
+.emoji-fallback,
 .inline-emoji {
   width: auto;
   max-width: 120px;
@@ -648,6 +662,13 @@ const formatFileSize = (bytes: number): string => {
   vertical-align: middle;
   margin: 0 1px;
   object-fit: contain;
+}
+
+.emoji-fallback {
+  display: inline;
+  font-size: 1em;
+  vertical-align: middle;
+  color: var(--text-secondary, #888);
 }
 
 .content-html :deep(.emoji-icon.single) {
@@ -779,7 +800,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .file-link:hover {
-  color: #ffffff;
+  color: var(--text-primary);
   text-decoration: underline;
 }
 
@@ -817,7 +838,7 @@ const formatFileSize = (bytes: number): string => {
 .content-html :deep(strong),
 :deep(strong) {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .content-html :deep(em),

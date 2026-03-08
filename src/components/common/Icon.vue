@@ -345,6 +345,10 @@
     <!-- Shield -->
     <path v-if="name === 'shield'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
 
+    <!-- Shield-off (shield with slash) -->
+    <path v-if="name === 'shield-off'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+    <line v-if="name === 'shield-off'" x1="4" y1="4" x2="20" y2="20"></line>
+
     <!-- Gavel -->
     <path v-if="name === 'gavel'" d="M6.2 5L3 1.8 4.8 0 8 3.2l1.4 1.4L6.2 8 5 9.2z"></path>
     <path v-if="name === 'gavel'" d="M14.8 19L18 22.2 16.2 24 13 20.8l-1.4-1.4 3.2-3.2 1 -1.2z"></path>
@@ -737,6 +741,9 @@
 
     <!-- Zap -->
     <path v-if="name === 'zap'" d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"></path>
+
+    <!-- Star -->
+    <polygon v-if="name === 'star'" points="12 2 15.09 8.26 22 9.17 16.18 13.14 17.82 21.02 12 17.77 6.18 21.02 7.82 13.14 2 9.17 8.91 8.26 12 2"/>
 
     <!-- Log-in -->
     <path v-if="name === 'log-in'" d="m10 17 5-5-5-5"/>

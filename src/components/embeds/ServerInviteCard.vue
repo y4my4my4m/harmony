@@ -303,7 +303,7 @@ watch(() => props.inviteCode, () => {
   justify-content: center;
   font-size: 24px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -317,7 +317,7 @@ watch(() => props.inviteCode, () => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -375,7 +375,7 @@ watch(() => props.inviteCode, () => {
 .join-button {
   padding: 10px 20px;
   background: linear-gradient(135deg, #3ba55c 0%, #2d8049 100%);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   font-size: 14px;

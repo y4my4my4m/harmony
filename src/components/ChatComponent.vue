@@ -838,7 +838,7 @@
     transition: 0.2s ease-in-out;
     font-size: 48px; 
     font-weight: bold;
-    color: white;
+    color: var(--text-primary);
   }
   .encryption-status-bar {
     display: flex;

@@ -142,6 +142,7 @@
               :permissions="permissions"
             />
             <ServerEncryptionSettings
+              ref="encryptionSettingsRef"
               :server-id="serverId"
               v-if="permissions.canChangePrivacySettings"
             />
@@ -231,6 +232,7 @@ const server = ref<Server>({
 })
 
 const originalServer = ref<Server | null>(null)
+const encryptionSettingsRef = ref<InstanceType<typeof ServerEncryptionSettings> | null>(null)
 
 const currentSectionLabel = computed(() => {
   const section = availableSections.value.find(s => s.id === activeSection.value)
@@ -260,9 +262,8 @@ const availableSections = computed(() => {
   return sections
 })
 
-const hasChanges = computed(() => {
-  if (!originalServer.value || !permissions.value.canSaveChanges) return false
-  
+const generalHasChanges = computed(() => {
+  if (!originalServer.value) return false
   return (
     server.value.name !== originalServer.value.name ||
     server.value.description !== originalServer.value.description ||
@@ -272,6 +273,12 @@ const hasChanges = computed(() => {
     server.value.federation_enabled !== originalServer.value.federation_enabled ||
     selectedFile.value !== null
   )
+})
+
+const hasChanges = computed(() => {
+  if (!permissions.value.canSaveChanges) return false
+  const encryptionChanged = encryptionSettingsRef.value?.hasChanges ?? false
+  return generalHasChanges.value || encryptionChanged
 })
 
 // Methods
@@ -368,16 +375,23 @@ const handleSave = async () => {
 
   try {
     loading.value = true
-    const success = await serverStore.updateServer(server.value, selectedFile.value || undefined)
-    
-    if (success) {
-      originalServer.value = { ...server.value }
-      selectedFile.value = null
-      toast.success(t('server.serverUpdatedSuccess'))
-      back()
-    } else {
-      throw new Error('Update failed')
+
+    if (generalHasChanges.value) {
+      const success = await serverStore.updateServer(server.value, selectedFile.value || undefined)
+      if (success) {
+        originalServer.value = { ...server.value }
+        selectedFile.value = null
+      } else {
+        throw new Error('Update failed')
+      }
     }
+
+    if (encryptionSettingsRef.value?.hasChanges) {
+      await encryptionSettingsRef.value.saveSettings()
+    }
+
+    toast.success(t('server.serverUpdatedSuccess'))
+    back()
   } catch (error) {
     debug.error('Error updating server:', error)
     toast.error(t('server.failedToUpdateServer'))
@@ -434,7 +448,7 @@ watch(hasChanges, (newValue) => {
   flex-direction: column;
   height: 100vh;
   background-color: var(--h-chat-dark);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Mobile Navigation */
@@ -495,7 +509,7 @@ watch(hasChanges, (newValue) => {
 .mobile-title {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
   text-align: center;
   flex: 1;
@@ -516,7 +530,7 @@ watch(hasChanges, (newValue) => {
 
 .mobile-back-btn:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Desktop Header */
@@ -546,14 +560,14 @@ watch(hasChanges, (newValue) => {
 
 .back-button:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-settings-title {
   font-size: 20px;
   font-weight: 600;
   margin: 0;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-settings-actions {
@@ -582,7 +596,7 @@ watch(hasChanges, (newValue) => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -597,7 +611,7 @@ watch(hasChanges, (newValue) => {
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-mobile {
@@ -654,12 +668,12 @@ watch(hasChanges, (newValue) => {
 
 .nav-item:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .nav-item.active {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
   border-left-color: #5865f2;
 }
 

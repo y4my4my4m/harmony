@@ -394,7 +394,7 @@ async function restoreEncryption() {
 .tab-btn.active {
   background: var(--primary, #5865f2);
   border-color: var(--primary, #5865f2);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Tab Content */
@@ -623,7 +623,7 @@ async function restoreEncryption() {
 
 .btn-primary {
   background: var(--primary, #5865f2);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -649,7 +649,7 @@ async function restoreEncryption() {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

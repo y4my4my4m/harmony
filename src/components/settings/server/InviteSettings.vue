@@ -182,29 +182,7 @@
       </div>
     </div>
 
-    <!-- Save/Reset Actions -->
-    <div class="settings-actions">
-      <button 
-        @click="resetSettings" 
-        class="action-button secondary"
-        :disabled="!hasUnsavedChanges"
-      >
-        Reset Changes
-      </button>
-      <button 
-        @click="saveSettings" 
-        class="action-button primary"
-        :disabled="isSaving || !hasUnsavedChanges"
-      >
-        <svg v-if="isSaving" viewBox="0 0 24 24" class="button-icon spinning">
-          <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" fill="currentColor"/>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" class="button-icon">
-          <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" fill="currentColor"/>
-        </svg>
-        {{ isSaving ? 'Saving...' : 'Save Changes' }}
-      </button>
-    </div>
+    <!-- Save actions handled by parent ServerSettings save button -->
 
     <!-- Success/Error Messages -->
     <div v-if="saveMessage" class="save-message" :class="saveMessage.type">
@@ -338,6 +316,13 @@ const resetSettings = () => {
   saveMessage.value = null
 }
 
+// Expose for parent component
+defineExpose({
+  hasChanges: hasUnsavedChanges,
+  saveSettings,
+  resetSettings
+})
+
 // Lifecycle
 onMounted(() => {
   loadSettings()
@@ -365,7 +350,7 @@ watch(() => props.serverId, () => {
 .settings-title {
   font-size: 28px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -391,7 +376,7 @@ watch(() => props.serverId, () => {
 .setting-title {
   font-size: 18px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -446,7 +431,7 @@ watch(() => props.serverId, () => {
 .radio-title {
   font-size: 16px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .radio-badge {
@@ -484,7 +469,7 @@ watch(() => props.serverId, () => {
 .subsetting-title {
   font-size: 14px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 12px;
 }
 
@@ -530,7 +515,7 @@ watch(() => props.serverId, () => {
 .role-name {
   font-size: 14px;
   font-weight: 500;
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .role-member-count {
@@ -554,7 +539,7 @@ watch(() => props.serverId, () => {
 .setting-label {
   font-size: 14px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .setting-select {
@@ -562,7 +547,7 @@ watch(() => props.serverId, () => {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -672,12 +657,12 @@ watch(() => props.serverId, () => {
 
 .action-button.secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .action-button.primary {
   background: linear-gradient(135deg, #5865f2, #4752c4);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .action-button.primary:hover:not(:disabled) {

@@ -222,7 +222,7 @@ onMounted(async () => {
 }
 
 .banner-icon svg {
-  color: white;
+  color: var(--text-primary);
 }
 
 .banner-text {
@@ -234,7 +234,7 @@ onMounted(async () => {
   margin: 0 0 4px 0;
   font-size: 16px;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .banner-text p {
@@ -277,7 +277,7 @@ onMounted(async () => {
 
 .banner-btn.secondary {
   background: rgba(255, 255, 255, 0.15);
-  color: white;
+  color: var(--text-primary);
 }
 
 .banner-btn.secondary:hover {
@@ -303,7 +303,7 @@ onMounted(async () => {
 
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Mobile adjustments */

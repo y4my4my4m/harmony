@@ -431,14 +431,15 @@ COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs';
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    
+
     admin_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    action text NOT NULL,
+    action_type text NOT NULL,
     target_type text,
-    target_id uuid,
-    
-    details jsonb DEFAULT '{}'::jsonb,
-    ip_address inet
+    target_id text,
+
+    action_details jsonb DEFAULT '{}'::jsonb,
+    ip_address inet,
+    user_agent text
 );
 
 CREATE INDEX IF NOT EXISTS idx_admin_audit_log_admin ON public.admin_audit_log(admin_id);

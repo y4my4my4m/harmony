@@ -495,7 +495,7 @@ onUnmounted(() => {
 
 .category-button.active {
   background: var(--color-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .category-button svg {

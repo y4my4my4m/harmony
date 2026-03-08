@@ -326,7 +326,7 @@ const handleOwnerClick = (event: Event) => {
 .server-card__name {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
   line-height: 1.3;
   display: -webkit-box;
@@ -429,7 +429,7 @@ const handleOwnerClick = (event: Event) => {
 
 .btn--primary {
   background: linear-gradient(135deg, #5865f2, #4752c4);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn--primary:hover:not(:disabled) {
@@ -440,7 +440,7 @@ const handleOwnerClick = (event: Event) => {
 
 .btn--danger {
   background: linear-gradient(135deg, #ed4245, #c73e41);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn--danger:hover:not(:disabled) {

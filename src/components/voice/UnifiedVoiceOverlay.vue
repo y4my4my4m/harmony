@@ -817,14 +817,14 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   font-size: 18px;
 }
 
 .channel-name {
   font-size: 20px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -865,13 +865,13 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 .layout-btn:hover,
 .minimize-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
 .layout-btn.active {
   background: linear-gradient(145deg, #5865f2, #4752c4);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(88, 101, 242, 0.6);
 }
 
@@ -882,7 +882,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .spatial-btn.spatial-enabled {
   background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(0, 212, 170, 0.6);
   box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
 }
@@ -915,7 +915,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .close-btn:hover {
   background: #ed4245;
-  color: white;
+  color: var(--text-primary);
   border-color: #ed4245;
 }
 
@@ -1086,21 +1086,21 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .control-button:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.4);
   transform: scale(1.05);
 }
 
 .control-button.active {
   background: linear-gradient(145deg, #00d4aa, #00b894);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(0, 212, 170, 0.6);
   box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
 }
 
 .control-button.muted {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(237, 66, 69, 0.6);
   box-shadow: 0 4px 16px rgba(237, 66, 69, 0.3);
 }
@@ -1112,7 +1112,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .control-button.ptt-active {
   background: linear-gradient(145deg, #00d4aa, #00b894) !important;
-  color: white !important;
+  color: var(--text-primary) !important;
   border-color: rgba(0, 212, 170, 0.6) !important;
   box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4), 0 0 20px rgba(0, 212, 170, 0.3) !important;
   animation: ptt-transmit 0.5s ease-in-out infinite;
@@ -1143,19 +1143,19 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .ptt-badge.active {
   background: #00d4aa;
-  color: white;
+  color: var(--text-primary);
 }
 
 .control-button.deafened {
   background: linear-gradient(145deg, #faa61a, #e67e22);
-  color: white;
+  color: var(--text-primary);
   border-color: rgba(250, 166, 26, 0.6);
   box-shadow: 0 4px 16px rgba(250, 166, 26, 0.3);
 }
 
 .leave-button {
   background: linear-gradient(145deg, #ed4245, #c73e1d);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 25px;
   padding: 12px 24px;
@@ -1314,7 +1314,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .thumbnail-collapse-btn:hover {
   background: rgba(0, 0, 0, 0.7);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Compact thumbnail strip at bottom - Discord style */

@@ -698,7 +698,7 @@ export default defineComponent({
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -713,7 +713,7 @@ export default defineComponent({
 
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .settings-content {
@@ -736,7 +736,7 @@ export default defineComponent({
   gap: 12px;
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 20px 0;
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -862,7 +862,7 @@ export default defineComponent({
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: white;
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: bold;
 }
@@ -894,7 +894,7 @@ export default defineComponent({
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
-  color: white;
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1037,7 +1037,7 @@ kbd {
   border: none;
   border-radius: 8px;
   padding: 8px 20px;
-  color: white;
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;

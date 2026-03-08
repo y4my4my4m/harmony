@@ -534,7 +534,7 @@ watch(() => props.show, async (newValue) => {
 .section-title {
   font-size: 18px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -595,7 +595,7 @@ watch(() => props.show, async (newValue) => {
   justify-content: center;
   font-size: 20px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-info {
@@ -606,7 +606,7 @@ watch(() => props.show, async (newValue) => {
 .server-name {
   font-size: 16px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -633,7 +633,7 @@ watch(() => props.show, async (newValue) => {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 12px 16px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-size: 14px;
   font-family: 'Fira Code', monospace;
   transition: all 0.2s ease;
@@ -657,7 +657,7 @@ watch(() => props.show, async (newValue) => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -712,7 +712,7 @@ watch(() => props.show, async (newValue) => {
 .setting-label {
   font-size: 14px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .setting-description {
@@ -725,7 +725,7 @@ watch(() => props.show, async (newValue) => {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   padding: 8px 12px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
   min-width: 120px;
@@ -798,7 +798,7 @@ watch(() => props.show, async (newValue) => {
 
 .generate-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .generate-button:disabled {
@@ -894,7 +894,7 @@ watch(() => props.show, async (newValue) => {
 
 .history-url {
   font-size: 14px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-family: 'Fira Code', monospace;
   margin-bottom: 4px;
   word-break: break-all;
@@ -1003,7 +1003,7 @@ watch(() => props.show, async (newValue) => {
 .share-button:hover {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.12);
-  color: #f2f3f5;
+  color: var(--text-primary);
   transform: translateY(-1px);
 }
 
@@ -1042,12 +1042,12 @@ watch(() => props.show, async (newValue) => {
 
 .footer-button.secondary:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .footer-button.primary {
   background: linear-gradient(135deg, #5865f2, #4752c4);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .footer-button.primary:hover:not(:disabled) {

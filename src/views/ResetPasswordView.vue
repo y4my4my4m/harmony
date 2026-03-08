@@ -811,7 +811,7 @@ const toggleRecoveryCode = () => {
 .form-title {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
@@ -854,7 +854,7 @@ const toggleRecoveryCode = () => {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 1rem;
   transition: all 0.2s ease;
 }
@@ -902,7 +902,7 @@ const toggleRecoveryCode = () => {
   background: linear-gradient(135deg, #5865f2 0%, #7289da 100%);
   border: none;
   border-radius: 8px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -928,7 +928,7 @@ const toggleRecoveryCode = () => {
   width: 20px;
   height: 20px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   margin: 0 auto;
@@ -1089,7 +1089,7 @@ const toggleRecoveryCode = () => {
 .modal-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 

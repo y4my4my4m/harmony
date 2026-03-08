@@ -169,7 +169,7 @@ const deleteAccount = () => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -195,7 +195,7 @@ const deleteAccount = () => {
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 20px 0;
 }
 
@@ -226,7 +226,7 @@ const deleteAccount = () => {
 .setting-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -263,12 +263,12 @@ const deleteAccount = () => {
 
 .btn-secondary:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger {
   background-color: #ed4245;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover {
@@ -300,7 +300,7 @@ const deleteAccount = () => {
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 

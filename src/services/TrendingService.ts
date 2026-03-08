@@ -91,15 +91,14 @@ class TrendingService {
 
       if (error) throw error;
 
-      // Map database columns (tag, uses_count, unique_users) to TrendingHashtag format
       return (data || []).map((row: any, index: number) => ({
         tag: row.tag,
         daily_uses: Number(row.uses_count) || 0,
-        weekly_uses: Number(row.uses_count) || 0, // Uses count over the days period
-        trending_score: Number(row.uses_count) || 0, // Use count as score
+        weekly_uses: Number(row.uses_count) || 0,
+        trending_score: Number(row.uses_count) || 0,
         trending_rank: index + 1,
-        change_percent: 0, // Not available from this query
-        trend: 'stable' as const
+        change_percent: Number(row.change_percent) || 0,
+        trend: (row.trend === 'rising' ? 'up' : row.trend === 'falling' ? 'down' : 'stable') as 'up' | 'down' | 'stable'
       }));
     } catch (error) {
       debug.error('Failed to get trending hashtags:', error);
@@ -431,11 +430,9 @@ class TrendingService {
         .order('last_seen_at', { ascending: false })
         .limit(limit);
 
-      // Apply filters
       switch (filter) {
         case 'active':
-          query = query.eq('is_blocked', false)
-                      .gte('last_seen_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+          query = query.eq('is_blocked', false);
           break;
         case 'blocked':
           query = query.eq('is_blocked', true);
@@ -443,7 +440,6 @@ class TrendingService {
         case 'trusted':
           query = query.eq('is_trusted', true);
           break;
-        // 'all' - no additional filters
       }
 
       if (search) {

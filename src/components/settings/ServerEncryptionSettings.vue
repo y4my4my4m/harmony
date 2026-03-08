@@ -120,23 +120,7 @@
         </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div class="actions">
-        <button
-          class="btn btn-primary"
-          @click="saveSettings"
-          :disabled="!hasChanges || saving"
-        >
-          {{ saving ? 'Saving...' : 'Save Changes' }}
-        </button>
-        <button
-          class="btn btn-secondary"
-          @click="resetSettings"
-          :disabled="!hasChanges || saving"
-        >
-          Reset
-        </button>
-      </div>
+      <!-- Actions handled by parent ServerSettings save button -->
 
       <!-- Help Section -->
       <div class="help-section">
@@ -429,6 +413,13 @@ function resetSettings() {
   successMessage.value = null
 }
 
+// Expose for parent component
+defineExpose({
+  hasChanges,
+  saveSettings,
+  resetSettings
+})
+
 // Lifecycle
 onMounted(() => {
   loadSettings()
@@ -447,7 +438,7 @@ onMounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -713,7 +704,7 @@ onMounted(() => {
 
 .btn-primary {
   background: var(--color-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
 }
 
@@ -789,12 +780,12 @@ onMounted(() => {
 
 .error-banner {
   background: var(--color-danger);
-  color: white;
+  color: var(--text-primary);
 }
 
 .success-banner {
   background: var(--color-success);
-  color: white;
+  color: var(--text-primary);
 }
 
 .close-btn {

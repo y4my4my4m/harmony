@@ -202,13 +202,8 @@ const loadLists = async () => {
   }
 }
 
-// Open list detail/timeline
-// TODO: Add ListDetail route and view when list timeline feature is implemented
 const openList = (list: UserList) => {
-  // For now, go directly to edit mode since list timeline view isn't implemented yet
-  // In the future, this should navigate to a timeline filtered by list members
-  editList(list)
-  debug.log('📋 Opening list for editing (list timeline view not yet implemented):', list.title)
+  router.push({ name: 'ListDetail', params: { listId: list.id } })
 }
 
 // Edit list
@@ -319,7 +314,7 @@ onMounted(() => {
   gap: 0.5rem;
   padding: 0.625rem 1rem;
   background: var(--harmony-primary, #6366f1);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 0.5rem;
   font-weight: 600;
@@ -389,7 +384,7 @@ onMounted(() => {
 .create-first-btn {
   padding: 0.75rem 1.5rem;
   background: var(--harmony-primary, #6366f1);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 0.5rem;
   font-weight: 600;
@@ -604,7 +599,7 @@ onMounted(() => {
 .btn-submit {
   background: var(--harmony-primary, #6366f1);
   border: none;
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
@@ -624,7 +619,7 @@ onMounted(() => {
 .btn-delete {
   background: var(--danger, #ef4444);
   border: none;
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-delete:hover:not(:disabled) {

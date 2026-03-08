@@ -416,7 +416,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   background: linear-gradient(135deg, #1a1d23 0%, #2d3748 100%);
   border-radius: 16px;
   padding: 24px;
-  color: #ffffff;
+  color: var(--text-primary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   box-shadow: 
@@ -446,7 +446,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   font-size: 24px;
 }
 
@@ -493,7 +493,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 .action-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+  color: var(--text-primary);
   transform: translateY(-1px);
 }
 
@@ -644,7 +644,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 24px;
 }
 
@@ -673,7 +673,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   font-size: 18px;
   font-weight: 600;
   margin: 0;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .theme-meta {
@@ -684,7 +684,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .built-in-badge {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 10px;
@@ -732,7 +732,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .mini-action-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Active Indicator */
@@ -786,7 +786,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 .volume-label {
   flex: 1;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .volume-value {
@@ -817,7 +817,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .volume-mute-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .volume-mute-btn.muted {
@@ -901,13 +901,13 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .preset-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .preset-btn.active {
   background: #667eea;
   border-color: #667eea;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Advanced Section */
@@ -925,7 +925,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -955,7 +955,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .option-label {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -987,7 +987,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .option-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .option-btn.danger {

@@ -508,13 +508,13 @@ onMounted(() => {
 .step.active .step-indicator {
   background: var(--primary, #5865f2);
   border-color: var(--primary, #5865f2);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .step.completed .step-indicator {
   background: var(--success, #27ae60);
   border-color: var(--success, #27ae60);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .step-label {
@@ -880,7 +880,7 @@ onMounted(() => {
 
 .btn-primary {
   background: var(--primary, #5865f2);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -901,7 +901,7 @@ onMounted(() => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

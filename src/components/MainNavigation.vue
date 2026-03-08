@@ -76,9 +76,11 @@
         :title="$t('server.discoverCommunities')"
       >
         <div class="nav-icon">
-          <svg viewBox="0 0 24 24" class="icon">
+          <!-- <svg viewBox="0 0 24 24" class="icon">
             <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" fill="currentColor"/>
-          </svg>
+          </svg> -->
+          <svg fill="#FFF" width="24px" height="24px" viewBox="0 0 24 24" role="img" class="icon" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M6.353 0v2.824H4.94v2.823H3.53v2.824H2.118v2.823H.706v2.824h8.47v2.823H7.765v2.824H6.353v2.823h1.412v-1.412h1.411v-1.411h1.412v-1.412H12V16.94h1.412v-1.41h1.412v-1.411h1.411v-1.412h1.412v-1.412h1.412V9.882h1.412V8.471h1.411V7.059h-4.235V5.647h1.412V4.235h1.412V2.824h1.411V1.412h1.412V0zm0 22.588H4.94V24h1.412zM7.765 2.824h9.882v1.411h-1.412v1.412h-1.411V7.06h-1.412v1.41H12v1.411h1.412v1.412H12V9.882h-1.412v1.412H9.176V9.882H7.765v1.412H6.353V9.882H4.94V8.471h1.412V5.647h1.412zM6.353 8.47v1.411h1.412v-1.41zm2.823 1.411h1.412v-1.41H9.176zm5.648 0h1.411v1.412h-1.411z"/></svg>
+
         </div>
       </div>
     </div>
@@ -217,7 +219,7 @@ const getServerAcronym = (serverName: string): string => {
 
 .dm-button {
   background: var(--h-chat, #36393f);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .dm-button:hover,
@@ -234,11 +236,11 @@ const getServerAcronym = (serverName: string): string => {
 
 .nav-item:hover .nav-icon,
 .nav-item.active .nav-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .dm-button .nav-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .icon {
@@ -251,7 +253,7 @@ const getServerAcronym = (serverName: string): string => {
   top: -4px;
   right: -4px;
   background: #f04747;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
@@ -332,7 +334,7 @@ const getServerAcronym = (serverName: string): string => {
 .server-acronym {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   text-align: center;
   line-height: 1;
 }
@@ -371,7 +373,7 @@ const getServerAcronym = (serverName: string): string => {
 .explore-btn:hover,
 .settings-btn:hover {
   background: #3ba55c;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .add-server-btn .nav-icon,
@@ -382,7 +384,7 @@ const getServerAcronym = (serverName: string): string => {
 .add-server-btn:hover .nav-icon,
 .explore-btn:hover .nav-icon,
 .settings-btn:hover .nav-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Mobile responsiveness */

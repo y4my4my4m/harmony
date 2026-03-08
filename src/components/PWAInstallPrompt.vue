@@ -195,7 +195,7 @@ onUnmounted(() => {
 
 .install-text {
   flex: 1;
-  color: white;
+  color: var(--text-primary);
 }
 
 .install-text h4 {
@@ -222,7 +222,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -242,7 +242,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 6px;
   width: 32px;
@@ -261,7 +261,7 @@ onUnmounted(() => {
   gap: 8px;
   width: 100%;
   background: linear-gradient(135deg, #5865f2, #4752c4);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   padding: 12px 16px;
@@ -293,7 +293,7 @@ onUnmounted(() => {
 
 .share-btn:hover {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .share-btn.settings-btn {

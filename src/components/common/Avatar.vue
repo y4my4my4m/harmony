@@ -352,7 +352,7 @@ watch(() => props.src, () => {
   border-radius: 50%;
   border: none;
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;

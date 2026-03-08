@@ -167,7 +167,7 @@ defineExpose({
   outline: none;
   padding: 12px 0;
   font-size: 16px;
-  color: #ffffff;
+  color: var(--text-primary);
   line-height: 1.5;
 }
 

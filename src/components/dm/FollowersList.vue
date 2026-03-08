@@ -359,7 +359,7 @@ onMounted(() => {
   gap: 8px;
   padding: 12px 20px;
   background: var(--accent-primary);
-  color: white;
+  color: var(--text-primary);
   border-radius: 8px;
   text-decoration: none;
   font-weight: 500;
@@ -467,7 +467,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: white;
+  color: var(--text-primary);
   text-align: center;
 }
 

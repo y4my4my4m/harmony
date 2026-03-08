@@ -6,12 +6,13 @@
       <MonyHeader
         :current-view="currentView"
         :is-mobile="isMobile"
+        :right-sidebar-open="props.rightSidebarOpen ?? false"
         @switch-feed="handleSwitchFeed"
         @refresh-timeline="handleRefresh"
         @open-composer="handleOpenComposer"
         @open-search="handleOpenSearch"
-        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
-        @toggle-right-sidebar="$emit('toggleRightSidebar')"
+        @toggle-left-sidebar="emit('toggleLeftSidebar')"
+        @toggle-right-sidebar="emit('toggleRightSidebar')"
       />
     </div>
 
@@ -56,16 +57,17 @@
                 <Icon name="at-sign" />
               </button>
 
-              <div class="more-actions">
+              <div class="more-actions" ref="moreActionsBtnRef">
                 <button
-                  @click="showActionsMenu = !showActionsMenu"
+                  @click.stop="toggleActionsMenu"
                   class="banner-action-btn"
                   title="More actions"
                 >
                   <Icon name="more-horizontal" />
                 </button>
                 
-                <div v-if="showActionsMenu" class="actions-menu">
+                <Teleport to="body">
+                  <div v-if="showActionsMenu" class="actions-menu actions-menu-teleported" :style="actionsMenuStyle" v-click-outside="() => showActionsMenu = false">
                   <!-- View in remote instance (for federated users) -->
                   <a 
                     v-if="!user.is_local && remoteProfileUrl" 
@@ -91,11 +93,12 @@
                     <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
                   </button>
                   
-                  <button v-if="!user.is_local" @click="handleReport" class="action-item danger">
+                  <button @click="handleReport" class="action-item danger">
                     <Icon name="flag" />
                     <span>Report</span>
                   </button>
                 </div>
+                </Teleport>
               </div>
             </div>
           </div>
@@ -201,7 +204,7 @@
           <div v-else-if="activeTab === 'posts'" class="posts-tab">
             <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
               <Icon name="message-circle" :size="48" />
-              <h3>No monies yet</h3>
+              <h3>{{ t('activitypub.noMoniesHereYet') }}</h3>
               <p>{{ isCurrentUser ? "You haven't" : `${(user?.display_name || user?.username) || 'Unknown User'} hasn't` }} posted anything yet.</p>
             </div>
             
@@ -282,6 +285,14 @@
     :user="selectedModalUser"
     @close="showProfileModal = false; selectedModalUser = null"
   />
+
+  <ReportModal
+    v-if="showReportModal && user"
+    report-type="user"
+    :target-user-id="user.id"
+    :target-user="{ username: user.username, display_name: user.display_name, avatar_url: user.avatar_url }"
+    @close="showReportModal = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -309,6 +320,7 @@ import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+import ReportModal from '@/components/moderation/ReportModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -327,6 +339,8 @@ interface Props {
   specialViewData?: any;
   hasMoreSpecialData?: boolean;
   postId?: string;
+  leftSidebarOpen?: boolean;
+  rightSidebarOpen?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -339,14 +353,17 @@ const props = withDefaults(defineProps<Props>(), {
   profileUser: undefined,
   specialViewData: undefined,
   hasMoreSpecialData: false,
-  postId: undefined
+  postId: undefined,
+  leftSidebarOpen: false,
+  rightSidebarOpen: false
 });
 
 // Emits - Define the component events
-defineEmits<{
+const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
   refreshTimeline: []
+  openSearch: []
   postCreated: [post: any]
   switchFeed: [feed: string]
   replyToPost: [post: any]
@@ -384,7 +401,20 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 const activeTab = ref('posts');
 const showActionsMenu = ref(false);
+const moreActionsBtnRef = ref<HTMLElement | null>(null);
+const actionsMenuStyle = ref<Record<string, string>>({});
 const isFollowLoading = ref(false);
+
+const toggleActionsMenu = () => {
+  if (!showActionsMenu.value && moreActionsBtnRef.value) {
+    const rect = moreActionsBtnRef.value.getBoundingClientRect();
+    actionsMenuStyle.value = {
+      top: `${rect.bottom + 8}px`,
+      right: `${window.innerWidth - rect.right}px`,
+    };
+  }
+  showActionsMenu.value = !showActionsMenu.value;
+};
 
 // Posts
 const userPosts = ref<TimelinePost[]>([]);
@@ -407,7 +437,7 @@ const hasMorePosts = computed(() => props.hasMorePosts || hasMorePostsRef.value)
 const profileTabs = computed(() => [
   { 
     id: 'posts', 
-    label: 'Monies', 
+    label: t('activitypub.monies'), 
     icon: 'message-circle',
     count: user.value?.posts_count || 0
   },
@@ -488,8 +518,7 @@ const handleOpenComposer = () => {
 }
 
 const handleOpenSearch = () => {
-  // TODO: Implement search functionality
-  debug.log('Open search')
+  emit('openSearch')
 }
 
 const handleRefresh = () => {
@@ -887,7 +916,7 @@ const mentionUser = () => {
   
   // Open the composer with a mention
   activityPubStore.openComposer({
-    content: `${user.value.handle} `
+    content: `@${user.value.handle} `
   });
 
   // Navigate to Social Home
@@ -924,8 +953,10 @@ const handleBlock = async () => {
   showActionsMenu.value = false;
 };
 
+const showReportModal = ref(false);
+
 const handleReport = () => {
-  // TODO: Implement reporting
+  showReportModal.value = true;
   showActionsMenu.value = false;
 };
 
@@ -1116,7 +1147,7 @@ document.addEventListener('click', handleClickOutside);
   background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem 1.5rem;
   cursor: pointer;
   margin-top: 1rem;
@@ -1174,7 +1205,7 @@ document.addEventListener('click', handleClickOutside);
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  color: white;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1225,7 +1256,7 @@ document.addEventListener('click', handleClickOutside);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
 }
 
@@ -1315,7 +1346,7 @@ document.addEventListener('click', handleClickOutside);
 .primary-action-btn.following {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.5);
-  color: white;
+  color: var(--text-primary);
 }
 
 .primary-action-btn.following:hover:not(:disabled) {
@@ -1370,6 +1401,12 @@ document.addEventListener('click', handleClickOutside);
   z-index: 100;
   box-shadow: var(--shadow-modal);
   backdrop-filter: blur(8px);
+}
+
+.actions-menu-teleported {
+  position: fixed;
+  z-index: 9999;
+  min-width: 200px;
 }
 
 .action-item {
@@ -1541,7 +1578,7 @@ document.addEventListener('click', handleClickOutside);
 
 .unblock-btn:hover {
   background: var(--brand-color, #5865f2);
-  color: white;
+  color: var(--text-primary);
 }
 
 .load-more-container {

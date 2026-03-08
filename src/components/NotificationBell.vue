@@ -369,7 +369,7 @@ onUnmounted(() => {
 }
 
 .notification-bell.has-unread {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .notification-bell.is-open {
@@ -436,7 +436,7 @@ onUnmounted(() => {
 }
 
 .badge-text {
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
@@ -466,7 +466,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 0 0 3px var(--h-chat-dark);
   font-size: 8px;
 }
@@ -513,7 +513,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
@@ -701,7 +701,7 @@ onUnmounted(() => {
   margin: 0 0 8px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .state-description {
@@ -744,7 +744,7 @@ onUnmounted(() => {
 
 .filter-tab.active {
   background: linear-gradient(135deg, var(--h-brand), #7c3aed);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="performance-monitoring">
+  <div class="performance-monitoring" :class="{ 'is-fullscreen': isFullscreen }" ref="monitoringEl">
     <!-- Header -->
     <div class="monitoring-header">
       <div class="header-content">
@@ -7,11 +7,16 @@
         <p>Real-time metrics and insights for your Harmony instance</p>
       </div>
       <div class="header-actions">
+        <button @click="toggleFullscreen" class="fullscreen-btn" :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'">
+          {{ isFullscreen ? '⛶' : '⛶' }}
+        </button>
         <select v-model="timeRange" class="time-selector">
           <option value="1h">Last Hour</option>
           <option value="6h">Last 6 Hours</option>
           <option value="24h">Last 24 Hours</option>
           <option value="7d">Last 7 Days</option>
+          <option value="30d">Last 1 Month</option>
+          <option value="90d">Last 3 Months</option>
         </select>
         <button class="refresh-btn" @click="refreshData" :disabled="loading">
           <svg 
@@ -186,7 +191,15 @@
         <h3>Federation Health</h3>
       </div>
       
-      <div class="federation-grid">
+      <div v-if="federationServers.length === 0" class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" class="empty-icon">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+        <p>No federation health data</p>
+        <span>Federation metrics appear when the federation_health_metrics table is populated by outbound/inbound activity</span>
+      </div>
+      
+      <div v-else class="federation-grid">
         <div v-for="server in federationServers" :key="server.domain" class="federation-card">
           <div class="server-status" :class="server.status">
             <div class="status-dot"></div>
@@ -221,6 +234,23 @@ import { formatDistanceToNow } from 'date-fns'
 const loading = ref(false)
 const timeRange = ref('24h')
 const refreshInterval = ref<number | null>(null)
+const isFullscreen = ref(false)
+const monitoringEl = ref<HTMLElement | null>(null)
+
+const toggleFullscreen = async () => {
+  if (!monitoringEl.value) return
+  if (!document.fullscreenElement) {
+    await monitoringEl.value.requestFullscreen()
+    isFullscreen.value = true
+  } else {
+    await document.exitFullscreen()
+    isFullscreen.value = false
+  }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  isFullscreen.value = !!document.fullscreenElement
+})
 
 // Metrics data
 const metrics = ref({
@@ -351,20 +381,36 @@ const fetchOverviewMetrics = async () => {
 
     if (error) throw error
 
+    const computeFederationSuccess = async (): Promise<number> => {
+      try {
+        const { data: fedData } = await supabase
+          .from('federation_health_metrics')
+          .select('success')
+          .gte('recorded_at', getTimeRangeStart())
+        if (fedData && fedData.length > 0) {
+          const successCount = fedData.filter((r: { success: boolean }) => r.success === true).length
+          return Math.round((successCount / fedData.length) * 1000) / 10
+        }
+      } catch { /* ignore */ }
+      return 0
+    }
+
+    const fedSuccess = await computeFederationSuccess()
     if (data && data.length > 0) {
       const totalRequests = data.reduce((sum, m) => sum + (m.request_count || 0), 0)
       const totalErrors = data.reduce((sum, m) => sum + (m.error_count || 0), 0)
       const avgLatency = Math.round(
         data.reduce((sum, m) => sum + (m.avg_latency || 0), 0) / data.length
       )
-
       metrics.value = {
         totalRequests,
         requestsTrend: calculateTrend(data),
         avgLatency,
         errorRate: totalRequests > 0 ? Math.round((totalErrors / totalRequests) * 100 * 10) / 10 : 0,
-        federationSuccess: 98.5, // Placeholder - would come from federation_health_metrics
+        federationSuccess: fedSuccess,
       }
+    } else {
+      metrics.value = { ...metrics.value, federationSuccess: fedSuccess }
     }
   } catch (error) {
     console.error('Failed to fetch overview metrics:', error)
@@ -493,6 +539,10 @@ const getTimeRangeStart = (): string => {
       return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
     case '7d':
       return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    case '30d':
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    case '90d':
+      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
     default:
       return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
   }
@@ -531,6 +581,27 @@ onUnmounted(() => {
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
+}
+
+.performance-monitoring.is-fullscreen {
+  max-width: none;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--background-primary, #1e1f22);
+}
+
+.fullscreen-btn {
+  background: var(--background-tertiary, #2b2d31);
+  border: 1px solid var(--border-color, #3f4147);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.fullscreen-btn:hover {
+  background: var(--background-hover);
 }
 
 .monitoring-header {
@@ -852,7 +923,7 @@ onUnmounted(() => {
 
 .badge {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;

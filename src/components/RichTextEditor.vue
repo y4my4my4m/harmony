@@ -1122,7 +1122,7 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-bold-content) {
   font-weight: bold;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Italic styling */
@@ -1132,7 +1132,7 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-italic-content) {
   font-style: italic;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Underline styling */
@@ -1142,7 +1142,7 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-underline-content) {
   text-decoration: underline;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Strikethrough styling */
@@ -1152,7 +1152,7 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-strikethrough-content) {
   text-decoration: line-through;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Code styling */

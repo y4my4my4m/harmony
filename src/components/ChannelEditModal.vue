@@ -200,7 +200,7 @@ watch(() => props.show, (isVisible) => {
 .modal-title {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -344,7 +344,7 @@ watch(() => props.show, (isVisible) => {
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {

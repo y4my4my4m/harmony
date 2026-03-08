@@ -177,7 +177,7 @@ onUnmounted(() => {
 .modal-icon {
   width: 28px;
   height: 28px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .header-text {
@@ -188,7 +188,7 @@ onUnmounted(() => {
 .modal-title {
   font-size: 24px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 6px;
   line-height: 1.2;
 }
@@ -228,7 +228,7 @@ onUnmounted(() => {
 }
 
 .close-button:hover .close-icon {
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .modal-content {

@@ -44,7 +44,7 @@ const handleSettingsUpdate = (settings: any) => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 

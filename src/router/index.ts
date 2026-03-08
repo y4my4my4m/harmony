@@ -208,6 +208,12 @@ const router = createRouter({
           }
         },
         {
+          path: 'lists/:listId',
+          name: 'ListDetail',
+          component: () => import('@/views/ListDetailView.vue'),
+          props: true
+        },
+        {
           path: 'followers',
           name: 'Followers',
           component: () => import('@/views/FollowersView.vue'),

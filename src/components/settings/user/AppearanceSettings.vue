@@ -133,6 +133,121 @@
           />
         </div>
       </div>
+
+      <!-- Community Presets -->
+      <div class="community-presets-section">
+        <h4 class="section-subtitle">Community Presets</h4>
+        <p class="section-help">Quick-apply curated themes from the community</p>
+        <div class="presets-grid">
+          <button
+            v-for="preset in communityPresets"
+            :key="preset.name"
+            class="preset-card"
+            @click="applyPresetTheme(preset)"
+          >
+            <div class="preset-swatch" :style="{ background: preset.settings.customPrimaryColor }"></div>
+            <div class="preset-info">
+              <span class="preset-name">{{ preset.name }}</span>
+              <span class="preset-desc">{{ preset.description }}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Import / Export -->
+      <div class="theme-import-export-section">
+        <h4 class="section-subtitle">Import & Export</h4>
+        <p class="section-help">Export your theme as JSON or import a previously exported theme</p>
+        <div class="import-export-buttons">
+          <button class="preset-card export-btn" @click="exportTheme">
+            Export theme
+          </button>
+          <button class="preset-card import-btn" @click="triggerImportInput">
+            Import theme
+          </button>
+          <input
+            ref="importFileInput"
+            type="file"
+            accept=".json,application/json"
+            class="hidden-file-input"
+            @change="handleImportFile"
+          />
+        </div>
+      </div>
+
+      <!-- My Saved Themes -->
+      <div class="saved-themes-section">
+        <h4 class="section-subtitle">My saved themes</h4>
+        <p class="section-help">Save your current theme to switch between them later</p>
+        <div class="save-theme-row">
+          <input
+            v-model="savedThemeName"
+            type="text"
+            class="theme-name-input"
+            placeholder="Theme name"
+          />
+          <button class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">
+            Save theme
+          </button>
+        </div>
+        <div v-if="savedThemesList.length > 0" class="saved-themes-list">
+          <div v-for="t in savedThemesList" :key="t.id" class="saved-theme-item">
+            <span class="saved-theme-name">{{ t.name }}</span>
+            <div class="saved-theme-actions">
+              <button class="apply-theme-btn" @click="applySavedTheme(t.id)">Apply</button>
+              <button class="delete-theme-btn" @click="deleteSavedThemeItem(t.id)">Delete</button>
+            </div>
+          </div>
+        </div>
+        <p v-else class="section-help muted">No saved themes yet</p>
+      </div>
+
+      <!-- Advanced CSS Variable Overrides -->
+      <div v-if="settings.theme === 'custom'" class="advanced-css-section">
+        <button class="toggle-advanced-btn" @click="showAdvancedCss = !showAdvancedCss">
+          {{ showAdvancedCss ? 'Hide' : 'Show' }} Advanced CSS Variables
+          <span class="toggle-arrow" :class="{ open: showAdvancedCss }">&#9660;</span>
+        </button>
+
+        <div v-if="showAdvancedCss" class="css-overrides-panel">
+          <p class="section-help">Override individual CSS variables for full control. Changes apply in real-time.</p>
+          <div
+            v-for="group in themableVariables"
+            :key="group.category"
+            class="css-var-group"
+          >
+            <h5 class="var-group-title">{{ group.category }}</h5>
+            <div class="var-list">
+              <div v-for="varName in group.vars" :key="varName" class="var-item">
+                <label class="var-name">{{ varName }}</label>
+                <div class="var-controls">
+                  <input
+                    type="color"
+                    class="var-color-input"
+                    :value="getCssVarValue(varName)"
+                    @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                  />
+                  <input
+                    type="text"
+                    class="var-text-input"
+                    :value="settings.customCssOverrides?.[varName] || ''"
+                    :placeholder="getComputedVar(varName)"
+                    @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                  />
+                  <button
+                    v-if="settings.customCssOverrides?.[varName]"
+                    class="var-reset-btn"
+                    @click="removeCssOverrideVar(varName)"
+                    title="Reset to default"
+                  >
+                    &#10005;
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -354,6 +469,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
@@ -392,6 +508,7 @@ const settings = ref({
   customBackgroundColor: '#5865f2',
   customBackgroundLightness: 0,
   customBackgroundChroma: 0,
+  customCssOverrides: {} as Record<string, string>,
   fontSize: 14,
   zoomLevel: 100,
   showTimestamps: true,
@@ -416,6 +533,113 @@ const customPreviewColors = computed(() => {
 
 const originalSettings = ref({ ...settings.value })
 const showColorPicker = ref(false)
+const showAdvancedCss = ref(false)
+const savedThemeName = ref('')
+const importFileInput = ref<HTMLInputElement | null>(null)
+const toast = useToast()
+
+// Saved themes (refresh when we need to show the list)
+const savedThemesList = ref(visualTheme.getSavedCustomThemes())
+
+function refreshSavedThemes() {
+  savedThemesList.value = visualTheme.getSavedCustomThemes()
+}
+
+function exportTheme() {
+  const json = visualTheme.exportThemeAsJson()
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `harmony-theme-${Date.now()}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('Theme exported')
+}
+
+function triggerImportInput() {
+  importFileInput.value?.click()
+}
+
+function handleImportFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = reader.result as string
+    if (visualTheme.importThemeFromJson(text)) {
+      Object.assign(settings.value, visualTheme.currentSettings.value)
+      previewTheme()
+      toast.success('Theme imported')
+    } else {
+      toast.error('Invalid theme file')
+    }
+  }
+  reader.readAsText(file)
+  input.value = ''
+}
+
+function saveCurrentTheme() {
+  const name = savedThemeName.value?.trim()
+  if (!name) return
+  const theme = visualTheme.saveCurrentThemeAsCustom(name)
+  if (theme) {
+    savedThemeName.value = ''
+    refreshSavedThemes()
+    toast.success(`"${theme.name}" saved`)
+  }
+}
+
+function applySavedTheme(id: string) {
+  if (visualTheme.loadSavedTheme(id)) {
+    Object.assign(settings.value, visualTheme.currentSettings.value)
+    previewTheme()
+    toast.success('Theme applied')
+  }
+}
+
+function deleteSavedThemeItem(id: string) {
+  visualTheme.deleteSavedTheme(id)
+  refreshSavedThemes()
+  toast.success('Theme removed')
+}
+
+// Import community presets and theme helpers
+import { COMMUNITY_PRESETS, type ThemePreset } from '@/composables/useVisualTheme'
+const communityPresets = COMMUNITY_PRESETS
+const themableVariables = visualTheme.getThemableVariables()
+
+const applyPresetTheme = (preset: ThemePreset) => {
+  visualTheme.applyPreset(preset)
+  Object.assign(settings.value, preset.settings)
+}
+
+const getCssVarValue = (varName: string): string => {
+  if (settings.value.customCssOverrides?.[varName]) {
+    return settings.value.customCssOverrides[varName]
+  }
+  return getComputedVar(varName)
+}
+
+const getComputedVar = (varName: string): string => {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
+}
+
+const setCssOverrideFromInput = (varName: string, value: string) => {
+  if (!value) return
+  visualTheme.setCssOverride(varName, value)
+  if (!settings.value.customCssOverrides) settings.value.customCssOverrides = {}
+  settings.value.customCssOverrides[varName] = value
+}
+
+const removeCssOverrideVar = (varName: string) => {
+  visualTheme.removeCssOverride(varName)
+  if (settings.value.customCssOverrides) {
+    delete settings.value.customCssOverrides[varName]
+  }
+  onCustomColorChange()
+}
 
 // Theme options
 const themes = [
@@ -1147,7 +1371,7 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--h-primary, #5865f2);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1201,5 +1425,328 @@ onMounted(async () => {
   .font-size-slider {
     justify-content: space-between;
   }
+}
+
+/* Community Presets */
+.community-presets-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--h-chat-light);
+}
+
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.preset-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--h-chat);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: inherit;
+}
+
+.preset-card:hover {
+  border-color: var(--harmony-primary);
+  transform: translateY(-1px);
+}
+
+.preset-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.preset-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.preset-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.preset-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Import / Export */
+.theme-import-export-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--h-chat-light);
+}
+
+.import-export-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.export-btn,
+.import-btn {
+  min-width: 120px;
+}
+
+.hidden-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* My saved themes */
+.saved-themes-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--h-chat-light);
+}
+
+.save-theme-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.theme-name-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--h-chat-light);
+  background: var(--h-chat);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.theme-name-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.save-theme-btn {
+  padding: 10px 20px;
+  background: var(--harmony-primary);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.save-theme-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.save-theme-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saved-themes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-theme-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--h-chat);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 6px;
+}
+
+.saved-theme-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.saved-theme-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.apply-theme-btn,
+.delete-theme-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.apply-theme-btn {
+  background: var(--harmony-primary);
+  color: var(--text-primary);
+  border: none;
+}
+
+.apply-theme-btn:hover {
+  filter: brightness(1.1);
+}
+
+.delete-theme-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--h-chat-light);
+}
+
+.delete-theme-btn:hover {
+  color: var(--error, #ed4245);
+  border-color: var(--error, #ed4245);
+}
+
+.section-help.muted {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* Advanced CSS Variables */
+.advanced-css-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--h-chat-light);
+}
+
+.toggle-advanced-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 1px solid var(--h-chat-light);
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.toggle-advanced-btn:hover {
+  background: var(--h-chat-light);
+  color: var(--text-primary);
+}
+
+.toggle-arrow {
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+.css-overrides-panel {
+  margin-top: 16px;
+}
+
+.css-var-group {
+  margin-bottom: 20px;
+}
+
+.var-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 10px;
+}
+
+.var-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.var-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.var-item:hover {
+  background: var(--h-chat-light);
+}
+
+.var-name {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 180px;
+}
+
+.var-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.var-color-input {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--h-chat-light);
+  border-radius: 4px;
+  padding: 2px;
+  cursor: pointer;
+  background: none;
+}
+
+.var-text-input {
+  width: 100px;
+  padding: 4px 8px;
+  background: var(--h-chat-dark, #141618);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.var-text-input::placeholder {
+  color: var(--text-muted);
+}
+
+.var-reset-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.var-reset-btn:hover {
+  color: var(--error);
+  background: rgba(237, 66, 69, 0.1);
 }
 </style>

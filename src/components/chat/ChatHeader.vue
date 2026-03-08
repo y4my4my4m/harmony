@@ -264,7 +264,7 @@ onMounted(() => {
   top: -4px;
   right: -4px;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
   padding: 2px 5px;

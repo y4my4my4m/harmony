@@ -585,7 +585,7 @@ const onIconError = (event: Event) => {
 .folder-cap-icon {
   width: 16px;
   height: 16px;
-  color: white;
+  color: var(--text-primary);
   opacity: 0.9;
 }
 
@@ -671,7 +671,7 @@ const onIconError = (event: Event) => {
   top: -4px;
   right: -4px;
   background: #f04747;
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: bold;
   padding: 2px 5px;
@@ -799,7 +799,7 @@ const onIconError = (event: Event) => {
 .server-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-tooltip-arrow {
@@ -866,7 +866,7 @@ const onIconError = (event: Event) => {
 
 .server-folder-context-menu .context-menu-item:hover {
   background-color: var(--harmony-primary, #5865f2);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-tooltip {
@@ -885,7 +885,7 @@ const onIconError = (event: Event) => {
 .server-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-tooltip-arrow {

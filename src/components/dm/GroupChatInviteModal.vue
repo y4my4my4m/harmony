@@ -784,7 +784,7 @@ watch(() => props.show, (show) => {
 .you-badge {
   padding: 2px var(--space-1);
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   border-radius: var(--radius-xs);
@@ -843,7 +843,7 @@ watch(() => props.show, (show) => {
 
 .footer-button.primary {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border-color: var(--harmony-primary);
 }
 

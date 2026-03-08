@@ -171,7 +171,7 @@ defineExpose({
   background-color: #1e1f22;
   border: 2px solid #383a40;
   border-radius: 4px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-size: 16px;
   font-weight: 400;
   padding: 10px 12px;

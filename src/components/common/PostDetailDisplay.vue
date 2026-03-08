@@ -414,7 +414,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem 1.5rem;
   font-weight: 500;
   cursor: pointer;
@@ -541,7 +541,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem 1.5rem;
   font-weight: 500;
   cursor: pointer;

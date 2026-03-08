@@ -189,7 +189,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 /* Variant styles */
 .btn-primary {
   background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: white;
+  color: var(--text-primary);
   border-color: transparent;
 }
 
@@ -212,7 +212,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-success {
   background: linear-gradient(135deg, var(--success), var(--success-hover));
-  color: white;
+  color: var(--text-primary);
   border-color: transparent;
 }
 
@@ -224,7 +224,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-danger {
   background: linear-gradient(135deg, var(--error), var(--error-hover));
-  color: white;
+  color: var(--text-primary);
   border-color: transparent;
 }
 
@@ -280,7 +280,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-outline.btn-primary:hover:not(.btn-disabled):not(.btn-loading) {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-outline.btn-success {
@@ -291,7 +291,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-outline.btn-success:hover:not(.btn-disabled):not(.btn-loading) {
   background: var(--success);
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-outline.btn-danger {
@@ -302,7 +302,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-outline.btn-danger:hover:not(.btn-disabled):not(.btn-loading) {
   background: var(--error);
-  color: white;
+  color: var(--text-primary);
 }
 
 /* States */
@@ -415,7 +415,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   top: -4px;
   right: -4px;
   background: var(--error);
-  color: white;
+  color: var(--text-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   padding: 2px 6px;

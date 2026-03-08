@@ -94,7 +94,7 @@
       <div class="emoji-list-header">
         <div class="header-left">
           <h3 class="emoji-list-title">{{ $t('server.customEmojis') }}</h3>
-          <div class="emoji-count">{{ emojis.length }} / 50</div>
+          <div class="emoji-count">{{ emojis.length }} / {{ maxEmojis }}</div>
         </div>
         
         <div class="header-right" v-if="emojis.length > 0">
@@ -234,16 +234,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { uploadEmoji, deleteEmoji, renameEmoji, bulkUploadEmojis, bulkDeleteEmojis } from '@/services/emojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import type { Emoji } from '@/types'
 
 const { t } = useI18n()
+const instanceSettings = useInstanceSettingsStore()
+
+// Use instance config limit; 0 = unlimited, fallback to 50 when not loaded
+const maxEmojis = computed(() => {
+  const limit = instanceSettings.settings.maxCustomEmojisPerServer
+  return limit > 0 ? limit : 50
+})
 
 interface EmojiPermissions {
   canUpload: boolean
@@ -356,8 +364,8 @@ const handleEmojiFile = async (file: File) => {
     return
   }
 
-  if (props.emojis.length >= 50) {
-    toast.error(t('server.maxEmojisReached'))
+  if (props.emojis.length >= maxEmojis.value) {
+    toast.error(t('server.maxEmojisReached', { max: maxEmojis.value }))
     return
   }
 
@@ -431,8 +439,8 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     return
   }
 
-  if (props.emojis.length + validFiles.length > 50) {
-    toast.error(t('server.cannotUploadEmojisLimit', { count: validFiles.length, current: props.emojis.length }))
+  if (props.emojis.length + validFiles.length > maxEmojis.value) {
+    toast.error(t('server.cannotUploadEmojisLimit', { count: validFiles.length, current: props.emojis.length, max: maxEmojis.value }))
     return
   }
 
@@ -622,7 +630,7 @@ const getEmojiAnalytics = () => {
 .section-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -742,7 +750,7 @@ const getEmojiAnalytics = () => {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: var(--text-primary);
   transition: 0.3s;
   border-radius: 50%;
 }
@@ -778,7 +786,7 @@ input:checked + .toggle-slider:before {
 
 .upload-text {
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -808,7 +816,7 @@ input:checked + .toggle-slider:before {
 .emoji-list-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -910,12 +918,12 @@ input:checked + .toggle-slider:before {
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger {
   background-color: #ed4245;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -1009,7 +1017,7 @@ input:checked + .toggle-slider:before {
 .emoji-name {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin-bottom: 2px;
 }
 
@@ -1022,7 +1030,7 @@ input:checked + .toggle-slider:before {
   padding: 4px 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   background-color: var(--h-chat);
   border: 1px solid #57f287;
   border-radius: 4px;

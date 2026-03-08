@@ -247,7 +247,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 .section-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -374,7 +374,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: var(--text-primary);
   transition: 0.3s;
   border-radius: 50%;
 }
@@ -429,7 +429,7 @@ input:checked + .toggle-slider:before {
 .warning-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -488,7 +488,7 @@ input:checked + .toggle-slider:before {
 .option-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 

@@ -1231,6 +1231,7 @@ watch(() => props.currentServer?.id, () => {
   font-size: 1.2rem;
   font-weight: 500;
   background: var(--background-tertiary);
+  color: var(--text-primary);
   position: relative;
   z-index: 1;
   text-align: center;
@@ -1278,7 +1279,7 @@ watch(() => props.currentServer?.id, () => {
 .channel-item.selected {
   position: relative;
   background-color: var(--h-sidebar-light);
-  color: #FFF;
+  color: var(--text-primary);
 }
 
 /* Voice channel connected state */
@@ -1395,7 +1396,7 @@ watch(() => props.currentServer?.id, () => {
 .channel-item.in-collapsed-category.selected {
   opacity: 1;
   background-color: var(--h-sidebar-light);
-  color: #FFF;
+  color: var(--text-primary);
 }
 
 /* Category header styling when collapsed but has visible channels */
@@ -1421,7 +1422,7 @@ watch(() => props.currentServer?.id, () => {
   padding: 0 6px;
   font-size: 11px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   line-height: 1;
   flex-shrink: 0;
 }
@@ -1481,7 +1482,7 @@ watch(() => props.currentServer?.id, () => {
   background-color: rgba(255, 255, 255, 0.1);
   padding: 2px 6px;
   border-radius: 10px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 600;
   min-width: 16px;
   text-align: center;

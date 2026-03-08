@@ -550,7 +550,7 @@ onMounted(() => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -565,7 +565,7 @@ onMounted(() => {
 
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .search-input-container {
@@ -592,7 +592,7 @@ onMounted(() => {
   background: #202225;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
   outline: none;
   transition: border-color 0.2s;
@@ -615,7 +615,7 @@ onMounted(() => {
 }
 
 .clear-btn:hover {
-  color: #ffffff;
+  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -634,7 +634,7 @@ onMounted(() => {
 
 .filters-title {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -685,7 +685,7 @@ onMounted(() => {
   background: #2f3136;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
   transition: border-color 0.2s;
@@ -738,7 +738,7 @@ onMounted(() => {
   padding: 8px 12px;
   background: transparent;
   border: none;
-  color: #ffffff;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   transition: background 0.2s;
@@ -766,7 +766,7 @@ onMounted(() => {
 
 .filter-chip-label {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .filter-chip-value {
@@ -785,7 +785,7 @@ onMounted(() => {
 
 .filter-chip-remove:hover {
   background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .toggle-filters-btn {
@@ -804,7 +804,7 @@ onMounted(() => {
 
 .toggle-filters-btn:hover {
   background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .toggle-filters-btn.active {
@@ -814,7 +814,7 @@ onMounted(() => {
 
 .filter-badge {
   background: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 11px;
@@ -858,7 +858,7 @@ onMounted(() => {
 .empty-state h3,
 .initial-state h3 {
   margin: 16px 0 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 18px;
 }
 
@@ -866,7 +866,7 @@ onMounted(() => {
 .empty-state p,
 .initial-state p {
   margin: 0 0 16px;
-  color: #72767d;
+  color: var(--text-secondary);
 }
 
 .retry-btn {
@@ -874,7 +874,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
   transition: background 0.2s;
@@ -939,7 +939,7 @@ onMounted(() => {
 
 .recent-item:hover {
   background: #2f3136;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .results-list {
@@ -976,7 +976,7 @@ onMounted(() => {
 
 .result-username {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .result-channel {
@@ -1008,7 +1008,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
   transition: background 0.2s;

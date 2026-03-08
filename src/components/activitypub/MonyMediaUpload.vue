@@ -308,6 +308,6 @@ const formatFileSize = (bytes?: number): string => {
 .progress-text {
   font-size: 12px;
   font-weight: 500;
-  color: white;
+  color: var(--text-primary);
 }
 </style>

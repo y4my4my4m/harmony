@@ -135,7 +135,7 @@ const markAsRead = () => {
 
 .context-menu-item:hover {
   background-color: var(--harmony-primary, #5865f2);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .context-menu-item.danger {
@@ -144,7 +144,7 @@ const markAsRead = () => {
 
 .context-menu-item.danger:hover {
   background-color: #ed4245;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .context-menu-divider {

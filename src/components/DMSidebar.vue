@@ -504,7 +504,7 @@ onUnmounted(() => {
 .dm-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -523,7 +523,7 @@ onUnmounted(() => {
 
 .new-dm-btn:hover,
 .group-chat-btn:hover {
-  color: #ffffff;
+  color: var(--text-primary);
   background: var(--h-chat-light, #40444b);
 }
 
@@ -549,7 +549,7 @@ onUnmounted(() => {
   background: var(--h-chat, #36393f);
   border: 1px solid var(--h-chat-light, #40444b);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s ease;
@@ -578,7 +578,7 @@ onUnmounted(() => {
 }
 
 .clear-search-btn:hover {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .search-results {
@@ -661,7 +661,7 @@ onUnmounted(() => {
 .empty-state h3 {
   margin: 0 0 8px 0;
   font-size: 16px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .empty-state p {
@@ -733,7 +733,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -757,7 +757,7 @@ onUnmounted(() => {
 .user-name,
 .conversation-name {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   margin-bottom: 2px;
   white-space: nowrap;
@@ -769,7 +769,7 @@ onUnmounted(() => {
 
 .username {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-secondary);
 }
 
 .conversation-header {
@@ -804,13 +804,13 @@ onUnmounted(() => {
 }
 
 .conversation-item.unread .last-message {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
 .unread-count {
   background: #f04747;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
@@ -825,7 +825,7 @@ onUnmounted(() => {
 }
 .active .conversation-time,
 .active .conversation-preview .last-message {
-  color: #ffffff86;
+  color: var(--text-primary)86;
 }
 
 .user-name-container, .conversation-name-container {

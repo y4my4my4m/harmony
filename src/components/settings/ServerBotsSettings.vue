@@ -443,7 +443,7 @@ onMounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -471,7 +471,7 @@ onMounted(() => {
 .card-header h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -480,7 +480,7 @@ onMounted(() => {
   background-color: var(--h-chat-dark);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   min-width: 200px;
 }
@@ -549,7 +549,7 @@ onMounted(() => {
   display: inline-block;
   padding: 2px 6px;
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 700;
   border-radius: 3px;
@@ -559,7 +559,7 @@ onMounted(() => {
 .bot-info h4 {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -634,7 +634,7 @@ onMounted(() => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -658,7 +658,7 @@ onMounted(() => {
 
 .btn-danger {
   background-color: #ed4245;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover {

@@ -23,6 +23,60 @@ export interface ResolvedMention {
 }
 
 /**
+ * Parse display_name or bio that may be plain string, JSON (Misskey MFM), or MessagePart[]
+ * Returns safe HTML string for v-html rendering
+ */
+export function parseDisplayNameOrBioForDisplay(raw: any, fallback: string = ''): string {
+  if (raw == null || raw === '') return escapeHtml(fallback);
+  if (typeof raw === 'string' && !raw.trim()) return escapeHtml(fallback);
+
+  // Plain string - use as-is (escaped)
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parseMfmOrMessagePartsToHtml(parsed);
+      }
+    } catch {
+      return escapeHtml(raw);
+    }
+    return escapeHtml(raw);
+  }
+
+  // Already array (MFM / MessagePart-like)
+  if (Array.isArray(raw)) {
+    return parseMfmOrMessagePartsToHtml(raw);
+  }
+
+  return escapeHtml(String(raw));
+}
+
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/** Convert Misskey MFM or MessagePart[] array to HTML */
+function parseMfmOrMessagePartsToHtml(parts: any[]): string {
+  if (!Array.isArray(parts) || parts.length === 0) return '';
+  const html: string[] = [];
+  for (const p of parts) {
+    if (!p || typeof p !== 'object') continue;
+    if (p.type === 'text' && p.text != null) {
+      html.push(escapeHtml(String(p.text)));
+    } else if ((p.type === 'emoji' || p.type === 'emotion') && (p.emoji?.url || p.url)) {
+      const url = p.emoji?.url ?? p.url;
+      const name = p.emoji?.name ?? p.name ?? 'emoji';
+      html.push(`<img class="inline-emoji" src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" />`);
+    } else if (p.type === 'emoji' && p.name && !p.url) {
+      html.push(escapeHtml(`:${p.name}:`));
+    }
+  }
+  return html.join('') || '';
+}
+
+/**
  * Parse bio text with custom emojis and convert to MessagePart[]
  * Replaces :emoji: patterns with proper emoji parts
  */
@@ -36,8 +90,7 @@ export function parseBioWithEmojis(bio: string, emojis: Array<{name: string, url
   
   const parts: any[] = [];
   
-  // Regex to find :emoji: patterns (including unicode variants like ​:emoji:​)
-  // The \u200b is a zero-width space that Misskey uses
+  // Regex to find :emoji: patterns (including zero-width space that Misskey uses)
   const emojiRegex = /\u200b?:([a-zA-Z0-9_]+):\u200b?/g;
   
   let lastIndex = 0;
