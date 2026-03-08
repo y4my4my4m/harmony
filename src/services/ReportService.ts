@@ -61,9 +61,7 @@ export interface CreateReportParams {
 export type ReportReason =
   | 'spam'
   | 'harassment'
-  | 'hate_speech'
   | 'illegal_content'
-  | 'misinformation'
   | 'impersonation'
   | 'nsfw'
   | 'other'
@@ -71,9 +69,7 @@ export type ReportReason =
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
   { value: 'spam', label: 'Spam or unwanted content' },
   { value: 'harassment', label: 'Harassment or bullying' },
-  { value: 'hate_speech', label: 'Hate speech' },
   { value: 'illegal_content', label: 'Illegal content' },
-  { value: 'misinformation', label: 'Misinformation' },
   { value: 'impersonation', label: 'Impersonation' },
   { value: 'nsfw', label: 'Inappropriate/NSFW content' },
   { value: 'other', label: 'Other' }

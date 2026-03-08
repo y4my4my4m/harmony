@@ -53,6 +53,29 @@ CREATE INDEX IF NOT EXISTS idx_reports_report_type ON public.reports(report_type
 CREATE INDEX IF NOT EXISTS idx_reports_reported_message ON public.reports(reported_message_id);
 
 -- ---------------------------------------------------------------------------
+-- RLS POLICIES for reports
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users can create reports" ON public.reports;
+CREATE POLICY "Users can create reports" ON public.reports
+    FOR INSERT TO authenticated
+    WITH CHECK (reporter_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can view own reports" ON public.reports;
+CREATE POLICY "Users can view own reports" ON public.reports
+    FOR SELECT TO authenticated
+    USING (reporter_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can view all reports" ON public.reports;
+CREATE POLICY "Admins can view all reports" ON public.reports
+    FOR SELECT TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true));
+
+DROP POLICY IF EXISTS "Admins can update reports" ON public.reports;
+CREATE POLICY "Admins can update reports" ON public.reports
+    FOR UPDATE TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true));
+
+-- ---------------------------------------------------------------------------
 -- RPC: get_pending_reports_count
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_pending_reports_count()
