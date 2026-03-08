@@ -44,18 +44,19 @@
                 'selected': element.id === currentChannelId && !selectedThreadId,
                 'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
                 'voice-channel': element.type === 1,
-                'voice-connected': element.type === 1 && isUserInVoiceChannel(element.id)
+                'voice-connected': element.type === 1 && isUserInVoiceChannel(element.id),
+                'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId
               }]" 
               @click="element.type === 1 ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
               :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
             >
+              <div class="unread-dot" v-if="hasUnreadMessages(element.id) && element.id !== currentChannelId"></div>
               <div class="channel-content">
                 <HashTagIcon v-if="element.type === 0" />
                 <SpeakerIcon v-else /> 
                 <span class="channel-name">{{ element.name }}</span>
               </div>
-              <!-- Unread badge for channels without categories -->
               <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
                 {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
               </div>
@@ -166,12 +167,14 @@
                       'in-collapsed-category': collapsedCategories.has(category.id),
                       'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
                       'voice-channel': channel.type === 1,
-                      'voice-connected': channel.type === 1 && isUserInVoiceChannel(channel.id)
+                      'voice-connected': channel.type === 1 && isUserInVoiceChannel(channel.id),
+                      'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId
                     }"
                     @click="channel.type === 1 ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
                     :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
                   >
+                    <div class="unread-dot" v-if="hasUnreadMessages(channel.id) && channel.id !== currentChannelId"></div>
                     <div class="channel-content">
                       <HashTagIcon v-if="channel.type === 0" />
                       <SpeakerIcon v-else />
@@ -359,6 +362,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import ThreadContextMenu from './threads/ThreadContextMenu.vue';
 import ThreadEditModal from './ThreadEditModal.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
+import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
 
 import draggable from "vuedraggable";
@@ -646,6 +650,7 @@ const onChannelRemovedFromCategory = (evt: any) => {
 
 
 const notificationStore = useNotificationStore();
+const { getUnreadMessages } = useUnreadCounts();
 
 const getChannelUnreadMentions = (channelId: string): number => {
   return notificationStore.unreadChannelMentions(channelId);
@@ -653,6 +658,10 @@ const getChannelUnreadMentions = (channelId: string): number => {
 
 const hasNotifications = (channel: Channel): boolean => {
   return getChannelUnreadMentions(channel.id) > 0;
+};
+
+const hasUnreadMessages = (channelId: string): boolean => {
+  return getUnreadMessages({ channelId }) > 0;
 };
 
 const shouldShowCategoryContent = (category: Category): boolean => {
@@ -1290,11 +1299,29 @@ watch(() => props.currentServer?.id, () => {
   border: 1px solid #5865f2;
 }
 
+.channel-item.channel-unread {
+  color: var(--text-primary, #f2f3f5);
+}
+
+.channel-item.channel-unread .channel-name {
+  font-weight: 600;
+}
+
+.unread-dot {
+  position: absolute;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-primary, #f2f3f5);
+  flex-shrink: 0;
+}
+
 .channel-content {
   display: flex;
   align-items: center;
   flex: 1;
-  min-width: 0; /* Prevents flex item from growing beyond container */
+  min-width: 0;
 }
 
 .channel-content > svg {
@@ -1345,7 +1372,7 @@ watch(() => props.currentServer?.id, () => {
   height: 12px;
   transition: transform 0.2s ease;
   flex-shrink: 0;
-  margin: 2px 3px auto 0;
+  margin: auto 3px auto 0;
 }
 
 .category-arrow.rotated {

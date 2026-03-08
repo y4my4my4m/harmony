@@ -28,6 +28,8 @@ export interface MembershipEvent {
 export interface MembershipServiceOptions {
   onUserJoin?: (event: MembershipEvent) => void
   onUserLeave?: (event: MembershipEvent) => void
+  onUserKick?: (event: MembershipEvent) => void
+  onUserBan?: (event: MembershipEvent) => void
   onError?: (error: Error) => void
 }
 
@@ -133,6 +135,12 @@ export class MembershipService {
       } else if (event.event_type === 'leave') {
         await this.handleUserLeave(event)
         this.options.onUserLeave?.(event)
+      } else if (event.event_type === 'kick') {
+        await this.handleUserRemoved(event)
+        this.options.onUserKick?.(event)
+      } else if (event.event_type === 'ban') {
+        await this.handleUserRemoved(event)
+        this.options.onUserBan?.(event)
       }
     } catch (error) {
       debug.error('❌ Error handling membership event:', error)
@@ -160,6 +168,12 @@ export class MembershipService {
     debug.log(`👋 User ${event.metadata.username || event.user_id} left server ${event.server_id}`)
     
     // Refresh the complete user list to ensure consistency
+    await this.refreshServerUserList(event.server_id)
+  }
+
+  private async handleUserRemoved(event: MembershipEvent): Promise<void> {
+    const action = event.event_type === 'ban' ? 'banned from' : 'kicked from'
+    debug.log(`🔨 User ${event.user_id} ${action} server ${event.server_id}`)
     await this.refreshServerUserList(event.server_id)
   }
 

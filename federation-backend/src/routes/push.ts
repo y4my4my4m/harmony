@@ -266,12 +266,13 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
       .single();
 
     const userId = profile?.id || user.id;
+    const { endpoint } = req.body || {};
 
-    const result = await PushNotificationService.sendToUser(userId, {
+    const testPayload = {
       title: '🔔 Test Notification',
       message: 'Push notifications are working!',
       body: 'Push notifications are working!',
-      type: 'test',
+      type: 'test' as const,
       icon: '/img/app_icon_square.webp',
       badge: '/img/app_icon_square.webp',
       tag: `harmony-test-${Date.now()}`,
@@ -279,16 +280,50 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
         test: true,
         timestamp: new Date().toISOString()
       }
-    });
+    };
 
-    res.json({
-      success: result.sent > 0,
-      sent: result.sent,
-      failed: result.failed,
-      message: result.sent > 0 
-        ? `Test notification sent to ${result.sent} device(s)`
-        : 'No active subscriptions found'
-    });
+    if (endpoint) {
+      // Send to current device only
+      const { data: sub, error: subError } = await supabaseAdmin
+        .from('push_subscriptions')
+        .select('id, endpoint, p256dh, auth, push_enabled, push_offline_only')
+        .eq('user_id', userId)
+        .eq('endpoint', endpoint)
+        .single();
+
+      if (subError || !sub) {
+        res.json({ success: false, sent: 0, failed: 0, message: 'Subscription not found for this device' });
+        return;
+      }
+
+      const result = await PushNotificationService.sendToSubscription(
+        {
+          subscription_id: sub.id,
+          endpoint: sub.endpoint,
+          p256dh: sub.p256dh,
+          auth: sub.auth,
+          push_enabled: sub.push_enabled,
+          push_offline_only: sub.push_offline_only ?? false,
+        },
+        testPayload
+      );
+      res.json({
+        success: result.success,
+        sent: result.success ? 1 : 0,
+        failed: result.success ? 0 : 1,
+        message: result.success ? 'Test notification sent to this device' : (result.error || 'Failed to send')
+      });
+    } else {
+      const result = await PushNotificationService.sendToUser(userId, testPayload);
+      res.json({
+        success: result.sent > 0,
+        sent: result.sent,
+        failed: result.failed,
+        message: result.sent > 0 
+          ? `Test notification sent to ${result.sent} device(s)`
+          : 'No active subscriptions found'
+      });
+    }
   } catch (error) {
     logger.error('Error in test push:', error);
     res.status(500).json({ error: 'Internal server error' });

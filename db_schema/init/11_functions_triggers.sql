@@ -110,7 +110,7 @@ BEGIN
         permissions
     ) VALUES (
         NEW.id,
-        '@everyone',
+        'everyone',
         '#99AAB5',
         0,
         true,

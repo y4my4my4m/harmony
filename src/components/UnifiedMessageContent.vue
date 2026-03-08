@@ -106,6 +106,13 @@
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >{{ formatMentionDisplay(part) }}</span>
+
+        <!-- Role mentions -->
+        <span
+          v-else-if="part && typeof part === 'object' && part.type === 'role_mention'"
+          class="mention role-mention"
+          :style="part.roleColor ? { color: part.roleColor, backgroundColor: part.roleColor + '1a' } : {}"
+        >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span>
         
         <!-- Hashtags -->
         <span 
@@ -1071,6 +1078,16 @@ export default defineComponent({
   color: rgba(255,255,255,0.9);
 }
 
+.role-mention {
+  font-weight: 600;
+  cursor: default;
+}
+
+.role-mention:hover {
+  filter: brightness(1.15);
+  background-color: unset;
+}
+
 /* Hashtag styling */
 .hashtag {
   background-color: #3c4270;
@@ -1186,14 +1203,15 @@ export default defineComponent({
 /* Media skeletons */
 .media-skeleton {
   border-radius: 8px;
-  background: linear-gradient(
+  background-color: #2b2d31;
+  background-image: linear-gradient(
     90deg,
-    #40444b 0%,
-    #484c52 50%,
-    #40444b 100%
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
 }
 
 .image-skeleton {
@@ -1203,10 +1221,10 @@ export default defineComponent({
 
 @keyframes skeleton-shimmer {
   0% {
-    background-position: -200% 0;
+    background-position: 100% 0;
   }
   100% {
-    background-position: 200% 0;
+    background-position: -100% 0;
   }
 }
 

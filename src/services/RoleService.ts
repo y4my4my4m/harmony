@@ -333,6 +333,7 @@ class RoleService {
 
       const roles = (data || []).map((r: any) => ({
         ...r,
+        mentionable: r.mentionable ?? true,
         permissions: bitmaskToPermissions(r.permissions),
         member_count: memberCounts[r.id] || 0,
       })) as ServerRole[]

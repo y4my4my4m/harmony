@@ -44,6 +44,9 @@
       </div>
     </Transition>
 
+    <!-- Notification dot for collapsed folder (outside overflow:hidden container) -->
+    <div v-if="!folder.is_expanded && folderHasNotifications" class="folder-notification-dot"></div>
+
     <!-- Expanded folder view -->
     <Transition name="folder-expand">
       <div 
@@ -112,10 +115,13 @@
       </div>
     </Transition>
 
-    <!-- Server context menu within folder -->
+  </div>
+
+  <!-- Server context menu - teleported to body to avoid stacking context issues -->
+  <Teleport to="body">
     <div 
       v-if="showServerMenu" 
-      class="context-menu"
+      class="server-folder-context-menu context-menu"
       :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px' }"
       @click.stop
       v-click-outside="closeServerMenu"
@@ -127,7 +133,7 @@
         <span>Remove from Folder</span>
       </div>
     </div>
-  </div>
+  </Teleport>
   
   <!-- Server Tooltip - Teleported to body -->
   <Teleport to="body">
@@ -198,6 +204,10 @@ const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 // First 4 servers for the grid preview
 const previewServers = computed(() => {
   return props.servers.slice(0, 4);
+});
+
+const folderHasNotifications = computed(() => {
+  return props.servers.some(s => getServerUnreadMentions(s.id) > 0);
 });
 
 const isSelected = (serverId: string) => {
@@ -516,6 +526,19 @@ const onIconError = (event: Event) => {
   background: var(--folder-color);
 }
 
+.folder-notification-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f04747;
+  border: 2px solid var(--h-black-dark, #1e1f22);
+  z-index: 2;
+  pointer-events: none;
+}
+
 /* Expanded folder - Discord style */
 .folder-expanded {
   display: flex;
@@ -709,33 +732,6 @@ const onIconError = (event: Event) => {
   opacity: 1;
 }
 
-/* Context menu */
-.context-menu {
-  position: fixed;
-  background: #18191c;
-  border: 1px solid #40444b;
-  border-radius: 6px;
-  padding: 6px 0;
-  min-width: 180px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  z-index: 1000;
-}
-
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  color: var(--text-secondary, #b9bbbe);
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.1s ease;
-}
-
-.context-menu-item:hover {
-  background-color: var(--harmony-primary, #5865f2);
-  color: #ffffff;
-}
 
 /* Drag over expanded folder */
 .folder-expanded.is-drag-target {
@@ -844,8 +840,35 @@ const onIconError = (event: Event) => {
 }
 </style>
 
-<!-- Non-scoped styles for teleported tooltip -->
+<!-- Non-scoped styles for teleported elements -->
 <style>
+.server-folder-context-menu.context-menu {
+  position: fixed;
+  background: #18191c;
+  border: 1px solid #40444b;
+  border-radius: 6px;
+  padding: 6px 0;
+  min-width: 180px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  z-index: 10001;
+}
+
+.server-folder-context-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  color: var(--text-secondary, #b9bbbe);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.1s ease;
+}
+
+.server-folder-context-menu .context-menu-item:hover {
+  background-color: var(--harmony-primary, #5865f2);
+  color: #ffffff;
+}
+
 .server-tooltip {
   position: fixed;
   left: 80px;

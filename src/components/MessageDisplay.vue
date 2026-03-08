@@ -150,6 +150,40 @@
                     has joined the server
                   </div>
                 </template>
+                <!-- Member kick system message -->
+                <template v-else-if="item.message.metadata?.type === 'member_kick'">
+                  <div class="system-icon">🚪</div>
+                  <div class="system-text">
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: getUserColor(item.message.user_id).value }"
+                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    was kicked<template v-if="item.message.metadata?.kicked_by"> by
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.metadata.kicked_by)"
+                      :style="{ color: getUserColor(item.message.metadata.kicked_by).value }"
+                    >{{ getUserDisplayName(item.message.metadata.kicked_by).value }}</span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
+                  </div>
+                </template>
+                <!-- Member ban system message -->
+                <template v-else-if="item.message.metadata?.type === 'member_ban'">
+                  <div class="system-icon">🔨</div>
+                  <div class="system-text">
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: getUserColor(item.message.user_id).value }"
+                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    was banned<template v-if="item.message.metadata?.banned_by"> by
+                    <span
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.metadata.banned_by)"
+                      :style="{ color: getUserColor(item.message.metadata.banned_by).value }"
+                    >{{ getUserDisplayName(item.message.metadata.banned_by).value }}</span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
+                  </div>
+                </template>
                 <!-- Default system message -->
                 <template v-else>
                   <div class="system-icon">👋</div>
@@ -461,7 +495,7 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
-import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
+import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
 
@@ -1817,7 +1851,8 @@ const saveEdit = async (messageId: string, newContent?: string) => {
   try {
     const userDataMap = await resolveMentionsUserData(textContent);
     const emojiDataMap = await resolveEmojisData(textContent);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap);
+    const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
     
     await chatStore.editMessage(messageId, parsedContent);
     cancelEdit();
@@ -2675,9 +2710,6 @@ const closeInviteModal = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
 }
 
 .skeleton-content {
@@ -2693,36 +2725,42 @@ const closeInviteModal = () => {
 .skeleton-username {
   width: 80px;
   height: 16px;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
 }
 
 .skeleton-timestamp {
   width: 50px;
   height: 12px;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
 }
 
 .skeleton-text-line {
   height: 14px;
-  background: linear-gradient(90deg, var(--background-quaternary) 25%, rgba(255,255,255,0.08) 50%, var(--background-quaternary) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
   margin-bottom: 6px;
 }
 
+.skeleton-avatar,
+.skeleton-username,
+.skeleton-timestamp,
+.skeleton-text-line {
+  background-color: var(--background-quaternary, #2b2d31);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
 @keyframes skeleton-shimmer {
   0% {
-    background-position: -200% 0;
+    background-position: 100% 0;
   }
   100% {
-    background-position: 200% 0;
+    background-position: -100% 0;
   }
 }
 

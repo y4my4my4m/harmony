@@ -451,9 +451,6 @@ watch(() => props.inviteCode, () => {
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: linear-gradient(90deg, #3a3d45 0%, #4a4d55 50%, #3a3d45 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-content {
@@ -464,9 +461,6 @@ watch(() => props.inviteCode, () => {
   width: 140px;
   height: 18px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #3a3d45 0%, #4a4d55 50%, #3a3d45 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
   margin-bottom: 8px;
 }
 
@@ -474,14 +468,25 @@ watch(() => props.inviteCode, () => {
   width: 100px;
   height: 14px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #3a3d45 0%, #4a4d55 50%, #3a3d45 100%);
+}
+
+.skeleton-icon,
+.skeleton-title,
+.skeleton-meta {
+  background-color: #3a3d45;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.8s ease-in-out infinite;
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 
 /* Error state */

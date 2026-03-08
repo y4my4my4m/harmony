@@ -47,7 +47,8 @@ strong {
 @media (max-width: 768px) {
   /* ACTIVITY PUB */
   .posts-list {
-    width: 360px;
     gap: var(--space-3);
+    width: 100%;
+    padding: 10px;
   }
 }

@@ -232,25 +232,37 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    debug.log('👋 Activity resumed, current status:', UserStatus[userData.status], 'wasManuallySet:', this.wasManuallySet)
+    debug.log('👋 Activity resumed, current status:', UserStatus[userData.status], 'wasManuallySet:', this.wasManuallySet, 'manualStatus:', this.manualStatus !== null ? UserStatus[this.manualStatus] : 'null')
     
-    // If status was manually set to Away/Busy/Invisible, respect that choice
-    if (this.wasManuallySet) {
-      if (this.manualStatus === UserStatus.Away) {
-        debug.log('👋 Keeping manual Away status (user preference)')
+    // If user manually chose a status, restore to that (not necessarily Online)
+    if (this.wasManuallySet && this.manualStatus !== null) {
+      // If current status already matches their manual choice, nothing to do
+      if (userData.status === this.manualStatus) {
+        debug.log('👋 Already at manual status:', UserStatus[this.manualStatus])
+        activityTracker.resetStatusTracking()
         return
       }
-      if (this.manualStatus === UserStatus.Busy) {
-        debug.log('👋 Keeping manual Busy status (user preference)')
-        return
-      }
+      
+      // Invisible/Away/Busy chosen manually - restore to that choice
+      // (e.g., user was Busy, went auto-Offline from inactivity, now restore to Busy)
       if (this.manualStatus === UserStatus.Invisible) {
-        debug.log('👋 Keeping manual Invisible status (user preference)')
+        debug.log('👋 Keeping manual Invisible status')
+        activityTracker.resetStatusTracking()
         return
       }
+      
+      debug.log('👋 Restoring to manual status:', UserStatus[this.manualStatus])
+      try {
+        await this.updateCurrentUserStatus(this.manualStatus, false)
+        debug.log('✅ Status restored to', UserStatus[this.manualStatus])
+      } catch (error) {
+        debug.error('❌ Failed to restore manual status:', error)
+      }
+      activityTracker.resetStatusTracking()
+      return
     }
     
-    // Restore to Online if they were auto-set to Away/Offline due to inactivity
+    // No manual status set - restore to Online if auto-set to Away/Offline
     if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
       debug.log('👋 User active again, restoring to Online (was auto-set to', UserStatus[userData.status], ')')
       try {
@@ -261,7 +273,6 @@ class UserDataService extends EventTarget {
       }
     }
     
-    // Reset activity tracking flags
     activityTracker.resetStatusTracking()
   }
   
@@ -1540,20 +1551,18 @@ class UserDataService extends EventTarget {
   
   /**
    * Update status in presence channels
-   * SIMPLIFIED: Only update if going invisible (untrack) 
-   * For visible statuses, the initial track is sufficient
+   * Update presence channels when status changes.
+   * Re-tracks to broadcast the new status to other clients.
    */
   private async updatePresenceStatus(status: UserStatus): Promise<void> {
-    // 👻 INVISIBLE STATUS: User should appear offline to everyone
     if (status === UserStatus.Invisible) {
       debug.log(`👻 User going Invisible - untracking from all presence channels`)
       await this.untrackFromAllPresenceChannels()
       return
     }
     
-    // For visible statuses, we rely on the initial track that happened on channel subscription
-    // Calling track() again causes join/leave churn in Supabase
-    debug.log(`🌟 Status updated to: ${UserStatus[status]}`)
+    // Re-track with updated status so other clients see the change
+    await this.trackCurrentUserGlobally()
   }
   
   /**

@@ -5,6 +5,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import { roleService } from '@/services/RoleService';
+import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
@@ -73,12 +74,12 @@ export function clearBridgedUsersCache(channelId?: string) {
 export interface AutoSuggestTrigger {
   char: string;
   pattern: RegExp;
-  type: 'emoji' | 'mention';
+  type: 'emoji' | 'mention' | 'command';
 }
 
 export interface AutoSuggestState {
   isActive: boolean;
-  triggerType: 'emoji' | 'mention' | null;
+  triggerType: 'emoji' | 'mention' | 'command' | null;
   query: string;
   triggerPosition: number;
   selectedIndex: number;
@@ -109,6 +110,7 @@ export function useAutoSuggest(
 ) {
   const emojiCacheStore = useEmojiCacheStore();
   const serverChannelStore = useServerChannelStore();
+  const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   const { searchEmojis: searchUnifiedEmojis, isLoaded: unifiedLoaded, isNativePack, getSvgUrl } = useUnifiedEmoji();
 
   // Merge config with defaults
@@ -159,6 +161,14 @@ export function useAutoSuggest(
       char: '@',
       pattern: /(?:^|\s)@([a-zA-Z0-9_+-]*)$/,
       type: 'mention'
+    });
+  }
+
+  if (finalConfig.mode === 'chat') {
+    triggers.push({
+      char: '/',
+      pattern: /^\/([a-zA-Z]*)$/,
+      type: 'command'
     });
   }
 
@@ -352,10 +362,9 @@ export function useAutoSuggest(
         }
       }
 
-      // Add mentionable roles to suggestions
+      // Add mentionable roles to suggestions (including @everyone)
       for (const role of serverRoles.value) {
-        // Only include mentionable roles (and not @everyone)
-        if (!role.mentionable || role.is_default) continue;
+        if (!role.mentionable) continue;
         
         const roleName = role.name?.toLowerCase() || '';
         
@@ -366,9 +375,9 @@ export function useAutoSuggest(
             username: role.name,
             avatar: undefined,
             display_text: `@${role.name}`,
-            mention_text: `@role:${role.id}`, // Special format for role mentions
+            mention_text: `@role:${role.id}`,
             isRole: true,
-            roleColor: role.color,
+            roleColor: role.color || (role.is_default ? '#99AAB5' : undefined),
             role: role
           });
         }
@@ -425,13 +434,39 @@ export function useAutoSuggest(
     return [];
   });
 
-  // Combined suggestions based on current trigger type
+  // Slash commands filtered by user permissions
+  const SLASH_COMMANDS: { id: string; name: string; description: string; permission: string }[] = [
+    { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
+    { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
+  ];
+
+  const commandSuggestions = computed((): SuggestionItem[] => {
+    if (state.value.triggerType !== 'command') return [];
+    const query = (state.value.query || '').toLowerCase();
+    const isOwner = isCurrentUserServerOwner.value;
+    return SLASH_COMMANDS
+      .filter(cmd => {
+        if (!cmd.name.includes(query)) return false;
+        if (isOwner) return true;
+        return hasCurrentUserPermission(Permission[cmd.permission as keyof typeof Permission]);
+      })
+      .map(cmd => ({
+        id: cmd.id,
+        name: cmd.name,
+        display_name: `/${cmd.name}`,
+        description: cmd.description,
+        isCommand: true,
+      }));
+  });
+
   const suggestions = computed((): SuggestionItem[] => {
     switch (state.value.triggerType) {
       case 'emoji':
         return emojiSuggestions.value;
       case 'mention':
         return mentionSuggestions.value;
+      case 'command':
+        return commandSuggestions.value;
       default:
         return [];
     }
@@ -442,6 +477,8 @@ export function useAutoSuggest(
     switch (state.value.triggerType) {
       case 'emoji':
         return 'Emojis';
+      case 'command':
+        return 'Commands';
       case 'mention':
         if (finalConfig.mode === 'chat') {
           const currentServerId = serverChannelStore.currentServerId;
@@ -613,7 +650,7 @@ export function useAutoSuggest(
     try {
       const roles = await roleService.getRolesForServer(serverId);
       // Filter to only mentionable roles
-      serverRoles.value = roles.filter(role => role.mentionable);
+      serverRoles.value = roles;
       serverRolesServerId.value = serverId;
       serverRolesLoaded.value = true;
       debug.log(`🎭 Loaded ${serverRoles.value.length} mentionable roles for server ${serverId}`);
@@ -916,6 +953,17 @@ export function useAutoSuggest(
       });
       
       let insertText = '';
+
+      // Slash commands: dispatch event and clear input
+      if (state.value.triggerType === 'command' && suggestion.isCommand) {
+        closeSuggestions();
+        window.dispatchEvent(new CustomEvent('harmony-command', { detail: { command: suggestion.name } }));
+        const clearedText = currentText.substring(0, triggerStart) + currentText.substring(triggerEnd);
+        if (updateText) {
+          updateText(clearedText.trim() ? clearedText : '', triggerStart);
+        }
+        return clearedText.trim() ? clearedText : '';
+      }
       
       if (state.value.triggerType === 'emoji') {
         insertText = `:${suggestion.name}: `; // Add space after emoji
@@ -935,6 +983,8 @@ export function useAutoSuggest(
           // For bridged Discord users, use mention_text since it contains the special d!ID:username format
           if (suggestion.isBridged && suggestion.mention_text) {
             insertText = suggestion.mention_text + ' '; // Use special bridged user format
+          } else if (suggestion.isRole && suggestion.mention_text) {
+            insertText = suggestion.mention_text + ' '; // @role:UUID format for reliable parsing
           } else if (suggestion.display_text) {
             insertText = suggestion.display_text + ' '; // Human-readable @username or @username@domain
           } else {

@@ -136,8 +136,8 @@
         </button>
       </div>
 
-      <!-- Federated Notice -->
-      <div class="federated-notice">
+      <!-- Federated Notice (only shown after a server is discovered) -->
+      <div v-if="discoveredServer" class="federated-notice">
         <svg viewBox="0 0 24 24" class="notice-icon">
           <path d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" fill="currentColor"/>
         </svg>
@@ -287,9 +287,19 @@ function formatExpiry(expiresAt: string): string {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 16px;
 }
 
+.modal-content {
+  background: var(--bg-secondary, #2b2d31);
+  border-radius: 12px;
+  padding: 32px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
 
 .modal-header {
   text-align: center;
@@ -649,8 +659,28 @@ function formatExpiry(expiresAt: string): string {
 }
 
 @media (max-width: 480px) {
+  .federated-server-modal {
+    padding: 8px;
+    align-items: flex-start;
+    padding-top: 48px;
+  }
+
   .modal-content {
-    padding: 24px;
+    padding: 20px;
+    max-width: 100%;
+    max-height: calc(100vh - 64px);
+    border-radius: 10px;
+  }
+
+  .modal-header h2 {
+    font-size: 18px;
+  }
+
+  .header-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    margin-bottom: 12px;
   }
 
   .server-preview {
@@ -681,6 +711,7 @@ function formatExpiry(expiresAt: string): string {
   .cancel-btn,
   .join-btn {
     width: 100%;
+    padding: 12px;
   }
 }
 </style>

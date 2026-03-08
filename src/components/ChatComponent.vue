@@ -91,6 +91,16 @@
       @thread-updated="handleThreadUpdated"
       @thread-created="handleThreadCreated"
     />
+
+    <KickBanModal
+      v-if="showKickBanModal && !props.isDM"
+      :show="showKickBanModal"
+      :mode="kickBanMode"
+      :user="kickBanTargetUser"
+      :server-id="serverChannelStore.currentServerId!"
+      @close="showKickBanModal = false"
+      @done="handleKickBanDone"
+    />
   </div>
 </template>
 
@@ -98,6 +108,7 @@
   import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
+  import KickBanModal from './moderation/KickBanModal.vue';
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
@@ -112,12 +123,13 @@
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
-  import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing';
+  import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
   import { useUserData } from '@/composables/useUserData';
+  import { useServerPermissions } from '@/composables/useServerPermissions';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
@@ -153,10 +165,34 @@
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const draftsStore = useDraftsStore();
+  const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   
   const showDragDropArea = ref(false);
   const uploading = ref(false);
   const sendError = ref<string | null>(null);
+
+  // Slash command moderation modal
+  const showKickBanModal = ref(false);
+  const kickBanMode = ref<'kick' | 'ban'>('kick');
+  const kickBanTargetUser = ref({ id: '', username: '', display_name: '', avatar_url: null as string | null });
+
+  function handleSlashCommand(e: Event) {
+    const { command } = (e as CustomEvent).detail;
+    if (command === 'kick' || command === 'ban') {
+      if (props.isDM || !serverChannelStore.currentServerId) return;
+      
+      const requiredPerm = command === 'kick' ? Permission.KICK_MEMBERS : Permission.BAN_MEMBERS;
+      if (!isCurrentUserServerOwner.value && !hasCurrentUserPermission(requiredPerm)) return;
+      
+      kickBanMode.value = command;
+      kickBanTargetUser.value = { id: '', username: '', display_name: '', avatar_url: null };
+      showKickBanModal.value = true;
+    }
+  }
+
+  function handleKickBanDone(result: { success: boolean }) {
+    showKickBanModal.value = false;
+  }
   
   // Media picker state (unified GIF + Emoji picker)
   const mediaPickerOpen = ref(false);
@@ -340,10 +376,12 @@
 
       onMounted(() => {
         window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('harmony-command', handleSlashCommand);
       });
 
       onUnmounted(() => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener('harmony-command', handleSlashCommand);
       });
 
       const replyingTo = (messageId: string, replyingTo: string) => {
@@ -564,16 +602,11 @@
       const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
         debug.log('🔧 Using unified content parsing for:', input);
         
-        // Use efficient batch mention resolution
         const userDataMap = await resolveMentionsUserData(input);
-        
-        // Use unified emoji resolution - includes both server emojis AND unified pack
         const emojiDataMap = await resolveEmojisData(input);
+        const roleDataMap = await resolveRoleMentionsData(input, serverChannelStore.currentServerId || undefined);
         
-        debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length);
-        
-        // Parse with unified system (now with emoji data)
-        const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap);
+        const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, roleDataMap);
         
         debug.log('🔧 Final parsed message parts:', result);
         return result;
