@@ -5,6 +5,7 @@
       <MonyHeader
         :current-view="currentView"
         :is-mobile="isMobile"
+        :right-sidebar-open="rightSidebarOpen ?? false"
         @switch-feed="handleSwitchFeed"
         @refresh-timeline="handleRefreshTimeline"
         @open-composer="handleOpenComposer"
@@ -58,13 +59,15 @@ interface Props {
   isLoadingFeed?: boolean
   hasMorePosts?: boolean
   viewType?: string
+  rightSidebarOpen?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false,
-  viewType: 'timeline'
+  viewType: 'timeline',
+  rightSidebarOpen: false
 })
 
 // Emits
@@ -83,6 +86,7 @@ const emit = defineEmits<{
   unfollowUser: [user: FederatedUser]
   toggleLeftSidebar: []
   toggleRightSidebar: []
+  openSearch: []
 }>()
 
 // Store
@@ -267,8 +271,7 @@ const handleOpenComposer = () => {
 }
 
 const handleOpenSearch = () => {
-  // TODO: Implement search functionality
-  debug.log('Open search')
+  emit('openSearch')
 }
 
 // Single source of truth for timeline loading - only watch currentView prop changes

@@ -60,6 +60,7 @@
             :post-id="postId"
             :left-sidebar-open="leftSidebarOpen"
             :right-sidebar-open="rightSidebarOpen"
+            @open-search="handleOpenSearch"
             @refresh-timeline="$emit('refreshTimeline')"
             @post-created="handlePostCreated"
             @switch-feed="handleSwitchFeed"
@@ -77,7 +78,6 @@
             @back-to-timeline="handleBackToTimeline"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
-            @open-search="handleOpenSearch"
           />
         </div>
 
@@ -85,6 +85,7 @@
         <div 
           class="right-sidebar-container" 
           :class="{ 
+            'sidebar-open': rightSidebarOpen,
             'mobile-open': rightSidebarOpen,
             'is-dragging': isDragging && dragDirection === 'right'
           }"
@@ -719,12 +720,21 @@ const formatNumber = (num: number): string => {
 }
 
 .right-sidebar-container {
-  width: 320px;
   flex-shrink: 0;
   background: var(--background-tertiary);
   border-left: 1px solid var(--border-color);
   z-index: 40;
   will-change: transform;
+  /* Hidden by default on desktop; shown when sidebar-open */
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transform: translateX(100%);
+  width: 0;
+  overflow: hidden;
+}
+
+.right-sidebar-container.sidebar-open {
+  transform: translateX(0);
+  width: 320px;
 }
 
 .activitypub-right-sidebar {
