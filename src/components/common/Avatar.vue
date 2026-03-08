@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import CameraIcon from '@/components/icons/Camera.vue'
@@ -160,15 +160,17 @@ const handleFileSelect = (event: Event) => {
 const handleImageError = () => {
   debug.log('Avatar image error for URL:', avatarUrl.value)
   imageError.value = true
-  // Don't attempt to reload the URL on error to prevent infinite loops
 }
 
 const handleImageLoad = () => {
-  // Only reset error if we weren't already in error state
-  if (imageError.value) {
-    imageError.value = false
-  }
+  // Do NOT reset imageError here — the fallback image loading successfully
+  // would re-trigger the broken src, causing an infinite loop.
 }
+
+// Reset error state only when the src prop actually changes
+watch(() => props.src, () => {
+  imageError.value = false
+})
 </script>
 
 <style scoped>

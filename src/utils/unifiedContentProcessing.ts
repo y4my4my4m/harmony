@@ -131,7 +131,7 @@ export async function resolveRoleMentionsData(
       .from('server_roles')
       .select('id, name, color')
       .in('id', Array.from(roleIds));
-    if (serverId) query.eq('server_id', serverId);
+    if (serverId) query = query.eq('server_id', serverId);
     const { data } = await query;
     if (data) {
       for (const role of data) {
