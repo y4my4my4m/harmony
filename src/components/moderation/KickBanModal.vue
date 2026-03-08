@@ -109,6 +109,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { moderationService, DELETE_MESSAGE_OPTIONS, type DeleteMessageDuration } from '@/services/ModerationService'
 import { userDataService } from '@/services/userDataService'
+import { getUserIdsForServer, getProfiles } from '@/services/usersService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
 
@@ -181,13 +182,28 @@ function clearSelectedMember() {
 
 watch(() => props.show, async (visible) => {
   if (visible && needsMemberSelect.value) {
-    const users = userDataService.getUsersInContext(props.serverId);
-    serverMembers.value = users.map(u => ({
-      id: u.id,
-      username: u.username,
-      display_name: u.displayName,
-      avatar_url: u.avatarUrl
-    }));
+    // Try cached context first
+    const contextUsers = userDataService.getUsersInContext(props.serverId);
+    if (contextUsers.length > 0) {
+      serverMembers.value = contextUsers.map(u => ({
+        id: u.id,
+        username: u.username,
+        display_name: u.displayName,
+        avatar_url: u.avatarUrl
+      }));
+    } else {
+      // Fallback: fetch from DB
+      const userIds = await getUserIdsForServer(props.serverId);
+      if (userIds.length > 0) {
+        const profiles = await getProfiles(userIds);
+        serverMembers.value = profiles.map(p => ({
+          id: p.id,
+          username: p.username,
+          display_name: p.display_name,
+          avatar_url: p.avatar_url
+        }));
+      }
+    }
     nextTick(() => {
       showDropdown.value = true;
       memberSearchInput.value?.focus();

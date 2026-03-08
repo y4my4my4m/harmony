@@ -977,7 +977,7 @@ const closeInviteModal = () => {
 .sidebar-header {
   padding: 16px 8px 8px 16px;
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--background-quinary);
+  background-color: var(--background-primary-alpha);
 }
 
 .search-container {
@@ -1436,7 +1436,7 @@ const closeInviteModal = () => {
 
   .search-input {
     font-size: 16px; /* Prevents zoom on iOS */
-    padding: 12px 16px;
+    padding: 12px 16px 12px 28px;
     border-radius: 12px;
   }
 
