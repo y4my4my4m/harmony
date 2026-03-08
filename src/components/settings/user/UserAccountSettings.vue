@@ -68,7 +68,7 @@
             @keydown="onDisplayNameKeyDown"
           />
           <AutoSuggest
-            v-if="displayNameAutoSuggest.state.value.isActive"
+            v-if="displayNameAutoSuggest.state.value.isActive && instanceSettings.settings.allowCustomEmojisInDisplayNames"
             :suggestions="displayNameAutoSuggest.suggestions.value"
             :selected-index="displayNameAutoSuggest.state.value.selectedIndex"
             :position="displayNameAutoSuggest.state.value.position"
@@ -77,7 +77,7 @@
           />
         </div>
         <div class="form-hint">
-          This is how others see you. You can use special characters and custom emoji (type <code>:</code> to search). {{ (localProfile.display_name?.length || 0) }}/50
+          This is how others see you.{{ instanceSettings.settings.allowCustomEmojisInDisplayNames ? ' You can use custom emoji (type : to search).' : '' }} {{ (localProfile.display_name?.length || 0) }}/50
         </div>
       </div>
 
@@ -249,6 +249,8 @@ import { fundingService, type SupporterBadge, type DonationRecord, type FundingL
 import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'
 import { userDataService } from '@/services/userDataService'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { useToast } from 'vue-toastification'
 
 // Props
 interface Props {
@@ -267,6 +269,8 @@ const emit = defineEmits<{
 
 // Composables
 const authStore = useAuthStore()
+const instanceSettings = useInstanceSettingsStore()
+const toast = useToast()
 
 // State
 const localProfile = ref<Partial<User>>({})
@@ -311,6 +315,7 @@ const hasChanges = computed(() => {
 const previewDisplayNameParts = computed(() => {
   const dn = localProfile.value.display_name
   if (!dn) return undefined
+  if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) return undefined
   return userDataService.resolveDisplayNameParts(dn)
 })
 
@@ -418,10 +423,14 @@ const handleBannerFileSelect = (event: Event) => {
   }
 }
 
+const DISPLAY_NAME_EMOJI_REGEX = /:([a-zA-Z0-9_+-]+):/
 const saveChanges = () => {
-  if (hasChanges.value) {
-    emit('update-profile', localProfile.value)
+  if (!hasChanges.value) return
+  if (!instanceSettings.settings.allowCustomEmojisInDisplayNames && localProfile.value.display_name && DISPLAY_NAME_EMOJI_REGEX.test(localProfile.value.display_name)) {
+    toast.error('Custom emojis in display names are disabled on this instance. Please remove emoji shortcodes (e.g. :name:) from your display name.')
+    return
   }
+  emit('update-profile', localProfile.value)
 }
 
 const resetChanges = () => {

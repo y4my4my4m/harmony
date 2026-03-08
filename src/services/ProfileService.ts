@@ -9,9 +9,11 @@
  * PRESERVED: All existing APIs and return types
  */
 
+import { getActivePinia } from 'pinia'
 import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'
 import { authContextService } from './AuthContextService'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import type { Profile } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -84,18 +86,37 @@ export class ProfileService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // Pre-resolve display_name emojis for federation
+      const allowEmojisInDisplayNames = getActivePinia()
+        ? useInstanceSettingsStore().settings.allowCustomEmojisInDisplayNames
+        : true
+
+      if (updates.display_name && !allowEmojisInDisplayNames && /:([a-zA-Z0-9_+-]+):/.test(updates.display_name)) {
+        throw this.createError('INVALID_INPUT', 'Custom emojis in display names are disabled on this instance. Please remove emoji shortcodes from your display name.')
+      }
+
+      // Pre-resolve display_name emojis for federation (only when allowed)
       const finalUpdates: any = { ...updates }
       if (updates.display_name) {
-        const displayNameEmojis = await this.resolveDisplayNameEmojis(updates.display_name)
-        if (displayNameEmojis.length > 0) {
+        if (allowEmojisInDisplayNames) {
+          const displayNameEmojis = await this.resolveDisplayNameEmojis(updates.display_name)
+          if (displayNameEmojis.length > 0) {
+            const { data: existing } = await supabase
+              .from('profiles')
+              .select('federation_metadata')
+              .eq('id', context.profileId)
+              .single()
+            const meta = (existing?.federation_metadata as Record<string, any>) || {}
+            finalUpdates.federation_metadata = { ...meta, display_name_emojis: displayNameEmojis }
+          }
+        } else {
+          // Clear display_name_emojis when setting is off
           const { data: existing } = await supabase
             .from('profiles')
             .select('federation_metadata')
             .eq('id', context.profileId)
             .single()
           const meta = (existing?.federation_metadata as Record<string, any>) || {}
-          finalUpdates.federation_metadata = { ...meta, display_name_emojis: displayNameEmojis }
+          finalUpdates.federation_metadata = { ...meta, display_name_emojis: [] }
         }
       }
 
