@@ -11,7 +11,7 @@
       
       <div class="user-details">
         <div class="user-name-row">
-          <span class="user-name">{{ user.display_name || user.username }}</span>
+          <span class="user-name" v-html="displayNameHtml"></span>
           <span v-if="user.is_admin" class="instance-badge admin" title="Instance Admin">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
             ADMIN
@@ -24,9 +24,7 @@
         <div class="user-handle">@{{ handle }}</div>
         
         <!-- Bio (for non-compact view) -->
-        <div v-if="!isCompact && user.bio" class="user-bio">
-          {{ truncatedBio }}
-        </div>
+        <div v-if="!isCompact && user.bio" class="user-bio" v-html="bioHtml"></div>
         <!-- Stats (for non-compact view) -->
         <div class="user-stats">
           <span class="stat">
@@ -126,6 +124,7 @@ import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import { useRouter } from 'vue-router';
+import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -198,12 +197,11 @@ const followButtonText = computed(() => {
   return isFollowing.value ? t('activitypub.following') : t('activitypub.follow');
 });
 
-const truncatedBio = computed(() => {
-  if (!props.user.bio) return '';
-  return props.user.bio.length > 120 
-    ? props.user.bio.substring(0, 120) + '...' 
-    : props.user.bio;
+const displayNameHtml = computed(() => {
+  return parseDisplayNameOrBioForDisplay(props.user.display_name, props.user.username);
 });
+
+const bioHtml = computed(() => parseDisplayNameOrBioForDisplay(props.user.bio, ''));
 
 // Methods
 const formatNumber = (num: number): string => {
@@ -363,9 +361,15 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  /* color: var(--text-primary); */
   color: var(--text-primary);
   margin-bottom: 0.25rem;
+}
+
+.user-name :deep(.inline-emoji),
+.user-bio :deep(.inline-emoji) {
+  height: 1em;
+  vertical-align: middle;
+  display: inline;
 }
 
 .verified-icon {

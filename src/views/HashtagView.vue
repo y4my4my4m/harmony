@@ -1,5 +1,20 @@
 <template>
   <div class="hashtag-view">
+    <!-- Mony Header (search, compose, refresh, sidebar) -->
+    <div class="mony-header-container">
+      <MonyHeader
+        :current-view="(props.currentView as string) ?? 'trending'"
+        :is-mobile="isMobile"
+        :right-sidebar-open="(props.rightSidebarOpen ?? false)"
+        @switch-feed="handleSwitchFeed"
+        @refresh-timeline="handleRefresh"
+        @open-composer="handleOpenComposer"
+        @open-search="handleOpenSearch"
+        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+        @toggle-right-sidebar="$emit('toggleRightSidebar')"
+      />
+    </div>
+
     <!-- Hashtag Header -->
     <div class="hashtag-header">
       <button class="back-button" @click="goBack">
@@ -72,7 +87,9 @@ import { debug } from '@/utils/debug'
 import { trendingService } from '@/services/TrendingService'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useLayoutState } from '@/composables/useLayoutState'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
+import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { TimelinePost } from '@/types'
 
@@ -81,9 +98,19 @@ interface Props {
   hashtag: string
   currentView?: string
   viewType?: string
+  rightSidebarOpen?: boolean
 }
 
 const props = defineProps<Props>()
+
+// Emits (for layout events)
+const emit = defineEmits<{
+  toggleLeftSidebar: []
+  toggleRightSidebar: []
+  openSearch: []
+}>()
+
+const { isMobile } = useLayoutState()
 
 // Router
 const router = useRouter()
@@ -144,6 +171,23 @@ const goBack = () => {
   router.back()
 }
 
+const handleRefresh = () => {
+  loadPosts()
+  loadHashtagStats()
+}
+
+const handleSwitchFeed = (feed: string) => {
+  router.push({ name: 'Social', params: { timeline: feed } })
+}
+
+const handleOpenComposer = () => {
+  activityPubStore.openComposer()
+}
+
+const handleOpenSearch = () => {
+  emit('openSearch')
+}
+
 const loadHashtagStats = async () => {
   try {
     hashtagStats.value = await trendingService.getHashtagStats(props.hashtag)
@@ -164,7 +208,7 @@ const formatTimeAgo = (dateStr: string): string => {
 
 // Event handlers
 const handleReply = (post: TimelinePost) => {
-  activityPubStore.openComposer(post.id)
+  activityPubStore.openComposer({ replyTo: post.id })
 }
 
 const handleFavorite = async (postId: string) => {
@@ -221,6 +265,10 @@ onMounted(() => {
   background-color: var(--background-primary, #111827);
   color: var(--text-primary, #f3f4f6);
   overflow: hidden;
+}
+
+.mony-header-container {
+  flex-shrink: 0;
 }
 
 .hashtag-view .mony-post {
