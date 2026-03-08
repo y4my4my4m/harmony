@@ -345,11 +345,13 @@ interface Props {
   quoteAuthor?: FederatedUser;
   isOpen?: boolean;
   defaultVisibility?: Post['visibility'];
+  initialContent?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isOpen: true,
-  defaultVisibility: 'public'
+  defaultVisibility: 'public',
+  initialContent: ''
 });
 
 // Emits
@@ -452,12 +454,12 @@ const placeholder = computed(() => {
 
 const headerTitle = computed(() => {
   if (props.type === 'reply') {
-    return t('activitypub.replyToMony');
+    return t('activitypub.replyToPost');
   }
   if (props.type === 'quote') {
     return 'Quote Post';
   }
-  return t('activitypub.createAMony');
+  return t('activitypub.createAPost');
 });
 
 const submitButtonText = computed(() => {
@@ -741,6 +743,9 @@ onMounted(() => {
       ? `@${username}@${domain} `
       : `@${username} `;
     content.value = mention;
+  } else if (props.type === 'post' && props.initialContent?.trim()) {
+    // Pre-fill content for new posts (e.g. when mentioning from profile)
+    content.value = props.initialContent;
   }
 
   // Focus editor after mount and move cursor to end
@@ -757,7 +762,7 @@ onMounted(() => {
   });
 });
 
-// Watch for modal open state
+// Watch for modal open state and initial content
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen && props.mode === 'modal') {
     nextTick(() => {
@@ -765,6 +770,13 @@ watch(() => props.isOpen, (isOpen) => {
     });
   }
 });
+
+watch(() => props.initialContent, (val) => {
+  if (props.type === 'post' && val?.trim()) {
+    content.value = val;
+    nextTick(() => richEditorRef.value?.setCursorPosition(content.value.length));
+  }
+}, { immediate: true });
 
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {

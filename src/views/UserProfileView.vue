@@ -59,7 +59,7 @@
 
               <div class="more-actions" ref="moreActionsBtnRef">
                 <button
-                  @click="toggleActionsMenu"
+                  @click.stop="toggleActionsMenu"
                   class="banner-action-btn"
                   title="More actions"
                 >
@@ -916,7 +916,7 @@ const mentionUser = () => {
   
   // Open the composer with a mention
   activityPubStore.openComposer({
-    content: `${user.value.handle} `
+    content: `@${user.value.handle} `
   });
 
   // Navigate to Social Home

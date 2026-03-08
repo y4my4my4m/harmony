@@ -152,6 +152,7 @@
       :reply-to-post="composerReplyPost"
       :quote-post="activityPubStore.composerState.quotePost"
       :quote-author="activityPubStore.composerState.quoteAuthor"
+      :initial-content="activityPubStore.composerState.content"
       @close="handleCloseComposer"
       @posted="handlePosted"
     />
