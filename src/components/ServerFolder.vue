@@ -41,9 +41,11 @@
         </div>
         <!-- Folder indicator bar -->
         <div class="folder-indicator"></div>
-        <div v-if="folderHasNotifications" class="folder-notification-dot"></div>
       </div>
     </Transition>
+
+    <!-- Notification dot for collapsed folder (outside overflow:hidden container) -->
+    <div v-if="!folder.is_expanded && folderHasNotifications" class="folder-notification-dot"></div>
 
     <!-- Expanded folder view -->
     <Transition name="folder-expand">
@@ -523,14 +525,15 @@ const onIconError = (event: Event) => {
 
 .folder-notification-dot {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
+  top: -3px;
+  right: -3px;
   width: 12px;
   height: 12px;
   border-radius: 50%;
   background: #f04747;
   border: 2px solid var(--h-black-dark, #1e1f22);
-  z-index: 1;
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* Expanded folder - Discord style */

@@ -690,6 +690,7 @@ const formatFileSize = (bytes: number): string => {
 
 .content-html :deep(.content-video) {
   cursor: default;
+  width: 100%;
 }
 
 .content-html :deep(.youtube-embed) {
@@ -718,7 +719,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* Media containers */
 .media-container {
-  margin: 4px 0 8px 0;
+  margin: 14px 0 8px 0;
   max-width: 100%;
 }
 
