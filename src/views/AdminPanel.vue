@@ -604,6 +604,24 @@
             </div>
           </div>
         </div>
+
+        <!-- User Pagination -->
+        <div v-if="userPagination.total > userPagination.limit" class="pagination">
+          <button
+            @click="loadPreviousUsers"
+            :disabled="userPagination.offset === 0"
+            class="pagination-btn"
+          >Previous</button>
+          <span class="pagination-info">
+            {{ userPagination.offset + 1 }}–{{ Math.min(userPagination.offset + userPagination.limit, userPagination.total) }}
+            of {{ userPagination.total }}
+          </span>
+          <button
+            @click="loadNextUsers"
+            :disabled="userPagination.offset + userPagination.limit >= userPagination.total"
+            class="pagination-btn"
+          >Next</button>
+        </div>
       </div>
 
       <!-- Recent Activity -->
@@ -1206,7 +1224,7 @@ const filteredUsers = computed(() => {
     )
   }
 
-  return filtered.slice(0, 50) // Limit results
+  return filtered
 })
 
 // Watch for config changes
@@ -1286,13 +1304,30 @@ const loadSystemStats = async () => {
   }
 }
 
+const userPagination = ref({ offset: 0, limit: 25, total: 0 })
+
 const loadUsers = async () => {
   try {
-    users.value = await adminService.getUsers(100)
+    const result = await adminService.getUsers(
+      userPagination.value.limit,
+      userPagination.value.offset
+    )
+    users.value = result.users
+    userPagination.value.total = result.total
   } catch (error) {
     debug.error('Failed to load users:', error)
     users.value = []
   }
+}
+
+const loadNextUsers = () => {
+  userPagination.value.offset += userPagination.value.limit
+  loadUsers()
+}
+
+const loadPreviousUsers = () => {
+  userPagination.value.offset = Math.max(0, userPagination.value.offset - userPagination.value.limit)
+  loadUsers()
 }
 
 const loadSystemHealth = async () => {

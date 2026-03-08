@@ -91,15 +91,14 @@ class TrendingService {
 
       if (error) throw error;
 
-      // Map database columns (tag, uses_count, unique_users) to TrendingHashtag format
       return (data || []).map((row: any, index: number) => ({
         tag: row.tag,
         daily_uses: Number(row.uses_count) || 0,
-        weekly_uses: Number(row.uses_count) || 0, // Uses count over the days period
-        trending_score: Number(row.uses_count) || 0, // Use count as score
+        weekly_uses: Number(row.uses_count) || 0,
+        trending_score: Number(row.uses_count) || 0,
         trending_rank: index + 1,
-        change_percent: 0, // Not available from this query
-        trend: 'stable' as const
+        change_percent: Number(row.change_percent) || 0,
+        trend: (row.trend === 'rising' ? 'up' : row.trend === 'falling' ? 'down' : 'stable') as 'up' | 'down' | 'stable'
       }));
     } catch (error) {
       debug.error('Failed to get trending hashtags:', error);

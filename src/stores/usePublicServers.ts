@@ -70,7 +70,18 @@ export const usePublicServersStore = defineStore('publicServers', {
     },
 
     featuredServers: (state) => {
-      return state.servers.filter(server => server.is_featured).slice(0, 6)
+      const pinned = state.servers
+        .filter(server => server.is_featured)
+        .sort((a, b) => (a.featured_order || 0) - (b.featured_order || 0))
+
+      if (pinned.length >= 6) return pinned.slice(0, 6)
+
+      const remaining = state.servers
+        .filter(s => !s.is_featured)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 6 - pinned.length)
+
+      return [...pinned, ...remaining]
     },
 
     serversByCategory: (state) => {
@@ -137,10 +148,12 @@ export const usePublicServersStore = defineStore('publicServers', {
             public,
             allow_cross_server_emojis,
             created_at,
-            is_local_server
+            is_local_server,
+            is_featured,
+            featured_order
           `)
           .eq('public', true)
-          .neq('is_local_server', false)  // Exclude remote servers (is_local_server = false)
+          .neq('is_local_server', false)
           .order('created_at', { ascending: false })
           .limit(100)
 
@@ -205,7 +218,7 @@ export const usePublicServersStore = defineStore('publicServers', {
               ...server,
               member_count: memberCount,
               category: this.inferCategory(server.name, server.description),
-              is_featured: Math.random() > 0.8, // Mock featured status
+              is_featured: server.is_featured || false,
               last_activity: new Date().toISOString(),
               allow_cross_server_emojis: server.allow_cross_server_emojis || false
             }

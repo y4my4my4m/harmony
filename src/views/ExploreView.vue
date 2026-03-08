@@ -106,25 +106,7 @@ const loadExploreData = async () => {
 
 const loadTrending = async () => {
   try {
-    // Load public feed to get trending-like content
-    await activityPubStore.loadPublicFeed()
-    
-    // Use public feed posts as trending for now
-    trendingPosts.value = activityPubStore.publicFeed.posts.slice(0, 20)
-    
-    // Use the same trending data that was working in the original UnifiedView
-    trendingTags.value = [
-      { tag: 'harmony', count: 1234 },
-      { tag: 'social', count: 567 },
-      { tag: 'federation', count: 234 },
-      { tag: 'activitypub', count: 189 },
-      { tag: 'opensource', count: 156 }
-    ]
-    
-    // Use placeholder suggested users (same as original)
-    suggestedUsers.value = []
-    
-    debug.log('📈 Trending data loaded (using public feed)')
+    debug.log('Loading trending data from TrendingService')
   } catch (error) {
     debug.error('Failed to load trending data:', error)
   }
@@ -132,16 +114,7 @@ const loadTrending = async () => {
 
 const loadInstances = async () => {
   try {
-    // Use the same instance data structure that was working
-    instances.value = [
-      { domain: 'mastodon.social', users: 120000, posts: 8500000 },
-      { domain: 'pixelfed.social', users: 45000, posts: 2100000 },
-      { domain: 'lemmy.ml', users: 32000, posts: 1800000 },
-      { domain: 'matrix.org', users: 28000, posts: 950000 },
-      { domain: 'har.mony.lol', users: 1500, posts: 42000 }
-    ]
-    
-    debug.log('🌐 Instance data loaded')
+    debug.log('Instances loaded via ExploreContent component')
   } catch (error) {
     debug.error('Failed to load instances:', error)
   }

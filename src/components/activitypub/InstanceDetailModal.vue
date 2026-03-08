@@ -162,11 +162,14 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
 import type { FederatedInstance, TimelinePost } from '@/types';
 import BaseModal from '@/components/common/BaseModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+
+const router = useRouter();
 
 interface Props {
   instance: FederatedInstance;
@@ -283,13 +286,11 @@ const loadRecentPosts = async () => {
 };
 
 const viewPost = (post: TimelinePost) => {
-  // TODO: Navigate to post detail view
-  debug.log('View post:', post.id);
+  router.push({ name: 'PostDetail', params: { postId: post.id } });
 };
 
 const viewAllPosts = () => {
-  // TODO: Navigate to instance timeline
-  debug.log('View all posts from:', props.instance.domain);
+  window.open(`https://${props.instance.domain}/public`, '_blank');
 };
 
 const copyInstanceUrl = async () => {

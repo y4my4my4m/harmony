@@ -178,11 +178,11 @@
               <div class="instance-footer">
                 <span class="last-seen">{{ $t('activitypub.lastSeen') }} {{ getTimeAgo(instance.last_seen_at) }}</span>
                 <div class="instance-actions">
-                  <button @click.stop class="action-btn">
+                  <button @click.stop="visitInstance(instance)" class="action-btn">
                     <Icon name="external-link" />
                     {{ $t('activitypub.visit') }}
                   </button>
-                  <button @click.stop class="action-btn">
+                  <button @click.stop="viewInstancePosts(instance)" class="action-btn">
                     <Icon name="eye" />
                     {{ $t('activitypub.viewPosts') }}
                   </button>
@@ -314,19 +314,31 @@ const currentTabData = computed(() => {
 });
 
 // Methods
+const getTimeRangeDays = (): number => {
+  switch (selectedTimeRange.value) {
+    case '1h': return 1;
+    case '6h': return 1;
+    case '24h': return 1;
+    case '7d': return 7;
+    case '30d': return 30;
+    default: return 1;
+  }
+};
+
 const loadTrendingContent = async () => {
   try {
     isLoading.value = true;
+    const days = getTimeRangeDays();
     
     const [hashtags, posts, users] = await Promise.all([
-      activityPubService.getTrendingHashtags(20),
-      activityPubService.getTrendingPosts({ 
+      trendingService.getTrendingHashtags({ limit: 20, days }),
+      trendingService.getTrendingPosts({ 
         limit: 20, 
         timeframe: 'daily',
         includeLocal: true,
         includeFederated: true 
       }),
-      activityPubService.getSuggestedUsers(6)
+      trendingService.getTrendingUsers({ limit: 6 })
     ]);
 
     trendingHashtags.value = hashtags;
@@ -387,6 +399,14 @@ const showInstanceDetails = async (instance: any) => {
     selectedInstanceDetails.value = instance;
     showInstanceModal.value = true;
   }
+};
+
+const visitInstance = (instance: any) => {
+  window.open(`https://${instance.domain}`, '_blank');
+};
+
+const viewInstancePosts = (instance: any) => {
+  window.open(`https://${instance.domain}/public`, '_blank');
 };
 
 const searchInstances = async (searchTerm: string) => {

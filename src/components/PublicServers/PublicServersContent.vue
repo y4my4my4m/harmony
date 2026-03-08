@@ -376,6 +376,11 @@ const loadMore = () => {
   color: #ffffff;
 }
 
+.error-svg {
+  width: 32px;
+  height: 32px;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .public-servers-content {

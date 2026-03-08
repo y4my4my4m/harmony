@@ -21,6 +21,9 @@
   <!-- Push Notification Prompt (only for authenticated PWA users) -->
   <PushNotificationPrompt v-if="!isAuthRoute" />
   
+  <!-- Global Announcements Popup -->
+  <AnnouncementPopup v-if="!isAuthRoute" />
+  
   <!-- Global Modals (only when authenticated) -->
   <PublicServers 
     v-if="showPublicServers && !isAuthRoute"
@@ -41,6 +44,7 @@ import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
 import PublicServers from '@/components/PublicServers.vue'
+import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import { onMounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
 import { initializeAppSettings } from '@/services/AppInitService'

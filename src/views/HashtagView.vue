@@ -7,9 +7,17 @@
       </button>
       <div class="hashtag-info">
         <h1 class="hashtag-title">#{{ hashtag }}</h1>
-        <span class="post-count" v-if="!isLoading">
-          {{ posts.length }} {{ posts.length === 1 ? 'post' : 'posts' }}
-        </span>
+        <div class="hashtag-stats" v-if="!isLoading">
+          <span class="post-count">
+            {{ hashtagStats?.total_uses || posts.length }} {{ (hashtagStats?.total_uses || posts.length) === 1 ? 'post' : 'posts' }}
+          </span>
+          <span v-if="hashtagStats?.daily_uses" class="daily-stat">
+            {{ hashtagStats.daily_uses }} today
+          </span>
+          <span v-if="hashtagStats?.last_used_at" class="last-used">
+            Last used {{ formatTimeAgo(hashtagStats.last_used_at) }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -90,6 +98,7 @@ const isLoading = ref(false)
 const isLoadingMore = ref(false)
 const hasMore = ref(false)
 const cursor = ref<string | null>(null)
+const hashtagStats = ref<any>(null)
 
 // Post interactions
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
@@ -133,6 +142,24 @@ const loadMorePosts = async () => {
 
 const goBack = () => {
   router.back()
+}
+
+const loadHashtagStats = async () => {
+  try {
+    hashtagStats.value = await trendingService.getHashtagStats(props.hashtag)
+  } catch (error) {
+    debug.error('Failed to load hashtag stats:', error)
+  }
+}
+
+const formatTimeAgo = (dateStr: string): string => {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  if (hours < 1) return 'just now'
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return `${Math.floor(days / 30)}mo ago`
 }
 
 // Event handlers
@@ -182,6 +209,7 @@ watch(() => props.hashtag, (newTag, oldTag) => {
 // Load on mount
 onMounted(() => {
   loadPosts()
+  loadHashtagStats()
 })
 </script>
 
@@ -236,9 +264,27 @@ onMounted(() => {
   margin: 0;
 }
 
+.hashtag-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .post-count {
   font-size: 0.875rem;
   color: var(--text-secondary, #9ca3af);
+}
+
+.daily-stat {
+  font-size: 0.8rem;
+  color: var(--harmony-primary, #5865f2);
+  font-weight: 500;
+}
+
+.last-used {
+  font-size: 0.8rem;
+  color: var(--text-tertiary, #6b7280);
 }
 
 .loading-state,

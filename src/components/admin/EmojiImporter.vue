@@ -126,6 +126,13 @@
       <p>Emojis from remote instances will appear here as you interact with federated content.</p>
     </div>
 
+    <!-- Pagination -->
+    <div v-if="emojiTotal > emojiPageSize" class="emoji-pagination">
+      <button @click="loadPrevEmojiPage" :disabled="emojiOffset === 0" class="page-btn">Previous</button>
+      <span class="page-info">{{ emojiOffset + 1 }}–{{ Math.min(emojiOffset + emojiPageSize, emojiTotal) }} of {{ emojiTotal }}</span>
+      <button @click="loadNextEmojiPage" :disabled="emojiOffset + emojiPageSize >= emojiTotal" class="page-btn">Next</button>
+    </div>
+
     <!-- Import Modal -->
     <div v-if="showImportModal" class="modal-overlay" @click.self="closeImportModal">
       <div class="import-modal">
@@ -234,6 +241,24 @@ const filteredEmojis = computed(() => {
   return result;
 });
 
+const emojiPageSize = 50;
+const emojiOffset = ref(0);
+const emojiTotal = ref(0);
+
+const loadNextEmojiPage = () => {
+  if (emojiOffset.value + emojiPageSize < emojiTotal.value) {
+    emojiOffset.value += emojiPageSize;
+    loadEmojis();
+  }
+};
+
+const loadPrevEmojiPage = () => {
+  if (emojiOffset.value > 0) {
+    emojiOffset.value = Math.max(0, emojiOffset.value - emojiPageSize);
+    loadEmojis();
+  }
+};
+
 // Methods
 const loadEmojis = async () => {
   isLoading.value = true;
@@ -243,8 +268,9 @@ const loadEmojis = async () => {
     
     let query = supabase
       .from('remote_emojis_cache')
-      .select('*')
-      .order('usage_count', { ascending: false });
+      .select('*', { count: 'exact' })
+      .order('usage_count', { ascending: false })
+      .range(emojiOffset.value, emojiOffset.value + emojiPageSize - 1);
     
     // Filter by domain
     if (selectedDomain.value) {
@@ -258,7 +284,8 @@ const loadEmojis = async () => {
       query = query.not('imported_as', 'is', null);
     }
     
-    const { data, error } = await query;
+    const { data, error, count } = await query;
+    emojiTotal.value = count || 0;
     
     if (error) {
       debug.error('Failed to load remote emojis:', error);
@@ -643,6 +670,39 @@ onMounted(() => {
   padding: 4rem 2rem;
   text-align: center;
   color: #a0a4a8;
+}
+
+.emoji-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  border-top: 1px solid var(--border-color, #2b2d31);
+}
+
+.page-btn {
+  padding: 8px 16px;
+  background: var(--background-tertiary, #2b2d31);
+  border: 1px solid var(--border-color, #3f4147);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-btn:hover:not(:disabled) {
+  background: var(--background-hover);
+}
+
+.page-info {
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 .empty-state h3 {

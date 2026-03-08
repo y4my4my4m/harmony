@@ -283,10 +283,14 @@ class AdminService {
   }
 
   /**
-   * Get users with admin-relevant information
+   * Get users with admin-relevant information (paginated)
    */
-  async getUsers(limit: number = 100): Promise<AdminUser[]> {
+  async getUsers(limit: number = 25, offset: number = 0): Promise<{ users: AdminUser[]; total: number }> {
     try {
+      const { count: total } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -306,7 +310,7 @@ class AdminService {
           federated_id
         `)
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .range(offset, offset + limit - 1);
 
       if (error) throw error;
 
@@ -341,7 +345,7 @@ class AdminService {
         })
       );
 
-      return usersWithCounts;
+      return { users: usersWithCounts, total: total || 0 };
     } catch (error) {
       debug.error('Failed to get users:', error);
       throw error;
@@ -349,32 +353,67 @@ class AdminService {
   }
 
   /**
-   * Get recent admin activity
+   * Get recent admin activity from audit log
    */
   async getRecentActivity(limit: number = 20): Promise<AdminActivity[]> {
     try {
-      // For now, simulate recent activity from various system events
-      // In a real system, this would come from an admin_logs table
-      const mockActivity: AdminActivity[] = [
-        {
-          id: '1',
-          admin_id: 'admin-1',
-          admin_username: 'admin',
-          action_type: 'user_moderation',
-          target_type: 'user',
-          target_id: undefined,
-          details: 'System initialized',
-          metadata: {},
-          ip_address: '127.0.0.1',
-          user_agent: 'Harmony Admin Panel',
-          created_at: new Date().toISOString()
-        }
-      ];
+      const { data, error } = await supabase
+        .from('admin_audit_log')
+        .select(`
+          *,
+          admin:profiles!admin_id(username, display_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-      return mockActivity.slice(0, limit);
+      if (error) {
+        debug.warn('admin_audit_log query failed, falling back to empty:', error);
+        return [];
+      }
+
+      return (data || []).map((entry: any) => ({
+        id: entry.id,
+        admin_id: entry.admin_id,
+        admin_username: entry.admin?.username || 'Unknown',
+        action_type: entry.action_type || 'unknown',
+        target_type: entry.target_type || 'system',
+        target_id: entry.target_id,
+        details: entry.action_details ? (typeof entry.action_details === 'string' ? entry.action_details : JSON.stringify(entry.action_details)) : '',
+        metadata: entry.action_details || {},
+        ip_address: entry.ip_address,
+        user_agent: entry.user_agent || '',
+        created_at: entry.created_at
+      }));
     } catch (error) {
       debug.error('Failed to get recent activity:', error);
       return [];
+    }
+  }
+
+  /**
+   * Log an admin action to the audit log
+   */
+  async logAdminAction(params: {
+    action: string;
+    targetType: string;
+    targetId?: string;
+    details?: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from('admin_audit_log')
+        .insert({
+          admin_id: user.id,
+          action_type: params.action,
+          target_type: params.targetType,
+          target_id: params.targetId,
+          action_details: params.details || {}
+        });
+    } catch (error) {
+      debug.error('Failed to log admin action:', error);
     }
   }
 
@@ -418,6 +457,13 @@ class AdminService {
       }
 
       debug.log(`User ${userId} ${action}ed successfully by admin ${adminId}`);
+
+      await this.logAdminAction({
+        action: `user_${action}`,
+        targetType: 'user',
+        targetId: userId,
+        details: { reason, action }
+      });
     } catch (error) {
       debug.error('Failed to moderate user:', error);
       throw error;
@@ -943,8 +989,19 @@ class AdminService {
    */
   async addInstanceFromDomain(domain: string, trusted: boolean, adminId: string): Promise<void> {
     try {
-      // First try to discover instance info
-      const instanceInfo = await this.discoverInstance(domain);
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+
+      const { data: existing } = await supabase
+        .from('federated_instances')
+        .select('id')
+        .eq('domain', cleanDomain)
+        .maybeSingle();
+
+      if (existing) {
+        throw new Error(`Instance "${cleanDomain}" is already added`);
+      }
+
+      const instanceInfo = await this.discoverInstance(cleanDomain);
       
       const { error } = await supabase
         .from('federated_instances')

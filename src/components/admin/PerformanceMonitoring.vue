@@ -1,5 +1,5 @@
 <template>
-  <div class="performance-monitoring">
+  <div class="performance-monitoring" :class="{ 'is-fullscreen': isFullscreen }" ref="monitoringEl">
     <!-- Header -->
     <div class="monitoring-header">
       <div class="header-content">
@@ -7,6 +7,9 @@
         <p>Real-time metrics and insights for your Harmony instance</p>
       </div>
       <div class="header-actions">
+        <button @click="toggleFullscreen" class="fullscreen-btn" :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'">
+          {{ isFullscreen ? '⛶' : '⛶' }}
+        </button>
         <select v-model="timeRange" class="time-selector">
           <option value="1h">Last Hour</option>
           <option value="6h">Last 6 Hours</option>
@@ -221,6 +224,23 @@ import { formatDistanceToNow } from 'date-fns'
 const loading = ref(false)
 const timeRange = ref('24h')
 const refreshInterval = ref<number | null>(null)
+const isFullscreen = ref(false)
+const monitoringEl = ref<HTMLElement | null>(null)
+
+const toggleFullscreen = async () => {
+  if (!monitoringEl.value) return
+  if (!document.fullscreenElement) {
+    await monitoringEl.value.requestFullscreen()
+    isFullscreen.value = true
+  } else {
+    await document.exitFullscreen()
+    isFullscreen.value = false
+  }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  isFullscreen.value = !!document.fullscreenElement
+})
 
 // Metrics data
 const metrics = ref({
@@ -531,6 +551,27 @@ onUnmounted(() => {
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
+}
+
+.performance-monitoring.is-fullscreen {
+  max-width: none;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--background-primary, #1e1f22);
+}
+
+.fullscreen-btn {
+  background: var(--background-tertiary, #2b2d31);
+  border: 1px solid var(--border-color, #3f4147);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.fullscreen-btn:hover {
+  background: var(--background-hover);
 }
 
 .monitoring-header {

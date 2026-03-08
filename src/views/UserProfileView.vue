@@ -91,7 +91,7 @@
                     <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
                   </button>
                   
-                  <button v-if="!user.is_local" @click="handleReport" class="action-item danger">
+                  <button @click="handleReport" class="action-item danger">
                     <Icon name="flag" />
                     <span>Report</span>
                   </button>
@@ -282,6 +282,14 @@
     :user="selectedModalUser"
     @close="showProfileModal = false; selectedModalUser = null"
   />
+
+  <ReportModal
+    v-if="showReportModal && user"
+    report-type="user"
+    :target-user-id="user.id"
+    :target-user="{ username: user.username, display_name: user.display_name, avatar_url: user.avatar_url }"
+    @close="showReportModal = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -309,6 +317,7 @@ import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+import ReportModal from '@/components/moderation/ReportModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -924,8 +933,10 @@ const handleBlock = async () => {
   showActionsMenu.value = false;
 };
 
+const showReportModal = ref(false);
+
 const handleReport = () => {
-  // TODO: Implement reporting
+  showReportModal.value = true;
   showActionsMenu.value = false;
 };
 

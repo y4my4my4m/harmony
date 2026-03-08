@@ -182,29 +182,7 @@
       </div>
     </div>
 
-    <!-- Save/Reset Actions -->
-    <div class="settings-actions">
-      <button 
-        @click="resetSettings" 
-        class="action-button secondary"
-        :disabled="!hasUnsavedChanges"
-      >
-        Reset Changes
-      </button>
-      <button 
-        @click="saveSettings" 
-        class="action-button primary"
-        :disabled="isSaving || !hasUnsavedChanges"
-      >
-        <svg v-if="isSaving" viewBox="0 0 24 24" class="button-icon spinning">
-          <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" fill="currentColor"/>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" class="button-icon">
-          <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" fill="currentColor"/>
-        </svg>
-        {{ isSaving ? 'Saving...' : 'Save Changes' }}
-      </button>
-    </div>
+    <!-- Save actions handled by parent ServerSettings save button -->
 
     <!-- Success/Error Messages -->
     <div v-if="saveMessage" class="save-message" :class="saveMessage.type">
@@ -337,6 +315,13 @@ const resetSettings = () => {
   settings.value = { ...originalSettings.value }
   saveMessage.value = null
 }
+
+// Expose for parent component
+defineExpose({
+  hasChanges: hasUnsavedChanges,
+  saveSettings,
+  resetSettings
+})
 
 // Lifecycle
 onMounted(() => {
