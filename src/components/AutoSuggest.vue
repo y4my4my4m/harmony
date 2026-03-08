@@ -218,6 +218,14 @@ watch(() => props.selectedIndex, (newIndex) => {
   color: var(--text-secondary); /* Better contrast on hover background */
 }
 
+.suggest-item.selected .suggest-description {
+  color: var(--text-secondary) !important; /* Better contrast on selected background */
+}
+
+.suggest-item:hover .suggest-description {
+  color: var(--text-secondary); /* Better contrast on hover background */
+}
+
 .suggest-item-default {
   display: flex;
   align-items: center;

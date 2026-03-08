@@ -13,27 +13,33 @@
 
         <div class="modal-body">
           <!-- Member selector (when no user pre-selected) -->
-          <div v-if="needsMemberSelect" class="form-group">
+          <div v-if="needsMemberSelect && !selectedMember" class="form-group">
             <label for="member-search">Member</label>
-            <input
-              id="member-search"
-              v-model="memberSearch"
-              type="text"
-              class="form-input"
-              placeholder="Search for a member..."
-              autocomplete="off"
-            />
-            <div v-if="filteredMembers.length > 0" class="member-list">
-              <div
-                v-for="m in filteredMembers"
-                :key="m.id"
-                class="member-option"
-                :class="{ 'selected': selectedMember?.id === m.id }"
-                @click="selectedMember = m"
-              >
-                <img :src="m.avatar_url || '/default_avatar.png'" class="member-option-avatar" />
-                <span>{{ m.display_name || m.username }}</span>
-                <span class="member-option-username">@{{ m.username }}</span>
+            <div class="member-search-wrapper">
+              <input
+                id="member-search"
+                ref="memberSearchInput"
+                v-model="memberSearch"
+                type="text"
+                class="form-input"
+                placeholder="Search for a member..."
+                autocomplete="off"
+                @focus="showDropdown = true"
+              />
+              <div v-if="showDropdown && filteredMembers.length > 0" class="member-list">
+                <div
+                  v-for="m in filteredMembers"
+                  :key="m.id"
+                  class="member-option"
+                  @click="selectMember(m)"
+                >
+                  <img :src="m.avatar_url || '/default_avatar.png'" class="member-option-avatar" />
+                  <span>{{ m.display_name || m.username }}</span>
+                  <span class="member-option-username">@{{ m.username }}</span>
+                </div>
+              </div>
+              <div v-if="showDropdown && memberSearch && filteredMembers.length === 0" class="member-list member-list-empty">
+                <span>No members found</span>
               </div>
             </div>
           </div>
@@ -49,6 +55,11 @@
               <span class="user-display-name">{{ targetDisplayName }}</span>
               <span class="user-username">@{{ targetUser.username }}</span>
             </div>
+            <button v-if="needsMemberSelect" class="clear-member-btn" @click="clearSelectedMember" title="Change member">
+              <svg width="16" height="16" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+              </svg>
+            </button>
           </div>
 
           <div v-if="mode === 'ban' && targetUser" class="warning-banner">
@@ -95,10 +106,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { moderationService, DELETE_MESSAGE_OPTIONS, type DeleteMessageDuration } from '@/services/ModerationService'
 import { userDataService } from '@/services/userDataService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useAuthStore } from '@/stores/auth'
 
 interface MemberInfo {
   id: string
@@ -120,14 +132,17 @@ const emit = defineEmits<{
 }>()
 
 const serverChannelStore = useServerChannelStore()
+const authStore = useAuthStore()
 const reason = ref('')
 const deleteSeconds = ref<DeleteMessageDuration>(0)
 const isLoading = ref(false)
 const deleteOptions = DELETE_MESSAGE_OPTIONS
 
 const memberSearch = ref('')
+const memberSearchInput = ref<HTMLInputElement | null>(null)
 const selectedMember = ref<MemberInfo | null>(null)
 const serverMembers = ref<MemberInfo[]>([])
+const showDropdown = ref(false)
 
 const needsMemberSelect = computed(() => !props.user.id)
 
@@ -138,27 +153,50 @@ const targetUser = computed<MemberInfo | null>(() => {
 
 const targetDisplayName = computed(() => targetUser.value?.display_name || targetUser.value?.username || '')
 
+const currentUserId = computed(() => authStore.session?.user?.id || '')
+
 const filteredMembers = computed(() => {
   const q = memberSearch.value.toLowerCase();
-  if (!q) return serverMembers.value.slice(0, 10);
-  return serverMembers.value
+  const members = serverMembers.value.filter(m => m.id !== currentUserId.value);
+  if (!q) return members.slice(0, 10);
+  return members
     .filter(m => m.username?.toLowerCase().includes(q) || m.display_name?.toLowerCase().includes(q))
     .slice(0, 10);
 })
 
+function selectMember(m: MemberInfo) {
+  selectedMember.value = m;
+  showDropdown.value = false;
+  memberSearch.value = '';
+}
+
+function clearSelectedMember() {
+  selectedMember.value = null;
+  memberSearch.value = '';
+  nextTick(() => {
+    showDropdown.value = true;
+    memberSearchInput.value?.focus();
+  });
+}
+
 watch(() => props.show, async (visible) => {
   if (visible && needsMemberSelect.value) {
-    const userIds = userDataService.getUsersInContext(props.serverId);
-    serverMembers.value = userIds
-      .map(id => {
-        const p = userDataService.getUserProfile(id);
-        return p ? { id, username: p.username, display_name: p.displayName, avatar_url: p.avatarUrl } : null;
-      })
-      .filter((m): m is MemberInfo => m !== null);
+    const users = userDataService.getUsersInContext(props.serverId);
+    serverMembers.value = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.displayName,
+      avatar_url: u.avatarUrl
+    }));
+    nextTick(() => {
+      showDropdown.value = true;
+      memberSearchInput.value?.focus();
+    });
   }
   if (!visible) {
     memberSearch.value = '';
     selectedMember.value = null;
+    showDropdown.value = false;
     reason.value = '';
     deleteSeconds.value = 0;
   }
@@ -395,13 +433,29 @@ async function confirm() {
   border-color: var(--accent-color, #5865f2);
 }
 
+.member-search-wrapper {
+  position: relative;
+}
+
 .member-list {
+  position: absolute;
+  left: 0;
+  right: 0;
   max-height: 180px;
   overflow-y: auto;
-  margin-top: 6px;
+  margin-top: 4px;
   border-radius: 4px;
   background: var(--bg-tertiary, #1e1f22);
   border: 1px solid var(--border-color, #3f4147);
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.member-list-empty {
+  padding: 12px;
+  color: var(--text-muted, #949ba4);
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 .member-option {
@@ -431,6 +485,22 @@ async function confirm() {
   color: var(--text-muted, #949ba4);
   font-size: 0.78rem;
   margin-left: auto;
+}
+
+.clear-member-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted, #949ba4);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.clear-member-btn:hover {
+  color: var(--text-primary, #f2f3f5);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 @media (max-width: 480px) {
