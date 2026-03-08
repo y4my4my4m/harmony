@@ -682,12 +682,12 @@
 
               <div v-if="report.reported_message_preview" class="report-proof">
                 <label>Reported message</label>
-                <blockquote>{{ report.reported_message_preview }}</blockquote>
+                <blockquote v-html="linkifyReportPreview(report.reported_message_preview)"></blockquote>
               </div>
 
               <div v-if="report.reported_post_preview" class="report-proof">
                 <label>Reported post</label>
-                <blockquote>{{ report.reported_post_preview }}</blockquote>
+                <blockquote v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
               </div>
 
               <div v-if="report.resolution_note" class="report-resolution">
@@ -703,6 +703,11 @@
                     class="report-action-btn danger"
                     @click.stop="deleteReportedMessage(report)"
                   >Delete Message</button>
+                  <button
+                    v-if="extractStorageUrls(report).length > 0"
+                    class="report-action-btn danger"
+                    @click.stop="deleteReportedMedia(report)"
+                  >Delete Media ({{ extractStorageUrls(report).length }})</button>
                   <button
                     v-if="report.reported_user_id"
                     class="report-action-btn danger"
@@ -2425,6 +2430,59 @@ const updateReport = async (reportId: string, status: 'investigating' | 'resolve
     await loadPendingReportsCount()
   } else {
     toast.error('Failed to update report')
+  }
+}
+
+const linkifyReportPreview = (text: string): string => {
+  return text.replace(
+    /(https?:\/\/[^\s\]]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">$1</a>'
+  )
+}
+
+const extractStorageUrls = (report: ReportWithDetails): string[] => {
+  const preview = report.reported_message_preview || report.reported_post_preview || ''
+  const supabaseHost = import.meta.env.VITE_SUPABASE_URL || ''
+  const urls: string[] = []
+  const urlRegex = /https?:\/\/[^\s\]]+/g
+  let match
+  while ((match = urlRegex.exec(preview)) !== null) {
+    const url = match[0]
+    if (url.includes('/storage/') || (supabaseHost && url.startsWith(supabaseHost))) {
+      urls.push(url)
+    }
+  }
+  return urls
+}
+
+const deleteReportedMedia = async (report: ReportWithDetails) => {
+  const urls = extractStorageUrls(report)
+  if (urls.length === 0) return
+  if (!confirm(`Delete ${urls.length} media file(s) from storage? This cannot be undone.\n\n${urls.join('\n')}`)) return
+
+  let deleted = 0
+  for (const url of urls) {
+    try {
+      const pathMatch = url.match(/\/storage\/v1\/object\/public\/([^?]+)/)
+      if (pathMatch) {
+        const fullPath = pathMatch[1]
+        const slashIdx = fullPath.indexOf('/')
+        const bucket = fullPath.substring(0, slashIdx)
+        const filePath = fullPath.substring(slashIdx + 1)
+        const { error } = await supabase.storage.from(bucket).remove([filePath])
+        if (!error) deleted++
+        else debug.error(`Failed to delete ${filePath}:`, error)
+      }
+    } catch (error) {
+      debug.error('Failed to delete media:', error)
+    }
+  }
+
+  if (deleted > 0) {
+    await adminService.logAdminAction({ action: 'media_delete', targetType: 'storage', details: { count: deleted, urls } })
+    toast.success(`Deleted ${deleted} media file(s)`)
+  } else {
+    toast.error('Failed to delete media files')
   }
 }
 
@@ -4899,6 +4957,16 @@ const handleAddInstance = () => {
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.report-proof :deep(.report-link) {
+  color: var(--accent-color);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.report-proof :deep(.report-link:hover) {
+  opacity: 0.8;
 }
 
 .report-actions-panel {
