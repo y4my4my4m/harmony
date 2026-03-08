@@ -1142,6 +1142,10 @@
         <div class="module-header">
           <Icon name="heart" :size="20" />
           <h2>Funding & Supporters</h2>
+          <button @click="saveFundingConfig" class="save-btn" :disabled="!fundingChanged">
+            <Icon name="save" :size="16" />
+            Save Changes
+          </button>
         </div>
         <div class="funding-content">
           <!-- Funding Config -->
@@ -1149,7 +1153,7 @@
             <h3>Funding Goal</h3>
             <div class="setting-row">
               <label class="toggle-label">
-                <input type="checkbox" v-model="fundingEnabled" @change="saveFundingConfig" />
+                <input type="checkbox" v-model="fundingEnabled" />
                 <span class="toggle-slider"></span>
                 Enable funding
               </label>
@@ -1157,14 +1161,14 @@
             <div v-if="fundingEnabled" class="funding-fields">
               <div class="setting-row">
                 <label class="toggle-label">
-                  <input type="checkbox" v-model="fundingShowInBar" @change="saveFundingConfig" />
+                  <input type="checkbox" v-model="fundingShowInBar" />
                   <span class="toggle-slider"></span>
                   Show in context bar
                 </label>
               </div>
               <div class="setting-row">
                 <label class="toggle-label">
-                  <input type="checkbox" v-model="fundingShowProgress" @change="saveFundingConfig" />
+                  <input type="checkbox" v-model="fundingShowProgress" />
                   <span class="toggle-slider"></span>
                   Show progress bar
                 </label>
@@ -1196,10 +1200,6 @@
                 <label>Thank you message</label>
                 <input type="text" v-model="fundingThankYou" class="cyber-input" placeholder="Message shown to supporters" />
               </div>
-              <button class="action-btn" @click="saveFundingConfig" style="margin-top: 12px;">
-                <Icon name="check" :size="16" />
-                Save Funding Settings
-              </button>
             </div>
           </div>
 
@@ -1445,6 +1445,7 @@ const reportFilters = [
 ]
 
 // Funding management data
+const fundingChanged = ref(false)
 const fundingEnabled = ref(false)
 const fundingShowInBar = ref(false)
 const fundingShowProgress = ref(true)
@@ -1714,6 +1715,12 @@ watch(config, () => {
 watch(activeReportFilter, () => {
   loadReports()
 })
+
+// Watch for funding config changes
+watch(
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingDescription, fundingThankYou],
+  () => { fundingChanged.value = true }
+)
 
 // Methods
 const loadInitialData = async () => {
@@ -2037,6 +2044,8 @@ const loadFundingData = async () => {
   supporters.value = await fundingService.getSupporters()
   donationHistory.value = await fundingService.getDonationHistory()
   donationStats.value = await fundingService.getDonationStats()
+  // Reset after populating to avoid false dirty state from watchers
+  fundingChanged.value = false
 }
 
 const saveFundingConfig = async () => {
@@ -2051,6 +2060,7 @@ const saveFundingConfig = async () => {
     thank_you_message: fundingThankYou.value || null,
   } as any)
   if (success) {
+    fundingChanged.value = false
     toast.success('Funding settings saved')
   } else {
     toast.error('Failed to save funding settings')

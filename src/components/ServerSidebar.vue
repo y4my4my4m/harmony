@@ -213,6 +213,23 @@
       @close="closeFolderModal"
       @saved="handleFolderSaved"
     />
+
+    <!-- Funding button (bottom of sidebar) -->
+    <div v-if="fundingEnabled" class="fixed-footer">
+      <div class="separator"></div>
+      <div
+        class="funding-button"
+        @click="showFundingModal = true"
+        @mouseenter="showSidebarTooltip($event, 'Instance Funding')"
+        @mouseleave="hideSidebarTooltip"
+      >
+        <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22">
+          <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"/>
+        </svg>
+      </div>
+    </div>
+
+    <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
   </div>
   
   <!-- Sidebar Tooltip - Teleported to body to avoid overflow clipping -->
@@ -236,7 +253,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -247,6 +264,8 @@ import ServerIcon from '@/components/common/ServerIcon.vue';
 import ServerFolder from '@/components/ServerFolder.vue';
 import ServerFolderContextMenu from '@/components/ServerFolderContextMenu.vue';
 import ServerFolderSettingsModal from '@/components/ServerFolderSettingsModal.vue';
+import FundingModal from '@/components/FundingModal.vue';
+import { fundingService } from '@/services/FundingService';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
 // Define Props
@@ -263,6 +282,8 @@ const emit = defineEmits<{
 
 // Reactive state
 const showPublicServers = ref(false);
+const showFundingModal = ref(false);
+const fundingEnabled = ref(false);
 
 // Drag state for reordering and creating folders
 const draggingItemId = ref<string | null>(null);
@@ -356,6 +377,12 @@ const hasServerUnread = (serverId: string): boolean => {
 const isSelected = (serverId: string) => {
   return serverId === serverChannelStore.currentServerId && !isDMSelected.value && !isMonyverseSelected.value;
 };
+
+// Load funding state
+onMounted(async () => {
+  const config = await fundingService.getFundingConfig()
+  fundingEnabled.value = config?.enabled ?? false
+})
 
 // Watchers
 watch(showPublicServers, (value) => {
@@ -937,6 +964,43 @@ const removeServerFromFolder = async () => {
   flex-direction: column;
   align-items: center;
   width: 100%;
+}
+
+/* Fixed footer section */
+.fixed-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding-bottom: 8px;
+}
+
+.funding-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--background-secondary, #2b2d31);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+
+.funding-button:hover {
+  background: var(--harmony-primary, #5865f2);
+  border-radius: 16px;
+}
+
+.funding-icon {
+  color: var(--text-secondary);
+  transition: color 0.2s;
+}
+
+.funding-button:hover .funding-icon {
+  color: var(--text-primary);
 }
 
 /* Scrollable servers section */

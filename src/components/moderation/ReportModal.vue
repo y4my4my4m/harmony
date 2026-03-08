@@ -83,7 +83,13 @@
             <span class="success-icon">✓</span>
             <h3>Report Submitted</h3>
             <p>Thank you for helping keep the community safe. We'll review your report shortly.</p>
-            <button class="btn-done" @click="$emit('close')">Done</button>
+            <div v-if="reportType === 'message' || reportType === 'post'" class="hide-prompt">
+              <button class="btn-hide" @click="hideAndClose">
+                Hide this {{ reportType }}
+              </button>
+              <span class="hide-hint">Remove it from your view</span>
+            </div>
+            <button class="btn-done" @click="$emit('close')">{{ (reportType === 'message' || reportType === 'post') ? 'Keep visible' : 'Done' }}</button>
           </div>
         </div>
       </div>
@@ -113,8 +119,9 @@ interface Props {
 
 const props = defineProps<Props>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
+  hide: [type: 'message' | 'post', id: string]
 }>()
 
 const selectedReason = ref<ReportReason | ''>('')
