@@ -206,7 +206,7 @@ SET search_path = public
 AS $$
 DECLARE
     current_auth_uid uuid := auth.uid();
-    is_admin boolean := false;
+    v_is_admin boolean := false;
     current_settings jsonb;
     new_settings jsonb;
 BEGIN
@@ -217,12 +217,12 @@ BEGIN
 
     -- SECURITY: Check if the AUTHENTICATED user (not the passed p_user_id) is admin
     SELECT EXISTS(
-        SELECT 1 FROM profiles 
-        WHERE auth_user_id = current_auth_uid 
-        AND is_admin = true
-    ) INTO is_admin;
+        SELECT 1 FROM profiles p
+        WHERE p.auth_user_id = current_auth_uid 
+        AND p.is_admin = true
+    ) INTO v_is_admin;
     
-    IF NOT is_admin THEN
+    IF NOT v_is_admin THEN
         RAISE EXCEPTION 'Unauthorized: Admin role required';
     END IF;
     

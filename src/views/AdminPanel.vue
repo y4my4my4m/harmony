@@ -3524,7 +3524,10 @@ const handleAddInstance = () => {
 .module-hint {
   font-size: 13px;
   color: var(--text-secondary);
-  margin: 0 24px 16px;
+  padding: 16px 24px;
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
 }
 .announcement-form {
   margin: 0 24px 20px;
