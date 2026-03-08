@@ -1219,6 +1219,29 @@
                 <label>Thank you message</label>
                 <input type="text" v-model="fundingThankYou" class="cyber-input" placeholder="Message shown to supporters" />
               </div>
+
+              <!-- Funding Links -->
+              <div class="funding-links-section" style="margin-top: 16px;">
+                <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Donation Links</label>
+                <div v-if="fundingLinks.length > 0" class="funding-links-list">
+                  <div v-for="(link, i) in fundingLinks" :key="i" class="funding-link-row">
+                    <input v-model="link.platform" class="cyber-input" placeholder="Platform" style="width: 110px;" />
+                    <input v-model="link.url" class="cyber-input" placeholder="https://..." style="flex: 1;" />
+                    <input v-model="link.label" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
+                    <button class="mod-btn delete-btn" @click="fundingLinks.splice(i, 1)" title="Remove link">
+                      <Icon name="delete" :size="14" />
+                    </button>
+                  </div>
+                </div>
+                <div class="funding-link-row" style="margin-top: 6px;">
+                  <input v-model="newLinkPlatform" class="cyber-input" placeholder="Platform (e.g. Patreon)" style="width: 110px;" />
+                  <input v-model="newLinkUrl" class="cyber-input" placeholder="https://patreon.com/..." style="flex: 1;" />
+                  <input v-model="newLinkLabel" class="cyber-input" placeholder="Label" style="width: 140px;" />
+                  <button class="action-btn" @click="addFundingLink" :disabled="!newLinkPlatform || !newLinkUrl" style="white-space: nowrap;">
+                    <Icon name="plus" :size="14" /> Add
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1590,6 +1613,10 @@ const fundingCurrency = ref('USD')
 const fundingCurrentAmount = ref<number>(0)
 const fundingDescription = ref('')
 const fundingThankYou = ref('')
+const fundingLinks = ref<{ platform: string; url: string; label: string }[]>([])
+const newLinkPlatform = ref('')
+const newLinkUrl = ref('')
+const newLinkLabel = ref('')
 const supporterTiers = ref<SupporterTier[]>([])
 const supporters = ref<Supporter[]>([])
 const donationHistory = ref<DonationRecord[]>([])
@@ -1885,8 +1912,9 @@ watch(activeReportFilter, () => {
 
 // Watch for funding config changes
 watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingDescription, fundingThankYou],
-  () => { fundingChanged.value = true }
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingDescription, fundingThankYou, fundingLinks],
+  () => { fundingChanged.value = true },
+  { deep: true }
 )
 
 // Methods
@@ -2206,6 +2234,7 @@ const loadFundingData = async () => {
     fundingCurrentAmount.value = config.current_amount
     fundingDescription.value = config.goal_description || ''
     fundingThankYou.value = config.thank_you_message || ''
+    fundingLinks.value = config.funding_links || []
   }
   supporterTiers.value = await fundingService.getTiers()
   supporters.value = await fundingService.getSupporters()
@@ -2213,6 +2242,18 @@ const loadFundingData = async () => {
   donationStats.value = await fundingService.getDonationStats()
   // Reset after populating to avoid false dirty state from watchers
   fundingChanged.value = false
+}
+
+const addFundingLink = () => {
+  if (!newLinkPlatform.value || !newLinkUrl.value) return
+  fundingLinks.value.push({
+    platform: newLinkPlatform.value,
+    url: newLinkUrl.value,
+    label: newLinkLabel.value || newLinkPlatform.value,
+  })
+  newLinkPlatform.value = ''
+  newLinkUrl.value = ''
+  newLinkLabel.value = ''
 }
 
 const saveFundingConfig = async () => {
@@ -2225,6 +2266,7 @@ const saveFundingConfig = async () => {
     current_amount: fundingCurrentAmount.value,
     goal_description: fundingDescription.value || null,
     thank_you_message: fundingThankYou.value || null,
+    funding_links: fundingLinks.value,
   } as any)
   if (success) {
     fundingChanged.value = false
@@ -5243,6 +5285,22 @@ const handleAddInstance = () => {
 .donation-note {
   font-style: italic;
   opacity: 0.7;
+}
+
+.funding-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.funding-link-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.funding-link-row .cyber-input {
+  min-width: 0;
 }
 
 .add-supporter-form {
