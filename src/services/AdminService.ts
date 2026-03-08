@@ -588,11 +588,21 @@ class AdminService {
       let termsUrl = ''
       let privacyUrl = ''
 
+      let maxServerSize = 1000
+      let maxMessageLength = 2000
+      let allowFileUploads = true
+      let enableVoiceChannels = true
+      let maxPostLength = 500
+      let retryAttempts = 3
+      let maxCustomEmojisPerServer = 0
+      let enableOutbound = true
+      let enableInbound = true
+
       try {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -645,6 +655,27 @@ class AdminService {
                 case 'privacy_url':
                   privacyUrl = (typeof value === 'string' ? value : String(value)) || ''
                   break
+                case 'max_server_size':
+                  maxServerSize = typeof value === 'number' ? value : parseInt(String(value), 10) || 1000
+                  break
+                case 'max_message_length':
+                  maxMessageLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 2000
+                  break
+                case 'allow_file_uploads':
+                  allowFileUploads = value === true || value === 'true'
+                  break
+                case 'enable_voice_channels':
+                  enableVoiceChannels = value === true || value === 'true'
+                  break
+                case 'max_post_length':
+                  maxPostLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 500
+                  break
+                case 'federation_retry_attempts':
+                  retryAttempts = typeof value === 'number' ? value : parseInt(String(value), 10) || 3
+                  break
+                case 'max_custom_emojis_per_server':
+                  maxCustomEmojisPerServer = typeof value === 'number' ? value : parseInt(String(value), 10) || 0
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -657,16 +688,17 @@ class AdminService {
       
       return {
         chat: {
-          maxServerSize: 1000,
-          maxMessageLength: 2000,
-          allowFileUploads: true,
-          enableVoiceChannels: true
+          maxServerSize,
+          maxMessageLength,
+          allowFileUploads,
+          enableVoiceChannels
         },
         federation: {
-          maxPostLength: 500,
-          retryAttempts: 3,
-          enableOutbound: true,
-          enableInbound: true
+          maxPostLength,
+          retryAttempts,
+          maxCustomEmojisPerServer,
+          enableOutbound,
+          enableInbound
         },
         webrtc: webrtcSettings,
         instance: {
@@ -1565,9 +1597,16 @@ class AdminService {
 
   /**
    * Get instances from user interactions (follows, posts, etc.)
+   * Excludes instances already in federated_instances (approved/known).
    */
   async getDiscoveredInstances(limit: number = 20): Promise<{ domain: string; user_count: number; interaction_count: number }[]> {
     try {
+      // Get domains already in federated_instances (approved/known) to exclude
+      const { data: knownData } = await supabase
+        .from('federated_instances')
+        .select('domain');
+      const knownDomains = new Set((knownData || []).map((r: { domain: string }) => r.domain?.toLowerCase()).filter(Boolean));
+
       // Get instances that users have interacted with
       const { data, error } = await supabase
         .from('profiles')
@@ -1577,12 +1616,15 @@ class AdminService {
         
       if (error) throw error;
 
-      // Count instances and interactions
+      // Count instances and interactions, excluding already-known
       const instanceCounts = new Map<string, number>();
       
       data?.forEach(profile => {
         if (profile.domain) {
-          instanceCounts.set(profile.domain, (instanceCounts.get(profile.domain) || 0) + 1);
+          const domain = profile.domain.toLowerCase();
+          if (!knownDomains.has(domain)) {
+            instanceCounts.set(domain, (instanceCounts.get(domain) || 0) + 1);
+          }
         }
       });
 

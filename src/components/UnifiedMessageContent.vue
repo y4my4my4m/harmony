@@ -128,9 +128,10 @@
           class="emoji-icon"
           :class="{ 'single': isSingleEmoji }"
           :src="getEmojiUrl(part.emoji.url, 96)"
-          :alt="part.emoji.name"
-          :title="`:${part.emoji.name}:`"
+          :alt="`:${part.emoji?.name || '?'}:`"
+          :title="`:${part.emoji?.name}:`"
           draggable="false"
+          @error="handleEmojiLoadError"
         />
         
         <!-- URLs (with special handling for images and videos) -->
@@ -418,6 +419,18 @@ export default defineComponent({
     const handleImageLoad = (url: string) => {
       imageLoadedState[url] = true;
       emit('image-loaded', url);
+    };
+
+    const handleEmojiLoadError = (e: Event) => {
+      const img = e.target as HTMLImageElement;
+      if (!img) return;
+      img.onerror = null;
+      img.style.display = 'none';
+      const fallback = document.createElement('span');
+      fallback.className = 'emoji-icon emoji-fallback';
+      fallback.textContent = '?';
+      fallback.title = img.alt || '?';
+      img.parentNode?.insertBefore(fallback, img);
     };
     
     // Handle embed load events
@@ -955,6 +968,8 @@ export default defineComponent({
       handleSuggestionSelect,
       imageLoadedState,
       handleImageLoad,
+      handleEmojiLoadError,
+      handleEmbedLoad,
       handleVideoPlay,
       handleVideoPause,
       isImageUrl,

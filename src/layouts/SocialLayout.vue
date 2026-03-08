@@ -75,6 +75,7 @@
             @back-to-timeline="handleBackToTimeline"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
+            @open-search="handleOpenSearch"
           />
         </div>
 

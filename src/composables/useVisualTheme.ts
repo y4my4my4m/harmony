@@ -24,6 +24,7 @@ export interface VisualThemeSettings {
   customBackgroundColor?: string
   customBackgroundLightness?: number // -50 to +50
   customBackgroundChroma?: number // -30 to +30
+  customCssOverrides?: Record<string, string>
   fontSize: number
   zoomLevel: number
   showTimestamps: boolean
@@ -33,6 +34,74 @@ export interface VisualThemeSettings {
   reduceMotion: boolean
   screenReaderSupport: boolean
 }
+
+export interface ThemePreset {
+  name: string
+  description: string
+  settings: Partial<VisualThemeSettings>
+}
+
+export const COMMUNITY_PRESETS: ThemePreset[] = [
+  {
+    name: 'Ocean Blue',
+    description: 'A deep ocean blue theme with cool tones',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#1258fa',
+      customAccentColor: '#1258fa',
+      customBackgroundColor: '#1258fa',
+      customBackgroundLightness: -5,
+      customBackgroundChroma: 3,
+      customCssOverrides: {
+        '--harmony-primary': '#1258fa',
+        '--harmony-primary-hover': '#0e47d4',
+        '--harmony-accent': '#4ecdc4',
+        '--status-online': '#2ecc71',
+        '--success': '#27ae60',
+      }
+    }
+  },
+  {
+    name: 'Sakura',
+    description: 'Cherry blossom inspired pink theme',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#e91e8c',
+      customAccentColor: '#e91e8c',
+      customBackgroundColor: '#e91e8c',
+      customBackgroundLightness: -8,
+      customBackgroundChroma: 2,
+    }
+  },
+  {
+    name: 'Forest',
+    description: 'Natural green forest tones',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#2d9b4e',
+      customAccentColor: '#2d9b4e',
+      customBackgroundColor: '#2d9b4e',
+      customBackgroundLightness: -8,
+      customBackgroundChroma: 2,
+    }
+  },
+  {
+    name: 'Amber',
+    description: 'Warm amber and gold tones',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#f59e0b',
+      customAccentColor: '#f59e0b',
+      customBackgroundColor: '#f59e0b',
+      customBackgroundLightness: -10,
+      customBackgroundChroma: 1,
+    }
+  }
+]
 
 // Preset theme color mappings
 const PRESET_THEMES = {
@@ -256,6 +325,15 @@ function applySettings(settings: VisualThemeSettings) {
     }
   } else if (settings.theme !== 'custom') {
     applyPresetTheme(settings.theme)
+  }
+  
+  // Apply CSS variable overrides (runs after theme so overrides take precedence)
+  if (settings.customCssOverrides) {
+    for (const [varName, value] of Object.entries(settings.customCssOverrides)) {
+      if (varName.startsWith('--') && value) {
+        root.style.setProperty(varName, value)
+      }
+    }
   }
   
   // Apply font size
@@ -548,6 +626,72 @@ export function useVisualTheme() {
   }
   
   /**
+   * Set a single CSS variable override
+   */
+  function setCssOverride(varName: string, value: string) {
+    if (!settings.value.customCssOverrides) {
+      settings.value.customCssOverrides = {}
+    }
+    settings.value.customCssOverrides[varName] = value
+    document.documentElement.style.setProperty(varName, value)
+  }
+  
+  /**
+   * Remove a CSS variable override
+   */
+  function removeCssOverride(varName: string) {
+    if (settings.value.customCssOverrides) {
+      delete settings.value.customCssOverrides[varName]
+    }
+  }
+  
+  /**
+   * Clear all CSS variable overrides
+   */
+  function clearCssOverrides() {
+    settings.value.customCssOverrides = {}
+  }
+  
+  /**
+   * Apply a community preset
+   */
+  function applyPreset(preset: ThemePreset) {
+    Object.assign(settings.value, preset.settings)
+  }
+  
+  /**
+   * Get all available CSS variable names for theming
+   */
+  function getThemableVariables(): { category: string; vars: string[] }[] {
+    return [
+      {
+        category: 'Brand',
+        vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent']
+      },
+      {
+        category: 'Background',
+        vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary']
+      },
+      {
+        category: 'Text',
+        vars: ['--text-primary', '--text-secondary', '--text-tertiary', '--text-muted']
+      },
+      {
+        category: 'Status',
+        vars: ['--status-online', '--status-away', '--status-busy', '--status-offline']
+      },
+      {
+        category: 'Semantic',
+        vars: ['--success', '--warning', '--error', '--info']
+      },
+      {
+        category: 'Borders',
+        vars: ['--border-primary', '--border-secondary', '--border-hover', '--border-focus']
+      }
+    ]
+  }
+  
+  /**
    * Reset theme system completely (call on logout)
    * This ensures the next user gets a fresh theme initialization
    */
@@ -652,6 +796,11 @@ export function useVisualTheme() {
     resetToDefaults,
     reset,
     currentSettings,
+    setCssOverride,
+    removeCssOverride,
+    clearCssOverrides,
+    applyPreset,
+    getThemableVariables,
   }
 }
 

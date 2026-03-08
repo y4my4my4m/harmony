@@ -1203,7 +1203,8 @@ const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: 
     const cleanName = name.replace(/@[^@]*$/, ''); // Remove @domain
     const url = emojiMap.get(name) || emojiMap.get(cleanName);
     if (url) {
-      return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(cleanName)}:" class="inline-emoji" style="height: 1em; vertical-align: middle;" />`;
+      const alt = escapeHtml(cleanName);
+      return `<img src="${escapeHtml(url)}" alt=":${alt}:" class="inline-emoji" style="height: 1em; vertical-align: middle;" onerror="this.onerror=null;var p=this.parentNode;var s=document.createElement('span');s.className='inline-emoji emoji-fallback';s.textContent='?';s.style.cssText='display:inline;font-size:1em;vertical-align:middle';p&&p.replaceChild(s,this);" />`;
     }
     return escapeHtml(match);
   });

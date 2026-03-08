@@ -1158,7 +1158,7 @@ const removeServerFromFolder = async () => {
   /* background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover)); */
   /* background: transparent; */
   background: #000;
-  margin: 10px;
+  margin: 10px 10px 5px 10px;
   transition: background 0.2s ease-in-out;
   padding: 4px;
   border-radius: 50%;

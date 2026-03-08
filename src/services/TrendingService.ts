@@ -430,11 +430,9 @@ class TrendingService {
         .order('last_seen_at', { ascending: false })
         .limit(limit);
 
-      // Apply filters
       switch (filter) {
         case 'active':
-          query = query.eq('is_blocked', false)
-                      .gte('last_seen_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+          query = query.eq('is_blocked', false);
           break;
         case 'blocked':
           query = query.eq('is_blocked', true);
@@ -442,7 +440,6 @@ class TrendingService {
         case 'trusted':
           query = query.eq('is_trusted', true);
           break;
-        // 'all' - no additional filters
       }
 
       if (search) {

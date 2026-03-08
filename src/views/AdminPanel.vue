@@ -637,12 +637,12 @@
           </select>
         </div>
         <div class="activity-feed">
-          <div v-for="event in recentActivity" :key="event.id" class="activity-item">
-            <div class="activity-icon" :class="event.type">
+          <div v-for="event in filteredRecentActivity" :key="event.id" class="activity-item">
+            <div class="activity-icon" :class="getActivityCategory(event.type)">
               <Icon :name="getActivityIcon(event.type)" :size="16" />
             </div>
             <div class="activity-content">
-              <div class="activity-message">{{ event.message }}</div>
+              <div class="activity-message">{{ formatActivityMessage(event) }}</div>
               <div class="activity-meta">
                 <span class="activity-time">{{ formatTime(event.timestamp) }}</span>
                 <span class="activity-source">{{ event.source }}</span>
@@ -697,6 +697,11 @@
               <label>Delivery Retry Attempts</label>
               <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
             </div>
+            <div class="setting-group">
+              <label>Max Custom Emojis per Server</label>
+              <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
+              <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
+            </div>
             <div class="setting-row">
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.federation.enableOutbound" />
@@ -708,6 +713,17 @@
                 <span class="toggle-slider"></span>
                 Enable Inbound Federation
               </label>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h3>Trending & Discovery</h3>
+            <div class="setting-group">
+              <label>Trending Posts</label>
+              <button type="button" class="cyber-btn-sm" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
+                {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
+              </button>
+              <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
             </div>
           </div>
 
@@ -988,6 +1004,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
+import { trendingService } from '@/services/TrendingService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 
 const authStore = useAuthStore()
@@ -1051,6 +1068,7 @@ const loadingStates = ref({
   keyConsistency: false,
   keySweep: false,
   orphanCleanup: false,
+  trendingRefresh: false,
 })
 
 // Key consistency state
@@ -1139,6 +1157,7 @@ const config = ref({
   federation: {
     maxPostLength: 500,
     retryAttempts: 3,
+    maxCustomEmojisPerServer: 0,
     enableOutbound: true,
     enableInbound: true
   },
@@ -1187,6 +1206,15 @@ const healthStatus = computed(() => {
   if (issues.length === 0) return { class: 'healthy', text: 'Healthy' }
   if (issues.length === 1) return { class: 'warning', text: 'Minor Issues' }
   return { class: 'error', text: 'Critical Issues' }
+})
+
+// Filter recent activity by category and format JSON details for display
+const filteredRecentActivity = computed(() => {
+  let list = recentActivity.value
+  if (activityFilter.value !== 'all') {
+    list = list.filter(e => getActivityCategory(e.type) === activityFilter.value)
+  }
+  return list
 })
 
 const userFilters = computed(() => [
@@ -1347,21 +1375,32 @@ const loadSystemHealth = async () => {
 
 const loadInstanceConfig = async () => {
   try {
-    const config = await adminService.getInstanceConfig()
-    if (config?.instance) {
+    const cfg = await adminService.getInstanceConfig()
+    if (cfg) {
+      if (cfg.chat) {
+        config.value.chat = { ...config.value.chat, ...cfg.chat }
+      }
+      if (cfg.federation) {
+        config.value.federation = { ...config.value.federation, ...cfg.federation }
+      }
+      if (cfg.webrtc) {
+        config.value.webrtc = { ...config.value.webrtc, ...cfg.webrtc }
+      }
+    }
+    if (cfg?.instance) {
       instanceConfig.value = {
-        name: config.instance.name || 'Harmony Instance',
-        domain: config.instance.domain || import.meta.env.VITE_DOMAIN as string,
-        description: config.instance.description || 'A federated social platform',
-        termsUrl: config.instance.termsUrl || '',
-        privacyUrl: config.instance.privacyUrl || '',
-        openRegistration: config.instance.registrationOpen ?? true,
-        approvalRequired: config.instance.requiresApproval ?? false
+        name: cfg.instance.name || 'Harmony Instance',
+        domain: cfg.instance.domain || import.meta.env.VITE_DOMAIN as string,
+        description: cfg.instance.description || 'A federated social platform',
+        termsUrl: cfg.instance.termsUrl || '',
+        privacyUrl: cfg.instance.privacyUrl || '',
+        openRegistration: cfg.instance.registrationOpen ?? true,
+        approvalRequired: cfg.instance.requiresApproval ?? false
       }
       
       // Load OAuth providers
-      if (config.instance.oauthProviders) {
-        const providers = config.instance.oauthProviders
+      if (cfg.instance.oauthProviders) {
+        const providers = cfg.instance.oauthProviders
         if (Array.isArray(providers)) {
           // If it's an array like ["google", "github"]
           oauthProviders.value = {
@@ -1395,6 +1434,19 @@ const loadInstanceConfig = async () => {
 
 const refreshData = async () => {
   await loadInitialData()
+}
+
+const refreshTrendingPosts = async () => {
+  loadingStates.value.trendingRefresh = true
+  try {
+    await trendingService.updateTrendingScores()
+    toast.success('Trending posts refreshed')
+  } catch (error: any) {
+    debug.error('Failed to refresh trending:', error)
+    toast.error(error.message || 'Failed to refresh trending posts')
+  } finally {
+    loadingStates.value.trendingRefresh = false
+  }
 }
 
 const exportLogs = () => {
@@ -1592,6 +1644,7 @@ const saveConfig = async () => {
     // Save federation-specific settings
     await adminService.setInstanceConfig('max_post_length', config.value.federation.maxPostLength, userId)
     await adminService.setInstanceConfig('federation_retry_attempts', config.value.federation.retryAttempts, userId)
+    await adminService.setInstanceConfig('max_custom_emojis_per_server', config.value.federation.maxCustomEmojisPerServer ?? 0, userId)
 
     // Save WebRTC settings
     await adminService.updateWebRTCSettings({
@@ -1721,8 +1774,40 @@ const formatTime = (date: Date) => {
   return date.toLocaleTimeString()
 }
 
+const getActivityCategory = (type: string): string => {
+  if (!type) return 'other'
+  const t = type.toLowerCase()
+  if (t.startsWith('instance_') || t.includes('federation') || t.includes('add_instance')) return 'federation'
+  if (t.startsWith('user_') || t.includes('moderate') || t.includes('report') || t.includes('suspend')) return 'moderation'
+  if (t.includes('security') || t.includes('login') || t.includes('config')) return 'security'
+  return 'other'
+}
+
+const formatActivityMessage = (event: { type: string; message: string | object }) => {
+  const raw = event.message
+  if (raw == null || raw === '') return event.type || 'Event'
+  try {
+    const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (typeof obj !== 'object' || obj === null) return String(raw)
+    // Build human-readable message from common keys
+    const parts: string[] = []
+    if (obj.domain) parts.push(obj.domain)
+    if (obj.reason) parts.push(`— ${obj.reason}`)
+    if (obj.action) parts.push(`(${obj.action})`)
+    if (obj.user_id) parts.push(`user: ${obj.user_id}`)
+    if (parts.length) return parts.join(' ')
+    // Fallback: format key-value pairs
+    return Object.entries(obj)
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join(', ')
+  } catch {
+    return typeof raw === 'string' ? raw : String(raw)
+  }
+}
+
 const getActivityIcon = (type: string) => {
-  switch (type) {
+  const cat = getActivityCategory(type)
+  switch (cat) {
     case 'federation': return 'federation'
     case 'security': return 'shield'
     case 'moderation': return 'gavel'
@@ -3188,6 +3273,11 @@ const handleAddInstance = () => {
 .activity-icon.moderation {
   background: rgba(255, 69, 58, 0.1);
   color: #ff453a;
+}
+
+.activity-icon.other {
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--text-secondary);
 }
 
 .activity-content {

@@ -546,6 +546,8 @@ watch(() => props.currentView, async (newTab) => {
 watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   await refreshContent();
 });
+
+defineExpose({ refreshContent });
 </script>
 
 <style scoped>

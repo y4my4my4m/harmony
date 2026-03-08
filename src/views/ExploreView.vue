@@ -17,6 +17,7 @@
     <!-- Explore Content -->
     <div class="explore-content">
       <ExploreContent
+        ref="exploreContentRef"
         :current-view="currentView"
         :trending-posts="trendingPosts"
         :trending-tags="trendingTags"
@@ -67,6 +68,7 @@ const emit = defineEmits<{
   showUserProfile: [user: FederatedUser]
   toggleLeftSidebar: []
   toggleRightSidebar: []
+  openSearch: []
 }>()
 
 // Store and composables
@@ -74,6 +76,9 @@ const activityPubStore = useActivityPubStore()
 const { followUser, unfollowUser, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 const route = useRoute()
 const router = useRouter()
+
+// Refs
+const exploreContentRef = ref<InstanceType<typeof ExploreContent> | null>(null)
 
 // State
 const isLoading = ref(false)
@@ -141,7 +146,7 @@ const handleLoadMore = async () => {
 }
 
 const handleRefresh = () => {
-  loadExploreData()
+  exploreContentRef.value?.refreshContent()
 }
 
 // Clean composable-based handlers
@@ -194,8 +199,7 @@ const handleOpenComposer = () => {
 }
 
 const handleOpenSearch = () => {
-  // TODO: Implement search functionality
-  debug.log('Open search')
+  emit('openSearch')
 }
 
 // Watch for route changes
