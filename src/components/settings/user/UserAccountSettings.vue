@@ -145,27 +145,10 @@
       </div>
     </div>
 
-    <div class="settings-actions">
-      <button 
-        class="btn btn-primary" 
-        @click="saveChanges"
-        :disabled="loading || !hasChanges"
-      >
-        <span v-if="loading" class="loading-spinner"></span>
-        {{ $t('common.save') }}
-      </button>
-      <button 
-        class="btn btn-secondary" 
-        @click="resetChanges"
-        :disabled="loading || !hasChanges"
-      >
-        {{ $t('common.reset') }}
-      </button>
-    </div>
-
-    <!-- Supporter Status -->
+    <!-- Support -->
     <div class="settings-section supporter-section">
-      <h3 class="section-title">{{ $t('settings.supporter') }}</h3>
+      <h3 class="section-title">Support</h3>
+      <p class="section-description">Supporting this instance helps keep it running and contributes to its development. Supporters get a badge displayed next to their name.</p>
 
       <div v-if="supporterLoading" class="supporter-loading">Loading...</div>
       <template v-else>
@@ -206,6 +189,24 @@
           >{{ link.label || link.platform }}</a>
         </div>
       </template>
+    </div>
+
+    <div class="settings-actions">
+      <button 
+        class="btn btn-primary" 
+        @click="saveChanges"
+        :disabled="loading || !hasChanges"
+      >
+        <span v-if="loading" class="loading-spinner"></span>
+        {{ $t('common.save') }}
+      </button>
+      <button 
+        class="btn btn-secondary" 
+        @click="resetChanges"
+        :disabled="loading || !hasChanges"
+      >
+        {{ $t('common.reset') }}
+      </button>
     </div>
 
   </div>
@@ -788,6 +789,13 @@ onMounted(async () => {
 .supporter-section {
   border-top: 1px solid var(--border-color);
   padding-top: 24px;
+}
+
+.section-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: -4px 0 16px;
+  line-height: 1.5;
 }
 
 .supporter-loading {

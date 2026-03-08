@@ -587,7 +587,7 @@ export function useVisualTheme() {
         settings.value.customBackgroundColor = customBgColor
       }
     } else {
-      settings.value.customCssOverrides = {}
+      clearCssOverrides()
     }
   }
   
