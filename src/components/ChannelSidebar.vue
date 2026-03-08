@@ -1231,6 +1231,7 @@ watch(() => props.currentServer?.id, () => {
   font-size: 1.2rem;
   font-weight: 500;
   background: var(--background-tertiary);
+  color: var(--text-primary);
   position: relative;
   z-index: 1;
   text-align: center;

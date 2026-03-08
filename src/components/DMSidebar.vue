@@ -504,7 +504,7 @@ onUnmounted(() => {
 .dm-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -661,7 +661,7 @@ onUnmounted(() => {
 .empty-state h3 {
   margin: 0 0 8px 0;
   font-size: 16px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .empty-state p {
@@ -757,7 +757,7 @@ onUnmounted(() => {
 .user-name,
 .conversation-name {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   margin-bottom: 2px;
   white-space: nowrap;
@@ -769,7 +769,7 @@ onUnmounted(() => {
 
 .username {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-secondary);
 }
 
 .conversation-header {

@@ -525,7 +525,7 @@ window.addEventListener('beforeunload', () => {
 
 .empty-state h3,
 .initial-state h3 {
-  color: white;
+  color: var(--text-primary);
   margin: 1rem 0 0.5rem;
   font-size: 1.25rem;
 }
@@ -540,7 +540,7 @@ window.addEventListener('beforeunload', () => {
 }
 
 .search-tips h4 {
-  color: white;
+  color: var(--text-primary);
   margin: 0 0 0.5rem;
   font-size: 0.875rem;
 }

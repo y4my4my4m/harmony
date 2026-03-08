@@ -858,7 +858,7 @@ onMounted(() => {
 .empty-state h3,
 .initial-state h3 {
   margin: 16px 0 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 18px;
 }
 
@@ -866,7 +866,7 @@ onMounted(() => {
 .empty-state p,
 .initial-state p {
   margin: 0 0 16px;
-  color: #72767d;
+  color: var(--text-secondary);
 }
 
 .retry-btn {
@@ -874,7 +874,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
   transition: background 0.2s;

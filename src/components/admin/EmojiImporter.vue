@@ -706,7 +706,7 @@ onMounted(() => {
 }
 
 .empty-state h3 {
-  color: white;
+  color: var(--text-primary);
   margin: 1rem 0 0.5rem;
 }
 
