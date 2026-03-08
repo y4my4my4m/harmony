@@ -41,6 +41,15 @@ export interface ThemePreset {
   settings: Partial<VisualThemeSettings>
 }
 
+export interface SavedCustomTheme {
+  id: string
+  name: string
+  settings: Partial<VisualThemeSettings>
+  createdAt: string
+}
+
+const SAVED_THEMES_KEY = 'custom-themes'
+
 export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Ocean Blue',
@@ -51,7 +60,7 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       customPrimaryColor: '#1258fa',
       customAccentColor: '#1258fa',
       customBackgroundColor: '#1258fa',
-      customBackgroundLightness: -5,
+      customBackgroundLightness: 25,
       customBackgroundChroma: 3,
       customCssOverrides: {
         '--harmony-primary': '#1258fa',
@@ -402,6 +411,32 @@ function loadFromLocalStorage(): Partial<VisualThemeSettings> | null {
     debug.error('Failed to load theme from localStorage:', error)
   }
   return null
+}
+
+/**
+ * Get saved custom themes from localStorage
+ */
+function getSavedCustomThemes(): SavedCustomTheme[] {
+  try {
+    const saved = userStorage.getItem(SAVED_THEMES_KEY)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch (error) {
+    debug.error('Failed to load saved themes from localStorage:', error)
+  }
+  return []
+}
+
+/**
+ * Persist saved custom themes to localStorage
+ */
+function saveCustomThemesToStorage(themes: SavedCustomTheme[]) {
+  try {
+    userStorage.setItem(SAVED_THEMES_KEY, JSON.stringify(themes))
+  } catch (error) {
+    debug.error('Failed to save custom themes to localStorage:', error)
+  }
 }
 
 /**
@@ -769,6 +804,94 @@ export function useVisualTheme() {
    */
   const currentSettings = computed(() => ({ ...settings.value }))
   
+  /**
+   * Export current theme as JSON string (for custom themes)
+   */
+  function exportThemeAsJson(): string {
+    const themeOnly: Partial<VisualThemeSettings> = {
+      theme: settings.value.theme,
+      customThemeMode: settings.value.customThemeMode,
+      customPrimaryColor: settings.value.customPrimaryColor,
+      customAccentColor: settings.value.customAccentColor,
+      customBackgroundColor: settings.value.customBackgroundColor,
+      customBackgroundLightness: settings.value.customBackgroundLightness,
+      customBackgroundChroma: settings.value.customBackgroundChroma,
+      customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,
+    }
+    return JSON.stringify(themeOnly, null, 2)
+  }
+  
+  /**
+   * Import and apply theme from JSON string
+   */
+  function importThemeFromJson(json: string): boolean {
+    try {
+      const parsed = JSON.parse(json) as Partial<VisualThemeSettings>
+      if (!parsed || typeof parsed !== 'object') return false
+      // Ensure we're in custom mode and merge theme-relevant fields
+      const toApply: Partial<VisualThemeSettings> = {
+        theme: 'custom',
+        customThemeMode: parsed.customThemeMode ?? 'dark',
+        customPrimaryColor: parsed.customPrimaryColor ?? settings.value.customPrimaryColor,
+        customAccentColor: parsed.customAccentColor ?? settings.value.customAccentColor,
+        customBackgroundColor: parsed.customBackgroundColor ?? settings.value.customBackgroundColor,
+        customBackgroundLightness: parsed.customBackgroundLightness ?? settings.value.customBackgroundLightness,
+        customBackgroundChroma: parsed.customBackgroundChroma ?? settings.value.customBackgroundChroma,
+        customCssOverrides: parsed.customCssOverrides ? { ...parsed.customCssOverrides } : undefined,
+      }
+      Object.assign(settings.value, toApply)
+      return true
+    } catch {
+      return false
+    }
+  }
+  
+  /**
+   * Save current theme to "My themes" in localStorage
+   */
+  function saveCurrentThemeAsCustom(name: string): SavedCustomTheme | null {
+    if (!name?.trim()) return null
+    const theme: SavedCustomTheme = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      settings: {
+        theme: 'custom',
+        customThemeMode: settings.value.customThemeMode,
+        customPrimaryColor: settings.value.customPrimaryColor,
+        customAccentColor: settings.value.customAccentColor,
+        customBackgroundColor: settings.value.customBackgroundColor,
+        customBackgroundLightness: settings.value.customBackgroundLightness,
+        customBackgroundChroma: settings.value.customBackgroundChroma,
+        customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,
+      },
+      createdAt: new Date().toISOString(),
+    }
+    const list = getSavedCustomThemes()
+    list.unshift(theme)
+    saveCustomThemesToStorage(list)
+    return theme
+  }
+  
+  /**
+   * Load and apply a saved custom theme
+   */
+  function loadSavedTheme(id: string): boolean {
+    const list = getSavedCustomThemes()
+    const found = list.find(t => t.id === id)
+    if (!found?.settings) return false
+    Object.assign(settings.value, found.settings)
+    settings.value.theme = 'custom'
+    return true
+  }
+  
+  /**
+   * Delete a saved custom theme
+   */
+  function deleteSavedTheme(id: string): void {
+    const list = getSavedCustomThemes().filter(t => t.id !== id)
+    saveCustomThemesToStorage(list)
+  }
+  
   return {
     // State
     settings: computed(() => settings.value),
@@ -801,6 +924,12 @@ export function useVisualTheme() {
     clearCssOverrides,
     applyPreset,
     getThemableVariables,
+    exportThemeAsJson,
+    importThemeFromJson,
+    getSavedCustomThemes,
+    saveCurrentThemeAsCustom,
+    loadSavedTheme,
+    deleteSavedTheme,
   }
 }
 

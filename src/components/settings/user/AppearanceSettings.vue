@@ -154,6 +154,54 @@
         </div>
       </div>
 
+      <!-- Import / Export -->
+      <div class="theme-import-export-section">
+        <h4 class="section-subtitle">Import & Export</h4>
+        <p class="section-help">Export your theme as JSON or import a previously exported theme</p>
+        <div class="import-export-buttons">
+          <button class="preset-card export-btn" @click="exportTheme">
+            Export theme
+          </button>
+          <button class="preset-card import-btn" @click="triggerImportInput">
+            Import theme
+          </button>
+          <input
+            ref="importFileInput"
+            type="file"
+            accept=".json,application/json"
+            class="hidden-file-input"
+            @change="handleImportFile"
+          />
+        </div>
+      </div>
+
+      <!-- My Saved Themes -->
+      <div class="saved-themes-section">
+        <h4 class="section-subtitle">My saved themes</h4>
+        <p class="section-help">Save your current theme to switch between them later</p>
+        <div class="save-theme-row">
+          <input
+            v-model="savedThemeName"
+            type="text"
+            class="theme-name-input"
+            placeholder="Theme name"
+          />
+          <button class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">
+            Save theme
+          </button>
+        </div>
+        <div v-if="savedThemesList.length > 0" class="saved-themes-list">
+          <div v-for="t in savedThemesList" :key="t.id" class="saved-theme-item">
+            <span class="saved-theme-name">{{ t.name }}</span>
+            <div class="saved-theme-actions">
+              <button class="apply-theme-btn" @click="applySavedTheme(t.id)">Apply</button>
+              <button class="delete-theme-btn" @click="deleteSavedThemeItem(t.id)">Delete</button>
+            </div>
+          </div>
+        </div>
+        <p v-else class="section-help muted">No saved themes yet</p>
+      </div>
+
       <!-- Advanced CSS Variable Overrides -->
       <div v-if="settings.theme === 'custom'" class="advanced-css-section">
         <button class="toggle-advanced-btn" @click="showAdvancedCss = !showAdvancedCss">
@@ -421,6 +469,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
@@ -485,6 +534,76 @@ const customPreviewColors = computed(() => {
 const originalSettings = ref({ ...settings.value })
 const showColorPicker = ref(false)
 const showAdvancedCss = ref(false)
+const savedThemeName = ref('')
+const importFileInput = ref<HTMLInputElement | null>(null)
+const toast = useToast()
+
+// Saved themes (refresh when we need to show the list)
+const savedThemesList = ref(visualTheme.getSavedCustomThemes())
+
+function refreshSavedThemes() {
+  savedThemesList.value = visualTheme.getSavedCustomThemes()
+}
+
+function exportTheme() {
+  const json = visualTheme.exportThemeAsJson()
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `harmony-theme-${Date.now()}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  toast.success('Theme exported')
+}
+
+function triggerImportInput() {
+  importFileInput.value?.click()
+}
+
+function handleImportFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = reader.result as string
+    if (visualTheme.importThemeFromJson(text)) {
+      Object.assign(settings.value, visualTheme.currentSettings.value)
+      previewTheme()
+      toast.success('Theme imported')
+    } else {
+      toast.error('Invalid theme file')
+    }
+  }
+  reader.readAsText(file)
+  input.value = ''
+}
+
+function saveCurrentTheme() {
+  const name = savedThemeName.value?.trim()
+  if (!name) return
+  const theme = visualTheme.saveCurrentThemeAsCustom(name)
+  if (theme) {
+    savedThemeName.value = ''
+    refreshSavedThemes()
+    toast.success(`"${theme.name}" saved`)
+  }
+}
+
+function applySavedTheme(id: string) {
+  if (visualTheme.loadSavedTheme(id)) {
+    Object.assign(settings.value, visualTheme.currentSettings.value)
+    previewTheme()
+    toast.success('Theme applied')
+  }
+}
+
+function deleteSavedThemeItem(id: string) {
+  visualTheme.deleteSavedTheme(id)
+  refreshSavedThemes()
+  toast.success('Theme removed')
+}
 
 // Import community presets and theme helpers
 import { COMMUNITY_PRESETS, type ThemePreset } from '@/composables/useVisualTheme'
@@ -1364,6 +1483,141 @@ onMounted(async () => {
 .preset-desc {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+/* Import / Export */
+.theme-import-export-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--h-chat-light);
+}
+
+.import-export-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.export-btn,
+.import-btn {
+  min-width: 120px;
+}
+
+.hidden-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* My saved themes */
+.saved-themes-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--h-chat-light);
+}
+
+.save-theme-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.theme-name-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--h-chat-light);
+  background: var(--h-chat);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.theme-name-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.save-theme-btn {
+  padding: 10px 20px;
+  background: var(--harmony-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.save-theme-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.save-theme-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saved-themes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-theme-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--h-chat);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 6px;
+}
+
+.saved-theme-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.saved-theme-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.apply-theme-btn,
+.delete-theme-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.apply-theme-btn {
+  background: var(--harmony-primary);
+  color: white;
+  border: none;
+}
+
+.apply-theme-btn:hover {
+  filter: brightness(1.1);
+}
+
+.delete-theme-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--h-chat-light);
+}
+
+.delete-theme-btn:hover {
+  color: var(--error, #ed4245);
+  border-color: var(--error, #ed4245);
+}
+
+.section-help.muted {
+  color: var(--text-tertiary);
+  font-style: italic;
 }
 
 /* Advanced CSS Variables */
