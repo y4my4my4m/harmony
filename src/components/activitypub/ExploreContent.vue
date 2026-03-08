@@ -140,55 +140,59 @@
             {{ $t('activitypub.federatedInstances') }}
           </h3>
           <div v-if="filteredInstances.length > 0" class="instances-grid">
-            <div 
-              v-for="instance in filteredInstances" 
+            <article
+              v-for="instance in filteredInstances"
               :key="instance.domain"
-              @click="showInstanceDetails(instance)"
               class="instance-card"
+              @click="showInstanceDetails(instance)"
             >
-              <div class="instance-header">
-                <div class="instance-info">
-                  <h4 class="instance-domain">{{ instance.domain }}</h4>
-                  <p class="instance-software">{{ instance.software || 'Unknown' }} {{ instance.version || '' }}</p>
+              <div class="instance-card-header">
+                <div class="instance-card-icon">
+                  <Icon name="server" :size="24" />
                 </div>
-                <div :class="getInstanceStatusClass(instance)">
+                <div class="instance-card-meta">
+                  <h4 class="instance-card-domain">{{ instance.domain }}</h4>
+                  <span class="instance-card-software">{{ instance.software || 'Unknown' }}{{ instance.version ? ` ${instance.version}` : '' }}</span>
+                </div>
+                <span class="instance-status-pill" :class="getInstanceStatusClass(instance)">
+                  <span class="status-dot"></span>
                   {{ getInstanceStatusText(instance) }}
-                </div>
+                </span>
               </div>
-              
-              <p class="instance-description">
+
+              <p class="instance-card-desc">
                 {{ instance.description || $t('activitypub.noDescriptionAvailable') }}
               </p>
-              
-              <div class="instance-stats">
-                <div class="stat">
-                  <Icon name="users" />
-                  <span>{{ formatNumber(instance.user_count || 0) }} {{ $t('activitypub.usersCount') }}</span>
-                </div>
-                <div class="stat">
-                  <Icon name="message-circle" />
-                  <span>{{ formatNumber(instance.status_count || 0) }} {{ $t('activitypub.postsCount') }}</span>
-                </div>
-                <div class="stat">
-                  <Icon name="globe" />
-                  <span>{{ formatNumber(instance.connection_count || 0) }} {{ $t('activitypub.connectionsCount') }}</span>
-                </div>
+
+              <div class="instance-card-stats">
+                <span class="instance-stat">
+                  <Icon name="users" :size="14" />
+                  {{ formatNumber(instance.user_count || 0) }} {{ $t('activitypub.usersCount') }}
+                </span>
+                <span class="instance-stat">
+                  <Icon name="message-circle" :size="14" />
+                  {{ formatNumber(instance.status_count || 0) }} {{ $t('activitypub.postsCount') }}
+                </span>
+                <span class="instance-stat">
+                  <Icon name="globe" :size="14" />
+                  {{ formatNumber(instance.connection_count || 0) }}
+                </span>
               </div>
-              
-              <div class="instance-footer">
-                <span class="last-seen">{{ $t('activitypub.lastSeen') }} {{ getTimeAgo(instance.last_seen_at) }}</span>
-                <div class="instance-actions">
-                  <button @click.stop="visitInstance(instance)" class="action-btn">
-                    <Icon name="external-link" />
+
+              <div class="instance-card-footer">
+                <span class="instance-last-seen">{{ $t('activitypub.lastSeen') }} {{ getTimeAgo(instance?.last_seen_at) }}</span>
+                <div class="instance-card-actions">
+                  <button type="button" @click.stop="visitInstance(instance)" class="instance-btn">
+                    <Icon name="external-link" :size="14" />
                     {{ $t('activitypub.visit') }}
                   </button>
-                  <button @click.stop="viewInstancePosts(instance)" class="action-btn">
-                    <Icon name="eye" />
+                  <button type="button" @click.stop="viewInstancePosts(instance)" class="instance-btn instance-btn-alt">
+                    <Icon name="eye" :size="14" />
                     {{ $t('activitypub.viewPosts') }}
                   </button>
                 </div>
               </div>
-            </div>
+            </article>
           </div>
           <div v-else class="empty-state">
             <Icon name="server" />
@@ -278,6 +282,7 @@ const suggestedUsers = ref<any[]>([]);
 const knownInstances = ref<any[]>([]);
 const selectedInstanceDetails = ref<any | null>(null);
 const showInstanceModal = ref(false);
+const instanceHealthCache = ref<Record<string, 'online' | 'offline'>>({});
 
 // Pagination
 const hasMoreContent = ref(false);
@@ -351,19 +356,55 @@ const loadTrendingContent = async () => {
   }
 };
 
+const CONCURRENT_PROBES = 4;
+const PROBE_STALE_HOURS = 24;
+
+async function probeWithConcurrency<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  let idx = 0;
+  async function worker(): Promise<void> {
+    while (idx < items.length) {
+      const i = idx++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENT_PROBES, items.length) }, () => worker()));
+  return results;
+}
+
 const loadInstances = async () => {
   try {
     isLoading.value = true;
-    
+    instanceHealthCache.value = {};
+
     const instances = await activityPubService.getDiscoverableInstances({
       limit: 50,
       filter: 'active'
     });
-    
+
     knownInstances.value = instances;
+
+    const toProbe = instances.filter((inst: any) => {
+      if (!inst.domain) return false;
+      const cached = instanceHealthCache.value[inst.domain];
+      if (cached) return false;
+      if (!inst.last_seen_at) return true;
+      const hours = (Date.now() - new Date(inst.last_seen_at).getTime()) / (1000 * 60 * 60);
+      return hours > PROBE_STALE_HOURS;
+    });
+
+    if (toProbe.length > 0) {
+      await probeWithConcurrency(toProbe, async (inst: any) => {
+        const status = await activityPubService.probeInstanceHealth(inst.domain);
+        instanceHealthCache.value = { ...instanceHealthCache.value, [inst.domain]: status };
+        return status;
+      });
+    }
   } catch (error) {
     debug.error('Failed to load instances:', error);
-    // Fallback to AdminService
     try {
       const adminInstances = await adminService.getFederatedInstances({
         limit: 50,
@@ -429,29 +470,23 @@ const searchInstances = async (searchTerm: string) => {
 };
 
 const getInstanceStatus = (instance: any): 'online' | 'slow' | 'offline' | 'unknown' => {
-  // If instance has explicit status, use it
   if (instance.status && ['online', 'slow', 'offline'].includes(instance.status)) {
     return instance.status;
   }
-  
-  // Otherwise, determine status based on last_seen_at
-  if (!instance.last_seen_at) return 'unknown';
-  
-  const now = new Date();
-  const lastSeen = new Date(instance.last_seen_at);
-  const hoursSinceLastSeen = (now.getTime() - lastSeen.getTime()) / (1000 * 60 * 60);
-  
-  if (hoursSinceLastSeen < 1) return 'online';
-  if (hoursSinceLastSeen < 24) return 'slow';
-  return 'offline';
+  const probed = instanceHealthCache.value[instance.domain];
+  if (probed === 'online') return 'online';
+  if (probed === 'offline') return 'offline';
+  if (instance.last_seen_at) {
+    const hours = (Date.now() - new Date(instance.last_seen_at).getTime()) / (1000 * 60 * 60);
+    if (hours < 1) return 'online';
+    if (hours < 24) return 'slow';
+  }
+  return 'unknown';
 };
 
 const getInstanceStatusClass = (instance: any) => {
   const status = getInstanceStatus(instance);
-  return {
-    'instance-status': true,
-    [`status-${status}`]: true
-  };
+  return [`status-${status}`];
 };
 
 const getInstanceStatusText = (instance: any) => {
@@ -475,8 +510,9 @@ const formatNumber = (num: number): string => {
   return num.toString();
 };
 
-const getTimeAgo = (dateString: string): string => {
+const getTimeAgo = (dateString: string | null | undefined): string => {
   const { t } = useI18n();
+  if (!dateString) return t('activitypub.unknown');
   const now = new Date();
   const date = new Date(dateString);
   const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
@@ -873,160 +909,194 @@ defineExpose({ refreshContent });
 .instances-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .instance-card {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 16px;
+  padding: 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .instance-card:hover {
   border-color: var(--harmony-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
 }
 
-.instance-header {
+.instance-card-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 12px;
 }
 
-.instance-domain {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 4px;
-}
-
-.instance-software {
-  font-size: 12px;
-  color: var(--text-secondary);
-  background: var(--background-tertiary);
-  padding: 2px 6px;
-  border-radius: 10px;
-}
-
-.instance-status {
+.instance-card-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-tertiary);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.instance-card-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.instance-card-domain {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+  letter-spacing: -0.01em;
+}
+
+.instance-card-software {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.instance-status-pill {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
-.instance-status.status-online {
-  background: rgba(16, 185, 129, 0.15);
+.instance-status-pill .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.instance-status-pill.status-online {
+  background: rgba(16, 185, 129, 0.14);
   color: #10b981;
 }
 
-.instance-status.status-online::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.instance-status-pill.status-online .status-dot {
   background: #10b981;
-  animation: pulse 2s infinite;
+  animation: status-pulse 2s ease-in-out infinite;
 }
 
-.instance-status.status-slow {
-  background: rgba(245, 158, 11, 0.15);
+.instance-status-pill.status-slow {
+  background: rgba(245, 158, 11, 0.14);
   color: #f59e0b;
 }
 
-.instance-status.status-slow::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.instance-status-pill.status-slow .status-dot {
   background: #f59e0b;
 }
 
-.instance-status.status-offline {
-  background: rgba(239, 68, 68, 0.15);
+.instance-status-pill.status-offline {
+  background: rgba(239, 68, 68, 0.14);
   color: #ef4444;
 }
 
-.instance-status.status-offline::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.instance-status-pill.status-offline .status-dot {
   background: #ef4444;
 }
 
-.instance-status.status-unknown {
-  background: rgba(156, 163, 175, 0.15);
+.instance-status-pill.status-unknown {
+  background: rgba(156, 163, 175, 0.14);
   color: #9ca3af;
 }
 
-.instance-status.status-unknown::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.instance-status-pill.status-unknown .status-dot {
   background: #9ca3af;
 }
 
-@keyframes pulse {
+@keyframes status-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 
-.instance-stats {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.instance-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-.instance-actions .action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: var(--background-tertiary);
-  border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.instance-actions .action-btn:hover {
-  background: var(--background-quaternary);
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
+.instance-card-desc {
+  font-size: 0.875rem;
   color: var(--text-secondary);
-}
-
-.instance-description {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.45;
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.instance-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.instance-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.instance-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  margin-top: 2px;
+}
+
+.instance-last-seen {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.instance-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.instance-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  border: 1px solid var(--border-color);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+}
+
+.instance-btn:hover {
+  background: var(--background-hover);
+}
+
+.instance-btn-alt {
+  border-color: transparent;
+  background: transparent;
+}
+
+.instance-btn-alt:hover {
+  background: var(--background-tertiary);
 }
 
 .spinning {
@@ -1068,9 +1138,9 @@ defineExpose({ refreshContent });
     gap: 24px;
   }
   
-  .instance-stats {
+  .instance-card-stats {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
   }
   
 

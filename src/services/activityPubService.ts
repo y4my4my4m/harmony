@@ -653,6 +653,38 @@ export class ActivityPubService {
   }
 
   /**
+   * Probe instance health via nodeinfo. Used to determine if remote instance is reachable.
+   * Returns 'online' if nodeinfo fetch succeeds, 'offline' otherwise.
+   */
+  async probeInstanceHealth(domain: string): Promise<'online' | 'offline'> {
+    try {
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+      const protocol = cleanDomain.includes('localhost') ? 'http' : 'https';
+      const wellKnownRes = await fetch(`${protocol}://${cleanDomain}/.well-known/nodeinfo`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!wellKnownRes.ok) return 'offline';
+
+      const wk = await wellKnownRes.json();
+      const nodeinfoUrl = wk.links?.find((l: any) =>
+        l.rel?.includes('nodeinfo') && (l.rel.includes('2.0') || l.rel.includes('2.1'))
+      )?.href;
+      if (!nodeinfoUrl) return 'offline';
+
+      const infoUrl = typeof nodeinfoUrl === 'string' ? nodeinfoUrl : '';
+      const url = infoUrl.startsWith('http') ? infoUrl : `${protocol}://${cleanDomain}${infoUrl.startsWith('/') ? '' : '/'}${infoUrl}`;
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000)
+      });
+      return res.ok ? 'online' : 'offline';
+    } catch {
+      return 'offline';
+    }
+  }
+
+  /**
    * Get recent activity from an instance
    */
   async getInstanceActivity(

@@ -1,28 +1,28 @@
 <template>
   <BaseModal :show="true" :show-header="false" @close="$emit('close')" class="instance-detail-modal">
-    <div class="modal-header">
-      <div class="instance-header">
-        <div class="instance-icon">
-          <Icon name="server" :size="32" />
+    <div class="instance-detail-layout">
+      <header class="instance-modal-header">
+        <div class="instance-header-main">
+          <div class="instance-icon-wrap">
+            <Icon name="server" :size="28" />
+          </div>
+          <div class="instance-title-block">
+            <h2 class="instance-domain">{{ instance.domain }}</h2>
+            <p class="instance-software">
+              {{ instance.software || 'Unknown' }}{{ instance.version ? ` ${instance.version}` : '' }}
+            </p>
+          </div>
+          <div class="instance-status-badge" :class="getStatusClass()">
+            <Icon :name="getStatusIcon()" :size="18" />
+            <span>{{ getStatusText() }}</span>
+          </div>
         </div>
-        <div class="instance-info">
-          <h2 class="instance-domain">{{ instance.domain }}</h2>
-          <p class="instance-software">
-            {{ instance.software || 'Unknown' }} {{ instance.version || '' }}
-          </p>
-        </div>
-        <div class="instance-status" :class="getStatusClass()">
-          <Icon :name="getStatusIcon()" :size="20" />
-          <span>{{ getStatusText() }}</span>
-        </div>
-      </div>
-      
-      <button @click="$emit('close')" class="close-btn">
-        <Icon name="x" :size="20" />
-      </button>
-    </div>
+        <button @click="$emit('close')" class="close-btn" aria-label="Close">
+          <Icon name="x" :size="18" />
+        </button>
+      </header>
 
-    <div class="modal-body">
+      <div class="instance-modal-body">
       <!-- Instance Stats -->
       <div class="stats-section">
         <h3 class="section-title">Instance Statistics</h3>
@@ -76,7 +76,7 @@
           </div>
           <div class="info-item">
             <label>First Discovered:</label>
-            <p>{{ formatDate(instance.created_at) }}</p>
+            <p>{{ formatDate(instance?.created_at) }}</p>
           </div>
         </div>
       </div>
@@ -90,7 +90,7 @@
             <span>{{ instance.is_blocked ? 'Blocked' : 'Federation Enabled' }}</span>
           </div>
           <div class="federation-item" :class="{ active: instance.is_trusted }">
-            <Icon :name="instance.is_trusted ? 'star' : 'star-off'" :size="20" />
+            <Icon :name="instance.is_trusted ? 'star' : 'shield'" :size="20" />
             <span>{{ instance.is_trusted ? 'Trusted Instance' : 'Standard Instance' }}</span>
           </div>
           <div class="federation-item" :class="{ active: isActive }">
@@ -141,7 +141,7 @@
       </div>
     </div>
 
-    <div class="modal-footer">
+    <footer class="instance-modal-footer">
       <div class="footer-actions">
         <button @click="viewAllPosts" class="primary-btn">
           <Icon name="external-link" :size="16" />
@@ -156,6 +156,7 @@
           Visit Instance
         </button>
       </div>
+    </footer>
     </div>
   </BaseModal>
 </template>
@@ -232,7 +233,8 @@ const formatNumber = (num: number): string => {
   return num.toString();
 };
 
-const formatTime = (timestamp: string): string => {
+const formatTime = (timestamp: string | null | undefined): string => {
+  if (!timestamp) return 'Unknown';
   const date = new Date(timestamp);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
@@ -243,7 +245,8 @@ const formatTime = (timestamp: string): string => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
-const formatDate = (timestamp: string): string => {
+const formatDate = (timestamp: string | null | undefined): string => {
+  if (!timestamp) return 'Unknown';
   return new Date(timestamp).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -313,76 +316,99 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.instance-detail-modal {
-  max-width: 700px;
-  width: 90vw;
-  max-height: 90vh;
+.instance-detail-modal :deep(.modal-container) {
+  max-width: 640px;
+  width: 92vw;
 }
 
-.modal-header {
+.instance-detail-modal :deep(.modal-content) {
+  padding: 0;
+  overflow: hidden;
+  max-height: min(80vh, 560px);
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+}
+
+.instance-detail-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.instance-modal-header {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 24px;
+  gap: 16px;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
-.instance-header {
+.instance-header-main {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   flex: 1;
+  min-width: 0;
 }
 
-.instance-icon {
+.instance-icon-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 48px;
   height: 48px;
-  background: var(--background-tertiary);
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--background-tertiary), var(--background-quaternary));
   border-radius: 12px;
   color: var(--text-secondary);
+  border: 1px solid var(--border-color);
 }
 
-.instance-info {
+.instance-title-block {
   flex: 1;
+  min-width: 0;
 }
 
 .instance-domain {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0 0 4px 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 2px 0;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .instance-software {
-  font-size: 14px;
+  font-size: 0.8125rem;
   color: var(--text-secondary);
   margin: 0;
 }
 
-.instance-status {
+.instance-status-badge {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 14px;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
-.instance-status.trusted {
-  background: var(--success-background);
-  color: var(--success-color);
+.instance-status-badge.trusted {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
 }
 
-.instance-status.blocked {
-  background: var(--error-background);
-  color: var(--error-color);
+.instance-status-badge.blocked {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
-.instance-status.neutral {
+.instance-status-badge.neutral {
   background: var(--background-tertiary);
   color: var(--text-secondary);
 }
@@ -391,14 +417,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--background-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .close-btn:hover {
@@ -406,36 +433,39 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.modal-body {
-  padding: 24px;
+.instance-modal-body {
+  padding: 20px 24px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  max-height: 60vh;
 }
 
 .section-title {
-  font-size: 18px;
+  font-size: 0.9375rem;
   font-weight: 600;
-  margin: 0 0 16px 0;
-  color: var(--text-primary);
+  margin: 0 0 12px 0;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .stats-section {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
-  background: var(--background-secondary);
-  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--background-tertiary);
+  border-radius: 10px;
   border: 1px solid var(--border-color);
 }
 
@@ -444,21 +474,21 @@ onMounted(() => {
 }
 
 .stat-value {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 1.125rem;
+  font-weight: 600;
   color: var(--text-primary);
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .stat-label {
-  font-size: 12px;
+  font-size: 0.6875rem;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.06em;
 }
 
 .info-section {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .info-content {
@@ -483,7 +513,7 @@ onMounted(() => {
 }
 
 .federation-section {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .federation-info {
@@ -587,15 +617,18 @@ onMounted(() => {
   gap: 4px;
 }
 
-.modal-footer {
-  padding: 24px;
+.instance-modal-footer {
+  padding: 16px 24px;
   border-top: 1px solid var(--border-color);
+  background: var(--background-secondary);
+  flex-shrink: 0;
 }
 
 .footer-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .primary-btn,
