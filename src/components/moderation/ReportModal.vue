@@ -337,11 +337,13 @@ const hideAndClose = () => {
   height: 18px;
   accent-color: var(--harmony-primary, #5865f2);
   vertical-align: middle;
+  margin-right: 8px;
 }
 
 .reason-option span {
   flex: 1;
   padding-right: 8px;
+  vertical-align: middle;
 }
 
 textarea {

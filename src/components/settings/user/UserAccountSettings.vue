@@ -148,7 +148,7 @@
     <!-- Support -->
     <div class="settings-section supporter-section">
       <h3 class="section-title">Support</h3>
-      <p class="section-description">Supporting this instance helps keep it running and contributes to its development. Supporters get a badge displayed next to their name.</p>
+      <p class="section-description">Supporting this instance helps keep it running and contributes to its development.<br>Supporters get a badge displayed next to their name.<br><br>Donations are currently not automated, so please be sure to include your FULL username @username@domain.</p>
 
       <div v-if="supporterLoading" class="supporter-loading">Loading...</div>
       <template v-else>
