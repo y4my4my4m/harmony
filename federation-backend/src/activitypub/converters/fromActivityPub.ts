@@ -239,6 +239,8 @@ export function actorToProfile(actor: any): {
   outbox_url?: string;
   followers_url?: string;
   following_url?: string;
+  bio_emojis?: Array<{ name: string; url: string }>;
+  display_name_emojis?: Array<{ name: string; url: string }>;
 } {
   // Extract username and domain from actor ID
   const actorUrl = new URL(actor.id);
@@ -321,31 +323,50 @@ export function actorToProfile(actor: any): {
     profile.manually_approves_followers = actor.manuallyApprovesFollowers;
   }
 
-  // Extract custom emojis from actor tags (for bio rendering)
-  // ActivityPub actors can have emojis in their tag array, similar to Notes
+  // Extract custom emojis from actor tags and split into display_name vs bio
+  const allEmojis: Array<{ name: string; url: string }> = [];
+
   if (actor.tag && Array.isArray(actor.tag)) {
-    const customEmojis = actor.tag
+    actor.tag
       .filter((tag: any) => tag.type === 'Emoji')
-      .map((tag: any) => ({
-        name: tag.name?.replace(/:/g, '') || '',
-        url: tag.icon?.url || tag.icon,
-      }))
-      .filter((e: any) => e.name && e.url);
-    
-    if (customEmojis.length > 0) {
-      profile.bio_emojis = customEmojis;
-    }
+      .forEach((tag: any) => {
+        const name = tag.name?.replace(/:/g, '') || '';
+        const url = tag.icon?.url || tag.icon;
+        if (name && url) allEmojis.push({ name, url });
+      });
   }
-  
+
   // Also handle Misskey-style emojis object on the actor
   if (actor.emojis && typeof actor.emojis === 'object' && !Array.isArray(actor.emojis)) {
-    const emojiList = Object.entries(actor.emojis).map(([name, url]) => ({
-      name,
-      url: url as string,
-    }));
-    
-    if (emojiList.length > 0) {
-      profile.bio_emojis = [...(profile.bio_emojis || []), ...emojiList];
+    for (const [name, url] of Object.entries(actor.emojis)) {
+      if (name && url && !allEmojis.some(e => e.name === name)) {
+        allEmojis.push({ name, url: url as string });
+      }
+    }
+  }
+
+  if (allEmojis.length > 0) {
+    const displayName = actor.name || '';
+    const bioText = actor.summary || '';
+    const displayNameEmojis: typeof allEmojis = [];
+    const bioEmojis: typeof allEmojis = [];
+
+    for (const emoji of allEmojis) {
+      const shortcode = `:${emoji.name}:`;
+      const inDisplayName = displayName.includes(shortcode);
+      const inBio = bioText.includes(shortcode) || bioText.includes(emoji.name);
+
+      if (inDisplayName) displayNameEmojis.push(emoji);
+      if (inBio) bioEmojis.push(emoji);
+      // If not found in either, still put in bio_emojis as fallback
+      if (!inDisplayName && !inBio) bioEmojis.push(emoji);
+    }
+
+    if (bioEmojis.length > 0) {
+      profile.bio_emojis = bioEmojis;
+    }
+    if (displayNameEmojis.length > 0) {
+      profile.display_name_emojis = displayNameEmojis;
     }
   }
 

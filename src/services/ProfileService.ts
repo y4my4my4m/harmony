@@ -84,10 +84,24 @@ export class ProfileService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // Update profile - database triggers will handle federation automatically
+      // Pre-resolve display_name emojis for federation
+      const finalUpdates: any = { ...updates }
+      if (updates.display_name) {
+        const displayNameEmojis = await this.resolveDisplayNameEmojis(updates.display_name)
+        if (displayNameEmojis.length > 0) {
+          const { data: existing } = await supabase
+            .from('profiles')
+            .select('federation_metadata')
+            .eq('id', context.profileId)
+            .single()
+          const meta = (existing?.federation_metadata as Record<string, any>) || {}
+          finalUpdates.federation_metadata = { ...meta, display_name_emojis: displayNameEmojis }
+        }
+      }
+
       const { data: profile, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(finalUpdates)
         .eq('id', context.profileId)
         .select('*')
         .single()
@@ -261,6 +275,27 @@ export class ProfileService {
       debug.error('❌ Failed to check username availability:', error)
       throw error
     }
+  }
+
+  /**
+   * Resolve :shortcode: patterns in a display name to emoji data for federation.
+   * Returns an array of { name, url, id } for each resolved custom emoji.
+   */
+  private async resolveDisplayNameEmojis(displayName: string): Promise<Array<{ name: string; url: string; id: string }>> {
+    const regex = /:([a-zA-Z0-9_+-]+):/g
+    const shortcodes: string[] = []
+    let match: RegExpExecArray | null
+    while ((match = regex.exec(displayName)) !== null) {
+      shortcodes.push(match[1])
+    }
+    if (shortcodes.length === 0) return []
+
+    const { data: emojis } = await supabase
+      .from('emojis')
+      .select('id, name, url')
+      .in('name', shortcodes)
+
+    return (emojis || []).map((e: any) => ({ name: e.name, url: e.url, id: e.id }))
   }
 
   private createError(code: string, message: string, details?: any): Error {

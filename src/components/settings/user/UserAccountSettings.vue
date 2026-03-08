@@ -39,7 +39,13 @@
           </div>
           <div class="user-info">
             <h3 class="display-name" :style="{ color: profile?.color || '#ffffff' }">
-              {{ profile?.display_name || $t('auth.displayName') }}
+              <DisplayName
+                v-if="localProfile.display_name"
+                :parts="previewDisplayNameParts"
+                :fallback="localProfile.display_name || profile?.display_name || $t('auth.displayName')"
+                :color="localProfile.color || profile?.color || '#ffffff'"
+              />
+              <template v-else>{{ profile?.display_name || $t('auth.displayName') }}</template>
             </h3>
             <p class="username">{{ profile?.username || $t('auth.username') }}</p>
           </div>
@@ -50,16 +56,28 @@
     <div class="settings-section">
       <div class="form-group">
         <label class="form-label">{{ $t('auth.displayName') }}</label>
-        <input
-          v-model="localProfile.display_name"
-          type="text"
-          class="form-input"
-          :placeholder="$t('auth.displayName')"
-          maxlength="32"
-          @input="onProfileChange"
-        />
+        <div class="display-name-input-wrapper">
+          <input
+            ref="displayNameInput"
+            v-model="localProfile.display_name"
+            type="text"
+            class="form-input"
+            :placeholder="$t('auth.displayName')"
+            maxlength="50"
+            @input="onDisplayNameInput"
+            @keydown="onDisplayNameKeyDown"
+          />
+          <AutoSuggest
+            v-if="displayNameAutoSuggest.state.value.isActive"
+            :suggestions="displayNameAutoSuggest.suggestions.value"
+            :selected-index="displayNameAutoSuggest.state.value.selectedIndex"
+            :position="displayNameAutoSuggest.state.value.position"
+            :header-text="displayNameAutoSuggest.headerText.value"
+            @select="onDisplayNameEmojiSelect"
+          />
+        </div>
         <div class="form-hint">
-          This is how others see you. You can use special characters and emoji.
+          This is how others see you. You can use special characters and custom emoji (type <code>:</code> to search). {{ (localProfile.display_name?.length || 0) }}/50
         </div>
       </div>
 
@@ -213,7 +231,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types'
@@ -225,8 +243,12 @@ import { ColorPicker } from 'vue-color-kit'
 import 'vue-color-kit/dist/vue-color-kit.css'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import AutoSuggest from '@/components/AutoSuggest.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import { fundingService, type SupporterBadge, type DonationRecord, type FundingLink } from '@/services/FundingService'
 import { supabase } from '@/supabase'
+import { useAutoSuggest } from '@/composables/useAutoSuggest'
+import { userDataService } from '@/services/userDataService'
 
 // Props
 interface Props {
@@ -255,6 +277,22 @@ const bannerKey = ref(0) // For forcing banner reload
 const colorPickerRef = ref<InstanceType<typeof ColorPicker>>()
 const colorPreviewRef = ref<HTMLElement | null>(null)
 const bannerInput = ref<HTMLInputElement>()
+const displayNameInput = ref<HTMLInputElement | null>(null)
+
+// Display name auto-suggest (emoji only, no mentions/commands)
+const displayNameAutoSuggest = useAutoSuggest(
+  displayNameInput,
+  () => localProfile.value.display_name || '',
+  (newText: string, cursorPosition?: number) => {
+    localProfile.value.display_name = newText
+    if (cursorPosition !== undefined && displayNameInput.value) {
+      nextTick(() => {
+        displayNameInput.value?.setSelectionRange(cursorPosition, cursorPosition)
+      })
+    }
+  },
+  { mode: 'chat', enableEmojis: true, enableMentions: false }
+)
 
 // Computed
 const userEmail = computed(() => authStore.session?.user?.email)
@@ -268,6 +306,12 @@ const hasChanges = computed(() => {
     localProfile.value.color !== props.profile.color
   )
   // Note: username is excluded from changes - it cannot be edited until federation is fixed
+})
+
+const previewDisplayNameParts = computed(() => {
+  const dn = localProfile.value.display_name
+  if (!dn) return undefined
+  return userDataService.resolveDisplayNameParts(dn)
 })
 
 const bannerStyle = computed(() => {
@@ -300,6 +344,21 @@ const syncLocalProfile = () => {
 
 const onProfileChange = () => {
   // Debounce could be added here if needed
+}
+
+const onDisplayNameInput = () => {
+  const el = displayNameInput.value
+  if (!el) return
+  displayNameAutoSuggest.handleInput(el.value, el.selectionStart || el.value.length)
+  onProfileChange()
+}
+
+const onDisplayNameKeyDown = (e: KeyboardEvent) => {
+  displayNameAutoSuggest.handleKeyDown(e)
+}
+
+const onDisplayNameEmojiSelect = (suggestion: any) => {
+  displayNameAutoSuggest.selectSuggestion(suggestion)
 }
 
 // Username editing is disabled until federation username updates are properly implemented
@@ -697,6 +756,17 @@ onMounted(async () => {
 .info-value {
   font-size: 14px;
   color: var(--text-primary);
+}
+
+.display-name-input-wrapper {
+  position: relative;
+}
+
+.display-name-input-wrapper code {
+  background: var(--background-secondary);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
 }
 
 .settings-actions {

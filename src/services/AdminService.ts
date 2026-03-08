@@ -636,6 +636,7 @@ class AdminService {
       let maxPostLength = 500
       let retryAttempts = 3
       let maxCustomEmojisPerServer = 0
+      let allowCustomEmojisInDisplayNames = true
       let enableOutbound = true
       let enableInbound = true
 
@@ -643,7 +644,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -717,6 +718,9 @@ class AdminService {
                 case 'max_custom_emojis_per_server':
                   maxCustomEmojisPerServer = typeof value === 'number' ? value : parseInt(String(value), 10) || 0
                   break
+                case 'allow_custom_emojis_in_display_names':
+                  allowCustomEmojisInDisplayNames = value === true || value === 'true'
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -738,6 +742,7 @@ class AdminService {
           maxPostLength,
           retryAttempts,
           maxCustomEmojisPerServer,
+          allowCustomEmojisInDisplayNames,
           enableOutbound,
           enableInbound
         },

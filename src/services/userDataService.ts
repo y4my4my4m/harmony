@@ -9,11 +9,13 @@
  */
 
 import { supabase } from '@/supabase'
-import { UserStatus, type UserData, type UserContext, type CustomUserStatus } from '@/types'
+import { UserStatus, type UserData, type UserContext, type CustomUserStatus, type DisplayNamePart } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+
+const EMOJI_SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/g
 
 /**
  * Detect if user is on a mobile device
@@ -404,17 +406,17 @@ class UserDataService extends EventTarget {
           }
         }
         
+        const currentDisplayName = profile.display_name || profile.username || username
         const userData: UserData = {
           id: profile.id,
           username: profile.username || username,
-          displayName: profile.display_name || profile.username || username,
+          displayName: currentDisplayName,
+          displayNameParts: this.resolveDisplayNameParts(currentDisplayName),
           avatarUrl: profile.avatar_url || avatarUrl,
           bannerUrl: profile.banner_url,
           bio: profile.bio,
           color: profile.color,
           domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-          // Default to true for local users - is_local defaults to true in DB
-          // Check: is_local explicitly set, OR no domain (local), OR domain matches our instance
           isLocal: profile.is_local ?? (
             !profile.domain || 
             profile.domain === import.meta.env.VITE_DOMAIN
@@ -1073,9 +1075,9 @@ class UserDataService extends EventTarget {
     // Update our local user data if we have it
     const userData = this.users.get(userId)
     if (userData) {
-      // Update all profile fields that might have changed
       if (updatedProfile.display_name !== undefined) {
         userData.displayName = updatedProfile.display_name
+        userData.displayNameParts = this.resolveDisplayNameParts(updatedProfile.display_name)
       }
       if (updatedProfile.avatar_url !== undefined) {
         userData.avatarUrl = updatedProfile.avatar_url
@@ -1133,9 +1135,9 @@ class UserDataService extends EventTarget {
     // Update our local user data if we have it
     const userData = this.users.get(userId)
     if (userData) {
-      // Update profile fields that were broadcast
       if (profileUpdates.displayName !== undefined) {
         userData.displayName = profileUpdates.displayName
+        userData.displayNameParts = this.resolveDisplayNameParts(profileUpdates.displayName)
       }
       if (profileUpdates.avatarUrl !== undefined) {
         userData.avatarUrl = profileUpdates.avatarUrl
@@ -1207,24 +1209,25 @@ class UserDataService extends EventTarget {
       
       if (profiles) {
         profiles.forEach((profile: any) => {
+          const dn = profile.display_name || profile.username || 'Unknown'
           const userData: UserData = {
             id: profile.id,
             username: profile.username || 'Unknown',
-            displayName: profile.display_name || profile.username || 'Unknown',
+            displayName: dn,
+            displayNameParts: this.resolveDisplayNameParts(dn),
             avatarUrl: profile.avatar_url,
             bannerUrl: profile.banner_url,
             bio: profile.bio,
             color: profile.color,
             domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-            // Default to true for local users - check if domain matches our instance
             isLocal: profile.is_local ?? (
               !profile.domain || 
               profile.domain === import.meta.env.VITE_DOMAIN
             ),
             status: profile.status ?? UserStatus.Offline,
             customStatus: this.parseCustomStatus(profile.custom_status),
-            isOnline: false, // Will be updated by presence
-            isMobile: false, // Will be updated by presence
+            isOnline: false,
+            isMobile: false,
             lastSeen: profile.updated_at || new Date().toISOString(),
             lastHeartbeat: new Date().toISOString(),
             lastCacheUpdate: new Date().toISOString(),
@@ -1584,8 +1587,10 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
     
-    // Update local data immediately for instant UI feedback
-    if (profileData.displayName !== undefined) userData.displayName = profileData.displayName
+    if (profileData.displayName !== undefined) {
+      userData.displayName = profileData.displayName
+      userData.displayNameParts = this.resolveDisplayNameParts(profileData.displayName)
+    }
     if (profileData.avatarUrl !== undefined) userData.avatarUrl = profileData.avatarUrl
     if (profileData.bannerUrl !== undefined) userData.bannerUrl = profileData.bannerUrl
     if (profileData.bio !== undefined) userData.bio = profileData.bio
@@ -1699,6 +1704,77 @@ class UserDataService extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, { detail: data }))
   }
   
+  /**
+   * Resolve display name shortcodes into structured parts using the emoji cache.
+   * Called once per profile load/update — not on every render.
+   */
+  resolveDisplayNameParts(displayName: string): DisplayNamePart[] | undefined {
+    if (!displayName) return undefined
+
+    EMOJI_SHORTCODE_REGEX.lastIndex = 0
+    if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined
+    EMOJI_SHORTCODE_REGEX.lastIndex = 0
+
+    let emojiCacheStore: any = null
+    try {
+      const { useEmojiCacheStore } = require('@/stores/useEmojiCache')
+      emojiCacheStore = useEmojiCacheStore()
+    } catch {
+      return undefined
+    }
+
+    const parts: DisplayNamePart[] = []
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+
+    while ((match = EMOJI_SHORTCODE_REGEX.exec(displayName)) !== null) {
+      const shortcode = match[1]
+      const entries = emojiCacheStore.nameIndex.get(shortcode)
+      const emoji = entries?.[0]?.emoji
+
+      if (match.index > lastIndex) {
+        parts.push({ type: 'text', text: displayName.substring(lastIndex, match.index) })
+      }
+
+      if (emoji) {
+        parts.push({
+          type: 'emoji',
+          emoji: { id: emoji.id, name: emoji.name, url: emoji.url }
+        })
+      } else {
+        parts.push({ type: 'text', text: match[0] })
+      }
+      lastIndex = match.index + match[0].length
+    }
+
+    if (lastIndex < displayName.length) {
+      parts.push({ type: 'text', text: displayName.substring(lastIndex) })
+    }
+
+    const hasEmoji = parts.some(p => p.type === 'emoji')
+    return hasEmoji ? parts : undefined
+  }
+
+  /**
+   * Re-resolve display name parts for all cached users.
+   * Called when the emoji cache updates (emoji renamed/deleted/added).
+   */
+  reResolveAllDisplayNames(): void {
+    let changed = false
+    for (const [userId, userData] of this.users) {
+      const newParts = this.resolveDisplayNameParts(userData.displayName)
+      const hadParts = !!userData.displayNameParts
+      const hasParts = !!newParts
+      if (hadParts !== hasParts || JSON.stringify(userData.displayNameParts) !== JSON.stringify(newParts)) {
+        userData.displayNameParts = newParts
+        changed = true
+      }
+    }
+    if (changed) {
+      this.emitEvent('user-updated', { reason: 'emoji-cache-changed' })
+    }
+  }
+
   /**
    * Refresh global presence - now a no-op
    * 

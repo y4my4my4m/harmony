@@ -960,6 +960,14 @@
               <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
               <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
             </div>
+            <div class="setting-group">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
+                <span class="toggle-slider"></span>
+                Allow Custom Emojis in Display Names
+              </label>
+              <span class="setting-hint">When off, emojis won't display in names and users can't add them.</span>
+            </div>
             <div class="setting-row">
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.federation.enableOutbound" />
@@ -1803,6 +1811,7 @@ const config = ref({
     maxPostLength: 500,
     retryAttempts: 3,
     maxCustomEmojisPerServer: 0,
+    allowCustomEmojisInDisplayNames: true,
     enableOutbound: true,
     enableInbound: true
   },
@@ -2769,6 +2778,7 @@ const saveConfig = async () => {
     await adminService.setInstanceConfig('max_post_length', config.value.federation.maxPostLength, userId)
     await adminService.setInstanceConfig('federation_retry_attempts', config.value.federation.retryAttempts, userId)
     await adminService.setInstanceConfig('max_custom_emojis_per_server', config.value.federation.maxCustomEmojisPerServer ?? 0, userId)
+    await adminService.setInstanceConfig('allow_custom_emojis_in_display_names', config.value.federation.allowCustomEmojisInDisplayNames, userId)
 
     // Save WebRTC settings
     await adminService.updateWebRTCSettings({

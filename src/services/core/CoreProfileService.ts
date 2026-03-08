@@ -63,6 +63,7 @@ export class CoreProfileService {
   private readonly MAX_SEARCH_LIMIT = 50
   private readonly MAX_USERNAME_LENGTH = 30
   private readonly MAX_DISPLAY_NAME_LENGTH = 50
+  private readonly MAX_DISPLAY_NAME_EMOJIS = 5
   private readonly MAX_BIO_LENGTH = 500
   
   static getInstance(): CoreProfileService {
@@ -425,6 +426,13 @@ export class CoreProfileService {
 
     if (data.display_name && data.display_name.length > this.MAX_DISPLAY_NAME_LENGTH) {
       throw this.createError('INVALID_INPUT', `Display name must be ${this.MAX_DISPLAY_NAME_LENGTH} characters or less`)
+    }
+
+    if (data.display_name) {
+      const emojiMatches = data.display_name.match(/:([a-zA-Z0-9_+-]+):/g)
+      if (emojiMatches && emojiMatches.length > this.MAX_DISPLAY_NAME_EMOJIS) {
+        throw this.createError('INVALID_INPUT', `Display name can have at most ${this.MAX_DISPLAY_NAME_EMOJIS} custom emojis`)
+      }
     }
 
     if (data.bio && data.bio.length > this.MAX_BIO_LENGTH) {

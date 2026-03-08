@@ -268,7 +268,7 @@
           <div class="message-main">
             <div class="message-meta">
               <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)">
-                <span class="username-text">{{ getAuthorDisplayName(item.message).value }}</span>
+                <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
                 <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance Admin">
@@ -519,6 +519,7 @@ import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';

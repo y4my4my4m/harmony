@@ -110,7 +110,7 @@
                   class="user-name" 
                   :style="{ color: role.color || getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -189,7 +189,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -268,7 +268,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -347,7 +347,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -408,7 +408,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -505,7 +505,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -560,6 +560,7 @@ import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';

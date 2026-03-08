@@ -11,7 +11,7 @@
         <span 
           class="typing-username"
         >
-          {{ getUserDisplayName(typingUsers[0].user_id).value }}
+          <DisplayName :user-id="typingUsers[0].user_id" />
         </span>
         <span class="typing-suffix"> {{ t('message.typing.single', { name: getUserDisplayName(typingUsers[0].user_id).value }) }}</span>
       </template>
@@ -20,7 +20,7 @@
         <span 
           class="typing-username"
         >
-          {{ getUserDisplayName(typingUsers[0].user_id).value }}
+          <DisplayName :user-id="typingUsers[0].user_id" />
         </span>
         <span class="typing-suffix">{{ t('message.typing.two', { 
           name1: getUserDisplayName(typingUsers[0].user_id).value, 
@@ -32,7 +32,7 @@
         <span 
           class="typing-username"
         >
-          {{ getUserDisplayName(typingUsers[0].user_id).value }}
+          <DisplayName :user-id="typingUsers[0].user_id" />
         </span>
         <span class="typing-suffix">{{ t('message.typing.three', { 
           name1: getUserDisplayName(typingUsers[0].user_id).value, 
@@ -52,6 +52,7 @@
 import { useI18n } from 'vue-i18n'
 import type { TypingUser } from '@/services/TypingIndicatorService'
 import { useUserData } from '@/composables/useUserData'
+import DisplayName from '@/components/DisplayName.vue'
 
 interface Props {
   typingUsers: TypingUser[]

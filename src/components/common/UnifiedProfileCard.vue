@@ -20,7 +20,8 @@
     <div class="profile-info">
       <div class="name-section">
         <h3 class="user-name" :style="{ color: user.color || undefined }">
-          {{ displayName }}
+          <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
+          <template v-else>{{ displayName }}</template>
         </h3>
         <p class="user-handle">{{ displayHandle }}</p>
       </div>
@@ -163,6 +164,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from './Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import Icon from './Icon.vue'
 import SupporterBadge from './SupporterBadge.vue'
 import type { User, FederatedUser } from '@/types'
