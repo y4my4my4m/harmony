@@ -223,6 +223,11 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.hashtag-view .mony-post {
+  max-width: 680px;
+  margin: 20px auto;
+}
+
 .hashtag-header {
   display: flex;
   align-items: center;

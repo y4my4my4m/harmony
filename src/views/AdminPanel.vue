@@ -652,6 +652,82 @@
         </div>
       </div>
 
+      <!-- Announcements -->
+      <div class="admin-module announcements-module">
+        <div class="module-header">
+          <Icon name="message-square" :size="20" />
+          <h2>Announcements</h2>
+          <button @click="showAnnouncementForm = true" class="primary-btn-sm">
+            <Icon name="plus" :size="14" />
+            Create
+          </button>
+        </div>
+        <p class="module-hint">Instance-wide announcements shown to users. Create and manage them here.</p>
+        <div v-if="showAnnouncementForm" class="announcement-form">
+          <h4>{{ editingAnnouncementId ? 'Edit' : 'New' }} Announcement</h4>
+          <div class="form-row">
+            <label>Title</label>
+            <input v-model="announcementForm.title" class="cyber-input" placeholder="Announcement title" />
+          </div>
+          <div class="form-row">
+            <label>Content (supports basic HTML)</label>
+            <textarea v-model="announcementForm.content" class="cyber-input" rows="4" placeholder="Announcement content"></textarea>
+          </div>
+          <div class="form-row">
+            <label>Icon (emoji or name: info, warning, megaphone)</label>
+            <input v-model="announcementForm.icon" class="cyber-input" placeholder="info" />
+          </div>
+          <div class="form-row">
+            <label>Image URL (optional)</label>
+            <input v-model="announcementForm.image_url" class="cyber-input" type="url" placeholder="https://..." />
+          </div>
+          <div class="form-row checks">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="announcementForm.is_pinned" />
+              <span class="toggle-slider"></span>
+              Pinned
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" v-model="announcementForm.show_popup" />
+              <span class="toggle-slider"></span>
+              Show popup
+            </label>
+            <label class="toggle-label" v-if="editingAnnouncementId">
+              <input type="checkbox" v-model="announcementForm.is_active" />
+              <span class="toggle-slider"></span>
+              Active
+            </label>
+          </div>
+          <div class="form-actions">
+            <button @click="saveAnnouncement" class="primary-btn-sm" :disabled="!announcementForm.title || !announcementForm.content">
+              {{ editingAnnouncementId ? 'Update' : 'Create' }}
+            </button>
+            <button @click="cancelAnnouncementForm" class="cyber-btn-sm">Cancel</button>
+          </div>
+        </div>
+        <div class="announcements-list">
+          <div v-for="a in announcements" :key="a.id" class="announcement-item">
+            <div class="announcement-meta">
+              <span class="announcement-icon">{{ getAnnouncementIcon(a.icon) }}</span>
+              <span class="announcement-title">{{ a.title }}</span>
+              <span v-if="a.is_pinned" class="badge">Pinned</span>
+              <span v-if="!a.is_active" class="badge inactive">Inactive</span>
+            </div>
+            <div class="announcement-actions">
+              <button @click="editAnnouncement(a)" class="action-btn-sm" title="Edit">
+                <Icon name="edit" :size="14" />
+              </button>
+              <button @click="deleteAnnouncement(a.id)" class="danger-btn-sm" title="Delete">
+                <Icon name="trash" :size="14" />
+              </button>
+            </div>
+          </div>
+          <div v-if="announcements.length === 0 && !loadingStates.announcements" class="empty-state">
+            No announcements. Create one to notify users.
+          </div>
+        </div>
+      </div>
+
       <!-- Configuration -->
       <div class="admin-module config-module">
         <div class="module-header">
@@ -1005,6 +1081,7 @@ import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
+import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 
 const authStore = useAuthStore()
@@ -1069,6 +1146,7 @@ const loadingStates = ref({
   keySweep: false,
   orphanCleanup: false,
   trendingRefresh: false,
+  announcements: false,
 })
 
 // Key consistency state
@@ -1083,6 +1161,20 @@ const keyConsistency = ref<{
   }>;
   status: 'ok' | 'needs_attention';
 } | null>(null)
+
+// Announcements
+const announcements = ref<Announcement[]>([])
+const showAnnouncementForm = ref(false)
+const editingAnnouncementId = ref<string | null>(null)
+const announcementForm = ref({
+  title: '',
+  content: '',
+  icon: 'info',
+  image_url: '',
+  is_pinned: false,
+  show_popup: true,
+  is_active: true,
+})
 
 // User servers modal
 const showServersModal = ref(false)
@@ -1270,6 +1362,7 @@ const loadInitialData = async () => {
       loadSystemHealth(),
       loadInstanceConfig(),
       loadRecentActivity(),
+      loadAnnouncements(),
       loadInstanceStats(),
       loadFederatedInstances(),
       loadFederationStats(),
@@ -1279,6 +1372,101 @@ const loadInitialData = async () => {
     debug.error('Failed to load admin data:', error)
   } finally {
     loading.value = false
+  }
+}
+
+const loadAnnouncements = async () => {
+  loadingStates.value.announcements = true
+  try {
+    announcements.value = await announcementService.getAllAnnouncements()
+  } catch (error) {
+    debug.error('Failed to load announcements:', error)
+    announcements.value = []
+  } finally {
+    loadingStates.value.announcements = false
+  }
+}
+
+const getAnnouncementIcon = (icon: string | undefined) => {
+  if (!icon) return '📢'
+  const icons: Record<string, string> = {
+    info: 'ℹ️',
+    warning: '⚠️',
+    megaphone: '📢',
+  }
+  return icons[icon] || (icon.length <= 2 ? icon : '📢')
+}
+
+const saveAnnouncement = async () => {
+  if (!announcementForm.value.title || !announcementForm.value.content) return
+  try {
+    if (editingAnnouncementId.value) {
+      await announcementService.updateAnnouncement(editingAnnouncementId.value, {
+        title: announcementForm.value.title,
+        content: announcementForm.value.content,
+        icon: announcementForm.value.icon || 'info',
+        image_url: announcementForm.value.image_url || undefined,
+        is_pinned: announcementForm.value.is_pinned,
+        show_popup: announcementForm.value.show_popup,
+        is_active: announcementForm.value.is_active,
+      })
+      toast.success('Announcement updated')
+    } else {
+      await announcementService.createAnnouncement({
+        title: announcementForm.value.title,
+        content: announcementForm.value.content,
+        icon: announcementForm.value.icon || 'info',
+        image_url: announcementForm.value.image_url || undefined,
+        is_pinned: announcementForm.value.is_pinned,
+        show_popup: announcementForm.value.show_popup,
+      })
+      toast.success('Announcement created')
+    }
+    cancelAnnouncementForm()
+    await loadAnnouncements()
+  } catch (error: any) {
+    debug.error('Failed to save announcement:', error)
+    toast.error(error.message || 'Failed to save announcement')
+  }
+}
+
+const cancelAnnouncementForm = () => {
+  showAnnouncementForm.value = false
+  editingAnnouncementId.value = null
+  announcementForm.value = {
+    title: '',
+    content: '',
+    icon: 'info',
+    image_url: '',
+    is_pinned: false,
+    show_popup: true,
+    is_active: true,
+  }
+}
+
+const editAnnouncement = (a: Announcement) => {
+  editingAnnouncementId.value = a.id
+  announcementForm.value = {
+    title: a.title,
+    content: a.content,
+    icon: a.icon || 'info',
+    image_url: a.image_url || '',
+    is_pinned: a.is_pinned ?? false,
+    show_popup: a.show_popup ?? true,
+    is_active: (a as any).is_active ?? true,
+  }
+  showAnnouncementForm.value = true
+}
+
+const deleteAnnouncement = async (id: string) => {
+  if (!confirm('Delete this announcement?')) return
+  try {
+    await announcementService.deleteAnnouncement(id)
+    toast.success('Announcement deleted')
+    await loadAnnouncements()
+  } catch (error: any) {
+    debug.error('Failed to delete announcement:', error)
+    toast.error(error.message || 'Failed to delete')
   }
 }
 
@@ -3279,6 +3467,41 @@ const handleAddInstance = () => {
   background: rgba(128, 128, 128, 0.1);
   color: var(--text-secondary);
 }
+
+/* Announcements module */
+.module-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 24px 16px;
+}
+.announcement-form {
+  margin: 0 24px 20px;
+  padding: 20px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+.announcement-form h4 { margin: 0 0 16px 0; }
+.announcement-form .form-row { margin-bottom: 12px; }
+.announcement-form .form-row label { display: block; font-size: 13px; margin-bottom: 4px; color: var(--text-secondary); }
+.announcement-form .form-row.checks { display: flex; gap: 16px; flex-wrap: wrap; }
+.announcement-form .form-actions { display: flex; gap: 8px; margin-top: 16px; }
+.announcements-list { padding: 0 24px 24px; }
+.announcement-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+}
+.announcement-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.announcement-icon { font-size: 18px; }
+.announcement-title { font-weight: 600; color: var(--text-primary); }
+.announcement-item .badge.inactive { background: var(--background-quaternary); color: var(--text-muted); }
+.announcement-actions { display: flex; gap: 4px; }
 
 .activity-content {
   flex: 1;

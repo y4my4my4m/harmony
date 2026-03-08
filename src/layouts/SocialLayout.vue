@@ -58,6 +58,8 @@
             :special-view-data="specialViewData"
             :has-more-special-data="hasMoreSpecialData"
             :post-id="postId"
+            :left-sidebar-open="leftSidebarOpen"
+            :right-sidebar-open="rightSidebarOpen"
             @refresh-timeline="$emit('refreshTimeline')"
             @post-created="handlePostCreated"
             @switch-feed="handleSwitchFeed"

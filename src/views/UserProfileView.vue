@@ -6,12 +6,13 @@
       <MonyHeader
         :current-view="currentView"
         :is-mobile="isMobile"
+        :right-sidebar-open="props.rightSidebarOpen ?? false"
         @switch-feed="handleSwitchFeed"
         @refresh-timeline="handleRefresh"
         @open-composer="handleOpenComposer"
         @open-search="handleOpenSearch"
-        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
-        @toggle-right-sidebar="$emit('toggleRightSidebar')"
+        @toggle-left-sidebar="emit('toggleLeftSidebar')"
+        @toggle-right-sidebar="emit('toggleRightSidebar')"
       />
     </div>
 
@@ -56,16 +57,17 @@
                 <Icon name="at-sign" />
               </button>
 
-              <div class="more-actions">
+              <div class="more-actions" ref="moreActionsBtnRef">
                 <button
-                  @click="showActionsMenu = !showActionsMenu"
+                  @click="toggleActionsMenu"
                   class="banner-action-btn"
                   title="More actions"
                 >
                   <Icon name="more-horizontal" />
                 </button>
                 
-                <div v-if="showActionsMenu" class="actions-menu">
+                <Teleport to="body">
+                  <div v-if="showActionsMenu" class="actions-menu actions-menu-teleported" :style="actionsMenuStyle" v-click-outside="() => showActionsMenu = false">
                   <!-- View in remote instance (for federated users) -->
                   <a 
                     v-if="!user.is_local && remoteProfileUrl" 
@@ -96,6 +98,7 @@
                     <span>Report</span>
                   </button>
                 </div>
+                </Teleport>
               </div>
             </div>
           </div>
@@ -336,6 +339,8 @@ interface Props {
   specialViewData?: any;
   hasMoreSpecialData?: boolean;
   postId?: string;
+  leftSidebarOpen?: boolean;
+  rightSidebarOpen?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -348,14 +353,17 @@ const props = withDefaults(defineProps<Props>(), {
   profileUser: undefined,
   specialViewData: undefined,
   hasMoreSpecialData: false,
-  postId: undefined
+  postId: undefined,
+  leftSidebarOpen: false,
+  rightSidebarOpen: false
 });
 
 // Emits - Define the component events
-defineEmits<{
+const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
   refreshTimeline: []
+  openSearch: []
   postCreated: [post: any]
   switchFeed: [feed: string]
   replyToPost: [post: any]
@@ -393,7 +401,20 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 const activeTab = ref('posts');
 const showActionsMenu = ref(false);
+const moreActionsBtnRef = ref<HTMLElement | null>(null);
+const actionsMenuStyle = ref<Record<string, string>>({});
 const isFollowLoading = ref(false);
+
+const toggleActionsMenu = () => {
+  if (!showActionsMenu.value && moreActionsBtnRef.value) {
+    const rect = moreActionsBtnRef.value.getBoundingClientRect();
+    actionsMenuStyle.value = {
+      top: `${rect.bottom + 8}px`,
+      right: `${window.innerWidth - rect.right}px`,
+    };
+  }
+  showActionsMenu.value = !showActionsMenu.value;
+};
 
 // Posts
 const userPosts = ref<TimelinePost[]>([]);
@@ -497,8 +518,7 @@ const handleOpenComposer = () => {
 }
 
 const handleOpenSearch = () => {
-  // TODO: Implement search functionality
-  debug.log('Open search')
+  emit('openSearch')
 }
 
 const handleRefresh = () => {
@@ -1381,6 +1401,12 @@ document.addEventListener('click', handleClickOutside);
   z-index: 100;
   box-shadow: var(--shadow-modal);
   backdrop-filter: blur(8px);
+}
+
+.actions-menu-teleported {
+  position: fixed;
+  z-index: 9999;
+  min-width: 200px;
 }
 
 .action-item {
