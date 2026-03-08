@@ -210,11 +210,11 @@ watch(() => props.selectedIndex, (newIndex) => {
   background: var(--harmony-primary);
 }
 
-.suggest-item.selected .suggest-server {
+.suggest-item.selected .suggest-server, .suggest-item.selected .suggest-name {
   color: #dcddde !important; /* Better contrast on selected background */
 }
 
-.suggest-item:hover .suggest-server {
+.suggest-item:hover .suggest-server, .suggest-item:hover .suggest-name {
   color: var(--text-secondary); /* Better contrast on hover background */
 }
 

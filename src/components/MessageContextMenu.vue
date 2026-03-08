@@ -16,7 +16,8 @@
         @click="addQuickReaction(emoji)"
         :title="emoji.name"
       >
-        {{ emoji.native || emoji.name }}
+        <img v-if="emoji.url" :src="emoji.url" :alt="emoji.name" class="quick-reaction-custom-emoji" />
+        <template v-else>{{ emoji.native || emoji.name }}</template>
       </button>
       <button 
         class="quick-reaction-btn more-btn"
@@ -302,6 +303,12 @@ const togglePin = async () => {
 .quick-reaction-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
   transform: scale(1.15);
+}
+
+.quick-reaction-custom-emoji {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .quick-reaction-btn.more-btn {
