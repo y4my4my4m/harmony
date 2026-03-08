@@ -309,7 +309,7 @@ const save = async () => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .close-button {
@@ -419,14 +419,14 @@ const save = async () => {
 }
 
 .color-swatch.selected {
-  border-color: #ffffff;
+  border-color: var(--text-primary);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
 .check-icon {
   width: 16px;
   height: 16px;
-  color: #ffffff;
+  color: var(--text-primary);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
@@ -455,7 +455,7 @@ const save = async () => {
 
 .btn-primary {
   background: var(--harmony-primary, #5865f2);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -499,7 +499,7 @@ const save = async () => {
 }
 
 .custom-color-swatch:hover .pencil-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Hidden native color input - the browser opens its own color picker dialog */
@@ -515,7 +515,7 @@ const save = async () => {
 .color-tooltip {
   position: fixed;
   background: #18191c;
-  color: #ffffff;
+  color: var(--text-primary);
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 13px;

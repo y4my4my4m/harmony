@@ -578,7 +578,7 @@ const typeIcon = computed(() => {
   justify-content: center;
   /* border: 2px solid var(--h-chat); */
   font-size: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   z-index: 4;
 }
 
@@ -643,7 +643,7 @@ const typeIcon = computed(() => {
   width: 24px;
   stroke-width: 1px;
   z-index: 5;
-  color: #fff;
+  color: var(--text-primary);
   stroke: #fff;
 }
 
@@ -681,7 +681,7 @@ const typeIcon = computed(() => {
   margin: 0 0 2px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   line-height: 1.3;
   word-wrap: break-word;
   display: flex;
@@ -704,7 +704,7 @@ const typeIcon = computed(() => {
 }
 
 .notification-item--unread .notification-title {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .notification-metadata {
@@ -799,7 +799,7 @@ const typeIcon = computed(() => {
 }
 
 .notification-item--unread .message-text {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Rich content */

@@ -438,7 +438,7 @@ onMounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -704,7 +704,7 @@ onMounted(() => {
 
 .btn-primary {
   background: var(--color-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
 }
 
@@ -780,12 +780,12 @@ onMounted(() => {
 
 .error-banner {
   background: var(--color-danger);
-  color: white;
+  color: var(--text-primary);
 }
 
 .success-banner {
   background: var(--color-success);
-  color: white;
+  color: var(--text-primary);
 }
 
 .close-btn {

@@ -406,7 +406,7 @@ const closeForm = () => {
 .option-icon svg {
   width: 24px;
   height: 24px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .option-content {
@@ -417,7 +417,7 @@ const closeForm = () => {
 .option-title {
   font-size: 16px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -442,7 +442,7 @@ const closeForm = () => {
 .option-check svg {
   width: 16px;
   height: 16px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .category-info {

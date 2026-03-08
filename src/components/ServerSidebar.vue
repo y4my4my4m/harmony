@@ -1017,7 +1017,7 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button:hover .dm-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .dm-button.selected {
@@ -1026,7 +1026,7 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button.selected .dm-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Monyverse Button */
@@ -1053,7 +1053,7 @@ const removeServerFromFolder = async () => {
 .monyverse-icon {
   font-size: 24px;
   font-weight: bold;
-  color: #ffffff;
+  color: var(--text-primary);
   font-family: 'Figtree', sans-serif;
   transition: transform 0.2s ease;
 }
@@ -1075,7 +1075,7 @@ const removeServerFromFolder = async () => {
   top: -8px;
   right: -8px;
   background: #f04747;
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: bold;
   padding: 2px 6px;
@@ -1302,7 +1302,7 @@ const removeServerFromFolder = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   animation: pulse-folder 0.5s ease-in-out infinite alternate;
 }
@@ -1337,7 +1337,7 @@ const removeServerFromFolder = async () => {
 
 .context-menu-item:hover {
   background-color: var(--harmony-primary, #5865f2);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .context-menu-divider {
@@ -1384,7 +1384,7 @@ const removeServerFromFolder = async () => {
 .sidebar-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .sidebar-tooltip-count {
@@ -1454,7 +1454,7 @@ const removeServerFromFolder = async () => {
 .sidebar-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .sidebar-tooltip-count {

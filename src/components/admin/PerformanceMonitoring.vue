@@ -923,7 +923,7 @@ onUnmounted(() => {
 
 .badge {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;

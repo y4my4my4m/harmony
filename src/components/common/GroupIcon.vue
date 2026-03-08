@@ -164,7 +164,7 @@ function handleClick() {
   align-items: center;
   justify-content: center;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border-radius: inherit;
 }
 
@@ -225,7 +225,7 @@ function handleClick() {
   bottom: -2px;
   right: -2px;
   background: var(--accent-primary);
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: var(--font-weight-bold);
   min-width: 16px;

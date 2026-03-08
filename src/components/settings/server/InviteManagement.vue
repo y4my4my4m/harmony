@@ -571,7 +571,7 @@ onMounted(() => {
 .management-title {
   font-size: 28px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -609,12 +609,12 @@ onMounted(() => {
 
 .refresh-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .create-button {
   background: linear-gradient(135deg, #5865f2, #4752c4);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .create-button:hover {
@@ -654,7 +654,7 @@ onMounted(() => {
 .filter-label {
   font-size: 14px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .filter-select {
@@ -662,7 +662,7 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -687,7 +687,7 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -712,7 +712,7 @@ onMounted(() => {
 .stat-value {
   font-size: 32px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
@@ -824,7 +824,7 @@ onMounted(() => {
 .invite-code {
   font-family: 'Fira Code', monospace;
   font-size: 13px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.1);
   padding: 4px 8px;
   border-radius: 4px;
@@ -842,7 +842,7 @@ onMounted(() => {
 }
 
 .copy-code-btn:hover {
-  color: #f2f3f5;
+  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -874,7 +874,7 @@ onMounted(() => {
 }
 
 .creator-name {
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -914,7 +914,7 @@ onMounted(() => {
 }
 
 .usage-count {
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -973,7 +973,7 @@ onMounted(() => {
 
 .action-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .action-btn:disabled {
@@ -1021,7 +1021,7 @@ onMounted(() => {
 
 .pagination-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .pagination-btn:disabled {
@@ -1071,7 +1071,7 @@ onMounted(() => {
 
 .detail-value {
   font-size: 14px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -1104,12 +1104,12 @@ onMounted(() => {
 
 .footer-button.secondary:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .footer-button.danger {
   background: linear-gradient(135deg, #ed4245, #c23616);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .footer-button.danger:hover:not(:disabled) {

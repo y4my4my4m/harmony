@@ -383,7 +383,7 @@ window.addEventListener('beforeunload', () => {
 .modal-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -403,7 +403,7 @@ window.addEventListener('beforeunload', () => {
 
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: white;
+  color: var(--text-primary);
 }
 
 .search-container {
@@ -432,7 +432,7 @@ window.addEventListener('beforeunload', () => {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 0.75rem 2.5rem 0.75rem 2.5rem;
-  color: white;
+  color: var(--text-primary);
   font-size: 1rem;
   transition: border-color 0.2s;
 }
@@ -462,7 +462,7 @@ window.addEventListener('beforeunload', () => {
 
 .clear-btn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: white;
+  color: var(--text-primary);
 }
 
 .search-filters {
@@ -486,13 +486,13 @@ window.addEventListener('beforeunload', () => {
 
 .filter-btn:hover {
   border-color: rgba(255, 255, 255, 0.16);
-  color: white;
+  color: var(--text-primary);
 }
 
 .filter-btn.active {
   background: var(--h-brand, #5865f2);
   border-color: var(--h-brand, #5865f2);
-  color: white;
+  color: var(--text-primary);
 }
 
 .search-results {
@@ -564,7 +564,7 @@ window.addEventListener('beforeunload', () => {
 
 .recent-searches h4,
 .suggested-users h4 {
-  color: white;
+  color: var(--text-primary);
   font-size: 0.875rem;
   margin-bottom: 0.75rem;
   text-align: left;
@@ -583,7 +583,7 @@ window.addEventListener('beforeunload', () => {
   gap: 0.75rem;
   background: none;
   border: none;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem;
   border-radius: 8px;
   cursor: pointer;
@@ -634,7 +634,7 @@ window.addEventListener('beforeunload', () => {
   background: var(--h-chat, #313338);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;

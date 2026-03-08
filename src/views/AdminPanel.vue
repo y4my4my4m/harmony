@@ -2682,7 +2682,7 @@ const handleAddInstance = () => {
   background: var(--accent-color);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -3094,7 +3094,7 @@ const handleAddInstance = () => {
 
 .tab-btn.active {
   background: var(--accent-color);
-  color: white;
+  color: var(--text-primary);
 }
 
 .discovery-content {
@@ -3239,7 +3239,7 @@ const handleAddInstance = () => {
 .filter-btn:hover, .filter-btn.active {
   background: var(--accent-color);
   border-color: var(--accent-color);
-  color: white;
+  color: var(--text-primary);
 }
 
 .search-bar {
@@ -3618,7 +3618,7 @@ const handleAddInstance = () => {
   background: var(--accent-color);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;

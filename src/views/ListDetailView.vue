@@ -396,7 +396,7 @@ onMounted(async () => {
 
 .add-btn {
   background: var(--harmony-primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
 }
 
 .add-btn:disabled {
@@ -406,7 +406,7 @@ onMounted(async () => {
 
 .remove-btn {
   background: var(--danger, #ef4444);
-  color: white;
+  color: var(--text-primary);
 }
 
 .empty-members {

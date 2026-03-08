@@ -128,7 +128,7 @@ const handleClick = (event: MouseEvent) => {
 /* Variants */
 .button-primary {
   background: linear-gradient(135deg, #5865f2, #4752c4);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 2px 4px rgba(88, 101, 242, 0.2);
 }
 
@@ -140,7 +140,7 @@ const handleClick = (event: MouseEvent) => {
 
 .button-secondary {
   background: #4f545c;
-  color: #ffffff;
+  color: var(--text-primary);
   border: 1px solid #6d6f78;
 }
 
@@ -152,7 +152,7 @@ const handleClick = (event: MouseEvent) => {
 
 .button-success {
   background: linear-gradient(135deg, #23a55a, #1f8b4c);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 2px 4px rgba(35, 165, 90, 0.2);
 }
 
@@ -164,7 +164,7 @@ const handleClick = (event: MouseEvent) => {
 
 .button-danger {
   background: linear-gradient(135deg, #f23f42, #da373c);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 2px 4px rgba(242, 63, 66, 0.2);
 }
 
@@ -182,7 +182,7 @@ const handleClick = (event: MouseEvent) => {
 
 .button-ghost:hover:not(.button-disabled):not(.button-loading) {
   background: rgba(255, 255, 255, 0.05);
-  color: #f2f3f5;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.2);
 }
 

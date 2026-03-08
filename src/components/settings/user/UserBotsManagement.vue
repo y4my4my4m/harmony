@@ -512,7 +512,7 @@ onMounted(() => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -664,7 +664,7 @@ onMounted(() => {
 .bot-badge {
   padding: 2px 6px;
   background: var(--color-primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
   border-radius: 4px;
@@ -677,7 +677,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   background: #3ba55d;
-  color: white;
+  color: var(--text-primary);
   font-size: 12px;
   border-radius: 50%;
 }
@@ -741,7 +741,7 @@ onMounted(() => {
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -765,7 +765,7 @@ onMounted(() => {
 
 .btn-danger {
   background: #ed4245;
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover {
@@ -993,12 +993,12 @@ onMounted(() => {
 
 .message-banner.success {
   background: #3ba55d;
-  color: white;
+  color: var(--text-primary);
 }
 
 .message-banner.error {
   background: #ed4245;
-  color: white;
+  color: var(--text-primary);
 }
 
 @keyframes slideIn {

@@ -255,7 +255,7 @@ const updateServerDescription = (event: Event) => {
 .section-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -332,7 +332,7 @@ const updateServerDescription = (event: Event) => {
   background-color: var(--h-chat-darker);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   transition: border-color 0.15s ease;
 }
@@ -388,7 +388,7 @@ const updateServerDescription = (event: Event) => {
   border-radius: 16px;
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .crown-icon {
@@ -455,7 +455,7 @@ const updateServerDescription = (event: Event) => {
 
 .btn-secondary {
   background-color: var(--h-chat-darker);
-  color: #ffffff;
+  color: var(--text-primary);
   border: 1px solid var(--h-chat-light);
 }
 
@@ -471,7 +471,7 @@ const updateServerDescription = (event: Event) => {
 
 .btn-danger-outline:hover:not(:disabled) {
   background-color: #ed4245;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .hidden-file-input {

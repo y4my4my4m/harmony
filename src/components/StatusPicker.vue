@@ -567,7 +567,7 @@ watch(() => props.isVisible, (visible) => {
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {

@@ -78,7 +78,7 @@ const toggle = () => {
 .toggle-knob {
   width: 18px;
   height: 18px;
-  background-color: #ffffff;
+  background-color: var(--text-primary);
   border-radius: 50%;
   position: absolute;
   top: 3px;

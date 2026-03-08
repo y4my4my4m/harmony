@@ -229,7 +229,7 @@ const hasUploading = computed(() => {
   align-items: center;
   justify-content: center;
   background-color: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .file-extension {
@@ -306,7 +306,7 @@ const hasUploading = computed(() => {
 }
 
 .upload-progress-text {
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: bold;
   z-index: 1;
@@ -323,7 +323,7 @@ const hasUploading = computed(() => {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: white;
+  color: var(--text-primary);
 }
 
 .remove-file-btn {

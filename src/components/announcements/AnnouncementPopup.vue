@@ -151,7 +151,7 @@ onMounted(async () => {
 
 .unread-badge {
   background: var(--harmony-primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 12px;
@@ -214,7 +214,7 @@ onMounted(async () => {
 
 .pin-badge {
   background: var(--harmony-primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 11px;
@@ -263,7 +263,7 @@ onMounted(async () => {
 
 .mark-read-btn:hover {
   background: var(--harmony-primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
   border-color: var(--harmony-primary, #5865f2);
 }
 
@@ -276,7 +276,7 @@ onMounted(async () => {
 
 .mark-all-btn {
   background: var(--harmony-primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
   border: none;
   padding: 8px 20px;
   border-radius: 6px;

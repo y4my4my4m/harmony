@@ -283,7 +283,7 @@ const closeModal = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: white;
+  color: var(--text-primary);
 }
 
 .audio-title {
@@ -296,7 +296,7 @@ const closeModal = () => {
   align-items: center;
   gap: 0.75rem;
   min-height: 80px;
-  color: white;
+  color: var(--text-primary);
 }
 
 .file-info {
@@ -338,7 +338,7 @@ const closeModal = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   gap: 0.5rem;
   backdrop-filter: blur(20px);
 }
@@ -347,7 +347,7 @@ const closeModal = () => {
   background: var(--h-brand, #5865f2);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.5rem 1rem;
   cursor: pointer;
   font-weight: 500;
@@ -364,7 +364,7 @@ const closeModal = () => {
   left: 0;
   right: 0;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-  color: white;
+  color: var(--text-primary);
   padding: 1rem;
   font-size: 0.875rem;
 }
@@ -387,7 +387,7 @@ const closeModal = () => {
 }
 
 .toggle-btn:hover {
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Modal Styles */
@@ -421,7 +421,7 @@ const closeModal = () => {
   background: rgba(255, 255, 255, 0.1);
   border: none;
   border-radius: 50%;
-  color: white;
+  color: var(--text-primary);
   width: 40px;
   height: 40px;
   cursor: pointer;
@@ -443,7 +443,7 @@ const closeModal = () => {
   background: rgba(255, 255, 255, 0.1);
   border: none;
   border-radius: 50%;
-  color: white;
+  color: var(--text-primary);
   width: 48px;
   height: 48px;
   cursor: pointer;
@@ -484,7 +484,7 @@ const closeModal = () => {
 .media-info {
   margin-top: 1rem;
   text-align: center;
-  color: white;
+  color: var(--text-primary);
 }
 
 .media-meta {

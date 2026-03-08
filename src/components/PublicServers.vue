@@ -455,7 +455,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .discover-icon {
   width: 24px;
   height: 24px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .header-text {
@@ -465,7 +465,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .modal-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -527,7 +527,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
   transition: all 0.3s ease;
   box-sizing: border-box;
@@ -605,7 +605,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .empty-title {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -703,7 +703,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .server-name {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
   line-height: 1.2;
 }
@@ -793,7 +793,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 
 .action-btn.primary {
   background: linear-gradient(135deg, #5865f2, #7289da);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
 }
 
@@ -844,7 +844,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .create-server-btn {
   padding: 12px 20px;
   background: linear-gradient(135deg, #57f287, #00d166);
-  color: #ffffff;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   font-size: 14px;

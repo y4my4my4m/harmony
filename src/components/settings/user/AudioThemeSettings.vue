@@ -249,7 +249,7 @@ onMounted(async () => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -286,7 +286,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .theme-preview {
@@ -328,7 +328,7 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
   padding: 8px 16px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -402,7 +402,7 @@ onMounted(async () => {
   text-align: center;
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Theme Grid */
@@ -463,7 +463,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .theme-version {
@@ -565,7 +565,7 @@ onMounted(async () => {
 
 .sound-test-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
-  color: #ffffff;
+  color: var(--text-primary);
   background: rgba(88, 101, 242, 0.1);
 }
 
@@ -601,7 +601,7 @@ onMounted(async () => {
 .setting-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -653,7 +653,7 @@ onMounted(async () => {
 
 .toggle-btn:hover {
   border-color: var(--h-brand);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Responsive */

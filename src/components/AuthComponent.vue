@@ -1177,10 +1177,10 @@ onMounted(async () => {
 /* Provider-specific styles */
 .oauth-google:hover { border-color: #4285F4; }
 .oauth-twitch:hover { border-color: #9146FF; }
-.oauth-github:hover { border-color: #fff; }
+.oauth-github:hover { border-color: var(--text-primary); }
 
 .oauth-twitch .oauth-icon { color: #9146FF; }
-.oauth-github .oauth-icon { color: #fff; }
+.oauth-github .oauth-icon { color: var(--text-primary); }
 
 /* ========================================
    Divider
@@ -1394,7 +1394,7 @@ onMounted(async () => {
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
@@ -1611,7 +1611,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .modal-icon-wrapper svg {
@@ -1753,7 +1753,7 @@ onMounted(async () => {
 .btn-primary {
   background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
   border: none;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {

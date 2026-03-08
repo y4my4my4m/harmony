@@ -326,7 +326,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 

@@ -294,7 +294,7 @@ onMounted(async () => {
 .audio-theme-showcase {
   min-height: 100vh;
   background: linear-gradient(135deg, #0f1419 0%, #1a202c 50%, #2d3748 100%);
-  color: #ffffff;
+  color: var(--text-primary);
   padding: 32px;
 }
 
@@ -343,7 +343,7 @@ onMounted(async () => {
   font-size: 24px;
   font-weight: 700;
   margin: 0 0 20px 0;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Test Actions */
@@ -361,7 +361,7 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 14px;
@@ -465,7 +465,7 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 14px;
@@ -496,7 +496,7 @@ onMounted(async () => {
 
 .debug-info h4 {
   margin: 0 0 12px 0;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .debug-info pre {
@@ -524,7 +524,7 @@ onMounted(async () => {
 
 .debug-toggle:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Toasts */

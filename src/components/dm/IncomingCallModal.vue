@@ -219,7 +219,7 @@ const handleDecline = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   animation: bounce 1s ease-in-out infinite;
 }
 
@@ -305,7 +305,7 @@ const handleDecline = () => {
 
 .decline-btn {
   background: #ed4245;
-  color: white;
+  color: var(--text-primary);
 }
 
 .decline-btn:hover {
@@ -314,7 +314,7 @@ const handleDecline = () => {
 
 .accept-btn {
   background: #43b581;
-  color: white;
+  color: var(--text-primary);
 }
 
 .accept-btn:hover {

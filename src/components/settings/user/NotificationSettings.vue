@@ -1132,7 +1132,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -1216,7 +1216,7 @@ font-size: 12px;
   gap: 8px;
   padding: 10px 16px;
   background: var(--harmony--primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -1254,7 +1254,7 @@ font-size: 12px;
 .setting-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -1282,7 +1282,7 @@ font-size: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   width: 120px;
 }
@@ -1302,7 +1302,7 @@ font-size: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   min-width: 120px;
 }
@@ -1364,7 +1364,7 @@ font-size: 12px;
   border: none;
   border-radius: 6px;
   padding: 8px 16px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -1412,7 +1412,7 @@ font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 18px;
   padding: 8px;
 }
@@ -1432,7 +1432,7 @@ font-size: 12px;
 .category-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -1477,7 +1477,7 @@ font-size: 12px;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   padding: 6px;
 }
@@ -1489,7 +1489,7 @@ font-size: 12px;
 .type-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   display: block;
   margin-bottom: 2px;
 }
@@ -1533,7 +1533,7 @@ font-size: 12px;
 
 .test-btn:hover {
   background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .test-btn:disabled {
@@ -1553,7 +1553,7 @@ font-size: 12px;
   border: none;
   border-radius: 8px;
   padding: 12px 24px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -1575,7 +1575,7 @@ font-size: 12px;
 
 .reset-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .test-all-btn:disabled, .reset-btn:disabled {
@@ -1653,7 +1653,7 @@ font-size: 12px;
 
 .push-warning strong {
   display: block;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   margin-bottom: 4px;
 }
@@ -1688,7 +1688,7 @@ font-size: 12px;
 
 .push-subscribe-btn {
   background: #43b581;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .push-subscribe-btn:hover:not(:disabled) {
@@ -1740,7 +1740,7 @@ font-size: 12px;
   gap: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 
@@ -1783,7 +1783,7 @@ font-size: 12px;
 .device-name {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .device-date {

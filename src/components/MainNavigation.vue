@@ -217,7 +217,7 @@ const getServerAcronym = (serverName: string): string => {
 
 .dm-button {
   background: var(--h-chat, #36393f);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .dm-button:hover,
@@ -234,11 +234,11 @@ const getServerAcronym = (serverName: string): string => {
 
 .nav-item:hover .nav-icon,
 .nav-item.active .nav-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .dm-button .nav-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .icon {
@@ -251,7 +251,7 @@ const getServerAcronym = (serverName: string): string => {
   top: -4px;
   right: -4px;
   background: #f04747;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
@@ -332,7 +332,7 @@ const getServerAcronym = (serverName: string): string => {
 .server-acronym {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   text-align: center;
   line-height: 1;
 }
@@ -371,7 +371,7 @@ const getServerAcronym = (serverName: string): string => {
 .explore-btn:hover,
 .settings-btn:hover {
   background: #3ba55c;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .add-server-btn .nav-icon,
@@ -382,7 +382,7 @@ const getServerAcronym = (serverName: string): string => {
 .add-server-btn:hover .nav-icon,
 .explore-btn:hover .nav-icon,
 .settings-btn:hover .nav-icon {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Mobile responsiveness */

@@ -1371,7 +1371,7 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--h-primary, #5865f2);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1541,7 +1541,7 @@ onMounted(async () => {
 .save-theme-btn {
   padding: 10px 20px;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 6px;
   font-weight: 500;
@@ -1596,7 +1596,7 @@ onMounted(async () => {
 
 .apply-theme-btn {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
 }
 

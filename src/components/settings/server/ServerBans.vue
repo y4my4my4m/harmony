@@ -152,7 +152,7 @@ onMounted(loadBans)
   margin-top: 8px;
   padding: 6px 16px;
   background: var(--accent-color, #5865f2);
-  color: #fff;
+  color: var(--text-primary);
   border: none;
   border-radius: 4px;
   cursor: pointer;

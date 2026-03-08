@@ -377,13 +377,13 @@ watch(isOpen, (newVal) => {
 
 .selector-trigger:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 .selector-trigger.open {
   background: rgba(88, 101, 242, 0.3);
-  color: #ffffff;
+  color: var(--text-primary);
   border-color: rgba(88, 101, 242, 0.5);
 }
 
@@ -470,7 +470,7 @@ watch(isOpen, (newVal) => {
 
 .device-item:hover {
   background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .device-item.active {
@@ -520,7 +520,7 @@ watch(isOpen, (newVal) => {
 
 .settings-link:hover {
   background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Scrollbar styling */

@@ -1147,7 +1147,7 @@ document.addEventListener('click', handleClickOutside);
   background: var(--harmony-primary);
   border: none;
   border-radius: 8px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem 1.5rem;
   cursor: pointer;
   margin-top: 1rem;
@@ -1205,7 +1205,7 @@ document.addEventListener('click', handleClickOutside);
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  color: white;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1256,7 +1256,7 @@ document.addEventListener('click', handleClickOutside);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
 }
 
@@ -1346,7 +1346,7 @@ document.addEventListener('click', handleClickOutside);
 .primary-action-btn.following {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.5);
-  color: white;
+  color: var(--text-primary);
 }
 
 .primary-action-btn.following:hover:not(:disabled) {
@@ -1578,7 +1578,7 @@ document.addEventListener('click', handleClickOutside);
 
 .unblock-btn:hover {
   background: var(--brand-color, #5865f2);
-  color: white;
+  color: var(--text-primary);
 }
 
 .load-more-container {

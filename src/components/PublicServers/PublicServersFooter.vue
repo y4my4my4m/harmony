@@ -110,7 +110,7 @@ defineEmits<Emits>()
   border: none;
   border-radius: 10px;
   padding: 14px 24px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;

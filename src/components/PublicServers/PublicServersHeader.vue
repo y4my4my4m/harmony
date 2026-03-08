@@ -69,7 +69,7 @@ defineEmits<Emits>()
 .discover-icon {
   width: 24px;
   height: 24px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .header-text {
@@ -81,7 +81,7 @@ defineEmits<Emits>()
 .modal-title {
   font-size: 24px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
   line-height: 1.2;
 }
@@ -110,7 +110,7 @@ defineEmits<Emits>()
 
 .close-button:hover {
   background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  color: var(--text-primary);
   transform: scale(1.05);
 }
 

@@ -324,7 +324,7 @@ onMounted(async () => {
 
 .category-button.active {
   background: var(--harmony-primary-alpha);
-  color: white;
+  color: var(--text-primary);
 }
 
 .category-button svg {

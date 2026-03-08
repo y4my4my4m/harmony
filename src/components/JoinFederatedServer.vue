@@ -320,13 +320,13 @@ function formatExpiry(expiresAt: string): string {
 .header-icon .icon {
   width: 28px;
   height: 28px;
-  color: white;
+  color: var(--text-primary);
 }
 
 .modal-header h2 {
   font-size: 24px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -360,7 +360,7 @@ function formatExpiry(expiresAt: string): string {
   background: #202225;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
   transition: border-color 0.2s;
@@ -377,7 +377,7 @@ function formatExpiry(expiresAt: string): string {
 .discover-btn {
   padding: 12px 20px;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   font-weight: 600;
@@ -451,7 +451,7 @@ function formatExpiry(expiresAt: string): string {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #5865f2, #7289da);
-  color: white;
+  color: var(--text-primary);
   font-size: 28px;
   font-weight: 700;
 }
@@ -464,7 +464,7 @@ function formatExpiry(expiresAt: string): string {
 .server-name {
   font-size: 18px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -549,7 +549,7 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .detail-value {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -600,13 +600,13 @@ function formatExpiry(expiresAt: string): string {
 
 .cancel-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .join-btn {
   padding: 12px 32px;
   background: linear-gradient(135deg, #57f287, #00d166);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   font-weight: 600;
@@ -631,7 +631,7 @@ function formatExpiry(expiresAt: string): string {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

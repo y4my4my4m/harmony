@@ -573,7 +573,7 @@ onMounted(loadPostWithContext);
 
 .context-btn.active {
   background: var(--color-primary);
-  color: white;
+  color: var(--text-primary);
   border-color: var(--color-primary);
 }
 

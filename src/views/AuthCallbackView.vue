@@ -224,7 +224,7 @@ onMounted(async () => {
 .callback-content h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -320,7 +320,7 @@ onMounted(async () => {
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
 }

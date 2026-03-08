@@ -333,7 +333,7 @@ const togglePin = async () => {
 
 .context-menu-item:hover {
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .context-menu-divider {

@@ -397,7 +397,7 @@ async function confirm() {
 
 .btn-confirm {
   background: var(--accent-color, #5865f2);
-  color: #fff;
+  color: var(--text-primary);
 }
 .btn-confirm:hover:not(:disabled) {
   background: var(--accent-hover, #4752c4);
@@ -419,7 +419,7 @@ async function confirm() {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }

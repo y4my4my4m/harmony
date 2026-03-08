@@ -203,7 +203,7 @@ const expandThread = () => {
 .expand-thread-btn:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Thread depth styling adjustments */

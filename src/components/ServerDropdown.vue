@@ -152,7 +152,7 @@ const leaveServer = async () => {
     z-index: 100;
     width: 226px;
     background-color: var(--background-secondary);
-    color: white;
+    color: var(--text-primary);
     border-radius: 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.1);

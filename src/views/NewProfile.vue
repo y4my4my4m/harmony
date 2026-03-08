@@ -974,7 +974,7 @@ const createProfile = async () => {
 .harmony-logo {
   width: 40px;
   height: 40px;
-  color: #ffffff;
+  color: var(--text-primary);
   filter: drop-shadow(0 0 10px rgba(88, 101, 242, 0.5));
   animation: pulse 2s ease-in-out infinite;
 }
@@ -987,7 +987,7 @@ const createProfile = async () => {
 .loading-text {
   font-size: 18px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
   animation: fade-in-out 2s ease-in-out infinite;
 }
@@ -1030,7 +1030,7 @@ const createProfile = async () => {
   position: relative;
   width: 40px;
   height: 40px;
-  color: #ffffff;
+  color: var(--text-primary);
   background: linear-gradient(135deg, #5865f2, #7289da);
   padding: 12px;
   border-radius: 50%;
@@ -1044,7 +1044,7 @@ const createProfile = async () => {
 .welcome-title {
   font-size: 32px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
   background: linear-gradient(135deg, #ffffff, var(--text-secondary));
   -webkit-background-clip: text;
@@ -1128,7 +1128,7 @@ const createProfile = async () => {
 .step-header h2 {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -1196,7 +1196,7 @@ const createProfile = async () => {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.3s ease;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 500;
   gap: 4px;
@@ -1239,13 +1239,13 @@ const createProfile = async () => {
 .option-btn.active {
   background: rgba(88, 101, 242, 0.2);
   border-color: #5865f2;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .option-btn.primary {
   background: linear-gradient(135deg, #5865f2, #7289da);
   border-color: transparent;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .option-btn.primary:hover {
@@ -1319,7 +1319,7 @@ const createProfile = async () => {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.3s ease;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
 }
@@ -1361,7 +1361,7 @@ const createProfile = async () => {
 .input-label {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .optional {
@@ -1381,7 +1381,7 @@ const createProfile = async () => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
   transition: all 0.3s ease;
   box-sizing: border-box;
@@ -1584,7 +1584,7 @@ const createProfile = async () => {
 }
 
 .color-option.active {
-  border-color: #ffffff;
+  border-color: var(--text-primary);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
@@ -1593,7 +1593,7 @@ const createProfile = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .plus-icon {
@@ -1644,12 +1644,12 @@ const createProfile = async () => {
 
 .action-btn.secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .action-btn.primary {
   background: linear-gradient(135deg, #5865f2, #7289da);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
 }
 

@@ -502,7 +502,7 @@ onMounted(() => {
 
 .setting-label input[type="checkbox"]:checked + .checkmark::after {
   content: '✓';
-  color: white;
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: bold;
 }
@@ -537,7 +537,7 @@ onMounted(() => {
   gap: 6px;
   padding: 6px 10px;
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
   border-radius: 16px;
   font-size: 12px;
   cursor: pointer;
@@ -638,7 +638,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -669,7 +669,7 @@ onMounted(() => {
 .primary-btn {
   background: var(--harmony-primary);
   border: none;
-  color: white;
+  color: var(--text-primary);
 }
 
 .primary-btn:hover {

@@ -871,7 +871,7 @@ const vClickOutside = {
 .composer-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -887,7 +887,7 @@ const vClickOutside = {
 
 .close-button:hover {
   background-color: var(--bg-tertiary);
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Reply Context */
@@ -929,7 +929,7 @@ const vClickOutside = {
 
 .author-name {
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .author-handle {
@@ -1027,7 +1027,7 @@ const vClickOutside = {
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border-primary);
   border-radius: 0.5rem;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.875rem;
 }
 
@@ -1066,7 +1066,7 @@ const vClickOutside = {
   gap: 0.5rem;
   background-color: rgba(0, 0, 0, 0.8);
   border-radius: 0.5rem;
-  color: white;
+  color: var(--text-primary);
   font-weight: 500;
   pointer-events: none;
   z-index: 10;
@@ -1140,7 +1140,7 @@ const vClickOutside = {
 
 .option-button:hover {
   background-color: #374151;
-  color: white;
+  color: var(--text-primary);
 }
 
 .option-button.active {
@@ -1184,7 +1184,7 @@ const vClickOutside = {
   padding: 0.75rem;
   background: none;
   border: none;
-  color: white;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   border-radius: 0.5rem;
@@ -1227,7 +1227,7 @@ const vClickOutside = {
 
 .cancel-button:hover {
   background-color: #374151;
-  color: white;
+  color: var(--text-primary);
 }
 
 .post-button {
@@ -1238,7 +1238,7 @@ const vClickOutside = {
   background-color: var(--harmony-primary);
   border: none;
   border-radius: 0.5rem;
-  color: white;
+  color: var(--text-primary);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1291,7 +1291,7 @@ const vClickOutside = {
 
 .suggest-name {
   font-weight: 500;
-  color: white;
+  color: var(--text-primary);
 }
 
 .suggest-username,

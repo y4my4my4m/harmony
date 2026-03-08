@@ -448,7 +448,7 @@ watch(hasChanges, (newValue) => {
   flex-direction: column;
   height: 100vh;
   background-color: var(--h-chat-dark);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Mobile Navigation */
@@ -509,7 +509,7 @@ watch(hasChanges, (newValue) => {
 .mobile-title {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
   text-align: center;
   flex: 1;
@@ -530,7 +530,7 @@ watch(hasChanges, (newValue) => {
 
 .mobile-back-btn:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Desktop Header */
@@ -560,14 +560,14 @@ watch(hasChanges, (newValue) => {
 
 .back-button:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-settings-title {
   font-size: 20px;
   font-weight: 600;
   margin: 0;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .server-settings-actions {
@@ -596,7 +596,7 @@ watch(hasChanges, (newValue) => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -611,7 +611,7 @@ watch(hasChanges, (newValue) => {
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-mobile {
@@ -668,12 +668,12 @@ watch(hasChanges, (newValue) => {
 
 .nav-item:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .nav-item.active {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
   border-left-color: #5865f2;
 }
 

@@ -438,7 +438,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   font-size: 1.5rem;
-  color: white;
+  color: var(--text-primary);
   margin: 0 0 0.5rem 0;
 }
 
@@ -478,7 +478,7 @@ onMounted(() => {
   /* border: 1px solid rgba(255, 255, 255, 0.1); */
   border: 1px solid var(--border-primary);
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.875rem;
   min-width: 150px;
 }
@@ -519,7 +519,7 @@ onMounted(() => {
 .stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .stat-label {
@@ -597,7 +597,7 @@ onMounted(() => {
 
 .emoji-name {
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
@@ -635,7 +635,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.875rem;
   cursor: pointer;
   transition: background 0.2s;
@@ -739,7 +739,7 @@ onMounted(() => {
 
 .modal-header h3 {
   margin: 0;
-  color: white;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -786,7 +786,7 @@ onMounted(() => {
   background: #1a1d21;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   font-size: 1rem;
 }
 
@@ -827,7 +827,7 @@ onMounted(() => {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -839,7 +839,7 @@ onMounted(() => {
   background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
 }
 

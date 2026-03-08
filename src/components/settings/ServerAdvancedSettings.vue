@@ -262,7 +262,7 @@ const formatDate = (dateString: string | undefined): string => {
 .section-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -367,7 +367,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .stat-value {
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-family: 'Courier New', monospace;
 }
 
@@ -424,7 +424,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .btn-danger {
   background-color: #ed4245;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -439,7 +439,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .modal-overlay {
@@ -474,7 +474,7 @@ const formatDate = (dateString: string | undefined): string => {
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -490,7 +490,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .modal-close:hover {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -538,7 +538,7 @@ const formatDate = (dateString: string | undefined): string => {
 .confirmation-label {
   display: block;
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary);
   margin-bottom: 8px;
   font-weight: 500;
 }
@@ -549,7 +549,7 @@ const formatDate = (dateString: string | undefined): string => {
   background-color: var(--h-chat-darker);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   transition: border-color 0.15s ease;
 }

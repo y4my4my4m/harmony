@@ -178,7 +178,7 @@ onMounted(() => {
 }
 
 .preset-color.active {
-  border-color: #ffffff;
+  border-color: var(--text-primary);
   box-shadow: 0 0 0 2px var(--h-chat-light);
 }
 
@@ -236,7 +236,7 @@ onMounted(() => {
 .preview-text {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.4);
 }
 

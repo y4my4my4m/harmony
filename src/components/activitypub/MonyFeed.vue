@@ -361,7 +361,7 @@ document.addEventListener('visibilitychange', () => {
   flex-direction: column;
   height: 100%;
   background-color: #111827;
-  color: white;
+  color: var(--text-primary);
 }
 
 .feed-header {
@@ -393,18 +393,18 @@ document.addEventListener('visibilitychange', () => {
 
 .feed-tab:hover {
   background-color: #4b5563;
-  color: white;
+  color: var(--text-primary);
 }
 
 .feed-tab.active {
   background-color: #2563eb;
-  color: white;
+  color: var(--text-primary);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
 .tab-badge {
   background-color: #ef4444;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.75rem;
   border-radius: 9999px;
   padding: 0.25rem 0.5rem;
@@ -418,7 +418,7 @@ document.addEventListener('visibilitychange', () => {
   gap: 0.5rem;
   padding: 0.5rem 1.5rem;
   background-color: #2563eb;
-  color: white;
+  color: var(--text-primary);
   border-radius: 0.5rem;
   font-weight: 600;
   transition: all 0.2s;
@@ -473,7 +473,7 @@ document.addEventListener('visibilitychange', () => {
 
 .load-more-button:hover {
   background-color: #4b5563;
-  color: white;
+  color: var(--text-primary);
 }
 
 .load-more-button:disabled {
@@ -509,7 +509,7 @@ document.addEventListener('visibilitychange', () => {
 .empty-feed h3 {
   font-size: 1.25rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .empty-feed p {
@@ -523,7 +523,7 @@ document.addEventListener('visibilitychange', () => {
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
   background-color: #2563eb;
-  color: white;
+  color: var(--text-primary);
   border-radius: 0.5rem;
   font-weight: 600;
   transition: all 0.2s;

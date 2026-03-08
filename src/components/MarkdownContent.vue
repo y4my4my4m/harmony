@@ -92,22 +92,22 @@ const renderedHtml = computed(() => {
 /* Markdown styling */
 .markdown-content :deep(.md-bold) {
   font-weight: bold;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .markdown-content :deep(.md-italic) {
   font-style: italic;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .markdown-content :deep(.md-underline) {
   text-decoration: underline;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .markdown-content :deep(.md-strikethrough) {
   text-decoration: line-through;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .markdown-content :deep(.md-code) {

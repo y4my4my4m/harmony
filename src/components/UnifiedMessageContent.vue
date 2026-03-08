@@ -1031,7 +1031,7 @@ export default defineComponent({
 
 .text-content :deep(.md-bold) {
   font-weight: bold;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .text-content :deep(.md-italic) {
@@ -1181,7 +1181,7 @@ export default defineComponent({
   cursor: pointer;
   opacity: 0;
   transition: all 0.15s ease;
-  color: white;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1366,7 +1366,7 @@ export default defineComponent({
 
 .system-username {
   font-weight: bold;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: color 0.2s ease;
   user-select: text;

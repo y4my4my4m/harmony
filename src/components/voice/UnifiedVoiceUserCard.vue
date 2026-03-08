@@ -761,13 +761,13 @@ watch(
 
 .pip-toggle-btn:hover {
   background: rgba(0, 0, 0, 0.5);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .pip-toggle-btn.active {
   background: var(--harmony-primary);
   border-color: #5865f2;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Connection quality indicator - bars style */
@@ -831,7 +831,7 @@ watch(
   border-radius: 50%;
   width: 36px;
   height: 36px;
-  color: #fff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -944,7 +944,7 @@ watch(
   justify-content: center;
   font-size: 10px;
   border: 2px solid #2f3136;
-  color: white;
+  color: var(--text-primary);
 }
 
 .status-badge.muted {

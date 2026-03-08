@@ -1176,7 +1176,7 @@ onMounted(() => {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1236,7 +1236,7 @@ onMounted(() => {
 
 .action-item:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .action-item.danger {
@@ -1332,7 +1332,7 @@ onMounted(() => {
 .display-name {
   font-size: 24px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin: 0 0 4px;
   display: flex;
   align-items: center;
@@ -1383,7 +1383,7 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -1452,7 +1452,7 @@ onMounted(() => {
 .stat-value {
   font-size: 16px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
   margin-bottom: 2px;
 }
 
@@ -1467,7 +1467,7 @@ onMounted(() => {
 .section-title {
   font-size: 14px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin: 0 0 12px;
@@ -1529,7 +1529,7 @@ onMounted(() => {
 .field-name {
   font-size: 14px;
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
   min-width: 100px;
 }
 
@@ -1623,7 +1623,7 @@ onMounted(() => {
 .activity-value {
   font-size: 14px;
   font-weight: 700;
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .federation-section {
@@ -1650,13 +1650,13 @@ onMounted(() => {
 
 .federation-label {
   font-weight: 600;
-  color: #f2f3f5;
+  color: var(--text-primary);
   min-width: 60px;
 }
 
 .federation-value {
   font-weight: 500;
-  color: #f2f3f5;
+  color: var(--text-primary);
   flex: 1;
 }
 
@@ -1679,7 +1679,7 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
@@ -1722,7 +1722,7 @@ onMounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 8px;
   padding: 12px;
-  color: #f2f3f5;
+  color: var(--text-primary);
   font-size: 14px;
   resize: vertical;
   min-height: 60px;
@@ -1783,7 +1783,7 @@ onMounted(() => {
 
 .primary-action-btn {
   background: linear-gradient(135deg, #5865f2, #4752c4);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
 }
 
@@ -1822,7 +1822,7 @@ onMounted(() => {
 .secondary-action-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
-  color: #f2f3f5;
+  color: var(--text-primary);
 }
 
 .btn-icon {

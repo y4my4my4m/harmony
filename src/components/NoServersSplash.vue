@@ -291,7 +291,7 @@ const getParticleStyle = (index: number) => {
   position: relative;
   width: 64px;
   height: 64px;
-  color: #ffffff;
+  color: var(--text-primary);
   overflow: visible;
   border-radius: 50%;
   z-index: 1;
@@ -308,7 +308,7 @@ const getParticleStyle = (index: number) => {
 .welcome-title {
   font-size: 42px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 12px;
   background: linear-gradient(135deg, #ffffff, var(--text-secondary));
   -webkit-background-clip: text;
@@ -417,7 +417,7 @@ const getParticleStyle = (index: number) => {
 .card-icon .icon {
   width: 24px;
   height: 24px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .card-content {
@@ -427,7 +427,7 @@ const getParticleStyle = (index: number) => {
 .card-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 
@@ -449,7 +449,7 @@ const getParticleStyle = (index: number) => {
   padding: 4px 8px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -462,7 +462,7 @@ const getParticleStyle = (index: number) => {
 }
 
 .action-card:hover .card-arrow {
-  color: #ffffff;
+  color: var(--text-primary);
   transform: translateX(4px);
 }
 
@@ -505,7 +505,7 @@ const getParticleStyle = (index: number) => {
 .federated-icon .icon {
   width: 22px;
   height: 22px;
-  color: white;
+  color: var(--text-primary);
 }
 
 .federated-text {
@@ -518,7 +518,7 @@ const getParticleStyle = (index: number) => {
 .federated-label {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .federated-desc {
@@ -563,7 +563,7 @@ const getParticleStyle = (index: number) => {
 .info-text h4 {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 

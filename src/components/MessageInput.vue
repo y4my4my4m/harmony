@@ -662,7 +662,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     transition: 0.25s;
   }
   .plus-icon-container:hover {
-    background-color: #ffffff3d;
+    background-color: var(--text-primary)3d;
   }
 
   .message-container {
@@ -764,7 +764,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     width: 36px !important;
     height: 36px !important;
     min-width: 36px !important;
-    color: white;
+    color: var(--text-primary);
     transition: transform 0.15s ease, background-color 0.2s ease;
   }
 

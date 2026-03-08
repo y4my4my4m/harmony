@@ -314,7 +314,7 @@ onMounted(() => {
 
 .primary-btn {
   background: var(--h-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .primary-btn:hover {
@@ -411,7 +411,7 @@ onMounted(() => {
 
 .quick-link:hover {
   background: var(--h-primary);
-  color: white;
+  color: var(--text-primary);
   border-color: var(--h-primary);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -457,7 +457,7 @@ onMounted(() => {
 
 .auth-btn.primary {
   background: linear-gradient(135deg, var(--h-primary), var(--h-primary-hover));
-  color: white;
+  color: var(--text-primary);
   border: none;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }

@@ -613,7 +613,7 @@ onMounted(() => {
 .primary-btn {
   background: var(--harmony-primary);
   border: none;
-  color: white;
+  color: var(--text-primary);
 }
 
 .primary-btn:hover {

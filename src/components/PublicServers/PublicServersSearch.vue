@@ -377,7 +377,7 @@ const formatStats = (filtered: number, total: number): string => {
 .category-pill:hover {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
   border-color: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  color: var(--text-primary);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(88, 101, 242, 0.15);
 }
@@ -385,7 +385,7 @@ const formatStats = (filtered: number, total: number): string => {
 .category-pill--active {
   background: linear-gradient(135deg, #5865f2, #7289da);
   border-color: #5865f2;
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }

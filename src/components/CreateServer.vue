@@ -406,7 +406,7 @@ const createServer = async () => {
 .server-icon {
   width: 24px;
   height: 24px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .header-text {
@@ -416,7 +416,7 @@ const createServer = async () => {
 .modal-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -470,7 +470,7 @@ const createServer = async () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin-bottom: 12px;
 }
 
@@ -535,7 +535,7 @@ const createServer = async () => {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.3s ease;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 500;
   gap: 4px;
@@ -564,7 +564,7 @@ const createServer = async () => {
   padding: 8px 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  color: var(--text-primary);
   border-radius: 8px;
   cursor: pointer;
   font-size: 12px;
@@ -599,7 +599,7 @@ const createServer = async () => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 16px;
   transition: all 0.3s ease;
   box-sizing: border-box;
@@ -717,7 +717,7 @@ const createServer = async () => {
 .option-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -775,7 +775,7 @@ const createServer = async () => {
 .preview-name {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
@@ -833,12 +833,12 @@ const createServer = async () => {
 
 .action-btn.secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .action-btn.primary {
   background: linear-gradient(135deg, #57f287, #00d166);
-  color: #ffffff;
+  color: var(--text-primary);
   box-shadow: 0 4px 15px rgba(87, 242, 135, 0.3);
 }
 

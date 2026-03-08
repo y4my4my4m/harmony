@@ -175,7 +175,7 @@ const currentTab= computed(() => {
 
 .mobile-menu-btn.active {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .context-title {
@@ -251,12 +251,12 @@ const currentTab= computed(() => {
 
 .action-btn.active {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .compose-btn {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .compose-btn:hover {

@@ -293,7 +293,7 @@ const getIconPath = (iconName: string): string => {
 }
 
 .feed-tab:hover {
-  color: #fff;
+  color: var(--text-primary);
   transform: translateY(-1px);
 }
 
@@ -304,7 +304,7 @@ const getIconPath = (iconName: string): string => {
 .feed-tab.active {
   /* background: linear-gradient(135deg, var(--harmony-primary), #4752c4); */
   background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: #fff;
+  color: var(--text-primary);
   /* box-shadow:  */
     /* 0 0 13px rgba(88, 101, 242, 0.4), */
     /* inset 0 -2px 2px rgba(0, 0, 0, 0.3), */
@@ -360,12 +360,12 @@ const getIconPath = (iconName: string): string => {
 
 .composer-btn {
   background: var(--harmony-primary, #5865f2);
-  color: white;
+  color: var(--text-primary);
 }
 
 .composer-btn:hover {
   background: var(--harmony-primary-hover, #4752c4);
-  color: white;
+  color: var(--text-primary);
 }
 
 .search-icon,

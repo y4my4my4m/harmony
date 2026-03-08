@@ -363,7 +363,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  /* color: white; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
@@ -395,7 +395,7 @@ onBeforeUnmount(() => {
 }
 
 .stat strong {
-  color: white;
+  color: var(--text-primary);
 }
 
 .user-actions {
@@ -419,7 +419,7 @@ onBeforeUnmount(() => {
   background: var(--h-brand, #5865f2);
   border: none;
   border-radius: 6px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.5rem 1rem;
   font-weight: 500;
   cursor: pointer;
@@ -469,7 +469,7 @@ onBeforeUnmount(() => {
 
 .more-btn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: white;
+  color: var(--text-primary);
 }
 
 :deep(.actions-menu) {
@@ -507,7 +507,7 @@ onBeforeUnmount(() => {
   width: 100%;
   background: none;
   border: none;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem;
   border-radius: 6px;
   cursor: pointer;
@@ -570,7 +570,7 @@ onBeforeUnmount(() => {
     color-mix(in srgb, var(--harmony-accent) 20%, transparent),
     color-mix(in srgb, var(--harmony-accent-hover) 20%, transparent)
   );
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .instance-badge.mod {
@@ -579,7 +579,7 @@ onBeforeUnmount(() => {
     color-mix(in srgb, var(--harmony-primary) 20%, transparent),
     color-mix(in srgb, var(--harmony-primary-hover) 20%, transparent)
   );
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .spinning {

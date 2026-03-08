@@ -622,7 +622,7 @@ const getEmojiAnalytics = () => {
 .section-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -742,7 +742,7 @@ const getEmojiAnalytics = () => {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: var(--text-primary);
   transition: 0.3s;
   border-radius: 50%;
 }
@@ -778,7 +778,7 @@ input:checked + .toggle-slider:before {
 
 .upload-text {
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
@@ -808,7 +808,7 @@ input:checked + .toggle-slider:before {
 .emoji-list-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -910,12 +910,12 @@ input:checked + .toggle-slider:before {
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger {
   background-color: #ed4245;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -1009,7 +1009,7 @@ input:checked + .toggle-slider:before {
 .emoji-name {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   margin-bottom: 2px;
 }
 
@@ -1022,7 +1022,7 @@ input:checked + .toggle-slider:before {
   padding: 4px 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   background-color: var(--h-chat);
   border: 1px solid #57f287;
   border-radius: 4px;

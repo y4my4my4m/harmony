@@ -326,7 +326,7 @@ textarea:focus {
 .btn-submit {
   background: #ed4245;
   border: none;
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
@@ -359,7 +359,7 @@ textarea:focus {
   width: 64px;
   height: 64px;
   background: #57f287;
-  color: white;
+  color: var(--text-primary);
   border-radius: 50%;
   font-size: 28px;
   font-weight: 700;
@@ -381,7 +381,7 @@ textarea:focus {
 .btn-done {
   background: var(--harmony-primary, #5865f2);
   border: none;
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-done:hover {

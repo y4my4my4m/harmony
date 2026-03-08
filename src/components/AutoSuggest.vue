@@ -285,7 +285,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-name {
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -316,7 +316,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: white;
+  color: var(--text-primary);
 }
 
 .role-name {
@@ -329,7 +329,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   justify-content: center;
   border-radius: 50%;
   background: var(--accent-color, #5865f2);
-  color: white;
+  color: var(--text-primary);
 }
 
 .command-name {
@@ -347,7 +347,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .selected .bridge-badge {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .selected .bridge-badge.role-badge {

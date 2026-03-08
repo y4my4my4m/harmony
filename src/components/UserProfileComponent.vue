@@ -425,7 +425,7 @@ onBeforeUnmount(() => {
 
 .user-name {
   font-weight: bold;
-  /* color: white; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
   margin: 0 0 0 6px;
   font-size: 0.9em;
@@ -475,7 +475,7 @@ onBeforeUnmount(() => {
 
 .icon-button.muted {
   background-color: #f04747;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .icon-button.muted:hover {
@@ -640,7 +640,7 @@ onBeforeUnmount(() => {
 
 .custom-status-btn.save {
   background: #43b581;
-  color: white;
+  color: var(--text-primary);
 }
 
 .custom-status-btn.save:hover {
@@ -649,7 +649,7 @@ onBeforeUnmount(() => {
 
 .custom-status-btn.clear {
   background: #f04747;
-  color: white;
+  color: var(--text-primary);
 }
 
 .custom-status-btn.clear:hover {
@@ -700,7 +700,7 @@ onBeforeUnmount(() => {
 
 .status-option.active {
   background: var(--harmony-primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .status-option .status-dot {
@@ -719,7 +719,7 @@ onBeforeUnmount(() => {
 
 .checkmark {
   margin-left: auto;
-  color: white;
+  color: var(--text-primary);
   font-weight: bold;
   font-size: 0.9rem;
 }
@@ -786,7 +786,7 @@ onBeforeUnmount(() => {
   }
   .mobile-profile-overlay .user-profile-section .user-name {
     font-size: 1em;
-    color: white;
+    color: var(--text-primary);
     margin: 0;
     width: 100%;
     position: relative;

@@ -148,7 +148,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  color: white;
+  color: var(--text-primary);
   flex-direction: column;
 }
 
@@ -172,7 +172,7 @@ onUnmounted(() => {
   margin: 0 0 4px;
   font-size: 18px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .banner-text p {
@@ -225,7 +225,7 @@ onUnmounted(() => {
 
 .banner-btn.secondary {
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: var(--text-primary);
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
@@ -241,7 +241,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 6px;
   padding: 6px;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;

@@ -66,7 +66,7 @@ export default defineComponent({
 <style scoped>
 .user-preview {
   /* Styles for the user profile component */
-  color: white;
+  color: var(--text-primary);
 }
 .user-preview-details .bio-title {
   margin-top:1.25em;
@@ -105,6 +105,6 @@ hr {
   margin: 0 5px;
   font-size: 0.8em;
   font-weight: bold;
-  color: white;
+  color: var(--text-primary);
 }
 </style>

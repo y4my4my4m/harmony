@@ -1663,7 +1663,7 @@ const closeLightbox = () => {
 
 .author-name {
   font-weight: 600;
-  /* color: white; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
   text-overflow: ellipsis;
   overflow: hidden;
@@ -1704,7 +1704,7 @@ const closeLightbox = () => {
 
 .author-name:hover .instance-badge.admin,
 .author-name:hover .instance-badge.mod {
-  color: #fff;
+  color: var(--text-primary);
   background: var(--harmony-secondary);
 }
 
@@ -1808,7 +1808,7 @@ const closeLightbox = () => {
 
 .show-thread-btn:hover {
   background: var(--background-secondary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .reply-parent-post {
@@ -1840,7 +1840,7 @@ const closeLightbox = () => {
 
 .reply-parent-name {
   font-weight: 600;
-  /* color: white; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
   font-size: 0.9rem;
 }
@@ -1936,7 +1936,7 @@ const closeLightbox = () => {
 
 .cw-toggle {
   background-color: #4b5563;
-  color: white;
+  color: var(--text-primary);
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 0.25rem;
@@ -1962,7 +1962,7 @@ const closeLightbox = () => {
 }
 
 .post-text {
-  /* color: white; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
   line-height: 1.6;
   word-wrap: break-word;
@@ -2014,7 +2014,7 @@ const closeLightbox = () => {
 
 .action-button:hover {
   /* background-color: #374151; */
-  /* color: white; */
+  /* color: var(--text-primary); */
   background-color: var(--background-quinary);
   color: var(--text-primary);
 }
@@ -2153,7 +2153,7 @@ const closeLightbox = () => {
   padding: 0.5rem;
   background: none;
   border: none;
-  /* color: white; */
+  /* color: var(--text-primary); */
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
@@ -2221,7 +2221,7 @@ const closeLightbox = () => {
 }
 
 .quote-comment {
-  color: white;
+  color: var(--text-primary);
   line-height: 1.6;
   word-wrap: break-word;
 }
@@ -2250,7 +2250,7 @@ const closeLightbox = () => {
 
 .quoted-author-name {
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .quoted-author-handle {
@@ -2263,7 +2263,7 @@ const closeLightbox = () => {
 }
 
 .quoted-post-content {
-  color: white;
+  color: var(--text-primary);
   line-height: 1.6;
   word-wrap: break-word;
   margin-bottom: 0.75rem;

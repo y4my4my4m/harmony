@@ -109,7 +109,7 @@ const {
 .picker-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .test-button {
@@ -190,7 +190,7 @@ const {
 .theme-name {
   font-size: 13px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .theme-description {

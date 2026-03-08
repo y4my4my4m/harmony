@@ -481,7 +481,7 @@ onMounted(() => {
   display: inline-block;
   padding: 2px 8px;
   background: var(--primary);
-  color: white;
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
   border-radius: 4px;
@@ -536,7 +536,7 @@ onMounted(() => {
 
 .btn-primary {
   background: var(--primary);
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -559,7 +559,7 @@ onMounted(() => {
 
 .btn-danger {
   background: #da373c;
-  color: white;
+  color: var(--text-primary);
 }
 
 .btn-danger:hover {
@@ -697,7 +697,7 @@ onMounted(() => {
 .btn-copy {
   padding: 12px 20px;
   background: var(--primary);
-  color: white;
+  color: var(--text-primary);
   border: none;
   border-radius: 6px;
   cursor: pointer;

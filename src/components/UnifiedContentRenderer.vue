@@ -601,7 +601,7 @@ const formatFileSize = (bytes: number): string => {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
-  color: #fff;
+  color: var(--text-primary);
 
 }
 
@@ -800,7 +800,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .file-link:hover {
-  color: #ffffff;
+  color: var(--text-primary);
   text-decoration: underline;
 }
 
@@ -838,7 +838,7 @@ const formatFileSize = (bytes: number): string => {
 .content-html :deep(strong),
 :deep(strong) {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .content-html :deep(em),
