@@ -127,7 +127,7 @@
       </div>
 
       <div class="chart-container">
-        <h3>Request Distribution</h3>
+        <h3>Request Distribution <span style="font-size: 11px; opacity: 0.5; font-weight: 400;">(placeholder data)</span></h3>
         <div class="distribution-list">
           <div 
             v-for="endpoint in endpointStats" 

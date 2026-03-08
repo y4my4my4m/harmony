@@ -101,19 +101,19 @@
           </div>
           <div class="metric-card">
             <div class="metric-header">
-              <span>Storage</span>
+              <span>Database Size</span>
               <div class="metric-status healthy"></div>
             </div>
-            <div class="metric-value">{{ systemHealth.storage.used }}%</div>
-            <div class="metric-detail">{{ systemHealth.storage.total }} total</div>
+            <div class="metric-value">{{ systemHealth.storage.total }}</div>
+            <div class="metric-detail">total size</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card placeholder-metric">
             <div class="metric-header">
               <span>Memory</span>
-              <div class="metric-status warning"></div>
+              <div class="metric-status healthy"></div>
             </div>
-            <div class="metric-value">{{ systemHealth.memory.used }}%</div>
-            <div class="metric-detail">{{ systemHealth.memory.total }} available</div>
+            <div class="metric-value">--</div>
+            <div class="metric-detail">not available via Supabase</div>
           </div>
         </div>
       </div>
@@ -696,6 +696,20 @@
               </div>
 
               <div v-if="report.status === 'pending' || report.status === 'investigating'" class="report-actions-panel">
+                <!-- Punitive actions -->
+                <div class="report-punitive-actions">
+                  <button
+                    v-if="report.reported_message_id"
+                    class="report-action-btn danger"
+                    @click.stop="deleteReportedMessage(report)"
+                  >Delete Message</button>
+                  <button
+                    v-if="report.reported_user_id"
+                    class="report-action-btn danger"
+                    @click.stop="suspendReportedUser(report)"
+                  >Suspend User</button>
+                </div>
+
                 <textarea
                   v-model="reportResolutionNote"
                   placeholder="Add resolution notes..."
@@ -1208,16 +1222,26 @@
             <h3>Supporter Tiers</h3>
             <div class="tiers-list" v-if="supporterTiers.length > 0">
               <div v-for="tier in supporterTiers" :key="tier.id" class="tier-item">
-                <span class="tier-icon">{{ tier.badge_icon || '⭐' }}</span>
-                <div class="tier-info">
-                  <span class="tier-name">{{ tier.name }}</span>
-                  <span class="tier-amount">Min: {{ tier.min_amount }}</span>
-                </div>
-                <div class="tier-actions">
-                  <button class="mod-btn delete-btn" @click="deleteTier(tier.id)" title="Delete tier">
-                    <Icon name="delete" :size="14" />
-                  </button>
-                </div>
+                <template v-if="editingTierId === tier.id">
+                  <input v-model="editTierIcon" class="cyber-input" style="width: 50px;" />
+                  <input v-model="editTierName" class="cyber-input" style="flex: 1;" />
+                  <input v-model.number="editTierMinAmount" type="number" class="cyber-input" style="width: 90px;" min="0" />
+                  <input v-model="editTierColor" type="color" class="color-input" />
+                  <button class="mod-btn" @click="saveEditTier(tier.id)" title="Save"><Icon name="check" :size="14" /></button>
+                  <button class="mod-btn" @click="editingTierId = null" title="Cancel"><Icon name="x" :size="14" /></button>
+                </template>
+                <template v-else>
+                  <span class="tier-icon" :style="tier.badge_color ? { color: tier.badge_color } : {}">{{ tier.badge_icon || '⭐' }}</span>
+                  <div class="tier-info">
+                    <span class="tier-name">{{ tier.name }}</span>
+                    <span class="tier-amount">Min: {{ tier.min_amount }}</span>
+                    <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
+                  </div>
+                  <div class="tier-actions">
+                    <button class="mod-btn" @click="startEditTier(tier)" title="Edit tier"><Icon name="edit" :size="14" /></button>
+                    <button class="mod-btn delete-btn" @click="deleteTier(tier.id)" title="Delete tier"><Icon name="delete" :size="14" /></button>
+                  </div>
+                </template>
               </div>
             </div>
             <div v-else class="empty-hint">No tiers configured</div>
@@ -1246,12 +1270,83 @@
                     <template v-if="supporter.platform"> &middot; {{ supporter.platform }}</template>
                   </span>
                 </div>
-                <button class="mod-btn delete-btn" @click="removeSupporter(supporter.user_id)" title="Remove supporter">
-                  <Icon name="delete" :size="14" />
-                </button>
+                <div class="supporter-actions">
+                  <button class="mod-btn" @click="startEditSupporter(supporter)" title="Edit supporter"><Icon name="edit" :size="14" /></button>
+                  <button class="mod-btn" @click="openRecordDonation(supporter)" title="Record donation"><Icon name="plus" :size="14" /></button>
+                  <button class="mod-btn delete-btn" @click="removeSupporter(supporter.user_id)" title="Remove supporter"><Icon name="delete" :size="14" /></button>
+                </div>
               </div>
             </div>
             <div v-else class="empty-hint">No active supporters</div>
+
+            <!-- Add Supporter -->
+            <div class="add-supporter-form">
+              <input v-model="addSupporterSearch" class="cyber-input" placeholder="Username to add as supporter..." />
+              <select v-model="addSupporterTierId" class="cyber-select" style="width: 140px;">
+                <option value="">No tier</option>
+                <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
+              </select>
+              <input v-model.number="addSupporterAmount" type="number" class="cyber-input" placeholder="Amount" min="0" style="width: 100px;" />
+              <input v-model="addSupporterPlatform" class="cyber-input" placeholder="Platform" style="width: 110px;" />
+              <button class="action-btn" @click="addNewSupporter" :disabled="!addSupporterSearch">
+                <Icon name="plus" :size="16" /> Add
+              </button>
+            </div>
+          </div>
+
+          <!-- Edit Supporter Modal (inline) -->
+          <div v-if="editingSupporterData" class="funding-section edit-supporter-panel">
+            <h3>Edit Supporter: {{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</h3>
+            <div class="funding-form-row">
+              <div class="funding-field">
+                <label>Tier</label>
+                <select v-model="editSupporterTierId" class="cyber-select">
+                  <option value="">No tier</option>
+                  <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
+                </select>
+              </div>
+              <div class="funding-field">
+                <label>Amount</label>
+                <input v-model.number="editSupporterAmount" type="number" class="cyber-input" min="0" />
+              </div>
+              <div class="funding-field">
+                <label>Platform</label>
+                <input v-model="editSupporterPlatform" class="cyber-input" />
+              </div>
+            </div>
+            <div class="report-action-buttons" style="margin-top: 8px;">
+              <button class="report-action-btn resolve" @click="saveEditSupporter">Save</button>
+              <button class="report-action-btn dismiss" @click="editingSupporterData = null">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Record Donation Modal (inline) -->
+          <div v-if="recordDonationSupporter" class="funding-section edit-supporter-panel">
+            <h3>Record Donation for {{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</h3>
+            <div class="funding-form-row">
+              <div class="funding-field">
+                <label>Amount</label>
+                <input v-model.number="recordDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
+              </div>
+              <div class="funding-field">
+                <label>Currency</label>
+                <select v-model="recordDonationCurrency" class="cyber-select">
+                  <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
+                </select>
+              </div>
+              <div class="funding-field">
+                <label>Platform</label>
+                <input v-model="recordDonationPlatform" class="cyber-input" placeholder="e.g. Patreon, Ko-fi" />
+              </div>
+            </div>
+            <div class="funding-field" style="margin-top: 8px;">
+              <label>Note</label>
+              <input v-model="recordDonationNote" class="cyber-input" placeholder="Optional note..." />
+            </div>
+            <div class="report-action-buttons" style="margin-top: 8px;">
+              <button class="report-action-btn resolve" @click="saveRecordDonation" :disabled="!recordDonationAmount">Record</button>
+              <button class="report-action-btn dismiss" @click="recordDonationSupporter = null">Cancel</button>
+            </div>
           </div>
 
           <!-- Donation History -->
@@ -1273,13 +1368,47 @@
             </div>
             <div v-if="donationHistory.length > 0" class="donations-list">
               <div v-for="donation in donationHistory" :key="donation.id" class="donation-item">
+                <Avatar v-if="donation.user" :src="donation.user.avatar_url" :alt="donation.user.username" size="xs" />
+                <span class="donation-user" v-if="donation.user">{{ donation.user.display_name || donation.user.username }}</span>
                 <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
                 <span class="donation-date">{{ formatDate(donation.donated_at) }}</span>
                 <span v-if="donation.platform" class="donation-platform">{{ donation.platform }}</span>
                 <span v-if="donation.note" class="donation-note">{{ donation.note }}</span>
+                <div class="donation-actions">
+                  <button class="mod-btn" @click="startEditDonation(donation)" title="Edit"><Icon name="edit" :size="12" /></button>
+                  <button class="mod-btn delete-btn" @click="deleteDonation(donation.id)" title="Delete"><Icon name="delete" :size="12" /></button>
+                </div>
               </div>
             </div>
             <div v-else class="empty-hint">No donations recorded</div>
+
+            <!-- Edit Donation (inline) -->
+            <div v-if="editingDonation" class="edit-donation-panel">
+              <div class="funding-form-row">
+                <div class="funding-field">
+                  <label>Amount</label>
+                  <input v-model.number="editDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
+                </div>
+                <div class="funding-field">
+                  <label>Currency</label>
+                  <select v-model="editDonationCurrency" class="cyber-select">
+                    <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
+                  </select>
+                </div>
+                <div class="funding-field">
+                  <label>Platform</label>
+                  <input v-model="editDonationPlatform" class="cyber-input" />
+                </div>
+                <div class="funding-field">
+                  <label>Note</label>
+                  <input v-model="editDonationNote" class="cyber-input" />
+                </div>
+              </div>
+              <div class="report-action-buttons" style="margin-top: 8px;">
+                <button class="report-action-btn resolve" @click="saveEditDonation">Save</button>
+                <button class="report-action-btn dismiss" @click="editingDonation = null">Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1389,9 +1518,11 @@ import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
+import { supabase } from '@/supabase'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { fundingService, type SupporterTier, type Supporter, type DonationRecord } from '@/services/FundingService'
+import { messageService } from '@/services/MessageService'
 import { trendingService } from '@/services/TrendingService'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
@@ -1462,6 +1593,37 @@ const newTierName = ref('')
 const newTierMinAmount = ref<number>(0)
 const newTierIcon = ref('⭐')
 const newTierColor = ref('#5865f2')
+
+// Tier editing
+const editingTierId = ref<string | null>(null)
+const editTierName = ref('')
+const editTierMinAmount = ref<number>(0)
+const editTierIcon = ref('')
+const editTierColor = ref('#5865f2')
+
+// Supporter CRUD
+const addSupporterSearch = ref('')
+const addSupporterTierId = ref('')
+const addSupporterAmount = ref<number>(0)
+const addSupporterPlatform = ref('')
+const editingSupporterData = ref<Supporter | null>(null)
+const editSupporterTierId = ref('')
+const editSupporterAmount = ref<number>(0)
+const editSupporterPlatform = ref('')
+
+// Record donation
+const recordDonationSupporter = ref<Supporter | null>(null)
+const recordDonationAmount = ref<number>(0)
+const recordDonationCurrency = ref('USD')
+const recordDonationPlatform = ref('')
+const recordDonationNote = ref('')
+
+// Donation editing
+const editingDonation = ref<DonationRecord | null>(null)
+const editDonationAmount = ref<number>(0)
+const editDonationCurrency = ref('USD')
+const editDonationPlatform = ref('')
+const editDonationNote = ref('')
 
 // Federation management data
 const instanceStats = ref<InstanceStats>({
@@ -2078,6 +2240,7 @@ const addTier = async () => {
     display_order: supporterTiers.value.length,
   })
   if (tier) {
+    await adminService.logAdminAction({ action: 'tier_create', targetType: 'tier', targetId: tier.id, details: { name: tier.name } })
     supporterTiers.value.push(tier)
     newTierName.value = ''
     newTierMinAmount.value = 0
@@ -2086,19 +2249,149 @@ const addTier = async () => {
   }
 }
 
+// Tier CRUD
+const startEditTier = (tier: SupporterTier) => {
+  editingTierId.value = tier.id
+  editTierName.value = tier.name
+  editTierMinAmount.value = tier.min_amount
+  editTierIcon.value = tier.badge_icon || '⭐'
+  editTierColor.value = tier.badge_color || '#5865f2'
+}
+
+const saveEditTier = async (tierId: string) => {
+  const success = await fundingService.updateTier(tierId, {
+    name: editTierName.value,
+    min_amount: editTierMinAmount.value,
+    badge_icon: editTierIcon.value,
+    badge_color: editTierColor.value,
+  })
+  if (success) {
+    await adminService.logAdminAction({ action: 'tier_update', targetType: 'tier', targetId: tierId, details: { name: editTierName.value } })
+    editingTierId.value = null
+    supporterTiers.value = await fundingService.getTiers()
+    toast.success('Tier updated')
+  }
+}
+
 const deleteTier = async (tierId: string) => {
+  if (!confirm('Delete this tier? Supporters on this tier will keep their status but lose the tier badge.')) return
   const success = await fundingService.deleteTier(tierId)
   if (success) {
+    await adminService.logAdminAction({ action: 'tier_delete', targetType: 'tier', targetId: tierId })
     supporterTiers.value = supporterTiers.value.filter(t => t.id !== tierId)
     toast.success('Tier deleted')
   }
 }
 
+// Supporter CRUD
+const addNewSupporter = async () => {
+  if (!addSupporterSearch.value) return
+  const { data: users } = await supabase.from('profiles').select('id').ilike('username', addSupporterSearch.value).limit(1)
+  if (!users?.length) {
+    toast.error('User not found')
+    return
+  }
+  const userId = users[0].id
+  const success = await fundingService.addSupporter(userId, addSupporterTierId.value || undefined, addSupporterAmount.value || undefined, addSupporterPlatform.value || undefined)
+  if (success) {
+    await adminService.logAdminAction({ action: 'supporter_add', targetType: 'supporter', targetId: userId, details: { username: addSupporterSearch.value } })
+    supporters.value = await fundingService.getSupporters()
+    addSupporterSearch.value = ''
+    addSupporterTierId.value = ''
+    addSupporterAmount.value = 0
+    addSupporterPlatform.value = ''
+    toast.success('Supporter added')
+  }
+}
+
+const startEditSupporter = (supporter: Supporter) => {
+  editingSupporterData.value = supporter
+  editSupporterTierId.value = supporter.tier_id || ''
+  editSupporterAmount.value = supporter.amount || 0
+  editSupporterPlatform.value = supporter.platform || ''
+}
+
+const saveEditSupporter = async () => {
+  if (!editingSupporterData.value) return
+  const userId = editingSupporterData.value.user_id
+  const success = await fundingService.updateSupporter(userId, {
+    tier_id: editSupporterTierId.value || null,
+    amount: editSupporterAmount.value || null,
+    platform: editSupporterPlatform.value || null,
+  })
+  if (success) {
+    await adminService.logAdminAction({ action: 'supporter_update', targetType: 'supporter', targetId: userId })
+    editingSupporterData.value = null
+    supporters.value = await fundingService.getSupporters()
+    toast.success('Supporter updated')
+  }
+}
+
 const removeSupporter = async (userId: string) => {
+  if (!confirm('Remove this supporter?')) return
   const success = await fundingService.removeSupporter(userId)
   if (success) {
+    await adminService.logAdminAction({ action: 'supporter_remove', targetType: 'supporter', targetId: userId })
     supporters.value = supporters.value.filter(s => s.user_id !== userId)
     toast.success('Supporter removed')
+  }
+}
+
+// Donation CRUD
+const openRecordDonation = (supporter: Supporter) => {
+  recordDonationSupporter.value = supporter
+  recordDonationAmount.value = 0
+  recordDonationCurrency.value = fundingCurrency.value
+  recordDonationPlatform.value = supporter.platform || ''
+  recordDonationNote.value = ''
+}
+
+const saveRecordDonation = async () => {
+  if (!recordDonationSupporter.value || !recordDonationAmount.value) return
+  const s = recordDonationSupporter.value
+  const success = await fundingService.addDonation(s.id, s.user_id, recordDonationAmount.value, recordDonationCurrency.value, recordDonationPlatform.value || undefined, recordDonationNote.value || undefined)
+  if (success) {
+    await adminService.logAdminAction({ action: 'donation_record', targetType: 'donation', targetId: s.user_id, details: { amount: recordDonationAmount.value, currency: recordDonationCurrency.value } })
+    recordDonationSupporter.value = null
+    donationHistory.value = await fundingService.getDonationHistory()
+    donationStats.value = await fundingService.getDonationStats()
+    toast.success('Donation recorded')
+  }
+}
+
+const startEditDonation = (donation: DonationRecord) => {
+  editingDonation.value = donation
+  editDonationAmount.value = donation.amount
+  editDonationCurrency.value = donation.currency
+  editDonationPlatform.value = donation.platform || ''
+  editDonationNote.value = donation.note || ''
+}
+
+const saveEditDonation = async () => {
+  if (!editingDonation.value) return
+  const success = await fundingService.updateDonation(editingDonation.value.id, {
+    amount: editDonationAmount.value,
+    currency: editDonationCurrency.value,
+    platform: editDonationPlatform.value || null,
+    note: editDonationNote.value || null,
+  })
+  if (success) {
+    await adminService.logAdminAction({ action: 'donation_update', targetType: 'donation', targetId: editingDonation.value.id })
+    editingDonation.value = null
+    donationHistory.value = await fundingService.getDonationHistory()
+    donationStats.value = await fundingService.getDonationStats()
+    toast.success('Donation updated')
+  }
+}
+
+const deleteDonation = async (donationId: string) => {
+  if (!confirm('Delete this donation record?')) return
+  const success = await fundingService.deleteDonation(donationId)
+  if (success) {
+    await adminService.logAdminAction({ action: 'donation_delete', targetType: 'donation', targetId: donationId })
+    donationHistory.value = donationHistory.value.filter(d => d.id !== donationId)
+    donationStats.value = await fundingService.getDonationStats()
+    toast.success('Donation deleted')
   }
 }
 
@@ -2132,6 +2425,34 @@ const updateReport = async (reportId: string, status: 'investigating' | 'resolve
     await loadPendingReportsCount()
   } else {
     toast.error('Failed to update report')
+  }
+}
+
+const deleteReportedMessage = async (report: ReportWithDetails) => {
+  if (!report.reported_message_id) return
+  if (!confirm('Delete this message? This cannot be undone.')) return
+  try {
+    await messageService.deleteMessage(report.reported_message_id)
+    toast.success('Message deleted')
+    await updateReport(report.id, 'resolved')
+  } catch (error) {
+    debug.error('Failed to delete message:', error)
+    toast.error('Failed to delete message')
+  }
+}
+
+const suspendReportedUser = async (report: ReportWithDetails) => {
+  if (!report.reported_user_id) return
+  const reason = prompt('Suspension reason:')
+  if (!reason) return
+  try {
+    await adminService.moderateUser(report.reported_user_id, 'suspend', reason)
+    toast.success(`User ${report.reported_user_display_name || report.reported_user_username} suspended`)
+    await updateReport(report.id, 'resolved')
+    await loadUsers()
+  } catch (error) {
+    debug.error('Failed to suspend user:', error)
+    toast.error('Failed to suspend user')
   }
 }
 
@@ -3946,6 +4267,10 @@ const handleAddInstance = () => {
   border-radius: 8px;
 }
 
+.metric-card.placeholder-metric {
+  opacity: 0.5;
+}
+
 .metric-header {
   display: flex;
   justify-content: space-between;
@@ -4594,6 +4919,23 @@ const handleAddInstance = () => {
   resize: vertical;
 }
 
+.report-punitive-actions {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.report-action-btn.danger {
+  background: rgba(237, 66, 69, 0.2);
+  color: #ed4245;
+}
+
+.report-action-btn.danger:hover {
+  background: rgba(237, 66, 69, 0.4);
+}
+
 .report-action-buttons {
   display: flex;
   gap: 8px;
@@ -4757,6 +5099,12 @@ const handleAddInstance = () => {
   border-radius: 6px;
 }
 
+.supporter-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .supporter-info {
   flex: 1;
   min-width: 0;
@@ -4827,6 +5175,53 @@ const handleAddInstance = () => {
 .donation-note {
   font-style: italic;
   opacity: 0.7;
+}
+
+.add-supporter-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.add-supporter-form .cyber-input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.edit-supporter-panel {
+  background: var(--background-tertiary);
+  border: 1px solid var(--accent-color);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.edit-donation-panel {
+  background: var(--background-tertiary);
+  border: 1px solid var(--accent-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.donation-user {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.donation-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.tier-perks {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
 .empty-hint {

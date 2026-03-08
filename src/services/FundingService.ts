@@ -65,6 +65,11 @@ export interface DonationRecord {
   external_reference: string | null
   note: string | null
   donated_at: string
+  user?: {
+    username: string
+    display_name: string
+    avatar_url: string
+  }
 }
 
 const BADGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
@@ -281,11 +286,60 @@ class FundingService {
     }
   }
 
+  async updateSupporter(userId: string, updates: { tier_id?: string | null; amount?: number | null; platform?: string | null }): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_supporters')
+        .update(updates)
+        .eq('user_id', userId)
+
+      if (error) throw error
+      badgeCache.delete(userId)
+      return true
+    } catch (error) {
+      debug.error('Failed to update supporter:', error)
+      return false
+    }
+  }
+
+  async updateDonation(donationId: string, updates: { amount?: number; currency?: string; platform?: string | null; note?: string | null; donated_at?: string }): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_donation_history')
+        .update(updates)
+        .eq('id', donationId)
+
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to update donation:', error)
+      return false
+    }
+  }
+
+  async deleteDonation(donationId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_donation_history')
+        .delete()
+        .eq('id', donationId)
+
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to delete donation:', error)
+      return false
+    }
+  }
+
   async getDonationHistory(userId?: string): Promise<DonationRecord[]> {
     try {
       let query = supabase
         .from('instance_donation_history')
-        .select('*')
+        .select(`
+          *,
+          user:profiles!user_id(username, display_name, avatar_url)
+        `)
         .order('donated_at', { ascending: false })
 
       if (userId) {

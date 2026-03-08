@@ -99,6 +99,9 @@ CREATE OR REPLACE FUNCTION public.get_reports_with_details(
 )
 RETURNS TABLE(
     id uuid,
+    reported_user_id uuid,
+    reported_message_id uuid,
+    reported_post_id uuid,
     reporter_username text,
     reporter_display_name text,
     reporter_avatar_url text,
@@ -122,6 +125,9 @@ BEGIN
     RETURN QUERY
     SELECT
         r.id,
+        r.reported_user_id,
+        r.reported_message_id,
+        r.reported_post_id,
         reporter.username::text,
         reporter.display_name::text,
         reporter.avatar_url::text,
@@ -143,18 +149,21 @@ BEGIN
             WHEN r.reported_message_id IS NOT NULL THEN
                 LEFT(
                     COALESCE(
-                        (SELECT
+                        (SELECT string_agg(
                             CASE
-                                WHEN m.content IS NOT NULL AND jsonb_typeof(m.content) = 'array' THEN
-                                    m.content->0->>'text'
-                                WHEN m.content IS NOT NULL THEN
-                                    m.content::text
-                                ELSE '[Message content unavailable]'
-                            END
-                        FROM public.messages m WHERE m.id = r.reported_message_id),
+                                WHEN part->>'type' = 'text' THEN COALESCE(part->>'text', '')
+                                WHEN part->>'type' = 'file' THEN '[' || COALESCE(part->>'fileType', 'file') || ': ' || COALESCE(part->>'filename', part->>'url', 'attachment') || ']'
+                                WHEN part->>'type' = 'url' THEN COALESCE(part->>'url', '[link]')
+                                WHEN part->>'type' = 'emoji' THEN COALESCE(part->'emoji'->>'name', ':emoji:')
+                                WHEN part->>'type' = 'mention' THEN COALESCE(part->>'mention', '@user')
+                                ELSE '[' || COALESCE(part->>'type', 'unknown') || ']'
+                            END, ' '
+                        )
+                        FROM public.messages m, jsonb_array_elements(m.content) AS part
+                        WHERE m.id = r.reported_message_id),
                         '[Message content unavailable]'
                     ),
-                    200
+                    300
                 )
             ELSE NULL
         END::text,

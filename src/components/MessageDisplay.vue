@@ -459,6 +459,7 @@
     :target-message-preview="reportTargetMessagePreview"
     :target-user="reportTargetUser"
     @close="showReportModal = false"
+    @hide="handleHideReportedContent"
   />
 
   <!-- Delete Message Confirmation Modal (for messages with threads) -->
@@ -756,6 +757,9 @@ const displayItems = computed((): DisplayItem[] => {
           count: groupMessages.length
         });
       }
+    } else if (hiddenMessageIds.value.has(message.id)) {
+      // Reported and hidden by user
+      i++;
     } else {
       // Regular message
       result.push({
@@ -1109,6 +1113,7 @@ const contextMenuPosition = ref({ x: 0, y: 0 });
 const contextMenuMessage = ref<Message | null>(null);
 
 // Report modal state
+const hiddenMessageIds = ref<Set<string>>(new Set());
 const showReportModal = ref(false);
 const reportTargetUserId = ref<string | undefined>();
 const reportTargetMessageId = ref<string | undefined>();
@@ -2024,6 +2029,10 @@ const handleReportMessage = (message: Message) => {
   };
 
   showReportModal.value = true;
+};
+
+const handleHideReportedContent = (_type: 'message' | 'post', id: string) => {
+  hiddenMessageIds.value.add(id);
 };
 
 // Reply Logic

@@ -158,9 +158,19 @@ const submitReport = async () => {
     if (report) {
       submitted.value = true
     }
+  } catch {
+    // error handled by service
   } finally {
     isSubmitting.value = false
   }
+}
+
+const hideAndClose = () => {
+  const id = props.reportType === 'message' ? props.targetMessageId : props.targetPostId
+  if (id) {
+    emit('hide', props.reportType as 'message' | 'post', id)
+  }
+  emit('close')
 }
 </script>
 
@@ -438,6 +448,34 @@ textarea:focus {
   color: var(--text-secondary);
   font-size: 14px;
   margin: 0 0 24px;
+}
+
+.hide-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.btn-hide {
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  background: #ed4245;
+  border: none;
+  color: var(--text-primary);
+}
+
+.btn-hide:hover {
+  background: #c03537;
+}
+
+.hide-hint {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .btn-done {
