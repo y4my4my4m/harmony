@@ -56,21 +56,22 @@
             <div v-if="tiers.length > 0" class="tiers-section">
               <h3>Supporter Tiers</h3>
               <div class="tier-cards">
-                <div
-                  v-for="tier in tiers"
-                  :key="tier.id"
-                  class="tier-card"
-                  :style="tier.badge_color ? { borderColor: tier.badge_color + '44' } : {}"
-                >
-                  <span
-                    class="tier-icon"
-                    :style="tier.badge_color ? { backgroundColor: tier.badge_color + '20', borderColor: tier.badge_color, color: tier.badge_color } : {}"
-                  >{{ tier.badge_icon || '⭐' }}</span>
-                  <div class="tier-details">
-                    <span class="tier-name" :style="tier.badge_color ? { color: tier.badge_color } : {}">{{ tier.name }}</span>
-                    <span class="tier-min">From {{ formatCurrency(tier.min_amount, config.goal_currency) }}</span>
-                    <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
+                <div v-for="tier in tiers" :key="tier.id" class="tier-card">
+                  <div class="tier-badge-preview">
+                    <span
+                      class="badge-inline"
+                      :style="tier.badge_color ? {
+                        backgroundColor: tier.badge_color + '20',
+                        borderColor: tier.badge_color,
+                        color: tier.badge_color
+                      } : {}"
+                    >{{ tier.badge_icon || '⭐' }}</span>
                   </div>
+                  <div class="tier-details">
+                    <span class="tier-name">{{ tier.name }}</span>
+                    <span class="tier-min">From {{ formatCurrency(tier.min_amount, config.goal_currency) }}</span>
+                  </div>
+                  <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
                 </div>
               </div>
             </div>
@@ -352,25 +353,31 @@ onMounted(async () => {
 .tier-card {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 10px 14px;
   background: var(--background-secondary, #2b2d31);
-  border: 1px solid transparent;
   border-radius: 8px;
-  transition: border-color 0.15s;
 }
 
-.tier-icon {
+.tier-badge-preview {
+  flex-shrink: 0;
+  width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: start;
+}
+
+.badge-inline {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  font-size: 18px;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  line-height: 1;
   background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
 }
 
 .tier-details {
@@ -381,7 +388,7 @@ onMounted(async () => {
 }
 
 .tier-name {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 14px;
   color: var(--text-primary);
 }
@@ -392,10 +399,11 @@ onMounted(async () => {
 }
 
 .tier-perks {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   font-style: italic;
-  margin-top: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* My status */

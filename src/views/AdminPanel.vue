@@ -4855,7 +4855,7 @@ const handleAddInstance = () => {
 .report-filters {
   display: flex;
   gap: 4px;
-  padding: 0 20px 16px;
+  padding: 16px 20px;
   flex-wrap: wrap;
 }
 
