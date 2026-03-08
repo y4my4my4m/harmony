@@ -119,6 +119,11 @@ AS $$
     LIMIT 1;
 $$;
 
+-- Table grants for PostgREST access
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_funding TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_supporter_tiers TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_supporters TO authenticated;
+
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;

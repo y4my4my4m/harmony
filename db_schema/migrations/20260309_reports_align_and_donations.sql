@@ -21,6 +21,7 @@ ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAU
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS federation_status text DEFAULT 'pending';
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS reported_server_id uuid REFERENCES public.servers(id) ON DELETE SET NULL;
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS resolution_note text;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS comment text;
 
 -- Ensure reported_message_id exists (in init but may be missing in dev)
 ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS reported_message_id uuid REFERENCES public.messages(id) ON DELETE SET NULL;
@@ -227,6 +228,13 @@ CREATE POLICY "donation_history_modify_admin" ON public.instance_donation_histor
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.instance_funding ADD COLUMN IF NOT EXISTS show_in_context_bar boolean DEFAULT false;
 ALTER TABLE public.instance_funding ADD COLUMN IF NOT EXISTS context_bar_style text DEFAULT 'mini-progress';
+
+-- Table grants for PostgREST access
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_funding TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_supporter_tiers TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_supporters TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_donation_history TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.reports TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 

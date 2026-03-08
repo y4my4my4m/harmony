@@ -38,6 +38,17 @@
         </div>
       </div>
       
+      <!-- Reported Message Placeholder -->
+      <div v-else-if="item.type === 'reported'" class="reported-message-group">
+        <div class="reported-group-content">
+          <span class="reported-icon">&#9873;</span>
+          <span class="reported-text">You reported this message</span>
+          <span class="blocked-separator">—</span>
+          <button class="reveal-btn" @click="revealedReportedIds.add(item.message.id)">Show</button>
+          <button class="reveal-btn unreport-btn" @click="unreportMessage(item.message.id)">Unhide</button>
+        </div>
+      </div>
+
       <!-- Regular Message or Revealed Blocked Message -->
       <template v-else-if="item.type === 'message'">
         <!-- Beginning of conversation indicator (only show when all messages loaded) -->
@@ -76,6 +87,11 @@
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
             <span class="blocked-warning">⚠️ {{ item.revealedCount }} message{{ item.revealedCount > 1 ? 's' : '' }} from blocked user</span>
             <button class="hide-btn" @click="hideBlockedGroup(item.groupId)">Hide</button>
+          </div>
+          <!-- Banner for temporarily revealed reported message -->
+          <div v-if="revealedReportedIds.has(item.message?.id)" class="revealed-blocked-banner reported-banner">
+            <span class="blocked-warning">Reported message</span>
+            <button class="hide-btn" @click="revealedReportedIds.delete(item.message.id)">Hide again</button>
           </div>
           
           <!-- Gap indicator for jumped-to messages -->
@@ -697,7 +713,7 @@ const hideBlockedMessage = (messageId: string) => {
 
 // Display items: transforms messages into displayable items with blocked groups
 interface DisplayItem {
-  type: 'message' | 'blocked-group';
+  type: 'message' | 'blocked-group' | 'reported';
   key: string;
   message?: Message;
   index?: number;
@@ -757,8 +773,13 @@ const displayItems = computed((): DisplayItem[] => {
           count: groupMessages.length
         });
       }
-    } else if (hiddenMessageIds.value.has(message.id)) {
-      // Reported and hidden by user
+    } else if (reportedMessageIds.value.has(message.id) && !revealedReportedIds.value.has(message.id)) {
+      result.push({
+        type: 'reported',
+        key: `reported-${message.id}`,
+        message: message,
+        index: i,
+      });
       i++;
     } else {
       // Regular message
@@ -1112,8 +1133,19 @@ const contextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const contextMenuMessage = ref<Message | null>(null);
 
-// Report modal state
-const hiddenMessageIds = ref<Set<string>>(new Set());
+// Report modal state - persist reported/hidden messages in localStorage
+const REPORTED_STORAGE_KEY = 'harmony_reported_messages';
+const loadReportedMessages = (): Set<string> => {
+  try {
+    const stored = localStorage.getItem(REPORTED_STORAGE_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch { return new Set(); }
+};
+const reportedMessageIds = ref<Set<string>>(loadReportedMessages());
+const revealedReportedIds = ref<Set<string>>(new Set());
+const saveReportedMessages = () => {
+  localStorage.setItem(REPORTED_STORAGE_KEY, JSON.stringify([...reportedMessageIds.value]));
+};
 const showReportModal = ref(false);
 const reportTargetUserId = ref<string | undefined>();
 const reportTargetMessageId = ref<string | undefined>();
@@ -2032,7 +2064,14 @@ const handleReportMessage = (message: Message) => {
 };
 
 const handleHideReportedContent = (_type: 'message' | 'post', id: string) => {
-  hiddenMessageIds.value.add(id);
+  reportedMessageIds.value.add(id);
+  saveReportedMessages();
+};
+
+const unreportMessage = (messageId: string) => {
+  reportedMessageIds.value.delete(messageId);
+  revealedReportedIds.value.delete(messageId);
+  saveReportedMessages();
 };
 
 // Reply Logic
@@ -3125,6 +3164,39 @@ const closeInviteModal = () => {
   50% {
     opacity: 0.9;
   }
+}
+
+/* Reported message placeholder */
+.reported-message-group {
+  padding: 8px 16px;
+  margin: 4px 0;
+}
+
+.reported-group-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.reported-icon {
+  font-size: 14px;
+  color: #ed4245;
+}
+
+.reported-text {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.unreport-btn {
+  color: var(--text-secondary) !important;
+}
+
+.reported-banner {
+  border-left-color: #ed4245;
 }
 
 /* Blocked message styles */
