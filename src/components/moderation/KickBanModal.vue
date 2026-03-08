@@ -181,7 +181,7 @@ function clearSelectedMember() {
 }
 
 watch(() => props.show, async (visible) => {
-  if (visible && needsMemberSelect.value) {
+  if (visible && needsMemberSelect.value && serverMembers.value.length === 0) {
     // Try cached context first
     const contextUsers = userDataService.getUsersInContext(props.serverId);
     if (contextUsers.length > 0) {
@@ -216,7 +216,7 @@ watch(() => props.show, async (visible) => {
     reason.value = '';
     deleteSeconds.value = 0;
   }
-})
+}, { immediate: true })
 
 async function confirm() {
   if (!targetUser.value) return;
