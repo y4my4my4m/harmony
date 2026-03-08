@@ -508,7 +508,12 @@
     "searchTips": "Consejos de búsqueda:",
     "searchTipsExactMatch": "Usa {'@'}usuario{'@'}dominio para coincidencias exactas",
     "searchTipsPartial": "Busca por nombre para mostrar o nombre de usuario parcial",
-    "searchTipsDomain": "Incluye el dominio para usuarios federados"
+    "searchTipsDomain": "Incluye el dominio para usuarios federados",
+    "mony": "Publicación",
+    "monies": "Publicaciones",
+    "loadMoreMonies": "Cargar más publicaciones",
+    "noMoniesHereYet": "Aún no hay publicaciones aquí",
+    "followUsersToSeeMonies": "Sigue a algunos usuarios para ver sus publicaciones en tu línea de tiempo, o crea tu primera publicación."
   },
   "moderation": {
     "report": "Reportar",

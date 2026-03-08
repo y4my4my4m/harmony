@@ -204,7 +204,7 @@
           <div v-else-if="activeTab === 'posts'" class="posts-tab">
             <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
               <Icon name="message-circle" :size="48" />
-              <h3>No monies yet</h3>
+              <h3>{{ t('activitypub.noMoniesHereYet') }}</h3>
               <p>{{ isCurrentUser ? "You haven't" : `${(user?.display_name || user?.username) || 'Unknown User'} hasn't` }} posted anything yet.</p>
             </div>
             
@@ -437,7 +437,7 @@ const hasMorePosts = computed(() => props.hasMorePosts || hasMorePostsRef.value)
 const profileTabs = computed(() => [
   { 
     id: 'posts', 
-    label: 'Monies', 
+    label: t('activitypub.monies'), 
     icon: 'message-circle',
     count: user.value?.posts_count || 0
   },
