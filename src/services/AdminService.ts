@@ -1781,6 +1781,64 @@ class AdminService {
     }
   }
 
+  /**
+   * Get public servers for admin (featured communities management)
+   */
+  async getPublicServersForAdmin(): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    is_featured: boolean;
+    featured_order: number;
+    member_count?: number;
+  }>> {
+    try {
+      const { data: servers, error } = await supabase
+        .from('servers')
+        .select('id, name, description, icon, is_featured, featured_order')
+        .eq('public', true)
+        .neq('is_local_server', false)
+        .order('is_featured', { ascending: false })
+        .order('featured_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const withCounts = await Promise.all(
+        (servers || []).map(async (s) => {
+          const { count } = await supabase
+            .from('user_servers')
+            .select('*', { count: 'exact', head: true })
+            .eq('server_id', s.id);
+          return { ...s, member_count: count || 0 };
+        })
+      );
+
+      return withCounts;
+    } catch (error) {
+      debug.error('Failed to get public servers for admin:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Set server featured status (instance admin only)
+   */
+  async setServerFeatured(
+    serverId: string,
+    isFeatured: boolean,
+    order = 0
+  ): Promise<void> {
+    const { error } = await supabase.rpc('set_server_featured', {
+      p_server_id: serverId,
+      p_is_featured: isFeatured,
+      p_order: order,
+    });
+    if (error) throw error;
+  }
+
   // ============================================================================
   // FEDERATION MAINTENANCE
   // ============================================================================

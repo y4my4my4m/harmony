@@ -468,7 +468,7 @@ const submitButtonText = computed(() => {
   }
   if (props.type === 'reply') return t('activitypub.reply');
   if (props.type === 'quote') return 'Quote';
-  return t('activitypub.mony');
+  return t('activitypub.post');
 });
 
 const wrapperComponent = computed(() => {

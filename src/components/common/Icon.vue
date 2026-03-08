@@ -742,6 +742,9 @@
     <!-- Zap -->
     <path v-if="name === 'zap'" d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"></path>
 
+    <!-- Star -->
+    <polygon v-if="name === 'star'" points="12 2 15.09 8.26 22 9.17 16.18 13.14 17.82 21.02 12 17.77 6.18 21.02 7.82 13.14 2 9.17 8.91 8.26 12 2"/>
+
     <!-- Log-in -->
     <path v-if="name === 'log-in'" d="m10 17 5-5-5-5"/>
     <path v-if="name === 'log-in'" d="M15 12H3"/>
