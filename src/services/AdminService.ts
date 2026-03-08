@@ -315,36 +315,39 @@ class AdminService {
 
       if (error) throw error;
 
-      // Transform data to include post and server counts
-      const usersWithCounts = await Promise.all(
-        (data || []).map(async (user) => {
-          // Get user's post count
-          const { count: postCount } = await supabase
-            .from('posts')
-            .select('*', { count: 'exact', head: true })
-            .eq('author_id', user.id);
+      const users = data || [];
+      if (users.length === 0) {
+        return { users: [], total: total || 0 };
+      }
 
-          // Get user's server count (for local users)
-          let serverCount = 0;
-          if (user.is_local) {
-            const { count } = await supabase
-              .from('user_servers')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id);
-            serverCount = count || 0;
-          }
+      // Batch-fetch post and server counts (avoids N+1)
+      const userIds = users.map((u) => u.id);
+      const { data: countRows, error: countsError } = await supabase.rpc('get_admin_user_counts', {
+        p_user_ids: userIds
+      });
 
-          return {
-            ...user,
-            ap_actor_id: undefined, // Not available in current schema
-            postCount: postCount || 0,
-            serverCount,
-            handle: !user.is_local
-              ? `@${user.username}@${user.domain}` 
-              : `@${user.username}`
-          };
-        })
-      );
+      const countMap = new Map<string, { postCount: number; serverCount: number }>();
+      if (!countsError && countRows) {
+        for (const row of countRows as { user_id: string; post_count: string; server_count: string }[]) {
+          countMap.set(row.user_id, {
+            postCount: Number(row.post_count) || 0,
+            serverCount: Number(row.server_count) || 0
+          });
+        }
+      }
+
+      const usersWithCounts = users.map((user) => {
+        const counts = countMap.get(user.id) ?? { postCount: 0, serverCount: 0 };
+        return {
+          ...user,
+          ap_actor_id: undefined, // Not available in current schema
+          postCount: counts.postCount,
+          serverCount: user.is_local ? counts.serverCount : 0,
+          handle: !user.is_local
+            ? `@${user.username}@${user.domain}`
+            : `@${user.username}`
+        };
+      });
 
       return { users: usersWithCounts, total: total || 0 };
     } catch (error) {
@@ -1750,31 +1753,36 @@ class AdminService {
 
       if (error) throw error;
 
-      // Get member counts for each server
-      const serversWithCounts = await Promise.all(
-        (data || []).map(async (membership: any) => {
-          const server = membership.servers;
-          if (!server) return null;
+      const memberships = (data || []) as Array<{ created_at: string; server_id: string; servers: { id: string; name: string; icon: string | null; owner: string } | null }>;
+      const servers = memberships.map((m) => m.servers).filter(Boolean) as Array<{ id: string; name: string; icon: string | null; owner: string }>;
+      if (servers.length === 0) return [];
 
-          // Get member count
-          const { count } = await supabase
-            .from('user_servers')
-            .select('*', { count: 'exact', head: true })
-            .eq('server_id', server.id);
+      // Batch-fetch member counts (avoids N+1)
+      const serverIds = servers.map((s) => s.id);
+      const { data: countRows } = await supabase.rpc('get_server_member_counts', {
+        p_server_ids: serverIds
+      });
+      const countMap = new Map<string, number>();
+      if (countRows) {
+        for (const row of countRows as { server_id: string; member_count: string }[]) {
+          countMap.set(row.server_id, Number(row.member_count) || 0);
+        }
+      }
 
+      return memberships
+        .filter((m) => m.servers)
+        .map((membership) => {
+          const server = membership.servers!;
           return {
             id: server.id,
             name: server.name,
-            icon_url: server.icon, // servers table uses 'icon' not 'icon_url'
-            member_count: count || 0,
-            owner_id: server.owner, // servers table uses 'owner' not 'owner_id'
+            icon_url: server.icon,
+            member_count: countMap.get(server.id) ?? 0,
+            owner_id: server.owner,
             is_owner: server.owner === userId,
-            joined_at: membership.created_at // user_servers uses 'created_at' not 'joined_at'
+            joined_at: membership.created_at
           };
-        })
-      );
-
-      return serversWithCounts.filter(Boolean) as any[];
+        });
     } catch (error) {
       debug.error('Failed to get user servers:', error);
       return [];
@@ -1806,17 +1814,22 @@ class AdminService {
 
       if (error) throw error;
 
-      const withCounts = await Promise.all(
-        (servers || []).map(async (s) => {
-          const { count } = await supabase
-            .from('user_servers')
-            .select('*', { count: 'exact', head: true })
-            .eq('server_id', s.id);
-          return { ...s, member_count: count || 0 };
-        })
-      );
+      const list = servers || [];
+      if (list.length === 0) return [];
 
-      return withCounts;
+      // Batch-fetch member counts (avoids N+1)
+      const serverIds = list.map((s) => s.id);
+      const { data: countRows } = await supabase.rpc('get_server_member_counts', {
+        p_server_ids: serverIds
+      });
+      const countMap = new Map<string, number>();
+      if (countRows) {
+        for (const row of countRows as { server_id: string; member_count: string }[]) {
+          countMap.set(row.server_id, Number(row.member_count) || 0);
+        }
+      }
+
+      return list.map((s) => ({ ...s, member_count: countMap.get(s.id) ?? 0 }));
     } catch (error) {
       debug.error('Failed to get public servers for admin:', error);
       return [];
