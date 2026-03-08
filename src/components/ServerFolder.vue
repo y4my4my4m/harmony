@@ -41,6 +41,7 @@
         </div>
         <!-- Folder indicator bar -->
         <div class="folder-indicator"></div>
+        <div v-if="folderHasNotifications" class="folder-notification-dot"></div>
       </div>
     </Transition>
 
@@ -198,6 +199,10 @@ const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 // First 4 servers for the grid preview
 const previewServers = computed(() => {
   return props.servers.slice(0, 4);
+});
+
+const folderHasNotifications = computed(() => {
+  return props.servers.some(s => getServerUnreadMentions(s.id) > 0);
 });
 
 const isSelected = (serverId: string) => {
@@ -514,6 +519,18 @@ const onIconError = (event: Event) => {
   width: 100%;
   flex-shrink: 0;
   background: var(--folder-color);
+}
+
+.folder-notification-dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f04747;
+  border: 2px solid var(--h-black-dark, #1e1f22);
+  z-index: 1;
 }
 
 /* Expanded folder - Discord style */
