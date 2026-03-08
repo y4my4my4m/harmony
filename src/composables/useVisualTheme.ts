@@ -586,6 +586,8 @@ export function useVisualTheme() {
       if (customBgColor) {
         settings.value.customBackgroundColor = customBgColor
       }
+    } else {
+      clearCssOverrides()
     }
   }
   
@@ -678,12 +680,18 @@ export function useVisualTheme() {
     if (settings.value.customCssOverrides) {
       delete settings.value.customCssOverrides[varName]
     }
+    document.documentElement.style.removeProperty(varName)
   }
   
   /**
    * Clear all CSS variable overrides
    */
   function clearCssOverrides() {
+    if (settings.value.customCssOverrides) {
+      for (const varName of Object.keys(settings.value.customCssOverrides)) {
+        document.documentElement.style.removeProperty(varName)
+      }
+    }
     settings.value.customCssOverrides = {}
   }
   

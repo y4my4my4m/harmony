@@ -10,6 +10,8 @@ export interface FundingConfig {
   goal_description: string | null
   funding_links: FundingLink[]
   show_progress_bar: boolean
+  show_in_context_bar: boolean
+  context_bar_style: string
   thank_you_message: string | null
 }
 
@@ -52,6 +54,26 @@ export interface SupporterBadge {
   badge_color: string | null
   is_active: boolean
 }
+
+export interface DonationRecord {
+  id: string
+  supporter_id: string
+  user_id: string
+  amount: number
+  currency: string
+  platform: string | null
+  external_reference: string | null
+  note: string | null
+  donated_at: string
+  user?: {
+    username: string
+    display_name: string
+    avatar_url: string
+  }
+}
+
+const BADGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const badgeCache = new Map<string, { badge: SupporterBadge | null; fetchedAt: number }>()
 
 class FundingService {
   async getFundingConfig(): Promise<FundingConfig | null> {
@@ -125,6 +147,21 @@ class FundingService {
     }
   }
 
+  async updateTier(tierId: string, updates: Partial<SupporterTier>): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_supporter_tiers')
+        .update(updates)
+        .eq('id', tierId)
+
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to update tier:', error)
+      return false
+    }
+  }
+
   async deleteTier(tierId: string): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -174,6 +211,7 @@ class FundingService {
         }, { onConflict: 'user_id' })
 
       if (error) throw error
+      badgeCache.delete(userId)
       return true
     } catch (error) {
       debug.error('Failed to add supporter:', error)
@@ -189,6 +227,7 @@ class FundingService {
         .eq('user_id', userId)
 
       if (error) throw error
+      badgeCache.delete(userId)
       return true
     } catch (error) {
       debug.error('Failed to remove supporter:', error)
@@ -197,16 +236,149 @@ class FundingService {
   }
 
   async getSupporterBadge(userId: string): Promise<SupporterBadge | null> {
+    const cached = badgeCache.get(userId)
+    if (cached && Date.now() - cached.fetchedAt < BADGE_CACHE_TTL) {
+      return cached.badge
+    }
+
     try {
       const { data, error } = await supabase.rpc('get_supporter_badge', {
         p_user_id: userId
       })
 
       if (error) throw error
-      return data?.[0] || null
+      const badge = data?.[0] || null
+      badgeCache.set(userId, { badge, fetchedAt: Date.now() })
+      return badge
     } catch (error) {
       debug.error('Failed to get supporter badge:', error)
       return null
+    }
+  }
+
+  async addDonation(
+    supporterId: string,
+    userId: string,
+    amount: number,
+    currency = 'USD',
+    platform?: string,
+    note?: string,
+    externalReference?: string
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_donation_history')
+        .insert({
+          supporter_id: supporterId,
+          user_id: userId,
+          amount,
+          currency,
+          platform: platform || null,
+          note: note || null,
+          external_reference: externalReference || null,
+        })
+
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to add donation:', error)
+      return false
+    }
+  }
+
+  async updateSupporter(userId: string, updates: { tier_id?: string | null; amount?: number | null; platform?: string | null }): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_supporters')
+        .update(updates)
+        .eq('user_id', userId)
+
+      if (error) throw error
+      badgeCache.delete(userId)
+      return true
+    } catch (error) {
+      debug.error('Failed to update supporter:', error)
+      return false
+    }
+  }
+
+  async updateDonation(donationId: string, updates: { amount?: number; currency?: string; platform?: string | null; note?: string | null; donated_at?: string }): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_donation_history')
+        .update(updates)
+        .eq('id', donationId)
+
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to update donation:', error)
+      return false
+    }
+  }
+
+  async deleteDonation(donationId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('instance_donation_history')
+        .delete()
+        .eq('id', donationId)
+
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to delete donation:', error)
+      return false
+    }
+  }
+
+  async getDonationHistory(userId?: string): Promise<DonationRecord[]> {
+    try {
+      let query = supabase
+        .from('instance_donation_history')
+        .select(`
+          *,
+          user:profiles!user_id(username, display_name, avatar_url)
+        `)
+        .order('donated_at', { ascending: false })
+
+      if (userId) {
+        query = query.eq('user_id', userId)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      debug.error('Failed to get donation history:', error)
+      return []
+    }
+  }
+
+  async getDonationStats(): Promise<{
+    totalDonated: number
+    donationCount: number
+    uniqueDonors: number
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('instance_donation_history')
+        .select('amount, user_id')
+
+      if (error) throw error
+
+      const records = data || []
+      const uniqueDonors = new Set(records.map(r => r.user_id)).size
+      const totalDonated = records.reduce((sum, r) => sum + (r.amount || 0), 0)
+
+      return {
+        totalDonated,
+        donationCount: records.length,
+        uniqueDonors,
+      }
+    } catch (error) {
+      debug.error('Failed to get donation stats:', error)
+      return { totalDonated: 0, donationCount: 0, uniqueDonors: 0 }
     }
   }
 }

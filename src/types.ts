@@ -584,6 +584,7 @@ export type NotificationType =
   | 'activitypub_reply'
   | 'activitypub_reaction'
   | 'activitypub_follow_request'
+  | 'report_update'
   | 'error';
 
 export interface NotificationData {

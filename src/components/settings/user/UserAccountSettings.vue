@@ -145,6 +145,52 @@
       </div>
     </div>
 
+    <!-- Support -->
+    <div class="settings-section supporter-section">
+      <h3 class="section-title">Support</h3>
+      <p class="section-description">Supporting this instance helps keep it running and contributes to its development.<br>Supporters get a badge displayed next to their name.<br><br>Donations are currently not automated, so please be sure to include your FULL username @username@domain.</p>
+
+      <div v-if="supporterLoading" class="supporter-loading">Loading...</div>
+      <template v-else>
+        <div v-if="supporterBadge" class="supporter-card">
+          <span
+            class="supporter-badge-preview"
+            :style="supporterBadge.badge_color ? {
+              backgroundColor: supporterBadge.badge_color + '20',
+              borderColor: supporterBadge.badge_color,
+              color: supporterBadge.badge_color
+            } : {}"
+          >{{ supporterBadge.badge_icon || '⭐' }}</span>
+          <div class="supporter-details">
+            <span class="supporter-tier">{{ supporterBadge.tier_name }} Supporter</span>
+            <span class="supporter-active">Active</span>
+          </div>
+        </div>
+        <div v-else class="supporter-card supporter-inactive">
+          <span class="supporter-inactive-text">Not currently a supporter</span>
+        </div>
+
+        <div v-if="supporterDonations.length > 0" class="supporter-donations">
+          <div v-for="donation in supporterDonations" :key="donation.id" class="supporter-donation-row">
+            <span class="donation-amt">{{ donation.currency }} {{ donation.amount }}</span>
+            <span class="donation-dt">{{ formatDate(donation.donated_at) }}</span>
+            <span v-if="donation.platform" class="donation-plat">{{ donation.platform }}</span>
+          </div>
+        </div>
+
+        <div v-if="fundingLinks.length > 0" class="supporter-links">
+          <a
+            v-for="(link, i) in fundingLinks"
+            :key="i"
+            :href="link.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="supporter-link"
+          >{{ link.label || link.platform }}</a>
+        </div>
+      </template>
+    </div>
+
     <div class="settings-actions">
       <button 
         class="btn btn-primary" 
@@ -179,6 +225,8 @@ import { ColorPicker } from 'vue-color-kit'
 import 'vue-color-kit/dist/vue-color-kit.css'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import { fundingService, type SupporterBadge, type DonationRecord, type FundingLink } from '@/services/FundingService'
+import { supabase } from '@/supabase'
 
 // Props
 interface Props {
@@ -355,8 +403,32 @@ watch(() => props.profile?.banner_url, (newBannerUrl, oldBannerUrl) => {
   }
 }, { immediate: false })
 
-onMounted(() => {
+// Supporter section
+const supporterLoading = ref(true)
+const supporterBadge = ref<SupporterBadge | null>(null)
+const supporterDonations = ref<DonationRecord[]>([])
+const fundingLinks = ref<FundingLink[]>([])
+
+onMounted(async () => {
   syncLocalProfile()
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const [config, badge, donations] = await Promise.all([
+        fundingService.getFundingConfig(),
+        fundingService.getSupporterBadge(user.id),
+        fundingService.getDonationHistory(user.id),
+      ])
+      supporterBadge.value = badge
+      supporterDonations.value = donations
+      if (config?.enabled && config.funding_links) {
+        fundingLinks.value = config.funding_links
+      }
+    }
+  } finally {
+    supporterLoading.value = false
+  }
 })
 </script>
 
@@ -711,5 +783,121 @@ onMounted(() => {
   .color-input {
     max-width: none;
   }
+}
+
+/* Supporter section */
+.supporter-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 24px;
+}
+
+.section-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: -4px 0 16px;
+  line-height: 1.5;
+}
+
+.supporter-loading {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.supporter-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.supporter-inactive {
+  opacity: 0.6;
+}
+
+.supporter-badge-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.supporter-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.supporter-tier {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.supporter-active {
+  font-size: 12px;
+  color: #57f287;
+  font-weight: 600;
+}
+
+.supporter-inactive-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.supporter-donations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.supporter-donation-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.donation-amt {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.donation-dt, .donation-plat {
+  color: var(--text-secondary);
+}
+
+.supporter-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.supporter-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--harmony-primary, #5865f2);
+  color: var(--text-primary);
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.supporter-link:hover {
+  opacity: 0.85;
 }
 </style>

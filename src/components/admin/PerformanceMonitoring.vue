@@ -4,7 +4,7 @@
     <div class="monitoring-header">
       <div class="header-content">
         <h1>Performance Monitoring</h1>
-        <p>Real-time metrics and insights for your Harmony instance</p>
+        <p>Metrics and insights for your Harmony instance. <span style="opacity: 0.6; font-size: 12px;">Overview, latency, and slow queries require a pg_cron job calling <code>aggregate_hourly_metrics()</code> to populate data.</span></p>
       </div>
       <div class="header-actions">
         <button @click="toggleFullscreen" class="fullscreen-btn" :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'">
@@ -127,7 +127,7 @@
       </div>
 
       <div class="chart-container">
-        <h3>Request Distribution</h3>
+        <h3>Request Distribution <span style="font-size: 11px; opacity: 0.5; font-weight: 400;">(hardcoded for now, would need cron queries)</span></h3>
         <div class="distribution-list">
           <div 
             v-for="endpoint in endpointStats" 

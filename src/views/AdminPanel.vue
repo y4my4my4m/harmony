@@ -101,19 +101,19 @@
           </div>
           <div class="metric-card">
             <div class="metric-header">
-              <span>Storage</span>
+              <span>Database Size</span>
               <div class="metric-status healthy"></div>
             </div>
-            <div class="metric-value">{{ systemHealth.storage.used }}%</div>
-            <div class="metric-detail">{{ systemHealth.storage.total }} total</div>
+            <div class="metric-value">{{ systemHealth.storage.total }}</div>
+            <div class="metric-detail">total size</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card placeholder-metric">
             <div class="metric-header">
               <span>Memory</span>
-              <div class="metric-status warning"></div>
+              <div class="metric-status healthy"></div>
             </div>
-            <div class="metric-value">{{ systemHealth.memory.used }}%</div>
-            <div class="metric-detail">{{ systemHealth.memory.total }} available</div>
+            <div class="metric-value">--</div>
+            <div class="metric-detail">not available via Supabase</div>
           </div>
         </div>
       </div>
@@ -624,6 +624,130 @@
         </div>
       </div>
 
+      <!-- Reports & Moderation -->
+      <div class="admin-module reports-module">
+        <div class="module-header">
+          <Icon name="flag" :size="20" />
+          <h2>Reports & Moderation</h2>
+          <span v-if="pendingReportsCount > 0" class="reports-badge">{{ pendingReportsCount }} pending</span>
+        </div>
+
+        <div class="report-filters">
+          <button
+            v-for="filter in reportFilters"
+            :key="filter.key"
+            @click="activeReportFilter = filter.key"
+            :class="['filter-btn', { active: activeReportFilter === filter.key }]"
+          >
+            {{ filter.label }}
+          </button>
+        </div>
+
+        <div class="reports-list" v-if="reports.length > 0">
+          <div
+            v-for="report in reports"
+            :key="report.id"
+            class="report-item"
+            :class="{ expanded: expandedReportId === report.id }"
+            @click="toggleReportExpand(report.id)"
+          >
+            <div class="report-summary">
+              <div class="report-type-badge" :class="report.report_type">
+                {{ report.report_type }}
+              </div>
+              <div class="report-users">
+                <div class="report-reporter">
+                  <Avatar :src="report.reporter_avatar_url" :alt="report.reporter_username" size="xs" />
+                  <span>{{ report.reporter_display_name || report.reporter_username }}</span>
+                </div>
+                <span class="report-arrow">&#8594;</span>
+                <div class="report-reported" v-if="report.reported_user_username">
+                  <Avatar :src="report.reported_user_avatar_url" :alt="report.reported_user_username" size="xs" />
+                  <span>{{ report.reported_user_display_name || report.reported_user_username }}</span>
+                </div>
+              </div>
+              <div class="report-reason">{{ report.reason }}</div>
+              <div class="report-meta">
+                <span class="report-source" v-if="report.source !== 'local'">{{ report.source_instance || report.source }}</span>
+                <time class="report-time">{{ formatDate(report.created_at) }}</time>
+              </div>
+              <div class="report-status-badge" :class="report.status">{{ report.status }}</div>
+            </div>
+
+            <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
+              <div v-if="report.comment" class="report-comment">
+                <label>Reporter's comment</label>
+                <p>{{ report.comment }}</p>
+              </div>
+
+              <div v-if="report.reported_message_preview" class="report-proof">
+                <label>Reported message</label>
+                <blockquote v-html="linkifyReportPreview(report.reported_message_preview)"></blockquote>
+              </div>
+
+              <div v-if="report.reported_post_preview" class="report-proof">
+                <label>Reported post</label>
+                <blockquote v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
+              </div>
+
+              <div v-if="report.resolution_note" class="report-resolution">
+                <label>Resolution note</label>
+                <p>{{ report.resolution_note }}</p>
+              </div>
+
+              <div v-if="report.status === 'pending' || report.status === 'investigating'" class="report-actions-panel">
+                <!-- Punitive actions -->
+                <div class="report-punitive-actions">
+                  <button
+                    v-if="report.reported_message_id"
+                    class="report-action-btn danger"
+                    @click.stop="deleteReportedMessage(report)"
+                  >Delete Message</button>
+                  <button
+                    v-if="extractStorageUrls(report).length > 0"
+                    class="report-action-btn danger"
+                    @click.stop="deleteReportedMedia(report)"
+                  >Delete Media ({{ extractStorageUrls(report).length }})</button>
+                  <button
+                    v-if="report.reported_user_id"
+                    class="report-action-btn danger"
+                    @click.stop="suspendReportedUser(report)"
+                  >Suspend User</button>
+                </div>
+
+                <textarea
+                  v-model="reportResolutionNote"
+                  placeholder="Add resolution notes..."
+                  class="cyber-input resolution-textarea"
+                  rows="2"
+                  @click.stop
+                ></textarea>
+                <div class="report-action-buttons">
+                  <button
+                    v-if="report.status === 'pending'"
+                    class="report-action-btn investigating"
+                    @click.stop="updateReport(report.id, 'investigating')"
+                  >Mark Investigating</button>
+                  <button
+                    class="report-action-btn resolve"
+                    @click.stop="updateReport(report.id, 'resolved')"
+                  >Resolve</button>
+                  <button
+                    class="report-action-btn dismiss"
+                    @click.stop="updateReport(report.id, 'dismissed')"
+                  >Dismiss</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="reports-empty">
+          <Icon name="check-circle" :size="32" />
+          <p>No reports{{ activeReportFilter !== 'all' ? ` with status "${activeReportFilter}"` : '' }}</p>
+        </div>
+      </div>
+
       <!-- Recent Activity -->
       <div class="admin-module activity-module">
         <div class="module-header">
@@ -1032,6 +1156,291 @@
         </div>
       </div>
 
+      <!-- Funding Management -->
+      <div class="admin-module funding-module">
+        <div class="module-header">
+          <Icon name="heart" :size="20" />
+          <h2>Funding & Supporters</h2>
+          <button @click="saveFundingConfig" class="save-btn" :disabled="!fundingChanged">
+            <Icon name="save" :size="16" />
+            Save Changes
+          </button>
+        </div>
+        <div class="funding-content">
+          <!-- Funding Config -->
+          <div class="funding-section">
+            <h3>Funding Goal</h3>
+            <div class="setting-row">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="fundingEnabled" />
+                <span class="toggle-slider"></span>
+                Enable funding
+              </label>
+            </div>
+            <div v-if="fundingEnabled" class="funding-fields">
+              <div class="setting-row">
+                <label class="toggle-label">
+                  <input type="checkbox" v-model="fundingShowInBar" />
+                  <span class="toggle-slider"></span>
+                  Show in context bar
+                </label>
+              </div>
+              <div class="setting-row">
+                <label class="toggle-label">
+                  <input type="checkbox" v-model="fundingShowProgress" />
+                  <span class="toggle-slider"></span>
+                  Show progress bar
+                </label>
+              </div>
+              <div class="funding-form-row">
+                <div class="funding-field">
+                  <label>Goal amount</label>
+                  <input type="number" v-model.number="fundingGoalAmount" class="cyber-input" min="0" step="1" />
+                </div>
+                <div class="funding-field">
+                  <label>Currency</label>
+                  <select v-model="fundingCurrency" class="cyber-select">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="JPY">JPY</option>
+                  </select>
+                </div>
+                <div class="funding-field">
+                  <label>Current amount</label>
+                  <input type="number" v-model.number="fundingCurrentAmount" class="cyber-input" min="0" step="0.01" />
+                </div>
+              </div>
+              <div class="funding-field" style="margin-top: 8px;">
+                <label>Description</label>
+                <input type="text" v-model="fundingDescription" class="cyber-input" placeholder="What the funding is for..." />
+              </div>
+              <div class="funding-field" style="margin-top: 8px;">
+                <label>Thank you message</label>
+                <input type="text" v-model="fundingThankYou" class="cyber-input" placeholder="Message shown to supporters" />
+              </div>
+
+              <!-- Funding Links -->
+              <div class="funding-links-section" style="margin-top: 16px;">
+                <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Donation Links</label>
+                <div v-if="fundingLinks.length > 0" class="funding-links-list">
+                  <div v-for="(link, i) in fundingLinks" :key="i" class="funding-link-row">
+                    <input v-model="link.platform" class="cyber-input" placeholder="Platform" style="width: 110px;" />
+                    <input v-model="link.url" class="cyber-input" placeholder="https://..." style="flex: 1;" />
+                    <input v-model="link.label" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
+                    <button class="mod-btn delete-btn" @click="fundingLinks.splice(i, 1)" title="Remove link">
+                      <Icon name="delete" :size="14" />
+                    </button>
+                  </div>
+                </div>
+                <div class="funding-link-row" style="margin-top: 6px;">
+                  <input v-model="newLinkPlatform" class="cyber-input" placeholder="Platform (e.g. Patreon)" style="width: 110px;" />
+                  <input v-model="newLinkUrl" class="cyber-input" placeholder="https://patreon.com/..." style="flex: 1;" />
+                  <input v-model="newLinkLabel" class="cyber-input" placeholder="Label" style="width: 140px;" />
+                  <button class="action-btn" @click="addFundingLink" :disabled="!newLinkPlatform || !newLinkUrl" style="white-space: nowrap;">
+                    <Icon name="plus" :size="14" /> Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Supporter Tiers -->
+          <div class="funding-section">
+            <h3>Supporter Tiers</h3>
+            <div class="tiers-list" v-if="supporterTiers.length > 0">
+              <div v-for="tier in supporterTiers" :key="tier.id" class="tier-item">
+                <template v-if="editingTierId === tier.id">
+                  <input v-model="editTierIcon" class="cyber-input" style="width: 50px;" />
+                  <input v-model="editTierName" class="cyber-input" style="flex: 1;" />
+                  <input v-model.number="editTierMinAmount" type="number" class="cyber-input" style="width: 90px;" min="0" />
+                  <input v-model="editTierColor" type="color" class="color-input" />
+                  <button class="mod-btn" @click="saveEditTier(tier.id)" title="Save"><Icon name="check" :size="14" /></button>
+                  <button class="mod-btn" @click="editingTierId = null" title="Cancel"><Icon name="x" :size="14" /></button>
+                </template>
+                <template v-else>
+                  <span class="tier-icon" :style="tier.badge_color ? { color: tier.badge_color } : {}">{{ tier.badge_icon || '⭐' }}</span>
+                  <div class="tier-info">
+                    <span class="tier-name">{{ tier.name }}</span>
+                    <span class="tier-amount">Min: {{ tier.min_amount }}</span>
+                    <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
+                  </div>
+                  <div class="tier-actions">
+                    <button class="mod-btn" @click="startEditTier(tier)" title="Edit tier"><Icon name="edit" :size="14" /></button>
+                    <button class="mod-btn delete-btn" @click="deleteTier(tier.id)" title="Delete tier"><Icon name="delete" :size="14" /></button>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div v-else class="empty-hint">No tiers configured</div>
+            <div class="add-tier-form">
+              <input v-model="newTierName" class="cyber-input" placeholder="Tier name" />
+              <input v-model.number="newTierMinAmount" type="number" class="cyber-input" placeholder="Min amount" min="0" style="width: 120px;" />
+              <input v-model="newTierIcon" class="cyber-input" placeholder="Icon" style="width: 60px;" />
+              <input v-model="newTierColor" type="color" class="color-input" title="Badge color" />
+              <button class="action-btn" @click="addTier" :disabled="!newTierName || !newTierMinAmount">
+                <Icon name="plus" :size="16" /> Add
+              </button>
+            </div>
+          </div>
+
+          <!-- Supporters -->
+          <div class="funding-section">
+            <h3>Active Supporters</h3>
+            <div class="supporters-list" v-if="supporters.length > 0">
+              <div v-for="supporter in supporters" :key="supporter.id" class="supporter-item">
+                <Avatar :src="supporter.user?.avatar_url" :alt="supporter.user?.username" size="sm" />
+                <div class="supporter-info">
+                  <span class="supporter-name">{{ supporter.user?.display_name || supporter.user?.username }}</span>
+                  <span class="supporter-meta">
+                    {{ supporter.tier?.name || 'No tier' }}
+                    <template v-if="supporter.amount"> &middot; {{ supporter.amount }}</template>
+                    <template v-if="supporter.platform"> &middot; {{ supporter.platform }}</template>
+                  </span>
+                </div>
+                <div class="supporter-actions">
+                  <button class="mod-btn" @click="startEditSupporter(supporter)" title="Edit supporter"><Icon name="edit" :size="14" /></button>
+                  <button class="mod-btn" @click="openRecordDonation(supporter)" title="Record donation"><Icon name="plus" :size="14" /></button>
+                  <button class="mod-btn delete-btn" @click="removeSupporter(supporter.user_id)" title="Remove supporter"><Icon name="delete" :size="14" /></button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="empty-hint">No active supporters</div>
+
+            <!-- Add Supporter -->
+            <div class="add-supporter-form">
+              <input v-model="addSupporterSearch" class="cyber-input" placeholder="Username to add as supporter..." />
+              <select v-model="addSupporterTierId" class="cyber-select" style="width: 140px;">
+                <option value="">No tier</option>
+                <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
+              </select>
+              <input v-model.number="addSupporterAmount" type="number" class="cyber-input" placeholder="Amount" min="0" style="width: 100px;" />
+              <input v-model="addSupporterPlatform" class="cyber-input" placeholder="Platform" style="width: 110px;" />
+              <button class="action-btn" @click="addNewSupporter" :disabled="!addSupporterSearch">
+                <Icon name="plus" :size="16" /> Add
+              </button>
+            </div>
+          </div>
+
+          <!-- Edit Supporter Modal (inline) -->
+          <div v-if="editingSupporterData" class="funding-section edit-supporter-panel">
+            <h3>Edit Supporter: {{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</h3>
+            <div class="funding-form-row">
+              <div class="funding-field">
+                <label>Tier</label>
+                <select v-model="editSupporterTierId" class="cyber-select">
+                  <option value="">No tier</option>
+                  <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
+                </select>
+              </div>
+              <div class="funding-field">
+                <label>Amount</label>
+                <input v-model.number="editSupporterAmount" type="number" class="cyber-input" min="0" />
+              </div>
+              <div class="funding-field">
+                <label>Platform</label>
+                <input v-model="editSupporterPlatform" class="cyber-input" />
+              </div>
+            </div>
+            <div class="report-action-buttons" style="margin-top: 8px;">
+              <button class="report-action-btn resolve" @click="saveEditSupporter">Save</button>
+              <button class="report-action-btn dismiss" @click="editingSupporterData = null">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Record Donation Modal (inline) -->
+          <div v-if="recordDonationSupporter" class="funding-section edit-supporter-panel">
+            <h3>Record Donation for {{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</h3>
+            <div class="funding-form-row">
+              <div class="funding-field">
+                <label>Amount</label>
+                <input v-model.number="recordDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
+              </div>
+              <div class="funding-field">
+                <label>Currency</label>
+                <select v-model="recordDonationCurrency" class="cyber-select">
+                  <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
+                </select>
+              </div>
+              <div class="funding-field">
+                <label>Platform</label>
+                <input v-model="recordDonationPlatform" class="cyber-input" placeholder="e.g. Patreon, Ko-fi" />
+              </div>
+            </div>
+            <div class="funding-field" style="margin-top: 8px;">
+              <label>Note</label>
+              <input v-model="recordDonationNote" class="cyber-input" placeholder="Optional note..." />
+            </div>
+            <div class="report-action-buttons" style="margin-top: 8px;">
+              <button class="report-action-btn resolve" @click="saveRecordDonation" :disabled="!recordDonationAmount">Record</button>
+              <button class="report-action-btn dismiss" @click="recordDonationSupporter = null">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Donation History -->
+          <div class="funding-section">
+            <h3>Donation History</h3>
+            <div v-if="donationStats.donationCount > 0" class="donation-stats-row">
+              <div class="donation-stat">
+                <span class="donation-stat-value">{{ donationStats.totalDonated.toFixed(2) }}</span>
+                <span class="donation-stat-label">Total donated</span>
+              </div>
+              <div class="donation-stat">
+                <span class="donation-stat-value">{{ donationStats.donationCount }}</span>
+                <span class="donation-stat-label">Donations</span>
+              </div>
+              <div class="donation-stat">
+                <span class="donation-stat-value">{{ donationStats.uniqueDonors }}</span>
+                <span class="donation-stat-label">Unique donors</span>
+              </div>
+            </div>
+            <div v-if="donationHistory.length > 0" class="donations-list">
+              <div v-for="donation in donationHistory" :key="donation.id" class="donation-item">
+                <Avatar v-if="donation.user" :src="donation.user.avatar_url" :alt="donation.user.username" size="xs" />
+                <span class="donation-user" v-if="donation.user">{{ donation.user.display_name || donation.user.username }}</span>
+                <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
+                <span class="donation-date">{{ formatDate(donation.donated_at) }}</span>
+                <span v-if="donation.platform" class="donation-platform">{{ donation.platform }}</span>
+                <span v-if="donation.note" class="donation-note">{{ donation.note }}</span>
+                <div class="donation-actions">
+                  <button class="mod-btn" @click="startEditDonation(donation)" title="Edit"><Icon name="edit" :size="12" /></button>
+                  <button class="mod-btn delete-btn" @click="deleteDonation(donation.id)" title="Delete"><Icon name="delete" :size="12" /></button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="empty-hint">No donations recorded</div>
+
+            <!-- Edit Donation (inline) -->
+            <div v-if="editingDonation" class="edit-donation-panel">
+              <div class="funding-form-row">
+                <div class="funding-field">
+                  <label>Amount</label>
+                  <input v-model.number="editDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
+                </div>
+                <div class="funding-field">
+                  <label>Currency</label>
+                  <select v-model="editDonationCurrency" class="cyber-select">
+                    <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
+                  </select>
+                </div>
+                <div class="funding-field">
+                  <label>Platform</label>
+                  <input v-model="editDonationPlatform" class="cyber-input" />
+                </div>
+                <div class="funding-field">
+                  <label>Note</label>
+                  <input v-model="editDonationNote" class="cyber-input" />
+                </div>
+              </div>
+              <div class="report-action-buttons" style="margin-top: 8px;">
+                <button class="report-action-btn resolve" @click="saveEditDonation">Save</button>
+                <button class="report-action-btn dismiss" @click="editingDonation = null">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Performance Monitoring -->
       <div class="admin-module performance-module">
         <div class="module-header">
@@ -1137,7 +1546,11 @@ import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
+import { supabase } from '@/supabase'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
+import { reportService, type ReportWithDetails } from '@/services/ReportService'
+import { fundingService, type SupporterTier, type Supporter, type DonationRecord } from '@/services/FundingService'
+import { messageService } from '@/services/MessageService'
 import { trendingService } from '@/services/TrendingService'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
@@ -1175,6 +1588,74 @@ const newBlockReason = ref('')
 const configChanged = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
+
+// Reports & Moderation data
+const reports = ref<ReportWithDetails[]>([])
+const pendingReportsCount = ref(0)
+const activeReportFilter = ref<string>('all')
+const expandedReportId = ref<string | null>(null)
+const reportResolutionNote = ref('')
+const reportFilters = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'investigating', label: 'Investigating' },
+  { key: 'resolved', label: 'Resolved' },
+  { key: 'dismissed', label: 'Dismissed' },
+]
+
+// Funding management data
+const fundingChanged = ref(false)
+const fundingEnabled = ref(false)
+const fundingShowInBar = ref(false)
+const fundingShowProgress = ref(true)
+const fundingGoalAmount = ref<number>(0)
+const fundingCurrency = ref('USD')
+const fundingCurrentAmount = ref<number>(0)
+const fundingDescription = ref('')
+const fundingThankYou = ref('')
+const fundingLinks = ref<{ platform: string; url: string; label: string }[]>([])
+const newLinkPlatform = ref('')
+const newLinkUrl = ref('')
+const newLinkLabel = ref('')
+const supporterTiers = ref<SupporterTier[]>([])
+const supporters = ref<Supporter[]>([])
+const donationHistory = ref<DonationRecord[]>([])
+const donationStats = ref<{ totalDonated: number; donationCount: number; uniqueDonors: number }>({ totalDonated: 0, donationCount: 0, uniqueDonors: 0 })
+const newTierName = ref('')
+const newTierMinAmount = ref<number>(0)
+const newTierIcon = ref('⭐')
+const newTierColor = ref('#5865f2')
+
+// Tier editing
+const editingTierId = ref<string | null>(null)
+const editTierName = ref('')
+const editTierMinAmount = ref<number>(0)
+const editTierIcon = ref('')
+const editTierColor = ref('#5865f2')
+
+// Supporter CRUD
+const addSupporterSearch = ref('')
+const addSupporterTierId = ref('')
+const addSupporterAmount = ref<number>(0)
+const addSupporterPlatform = ref('')
+const editingSupporterData = ref<Supporter | null>(null)
+const editSupporterTierId = ref('')
+const editSupporterAmount = ref<number>(0)
+const editSupporterPlatform = ref('')
+
+// Record donation
+const recordDonationSupporter = ref<Supporter | null>(null)
+const recordDonationAmount = ref<number>(0)
+const recordDonationCurrency = ref('USD')
+const recordDonationPlatform = ref('')
+const recordDonationNote = ref('')
+
+// Donation editing
+const editingDonation = ref<DonationRecord | null>(null)
+const editDonationAmount = ref<number>(0)
+const editDonationCurrency = ref('USD')
+const editDonationPlatform = ref('')
+const editDonationNote = ref('')
 
 // Federation management data
 const instanceStats = ref<InstanceStats>({
@@ -1424,6 +1905,18 @@ watch(config, () => {
   configChanged.value = true
 }, { deep: true })
 
+// Watch for report filter changes
+watch(activeReportFilter, () => {
+  loadReports()
+})
+
+// Watch for funding config changes
+watch(
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingDescription, fundingThankYou, fundingLinks],
+  () => { fundingChanged.value = true },
+  { deep: true }
+)
+
 // Methods
 const loadInitialData = async () => {
   loading.value = true
@@ -1439,7 +1932,10 @@ const loadInitialData = async () => {
       loadInstanceStats(),
       loadFederatedInstances(),
       loadFederationStats(),
-      refreshKeyConsistency()
+      refreshKeyConsistency(),
+      loadReports(),
+      loadPendingReportsCount(),
+      loadFundingData()
     ])
   } catch (error) {
     debug.error('Failed to load admin data:', error)
@@ -1723,6 +2219,340 @@ const loadInstanceConfig = async () => {
   } catch (error) {
     debug.error('Failed to load instance config:', error)
     // Keep defaults if loading fails
+  }
+}
+
+// Funding management methods
+const loadFundingData = async () => {
+  const config = await fundingService.getFundingConfig()
+  if (config) {
+    fundingEnabled.value = config.enabled
+    fundingShowInBar.value = config.show_in_context_bar
+    fundingShowProgress.value = config.show_progress_bar
+    fundingGoalAmount.value = config.goal_amount || 0
+    fundingCurrency.value = config.goal_currency
+    fundingCurrentAmount.value = config.current_amount
+    fundingDescription.value = config.goal_description || ''
+    fundingThankYou.value = config.thank_you_message || ''
+    fundingLinks.value = config.funding_links || []
+  }
+  supporterTiers.value = await fundingService.getTiers()
+  supporters.value = await fundingService.getSupporters()
+  donationHistory.value = await fundingService.getDonationHistory()
+  donationStats.value = await fundingService.getDonationStats()
+  // Reset after populating to avoid false dirty state from watchers
+  fundingChanged.value = false
+}
+
+const addFundingLink = () => {
+  if (!newLinkPlatform.value || !newLinkUrl.value) return
+  fundingLinks.value.push({
+    platform: newLinkPlatform.value,
+    url: newLinkUrl.value,
+    label: newLinkLabel.value || newLinkPlatform.value,
+  })
+  newLinkPlatform.value = ''
+  newLinkUrl.value = ''
+  newLinkLabel.value = ''
+}
+
+const saveFundingConfig = async () => {
+  const success = await fundingService.updateFundingConfig({
+    enabled: fundingEnabled.value,
+    show_in_context_bar: fundingShowInBar.value,
+    show_progress_bar: fundingShowProgress.value,
+    goal_amount: fundingGoalAmount.value || null,
+    goal_currency: fundingCurrency.value,
+    current_amount: fundingCurrentAmount.value,
+    goal_description: fundingDescription.value || null,
+    thank_you_message: fundingThankYou.value || null,
+    funding_links: fundingLinks.value,
+  } as any)
+  if (success) {
+    fundingChanged.value = false
+    toast.success('Funding settings saved')
+  } else {
+    toast.error('Failed to save funding settings')
+  }
+}
+
+const addTier = async () => {
+  if (!newTierName.value || !newTierMinAmount.value) return
+  const tier = await fundingService.createTier({
+    name: newTierName.value,
+    min_amount: newTierMinAmount.value,
+    badge_icon: newTierIcon.value || null,
+    badge_color: newTierColor.value || null,
+    perks: null,
+    display_order: supporterTiers.value.length,
+  })
+  if (tier) {
+    await adminService.logAdminAction({ action: 'tier_create', targetType: 'tier', targetId: tier.id, details: { name: tier.name } })
+    supporterTiers.value.push(tier)
+    newTierName.value = ''
+    newTierMinAmount.value = 0
+    newTierIcon.value = '⭐'
+    toast.success('Tier created')
+  }
+}
+
+// Tier CRUD
+const startEditTier = (tier: SupporterTier) => {
+  editingTierId.value = tier.id
+  editTierName.value = tier.name
+  editTierMinAmount.value = tier.min_amount
+  editTierIcon.value = tier.badge_icon || '⭐'
+  editTierColor.value = tier.badge_color || '#5865f2'
+}
+
+const saveEditTier = async (tierId: string) => {
+  const success = await fundingService.updateTier(tierId, {
+    name: editTierName.value,
+    min_amount: editTierMinAmount.value,
+    badge_icon: editTierIcon.value,
+    badge_color: editTierColor.value,
+  })
+  if (success) {
+    await adminService.logAdminAction({ action: 'tier_update', targetType: 'tier', targetId: tierId, details: { name: editTierName.value } })
+    editingTierId.value = null
+    supporterTiers.value = await fundingService.getTiers()
+    toast.success('Tier updated')
+  }
+}
+
+const deleteTier = async (tierId: string) => {
+  if (!confirm('Delete this tier? Supporters on this tier will keep their status but lose the tier badge.')) return
+  const success = await fundingService.deleteTier(tierId)
+  if (success) {
+    await adminService.logAdminAction({ action: 'tier_delete', targetType: 'tier', targetId: tierId })
+    supporterTiers.value = supporterTiers.value.filter(t => t.id !== tierId)
+    toast.success('Tier deleted')
+  }
+}
+
+// Supporter CRUD
+const addNewSupporter = async () => {
+  if (!addSupporterSearch.value) return
+  const { data: users } = await supabase.from('profiles').select('id').ilike('username', addSupporterSearch.value).limit(1)
+  if (!users?.length) {
+    toast.error('User not found')
+    return
+  }
+  const userId = users[0].id
+  const success = await fundingService.addSupporter(userId, addSupporterTierId.value || undefined, addSupporterAmount.value || undefined, addSupporterPlatform.value || undefined)
+  if (success) {
+    await adminService.logAdminAction({ action: 'supporter_add', targetType: 'supporter', targetId: userId, details: { username: addSupporterSearch.value } })
+    supporters.value = await fundingService.getSupporters()
+    addSupporterSearch.value = ''
+    addSupporterTierId.value = ''
+    addSupporterAmount.value = 0
+    addSupporterPlatform.value = ''
+    toast.success('Supporter added')
+  }
+}
+
+const startEditSupporter = (supporter: Supporter) => {
+  editingSupporterData.value = supporter
+  editSupporterTierId.value = supporter.tier_id || ''
+  editSupporterAmount.value = supporter.amount || 0
+  editSupporterPlatform.value = supporter.platform || ''
+}
+
+const saveEditSupporter = async () => {
+  if (!editingSupporterData.value) return
+  const userId = editingSupporterData.value.user_id
+  const success = await fundingService.updateSupporter(userId, {
+    tier_id: editSupporterTierId.value || null,
+    amount: editSupporterAmount.value || null,
+    platform: editSupporterPlatform.value || null,
+  })
+  if (success) {
+    await adminService.logAdminAction({ action: 'supporter_update', targetType: 'supporter', targetId: userId })
+    editingSupporterData.value = null
+    supporters.value = await fundingService.getSupporters()
+    toast.success('Supporter updated')
+  }
+}
+
+const removeSupporter = async (userId: string) => {
+  if (!confirm('Remove this supporter?')) return
+  const success = await fundingService.removeSupporter(userId)
+  if (success) {
+    await adminService.logAdminAction({ action: 'supporter_remove', targetType: 'supporter', targetId: userId })
+    supporters.value = supporters.value.filter(s => s.user_id !== userId)
+    toast.success('Supporter removed')
+  }
+}
+
+// Donation CRUD
+const openRecordDonation = (supporter: Supporter) => {
+  recordDonationSupporter.value = supporter
+  recordDonationAmount.value = 0
+  recordDonationCurrency.value = fundingCurrency.value
+  recordDonationPlatform.value = supporter.platform || ''
+  recordDonationNote.value = ''
+}
+
+const saveRecordDonation = async () => {
+  if (!recordDonationSupporter.value || !recordDonationAmount.value) return
+  const s = recordDonationSupporter.value
+  const success = await fundingService.addDonation(s.id, s.user_id, recordDonationAmount.value, recordDonationCurrency.value, recordDonationPlatform.value || undefined, recordDonationNote.value || undefined)
+  if (success) {
+    await adminService.logAdminAction({ action: 'donation_record', targetType: 'donation', targetId: s.user_id, details: { amount: recordDonationAmount.value, currency: recordDonationCurrency.value } })
+    recordDonationSupporter.value = null
+    donationHistory.value = await fundingService.getDonationHistory()
+    donationStats.value = await fundingService.getDonationStats()
+    toast.success('Donation recorded')
+  }
+}
+
+const startEditDonation = (donation: DonationRecord) => {
+  editingDonation.value = donation
+  editDonationAmount.value = donation.amount
+  editDonationCurrency.value = donation.currency
+  editDonationPlatform.value = donation.platform || ''
+  editDonationNote.value = donation.note || ''
+}
+
+const saveEditDonation = async () => {
+  if (!editingDonation.value) return
+  const success = await fundingService.updateDonation(editingDonation.value.id, {
+    amount: editDonationAmount.value,
+    currency: editDonationCurrency.value,
+    platform: editDonationPlatform.value || null,
+    note: editDonationNote.value || null,
+  })
+  if (success) {
+    await adminService.logAdminAction({ action: 'donation_update', targetType: 'donation', targetId: editingDonation.value.id })
+    editingDonation.value = null
+    donationHistory.value = await fundingService.getDonationHistory()
+    donationStats.value = await fundingService.getDonationStats()
+    toast.success('Donation updated')
+  }
+}
+
+const deleteDonation = async (donationId: string) => {
+  if (!confirm('Delete this donation record?')) return
+  const success = await fundingService.deleteDonation(donationId)
+  if (success) {
+    await adminService.logAdminAction({ action: 'donation_delete', targetType: 'donation', targetId: donationId })
+    donationHistory.value = donationHistory.value.filter(d => d.id !== donationId)
+    donationStats.value = await fundingService.getDonationStats()
+    toast.success('Donation deleted')
+  }
+}
+
+// Reports & Moderation methods
+const loadReports = async () => {
+  try {
+    const statusParam = activeReportFilter.value === 'all' ? null : activeReportFilter.value
+    const result = await reportService.getReports({ status: statusParam })
+    reports.value = result.reports
+  } catch (error) {
+    debug.error('Failed to load reports:', error)
+  }
+}
+
+const loadPendingReportsCount = async () => {
+  pendingReportsCount.value = await reportService.getPendingReportsCount()
+}
+
+const toggleReportExpand = (id: string) => {
+  expandedReportId.value = expandedReportId.value === id ? null : id
+  reportResolutionNote.value = ''
+}
+
+const updateReport = async (reportId: string, status: 'investigating' | 'resolved' | 'dismissed') => {
+  const success = await reportService.updateReportStatus(reportId, status, reportResolutionNote.value || undefined)
+  if (success) {
+    toast.success(`Report ${status}`)
+    reportResolutionNote.value = ''
+    expandedReportId.value = null
+    await loadReports()
+    await loadPendingReportsCount()
+  } else {
+    toast.error('Failed to update report')
+  }
+}
+
+const linkifyReportPreview = (text: string): string => {
+  return text.replace(
+    /(https?:\/\/[^\s\]]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">$1</a>'
+  )
+}
+
+const extractStorageUrls = (report: ReportWithDetails): string[] => {
+  const preview = report.reported_message_preview || report.reported_post_preview || ''
+  const supabaseHost = import.meta.env.VITE_SUPABASE_URL || ''
+  const urls: string[] = []
+  const urlRegex = /https?:\/\/[^\s\]]+/g
+  let match
+  while ((match = urlRegex.exec(preview)) !== null) {
+    const url = match[0]
+    if (url.includes('/storage/') || (supabaseHost && url.startsWith(supabaseHost))) {
+      urls.push(url)
+    }
+  }
+  return urls
+}
+
+const deleteReportedMedia = async (report: ReportWithDetails) => {
+  const urls = extractStorageUrls(report)
+  if (urls.length === 0) return
+  if (!confirm(`Delete ${urls.length} media file(s) from storage? This cannot be undone.\n\n${urls.join('\n')}`)) return
+
+  let deleted = 0
+  for (const url of urls) {
+    try {
+      const pathMatch = url.match(/\/storage\/v1\/object\/public\/([^?]+)/)
+      if (pathMatch) {
+        const fullPath = pathMatch[1]
+        const slashIdx = fullPath.indexOf('/')
+        const bucket = fullPath.substring(0, slashIdx)
+        const filePath = fullPath.substring(slashIdx + 1)
+        const { error } = await supabase.storage.from(bucket).remove([filePath])
+        if (!error) deleted++
+        else debug.error(`Failed to delete ${filePath}:`, error)
+      }
+    } catch (error) {
+      debug.error('Failed to delete media:', error)
+    }
+  }
+
+  if (deleted > 0) {
+    await adminService.logAdminAction({ action: 'media_delete', targetType: 'storage', details: { count: deleted, urls } })
+    toast.success(`Deleted ${deleted} media file(s)`)
+  } else {
+    toast.error('Failed to delete media files')
+  }
+}
+
+const deleteReportedMessage = async (report: ReportWithDetails) => {
+  if (!report.reported_message_id) return
+  if (!confirm('Delete this message? This cannot be undone.')) return
+  try {
+    await messageService.deleteMessage(report.reported_message_id)
+    toast.success('Message deleted')
+    await updateReport(report.id, 'resolved')
+  } catch (error) {
+    debug.error('Failed to delete message:', error)
+    toast.error('Failed to delete message')
+  }
+}
+
+const suspendReportedUser = async (report: ReportWithDetails) => {
+  if (!report.reported_user_id) return
+  const reason = prompt('Suspension reason:')
+  if (!reason) return
+  try {
+    await adminService.moderateUser(report.reported_user_id, 'suspend', reason)
+    toast.success(`User ${report.reported_user_display_name || report.reported_user_username} suspended`)
+    await updateReport(report.id, 'resolved')
+    await loadUsers()
+  } catch (error) {
+    debug.error('Failed to suspend user:', error)
+    toast.error('Failed to suspend user')
   }
 }
 
@@ -3537,6 +4367,10 @@ const handleAddInstance = () => {
   border-radius: 8px;
 }
 
+.metric-card.placeholder-metric {
+  opacity: 0.5;
+}
+
 .metric-header {
   display: flex;
   justify-content: space-between;
@@ -4005,6 +4839,525 @@ const handleAddInstance = () => {
 
 .server-actions {
   flex-shrink: 0;
+}
+
+/* Reports & Moderation */
+.reports-badge {
+  background: #ed4245;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+.report-filters {
+  display: flex;
+  gap: 4px;
+  padding: 16px 20px;
+  flex-wrap: wrap;
+}
+
+.reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 20px 20px;
+}
+
+.report-item {
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.report-item:hover {
+  border-color: var(--accent-color);
+}
+
+.report-item.expanded {
+  border-color: var(--accent-color);
+}
+
+.report-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.report-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.report-type-badge.user { background: rgba(88, 101, 242, 0.2); color: #7289da; }
+.report-type-badge.post { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+.report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
+.report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
+
+.report-users {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.report-reporter,
+.report-reported {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.report-arrow {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.report-reason {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 80px;
+}
+
+.report-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.report-source {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.report-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.report-status-badge.pending { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
+.report-status-badge.investigating { background: rgba(88, 101, 242, 0.2); color: #7289da; }
+.report-status-badge.resolved { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+.report-status-badge.dismissed { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
+
+.report-detail {
+  border-top: 1px solid var(--border-color);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-detail label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.report-detail p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.report-proof blockquote {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent-color);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 0 6px 6px 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.report-proof :deep(.report-link) {
+  color: var(--accent-color);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.report-proof :deep(.report-link:hover) {
+  opacity: 0.8;
+}
+
+.report-actions-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.resolution-textarea {
+  width: 100%;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.report-punitive-actions {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.report-action-btn.danger {
+  background: rgba(237, 66, 69, 0.2);
+  color: #ed4245;
+}
+
+.report-action-btn.danger:hover {
+  background: rgba(237, 66, 69, 0.4);
+}
+
+.report-action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.report-action-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.report-action-btn:hover {
+  opacity: 0.85;
+}
+
+.report-action-btn.investigating {
+  background: rgba(88, 101, 242, 0.3);
+  color: #7289da;
+}
+
+.report-action-btn.resolve {
+  background: rgba(87, 242, 135, 0.3);
+  color: #57f287;
+}
+
+.report-action-btn.dismiss {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+}
+
+.reports-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Funding Management */
+.funding-content {
+  padding: 0 20px 20px;
+}
+
+.funding-section {
+  margin-bottom: 24px;
+}
+
+.funding-section h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.funding-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.funding-form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.funding-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 120px;
+}
+
+.funding-field label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.tiers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tier-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--background-tertiary);
+  border-radius: 6px;
+}
+
+.tier-icon {
+  font-size: 18px;
+}
+
+.tier-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tier-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+}
+
+.tier-amount {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.add-tier-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.add-tier-form .cyber-input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.color-input {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--background-tertiary);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.supporters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.supporter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--background-tertiary);
+  border-radius: 6px;
+}
+
+.supporter-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.supporter-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.supporter-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+}
+
+.supporter-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.donation-stats-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.donation-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  flex: 1;
+}
+
+.donation-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-color);
+}
+
+.donation-stat-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.donations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.donation-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.donation-amount {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.donation-note {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.funding-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.funding-link-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.funding-link-row .cyber-input {
+  min-width: 0;
+}
+
+.add-supporter-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.add-supporter-form .cyber-input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.edit-supporter-panel {
+  background: var(--background-tertiary);
+  border: 1px solid var(--accent-color);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.edit-donation-panel {
+  background: var(--background-tertiary);
+  border: 1px solid var(--accent-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.donation-user {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.donation-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.tier-perks {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 12px;
+  text-align: center;
+  background: var(--background-tertiary);
+  border-radius: 6px;
+  margin-bottom: 12px;
 }
 
 /* Dark theme variables (these should be in your global CSS) */

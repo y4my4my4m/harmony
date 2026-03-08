@@ -20,6 +20,7 @@
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
             MOD
           </span>
+          <SupporterBadge v-if="user.id" :user-id="user.id" />
         </div>
         <div class="user-handle">@{{ handle }}</div>
         
@@ -94,7 +95,6 @@
           </button>
           
           <button
-            v-if="!user.is_local"
             @click="handleReport"
             class="action-item danger"
           >
@@ -110,6 +110,15 @@
       <Icon name="federation" />
       <span>{{ user.domain }}</span>
     </div>
+
+    <!-- Report Modal -->
+    <ReportModal
+      v-if="showReportModal"
+      report-type="user"
+      :target-user-id="user.id"
+      :target-user="{ username: user.username, display_name: user.display_name, avatar_url: user.avatar_url }"
+      @close="showReportModal = false"
+    />
   </div>
 </template>
 
@@ -123,6 +132,8 @@ import { usePostInteractions } from '@/composables/usePostInteractions';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import ReportModal from '@/components/moderation/ReportModal.vue';
+import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { useRouter } from 'vue-router';
 import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
 
@@ -271,10 +282,11 @@ const handleBlock = async () => {
   showActionsMenu.value = false;
 };
 
+const showReportModal = ref(false);
 const handleReport = () => {
   emit('report', props.user.id);
   showActionsMenu.value = false;
-  // TODO: Open report modal
+  showReportModal.value = true;
 };
 
 // Close actions menu when clicking outside

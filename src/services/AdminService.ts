@@ -265,17 +265,31 @@ class AdminService {
       await supabase.from('profiles').select('id').limit(1);
       const dbResponseTime = Date.now() - start;
 
+      // Get real DB connection count
+      let connections = 0;
+      try {
+        const { data: connData } = await supabase.rpc('get_db_connection_count');
+        connections = connData || 0;
+      } catch { /* RPC may not exist yet */ }
+
+      // Get real DB size
+      let dbSize = '--';
+      try {
+        const { data: sizeData } = await supabase.rpc('get_db_size');
+        dbSize = sizeData || '--';
+      } catch { /* RPC may not exist yet */ }
+
       return {
         database: { 
           responseTime: dbResponseTime, 
-          connections: 25 // Mock - would come from DB monitoring
+          connections
         },
         federation: { 
           pending: federationStats.pending_deliveries, 
           status: federationStats.pending_deliveries > 100 ? 'warning' : 'healthy' 
         },
-        storage: { used: 45, total: '100GB' }, // Mock
-        memory: { used: 72, total: '16GB' } // Mock
+        storage: { used: 0, total: dbSize },
+        memory: { used: 0, total: '--' }
       };
     } catch (error) {
       debug.error('Failed to get system health:', error);

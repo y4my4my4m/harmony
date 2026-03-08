@@ -19,9 +19,11 @@
         :current-channel="currentChannel"
         :is-d-m="isDM"
         :current-view="currentView"
+        :funding-config="fundingConfig"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
         @toggle-search="handleToggleSearch"
+        @open-funding="showFundingModal = true"
       />
     </div>
 
@@ -161,6 +163,8 @@
       @thread-updated="handleThreadUpdated"
     />
   </div>
+
+  <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
 </template>
 
 <script setup lang="ts">
@@ -183,6 +187,8 @@ import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { fundingService, type FundingConfig } from '@/services/FundingService'
+import FundingModal from '@/components/FundingModal.vue'
 
 // Props
 interface Props {
@@ -487,9 +493,17 @@ const navigateToDefaultIfNeeded = async () => {
 // Watch for route changes and servers loading
 watch(() => [route.name, route.params, serverChannelStore.servers.length], navigateToDefaultIfNeeded, { immediate: false })
 
+// Funding
+const fundingConfig = ref<FundingConfig | null>(null)
+const showFundingModal = ref(false)
+const loadFundingConfig = async () => {
+  fundingConfig.value = await fundingService.getFundingConfig()
+}
+
 // Initialize on mount
 onMounted(() => {
   navigateToDefaultIfNeeded()
+  loadFundingConfig()
 })
 </script>
 

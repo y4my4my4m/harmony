@@ -62,6 +62,18 @@
         <span>{{ isPinned ? 'Unpin Message' : 'Pin Message' }}</span>
       </div>
     </template>
+
+    <template v-if="canReport">
+      <div class="context-menu-divider"></div>
+      
+      <div class="context-menu-item report-item" @click="reportMessage">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+          <line x1="4" y1="22" x2="4" y2="15"/>
+        </svg>
+        <span>Report Message</span>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -80,6 +92,7 @@ interface Props {
   message: Message | null;
   channelId?: string;
   conversationId?: string;
+  currentUserId?: string;
 }
 
 const menuRef = ref<HTMLElement | null>(null)
@@ -90,6 +103,7 @@ interface Emits {
   (e: 'add-reaction', emoji: { native?: string; name: string; id?: string }): void;
   (e: 'open-emoji-picker'): void;
   (e: 'pin-changed'): void;
+  (e: 'report', message: Message): void;
 }
 
 const props = defineProps<Props>();
@@ -101,6 +115,11 @@ const { canPinMessages } = useServerPermissions();
 
 const isPinned = computed(() => props.message?.is_pinned || false);
 const canPin = computed(() => canPinMessages.value);
+const canReport = computed(() => {
+  if (!props.message) return false;
+  const authorId = props.message.user_id || (props.message as any).author_id;
+  return authorId !== props.currentUserId;
+});
 
 // Calculate menu position with boundary checking
 const menuStyle = computed(() => ({
@@ -262,6 +281,12 @@ const togglePin = async () => {
     debug.error('Failed to toggle pin:', error);
   }
 };
+
+const reportMessage = () => {
+  if (!props.message) return;
+  emit('report', props.message);
+  emit('close');
+};
 </script>
 
 <style scoped>
@@ -340,6 +365,10 @@ const togglePin = async () => {
   height: 1px;
   background-color: #40444b;
   margin: 4px 0;
+}
+
+.context-menu-item.report-item:hover {
+  background-color: #ed4245;
 }
 </style>
 

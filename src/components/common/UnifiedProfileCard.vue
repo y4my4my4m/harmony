@@ -34,6 +34,7 @@
       <div v-if="!isCompact && (hasInstanceBadge || userRoles.length > 0)" class="user-roles">
         <div v-if="user.is_admin" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
         <div v-else-if="user.is_moderator" class="role-badge instance-mod-badge">INSTANCE MOD</div>
+        <SupporterBadge v-if="user.id" :user-id="user.id" />
         <div
           v-for="role in userRoles"
           :key="role.id"
@@ -163,6 +164,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
+import SupporterBadge from './SupporterBadge.vue'
 import type { User, FederatedUser } from '@/types'
 
 const { t } = useI18n()

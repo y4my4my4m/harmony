@@ -263,31 +263,43 @@ COMMENT ON TABLE public.unread_counts IS 'Per-channel/conversation unread messag
 CREATE TABLE IF NOT EXISTS public.reports (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
     
     reporter_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    reported_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    reported_user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
     reported_post_id uuid REFERENCES public.posts(id) ON DELETE SET NULL,
     reported_message_id uuid REFERENCES public.messages(id) ON DELETE SET NULL,
+    reported_server_id uuid REFERENCES public.servers(id) ON DELETE SET NULL,
     
     reason text NOT NULL,
     comment text,
+    report_type text NOT NULL DEFAULT 'user',
     
     -- Status
     status text DEFAULT 'pending'::text,
     resolved_at timestamp with time zone,
     resolved_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-    resolution_notes text,
+    resolution_note text,
     
-    -- Source
+    -- Source / Federation
     source text DEFAULT 'local'::text,
+    source_instance text,
+    ap_id text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    federation_status text DEFAULT 'pending'::text,
     
-    CONSTRAINT reports_status_check CHECK (status IN ('pending', 'reviewing', 'resolved', 'rejected'))
+    CONSTRAINT reports_status_check CHECK (status IN ('pending', 'investigating', 'resolved', 'dismissed')),
+    CONSTRAINT reports_report_type_check CHECK (report_type IN ('user', 'post', 'message', 'server')),
+    CONSTRAINT reports_source_check CHECK (source IN ('local', 'federation')),
+    CONSTRAINT reports_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
 );
 
 ALTER TABLE public.reports REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_reports_status ON public.reports(status);
 CREATE INDEX IF NOT EXISTS idx_reports_reported_user ON public.reports(reported_user_id);
+CREATE INDEX IF NOT EXISTS idx_reports_report_type ON public.reports(report_type);
+CREATE INDEX IF NOT EXISTS idx_reports_reported_message ON public.reports(reported_message_id);
 
 COMMENT ON TABLE public.reports IS 'User and content reports';
 
@@ -614,6 +626,76 @@ CREATE INDEX IF NOT EXISTS idx_message_search_tsvector ON public.message_search_
 CREATE INDEX IF NOT EXISTS idx_message_search_channel ON public.message_search_index(channel_id);
 CREATE INDEX IF NOT EXISTS idx_message_search_conversation ON public.message_search_index(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_message_search_user ON public.message_search_index(user_id);
+
+-- ---------------------------------------------------------------------------
+-- INSTANCE FUNDING
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.instance_funding (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    enabled boolean DEFAULT false,
+    goal_amount numeric(10,2),
+    goal_currency text DEFAULT 'USD',
+    current_amount numeric(10,2) DEFAULT 0,
+    goal_description text,
+    funding_links jsonb DEFAULT '[]'::jsonb,
+    show_progress_bar boolean DEFAULT true,
+    show_in_context_bar boolean DEFAULT false,
+    context_bar_style text DEFAULT 'mini-progress',
+    thank_you_message text,
+    updated_at timestamptz DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- INSTANCE SUPPORTER TIERS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.instance_supporter_tiers (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL,
+    min_amount numeric(10,2) NOT NULL,
+    badge_icon text,
+    badge_color text,
+    perks text,
+    display_order integer DEFAULT 0,
+    created_at timestamptz DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- INSTANCE SUPPORTERS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.instance_supporters (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    tier_id uuid REFERENCES public.instance_supporter_tiers(id) ON DELETE SET NULL,
+    amount numeric(10,2),
+    started_at timestamptz DEFAULT now(),
+    expires_at timestamptz,
+    is_active boolean DEFAULT true,
+    external_id text,
+    platform text,
+    CONSTRAINT unique_supporter_user UNIQUE (user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_supporters_user ON public.instance_supporters(user_id);
+CREATE INDEX IF NOT EXISTS idx_supporters_active ON public.instance_supporters(is_active);
+
+-- ---------------------------------------------------------------------------
+-- INSTANCE DONATION HISTORY
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.instance_donation_history (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    supporter_id uuid NOT NULL REFERENCES public.instance_supporters(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    amount numeric(10,2) NOT NULL,
+    currency text DEFAULT 'USD',
+    platform text,
+    external_reference text,
+    note text,
+    donated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_donation_history_user ON public.instance_donation_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_donation_history_supporter ON public.instance_donation_history(supporter_id);
+CREATE INDEX IF NOT EXISTS idx_donation_history_date ON public.instance_donation_history(donated_at);
 
 DO $$
 BEGIN

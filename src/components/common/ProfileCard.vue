@@ -30,6 +30,7 @@
         <h3 class="display-name" :style="{ color: user.color || undefined }">
           {{ displayName }}
           <Icon v-if="isVerified" name="verified" class="verified-badge" />
+          <SupporterBadge v-if="user.id" :user-id="user.id" />
         </h3>
         <p class="user-handle">{{ displayHandle }}</p>
       </div>
@@ -155,6 +156,7 @@ import { useUserData } from '@/composables/useUserData'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
+import SupporterBadge from './SupporterBadge.vue'
 import type { User, FederatedUser } from '@/types'
 
 const { t } = useI18n()

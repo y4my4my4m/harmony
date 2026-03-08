@@ -21,6 +21,18 @@
             </div>
           </div>
 
+          <!-- Proof: message preview -->
+          <div v-if="reportType === 'message' && targetMessagePreview" class="proof-section">
+            <label>Reported message</label>
+            <blockquote class="proof-quote">{{ targetMessagePreview }}</blockquote>
+          </div>
+
+          <!-- Proof: post preview -->
+          <div v-if="reportType === 'post' && targetPostPreview" class="proof-section">
+            <label>Reported post</label>
+            <blockquote class="proof-quote">{{ targetPostPreview }}</blockquote>
+          </div>
+
           <!-- Reason selection -->
           <div class="form-group">
             <label>Why are you reporting this?</label>
@@ -71,7 +83,13 @@
             <span class="success-icon">✓</span>
             <h3>Report Submitted</h3>
             <p>Thank you for helping keep the community safe. We'll review your report shortly.</p>
-            <button class="btn-done" @click="$emit('close')">Done</button>
+            <div v-if="reportType === 'message' || reportType === 'post'" class="hide-prompt">
+              <button class="btn-hide" @click="hideAndClose">
+                Hide this {{ reportType }}
+              </button>
+              <span class="hide-hint">Remove it from your view</span>
+            </div>
+            <button class="btn-done" @click="$emit('close')">{{ (reportType === 'message' || reportType === 'post') ? 'Keep visible' : 'Done' }}</button>
           </div>
         </div>
       </div>
@@ -88,6 +106,10 @@ interface Props {
   reportType: 'user' | 'post' | 'message' | 'server'
   targetUserId?: string
   targetPostId?: string
+  targetMessageId?: string
+  targetServerId?: string
+  targetMessagePreview?: string
+  targetPostPreview?: string
   targetUser?: {
     username: string
     display_name?: string
@@ -97,8 +119,9 @@ interface Props {
 
 const props = defineProps<Props>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
+  hide: [type: 'message' | 'post', id: string]
 }>()
 
 const selectedReason = ref<ReportReason | ''>('')
@@ -125,6 +148,8 @@ const submitReport = async () => {
     const report = await reportService.createReport({
       reported_user_id: props.targetUserId,
       reported_post_id: props.targetPostId,
+      reported_message_id: props.targetMessageId,
+      reported_server_id: props.targetServerId,
       report_type: props.reportType,
       reason: selectedReason.value,
       comment: comment.value || undefined
@@ -133,9 +158,19 @@ const submitReport = async () => {
     if (report) {
       submitted.value = true
     }
+  } catch {
+    // error handled by service
   } finally {
     isSubmitting.value = false
   }
+}
+
+const hideAndClose = () => {
+  const id = props.reportType === 'message' ? props.targetMessageId : props.targetPostId
+  if (id) {
+    emit('hide', props.reportType as 'message' | 'post', id)
+  }
+  emit('close')
 }
 </script>
 
@@ -225,6 +260,35 @@ const submitReport = async () => {
   color: var(--text-secondary);
 }
 
+.proof-section {
+  margin-bottom: 20px;
+}
+
+.proof-section label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.proof-quote {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--harmony-primary, #5865f2);
+  background: var(--background-secondary, #2b2d31);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -273,11 +337,13 @@ const submitReport = async () => {
   height: 18px;
   accent-color: var(--harmony-primary, #5865f2);
   vertical-align: middle;
+  margin-right: 8px;
 }
 
 .reason-option span {
   flex: 1;
   padding-right: 8px;
+  vertical-align: middle;
 }
 
 textarea {
@@ -384,6 +450,34 @@ textarea:focus {
   color: var(--text-secondary);
   font-size: 14px;
   margin: 0 0 24px;
+}
+
+.hide-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.btn-hide {
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  background: #ed4245;
+  border: none;
+  color: var(--text-primary);
+}
+
+.btn-hide:hover {
+  background: #c03537;
+}
+
+.hide-hint {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .btn-done {
