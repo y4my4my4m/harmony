@@ -1478,6 +1478,7 @@ const loadRecentActivity = async () => {
       id: event.id,
       type: event.action_type,
       message: event.details,
+      targetUsername: event.target_username,
       timestamp: new Date(event.created_at),
       source: `Admin: ${event.admin_username}`,
       admin_id: event.admin_id
@@ -1971,19 +1972,70 @@ const getActivityCategory = (type: string): string => {
   return 'other'
 }
 
-const formatActivityMessage = (event: { type: string; message: string | object }) => {
+const CONFIG_KEY_LABELS: Record<string, string> = {
+  instance_name: 'Instance name',
+  instance_description: 'Instance description',
+  terms_url: 'Terms URL',
+  privacy_url: 'Privacy URL',
+  max_post_length: 'Max post length',
+  max_server_size: 'Max server size',
+  max_message_length: 'Max message length',
+  max_custom_emojis_per_server: 'Max custom emojis per server',
+  allow_file_uploads: 'Allow file uploads',
+  enable_voice_channels: 'Enable voice channels',
+  federation_retry_attempts: 'Federation retry attempts',
+  oauth_providers: 'OAuth providers'
+}
+
+const formatConfigValue = (v: unknown): string => {
+  if (v == null || (typeof v === 'string' && v === '')) return '(empty)'
+  if (Array.isArray(v)) return v.join(', ')
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+const formatActivityMessage = (event: { type: string; message: string | object; targetUsername?: string }) => {
   const raw = event.message
-  if (raw == null || raw === '') return event.type || 'Event'
+  const targetUser = event.targetUsername
+  if (raw == null || raw === '') {
+    if (event.type?.startsWith('user_') && targetUser) {
+      const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : event.type
+      return `${verb} @${targetUser}`
+    }
+    return event.type || 'Event'
+  }
   try {
     const obj = typeof raw === 'string' ? JSON.parse(raw) : raw
     if (typeof obj !== 'object' || obj === null) return String(raw)
+
+    // Config change: key, new_value, old_value
+    if (obj.key != null && ('new_value' in obj || 'old_value' in obj)) {
+      const label = CONFIG_KEY_LABELS[obj.key] || obj.key.replace(/_/g, ' ')
+      const newVal = formatConfigValue(obj.new_value)
+      const oldVal = formatConfigValue(obj.old_value)
+      if (oldVal !== '(empty)' && newVal !== oldVal) {
+        return `${label}: ${newVal} (was ${oldVal})`
+      }
+      return `${label}: ${newVal}`
+    }
+
+    // User moderation with target
+    if ((event.type?.startsWith('user_') || obj.action === 'suspend' || obj.action === 'delete' || obj.action === 'unsuspend') && (targetUser || obj.user_id)) {
+      const who = targetUser ? `@${targetUser}` : (obj.user_id ? `user ${String(obj.user_id).slice(0, 8)}…` : '')
+      const reason = obj.reason ? ` — ${obj.reason}` : ''
+      const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : ''
+      return `${verb || 'Moderated'} ${who}${reason}`.trim()
+    }
+
     // Build human-readable message from common keys
     const parts: string[] = []
     if (obj.domain) parts.push(obj.domain)
     if (obj.reason) parts.push(`— ${obj.reason}`)
     if (obj.action) parts.push(`(${obj.action})`)
-    if (obj.user_id) parts.push(`user: ${obj.user_id}`)
+    if (obj.user_id && !targetUser) parts.push(`user: ${obj.user_id}`)
+    if (targetUser) parts.unshift(`@${targetUser}`)
     if (parts.length) return parts.join(' ')
+
     // Fallback: format key-value pairs
     return Object.entries(obj)
       .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)

@@ -61,6 +61,7 @@ export interface AdminActivity {
   action_type: string;
   target_type: string;
   target_id?: string;
+  target_username?: string;
   details: string;
   metadata?: any;
   ip_address?: string;
@@ -371,7 +372,7 @@ class AdminService {
         return [];
       }
 
-      return (data || []).map((entry: any) => ({
+      const entries = (data || []).map((entry: any) => ({
         id: entry.id,
         admin_id: entry.admin_id,
         admin_username: entry.admin?.username || 'Unknown',
@@ -384,6 +385,29 @@ class AdminService {
         user_agent: entry.user_agent || '',
         created_at: entry.created_at
       }));
+
+      // Resolve target usernames for user moderation actions
+      const userTargetIds = entries
+        .filter((e: AdminActivity) => e.target_type === 'user' && e.target_id)
+        .map((e: AdminActivity) => e.target_id!)
+        .filter((id, i, arr) => arr.indexOf(id) === i);
+
+      if (userTargetIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', userTargetIds);
+
+        const idToUsername = new Map((profiles || []).map((p: { id: string; username: string }) => [p.id, p.username || 'unknown']));
+
+        for (const entry of entries) {
+          if (entry.target_type === 'user' && entry.target_id) {
+            entry.target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}…`;
+          }
+        }
+      }
+
+      return entries;
     } catch (error) {
       debug.error('Failed to get recent activity:', error);
       return [];

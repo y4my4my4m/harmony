@@ -687,10 +687,6 @@ export function useVisualTheme() {
       {
         category: 'Borders',
         vars: ['--border-primary', '--border-secondary', '--border-hover', '--border-focus']
-      },
-      {
-        category: 'Folder',
-        vars: ['--folder-color']
       }
     ]
   }
