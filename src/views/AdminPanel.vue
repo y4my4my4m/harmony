@@ -730,7 +730,8 @@
                 ></textarea>
                 <label class="toggle-label report-show-resolver" title="If checked, the reporter will see who resolved this (default off for harassment/backlash prevention)">
                   <input type="checkbox" v-model="reportShowResolver" @click.stop />
-                  Show my name to reporter
+                  <span class="toggle-slider"></span>
+                  <span>Show my name to reporter</span>
                 </label>
                 <div class="report-action-buttons">
                   <button
