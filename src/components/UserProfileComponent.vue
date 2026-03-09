@@ -63,7 +63,7 @@
           <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
             <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
           </svg>
-          <span class="preview-text">{{ currentCustomStatus?.text || 'Set Custom Status' }}</span>
+          <span class="preview-text">{{ customStatusDisplayText || 'Set Custom Status' }}</span>
         </div>
         <button 
           v-if="currentCustomStatus" 
@@ -120,6 +120,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import StatusPicker from '@/components/StatusPicker.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const themeStore = useThemeStore()
@@ -148,6 +149,7 @@ const {
 // Custom status state
 const customStatusText = ref('')
 const currentCustomStatus = computed(() => getCustomStatus.value)
+const customStatusDisplayText = computed(() => formatCustomStatusDisplay(currentCustomStatus.value))
 const showStatusPicker = ref(false)
 
 // Add a local reactive status for immediate UI updates

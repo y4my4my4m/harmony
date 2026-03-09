@@ -24,7 +24,7 @@
                 class="preview-emoji-img"
               />
               <span v-else-if="currentStatus?.emoji" class="preview-emoji">{{ currentStatus.emoji }}</span>
-              <span class="preview-text">{{ currentStatus?.text }}</span>
+              <span class="preview-text">{{ currentStatusDisplayText }}</span>
             </div>
             <button class="clear-btn" @click="clearStatus">Clear Status</button>
           </div>
@@ -76,9 +76,9 @@
               @resetEmojiIconClicked="() => {}"
             />
 
-            <!-- Activity Type -->
-            <div class="input-row">
-              <label class="input-label">Activity</label>
+            <!-- Activity Type (shows as "Playing X", "Listening to X", etc.) -->
+            <div class="input-row activity-row">
+              <label class="input-label">ACTIVITY</label>
               <div class="activity-selector">
                 <button
                   v-for="activity in activityTypes"
@@ -175,6 +175,7 @@ const emojiButtonRef = ref<HTMLElement | null>(null)
 const hasCurrentStatus = computed(() => {
   return props.currentStatus?.text || props.currentStatus?.emoji
 })
+const currentStatusDisplayText = computed(() => formatCustomStatusDisplay(props.currentStatus))
 
 // Methods
 const selectEmoji = (emoji: Emoji) => {
@@ -209,25 +210,39 @@ const closeEmojiPicker = () => {
 
 const calculateExpiresAt = (): string | undefined => {
   const now = new Date()
-  
   switch (selectedDuration.value) {
-    case '30m': {
+    case '30m':
       return new Date(now.getTime() + 30 * 60 * 1000).toISOString()
-    }
-    case '1h': {
+    case '1h':
       return new Date(now.getTime() + 60 * 60 * 1000).toISOString()
-    }
-    case '4h': {
+    case '4h':
       return new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString()
-    }
     case 'today': {
       const endOfDay = new Date(now)
       endOfDay.setHours(23, 59, 59, 999)
       return endOfDay.toISOString()
     }
-    case '1w': {
+    case '1w':
       return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    case 'never':
+    default:
+      return undefined
+  }
+}
+
+/** Minutes for DB RPC (set_custom_status p_duration_minutes). undefined = don't clear. */
+const getDurationMinutes = (): number | undefined => {
+  const now = new Date()
+  switch (selectedDuration.value) {
+    case '30m': return 30
+    case '1h': return 60
+    case '4h': return 240
+    case 'today': {
+      const endOfDay = new Date(now)
+      endOfDay.setHours(23, 59, 59, 999)
+      return Math.max(1, Math.ceil((endOfDay.getTime() - now.getTime()) / 60000))
     }
+    case '1w': return 7 * 24 * 60 // 10080
     case 'never':
     default:
       return undefined
@@ -242,15 +257,16 @@ const saveStatus = async () => {
   
   saving.value = true
   try {
+    const expiresAt = calculateExpiresAt()
     const status: CustomUserStatus = {
       text: statusText.value.trim() || '',
       ...(selectedEmoji.value?.native && { emoji: selectedEmoji.value.native }),
       ...(selectedEmoji.value?.url && { emoji_url: selectedEmoji.value.url }),
       type: selectedActivity.value as CustomUserStatus['type'],
-      ...(calculateExpiresAt() && { expiresAt: calculateExpiresAt() }),
+      ...(expiresAt && { expiresAt }),
     }
-    
-    await userDataService.setCustomStatus(status)
+    const durationMinutes = getDurationMinutes()
+    await userDataService.setCustomStatus(status, durationMinutes)
     emit('status-updated', status)
     close()
   } catch (error) {

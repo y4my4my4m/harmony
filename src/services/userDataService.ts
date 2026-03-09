@@ -66,6 +66,7 @@ class UserDataService extends EventTarget {
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
+  private customStatusExpiryTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
    * Initialize the service for a user
@@ -387,8 +388,20 @@ class UserDataService extends EventTarget {
           }
         }
         
-        // Parse custom status from database
+        // Parse custom status from database (returns undefined if expired)
         let customStatus = this.parseCustomStatus(profile.custom_status)
+        
+        // If DB has expired custom_status, clear it so the row stays clean
+        if (profile.custom_status && !customStatus && profile.id === userId) {
+          const raw = typeof profile.custom_status === 'string' ? JSON.parse(profile.custom_status) : profile.custom_status
+          const expiresAt = raw?.expires_at || raw?.expiresAt
+          if (expiresAt && new Date(expiresAt) < new Date()) {
+            try {
+              await supabase.rpc('clear_custom_status', { p_user_id: userId })
+              debug.log('🧹 Cleared expired custom status from database')
+            } catch (_) { /* non-critical */ }
+          }
+        }
         
         // For current user, try localStorage as backup if database doesn't have it
         if (!customStatus && profile.id === userId) {
@@ -1433,12 +1446,28 @@ class UserDataService extends EventTarget {
     
     debug.log('🎭 Setting custom status:', customStatus?.text || '(clearing)')
     
+    // Clear any existing expiry timer
+    if (this.customStatusExpiryTimer) {
+      clearTimeout(this.customStatusExpiryTimer)
+      this.customStatusExpiryTimer = null
+    }
+    
     // Update local data
     userData.customStatus = customStatus
     userData.lastCacheUpdate = new Date().toISOString()
     
     // Save to localStorage for persistence
     this.saveCustomStatusToLocalStorage(customStatus)
+    
+    // Schedule client-side clear when expiresAt is reached (no pg_cron; scale-friendly)
+    if (customStatus?.expiresAt) {
+      const expiresAtMs = new Date(customStatus.expiresAt).getTime()
+      const delay = Math.max(0, expiresAtMs - Date.now())
+      this.customStatusExpiryTimer = setTimeout(() => {
+        this.customStatusExpiryTimer = null
+        this.clearCustomStatus().catch((err) => debug.warn('⚠️ Auto-clear custom status failed:', err))
+      }, delay)
+    }
     
     // Persist to database for federation
     try {
@@ -1868,6 +1897,11 @@ class UserDataService extends EventTarget {
       clearTimeout(timeout)
     }
     this.presenceSyncTimeouts.clear()
+    
+    if (this.customStatusExpiryTimer) {
+      clearTimeout(this.customStatusExpiryTimer)
+      this.customStatusExpiryTimer = null
+    }
     
     // Unsubscribe from all contexts
     for (const context of this.contexts.values()) {

@@ -98,14 +98,18 @@
           </template>
         </template>
         
-        <!-- User mentions -->
+        <!-- User mentions (display name with @ prefix) -->
         <span 
           v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
           class="mention" 
           :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com' }"
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
-        >{{ formatMentionDisplay(part) }}</span>
+        >
+          <span class="mention-at">@</span>
+          <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+          <span v-if="!part.isLocal && part.domain" class="mention-domain">@{{ part.domain }}</span>
+        </span>
 
         <!-- Role mentions -->
         <span

@@ -148,9 +148,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -227,9 +225,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -306,9 +302,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -440,9 +434,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
               <span 
                 v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
@@ -464,9 +456,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -566,6 +556,7 @@ import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 import { useUserData } from '@/composables/useUserData';
 import { roleService, type ServerRole } from '@/services/RoleService';
+import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay';
 
 // Props
 interface Props {
@@ -597,6 +588,10 @@ const {
   getUserCustomStatus,
   getUserProfile,
 } = useUserData();
+
+function getCustomStatusDisplay(userId: string): string {
+  return formatCustomStatusDisplay(getUserCustomStatus(userId).value);
+}
 
 const isUserInstanceAdmin = (userId: string) => computed(() => {
   const profile = getUserProfile(userId).value;
