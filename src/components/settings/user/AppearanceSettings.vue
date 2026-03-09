@@ -790,6 +790,7 @@ const saveSettings = () => {
     highContrast: settings.value.highContrast,
     reduceMotion: settings.value.reduceMotion,
     screenReaderSupport: settings.value.screenReaderSupport,
+    showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
   })
 }
 
