@@ -97,25 +97,18 @@ export class ProfileService {
       // Pre-resolve display_name emojis for federation (only when allowed)
       const finalUpdates: any = { ...updates }
       if (updates.display_name) {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('federation_metadata')
+          .eq('id', context.profileId)
+          .single()
+        const rawMeta = existing?.federation_metadata
+        const meta = (typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta) || {}
+
         if (allowEmojisInDisplayNames) {
           const displayNameEmojis = await this.resolveDisplayNameEmojis(updates.display_name)
-          if (displayNameEmojis.length > 0) {
-            const { data: existing } = await supabase
-              .from('profiles')
-              .select('federation_metadata')
-              .eq('id', context.profileId)
-              .single()
-            const meta = (existing?.federation_metadata as Record<string, any>) || {}
-            finalUpdates.federation_metadata = { ...meta, display_name_emojis: displayNameEmojis }
-          }
+          finalUpdates.federation_metadata = { ...meta, display_name_emojis: displayNameEmojis }
         } else {
-          // Clear display_name_emojis when setting is off
-          const { data: existing } = await supabase
-            .from('profiles')
-            .select('federation_metadata')
-            .eq('id', context.profileId)
-            .single()
-          const meta = (existing?.federation_metadata as Record<string, any>) || {}
           finalUpdates.federation_metadata = { ...meta, display_name_emojis: [] }
         }
       }
@@ -170,10 +163,9 @@ export class ProfileService {
       if (profileData.display_name && allowEmojisInDisplayNames) {
         const displayNameEmojis = await this.resolveDisplayNameEmojis(profileData.display_name)
         if (displayNameEmojis.length > 0) {
-          finalData.federation_metadata = {
-            ...(finalData.federation_metadata || {}),
-            display_name_emojis: displayNameEmojis
-          }
+          const rawMeta = finalData.federation_metadata
+          const existingMeta = (typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta) || {}
+          finalData.federation_metadata = { ...existingMeta, display_name_emojis: displayNameEmojis }
         }
       }
 

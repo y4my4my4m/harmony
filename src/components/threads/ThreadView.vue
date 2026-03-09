@@ -79,7 +79,7 @@
             <div class="message-main">
               <div class="message-meta">
                 <span class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
-                  {{ getAuthorName(displayParentMessage.user_id) }}
+                  <DisplayName :userId="displayParentMessage.user_id" />
                 </span>
                 <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
               </div>
@@ -190,6 +190,7 @@ import { useUserData } from '@/composables/useUserData'
 import { useTypingIndicator } from '@/composables/useTypingIndicator'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'

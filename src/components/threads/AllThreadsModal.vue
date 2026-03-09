@@ -49,7 +49,7 @@
                         size="mini" 
                         class="creator-avatar"
                       />
-                      <span class="creator-name">{{ getCreatorName(thread.created_by) }}</span>
+                      <span class="creator-name"><DisplayName :userId="thread.created_by" :fallback="getCreatorName(thread.created_by)" /></span>
                       <span class="separator">:</span>
                       <span class="last-message">{{ thread.last_message_preview || 'No messages yet' }}</span>
                       <span class="dot">•</span>
@@ -80,7 +80,7 @@
                     <div class="thread-name">{{ thread.name }}</div>
                     <div class="thread-meta">
                       <span class="started-by">Started by</span>
-                      <span class="creator-name">{{ getCreatorName(thread.created_by) }}</span>
+                      <span class="creator-name"><DisplayName :userId="thread.created_by" :fallback="getCreatorName(thread.created_by)" /></span>
                       <span class="dot">•</span>
                       <span class="time">Last active {{ formatRelativeTime(thread.last_message_at) }}</span>
                     </div>
@@ -123,6 +123,7 @@ import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
 import { formatDistanceToNow } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import Icon from '@/components/common/Icon.vue'
 
