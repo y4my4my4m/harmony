@@ -126,7 +126,7 @@ export class ProfileService {
 
       // Refresh userDataService cache
       try {
-        await userDataService.refreshCurrentUser()
+        await userDataService.fetchUserProfile(context.profileId, true)
       } catch (refreshError) {
         debug.warn('⚠️ Failed to refresh userDataService cache:', refreshError)
       }
@@ -179,11 +179,11 @@ export class ProfileService {
         throw this.createError('CREATE_FAILED', 'Failed to create profile', error)
       }
 
-      // Initialize userDataService
+      // Ensure userDataService has the new profile in cache
       try {
-        await userDataService.refreshCurrentUser()
+        await userDataService.fetchUserProfile(profile.id, true)
       } catch (initError) {
-        debug.warn('⚠️ Failed to initialize userDataService:', initError)
+        debug.warn('⚠️ Failed to refresh userDataService cache:', initError)
       }
 
       return profile
