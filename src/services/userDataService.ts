@@ -1749,13 +1749,17 @@ class UserDataService extends EventTarget {
   
   /**
    * Extract display_name_emojis from federation_metadata.
+   * Normalizes to { id, name, url } so display names render for users not in cache (e.g. server card owner).
    */
   private extractDisplayNameEmojis(federationMetadata: any): Array<{ id: string; name: string; url: string }> | undefined {
     if (!federationMetadata) return undefined
     try {
       const meta = typeof federationMetadata === 'string' ? JSON.parse(federationMetadata) : federationMetadata
       if (Array.isArray(meta.display_name_emojis) && meta.display_name_emojis.length > 0) {
-        return meta.display_name_emojis
+        return meta.display_name_emojis.map((e: any) => {
+          const name = (e.name || '').replace(/:/g, '')
+          return { id: e.id || e.name || name || '', name, url: e.url || '' }
+        }).filter((e: { name: string; url: string }) => e.name && e.url)
       }
     } catch { /* ignore */ }
     return undefined
@@ -1797,10 +1801,10 @@ class UserDataService extends EventTarget {
         parts.push({ type: 'text', text: displayName.substring(lastIndex, match.index) })
       }
 
-      // 1. Pinned emoji from federation_metadata (exact match, cross-user safe)
+      // 1. Pinned emoji from federation_metadata (exact match, cross-user safe; id may be missing from AP)
       const pinned = pinnedMap.get(shortcode)
       if (pinned) {
-        parts.push({ type: 'emoji', emoji: { id: pinned.id, name: pinned.name, url: pinned.url } })
+        parts.push({ type: 'emoji', emoji: { id: pinned.id || pinned.name || '', name: pinned.name, url: pinned.url } })
       }
       // 2. Emoji cache (custom server emojis the viewer has access to)
       else if (emojiCacheStore) {

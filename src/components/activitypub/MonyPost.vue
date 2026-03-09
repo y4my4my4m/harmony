@@ -516,7 +516,14 @@
           size="xs"
           class="tooltip-avatar"
         />
-        <span class="tooltip-username"><DisplayName :userId="user.id" :fallback="user.displayName" /></span>
+        <span class="tooltip-username">
+          <DisplayName
+            v-if="user.displayNameParts"
+            :parts="user.displayNameParts"
+            :fallback="user.displayName"
+          />
+          <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
+        </span>
         <span v-if="user.isRemote && formatDomain(user.domain)" class="tooltip-domain">@{{ formatDomain(user.domain) }}</span>
       </div>
     </div>
@@ -543,6 +550,7 @@ import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
 import DisplayName from '@/components/DisplayName.vue';
+import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
@@ -1293,13 +1301,27 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
     isRemote: false
   }));
   
-  // Add remote reactors from federated fetch
+  // Add remote reactors from federated fetch. Use parts for display name so custom emojis
+  // render (synthetic id is not in user cache, so DisplayName cannot look up by userId).
   const remoteUsers = (reaction.reactors || []).map((reactor: any) => {
     debug.log('🎯 Remote reactor:', reactor);
+    const displayName = reactor.display_name || reactor.username || 'Unknown';
+    const rawEmojis = reactor.display_name_emojis || [];
+    const pinnedEmojis = rawEmojis
+      .map((e: any) => ({
+        id: e.id || e.name || '',
+        name: (e.name || '').replace(/:/g, ''),
+        url: e.url || ''
+      }))
+      .filter((e: any) => e.name && e.url);
+    const displayNameParts = userDataService.resolveDisplayNameParts(
+      displayName,
+      pinnedEmojis.length ? pinnedEmojis : undefined
+    );
     return {
       id: `${reactor.username}@${reactor.domain}`,
-      displayName: reactor.display_name || reactor.username || 'Unknown',
-      displayNameEmojis: reactor.display_name_emojis,
+      displayName,
+      displayNameParts,
       avatarUrl: reactor.avatar_url || '',
       userColor: '#888888',
       isRemote: true,
