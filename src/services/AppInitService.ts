@@ -10,6 +10,7 @@ import { setLocale } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader'
 import { debug } from '@/utils/debug'
 
 /**
@@ -31,6 +32,10 @@ export async function initializeAppSettings() {
     const authStore = useAuthStore()
     if (authStore.session?.user?.id) {
       await loadUserSettings()
+
+      // Preload emoji data so display names render correctly on first paint
+      // Uses IndexedDB cache so subsequent loads are near-instant
+      ensureEmojiDataLoaded().catch(() => {})
     }
     
     debug.log('✅ App settings initialized successfully')

@@ -14,7 +14,7 @@ import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { getSvgUrl, resolveEmoji, getTwemojiUrl } from '@/services/unifiedEmojiService'
+import { getSvgUrl, resolveEmoji, getTwemojiUrl, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 
 const EMOJI_SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/g
@@ -78,6 +78,12 @@ class UserDataService extends EventTarget {
     // IMPORTANT: Await cleanup to prevent race conditions with subscriptions
     await this.cleanup()
     this.currentUserId = userId
+
+    // Load unified emoji data before resolving display names so shortcodes and
+    // unicode emojis render correctly on first paint (uses IndexedDB cache, fast)
+    if (!unifiedEmojiLoaded.value) {
+      try { await loadEmojiData() } catch { /* non-critical */ }
+    }
     
     // Initialize current user
     await this.initializeCurrentUser(userId, username, avatarUrl, existingProfile)
