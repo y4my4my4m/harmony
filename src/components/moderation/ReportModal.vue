@@ -16,7 +16,14 @@
           <div v-if="targetUser" class="target-info">
             <Avatar :src="targetUser.avatar_url" :alt="targetUser.username" size="sm" class="target-avatar" />
             <div>
-              <span class="target-name">{{ targetUser.display_name || targetUser.username }}</span>
+              <span class="target-name">
+                <DisplayName
+                  v-if="targetUserId"
+                  :user-id="targetUserId"
+                  :fallback="targetUser.display_name || targetUser.username"
+                />
+                <template v-else>{{ targetUser.display_name || targetUser.username }}</template>
+              </span>
               <span class="target-handle">@{{ targetUser.username }}</span>
             </div>
           </div>
@@ -101,6 +108,7 @@
 import { ref, computed } from 'vue'
 import { reportService, REPORT_REASONS, type ReportReason } from '@/services/ReportService'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 
 interface Props {
   reportType: 'user' | 'post' | 'message' | 'server'
