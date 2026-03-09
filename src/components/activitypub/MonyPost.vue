@@ -506,7 +506,9 @@
           :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
           class="tooltip-emoji"
         />
-        <span class="emoji-name">:{{ formatEmojiName(tooltip.emoji?.name) }}:</span>
+        <span v-else-if="tooltip.emoji?.unicode" class="tooltip-emoji native-emoji">{{ tooltip.emoji.unicode }}</span>
+        <span v-if="tooltip.emoji?.url && tooltip.emoji?.name" class="emoji-name">:{{ formatEmojiName(tooltip.emoji.name) }}:</span>
+        <span v-else-if="tooltip.emoji?.unicode && tooltipEmojiShortcode" class="emoji-name">:{{ tooltipEmojiShortcode }}:</span>
       </div>
       <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
         <Avatar 
@@ -514,7 +516,7 @@
           size="xs"
           class="tooltip-avatar"
         />
-        <span class="tooltip-username" v-html="renderDisplayNameWithEmojis(user.displayName, user.displayNameEmojis)"></span>
+        <span class="tooltip-username"><DisplayName :userId="user.id" :fallback="user.displayName" /></span>
         <span v-if="user.isRemote && formatDomain(user.domain)" class="tooltip-domain">@{{ formatDomain(user.domain) }}</span>
       </div>
     </div>
@@ -541,6 +543,7 @@ import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
 import DisplayName from '@/components/DisplayName.vue';
+import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
@@ -626,6 +629,11 @@ const tooltip = ref({
 });
 const tooltipTimer = ref<NodeJS.Timeout | null>(null);
 
+const tooltipEmojiShortcode = computed(() => {
+  const unicode = tooltip.value.emoji?.unicode
+  if (!unicode) return ''
+  return unicodeToShortcode(unicode) || ''
+})
 
 const handleTimeClick = () => {
   // Navigate to PostDetail (the actual route) instead of PostView (which redirects)
@@ -1311,7 +1319,8 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
       y: event.clientY, 
       emoji: {
         name: reaction.emoji_name,
-        url: reaction.emoji_url
+        url: reaction.emoji_url,
+        unicode: reaction.custom_emoji_content
       }
     };
   }, 500);
