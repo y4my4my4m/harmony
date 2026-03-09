@@ -92,12 +92,27 @@ export function useUserData() {
   })
   
   /**
-   * Get user display name
+   * Strip :shortcode: patterns from display name when emojis are disabled
+   */
+  const stripEmojiShortcodes = (text: string): string => {
+    if (!text) return text
+    const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
+    return stripped || text
+  }
+
+  /**
+   * Get user display name (plain text, shortcodes stripped when emojis disabled)
    */
   const getUserDisplayName = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
-    return user?.displayName || user?.username || 'Unknown User'
+    let name = user?.displayName || user?.username || 'Unknown User'
+    const instanceSettings = useInstanceSettingsStore()
+    const theme = useVisualTheme()
+    const hideEmojis = !instanceSettings.settings.allowCustomEmojisInDisplayNames ||
+      theme.currentSettings.value?.showCustomEmojisInDisplayNames === false
+    if (hideEmojis && name) name = stripEmojiShortcodes(name)
+    return name || user?.username || 'Unknown User'
   })
 
   /**

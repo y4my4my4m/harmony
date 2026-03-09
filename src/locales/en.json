@@ -514,7 +514,7 @@
       "floatingVideo": "Floating Video Player",
       "floatingVideoDesc": "Playing videos float to corner when scrolled away. Works with YouTube and native videos.",
       "showCustomEmojisInDisplayNames": "Show custom emojis in display names",
-      "showCustomEmojisInDisplayNamesDesc": "When enabled, other users' display names show custom emoji images. When disabled, shortcodes like :emoji: are shown as plain text.",
+      "showCustomEmojisInDisplayNamesDesc": "When enabled, other users' display names show custom emoji images. When disabled, emoji shortcodes are hidden entirely.",
       "highContrast": "High Contrast",
       "highContrastDesc": "Increase contrast for better visibility.",
       "reduceMotion": "Reduce Motion",
