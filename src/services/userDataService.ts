@@ -1792,17 +1792,19 @@ class UserDataService extends EventTarget {
   }
 
   private resolveUnifiedFallback(shortcode: string, parts: DisplayNamePart[], rawText: string): void {
-    let fallbackUrl: string | null = getSvgUrl(shortcode)
-    if (!fallbackUrl) {
-      try {
+    let fallbackUrl: string | null = null
+    try {
+      fallbackUrl = getSvgUrl(shortcode)
+      if (!fallbackUrl) {
         const resolved = resolveEmoji(shortcode)
         if (resolved.display.type === 'svg' && resolved.display.content) {
           fallbackUrl = resolved.display.content
-        } else if (resolved.display.type === 'native' && resolved.unicode) {
+        } else if (resolved.display.type === 'native' && resolved.unicode && resolved.unicode !== shortcode) {
+          // Only call getTwemojiUrl if unicode is an actual emoji character, not the shortcode text echoed back
           fallbackUrl = getTwemojiUrl(resolved.unicode)
         }
-      } catch { /* ignore */ }
-    }
+      }
+    } catch { /* ignore */ }
     if (fallbackUrl) {
       parts.push({ type: 'emoji', emoji: { id: shortcode, name: shortcode, url: fallbackUrl } })
     } else {
