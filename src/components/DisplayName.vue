@@ -47,7 +47,7 @@ const props = defineProps<{
   truncate?: boolean
 }>()
 
-const { getUserDisplayName, getUserDisplayNameParts } = useUserData()
+const { getUserDisplayName, getUserDisplayNameParts, getUser } = useUserData()
 const { resolveEmoji, isNativePack, isLoaded: emojiPackLoaded } = useUnifiedEmoji()
 
 const resolvedParts = computed<DisplayNamePart[] | undefined>(() => {
@@ -117,7 +117,10 @@ function processTextForUnicodeEmojis(text: string): RenderPart[] {
 }
 
 const plainName = computed(() => {
-  if (props.userId) return getUserDisplayName(props.userId).value
+  if (props.userId) {
+    const user = getUser(props.userId).value
+    return user ? getUserDisplayName(props.userId).value : (props.fallback ?? 'Unknown User')
+  }
   return props.fallback || 'Unknown User'
 })
 

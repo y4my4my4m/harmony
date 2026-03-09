@@ -47,12 +47,18 @@
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
-      <!-- Custom Status Button - Opens Full Modal -->
+      <!-- Custom Status: click row to edit, [X] to clear only -->
       <div 
         class="custom-status-preview"
-        @click="openStatusPicker"
+        @click.stop="openStatusPicker"
       >
         <div class="preview-left">
+          <ActivityIcon
+            v-if="currentCustomStatus?.type && currentCustomStatus.type !== 'custom'"
+            :type="currentCustomStatus.type"
+            :size="18"
+            class="preview-activity-icon"
+          />
           <img 
             v-if="currentCustomStatus?.emoji_url" 
             :src="currentCustomStatus.emoji_url" 
@@ -60,15 +66,16 @@
             class="preview-emoji-img"
           />
           <span v-else-if="currentCustomStatus?.emoji" class="preview-emoji">{{ currentCustomStatus.emoji }}</span>
-          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
+          <svg v-else-if="!currentCustomStatus?.type || currentCustomStatus?.type === 'custom'" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
             <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
           </svg>
           <span class="preview-text">{{ customStatusDisplayText || 'Set Custom Status' }}</span>
         </div>
         <button 
           v-if="currentCustomStatus" 
+          type="button"
           class="clear-status-btn"
-          @click.stop="clearCustomStatus"
+          @click.stop.prevent="clearCustomStatus"
           title="Clear status"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -104,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useThemeStore } from '@/stores/useTheme'
@@ -120,6 +127,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import StatusPicker from '@/components/StatusPicker.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import ActivityIcon from '@/components/ActivityIcon.vue'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 
 const voiceChannelStore = useUnifiedVoiceChannelStore()
@@ -313,7 +321,9 @@ const clearCustomStatus = async () => {
 
 const openStatusPicker = () => {
   showStatusDropdown.value = false
-  showStatusPicker.value = true
+  nextTick(() => {
+    showStatusPicker.value = true
+  })
 }
 
 const handleStatusUpdated = (status: any) => {

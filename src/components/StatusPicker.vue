@@ -76,7 +76,7 @@
               @resetEmojiIconClicked="() => {}"
             />
 
-            <!-- Activity Type (shows as "Playing X", "Listening to X", etc.) -->
+            <!-- Activity: Custom = plain text/emoji only; others add a prefix (e.g. "Playing: …") -->
             <div class="input-row activity-row">
               <label class="input-label">ACTIVITY</label>
               <div class="activity-selector">
@@ -86,6 +86,7 @@
                   type="button"
                   class="activity-btn"
                   :class="{ active: selectedActivity === activity.value }"
+                  :title="activity.value === 'custom' ? 'Plain text or emoji only (no prefix)' : undefined"
                   @click="selectedActivity = activity.value"
                 >
                   <component :is="activity.icon" class="activity-icon" />
@@ -250,11 +251,13 @@ const getDurationMinutes = (): number | undefined => {
 }
 
 const saveStatus = async () => {
-  if (!statusText.value.trim() && !selectedEmoji.value) {
+  const hasTextOrEmoji = !!(statusText.value.trim() || selectedEmoji.value)
+  const hasActivity = selectedActivity.value !== 'custom'
+  if (!hasTextOrEmoji && !hasActivity) {
     await clearStatus()
     return
   }
-  
+
   saving.value = true
   try {
     const expiresAt = calculateExpiresAt()

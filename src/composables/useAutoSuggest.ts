@@ -697,6 +697,12 @@ export function useAutoSuggest(
       if (query === currentSearchQuery) {
         debug.log('[DEBUG] searchActivityPubUsers: Got results:', users?.length || 0, 'users');
         activityPubUsers.value = users;
+        // Prime userDataService cache so DisplayName can resolve shortcodes in composer dropdown
+        for (const u of users || []) {
+          if (u?.id) {
+            userDataService.fetchUserProfile(u.id, true).catch(() => {});
+          }
+        }
       } else {
         debug.log('[DEBUG] searchActivityPubUsers: Ignoring stale results for:', query);
       }

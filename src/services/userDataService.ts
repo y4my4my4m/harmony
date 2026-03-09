@@ -203,8 +203,10 @@ class UserDataService extends EventTarget {
         setAt: status.set_at || status.setAt || undefined,
       }
 
-      // Return undefined if status is empty
-      if (!customStatus.text && !customStatus.emoji && !customStatus.emoji_url) {
+      // Return undefined if status is empty (allow activity-only, e.g. "Playing" with no text)
+      const hasContent = !!(customStatus.text || customStatus.emoji || customStatus.emoji_url)
+      const hasActivity = customStatus.type && customStatus.type !== 'custom'
+      if (!hasContent && !hasActivity) {
         return undefined
       }
 

@@ -139,7 +139,7 @@
                     </div>
                   </div>
                   
-                  <!-- User Suggestion -->
+                  <!-- User Suggestion (display name with resolved emojis when we have profile id) -->
                   <div v-else class="suggest-item-content">
                     <Avatar 
                       v-if="suggestion.avatar || suggestion.avatar_url" 
@@ -149,7 +149,14 @@
                       size="sm"
                     />
                     <div class="suggest-text">
-                      <span class="suggest-name">{{ suggestion.display_name || suggestion.username }}</span>
+                      <span class="suggest-name">
+                        <DisplayName
+                          v-if="suggestion.id"
+                          :userId="suggestion.id"
+                          :fallback="suggestion.display_name || suggestion.username"
+                        />
+                        <template v-else>{{ suggestion.display_name || suggestion.username }}</template>
+                      </span>
                       <span v-if="suggestion.username && suggestion.display_name !== suggestion.username" class="suggest-username">@{{ suggestion.username }}</span>
                       <span v-if="suggestion.handle && suggestion.handle.includes('@')" class="suggest-domain">{{ suggestion.handle }}</span>
                     </div>
@@ -330,6 +337,7 @@ import GifIcon from '@/components/icons/Gif.vue';
 import EmojiUI from '@/components/EmojiUI.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 
