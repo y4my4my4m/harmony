@@ -86,7 +86,14 @@
             </template>
           </h4>
           <div class="notification-metadata">
-            <span class="username">{{ username }}</span>
+            <span class="username">
+              <DisplayName
+                v-if="actorUserId"
+                :user-id="actorUserId"
+                :fallback="username"
+              />
+              <template v-else>{{ username }}</template>
+            </span>
             <span class="separator">•</span>
             <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
             <span v-if="serverName" class="separator">•</span>
@@ -187,6 +194,7 @@ import { NotificationFormatter } from '@/services/NotificationFormatter'
 import type { Notification } from '@/types'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 
 // Icons - using dynamic imports for better performance
 const MarkReadIcon = defineAsyncComponent(() => import('@/components/icons/MarkReadIcon.vue'))
@@ -230,6 +238,14 @@ const formattedMessage = computed(() =>
 const username = computed(() => 
   NotificationFormatter.getUsername(props.notification)
 )
+
+// Actor profile id when available (for DisplayName so custom emojis render)
+const actorUserId = computed(() => {
+  const data = props.notification.data
+  if (!data) return null
+  const id = data.from_user_id ?? data.sender?.user_id ?? data.reactor?.user_id ?? data.reactor?.id ?? data.inviter?.user_id
+  return id && typeof id === 'string' ? id : null
+})
 
 const avatarUrl = computed(() => 
   NotificationFormatter.getAvatarUrl(props.notification)
