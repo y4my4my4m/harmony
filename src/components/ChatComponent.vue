@@ -12,6 +12,7 @@
     </div>
 
     <MessageDisplay 
+      ref="messageDisplayRef"
       data-chat-messages
       :messages="messages" 
       :isLoading="isLoading"
@@ -55,6 +56,7 @@
       @sendMessage="handleSendMessage"
       @update:replyMessageId="handleDontReply"
       @upload-status-changed="handleUploadStatusChanged"
+      @edit-last-message="handleEditLastMessage"
     />
     <!-- Media Picker (GIFs + Emoji) for message input -->
     <MediaPickerPopup
@@ -254,6 +256,7 @@
   // Media picker uses GIF trigger as default
   const mediaPickerTriggerElement = computed(() => gifTriggerElement.value || emojiTriggerElement.value);
   
+      const messageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(null);
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
       
@@ -394,6 +397,10 @@
       const handleDontReply = () => {
         replyToMessageId.value = '';
         replyToUserDisplayName.value = '';
+      };
+
+      const handleEditLastMessage = () => {
+        messageDisplayRef.value?.editLastOwnMessage();
       };
 
       // Thread state for draft threads

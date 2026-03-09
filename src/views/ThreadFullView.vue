@@ -106,6 +106,7 @@
 
       <!-- Use the same MessageDisplay component as the main chat -->
       <MessageDisplay
+        ref="threadMessageDisplayRef"
         v-if="messages.length > 0"
         :messages="messages"
         :current-user-id="currentUserId"
@@ -131,6 +132,7 @@
       @update:reply-message-id="handleCancelReply"
       @toggle-giphy="toggleGiphy"
       @toggle-emoji-list="toggleEmojiListForInput"
+      @edit-last-message="threadMessageDisplayRef?.editLastOwnMessage()"
     />
     
     <!-- Emoji Popup for reactions -->
@@ -207,6 +209,7 @@ const currentUserId = computed(() => authStore.session?.user?.id)
 const replyingToMessageId = ref<string>('')
 const replyingToUserName = ref<string>('')
 const messageInputRef = ref<any>(null)
+const threadMessageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(null)
 
 // Emoji popup state for reactions
 const reactionEmojiOpen = ref(false)

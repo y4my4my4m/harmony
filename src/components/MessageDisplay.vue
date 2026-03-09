@@ -1927,6 +1927,19 @@ const cancelEdit = () => {
   editableMessageContent.value = '';
 };
 
+const editLastOwnMessage = () => {
+  const currentProfileId = profileStore.profile?.id;
+  if (!currentProfileId) return;
+
+  for (let i = props.messages.length - 1; i >= 0; i--) {
+    const msg = props.messages[i];
+    if (msg.user_id === currentProfileId && canEditMessage(msg)) {
+      startEdit(msg);
+      return;
+    }
+  }
+};
+
 const deleteMessage = (messageId: string) => {
   hoveredMessageId.value = null;
   const thread = getThreadForMessage(messageId);
@@ -2321,6 +2334,8 @@ const openInviteModal = () => {
 const closeInviteModal = () => {
   showInviteModal.value = false;
 };
+
+defineExpose({ editLastOwnMessage });
 </script>
 
 <style scoped>

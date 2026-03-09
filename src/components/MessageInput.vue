@@ -137,6 +137,7 @@ interface Emits {
   (e: 'update:replyMessageId', value: string): void;
   (e: 'files-attached', files: FilePreviewData[]): void;
   (e: 'upload-status-changed', uploading: boolean): void;
+  (e: 'edit-last-message'): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -315,6 +316,13 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         return; // Auto-suggest handled the event
       }
       
+      // Up arrow on empty input → edit last own message (Discord/Telegram behavior)
+      if (event.key === 'ArrowUp' && !props.modelValue?.trim()) {
+        event.preventDefault();
+        emit('edit-last-message');
+        return;
+      }
+
       // Handle Enter key for sending messages (only if auto-suggest is not active)
       // On mobile, Enter creates a new line - user must tap the send button
       // On desktop, Enter sends (Shift+Enter for new line)
