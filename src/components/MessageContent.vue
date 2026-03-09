@@ -23,24 +23,7 @@
       :selectedIndex="autoSuggest.state.value.selectedIndex"
       :headerText="autoSuggest.headerText.value"
       @select="handleSuggestionSelect"
-    >
-      <template #default="{ suggestion }">
-        <!-- Custom rendering for different suggestion types -->
-        <div class="suggest-item-content">
-          <img 
-            v-if="suggestion.url || suggestion.avatar" 
-            :src="suggestion.url || suggestion.avatar" 
-            :alt="suggestion.name || suggestion.display_name"
-            class="suggest-icon"
-          />
-          <div class="suggest-text">
-            <span class="suggest-name">{{ suggestion.display_name || suggestion.name }}</span>
-            <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
-            <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
-          </div>
-        </div>
-      </template>
-    </AutoSuggest>
+    />
   </div>
   
   <!-- Display mode using unified renderer -->

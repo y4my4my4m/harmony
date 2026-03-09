@@ -1,18 +1,17 @@
 <template>
   <div class="unified-content">
-    <!-- Edit mode -->
+    <!-- Edit mode: RichTextEditor shows role/user mentions as colored pills -->
     <div v-if="editableMessageId === messageId" class="edit-container">
-      <textarea 
-        :id="`edit-input-${messageId}`"
-        v-model="localEditableContent" 
-        @keydown="handleKeyDown"
-        @input="handleInput"
+      <RichTextEditor
+        ref="editRichEditorRef"
         class="edit-textarea"
+        :model-value="localEditableContent"
         placeholder="Edit message"
-        ref="editTextarea"
-        rows="1"
-        @dragstart.prevent
-      ></textarea>
+        :min-height="44"
+        :max-height="200"
+        @update:model-value="handleRichEditorUpdate"
+        @keydown="handleKeyDown"
+      />
       <div class="edit-actions">
         <span class="edit-hint">
           escape to <span class="edit-action" @click="handleCancelEdit">cancel</span> • 
@@ -27,23 +26,7 @@
         :selectedIndex="autoSuggest.state.value.selectedIndex"
         :headerText="autoSuggest.headerText.value"
         @select="handleSuggestionSelect"
-      >
-        <template #default="{ suggestion }">
-          <div class="suggest-item-content">
-            <img 
-              v-if="suggestion.url || suggestion.avatar" 
-              :src="getEmojiUrl(suggestion.url, 64) || suggestion.avatar" 
-              :alt="suggestion.name || suggestion.display_name"
-              class="suggest-icon"
-            />
-            <div class="suggest-text">
-              <span class="suggest-name">{{ suggestion.display_name || suggestion.name }}</span>
-              <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
-              <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
-            </div>
-          </div>
-        </template>
-      </AutoSuggest>
+      />
     </div>
     
     <!-- Display mode -->
@@ -332,6 +315,7 @@ import type { EmbedPayload, MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
@@ -349,6 +333,7 @@ export default defineComponent({
     DisplayName,
     CodeBlock,
     ProviderEmbedSwitch,
+    RichTextEditor,
   },
   props: {
     content: {
@@ -399,7 +384,7 @@ export default defineComponent({
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
-    const editTextarea = ref<HTMLTextAreaElement | null>(null);
+    const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
     const decrypting = ref(false);
     
@@ -527,8 +512,24 @@ export default defineComponent({
       });
     });
     
-    // Auto-suggest setup
-    const autoSuggest = useAutoSuggest(editTextarea);
+    const getCurrentText = () => localEditableContent.value;
+    const updateText = (newText: string, cursorPosition?: number) => {
+      localEditableContent.value = newText;
+      emit('update:content', newText);
+      nextTick(() => {
+        const r = editRichEditorRef.value;
+        if (r) {
+          r.skipNextWatch = true;
+          r.renderContent(newText, true);
+          nextTick(() => {
+            if (r.focus) r.focus();
+            if (cursorPosition != null && r.setCursorPosition) r.setCursorPosition(cursorPosition);
+          });
+        }
+      });
+    };
+    // Auto-suggest setup (RichTextEditor ref + getCurrentText/updateText for insertions)
+    const autoSuggest = useAutoSuggest(editRichEditorRef, getCurrentText, updateText);
 
     // Helper functions
     const isImageUrl = (url: string): boolean => {
@@ -762,8 +763,8 @@ export default defineComponent({
         localEditableContent.value = newVal;
       }
       nextTick(() => {
-        if (editTextarea.value && props.editableMessageId === props.messageId) {
-          autoResizeTextarea();
+        if (editRichEditorRef.value && props.editableMessageId === props.messageId) {
+          autoResizeEditArea();
         }
       });
     });
@@ -772,39 +773,28 @@ export default defineComponent({
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
         nextTick(() => {
-          if (editTextarea.value) {
-            autoResizeTextarea();
-            editTextarea.value.focus();
-            const len = editTextarea.value.value.length;
-            editTextarea.value.setSelectionRange(len, len);
+          const r = editRichEditorRef.value;
+          if (r) {
+            autoResizeEditArea();
+            if (r.focus) r.focus();
+            const len = localEditableContent.value.length;
+            if (r.setCursorPosition) r.setCursorPosition(len);
           }
         });
       }
     });
 
-    // Auto-resize textarea based on content
-    const autoResizeTextarea = () => {
-      if (editTextarea.value) {
-        editTextarea.value.style.height = 'auto';
-        editTextarea.value.style.height = Math.min(editTextarea.value.scrollHeight, 200) + 'px';
-      }
+    const autoResizeEditArea = () => {
+      // RichTextEditor handles its own height; no-op for edit mode
     };
 
-    const handleInput = (event: Event) => {
-      const target = event.target as HTMLTextAreaElement;
-      const value = target.value;
-      const cursorPosition = target.selectionStart || 0;
-      
-      // Update local content
+    const handleRichEditorUpdate = (value: string) => {
       localEditableContent.value = value;
-      
-      // Emit the content update
       emit('update:content', value);
-      
-      // Handle auto-suggest
-      autoSuggest.handleInput(value, cursorPosition);
-      
-      autoResizeTextarea();
+      nextTick(() => {
+        const pos = editRichEditorRef.value?.getCursorPosition?.() ?? value.length;
+        autoSuggest.handleInput(value, pos);
+      });
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -830,21 +820,11 @@ export default defineComponent({
     };
 
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
-      if (!editTextarea.value) return;
-      
-      // Use the autoSuggest system's built-in selection method
+      if (!editRichEditorRef.value) return;
       const newValue = autoSuggest.selectSuggestion(suggestion);
       if (newValue !== localEditableContent.value) {
-        localEditableContent.value = newValue;
-        emit('update:content', newValue);
-        
-        nextTick(() => {
-          autoResizeTextarea();
-          // Keep focus on the textarea after suggestion selection
-          if (editTextarea.value) {
-            editTextarea.value.focus();
-          }
-        });
+        const cursorPosition = autoSuggest.state.value.triggerPosition + (suggestion.insertText?.length ?? 0);
+        updateText(newValue, cursorPosition);
       }
     };
 
@@ -960,13 +940,13 @@ export default defineComponent({
     return {
       getEmojiUrl,
       localEditableContent,
-      editTextarea,
+      editRichEditorRef,
       videoContainers,
-      handleSaveEdit, 
+      handleSaveEdit,
       handleCancelEdit,
       handleKeyDown,
-      handleInput,
-      autoResizeTextarea,
+      handleRichEditorUpdate,
+      autoResizeEditArea,
       autoSuggest,
       handleSuggestionSelect,
       imageLoadedState,

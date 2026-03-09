@@ -37,10 +37,10 @@
           </div>
           <Avatar
             v-else-if="suggestion.avatar"
-            :src="suggestion.avatar || suggestion.url"
+            :src="suggestion.avatar"
             :alt="suggestion.name || suggestion.display_name"
-            class="suggest-icon"
-            size="sm"
+            class="suggest-icon suggest-avatar"
+            size="xs"
           />
           <img
             v-else-if="suggestion.emoji && suggestion.url"
@@ -61,7 +61,7 @@
               <span v-else-if="suggestion.isRole" class="suggest-name role-name" :style="{ color: suggestion.roleColor || '#99AAB5' }">
                 @{{ (suggestion.display_name || suggestion.name || '').replace(/^@/, '') }}
               </span>
-              <span class="suggest-name" v-else-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
+              <DisplayName v-else-if="!suggestion.emoji && suggestion.id" class="suggest-name" :userId="suggestion.id" :fallback="suggestion.display_name || suggestion.name" :truncate="true" />
               <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
               <!-- Command description -->
               <span v-if="suggestion.isCommand && suggestion.description" class="suggest-description">
@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 
 // TYPE DEFINITIONS
 // These interfaces can be exported directly from <script setup>
@@ -243,6 +244,11 @@ watch(() => props.selectedIndex, (newIndex) => {
   width: 24px;
   height: 24px;
   object-fit: contain;
+}
+
+.suggest-avatar {
+  width: 24px !important;
+  height: 24px !important;
 }
 
 .native-emoji-icon {
