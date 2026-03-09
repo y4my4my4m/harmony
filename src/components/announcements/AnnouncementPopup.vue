@@ -36,8 +36,13 @@
             />
             <div class="card-footer">
               <span class="announcement-date">{{ formatDate(announcement.created_at) }}</span>
-              <span v-if="announcement.author_display_name" class="announcement-author">
-                — {{ announcement.author_display_name }}
+              <span v-if="announcement.author_id || announcement.author_display_name" class="announcement-author">
+                — <DisplayName
+                  v-if="announcement.author_id"
+                  :user-id="announcement.author_id"
+                  :fallback="announcement.author_display_name"
+                />
+                <template v-else>{{ announcement.author_display_name }}</template>
               </span>
               <button @click="markRead(announcement.id)" class="mark-read-btn">
                 {{ $t('announcements.markRead', 'Mark as read') }}
@@ -59,6 +64,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
+import { userDataService } from '@/services/userDataService'
+import DisplayName from '@/components/DisplayName.vue'
 
 const announcements = ref<Announcement[]>([])
 
@@ -97,6 +104,12 @@ const dismiss = () => {
 
 onMounted(async () => {
   announcements.value = await announcementService.getUnreadAnnouncements()
+  // Prime user cache so DisplayName can resolve custom emojis for authors
+  for (const a of announcements.value) {
+    if (a.author_id) {
+      userDataService.fetchUserProfile(a.author_id).catch(() => {})
+    }
+  }
 })
 </script>
 

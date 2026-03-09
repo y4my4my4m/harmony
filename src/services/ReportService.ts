@@ -30,6 +30,7 @@ export interface Report {
 
 export interface ReportWithDetails {
   id: string
+  reporter_id?: string
   reported_user_id: string | null
   reported_message_id: string | null
   reported_post_id: string | null
