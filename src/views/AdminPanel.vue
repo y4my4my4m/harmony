@@ -972,12 +972,20 @@
               <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
             </div>
             <div class="setting-group">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
-                <span class="toggle-slider"></span>
-                Allow Custom Emojis in Display Names
-              </label>
-              <span class="setting-hint">When off, emojis won't display in names and users can't add them.</span>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; gap: 10px; margin-bottom: 0;">
+                  <input 
+                    type="checkbox" 
+                    v-model="config.federation.allowCustomEmojisInDisplayNames"
+                    style="margin-right: 8px;"
+                  />
+                  <span class="toggle-slider" style="margin-right: 8px;"></span>
+                  <span style="white-space: normal;">Allow Custom Emojis in Display Names</span>
+                </label>
+              </div>
+              <span class="setting-hint" style="display: block; margin-left: 2.3em;">
+                When off, emojis won't display in names and users can't add them.
+              </span>
             </div>
             <div class="setting-row">
               <label class="toggle-label">

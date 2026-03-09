@@ -8,6 +8,7 @@
 import { computed, ref } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { useVisualTheme } from '@/composables/useVisualTheme'
 import { UserStatus, type DisplayNamePart } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
@@ -108,6 +109,10 @@ export function useUserData() {
     forceUpdate.value
     const instanceSettings = useInstanceSettingsStore()
     if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) {
+      return undefined
+    }
+    const theme = useVisualTheme()
+    if (theme.currentSettings.value?.showCustomEmojisInDisplayNames === false) {
       return undefined
     }
     return userDataService.getUser(userId)?.displayNameParts

@@ -849,7 +849,6 @@ class AdminService {
       const jsonbValue: any = value
 
       const { data, error } = await supabase.rpc('set_instance_config', {
-        p_admin_id: adminId,
         p_key: key,
         p_value: jsonbValue,
         p_description: description || null

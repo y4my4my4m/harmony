@@ -234,8 +234,9 @@ onUnmounted(() => {
 .modal-content {
   padding: 24px 32px;
   overflow-y: auto;
-  max-height: calc(90vh - 180px);
+  /* max-height: calc(90vh - 180px); */
   width: 100%;
+  height: auto;
   border-radius:0; /* cancels the shared css border-radius */
 }
 

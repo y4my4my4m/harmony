@@ -33,6 +33,8 @@ export interface VisualThemeSettings {
   highContrast: boolean
   reduceMotion: boolean
   screenReaderSupport: boolean
+  /** Show custom emojis in other users' display names. Instance must allow it too. */
+  showCustomEmojisInDisplayNames?: boolean
 }
 
 export interface ThemePreset {
@@ -166,6 +168,7 @@ const settings = ref<VisualThemeSettings>({
   highContrast: false,
   reduceMotion: false,
   screenReaderSupport: false,
+  showCustomEmojisInDisplayNames: true,
 })
 
 const isInitialized = ref(false)

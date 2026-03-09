@@ -355,6 +355,19 @@
           />
         </div>
       </div>
+
+      <div v-if="instanceSettings.settings.allowCustomEmojisInDisplayNames" class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.showCustomEmojisInDisplayNames') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.showCustomEmojisInDisplayNamesDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.showCustomEmojisInDisplayNames"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -474,6 +487,7 @@ import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
 import { useVisualTheme } from '@/composables/useVisualTheme'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { generateThemePalette, applyThemePalette, generatePreviewColors } from '@/utils/colorUtils'
 import { useEmojiPacks } from '@/services/emojiPackService'
 
@@ -498,6 +512,7 @@ const emit = defineEmits<{
 const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } = useFloatingVideo()
 const visualTheme = useVisualTheme()
 const { currentPackId, packs, setCurrentPack } = useEmojiPacks()
+const instanceSettings = useInstanceSettingsStore()
 
 // State
 const settings = ref({
@@ -519,6 +534,7 @@ const settings = ref({
   reduceMotion: false,
   screenReaderSupport: false,
   emojiPack: currentPackId.value as 'twemoji' | 'mutant' | 'native',
+  showCustomEmojisInDisplayNames: true,
 })
 
 // Computed preview colors for custom theme
@@ -813,6 +829,7 @@ onMounted(async () => {
     reduceMotion: currentSettings.reduceMotion,
     screenReaderSupport: currentSettings.screenReaderSupport,
     emojiPack: currentPackId.value as 'mutant' | 'native',
+    showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
   }
   originalSettings.value = { ...settings.value }
 })

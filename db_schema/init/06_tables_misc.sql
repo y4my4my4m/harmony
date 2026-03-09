@@ -528,6 +528,9 @@ CREATE TABLE IF NOT EXISTS public.instance_webrtc_settings (
     -- Federation
     allow_federated_voice boolean DEFAULT true,
     
+    -- Stage/voice limits
+    max_stage_listeners integer DEFAULT 100000 NOT NULL,
+    
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     
