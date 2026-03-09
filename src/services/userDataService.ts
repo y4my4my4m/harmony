@@ -14,6 +14,8 @@ import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { getSvgUrl, resolveEmoji, getTwemojiUrl } from '@/services/unifiedEmojiService'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 
 const EMOJI_SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/g
 
@@ -1715,9 +1717,8 @@ class UserDataService extends EventTarget {
     if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined
     EMOJI_SHORTCODE_REGEX.lastIndex = 0
 
-    let emojiCacheStore: any = null
+    let emojiCacheStore: ReturnType<typeof useEmojiCacheStore> | null = null
     try {
-      const { useEmojiCacheStore } = require('@/stores/useEmojiCache')
       emojiCacheStore = useEmojiCacheStore()
     } catch {
       return undefined
@@ -1742,7 +1743,28 @@ class UserDataService extends EventTarget {
           emoji: { id: emoji.id, name: emoji.name, url: emoji.url }
         })
       } else {
-        parts.push({ type: 'text', text: match[0] })
+        // Fallback: try unified emoji pack (native/twemoji/mutant) when not in server cache
+        let fallbackUrl: string | null = getSvgUrl(shortcode)
+        if (!fallbackUrl) {
+          try {
+            const resolved = resolveEmoji(shortcode)
+            if (resolved.display.type === 'svg' && resolved.display.content) {
+              fallbackUrl = resolved.display.content
+            } else if (resolved.display.type === 'native' && resolved.unicode) {
+              fallbackUrl = getTwemojiUrl(resolved.unicode)
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (fallbackUrl) {
+          parts.push({
+            type: 'emoji',
+            emoji: { id: shortcode, name: shortcode, url: fallbackUrl }
+          })
+        } else {
+          parts.push({ type: 'text', text: match[0] })
+        }
       }
       lastIndex = match.index + match[0].length
     }

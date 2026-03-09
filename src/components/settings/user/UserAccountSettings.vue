@@ -69,6 +69,7 @@
           />
           <AutoSuggest
             v-if="displayNameAutoSuggest.state.value.isActive && instanceSettings.settings.allowCustomEmojisInDisplayNames"
+            :isVisible="displayNameAutoSuggest.state.value.isActive"
             :suggestions="displayNameAutoSuggest.suggestions.value"
             :selected-index="displayNameAutoSuggest.state.value.selectedIndex"
             :position="displayNameAutoSuggest.state.value.position"
@@ -250,6 +251,7 @@ import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'
 import { userDataService } from '@/services/userDataService'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useToast } from 'vue-toastification'
 
 // Props
@@ -312,10 +314,13 @@ const hasChanges = computed(() => {
   // Note: username is excluded from changes - it cannot be edited until federation is fixed
 })
 
+const emojiCacheStore = useEmojiCacheStore()
 const previewDisplayNameParts = computed(() => {
   const dn = localProfile.value.display_name
   if (!dn) return undefined
   if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) return undefined
+  // Dependency on emoji cache so preview updates when emojis finish loading
+  emojiCacheStore.resolvedEmojis
   return userDataService.resolveDisplayNameParts(dn)
 })
 

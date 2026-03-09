@@ -173,8 +173,9 @@ export function useAutoSuggest(
   }
 
   // Get emoji suggestions (server emojis + unified emoji pack)
+  // Allow empty query so typing ":" alone shows initial emoji list
   const emojiSuggestions = computed((): SuggestionItem[] => {
-    if (!finalConfig.enableEmojis || state.value.triggerType !== 'emoji' || !state.value.query) {
+    if (!finalConfig.enableEmojis || state.value.triggerType !== 'emoji') {
       return [];
     }
     

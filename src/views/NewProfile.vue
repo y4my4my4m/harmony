@@ -104,13 +104,13 @@
                   type="text"
                   class="modern-input"
                   placeholder="How others will see you"
-                  maxlength="32"
+                  maxlength="50"
                   @input="validateDisplayName"
                 />
                 <div class="input-accent"></div>
               </div>
               <div class="input-feedback">
-                <span class="char-count">{{ displayName.length }}/32</span>
+                <span class="char-count">{{ displayName.length }}/50</span>
                 <span v-if="displayNameError" class="error-text">{{ displayNameError }}</span>
               </div>
             </div>
@@ -592,7 +592,7 @@ const formatUsername = (event: Event) => {
 const validateDisplayName = () => {
   if (displayName.value.trim().length < 1) {
     displayNameError.value = 'Display name is required';
-  } else if (displayName.value.trim().length > 32) {
+  } else if (displayName.value.trim().length > 50) {
     displayNameError.value = 'Display name is too long';
   } else {
     displayNameError.value = '';

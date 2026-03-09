@@ -150,10 +150,36 @@ export class ProfileService {
    */
   async createProfile(profileData: ProfileData & { auth_user_id: string }): Promise<Profile> {
     try {
-      // Create profile - database triggers will handle federation automatically
+      const allowEmojisInDisplayNames = getActivePinia()
+        ? useInstanceSettingsStore().settings.allowCustomEmojisInDisplayNames
+        : true
+
+      // Validate display name emoji limits
+      if (profileData.display_name) {
+        const emojiMatches = profileData.display_name.match(/:([a-zA-Z0-9_+-]+):/g)
+        if (emojiMatches && emojiMatches.length > 5) {
+          throw this.createError('INVALID_INPUT', 'Display name can have at most 5 custom emojis')
+        }
+        if (!allowEmojisInDisplayNames && emojiMatches && emojiMatches.length > 0) {
+          throw this.createError('INVALID_INPUT', 'Custom emojis in display names are disabled on this instance.')
+        }
+      }
+
+      // Pre-resolve display_name emojis for federation metadata
+      const finalData: any = { ...profileData }
+      if (profileData.display_name && allowEmojisInDisplayNames) {
+        const displayNameEmojis = await this.resolveDisplayNameEmojis(profileData.display_name)
+        if (displayNameEmojis.length > 0) {
+          finalData.federation_metadata = {
+            ...(finalData.federation_metadata || {}),
+            display_name_emojis: displayNameEmojis
+          }
+        }
+      }
+
       const { data: profile, error } = await supabase
         .from('profiles')
-        .insert([profileData])
+        .insert([finalData])
         .select('*')
         .single()
 
