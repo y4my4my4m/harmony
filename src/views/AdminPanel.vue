@@ -5015,7 +5015,7 @@ const handleAddInstance = () => {
 }
 
 .report-detail label {
-  display: block;
+  display: flex;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
