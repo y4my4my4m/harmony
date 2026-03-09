@@ -28,7 +28,8 @@
     <div class="user-info">
       <div class="name-section">
         <h3 class="display-name" :style="{ color: user.color || undefined }">
-          {{ displayName }}
+          <DisplayName v-if="user.id" :userId="user.id" :fallback="displayName" :truncate="true" />
+          <template v-else>{{ displayName }}</template>
           <Icon v-if="isVerified" name="verified" class="verified-badge" />
           <SupporterBadge v-if="user.id" :user-id="user.id" />
         </h3>
@@ -155,6 +156,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import Avatar from './Avatar.vue'
+import DisplayName from '../DisplayName.vue'
 import Icon from './Icon.vue'
 import SupporterBadge from './SupporterBadge.vue'
 import type { User, FederatedUser } from '@/types'

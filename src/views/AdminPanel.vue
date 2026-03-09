@@ -1331,7 +1331,37 @@
 
             <!-- Add Supporter -->
             <div class="add-supporter-form">
-              <input v-model="addSupporterSearch" class="cyber-input" placeholder="Username to add as supporter..." />
+              <div class="supporter-search-wrapper" style="position: relative; flex: 1; min-width: 100px;">
+                <input
+                  ref="supporterSearchInputRef"
+                  v-model="addSupporterSearch"
+                  class="cyber-input"
+                  placeholder="Username to add as supporter..."
+                  @input="onSupporterSearchInput"
+                  @keydown="onSupporterSearchKeydown"
+                  @focus="supporterSearchFocused = true"
+                  @blur="onSupporterSearchBlur"
+                  autocomplete="off"
+                />
+                <div
+                  v-if="supporterSearchFocused && supporterSuggestions.length > 0"
+                  class="supporter-suggestions"
+                >
+                  <div
+                    v-for="(s, idx) in supporterSuggestions"
+                    :key="s.id"
+                    class="supporter-suggestion-item"
+                    :class="{ selected: idx === supporterSelectedIdx }"
+                    @mousedown.prevent="selectSupporterSuggestion(s)"
+                  >
+                    <Avatar :src="s.avatar_url" :alt="s.username" size="xs" />
+                    <div class="supporter-suggestion-text">
+                      <DisplayName :userId="s.id" :fallback="s.display_name || s.username" :truncate="true" class="supporter-suggestion-name" />
+                      <span class="supporter-suggestion-handle">{{ s.handle }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <select v-model="addSupporterTierId" class="cyber-select" style="width: 140px;">
                 <option value="">No tier</option>
                 <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
@@ -1582,6 +1612,7 @@ import { announcementService, type Announcement } from '@/services/AnnouncementS
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { userDataService } from '@/services/userDataService'
+import { activityPubService } from '@/services/activityPubService'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -1663,9 +1694,15 @@ const editTierColor = ref('#5865f2')
 
 // Supporter CRUD
 const addSupporterSearch = ref('')
+const addSupporterSelectedUserId = ref<string | null>(null)
 const addSupporterTierId = ref('')
 const addSupporterAmount = ref<number>(0)
 const addSupporterPlatform = ref('')
+const supporterSearchInputRef = ref<HTMLInputElement | null>(null)
+const supporterSearchFocused = ref(false)
+const supporterSelectedIdx = ref(0)
+const supporterSuggestions = ref<Array<{ id: string; username: string; display_name: string; avatar_url?: string; handle: string; is_local: boolean }>>([])
+let supporterSearchTimeout: ReturnType<typeof setTimeout> | null = null
 const editingSupporterData = ref<Supporter | null>(null)
 const editSupporterTierId = ref('')
 const editSupporterAmount = ref<number>(0)
@@ -2363,20 +2400,147 @@ const deleteTier = async (tierId: string) => {
   }
 }
 
+// Supporter search & autocomplete
+const onSupporterSearchInput = () => {
+  addSupporterSelectedUserId.value = null
+  supporterSelectedIdx.value = 0
+  if (supporterSearchTimeout) clearTimeout(supporterSearchTimeout)
+  const q = addSupporterSearch.value.trim()
+  if (q.length < 2) {
+    supporterSuggestions.value = []
+    return
+  }
+  supporterSearchTimeout = setTimeout(async () => {
+    try {
+      const byKey = new Map<string, typeof supporterSuggestions.value[0]>()
+      const currentDomain = (import.meta.env.VITE_DOMAIN as string || '').toLowerCase()
+      const currentHost = currentDomain.split(':')[0]
+
+      // Domain is "ours" (localhost, 127.0.0.1, or matches instance)
+      const isOurDomain = (d: string | null | undefined) => {
+        if (!d) return true
+        const host = d.split(':')[0].toLowerCase()
+        return host === 'localhost' || host === '127.0.0.1' || host === currentHost
+      }
+
+      // Canonical key: our-instance users = username only, remote = username@domain
+      const canonicalKey = (username: string, domain?: string | null, isLocal?: boolean) => {
+        const un = username.toLowerCase()
+        if (isLocal || isOurDomain(domain)) return un
+        return `${un}@${(domain || '').toLowerCase()}`
+      }
+
+      // Normalize handle to always have leading @
+      const normalizeHandle = (handle: string) => {
+        const h = (handle || '').trim()
+        return h.startsWith('@') ? h : `@${h}`
+      }
+
+      const byId = new Set<string>()
+
+      // Local profiles first (preferred - has proper display_name/emoji resolution)
+      const { data: locals } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, domain')
+        .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
+        .limit(8)
+      if (locals) {
+        for (const u of locals) {
+          const isLocal = isOurDomain(u.domain)
+          const handle = isLocal ? `@${u.username}` : `@${u.username}@${u.domain}`
+          const key = canonicalKey(u.username, u.domain, isLocal)
+          byKey.set(key, {
+            id: u.id,
+            username: u.username,
+            display_name: u.display_name || u.username,
+            avatar_url: u.avatar_url,
+            handle,
+            is_local: isLocal,
+          })
+          byId.add(u.id)
+        }
+      }
+
+      // Federated users (skip if we already have them - local + RPC both hit profiles)
+      try {
+        const federated = await activityPubService.searchUsers(q, 6)
+        const localUsernames = new Set(Array.from(byKey.values()).filter(r => r.is_local).map(r => r.username.toLowerCase()))
+        for (const f of federated) {
+          const fid = f.id ?? (f as { user_id?: string }).user_id
+          if (fid && byId.has(fid)) continue
+          const isLocal = typeof f.is_local === 'boolean' ? f.is_local : isOurDomain(f.domain)
+          const key = canonicalKey(f.username, f.domain, isLocal)
+          if (byKey.has(key)) continue
+          if (localUsernames.has(f.username.toLowerCase())) continue
+          const rawHandle = f.handle || (isLocal ? `@${f.username}` : `@${f.username}@${f.domain || ''}`)
+          byKey.set(key, {
+            id: fid ?? f.id,
+            username: f.username,
+            display_name: f.display_name || f.username,
+            avatar_url: f.avatar_url,
+            handle: normalizeHandle(rawHandle),
+            is_local: isLocal,
+          })
+          if (fid) byId.add(fid)
+        }
+      } catch { /* federated search may not be available */ }
+
+      supporterSuggestions.value = Array.from(byKey.values()).slice(0, 8)
+    } catch (e) {
+      debug.error('Supporter search error:', e)
+    }
+  }, 250)
+}
+
+const selectSupporterSuggestion = (s: typeof supporterSuggestions.value[0]) => {
+  addSupporterSearch.value = s.handle
+  addSupporterSelectedUserId.value = s.id
+  supporterSuggestions.value = []
+  supporterSearchFocused.value = false
+}
+
+const onSupporterSearchKeydown = (e: KeyboardEvent) => {
+  const list = supporterSuggestions.value
+  if (!list.length) return
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    supporterSelectedIdx.value = (supporterSelectedIdx.value + 1) % list.length
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    supporterSelectedIdx.value = (supporterSelectedIdx.value - 1 + list.length) % list.length
+  } else if (e.key === 'Enter' && list.length > 0) {
+    e.preventDefault()
+    selectSupporterSuggestion(list[supporterSelectedIdx.value])
+  } else if (e.key === 'Escape') {
+    supporterSuggestions.value = []
+  }
+}
+
+const onSupporterSearchBlur = () => {
+  setTimeout(() => { supporterSearchFocused.value = false }, 150)
+}
+
 // Supporter CRUD
 const addNewSupporter = async () => {
   if (!addSupporterSearch.value) return
-  const { data: users } = await supabase.from('profiles').select('id').ilike('username', addSupporterSearch.value).limit(1)
-  if (!users?.length) {
-    toast.error('User not found')
-    return
+
+  let userId: string | undefined = addSupporterSelectedUserId.value ?? undefined
+  if (!userId) {
+    // Fallback: try to find by username
+    const { data: users } = await supabase.from('profiles').select('id').ilike('username', addSupporterSearch.value.replace(/^@/, '')).limit(1)
+    if (!users?.length) {
+      toast.error('User not found')
+      return
+    }
+    userId = users[0].id
   }
-  const userId = users[0].id
-  const success = await fundingService.addSupporter(userId, addSupporterTierId.value || undefined, addSupporterAmount.value || undefined, addSupporterPlatform.value || undefined)
+
+  const success = await fundingService.addSupporter(userId!, addSupporterTierId.value || undefined, addSupporterAmount.value || undefined, addSupporterPlatform.value || undefined)
   if (success) {
-    await adminService.logAdminAction({ action: 'supporter_add', targetType: 'supporter', targetId: userId, details: { username: addSupporterSearch.value } })
+    await adminService.logAdminAction({ action: 'supporter_add', targetType: 'supporter', targetId: userId!, details: { username: addSupporterSearch.value } })
     supporters.value = await fundingService.getSupporters()
     addSupporterSearch.value = ''
+    addSupporterSelectedUserId.value = null
     addSupporterTierId.value = ''
     addSupporterAmount.value = 0
     addSupporterPlatform.value = ''
@@ -5355,6 +5519,65 @@ const handleAddInstance = () => {
 .add-supporter-form .cyber-input {
   flex: 1;
   min-width: 100px;
+}
+
+.supporter-search-wrapper .cyber-input {
+  width: 100%;
+}
+
+.supporter-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #2f3136;
+  border: 1px solid #40444b;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.supporter-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.supporter-suggestion-item:hover,
+.supporter-suggestion-item.selected {
+  background: var(--harmony-primary);
+}
+
+.supporter-suggestion-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.supporter-suggestion-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.supporter-suggestion-handle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.supporter-suggestion-item.selected .supporter-suggestion-handle {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .edit-supporter-panel {

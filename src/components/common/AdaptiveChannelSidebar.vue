@@ -55,7 +55,15 @@
             @click="$emit('profile-click')"
           />
           <div class="user-info">
-            <h3 class="user-name">{{ currentUser?.display_name || currentUser?.username }}</h3>
+            <h3 class="user-name">
+              <DisplayName
+                v-if="currentUser?.id"
+                :userId="currentUser.id"
+                :fallback="currentUser?.display_name || currentUser?.username"
+                :truncate="true"
+              />
+              <template v-else>{{ currentUser?.display_name || currentUser?.username }}</template>
+            </h3>
             <p class="user-handle">{{ currentUserHandle }}</p>
           </div>
         </div>
@@ -125,6 +133,7 @@ import type { Server, Channel, Category, User } from '@/types';
 // I18n
 const { t } = useI18n();
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
 import ChannelSidebar from '@/components/ChannelSidebar.vue';
 import DMSidebar from '@/components/DMSidebar.vue';

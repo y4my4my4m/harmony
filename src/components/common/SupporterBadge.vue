@@ -25,7 +25,8 @@ const badgeStyle = computed(() => {
   if (!badge.value?.badge_color) return {}
   return {
     backgroundColor: `${badge.value.badge_color}20`,
-    borderColor: badge.value.badge_color,
+    // borderColor: badge.value.badge_color,
+    borderColor: 'transparent',
     color: badge.value.badge_color
   }
 })
@@ -43,7 +44,7 @@ onMounted(loadBadge)
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 4px;
+  padding: 6px 4px;
   border-radius: 4px;
   font-size: 12px;
   border: 1px solid;
