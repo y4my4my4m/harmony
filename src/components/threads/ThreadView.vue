@@ -145,6 +145,7 @@
             :placeholder-target="thread?.name || 'thread'"
             :reply-message-id="replyingToMessageId"
             :reply-user-display-name="replyingToUserName"
+            :reply-user-id="replyingToUserId"
             :giphy-open="giphyOpen"
             :emoji-list-open="emojiListOpen"
             :thread-id="props.threadId"
@@ -250,6 +251,7 @@ const { typingUsers } = useTypingIndicator(() => typingContext.value)
 // Reply state
 const replyingToMessageId = ref<string>('')
 const replyingToUserName = ref<string>('')
+const replyingToUserId = ref<string>('')
 const messageInputRef = ref<any>(null)
 const threadMessageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(null)
 
@@ -562,6 +564,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
+      replyingToUserId.value = ''
       // Scroll to bottom
       await nextTick()
       scrollToBottom()
@@ -736,6 +739,7 @@ const handleSendGif = async (gif: Gif) => {
       threadService.addMessageToCache(targetThreadId, newMessage)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
+      replyingToUserId.value = ''
       await nextTick()
       scrollToBottom()
     }
@@ -753,9 +757,10 @@ const handleSendEmojiToInput = (emoji: Emoji) => {
   messageText.value += `:${emoji.name}:`
 }
 
-const handleReplyingTo = (messageId: string, displayName?: string) => {
+const handleReplyingTo = (messageId: string, displayName?: string, userId?: string) => {
   // Set reply state
   replyingToMessageId.value = messageId
+  replyingToUserId.value = userId || ''
   
   if (displayName) {
     replyingToUserName.value = displayName
@@ -764,6 +769,7 @@ const handleReplyingTo = (messageId: string, displayName?: string) => {
     const replyMessage = messages.value.find(m => m.id === messageId)
     if (replyMessage) {
       replyingToUserName.value = getDisplayName(replyMessage.user_id).value
+      if (!replyingToUserId.value) replyingToUserId.value = replyMessage.user_id
     }
   }
 }
@@ -772,6 +778,7 @@ const handleCancelReply = (value: string) => {
   if (!value) {
     replyingToMessageId.value = ''
     replyingToUserName.value = ''
+    replyingToUserId.value = ''
   }
 }
 

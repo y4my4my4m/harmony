@@ -243,7 +243,7 @@ CREATE TABLE IF NOT EXISTS public.reactions (
     user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
     bot_id uuid,  -- For bot reactions
     
-    emoji_id uuid,
+    emoji_id uuid REFERENCES public.emojis(id) ON DELETE CASCADE,
     custom_emoji_content text,
     
     federation_status text DEFAULT 'pending'::text,

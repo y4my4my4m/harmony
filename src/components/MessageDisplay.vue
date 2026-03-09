@@ -2091,7 +2091,7 @@ const unreportMessage = (messageId: string) => {
 // Reply Logic
 const replyTo = (message: Message) => {
   const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
-  emit('replyingTo', message.id, displayName);
+  emit('replyingTo', message.id, displayName, message.user_id);
   hoveredMessageId.value = null;
 };
 

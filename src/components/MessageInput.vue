@@ -10,6 +10,7 @@
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
       :replyUserDisplayName="replyUserDisplayName"
+      :replyUserId="replyUserId"
       @update:replyMessageId="handleDontReply"
     />
     <FilePreview
@@ -107,6 +108,7 @@ interface Props {
   modelValue?: string;
   replyMessageId?: string;
   replyUserDisplayName?: string;
+  replyUserId?: string;
   channelName?: string;
   username?: string;
   channelId?: string;
@@ -120,6 +122,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   replyMessageId: '',
   replyUserDisplayName: '',
+  replyUserId: '',
 });
 
 // Dynamic placeholder target (channel or DM user)

@@ -746,7 +746,7 @@ class ThreadService {
             id,
             emoji_id,
             user_id,
-            emojis (
+            emojis!reactions_emoji_id_fkey (
               id,
               name,
               url

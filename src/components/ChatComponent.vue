@@ -47,6 +47,7 @@
       :emojiListOpen="emojiListOpen"
       :reply-message-id="replyToMessageId"
       :reply-user-display-name="replyToUserDisplayName"
+      :reply-user-id="replyToUserId"
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :channel-id="props.channelId"
@@ -206,6 +207,7 @@
   const selectedMessageId = ref('');
   const replyToMessageId = ref('');
   const replyToUserDisplayName = ref('');
+  const replyToUserId = ref('');
   const messageContent = ref('');
 
   // Draft persistence
@@ -387,16 +389,18 @@
         window.removeEventListener('harmony-command', handleSlashCommand);
       });
 
-      const replyingTo = (messageId: string, replyingTo: string) => {
+      const replyingTo = (messageId: string, displayName: string, userId?: string) => {
         if (messageId) {
           replyToMessageId.value = messageId;
-          replyToUserDisplayName.value = replyingTo;
+          replyToUserDisplayName.value = displayName;
+          replyToUserId.value = userId || '';
         }
       };
 
       const handleDontReply = () => {
         replyToMessageId.value = '';
         replyToUserDisplayName.value = '';
+        replyToUserId.value = '';
       };
 
       const handleEditLastMessage = () => {
@@ -655,6 +659,7 @@
           return;
         }
 
+        let didAttemptSend = false;
         try {
           const messageParts: MessagePart[] = [];
           
@@ -688,6 +693,7 @@
 
           // Send the message with all parts
           if (messageParts.length > 0) {
+            didAttemptSend = true;
             if (props.isDM) {
               // Emit event for DM messages to be handled by parent component
               // Use the replyMessageId parameter passed from MessageInput
@@ -707,7 +713,6 @@
             
             messageContent.value = '';
             if (draftKey.value) draftsStore.clearDraft(draftKey.value);
-            handleDontReply();
           }
         } catch (error: any) {
           debug.error('Error sending message:', error);
@@ -716,6 +721,8 @@
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
           }
+        } finally {
+          if (didAttemptSend) handleDontReply();
         }
       };
 

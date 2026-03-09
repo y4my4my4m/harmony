@@ -2,7 +2,14 @@
     <div class="attachedBars">
         <div class="replyBar">
             <div role="button" tabindex="0">
-                <div class="text-sm-normal">Replying to <span class="user_display_name">{{ replyUserDisplayName }}</span>
+                <div class="text-sm-normal">Replying to <span class="user_display_name">
+                    <DisplayName
+                        v-if="replyUserId"
+                        :user-id="replyUserId"
+                        :fallback="replyUserDisplayName"
+                    />
+                    <template v-else>{{ replyUserDisplayName }}</template>
+                </span>
                 </div>
             </div>
             <div class="actions">
@@ -15,11 +22,13 @@
 </template>
 
 <script setup lang="ts">
-import CloseIcon from '@/components/icons/Close.vue';
+import CloseIcon from '@/components/icons/Close.vue'
+import DisplayName from '@/components/DisplayName.vue'
 
 interface Props {
   replyMessageId: string
   replyUserDisplayName?: string
+  replyUserId?: string
 }
 
 withDefaults(defineProps<Props>(), {
