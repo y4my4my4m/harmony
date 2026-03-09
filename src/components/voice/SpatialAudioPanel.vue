@@ -182,7 +182,7 @@
         
         <!-- Username Label -->
         <div class="username-label">
-          {{ getUserProfile(participant.userId)?.display_name || getUserProfile(participant.userId)?.username || 'Unknown' }}
+          <DisplayName :userId="participant.userId" />
         </div>
         
         <!-- Distance Indicator (to self) -->
@@ -278,6 +278,7 @@ import { useUserData } from '@/composables/useUserData';
 import { spatialAudioService } from '@/services/spatialAudio';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 
 // =============================================================================
 // PROPS & EMITS

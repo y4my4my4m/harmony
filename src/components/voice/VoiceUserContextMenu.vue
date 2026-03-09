@@ -21,7 +21,7 @@
           size="sm"
         />
         <div class="user-info">
-          <span class="display-name">{{ displayName }}</span>
+          <span class="display-name"><DisplayName :userId="props.userState.userId" :fallback="displayName" /></span>
           <span class="user-info-status">{{ userStatus }}</span>
         </div>
       </div>
@@ -284,6 +284,7 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 
 interface Props {
   userState: UserMediaState;

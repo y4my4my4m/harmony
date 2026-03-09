@@ -9,7 +9,7 @@
       :class="{ minimized: isMinimized }"
     >
       <div class="pip-header">
-        <span class="pip-title">{{ participantName }}</span>
+        <span class="pip-title"><DisplayName v-if="pipParticipant" :userId="pipParticipant.userId" :fallback="participantName" :truncate="true" /></span>
         <div class="pip-controls">
           <button @click="toggleMinimize" class="pip-btn" title="Minimize">
             <Icon :name="isMinimized ? 'maximize-2' : 'minimize-2'" />
@@ -37,7 +37,7 @@
       @mousedown="startDrag"
     >
       <div class="pip-header" @mousedown.stop="startDrag">
-        <span class="pip-title">{{ participantName }}</span>
+        <span class="pip-title"><DisplayName v-if="pipParticipant" :userId="pipParticipant.userId" :fallback="participantName" :truncate="true" /></span>
         <div class="pip-controls">
           <button @click="toggleMinimize" class="pip-btn" title="Minimize">
             <Icon :name="isMinimized ? 'maximize-2' : 'minimize-2'" />
@@ -71,6 +71,7 @@ import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
+import DisplayName from '@/components/DisplayName.vue';
 
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserDisplayName } = useUserData();

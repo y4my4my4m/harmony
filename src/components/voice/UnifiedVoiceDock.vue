@@ -40,7 +40,7 @@
           </div>
         </div>
         <div class="user-details">
-          <span class="user-name">{{ currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User' }}</span>
+          <span class="user-name"><DisplayName v-if="currentUserId" :userId="currentUserId" :fallback="currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User'" :truncate="true" /></span>
           <span class="channel-name">
             {{ channelName }}
             <span class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
@@ -201,7 +201,7 @@
         <div class="mini-video-overlay">
           <span class="mini-video-label">
             <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'camera'" />
-            {{ activeVideoUserName }}
+            <DisplayName v-if="activeVideoUser" :userId="activeVideoUser.userId" :fallback="activeVideoUserName" />
           </span>
           <button
             class="mini-pip-btn"
@@ -334,6 +334,7 @@ import { useKeybinds } from '@/composables/useKeybinds';
 import { userStorage } from '@/utils/userScopedStorage';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import MicIcon from '@/components/icons/Mic.vue';
 import MicMutedIcon from '@/components/icons/MicMuted.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';

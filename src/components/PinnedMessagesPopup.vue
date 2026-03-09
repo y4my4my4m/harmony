@@ -52,7 +52,7 @@
                   />
                   <div class="message-info">
                     <div class="message-author" :style="{ color: getUserColorValue(message.user_id) }">
-                      {{ getUserDisplayName(message.user_id) }}
+                      <DisplayName :userId="message.user_id" :fallback="getUserDisplayName(message.user_id)" />
                     </div>
                     <div class="message-time">
                       {{ formatTimestamp(message.created_at) }}
@@ -97,6 +97,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useUserData } from '@/composables/useUserData'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
 

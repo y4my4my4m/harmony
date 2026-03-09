@@ -11,7 +11,7 @@
           :alt="getUserDisplayName(userId).value || 'User'"
           size="xs"
         />
-        <span class="user-name">{{ getUserDisplayName(userId).value }}</span>
+        <span class="user-name"><DisplayName :userId="userId" /></span>
       </div>
     </div>
   </div>
@@ -20,6 +20,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import { useUserData } from '@/composables/useUserData';
 
 interface Props {

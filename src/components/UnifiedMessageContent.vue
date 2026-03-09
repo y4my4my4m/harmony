@@ -294,26 +294,26 @@
             <span 
               class="system-username" 
               @click="$emit('show-user-profile', part.user.id, $event)"
-            >{{ part.user.display_name || part.user.username }}</span>!
+            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span>!
             <template v-if="part.initiated_by">
               They were invited by 
               <span 
                 class="system-username" 
                 @click="$emit('show-user-profile', part.initiated_by.id, $event)"
-              >{{ part.initiated_by.display_name || part.initiated_by.username }}</span>.
+              ><DisplayName :userId="part.initiated_by.id" :fallback="part.initiated_by.display_name || part.initiated_by.username" /></span>.
             </template>
           </template>
           <template v-else-if="part.event_type === 'leave'">
             <span 
               class="system-username" 
               @click="$emit('show-user-profile', part.user.id, $event)"
-            >{{ part.user.display_name || part.user.username }}</span> has left the server.
+            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span> has left the server.
           </template>
           <template v-else>
             <span 
               class="system-username" 
               @click="$emit('show-user-profile', part.user.id, $event)"
-            >{{ part.user.display_name || part.user.username }}</span> {{ part.event_type }}
+            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span> {{ part.event_type }}
           </template>
         </span>
       </template>
@@ -326,6 +326,7 @@ import { defineComponent, watch, ref, nextTick, reactive, onMounted } from 'vue'
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
@@ -341,6 +342,7 @@ export default defineComponent({
   name: 'UnifiedMessageContent',
   components: {
     AutoSuggest,
+    DisplayName,
     CodeBlock,
     ProviderEmbedSwitch,
   },
