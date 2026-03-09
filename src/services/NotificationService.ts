@@ -190,6 +190,30 @@ export class NotificationService {
   }
 
   /**
+   * Mark notification as unread
+   */
+  async markAsUnread(notificationId: string): Promise<boolean> {
+    try {
+      debug.log('🔄 Marking notification as unread:', notificationId)
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: false })
+        .eq('id', notificationId)
+
+      if (error) {
+        throw this.createError('UPDATE_FAILED', error.message, error)
+      }
+
+      debug.log('✅ Notification marked as unread')
+      return true
+    } catch (error) {
+      debug.error('❌ Failed to mark notification as unread:', error)
+      throw error
+    }
+  }
+
+  /**
    * Mark all notifications as read for user
    */
   async markAllAsRead(userId: string): Promise<boolean> {

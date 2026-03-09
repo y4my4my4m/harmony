@@ -44,7 +44,7 @@
                   size="md"
                   class="participant-avatar"
                 />
-                <span class="participant-name">{{ getUserDisplayName(participant.id).value }}</span>
+                <span class="participant-name"><DisplayName :userId="participant.id" /></span>
               </div>
             </div>
           </div>
@@ -77,6 +77,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import { useUserData } from '@/composables/useUserData'
 
 interface Participant {

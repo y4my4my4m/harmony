@@ -110,7 +110,7 @@
                   class="user-name" 
                   :style="{ color: role.color || getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -134,11 +134,14 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
-              <!-- Custom Status -->
-              <div 
-                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
-                class="user-custom-status"
-              >
+              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
+              <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
+                <ActivityIcon
+                  v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
+                  :type="getUserCustomStatus(user.id).value!.type"
+                  :size="14"
+                  class="status-activity-icon"
+                />
                 <img 
                   v-if="getUserCustomStatus(user.id).value?.emoji_url" 
                   :src="getUserCustomStatus(user.id).value?.emoji_url" 
@@ -148,9 +151,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -189,7 +190,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -213,11 +214,14 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
-              <!-- Custom Status -->
-              <div 
-                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
-                class="user-custom-status"
-              >
+              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
+              <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
+                <ActivityIcon
+                  v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
+                  :type="getUserCustomStatus(user.id).value!.type"
+                  :size="14"
+                  class="status-activity-icon"
+                />
                 <img 
                   v-if="getUserCustomStatus(user.id).value?.emoji_url" 
                   :src="getUserCustomStatus(user.id).value?.emoji_url" 
@@ -227,9 +231,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -268,7 +270,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -306,9 +308,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -347,7 +347,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -408,7 +408,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -426,35 +426,20 @@
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 </span>
               </div>
-              <!-- Custom Status -->
-              <div 
-                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
-                class="user-custom-status"
-              >
-                <img 
-                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
-                  class="status-emoji-img"
-                />
-                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
-                  {{ getUserCustomStatus(user.id).value?.emoji }}
-                </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
-              </div>
               <span 
                 v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
                 class="user-domain"
               >
                 {{ getUserDomain(user.id).value }}
               </span>
-              <!-- Custom Status -->
-              <div 
-                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
-                class="user-custom-status"
-              >
+              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
+              <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
+                <ActivityIcon
+                  v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
+                  :type="getUserCustomStatus(user.id).value!.type"
+                  :size="14"
+                  class="status-activity-icon"
+                />
                 <img 
                   v-if="getUserCustomStatus(user.id).value?.emoji_url" 
                   :src="getUserCustomStatus(user.id).value?.emoji_url" 
@@ -464,9 +449,7 @@
                 <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
                   {{ getUserCustomStatus(user.id).value?.emoji }}
                 </span>
-                <span v-if="getUserCustomStatus(user.id).value?.text" class="status-text">
-                  {{ getUserCustomStatus(user.id).value?.text }}
-                </span>
+                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
               </div>
             </div>
           </div>
@@ -505,7 +488,7 @@
                   class="user-name" 
                   :style="{ color: getUserColor(user.id).value || undefined }"
                 >
-                  {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+                  <DisplayName :user-id="user.id" :truncate="true" />
                 </span>
                 <span 
                   v-if="!isUserLocal(user.id).value" 
@@ -560,11 +543,14 @@ import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 import { useUserData } from '@/composables/useUserData';
 import { roleService, type ServerRole } from '@/services/RoleService';
+import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay';
+import ActivityIcon from '@/components/ActivityIcon.vue';
 
 // Props
 interface Props {
@@ -596,6 +582,16 @@ const {
   getUserCustomStatus,
   getUserProfile,
 } = useUserData();
+
+function getCustomStatusDisplay(userId: string): string {
+  return formatCustomStatusDisplay(getUserCustomStatus(userId).value);
+}
+
+function hasCustomStatusToShow(userId: string): boolean {
+  const s = getUserCustomStatus(userId).value;
+  if (!s) return false;
+  return !!(s.text || s.emoji || s.emoji_url || (s.type && s.type !== 'custom'));
+}
 
 const isUserInstanceAdmin = (userId: string) => computed(() => {
   const profile = getUserProfile(userId).value;
@@ -1128,10 +1124,14 @@ const closeInviteModal = () => {
 }
 
 .user-custom-status {
-  opacity: 0.5;
+  opacity: 0.9;
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.status-activity-icon {
+  flex-shrink: 0;
 }
 
 .status-emoji {

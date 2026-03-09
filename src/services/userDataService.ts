@@ -9,11 +9,15 @@
  */
 
 import { supabase } from '@/supabase'
-import { UserStatus, type UserData, type UserContext, type CustomUserStatus } from '@/types'
+import { UserStatus, type UserData, type UserContext, type CustomUserStatus, type DisplayNamePart } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { getSvgUrl, resolveEmoji, getTwemojiUrl, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+
+const EMOJI_SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/g
 
 /**
  * Detect if user is on a mobile device
@@ -62,6 +66,7 @@ class UserDataService extends EventTarget {
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
+  private customStatusExpiryTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
    * Initialize the service for a user
@@ -74,6 +79,12 @@ class UserDataService extends EventTarget {
     // IMPORTANT: Await cleanup to prevent race conditions with subscriptions
     await this.cleanup()
     this.currentUserId = userId
+
+    // Load unified emoji data before resolving display names so shortcodes and
+    // unicode emojis render correctly on first paint (uses IndexedDB cache, fast)
+    if (!unifiedEmojiLoaded.value) {
+      try { await loadEmojiData() } catch { /* non-critical */ }
+    }
     
     // Initialize current user
     await this.initializeCurrentUser(userId, username, avatarUrl, existingProfile)
@@ -192,8 +203,10 @@ class UserDataService extends EventTarget {
         setAt: status.set_at || status.setAt || undefined,
       }
 
-      // Return undefined if status is empty
-      if (!customStatus.text && !customStatus.emoji && !customStatus.emoji_url) {
+      // Return undefined if status is empty (allow activity-only, e.g. "Playing" with no text)
+      const hasContent = !!(customStatus.text || customStatus.emoji || customStatus.emoji_url)
+      const hasActivity = customStatus.type && customStatus.type !== 'custom'
+      if (!hasContent && !hasActivity) {
         return undefined
       }
 
@@ -316,7 +329,7 @@ class UserDataService extends EventTarget {
         debug.log('🔄 Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator')
+          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator, federation_metadata')
           .eq('id', userId)
           .single()
         profile = profileData
@@ -377,8 +390,20 @@ class UserDataService extends EventTarget {
           }
         }
         
-        // Parse custom status from database
+        // Parse custom status from database (returns undefined if expired)
         let customStatus = this.parseCustomStatus(profile.custom_status)
+        
+        // If DB has expired custom_status, clear it so the row stays clean
+        if (profile.custom_status && !customStatus && profile.id === userId) {
+          const raw = typeof profile.custom_status === 'string' ? JSON.parse(profile.custom_status) : profile.custom_status
+          const expiresAt = raw?.expires_at || raw?.expiresAt
+          if (expiresAt && new Date(expiresAt) < new Date()) {
+            try {
+              await supabase.rpc('clear_custom_status', { p_user_id: userId })
+              debug.log('🧹 Cleared expired custom status from database')
+            } catch (_) { /* non-critical */ }
+          }
+        }
         
         // For current user, try localStorage as backup if database doesn't have it
         if (!customStatus && profile.id === userId) {
@@ -404,17 +429,19 @@ class UserDataService extends EventTarget {
           }
         }
         
+        const currentDisplayName = profile.display_name || profile.username || username
+        const dnEmojis = this.extractDisplayNameEmojis(profile.federation_metadata)
         const userData: UserData = {
           id: profile.id,
           username: profile.username || username,
-          displayName: profile.display_name || profile.username || username,
+          displayName: currentDisplayName,
+          displayNameEmojis: dnEmojis,
+          displayNameParts: this.resolveDisplayNameParts(currentDisplayName, dnEmojis),
           avatarUrl: profile.avatar_url || avatarUrl,
           bannerUrl: profile.banner_url,
           bio: profile.bio,
           color: profile.color,
           domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-          // Default to true for local users - is_local defaults to true in DB
-          // Check: is_local explicitly set, OR no domain (local), OR domain matches our instance
           isLocal: profile.is_local ?? (
             !profile.domain || 
             profile.domain === import.meta.env.VITE_DOMAIN
@@ -1073,9 +1100,9 @@ class UserDataService extends EventTarget {
     // Update our local user data if we have it
     const userData = this.users.get(userId)
     if (userData) {
-      // Update all profile fields that might have changed
       if (updatedProfile.display_name !== undefined) {
         userData.displayName = updatedProfile.display_name
+        userData.displayNameParts = this.resolveDisplayNameParts(updatedProfile.display_name, userData.displayNameEmojis)
       }
       if (updatedProfile.avatar_url !== undefined) {
         userData.avatarUrl = updatedProfile.avatar_url
@@ -1133,9 +1160,9 @@ class UserDataService extends EventTarget {
     // Update our local user data if we have it
     const userData = this.users.get(userId)
     if (userData) {
-      // Update profile fields that were broadcast
       if (profileUpdates.displayName !== undefined) {
         userData.displayName = profileUpdates.displayName
+        userData.displayNameParts = this.resolveDisplayNameParts(profileUpdates.displayName, userData.displayNameEmojis)
       }
       if (profileUpdates.avatarUrl !== undefined) {
         userData.avatarUrl = profileUpdates.avatarUrl
@@ -1202,29 +1229,32 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator')
+        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator, federation_metadata')
         .in('id', missingUserIds)
       
       if (profiles) {
         profiles.forEach((profile: any) => {
+          const dn = profile.display_name || profile.username || 'Unknown'
+          const dnEmojis = this.extractDisplayNameEmojis(profile.federation_metadata)
           const userData: UserData = {
             id: profile.id,
             username: profile.username || 'Unknown',
-            displayName: profile.display_name || profile.username || 'Unknown',
+            displayName: dn,
+            displayNameEmojis: dnEmojis,
+            displayNameParts: this.resolveDisplayNameParts(dn, dnEmojis),
             avatarUrl: profile.avatar_url,
             bannerUrl: profile.banner_url,
             bio: profile.bio,
             color: profile.color,
             domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-            // Default to true for local users - check if domain matches our instance
             isLocal: profile.is_local ?? (
               !profile.domain || 
               profile.domain === import.meta.env.VITE_DOMAIN
             ),
             status: profile.status ?? UserStatus.Offline,
             customStatus: this.parseCustomStatus(profile.custom_status),
-            isOnline: false, // Will be updated by presence
-            isMobile: false, // Will be updated by presence
+            isOnline: false,
+            isMobile: false,
             lastSeen: profile.updated_at || new Date().toISOString(),
             lastHeartbeat: new Date().toISOString(),
             lastCacheUpdate: new Date().toISOString(),
@@ -1418,12 +1448,28 @@ class UserDataService extends EventTarget {
     
     debug.log('🎭 Setting custom status:', customStatus?.text || '(clearing)')
     
+    // Clear any existing expiry timer
+    if (this.customStatusExpiryTimer) {
+      clearTimeout(this.customStatusExpiryTimer)
+      this.customStatusExpiryTimer = null
+    }
+    
     // Update local data
     userData.customStatus = customStatus
     userData.lastCacheUpdate = new Date().toISOString()
     
     // Save to localStorage for persistence
     this.saveCustomStatusToLocalStorage(customStatus)
+    
+    // Schedule client-side clear when expiresAt is reached (no pg_cron; scale-friendly)
+    if (customStatus?.expiresAt) {
+      const expiresAtMs = new Date(customStatus.expiresAt).getTime()
+      const delay = Math.max(0, expiresAtMs - Date.now())
+      this.customStatusExpiryTimer = setTimeout(() => {
+        this.customStatusExpiryTimer = null
+        this.clearCustomStatus().catch((err) => debug.warn('⚠️ Auto-clear custom status failed:', err))
+      }, delay)
+    }
     
     // Persist to database for federation
     try {
@@ -1584,8 +1630,10 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
     
-    // Update local data immediately for instant UI feedback
-    if (profileData.displayName !== undefined) userData.displayName = profileData.displayName
+    if (profileData.displayName !== undefined) {
+      userData.displayName = profileData.displayName
+      userData.displayNameParts = this.resolveDisplayNameParts(profileData.displayName, userData.displayNameEmojis)
+    }
     if (profileData.avatarUrl !== undefined) userData.avatarUrl = profileData.avatarUrl
     if (profileData.bannerUrl !== undefined) userData.bannerUrl = profileData.bannerUrl
     if (profileData.bio !== undefined) userData.bio = profileData.bio
@@ -1700,6 +1748,132 @@ class UserDataService extends EventTarget {
   }
   
   /**
+   * Extract display_name_emojis from federation_metadata.
+   * Normalizes to { id, name, url } so display names render for users not in cache (e.g. server card owner).
+   */
+  private extractDisplayNameEmojis(federationMetadata: any): Array<{ id: string; name: string; url: string }> | undefined {
+    if (!federationMetadata) return undefined
+    try {
+      const meta = typeof federationMetadata === 'string' ? JSON.parse(federationMetadata) : federationMetadata
+      if (Array.isArray(meta.display_name_emojis) && meta.display_name_emojis.length > 0) {
+        return meta.display_name_emojis.map((e: any) => {
+          const name = (e.name || '').replace(/:/g, '')
+          return { id: e.id || e.name || name || '', name, url: e.url || '' }
+        }).filter((e: { name: string; url: string }) => e.name && e.url)
+      }
+    } catch { /* ignore */ }
+    return undefined
+  }
+
+  /**
+   * Resolve display name shortcodes into structured parts.
+   * Priority: pinnedEmojis (from federation_metadata) > emoji cache > unified emoji pack.
+   * Called once per profile load/update — not on every render.
+   */
+  resolveDisplayNameParts(displayName: string, pinnedEmojis?: Array<{ id: string; name: string; url: string }>): DisplayNamePart[] | undefined {
+    if (!displayName) return undefined
+
+    EMOJI_SHORTCODE_REGEX.lastIndex = 0
+    if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined
+    EMOJI_SHORTCODE_REGEX.lastIndex = 0
+
+    // Build a name->emoji map from pinned emojis for O(1) lookups
+    const pinnedMap = new Map<string, { id: string; name: string; url: string }>()
+    if (pinnedEmojis) {
+      for (const e of pinnedEmojis) {
+        pinnedMap.set(e.name, e)
+      }
+    }
+
+    let emojiCacheStore: ReturnType<typeof useEmojiCacheStore> | null = null
+    try {
+      emojiCacheStore = useEmojiCacheStore()
+    } catch { /* Pinia not ready */ }
+
+    const parts: DisplayNamePart[] = []
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+
+    while ((match = EMOJI_SHORTCODE_REGEX.exec(displayName)) !== null) {
+      const shortcode = match[1]
+
+      if (match.index > lastIndex) {
+        parts.push({ type: 'text', text: displayName.substring(lastIndex, match.index) })
+      }
+
+      // 1. Pinned emoji from federation_metadata (exact match, cross-user safe; id may be missing from AP)
+      const pinned = pinnedMap.get(shortcode)
+      if (pinned) {
+        parts.push({ type: 'emoji', emoji: { id: pinned.id || pinned.name || '', name: pinned.name, url: pinned.url } })
+      }
+      // 2. Emoji cache (custom server emojis the viewer has access to)
+      else if (emojiCacheStore) {
+        const entries = emojiCacheStore.nameIndex.get(shortcode)
+        const emoji = entries?.[0]?.emoji
+        if (emoji) {
+          parts.push({ type: 'emoji', emoji: { id: emoji.id, name: emoji.name, url: emoji.url } })
+        } else {
+          this.resolveUnifiedFallback(shortcode, parts, match[0])
+        }
+      }
+      // 3. Unified emoji pack fallback
+      else {
+        this.resolveUnifiedFallback(shortcode, parts, match[0])
+      }
+
+      lastIndex = match.index + match[0].length
+    }
+
+    if (lastIndex < displayName.length) {
+      parts.push({ type: 'text', text: displayName.substring(lastIndex) })
+    }
+
+    const hasEmoji = parts.some(p => p.type === 'emoji')
+    return hasEmoji ? parts : undefined
+  }
+
+  private resolveUnifiedFallback(shortcode: string, parts: DisplayNamePart[], rawText: string): void {
+    let fallbackUrl: string | null = null
+    try {
+      fallbackUrl = getSvgUrl(shortcode)
+      if (!fallbackUrl) {
+        const resolved = resolveEmoji(shortcode)
+        if (resolved.display.type === 'svg' && resolved.display.content) {
+          fallbackUrl = resolved.display.content
+        } else if (resolved.display.type === 'native' && resolved.unicode && resolved.unicode !== shortcode) {
+          // Only call getTwemojiUrl if unicode is an actual emoji character, not the shortcode text echoed back
+          fallbackUrl = getTwemojiUrl(resolved.unicode)
+        }
+      }
+    } catch { /* ignore */ }
+    if (fallbackUrl) {
+      parts.push({ type: 'emoji', emoji: { id: shortcode, name: shortcode, url: fallbackUrl } })
+    } else {
+      parts.push({ type: 'text', text: rawText })
+    }
+  }
+
+  /**
+   * Re-resolve display name parts for all cached users.
+   * Called when the emoji cache updates (emoji renamed/deleted/added).
+   */
+  reResolveAllDisplayNames(): void {
+    let changed = false
+    for (const [userId, userData] of this.users) {
+      const newParts = this.resolveDisplayNameParts(userData.displayName, userData.displayNameEmojis)
+      const hadParts = !!userData.displayNameParts
+      const hasParts = !!newParts
+      if (hadParts !== hasParts || JSON.stringify(userData.displayNameParts) !== JSON.stringify(newParts)) {
+        userData.displayNameParts = newParts
+        changed = true
+      }
+    }
+    if (changed) {
+      this.emitEvent('user-updated', { reason: 'emoji-cache-changed' })
+    }
+  }
+
+  /**
    * Refresh global presence - now a no-op
    * 
    * NOTE: This used to re-track on route changes, but that caused churn.
@@ -1729,6 +1903,11 @@ class UserDataService extends EventTarget {
       clearTimeout(timeout)
     }
     this.presenceSyncTimeouts.clear()
+    
+    if (this.customStatusExpiryTimer) {
+      clearTimeout(this.customStatusExpiryTimer)
+      this.customStatusExpiryTimer = null
+    }
     
     // Unsubscribe from all contexts
     for (const context of this.contexts.values()) {

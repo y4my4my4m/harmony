@@ -541,7 +541,7 @@
               />
               <div class="user-info">
                 <div class="user-name">
-                  {{ user.display_name || user.username }}
+                  <DisplayName :user-id="user.id" :fallback="user.display_name || user.username" />
                   <span v-if="user.is_suspended" class="badge suspended">Suspended</span>
                   <span v-if="user.is_admin" class="badge admin">Admin</span>
                   <span v-if="user.is_moderator && !user.is_admin" class="badge moderator">Mod</span>
@@ -658,12 +658,18 @@
               <div class="report-users">
                 <div class="report-reporter">
                   <Avatar :src="report.reporter_avatar_url" :alt="report.reporter_username" size="xs" />
-                  <span>{{ report.reporter_display_name || report.reporter_username }}</span>
+                  <span>
+                    <DisplayName v-if="report.reporter_id" :user-id="(report.reporter_id ?? undefined)" :fallback="(report.reporter_display_name || report.reporter_username) ?? undefined" />
+                    <template v-else>{{ report.reporter_display_name || report.reporter_username }}</template>
+                  </span>
                 </div>
                 <span class="report-arrow">&#8594;</span>
-                <div class="report-reported" v-if="report.reported_user_username">
-                  <Avatar :src="report.reported_user_avatar_url" :alt="report.reported_user_username" size="xs" />
-                  <span>{{ report.reported_user_display_name || report.reported_user_username }}</span>
+                <div class="report-reported" v-if="report.reported_user_id || report.reported_user_username">
+                  <Avatar :src="report.reported_user_avatar_url" :alt="report.reported_user_username ?? undefined" size="xs" />
+                  <span>
+                    <DisplayName v-if="report.reported_user_id" :user-id="(report.reported_user_id ?? undefined)" :fallback="(report.reported_user_display_name || report.reported_user_username) ?? undefined" />
+                    <template v-else>{{ report.reported_user_display_name || report.reported_user_username }}</template>
+                  </span>
                 </div>
               </div>
               <div class="report-reason">{{ report.reason }}</div>
@@ -722,6 +728,11 @@
                   rows="2"
                   @click.stop
                 ></textarea>
+                <label class="toggle-label report-show-resolver" title="If checked, the reporter will see who resolved this (default off for harassment/backlash prevention)">
+                  <input type="checkbox" v-model="reportShowResolver" @click.stop />
+                  <span class="toggle-slider"></span>
+                  <span>Show my name to reporter</span>
+                </label>
                 <div class="report-action-buttons">
                   <button
                     v-if="report.status === 'pending'"
@@ -959,6 +970,14 @@
               <label>Max Custom Emojis per Server</label>
               <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
               <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
+            </div>
+            <div class="setting-group">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
+                <span class="toggle-slider"></span>
+                Allow Custom Emojis in Display Names
+              </label>
+              <span class="setting-hint">When off, emojis won't display in names and users can't add them.</span>
             </div>
             <div class="setting-row">
               <label class="toggle-label">
@@ -1291,7 +1310,10 @@
               <div v-for="supporter in supporters" :key="supporter.id" class="supporter-item">
                 <Avatar :src="supporter.user?.avatar_url" :alt="supporter.user?.username" size="sm" />
                 <div class="supporter-info">
-                  <span class="supporter-name">{{ supporter.user?.display_name || supporter.user?.username }}</span>
+                  <span class="supporter-name">
+                    <DisplayName v-if="supporter.user_id" :user-id="supporter.user_id" :fallback="supporter.user?.display_name || supporter.user?.username" />
+                    <template v-else>{{ supporter.user?.display_name || supporter.user?.username }}</template>
+                  </span>
                   <span class="supporter-meta">
                     {{ supporter.tier?.name || 'No tier' }}
                     <template v-if="supporter.amount"> &middot; {{ supporter.amount }}</template>
@@ -1324,7 +1346,7 @@
 
           <!-- Edit Supporter Modal (inline) -->
           <div v-if="editingSupporterData" class="funding-section edit-supporter-panel">
-            <h3>Edit Supporter: {{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</h3>
+            <h3>Edit Supporter: <DisplayName v-if="editingSupporterData.user_id" :user-id="editingSupporterData.user_id" :fallback="editingSupporterData.user?.display_name || editingSupporterData.user?.username" /><template v-else>{{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</template></h3>
             <div class="funding-form-row">
               <div class="funding-field">
                 <label>Tier</label>
@@ -1350,7 +1372,7 @@
 
           <!-- Record Donation Modal (inline) -->
           <div v-if="recordDonationSupporter" class="funding-section edit-supporter-panel">
-            <h3>Record Donation for {{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</h3>
+            <h3>Record Donation for <DisplayName v-if="recordDonationSupporter.user_id" :user-id="recordDonationSupporter.user_id" :fallback="recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username" /><template v-else>{{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</template></h3>
             <div class="funding-form-row">
               <div class="funding-field">
                 <label>Amount</label>
@@ -1397,7 +1419,10 @@
             <div v-if="donationHistory.length > 0" class="donations-list">
               <div v-for="donation in donationHistory" :key="donation.id" class="donation-item">
                 <Avatar v-if="donation.user" :src="donation.user.avatar_url" :alt="donation.user.username" size="xs" />
-                <span class="donation-user" v-if="donation.user">{{ donation.user.display_name || donation.user.username }}</span>
+                <span class="donation-user" v-if="donation.user">
+                  <DisplayName v-if="donation.user_id" :user-id="donation.user_id" :fallback="donation.user.display_name || donation.user.username" />
+                  <template v-else>{{ donation.user.display_name || donation.user.username }}</template>
+                </span>
                 <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
                 <span class="donation-date">{{ formatDate(donation.donated_at) }}</span>
                 <span v-if="donation.platform" class="donation-platform">{{ donation.platform }}</span>
@@ -1471,7 +1496,7 @@
           <div class="modal-header">
             <h3>
               <Icon name="server" :size="20" />
-              Servers for {{ selectedUserForServers?.display_name || selectedUserForServers?.username }}
+              Servers for <DisplayName v-if="selectedUserForServers?.id" :user-id="selectedUserForServers.id" :fallback="selectedUserForServers?.display_name || selectedUserForServers?.username" /><template v-else>{{ selectedUserForServers?.display_name || selectedUserForServers?.username }}</template>
             </h3>
             <button @click="closeServersModal" class="close-btn">
               <Icon name="close" :size="20" />
@@ -1544,6 +1569,7 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { supabase } from '@/supabase'
@@ -1555,6 +1581,7 @@ import { trendingService } from '@/services/TrendingService'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
+import { userDataService } from '@/services/userDataService'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -1595,6 +1622,7 @@ const pendingReportsCount = ref(0)
 const activeReportFilter = ref<string>('all')
 const expandedReportId = ref<string | null>(null)
 const reportResolutionNote = ref('')
+const reportShowResolver = ref(false)
 const reportFilters = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
@@ -1803,6 +1831,7 @@ const config = ref({
     maxPostLength: 500,
     retryAttempts: 3,
     maxCustomEmojisPerServer: 0,
+    allowCustomEmojisInDisplayNames: true,
     enableOutbound: true,
     enableInbound: true
   },
@@ -2132,6 +2161,10 @@ const loadUsers = async () => {
     )
     users.value = result.users
     userPagination.value.total = result.total
+    // Prime user cache so DisplayName can resolve custom emojis in admin list
+    if (result.users.length > 0) {
+      userDataService.ensureUsersLoaded(result.users.map((u) => u.id)).catch(() => {})
+    }
   } catch (error) {
     debug.error('Failed to load users:', error)
     users.value = []
@@ -2448,6 +2481,11 @@ const loadReports = async () => {
     const statusParam = activeReportFilter.value === 'all' ? null : activeReportFilter.value
     const result = await reportService.getReports({ status: statusParam })
     reports.value = result.reports
+    const ids = result.reports
+      .flatMap((r) => [r.reporter_id, r.reported_user_id].filter(Boolean) as string[])
+    if (ids.length > 0) {
+      userDataService.ensureUsersLoaded(ids).catch(() => {})
+    }
   } catch (error) {
     debug.error('Failed to load reports:', error)
   }
@@ -2460,10 +2498,12 @@ const loadPendingReportsCount = async () => {
 const toggleReportExpand = (id: string) => {
   expandedReportId.value = expandedReportId.value === id ? null : id
   reportResolutionNote.value = ''
+  reportShowResolver.value = false
 }
 
 const updateReport = async (reportId: string, status: 'investigating' | 'resolved' | 'dismissed') => {
-  const success = await reportService.updateReportStatus(reportId, status, reportResolutionNote.value || undefined)
+  const options = (status === 'resolved' || status === 'dismissed') ? { showResolver: reportShowResolver.value } : undefined
+  const success = await reportService.updateReportStatus(reportId, status, reportResolutionNote.value || undefined, options)
   if (success) {
     toast.success(`Report ${status}`)
     reportResolutionNote.value = ''
@@ -2546,7 +2586,7 @@ const suspendReportedUser = async (report: ReportWithDetails) => {
   const reason = prompt('Suspension reason:')
   if (!reason) return
   try {
-    await adminService.moderateUser(report.reported_user_id, 'suspend', reason)
+    await adminService.moderateUser(report.reported_user_id, 'suspend', reason, authStore.session?.user?.id || '')
     toast.success(`User ${report.reported_user_display_name || report.reported_user_username} suspended`)
     await updateReport(report.id, 'resolved')
     await loadUsers()
@@ -2769,6 +2809,7 @@ const saveConfig = async () => {
     await adminService.setInstanceConfig('max_post_length', config.value.federation.maxPostLength, userId)
     await adminService.setInstanceConfig('federation_retry_attempts', config.value.federation.retryAttempts, userId)
     await adminService.setInstanceConfig('max_custom_emojis_per_server', config.value.federation.maxCustomEmojisPerServer ?? 0, userId)
+    await adminService.setInstanceConfig('allow_custom_emojis_in_display_names', config.value.federation.allowCustomEmojisInDisplayNames, userId)
 
     // Save WebRTC settings
     await adminService.updateWebRTCSettings({
@@ -4974,7 +5015,7 @@ const handleAddInstance = () => {
 }
 
 .report-detail label {
-  display: block;
+  display: flex;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;

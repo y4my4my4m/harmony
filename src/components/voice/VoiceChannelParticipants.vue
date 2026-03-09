@@ -12,7 +12,7 @@
           size="xs"
           :class="{ 'speaking': participant.isSpeaking }"
         />
-        <span class="participant-name">{{ getUserDisplayName(participant.userId).value }}</span>
+        <span class="participant-name"><DisplayName :userId="participant.userId" /></span>
         <div class="participant-status">
           <span v-if="participant.isMuted" class="status-icon muted" title="Muted">🔇</span>
           <span v-if="participant.isDeafened" class="status-icon deafened" title="Deafened">🔇</span>
@@ -28,6 +28,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import { useUserData } from '@/composables/useUserData';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import type { UserMediaState } from '@/services/unifiedWebRTC';

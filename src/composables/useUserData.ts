@@ -7,7 +7,8 @@
 
 import { computed, ref } from 'vue'
 import { userDataService } from '@/services/userDataService'
-import { UserStatus } from '@/types'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { UserStatus, type DisplayNamePart } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 
@@ -96,6 +97,20 @@ export function useUserData() {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
     return user?.displayName || user?.username || 'Unknown User'
+  })
+
+  /**
+   * Get pre-resolved display name parts (with inline emoji data).
+   * Returns undefined when display name has no custom emojis,
+   * or when instance disables custom emojis in display names.
+   */
+  const getUserDisplayNameParts = (userId: string) => computed<DisplayNamePart[] | undefined>(() => {
+    forceUpdate.value
+    const instanceSettings = useInstanceSettingsStore()
+    if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) {
+      return undefined
+    }
+    return userDataService.getUser(userId)?.displayNameParts
   })
   
   /**
@@ -589,6 +604,7 @@ export function useUserData() {
     getUserAvatarUrl,
     getUserBannerUrl,
     getUserDisplayName,
+    getUserDisplayNameParts,
     getUserStatus,
     getUserStatusText,
     getUserColor,

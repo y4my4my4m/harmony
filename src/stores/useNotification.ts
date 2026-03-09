@@ -7,6 +7,7 @@ import { NotificationFormatter } from '@/services/NotificationFormatter'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
 import { authContextService } from '@/services/AuthContextService'
+import { userDataService } from '@/services/userDataService'
 import { debug } from '@/utils/debug'
 import type { 
   Notification, 
@@ -474,6 +475,14 @@ export const useNotificationStore = defineStore('notification', {
           this.notifications.push(...(data || []))
         }
 
+        // Prime user cache so NotificationItem DisplayName can resolve custom emojis
+        const actorIds = (data || []).flatMap((n: Notification) => {
+          const d = n.data
+          const id = d?.from_user_id ?? d?.sender?.user_id ?? d?.reactor?.user_id ?? d?.reactor?.id ?? d?.inviter?.user_id
+          return id && typeof id === 'string' ? [id] : []
+        })
+        if (actorIds.length) userDataService.ensureUsersLoaded([...new Set(actorIds)]).catch(() => {})
+
         this.updateUnreadCount()
         this.lastFetchedAt = new Date()
 
@@ -516,6 +525,14 @@ export const useNotificationStore = defineStore('notification', {
       } else {
         this.notifications.push(...(data || []))
       }
+
+      // Prime user cache so NotificationItem DisplayName can resolve custom emojis
+      const actorIds = (data || []).flatMap((n: Notification) => {
+        const d = n.data
+        const id = d?.from_user_id ?? d?.sender?.user_id ?? d?.reactor?.user_id ?? d?.reactor?.id ?? d?.inviter?.user_id
+        return id && typeof id === 'string' ? [id] : []
+      })
+      if (actorIds.length) userDataService.ensureUsersLoaded([...new Set(actorIds)]).catch(() => {})
 
       this.updateUnreadCount()
       this.lastFetchedAt = new Date()
@@ -1008,14 +1025,33 @@ export const useNotificationStore = defineStore('notification', {
           this.updateUnreadCount()
         }
 
-        // Use NotificationService for consistent state management
         await services.notifications.markAsRead(notificationId)
       } catch (error) {
         debug.error('❌ Failed to mark notification as read:', error)
         
-        // Revert optimistic update on error
         if (notification) {
           notification.is_read = false
+          this.updateUnreadCount()
+        }
+        throw error
+      }
+    },
+
+    async markAsUnread(notificationId: string) {
+      const notification = this.notifications.find(n => n.id === notificationId)
+      
+      try {
+        if (notification) {
+          notification.is_read = false
+          this.updateUnreadCount()
+        }
+
+        await services.notifications.markAsUnread(notificationId)
+      } catch (error) {
+        debug.error('❌ Failed to mark notification as unread:', error)
+        
+        if (notification) {
+          notification.is_read = true
           this.updateUnreadCount()
         }
         throw error

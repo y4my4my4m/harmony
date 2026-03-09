@@ -13,7 +13,7 @@
         @click="viewProfile(author)"
         :title="`Reblogged by ${author.display_name || author.username}`"
       >
-        {{ author.display_name || author.username }} reblogged
+        <DisplayName :userId="author.id" :fallback="author.display_name || author.username" /> reblogged
       </div>
       <time 
         :datetime="post.created_at" 
@@ -40,7 +40,7 @@
           />
           <div class="author-details">
             <div class="author-name" @click="viewProfile(displayAuthor)">
-              {{ displayAuthor.display_name || displayAuthor.username }}
+              <DisplayName :userId="displayAuthor.id" :fallback="displayAuthor.display_name || displayAuthor.username" />
               <span v-if="authorInstanceBadge === 'admin'" class="instance-badge admin" title="Instance Admin">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 ADMIN
@@ -134,7 +134,7 @@
                 size="sm"
               />
               <div class="quoted-author-info">
-                <span class="quoted-author-name">{{ displayAuthor.display_name || displayAuthor.username }}</span>
+                <span class="quoted-author-name"><DisplayName :userId="displayAuthor.id" :fallback="displayAuthor.display_name || displayAuthor.username" /></span>
                 <span class="quoted-author-handle">@{{ displayAuthor.username }}</span>
                 <time class="quoted-post-time">{{ formatRelativeTime(originalCreatedAt) }}</time>
               </div>
@@ -259,7 +259,7 @@
               size="sm"
             />
             <div class="reply-parent-author-info">
-              <span class="reply-parent-name">{{ displayReplyContext.author.display_name || displayReplyContext.author.username }}</span>
+              <span class="reply-parent-name"><DisplayName :userId="displayReplyContext.author.id" :fallback="displayReplyContext.author.display_name || displayReplyContext.author.username" /></span>
               <span class="reply-parent-handle">@{{ displayReplyContext.author.username }}</span>
               <time class="reply-parent-time" v-if="displayReplyContext.created_at">
                 {{ formatRelativeTime(displayReplyContext.created_at) }}
@@ -506,7 +506,9 @@
           :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
           class="tooltip-emoji"
         />
-        <span class="emoji-name">:{{ formatEmojiName(tooltip.emoji?.name) }}:</span>
+        <span v-else-if="tooltip.emoji?.unicode" class="tooltip-emoji native-emoji">{{ tooltip.emoji.unicode }}</span>
+        <span v-if="tooltip.emoji?.url && tooltip.emoji?.name" class="emoji-name">:{{ formatEmojiName(tooltip.emoji.name) }}:</span>
+        <span v-else-if="tooltip.emoji?.unicode && tooltipEmojiShortcode" class="emoji-name">:{{ tooltipEmojiShortcode }}:</span>
       </div>
       <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
         <Avatar 
@@ -514,7 +516,14 @@
           size="xs"
           class="tooltip-avatar"
         />
-        <span class="tooltip-username" v-html="renderDisplayNameWithEmojis(user.displayName, user.displayNameEmojis)"></span>
+        <span class="tooltip-username">
+          <DisplayName
+            v-if="user.displayNameParts"
+            :parts="user.displayNameParts"
+            :fallback="user.displayName"
+          />
+          <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
+        </span>
         <span v-if="user.isRemote && formatDomain(user.domain)" class="tooltip-domain">@{{ formatDomain(user.domain) }}</span>
       </div>
     </div>
@@ -540,6 +549,9 @@ import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
+import DisplayName from '@/components/DisplayName.vue';
+import { userDataService } from '@/services/userDataService';
+import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
@@ -625,6 +637,11 @@ const tooltip = ref({
 });
 const tooltipTimer = ref<NodeJS.Timeout | null>(null);
 
+const tooltipEmojiShortcode = computed(() => {
+  const unicode = tooltip.value.emoji?.unicode
+  if (!unicode) return ''
+  return unicodeToShortcode(unicode) || ''
+})
 
 const handleTimeClick = () => {
   // Navigate to PostDetail (the actual route) instead of PostView (which redirects)
@@ -1284,13 +1301,27 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
     isRemote: false
   }));
   
-  // Add remote reactors from federated fetch
+  // Add remote reactors from federated fetch. Use parts for display name so custom emojis
+  // render (synthetic id is not in user cache, so DisplayName cannot look up by userId).
   const remoteUsers = (reaction.reactors || []).map((reactor: any) => {
     debug.log('🎯 Remote reactor:', reactor);
+    const displayName = reactor.display_name || reactor.username || 'Unknown';
+    const rawEmojis = reactor.display_name_emojis || [];
+    const pinnedEmojis = rawEmojis
+      .map((e: any) => ({
+        id: e.id || e.name || '',
+        name: (e.name || '').replace(/:/g, ''),
+        url: e.url || ''
+      }))
+      .filter((e: any) => e.name && e.url);
+    const displayNameParts = userDataService.resolveDisplayNameParts(
+      displayName,
+      pinnedEmojis.length ? pinnedEmojis : undefined
+    );
     return {
       id: `${reactor.username}@${reactor.domain}`,
-      displayName: reactor.display_name || reactor.username || 'Unknown',
-      displayNameEmojis: reactor.display_name_emojis,
+      displayName,
+      displayNameParts,
       avatarUrl: reactor.avatar_url || '',
       userColor: '#888888',
       isRemote: true,
@@ -1310,7 +1341,8 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
       y: event.clientY, 
       emoji: {
         name: reaction.emoji_name,
-        url: reaction.emoji_url
+        url: reaction.emoji_url,
+        unicode: reaction.custom_emoji_content
       }
     };
   }, 500);

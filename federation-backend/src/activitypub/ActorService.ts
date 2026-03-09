@@ -327,9 +327,8 @@ router.post(
       if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
         federationMetadata.bio_emojis = profileData.bio_emojis;
       }
-      // Display name can also have emojis - use same emoji set
-      if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
-        federationMetadata.display_name_emojis = profileData.bio_emojis;
+      if (profileData.display_name_emojis && profileData.display_name_emojis.length > 0) {
+        federationMetadata.display_name_emojis = profileData.display_name_emojis;
       }
       if (Object.keys(federationMetadata).length > 0) {
         profileRecord.federation_metadata = JSON.stringify(federationMetadata);

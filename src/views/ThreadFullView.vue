@@ -73,7 +73,7 @@
         <div class="message-content">
           <div class="message-header">
             <span class="username" :style="{ color: getColor(thread.parent_message.user_id).value }">
-              {{ getDisplayName(thread.parent_message.user_id).value }}
+              <DisplayName :userId="thread.parent_message.user_id" />
             </span>
             <span class="timestamp">{{ formatDate(thread.parent_message.created_at) }}</span>
           </div>
@@ -166,6 +166,7 @@ import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'

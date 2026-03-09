@@ -61,7 +61,8 @@
           <!-- Direct Chat Title -->
           <template v-else>
             <h2 class="conversation-name">
-              {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
+              <DisplayName v-if="conversation.other_user?.id" :user-id="conversation.other_user.id" :fallback="conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...'" />
+              <template v-else>{{ conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}</template>
             </h2>
             <div class="conversation-status">
               <span v-if="hasActiveCallNotJoined" class="call-status">
@@ -279,6 +280,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import MessageSearchModal from '@/components/search/MessageSearchModal.vue'

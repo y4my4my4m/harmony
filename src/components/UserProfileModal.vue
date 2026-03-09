@@ -75,7 +75,7 @@
           <div class="profile-info">
             <div class="name-section">
               <h1 class="display-name" :style="{ color: userColor }">
-                {{ displayName }}
+                <DisplayName :userId="user.id" :fallback="displayName" :color="userColor" />
                 <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
                 </span>
@@ -348,6 +348,7 @@ import KickBanModal from './moderation/KickBanModal.vue'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 import SupporterBadge from './common/SupporterBadge.vue'
+import DisplayName from './DisplayName.vue'
 
 const { t } = useI18n()
 

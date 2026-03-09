@@ -143,7 +143,7 @@
     <!-- User Info -->
     <div class="user-info">
       <div class="username" :class="{ speaking: isSpeaking }">
-        {{ displayName }}
+        <DisplayName :user-id="props.userState.userId" :fallback="displayName" :truncate="true" />
       </div>
       <div class="harmony-voice-card-user-status">
         {{ userStatus }}
@@ -180,6 +180,7 @@ import { debug } from '@/utils/debug'
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
+import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';

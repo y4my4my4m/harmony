@@ -9,9 +9,11 @@
  * PRESERVED: All existing APIs and return types
  */
 
+import { getActivePinia } from 'pinia'
 import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'
 import { authContextService } from './AuthContextService'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import type { Profile } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -84,10 +86,36 @@ export class ProfileService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // Update profile - database triggers will handle federation automatically
+      const allowEmojisInDisplayNames = getActivePinia()
+        ? useInstanceSettingsStore().settings.allowCustomEmojisInDisplayNames
+        : true
+
+      if (updates.display_name && !allowEmojisInDisplayNames && /:([a-zA-Z0-9_+-]+):/.test(updates.display_name)) {
+        throw this.createError('INVALID_INPUT', 'Custom emojis in display names are disabled on this instance. Please remove emoji shortcodes from your display name.')
+      }
+
+      // Pre-resolve display_name emojis for federation (only when allowed)
+      const finalUpdates: any = { ...updates }
+      if (updates.display_name) {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('federation_metadata')
+          .eq('id', context.profileId)
+          .single()
+        const rawMeta = existing?.federation_metadata
+        const meta = (typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta) || {}
+
+        if (allowEmojisInDisplayNames) {
+          const displayNameEmojis = await this.resolveDisplayNameEmojis(updates.display_name)
+          finalUpdates.federation_metadata = { ...meta, display_name_emojis: displayNameEmojis }
+        } else {
+          finalUpdates.federation_metadata = { ...meta, display_name_emojis: [] }
+        }
+      }
+
       const { data: profile, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(finalUpdates)
         .eq('id', context.profileId)
         .select('*')
         .single()
@@ -98,7 +126,7 @@ export class ProfileService {
 
       // Refresh userDataService cache
       try {
-        await userDataService.refreshCurrentUser()
+        await userDataService.fetchUserProfile(context.profileId, true)
       } catch (refreshError) {
         debug.warn('⚠️ Failed to refresh userDataService cache:', refreshError)
       }
@@ -115,10 +143,35 @@ export class ProfileService {
    */
   async createProfile(profileData: ProfileData & { auth_user_id: string }): Promise<Profile> {
     try {
-      // Create profile - database triggers will handle federation automatically
+      const allowEmojisInDisplayNames = getActivePinia()
+        ? useInstanceSettingsStore().settings.allowCustomEmojisInDisplayNames
+        : true
+
+      // Validate display name emoji limits
+      if (profileData.display_name) {
+        const emojiMatches = profileData.display_name.match(/:([a-zA-Z0-9_+-]+):/g)
+        if (emojiMatches && emojiMatches.length > 5) {
+          throw this.createError('INVALID_INPUT', 'Display name can have at most 5 custom emojis')
+        }
+        if (!allowEmojisInDisplayNames && emojiMatches && emojiMatches.length > 0) {
+          throw this.createError('INVALID_INPUT', 'Custom emojis in display names are disabled on this instance.')
+        }
+      }
+
+      // Pre-resolve display_name emojis for federation metadata
+      const finalData: any = { ...profileData }
+      if (profileData.display_name && allowEmojisInDisplayNames) {
+        const displayNameEmojis = await this.resolveDisplayNameEmojis(profileData.display_name)
+        if (displayNameEmojis.length > 0) {
+          const rawMeta = finalData.federation_metadata
+          const existingMeta = (typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta) || {}
+          finalData.federation_metadata = { ...existingMeta, display_name_emojis: displayNameEmojis }
+        }
+      }
+
       const { data: profile, error } = await supabase
         .from('profiles')
-        .insert([profileData])
+        .insert([finalData])
         .select('*')
         .single()
 
@@ -126,11 +179,11 @@ export class ProfileService {
         throw this.createError('CREATE_FAILED', 'Failed to create profile', error)
       }
 
-      // Initialize userDataService
+      // Ensure userDataService has the new profile in cache
       try {
-        await userDataService.refreshCurrentUser()
+        await userDataService.fetchUserProfile(profile.id, true)
       } catch (initError) {
-        debug.warn('⚠️ Failed to initialize userDataService:', initError)
+        debug.warn('⚠️ Failed to refresh userDataService cache:', initError)
       }
 
       return profile
@@ -261,6 +314,27 @@ export class ProfileService {
       debug.error('❌ Failed to check username availability:', error)
       throw error
     }
+  }
+
+  /**
+   * Resolve :shortcode: patterns in a display name to emoji data for federation.
+   * Returns an array of { name, url, id } for each resolved custom emoji.
+   */
+  private async resolveDisplayNameEmojis(displayName: string): Promise<Array<{ name: string; url: string; id: string }>> {
+    const regex = /:([a-zA-Z0-9_+-]+):/g
+    const shortcodes: string[] = []
+    let match: RegExpExecArray | null
+    while ((match = regex.exec(displayName)) !== null) {
+      shortcodes.push(match[1])
+    }
+    if (shortcodes.length === 0) return []
+
+    const { data: emojis } = await supabase
+      .from('emojis')
+      .select('id, name, url')
+      .in('name', shortcodes)
+
+    return (emojis || []).map((e: any) => ({ name: e.name, url: e.url, id: e.id }))
   }
 
   private createError(code: string, message: string, details?: any): Error {

@@ -126,7 +126,9 @@ export interface UserData {
   id: string
   username: string
   displayName: string
-  
+  displayNameParts?: DisplayNamePart[] // Pre-resolved display name with inline emojis
+  displayNameEmojis?: Array<{ id: string; name: string; url: string }> // Pinned emojis from federation_metadata
+
   // Profile data
   avatarUrl?: string
   bannerUrl?: string
@@ -148,12 +150,16 @@ export interface UserData {
   isMobile: boolean  // Whether user is on mobile device
   lastSeen: string
   lastHeartbeat: string
-  
+
   // Cache metadata
   isLocal: boolean // true if loaded from local cache, false if fetched from server
   lastCacheUpdate: string // When we last fetched/updated this data in our local cache
   source: 'database' | 'presence' | 'cache'
 }
+
+export type DisplayNamePart =
+  | { type: 'text'; text: string }
+  | { type: 'emoji'; emoji: { id: string; name: string; url: string } }
 
 /**
  * Custom user status (Discord-style "Playing X", "Listening to Y", etc.)

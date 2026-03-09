@@ -54,7 +54,7 @@
             size="sm"
             class="owner-avatar"
           />
-          <span class="owner-name">{{ ownerName }}</span>
+          <span class="owner-name"><DisplayName :userId="server.owner" :fallback="ownerName" :truncate="true" /></span>
         </div>
       </div>
     </div>
@@ -95,6 +95,7 @@ import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
 import ServerIcon from './ServerIcon.vue'
 

@@ -586,6 +586,25 @@ export class ActivityProcessor {
         updateData.custom_status = profileData.custom_status;
       }
 
+      // Update federation_metadata with emoji data
+      const federationMetadata: any = {};
+      if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
+        federationMetadata.bio_emojis = profileData.bio_emojis;
+      }
+      if (profileData.display_name_emojis && profileData.display_name_emojis.length > 0) {
+        federationMetadata.display_name_emojis = profileData.display_name_emojis;
+      }
+      if (Object.keys(federationMetadata).length > 0) {
+        // Merge with existing federation_metadata
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('federation_metadata')
+          .eq('federated_id', object.id)
+          .maybeSingle();
+        const existingMeta = existing?.federation_metadata ? (typeof existing.federation_metadata === 'string' ? JSON.parse(existing.federation_metadata) : existing.federation_metadata) : {};
+        updateData.federation_metadata = JSON.stringify({ ...existingMeta, ...federationMetadata });
+      }
+
       await supabase
         .from('profiles')
         .update(updateData)

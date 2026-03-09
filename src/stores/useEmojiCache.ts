@@ -465,6 +465,11 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
       this.resolvedEmojis = resolved;
       debug.log('🔄 Rebuilt resolved emojis for', Object.keys(resolved).length, 'servers');
+
+      // Re-resolve display name emojis now that cache is updated
+      import('@/services/userDataService').then(({ userDataService }) => {
+        userDataService.reResolveAllDisplayNames()
+      }).catch(() => { /* userDataService not ready yet */ })
     },
 
     // Handle real-time emoji updates

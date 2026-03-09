@@ -181,6 +181,47 @@ export function profileToActor(profile: any): any {
     actor.discoverable = profile.federation_discoverable;
   }
 
+  // Custom emojis in display name and bio (AP Emoji tags + Misskey-style emojis object)
+  const emojiTags: any[] = [];
+  const misskeyEmojis: Record<string, string> = {};
+
+  const addProfileEmojis = (emojis: Array<{ name: string; url: string; id?: string }>) => {
+    for (const emoji of emojis) {
+      if (!emoji.name || !emoji.url) continue;
+      const shortcode = emoji.name.includes(':') ? emoji.name : `:${emoji.name}:`;
+      const emojiUrl = emoji.url.startsWith('http') ? emoji.url : `https://${domain}${emoji.url}`;
+      emojiTags.push({
+        type: 'Emoji',
+        id: emoji.id ? `https://${domain}/emojis/${emoji.id}` : emojiUrl,
+        name: shortcode,
+        icon: {
+          type: 'Image',
+          mediaType: 'image/png',
+          url: emojiUrl,
+        },
+      });
+      misskeyEmojis[emoji.name.replace(/:/g, '')] = emojiUrl;
+    }
+  };
+
+  // Read pre-resolved emojis from federation_metadata
+  if (profile.federation_metadata) {
+    const meta = typeof profile.federation_metadata === 'string'
+      ? JSON.parse(profile.federation_metadata)
+      : profile.federation_metadata;
+    if (meta.display_name_emojis && Array.isArray(meta.display_name_emojis)) {
+      addProfileEmojis(meta.display_name_emojis);
+    }
+    if (meta.bio_emojis && Array.isArray(meta.bio_emojis)) {
+      addProfileEmojis(meta.bio_emojis);
+    }
+  }
+
+  if (emojiTags.length > 0) {
+    actor.tag = [...(actor.tag || []), ...emojiTags];
+    actor.emojis = misskeyEmojis;
+  }
+
   // Harmony extension: profile color
   if (profile.color) {
     actor['harmony:profileColor'] = profile.color;

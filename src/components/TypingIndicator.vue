@@ -6,36 +6,26 @@
       <span></span>
     </div>
     <span class="typing-text">
-      <!-- Single user: "Luna is typing..." -->
+      <!-- Single user: name appears once via DisplayName, then static suffix -->
       <template v-if="typingUsers.length === 1">
-        <span 
-          class="typing-username"
-        >
-          {{ getUserDisplayName(typingUsers[0].user_id).value }}
+        <span class="typing-username">
+          <DisplayName :user-id="typingUsers[0].user_id" />
         </span>
-        <span class="typing-suffix"> {{ t('message.typing.single', { name: getUserDisplayName(typingUsers[0].user_id).value }) }}</span>
+        <span class="typing-suffix">{{ t('message.typing.single') }}</span>
       </template>
-      <!-- Two users: "Luna and Bob are typing..." -->
+      <!-- Two users: first name via DisplayName, second in i18n (no duplicate first name) -->
       <template v-else-if="typingUsers.length === 2">
-        <span 
-          class="typing-username"
-        >
-          {{ getUserDisplayName(typingUsers[0].user_id).value }}
+        <span class="typing-username">
+          <DisplayName :user-id="typingUsers[0].user_id" />
         </span>
-        <span class="typing-suffix">{{ t('message.typing.two', { 
-          name1: getUserDisplayName(typingUsers[0].user_id).value, 
-          name2: getUserDisplayName(typingUsers[1].user_id).value 
-        }) }}</span>
+        <span class="typing-suffix">{{ t('message.typing.two', { name2: getUserDisplayName(typingUsers[1].user_id).value }) }}</span>
       </template>
-      <!-- Three users: "Luna, Bob and Simon are typing..." -->
+      <!-- Three users: first name via DisplayName, rest in i18n -->
       <template v-else-if="typingUsers.length === 3">
-        <span 
-          class="typing-username"
-        >
-          {{ getUserDisplayName(typingUsers[0].user_id).value }}
+        <span class="typing-username">
+          <DisplayName :user-id="typingUsers[0].user_id" />
         </span>
         <span class="typing-suffix">{{ t('message.typing.three', { 
-          name1: getUserDisplayName(typingUsers[0].user_id).value, 
           name2: getUserDisplayName(typingUsers[1].user_id).value, 
           name3: getUserDisplayName(typingUsers[2].user_id).value 
         }) }}</span>
@@ -52,6 +42,7 @@
 import { useI18n } from 'vue-i18n'
 import type { TypingUser } from '@/services/TypingIndicatorService'
 import { useUserData } from '@/composables/useUserData'
+import DisplayName from '@/components/DisplayName.vue'
 
 interface Props {
   typingUsers: TypingUser[]
