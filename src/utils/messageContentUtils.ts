@@ -22,6 +22,9 @@ export function messagePartsToMarkdown(parts: MessagePart[]): string {
       
       case 'mention':
         return part.mention || '';
+
+      case 'role_mention':
+        return part.roleId ? `@role:${part.roleId}` : '';
       
       case 'url':
         return part.url || '';
@@ -30,7 +33,6 @@ export function messagePartsToMarkdown(parts: MessagePart[]): string {
         return part.url || '';
 
       case 'file':
-        // For files, return a placeholder that won't be parsed as markdown
         return `[${part.fileType || 'file'}: attachment]`;
       
       default:
@@ -61,6 +63,9 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
       
       case 'mention':
         return part.mention || '';
+
+      case 'role_mention':
+        return part.roleName ? `@${part.roleName}` : '';
       
       case 'url':
         return part.url || '';

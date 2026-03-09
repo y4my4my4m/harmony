@@ -112,24 +112,19 @@ export default defineComponent({
       nextTick(() => {
         if (editTextarea.value && props.editableMessageId === props.messageId) {
           autoResizeTextarea();
-          editTextarea.value.focus();
-          // Remove the .select() call to prevent automatic text selection
-          // This allows users to position cursor where they want to edit
         }
       });
     });
 
-    // Watch for edit mode changes
+    // Watch for edit mode changes — place cursor at end on initial open
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
         nextTick(() => {
           if (editTextarea.value) {
             autoResizeTextarea();
             editTextarea.value.focus();
-            // Remove the .select() call here too
-            // Position cursor at the end of the text instead
-            const textLength = editTextarea.value.value.length;
-            editTextarea.value.setSelectionRange(textLength, textLength);
+            const len = editTextarea.value.value.length;
+            editTextarea.value.setSelectionRange(len, len);
           }
         });
       }

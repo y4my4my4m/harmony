@@ -79,7 +79,7 @@
           <ServerFolder
             :folder="item"
             :servers="getFolderServers(item.id)"
-            :selected-server-id="serverChannelStore.currentServerId"
+            :selected-server-id="activeServerId"
             @select-server="selectServer"
             @open-context-menu="openFolderContextMenu"
             @servers-reordered="handleFolderServersReorder(item.id, $event)"
@@ -374,8 +374,13 @@ const hasServerUnread = (serverId: string): boolean => {
   return getServerUnreadMessages(serverId) > 0 || getServerUnreadMentions(serverId) > 0;
 };
 
+const activeServerId = computed(() => {
+  if (isDMSelected.value || isMonyverseSelected.value) return null;
+  return serverChannelStore.currentServerId;
+});
+
 const isSelected = (serverId: string) => {
-  return serverId === serverChannelStore.currentServerId && !isDMSelected.value && !isMonyverseSelected.value;
+  return serverId === activeServerId.value;
 };
 
 // Load funding state

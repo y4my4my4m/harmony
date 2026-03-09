@@ -1896,8 +1896,8 @@ const canDeleteMessage = (message: Message) => {
       const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
       if (editInput) {
         editInput.focus();
-        const textLength = editInput.value.length;
-        editInput.setSelectionRange(textLength, textLength);
+        const len = editInput.value.length;
+        editInput.setSelectionRange(len, len);
       }
     });
   };
