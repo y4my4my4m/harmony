@@ -285,6 +285,12 @@ const truncatePreview = (text: string | null, maxLen = 100): string | null => {
 // Rich content computed properties
 const messagePreview = computed(() => {
   const data = props.notification.data
+
+  // For report updates, show the resolution note / full message (so "Note: ..." is visible)
+  if (props.notification.type === 'report_update') {
+    const msg = formattedMessage.value.message
+    return msg ? truncatePreview(msg, 200) : null
+  }
   
   // For ActivityPub reactions, show the post preview (your post that was reacted to)
   if (props.notification.type === 'activitypub_reaction') {
@@ -365,7 +371,7 @@ const fullTimestamp = computed(() => {
 })
 
 const hasRichContent = computed(() => {
-  // Show rich content for mentions, replies, reactions (both chat and ActivityPub)
+  // Show rich content for mentions, replies, reactions (both chat and ActivityPub), and report updates (note)
   return messagePreview.value || channelInfo.value || reactionEmoji.value
 })
 

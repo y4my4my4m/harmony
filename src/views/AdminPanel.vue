@@ -728,6 +728,10 @@
                   rows="2"
                   @click.stop
                 ></textarea>
+                <label class="toggle-label report-show-resolver" title="If checked, the reporter will see who resolved this (default off for harassment/backlash prevention)">
+                  <input type="checkbox" v-model="reportShowResolver" @click.stop />
+                  Show my name to reporter
+                </label>
                 <div class="report-action-buttons">
                   <button
                     v-if="report.status === 'pending'"
@@ -1617,6 +1621,7 @@ const pendingReportsCount = ref(0)
 const activeReportFilter = ref<string>('all')
 const expandedReportId = ref<string | null>(null)
 const reportResolutionNote = ref('')
+const reportShowResolver = ref(false)
 const reportFilters = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
@@ -2492,10 +2497,12 @@ const loadPendingReportsCount = async () => {
 const toggleReportExpand = (id: string) => {
   expandedReportId.value = expandedReportId.value === id ? null : id
   reportResolutionNote.value = ''
+  reportShowResolver.value = false
 }
 
 const updateReport = async (reportId: string, status: 'investigating' | 'resolved' | 'dismissed') => {
-  const success = await reportService.updateReportStatus(reportId, status, reportResolutionNote.value || undefined)
+  const options = (status === 'resolved' || status === 'dismissed') ? { showResolver: reportShowResolver.value } : undefined
+  const success = await reportService.updateReportStatus(reportId, status, reportResolutionNote.value || undefined, options)
   if (success) {
     toast.success(`Report ${status}`)
     reportResolutionNote.value = ''

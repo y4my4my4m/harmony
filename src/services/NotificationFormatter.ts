@@ -284,7 +284,7 @@ const MESSAGE_TEMPLATES = {
       const status = data.status || 'updated'
       const note = data.resolution_note
       let msg = `Your ${type} report has been ${status}.`
-      if (note) msg += ` Note: ${note}`
+      if (note && note.trim()) msg += ` Note: ${note.trim()}`
       return msg
     },
     shortTitle: () => 'Report update'
@@ -383,6 +383,14 @@ export class NotificationFormatter {
     if (data.inviter) {
       return data.inviter.display_name || data.inviter.username || 'Unknown'
     }
+
+    // Report updates: default to generic label (harassment/backlash prevention); show resolver only if moderator opted in
+    if (notification.type === 'report_update') {
+      if (data.show_resolver && (data.resolver_display_name || data.resolver_username)) {
+        return data.resolver_display_name || data.resolver_username || 'Admin/Moderator'
+      }
+      return 'Admin/Moderator'
+    }
     
     return 'Unknown'
   }
@@ -415,6 +423,14 @@ export class NotificationFormatter {
     // Legacy format fallback
     if (!avatar && data.sender_avatar_url) {
       avatar = data.sender_avatar_url
+    }
+
+    // Report updates: use resolver avatar only if show_resolver; otherwise generic default
+    if (notification.type === 'report_update' && !data.show_resolver) {
+      return utilGetAvatarUrl(null) || '/default_avatar.webp'
+    }
+    if (notification.type === 'report_update' && data.resolver_avatar_url) {
+      avatar = data.resolver_avatar_url
     }
 
     return utilGetAvatarUrl(avatar) || '/default_avatar.webp'

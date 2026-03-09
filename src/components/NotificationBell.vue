@@ -152,7 +152,7 @@
                 :key="notification.id"
                 :notification="notification"
                 @click="handleNotificationClick"
-                @mark-read="markAsRead"
+                @mark-read="handleMarkReadToggle"
                 @dismiss="dismissNotification"
                 class="notification-item-wrapper"
               />
@@ -263,8 +263,13 @@ const markAllAsRead = async () => {
   }
 }
 
-const markAsRead = async (notificationId: string) => {
-  await notificationStore.markAsRead(notificationId)
+const handleMarkReadToggle = async (notificationId: string) => {
+  const notification = notificationStore.notifications.find(n => n.id === notificationId)
+  if (notification?.is_read) {
+    await notificationStore.markAsUnread(notificationId)
+  } else {
+    await notificationStore.markAsRead(notificationId)
+  }
 }
 
 const dismissNotification = async (notificationId: string) => {

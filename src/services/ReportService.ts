@@ -170,7 +170,8 @@ class ReportService {
   async updateReportStatus(
     reportId: string,
     status: 'investigating' | 'resolved' | 'dismissed',
-    resolutionNote?: string
+    resolutionNote?: string,
+    options?: { showResolver?: boolean }
   ): Promise<boolean> {
     try {
       const updateData: Record<string, unknown> = {
@@ -182,8 +183,8 @@ class ReportService {
         updateData.resolution_note = resolutionNote
       }
 
+      const { data: { user } } = await supabase.auth.getUser()
       if (status === 'resolved' || status === 'dismissed') {
-        const { data: { user } } = await supabase.auth.getUser()
         updateData.resolved_at = new Date().toISOString()
         updateData.resolved_by = user?.id
       }
@@ -195,7 +196,7 @@ class ReportService {
 
       if (error) throw error
 
-      // Notify the reporter about the status change
+      // Notify the reporter about the status change (default: do not show who resolved, for harassment/backlash prevention)
       try {
         const { data: report } = await supabase
           .from('reports')
@@ -204,15 +205,31 @@ class ReportService {
           .single()
 
         if (report?.reporter_id) {
+          const showResolver = options?.showResolver === true
+          const notificationData: Record<string, unknown> = {
+            report_id: reportId,
+            status,
+            report_type: report.report_type,
+            resolution_note: resolutionNote ?? null,
+            show_resolver: showResolver,
+          }
+          if (showResolver && user?.id) {
+            const { data: resolverProfile } = await supabase
+              .from('profiles')
+              .select('username, display_name, avatar_url')
+              .eq('id', user.id)
+              .single()
+            if (resolverProfile) {
+              notificationData.resolver_username = resolverProfile.username
+              notificationData.resolver_display_name = resolverProfile.display_name
+              notificationData.resolver_avatar_url = resolverProfile.avatar_url
+            }
+          }
           await supabase.rpc('send_notification_to_user', {
             notification_type: 'report_update',
             to_user_id: report.reporter_id,
-            notification_data: {
-              report_id: reportId,
-              status,
-              report_type: report.report_type,
-              resolution_note: resolutionNote || null,
-            },
+            notification_data: notificationData,
+            from_user_id: showResolver ? user?.id ?? null : null,
           })
         }
       } catch (notifError) {

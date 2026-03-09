@@ -1008,14 +1008,33 @@ export const useNotificationStore = defineStore('notification', {
           this.updateUnreadCount()
         }
 
-        // Use NotificationService for consistent state management
         await services.notifications.markAsRead(notificationId)
       } catch (error) {
         debug.error('❌ Failed to mark notification as read:', error)
         
-        // Revert optimistic update on error
         if (notification) {
           notification.is_read = false
+          this.updateUnreadCount()
+        }
+        throw error
+      }
+    },
+
+    async markAsUnread(notificationId: string) {
+      const notification = this.notifications.find(n => n.id === notificationId)
+      
+      try {
+        if (notification) {
+          notification.is_read = false
+          this.updateUnreadCount()
+        }
+
+        await services.notifications.markAsUnread(notificationId)
+      } catch (error) {
+        debug.error('❌ Failed to mark notification as unread:', error)
+        
+        if (notification) {
+          notification.is_read = true
           this.updateUnreadCount()
         }
         throw error
