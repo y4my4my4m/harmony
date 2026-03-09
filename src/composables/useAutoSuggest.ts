@@ -414,22 +414,22 @@ export function useAutoSuggest(
         
     } else if (finalConfig.mode === 'activitypub') {
       // ActivityPub mode: Use dynamic search results (no server filtering needed)
+      // RPC search_federated_users returns user_id (not id) – use it so DisplayName + cache priming work
       return activityPubUsers.value.map(user => {
-        // Ensure handle has leading @ if database doesn't include it
+        const profileId = (user as { user_id?: string }).user_id ?? (user as { id?: string }).id ?? '';
         let handle = user.handle || `@${user.username}${!user.is_local && user.domain ? '@' + user.domain : ''}`;
         if (!handle.startsWith('@')) {
           handle = '@' + handle;
         }
-        
         return {
-        id: user.id,
-        display_name: user.display_name,
-        username: user.username,
+          id: profileId,
+          display_name: user.display_name,
+          username: user.username,
           avatar: user.avatar_url,
           handle: handle,
-        user: user
+          user: user
         };
-      }).slice(0, finalConfig.maxSuggestions);
+      }).filter(s => s.id).slice(0, finalConfig.maxSuggestions);
     }
 
     return [];
@@ -697,10 +697,11 @@ export function useAutoSuggest(
       if (query === currentSearchQuery) {
         debug.log('[DEBUG] searchActivityPubUsers: Got results:', users?.length || 0, 'users');
         activityPubUsers.value = users;
-        // Prime userDataService cache so DisplayName can resolve shortcodes in composer dropdown
+        // Prime userDataService cache so DisplayName can resolve shortcodes (custom emojis) in composer dropdown
         for (const u of users || []) {
-          if (u?.id) {
-            userDataService.fetchUserProfile(u.id, true).catch(() => {});
+          const profileId = (u as { user_id?: string }).user_id ?? (u as { id?: string }).id;
+          if (profileId) {
+            userDataService.fetchUserProfile(profileId, true).catch(() => {});
           }
         }
       } else {

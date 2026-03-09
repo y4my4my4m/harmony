@@ -134,7 +134,7 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
-              <!-- Custom Status: [activity icon] [emoji] Playing: text -->
+              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
               <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
                 <ActivityIcon
                   v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
@@ -214,7 +214,7 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
-              <!-- Custom Status: [activity icon] [emoji] Playing: text -->
+              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
               <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
                 <ActivityIcon
                   v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
@@ -432,7 +432,7 @@
               >
                 {{ getUserDomain(user.id).value }}
               </span>
-              <!-- Custom Status: [activity icon] [emoji] Playing: text -->
+              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
               <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
                 <ActivityIcon
                   v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
