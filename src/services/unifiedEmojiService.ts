@@ -160,6 +160,11 @@ async function loadEmojiData(): Promise<void> {
     }
     
     isLoaded.value = true
+
+    // Re-resolve display name emojis now that shortcode lookups are available
+    import('@/services/userDataService').then(({ userDataService }) => {
+      userDataService.reResolveAllDisplayNames()
+    }).catch(() => { /* userDataService not ready yet */ })
   } catch (error) {
     debug.error('Failed to load emoji data:', error)
   } finally {

@@ -967,7 +967,13 @@ export function useAutoSuggest(
       }
       
       if (state.value.triggerType === 'emoji') {
-        insertText = `:${suggestion.name}: `; // Add space after emoji
+        // Standard/unified emojis: insert unicode character directly
+        // Custom server emojis: keep :shortcode: format
+        if (suggestion.emoji?.source === 'unified' && (suggestion.native || suggestion.emoji?.native)) {
+          insertText = (suggestion.native || suggestion.emoji.native) + ' ';
+        } else {
+          insertText = `:${suggestion.name}: `;
+        }
       } else if (state.value.triggerType === 'mention') {
         if (finalConfig.mode === 'activitypub') {
           insertText = (suggestion.handle || `@${suggestion.username}`) + ' '; // Add space after mention
