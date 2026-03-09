@@ -8,7 +8,7 @@
       />
     </div>
     <div class="user-info">
-      <p class="user-name">{{ currentUser.displayName }}</p>
+      <p class="user-name"><DisplayName :userId="currentUser.id" :fallback="currentUser.displayName" :truncate="true" /></p>
       <div class="user-status-container" @click="toggleStatusDropdown">
         <div class="status-dot" :class="currentStatusDisplay.class"></div>
         <span class="status-text">{{ currentStatusDisplay.text }}</span>
@@ -119,6 +119,7 @@ import SettingsIcon from '@/components/icons/Settings.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import StatusPicker from '@/components/StatusPicker.vue'
+import DisplayName from '@/components/DisplayName.vue'
 
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const themeStore = useThemeStore()

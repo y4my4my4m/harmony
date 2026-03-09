@@ -13,7 +13,7 @@
         @click="viewProfile(author)"
         :title="`Reblogged by ${author.display_name || author.username}`"
       >
-        {{ author.display_name || author.username }} reblogged
+        <DisplayName :userId="author.id" :fallback="author.display_name || author.username" /> reblogged
       </div>
       <time 
         :datetime="post.created_at" 
@@ -40,7 +40,7 @@
           />
           <div class="author-details">
             <div class="author-name" @click="viewProfile(displayAuthor)">
-              {{ displayAuthor.display_name || displayAuthor.username }}
+              <DisplayName :userId="displayAuthor.id" :fallback="displayAuthor.display_name || displayAuthor.username" />
               <span v-if="authorInstanceBadge === 'admin'" class="instance-badge admin" title="Instance Admin">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 ADMIN
@@ -134,7 +134,7 @@
                 size="sm"
               />
               <div class="quoted-author-info">
-                <span class="quoted-author-name">{{ displayAuthor.display_name || displayAuthor.username }}</span>
+                <span class="quoted-author-name"><DisplayName :userId="displayAuthor.id" :fallback="displayAuthor.display_name || displayAuthor.username" /></span>
                 <span class="quoted-author-handle">@{{ displayAuthor.username }}</span>
                 <time class="quoted-post-time">{{ formatRelativeTime(originalCreatedAt) }}</time>
               </div>
@@ -259,7 +259,7 @@
               size="sm"
             />
             <div class="reply-parent-author-info">
-              <span class="reply-parent-name">{{ displayReplyContext.author.display_name || displayReplyContext.author.username }}</span>
+              <span class="reply-parent-name"><DisplayName :userId="displayReplyContext.author.id" :fallback="displayReplyContext.author.display_name || displayReplyContext.author.username" /></span>
               <span class="reply-parent-handle">@{{ displayReplyContext.author.username }}</span>
               <time class="reply-parent-time" v-if="displayReplyContext.created_at">
                 {{ formatRelativeTime(displayReplyContext.created_at) }}
@@ -540,6 +540,7 @@ import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
+import DisplayName from '@/components/DisplayName.vue';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 

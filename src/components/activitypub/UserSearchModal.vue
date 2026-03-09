@@ -94,7 +94,7 @@
                     class="recent-avatar"
                   />
                   <div class="recent-info">
-                    <div class="recent-name">{{ search.display_name || search.username }}</div>
+                    <div class="recent-name"><DisplayName :userId="search.id" :fallback="search.display_name || search.username" /></div>
                     <div class="recent-handle">{{ search.handle }}</div>
                   </div>
                 </button>
@@ -154,6 +154,7 @@ import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import UserCard from './UserCard.vue';
+import DisplayName from '@/components/DisplayName.vue';
 
 // Emits
 const emit = defineEmits<{

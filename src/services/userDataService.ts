@@ -320,7 +320,7 @@ class UserDataService extends EventTarget {
         debug.log('🔄 Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator')
+          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator, federation_metadata')
           .eq('id', userId)
           .single()
         profile = profileData
@@ -409,11 +409,13 @@ class UserDataService extends EventTarget {
         }
         
         const currentDisplayName = profile.display_name || profile.username || username
+        const dnEmojis = this.extractDisplayNameEmojis(profile.federation_metadata)
         const userData: UserData = {
           id: profile.id,
           username: profile.username || username,
           displayName: currentDisplayName,
-          displayNameParts: this.resolveDisplayNameParts(currentDisplayName),
+          displayNameEmojis: dnEmojis,
+          displayNameParts: this.resolveDisplayNameParts(currentDisplayName, dnEmojis),
           avatarUrl: profile.avatar_url || avatarUrl,
           bannerUrl: profile.banner_url,
           bio: profile.bio,
@@ -1079,7 +1081,7 @@ class UserDataService extends EventTarget {
     if (userData) {
       if (updatedProfile.display_name !== undefined) {
         userData.displayName = updatedProfile.display_name
-        userData.displayNameParts = this.resolveDisplayNameParts(updatedProfile.display_name)
+        userData.displayNameParts = this.resolveDisplayNameParts(updatedProfile.display_name, userData.displayNameEmojis)
       }
       if (updatedProfile.avatar_url !== undefined) {
         userData.avatarUrl = updatedProfile.avatar_url
@@ -1139,7 +1141,7 @@ class UserDataService extends EventTarget {
     if (userData) {
       if (profileUpdates.displayName !== undefined) {
         userData.displayName = profileUpdates.displayName
-        userData.displayNameParts = this.resolveDisplayNameParts(profileUpdates.displayName)
+        userData.displayNameParts = this.resolveDisplayNameParts(profileUpdates.displayName, userData.displayNameEmojis)
       }
       if (profileUpdates.avatarUrl !== undefined) {
         userData.avatarUrl = profileUpdates.avatarUrl
@@ -1206,17 +1208,19 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator')
+        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator, federation_metadata')
         .in('id', missingUserIds)
       
       if (profiles) {
         profiles.forEach((profile: any) => {
           const dn = profile.display_name || profile.username || 'Unknown'
+          const dnEmojis = this.extractDisplayNameEmojis(profile.federation_metadata)
           const userData: UserData = {
             id: profile.id,
             username: profile.username || 'Unknown',
             displayName: dn,
-            displayNameParts: this.resolveDisplayNameParts(dn),
+            displayNameEmojis: dnEmojis,
+            displayNameParts: this.resolveDisplayNameParts(dn, dnEmojis),
             avatarUrl: profile.avatar_url,
             bannerUrl: profile.banner_url,
             bio: profile.bio,
@@ -1591,7 +1595,7 @@ class UserDataService extends EventTarget {
     
     if (profileData.displayName !== undefined) {
       userData.displayName = profileData.displayName
-      userData.displayNameParts = this.resolveDisplayNameParts(profileData.displayName)
+      userData.displayNameParts = this.resolveDisplayNameParts(profileData.displayName, userData.displayNameEmojis)
     }
     if (profileData.avatarUrl !== undefined) userData.avatarUrl = profileData.avatarUrl
     if (profileData.bannerUrl !== undefined) userData.bannerUrl = profileData.bannerUrl
@@ -1707,22 +1711,43 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Resolve display name shortcodes into structured parts using the emoji cache.
+   * Extract display_name_emojis from federation_metadata.
+   */
+  private extractDisplayNameEmojis(federationMetadata: any): Array<{ id: string; name: string; url: string }> | undefined {
+    if (!federationMetadata) return undefined
+    try {
+      const meta = typeof federationMetadata === 'string' ? JSON.parse(federationMetadata) : federationMetadata
+      if (Array.isArray(meta.display_name_emojis) && meta.display_name_emojis.length > 0) {
+        return meta.display_name_emojis
+      }
+    } catch { /* ignore */ }
+    return undefined
+  }
+
+  /**
+   * Resolve display name shortcodes into structured parts.
+   * Priority: pinnedEmojis (from federation_metadata) > emoji cache > unified emoji pack.
    * Called once per profile load/update — not on every render.
    */
-  resolveDisplayNameParts(displayName: string): DisplayNamePart[] | undefined {
+  resolveDisplayNameParts(displayName: string, pinnedEmojis?: Array<{ id: string; name: string; url: string }>): DisplayNamePart[] | undefined {
     if (!displayName) return undefined
 
     EMOJI_SHORTCODE_REGEX.lastIndex = 0
     if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined
     EMOJI_SHORTCODE_REGEX.lastIndex = 0
 
+    // Build a name->emoji map from pinned emojis for O(1) lookups
+    const pinnedMap = new Map<string, { id: string; name: string; url: string }>()
+    if (pinnedEmojis) {
+      for (const e of pinnedEmojis) {
+        pinnedMap.set(e.name, e)
+      }
+    }
+
     let emojiCacheStore: ReturnType<typeof useEmojiCacheStore> | null = null
     try {
       emojiCacheStore = useEmojiCacheStore()
-    } catch {
-      return undefined
-    }
+    } catch { /* Pinia not ready */ }
 
     const parts: DisplayNamePart[] = []
     let lastIndex = 0
@@ -1730,42 +1755,31 @@ class UserDataService extends EventTarget {
 
     while ((match = EMOJI_SHORTCODE_REGEX.exec(displayName)) !== null) {
       const shortcode = match[1]
-      const entries = emojiCacheStore.nameIndex.get(shortcode)
-      const emoji = entries?.[0]?.emoji
 
       if (match.index > lastIndex) {
         parts.push({ type: 'text', text: displayName.substring(lastIndex, match.index) })
       }
 
-      if (emoji) {
-        parts.push({
-          type: 'emoji',
-          emoji: { id: emoji.id, name: emoji.name, url: emoji.url }
-        })
-      } else {
-        // Fallback: try unified emoji pack (native/twemoji/mutant) when not in server cache
-        let fallbackUrl: string | null = getSvgUrl(shortcode)
-        if (!fallbackUrl) {
-          try {
-            const resolved = resolveEmoji(shortcode)
-            if (resolved.display.type === 'svg' && resolved.display.content) {
-              fallbackUrl = resolved.display.content
-            } else if (resolved.display.type === 'native' && resolved.unicode) {
-              fallbackUrl = getTwemojiUrl(resolved.unicode)
-            }
-          } catch {
-            // ignore
-          }
-        }
-        if (fallbackUrl) {
-          parts.push({
-            type: 'emoji',
-            emoji: { id: shortcode, name: shortcode, url: fallbackUrl }
-          })
+      // 1. Pinned emoji from federation_metadata (exact match, cross-user safe)
+      const pinned = pinnedMap.get(shortcode)
+      if (pinned) {
+        parts.push({ type: 'emoji', emoji: { id: pinned.id, name: pinned.name, url: pinned.url } })
+      }
+      // 2. Emoji cache (custom server emojis the viewer has access to)
+      else if (emojiCacheStore) {
+        const entries = emojiCacheStore.nameIndex.get(shortcode)
+        const emoji = entries?.[0]?.emoji
+        if (emoji) {
+          parts.push({ type: 'emoji', emoji: { id: emoji.id, name: emoji.name, url: emoji.url } })
         } else {
-          parts.push({ type: 'text', text: match[0] })
+          this.resolveUnifiedFallback(shortcode, parts, match[0])
         }
       }
+      // 3. Unified emoji pack fallback
+      else {
+        this.resolveUnifiedFallback(shortcode, parts, match[0])
+      }
+
       lastIndex = match.index + match[0].length
     }
 
@@ -1777,6 +1791,25 @@ class UserDataService extends EventTarget {
     return hasEmoji ? parts : undefined
   }
 
+  private resolveUnifiedFallback(shortcode: string, parts: DisplayNamePart[], rawText: string): void {
+    let fallbackUrl: string | null = getSvgUrl(shortcode)
+    if (!fallbackUrl) {
+      try {
+        const resolved = resolveEmoji(shortcode)
+        if (resolved.display.type === 'svg' && resolved.display.content) {
+          fallbackUrl = resolved.display.content
+        } else if (resolved.display.type === 'native' && resolved.unicode) {
+          fallbackUrl = getTwemojiUrl(resolved.unicode)
+        }
+      } catch { /* ignore */ }
+    }
+    if (fallbackUrl) {
+      parts.push({ type: 'emoji', emoji: { id: shortcode, name: shortcode, url: fallbackUrl } })
+    } else {
+      parts.push({ type: 'text', text: rawText })
+    }
+  }
+
   /**
    * Re-resolve display name parts for all cached users.
    * Called when the emoji cache updates (emoji renamed/deleted/added).
@@ -1784,7 +1817,7 @@ class UserDataService extends EventTarget {
   reResolveAllDisplayNames(): void {
     let changed = false
     for (const [userId, userData] of this.users) {
-      const newParts = this.resolveDisplayNameParts(userData.displayName)
+      const newParts = this.resolveDisplayNameParts(userData.displayName, userData.displayNameEmojis)
       const hadParts = !!userData.displayNameParts
       const hasParts = !!newParts
       if (hadParts !== hasParts || JSON.stringify(userData.displayNameParts) !== JSON.stringify(newParts)) {

@@ -127,6 +127,7 @@ export interface UserData {
   username: string
   displayName: string
   displayNameParts?: DisplayNamePart[] // Pre-resolved display name with inline emojis
+  displayNameEmojis?: Array<{ id: string; name: string; url: string }> // Pinned emojis from federation_metadata
 
   // Profile data
   avatarUrl?: string
