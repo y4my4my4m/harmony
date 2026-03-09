@@ -19,7 +19,7 @@
             <div v-if="config.goal_amount" class="funding-progress-section">
               <div class="progress-header">
                 <span class="progress-amount">
-                  {{ formatCurrency(config.current_amount, config.goal_currency) }}
+                  {{ formatCurrency(config.displayed_amount ?? config.current_amount, config.goal_currency) }}
                 </span>
                 <span class="progress-goal">
                   of {{ formatCurrency(config.goal_amount, config.goal_currency) }}
@@ -117,20 +117,21 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { fundingService, type FundingConfig, type SupporterTier, type SupporterBadge, type DonationRecord } from '@/services/FundingService'
+import { fundingService, type FundingConfigWithProgress, type SupporterTier, type SupporterBadge, type DonationRecord } from '@/services/FundingService'
 import { supabase } from '@/supabase'
 
 defineEmits<{ close: [] }>()
 
 const loading = ref(true)
-const config = ref<FundingConfig | null>(null)
+const config = ref<FundingConfigWithProgress | null>(null)
 const tiers = ref<SupporterTier[]>([])
 const myBadge = ref<SupporterBadge | null>(null)
 const myDonations = ref<DonationRecord[]>([])
 
 const progressPercent = computed(() => {
   if (!config.value?.goal_amount) return 0
-  return Math.min(100, Math.round((config.value.current_amount / config.value.goal_amount) * 100))
+  const amount = config.value.displayed_amount ?? config.value.current_amount
+  return Math.min(100, Math.round((amount / config.value.goal_amount) * 100))
 })
 
 const badgeStyle = computed(() => {
@@ -155,7 +156,7 @@ const formatDate = (dateStr: string) => {
 onMounted(async () => {
   try {
     const [fundingConfig, tierList] = await Promise.all([
-      fundingService.getFundingConfig(),
+      fundingService.getFundingWithProgress(),
       fundingService.getTiers(),
     ])
     config.value = fundingConfig
@@ -420,7 +421,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: 120px;
   height: 36px;
   border-radius: 8px;
   font-size: 20px;

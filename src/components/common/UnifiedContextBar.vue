@@ -46,7 +46,7 @@
             <div class="funding-progress-fill" :style="{ width: fundingPercent + '%' }"></div>
           </div>
           <span class="funding-text">
-            {{ formatCurrency(fundingConfig.current_amount, fundingConfig.goal_currency) }}
+            {{ formatCurrency(fundingConfig.displayed_amount ?? fundingConfig.current_amount, fundingConfig.goal_currency) }}
             /
             {{ formatCurrency(fundingConfig.goal_amount, fundingConfig.goal_currency) }}
           </span>
@@ -108,7 +108,7 @@ interface Props {
   instanceDomain?: string;
 
   // Funding
-  fundingConfig?: FundingConfig | null;
+  fundingConfig?: (FundingConfig & { displayed_amount?: number }) | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -143,7 +143,8 @@ const currentTab = computed(() => {
 
 const fundingPercent = computed(() => {
   if (!props.fundingConfig?.goal_amount) return 0;
-  return Math.min(100, Math.round((props.fundingConfig.current_amount / props.fundingConfig.goal_amount) * 100));
+  const amount = props.fundingConfig.displayed_amount ?? props.fundingConfig.current_amount;
+  return Math.min(100, Math.round((amount / props.fundingConfig.goal_amount) * 100));
 });
 
 const fundingTooltip = computed(() => {

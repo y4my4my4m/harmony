@@ -1290,10 +1290,23 @@ AS $$
     LIMIT 1;
 $$;
 
+-- Funding total from donations (SECURITY DEFINER so any user can see aggregate)
+CREATE OR REPLACE FUNCTION public.get_funding_current_total(p_period text DEFAULT 'monthly')
+RETURNS numeric
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+  SELECT COALESCE(SUM(dh.amount), 0)::numeric
+  FROM public.instance_donation_history dh
+  WHERE
+    (p_period = 'all')
+    OR (p_period = 'monthly' AND dh.donated_at >= date_trunc('month', now())::timestamptz);
+$$;
+
 -- Report/funding grants
 GRANT EXECUTE ON FUNCTION public.get_pending_reports_count() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_reports_with_details(text, integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_supporter_badge(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_funding_current_total(text) TO authenticated;
 
 DO $$
 BEGIN

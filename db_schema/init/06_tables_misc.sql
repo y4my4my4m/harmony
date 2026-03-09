@@ -636,6 +636,7 @@ CREATE TABLE IF NOT EXISTS public.instance_funding (
     goal_amount numeric(10,2),
     goal_currency text DEFAULT 'USD',
     current_amount numeric(10,2) DEFAULT 0,
+    funding_period text DEFAULT 'monthly',
     goal_description text,
     funding_links jsonb DEFAULT '[]'::jsonb,
     show_progress_bar boolean DEFAULT true,

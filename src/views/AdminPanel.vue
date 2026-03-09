@@ -1226,8 +1226,14 @@
                   </select>
                 </div>
                 <div class="funding-field">
-                  <label>Current amount</label>
-                  <input type="number" v-model.number="fundingCurrentAmount" class="cyber-input" min="0" step="0.01" />
+                  <label>Period</label>
+                  <select v-model="fundingPeriod" class="cyber-select">
+                    <option value="monthly">Monthly (resets each month)</option>
+                    <option value="all">All time</option>
+                  </select>
+                  <span class="setting-hint" style="display: block; margin-top: 4px;">
+                    Total is computed from donation history; period controls which donations count.
+                  </span>
                 </div>
               </div>
               <div class="funding-field" style="margin-top: 8px;">
@@ -1670,6 +1676,7 @@ const fundingShowProgress = ref(true)
 const fundingGoalAmount = ref<number>(0)
 const fundingCurrency = ref('USD')
 const fundingCurrentAmount = ref<number>(0)
+const fundingPeriod = ref<'all' | 'monthly'>('monthly')
 const fundingDescription = ref('')
 const fundingThankYou = ref('')
 const fundingLinks = ref<{ platform: string; url: string; label: string }[]>([])
@@ -1978,7 +1985,7 @@ watch(activeReportFilter, () => {
 
 // Watch for funding config changes
 watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingDescription, fundingThankYou, fundingLinks],
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks],
   () => { fundingChanged.value = true },
   { deep: true }
 )
@@ -2302,6 +2309,7 @@ const loadFundingData = async () => {
     fundingGoalAmount.value = config.goal_amount || 0
     fundingCurrency.value = config.goal_currency
     fundingCurrentAmount.value = config.current_amount
+    fundingPeriod.value = config.funding_period === 'all' ? 'all' : 'monthly'
     fundingDescription.value = config.goal_description || ''
     fundingThankYou.value = config.thank_you_message || ''
     fundingLinks.value = config.funding_links || []
@@ -2334,6 +2342,7 @@ const saveFundingConfig = async () => {
     goal_amount: fundingGoalAmount.value || null,
     goal_currency: fundingCurrency.value,
     current_amount: fundingCurrentAmount.value,
+    funding_period: fundingPeriod.value,
     goal_description: fundingDescription.value || null,
     thank_you_message: fundingThankYou.value || null,
     funding_links: fundingLinks.value,

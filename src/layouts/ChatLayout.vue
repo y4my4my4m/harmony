@@ -187,7 +187,7 @@ import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
-import { fundingService, type FundingConfig } from '@/services/FundingService'
+import { fundingService, type FundingConfigWithProgress } from '@/services/FundingService'
 import FundingModal from '@/components/FundingModal.vue'
 
 // Props
@@ -494,10 +494,10 @@ const navigateToDefaultIfNeeded = async () => {
 watch(() => [route.name, route.params, serverChannelStore.servers.length], navigateToDefaultIfNeeded, { immediate: false })
 
 // Funding
-const fundingConfig = ref<FundingConfig | null>(null)
+const fundingConfig = ref<FundingConfigWithProgress | null>(null)
 const showFundingModal = ref(false)
 const loadFundingConfig = async () => {
-  fundingConfig.value = await fundingService.getFundingConfig()
+  fundingConfig.value = await fundingService.getFundingWithProgress()
 }
 
 // Initialize on mount

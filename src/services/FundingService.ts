@@ -7,12 +7,18 @@ export interface FundingConfig {
   goal_amount: number | null
   goal_currency: string
   current_amount: number
+  funding_period?: 'all' | 'monthly'
   goal_description: string | null
   funding_links: FundingLink[]
   show_progress_bar: boolean
   show_in_context_bar: boolean
   context_bar_style: string
   thank_you_message: string | null
+}
+
+/** Config with current_amount computed from donation history (for progress display) */
+export interface FundingConfigWithProgress extends FundingConfig {
+  displayed_amount: number
 }
 
 export interface FundingLink {
@@ -92,7 +98,36 @@ class FundingService {
     }
   }
 
-  async updateFundingConfig(config: Partial<FundingConfig>): Promise<boolean> {
+  /** Returns funding total from donation history (RPC, respects RLS via SECURITY DEFINER) */
+  async getFundingCurrentTotal(period: 'all' | 'monthly' = 'monthly'): Promise<number> {
+    try {
+      const { data, error } = await supabase.rpc('get_funding_current_total', {
+        p_period: period,
+      })
+      if (error) throw error
+      return Number(data ?? 0)
+    } catch (error) {
+      debug.error('Failed to get funding current total:', error)
+      return 0
+    }
+  }
+
+  /**
+   * Returns config with displayed_amount computed from donation history.
+   * Use this for progress bar / funding modal display.
+   */
+  async getFundingWithProgress(): Promise<FundingConfigWithProgress | null> {
+    const config = await this.getFundingConfig()
+    if (!config) return null
+    const period = config.funding_period === 'all' ? 'all' : 'monthly'
+    const displayedAmount = await this.getFundingCurrentTotal(period)
+    return {
+      ...config,
+      displayed_amount: displayedAmount,
+    }
+  }
+
+  async updateFundingConfig(config: Partial<FundingConfig & { funding_period?: 'all' | 'monthly' }>): Promise<boolean> {
     try {
       const existing = await this.getFundingConfig()
 
