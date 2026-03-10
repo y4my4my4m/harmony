@@ -1,7 +1,6 @@
 import type { FederatedUser } from '@/types';
 
-// Get domain from environment variable or fallback
-const INSTANCE_DOMAIN = import.meta.env.VITE_DOMAIN as string;
+const INSTANCE_DOMAIN = import.meta.env.VITE_DOMAIN as string || (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
 
 // ActivityPub configuration for federation
 export const ACTIVITYPUB_CONFIG = {

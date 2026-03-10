@@ -1,7 +1,7 @@
 import type { EmbedProvider } from '@/types';
 
-const primaryDomain = (import.meta.env.VITE_DOMAIN as string).toLowerCase();
-const extraDomains = (import.meta.env.VITE_HARMONY_ALT_DOMAINS || '')
+const primaryDomain = (import.meta.env.VITE_DOMAIN as string || window.location.hostname).toLowerCase();
+const extraDomains = (import.meta.env.VITE_HARMONY_ALT_DOMAINS as string || '')
   .split(',')
   .map((domain) => domain.trim().toLowerCase())
   .filter(Boolean);
