@@ -224,7 +224,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       // Check if emoji.id is a valid UUID (server custom emoji) or native unicode
       const isUuid = emoji.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji.id);
       const emojiId = isUuid ? emoji.id : null;
-      const customContent = !isUuid ? (emoji.native || emoji.id || emoji.name) : null;
+      const customContent = emoji.native || (!isUuid ? (emoji.id || emoji.name) : null);
       
       if (operation === 'remove') {
         const { error } = await supabase.rpc('remove_post_emoji_reaction', {

@@ -597,13 +597,6 @@ async function handleNewReaction(interaction: any): Promise<void> {
       return;
     }
 
-    const { content, emojiData } = await resolveOutboundEmoji(
-      interaction.emoji_id,
-      interaction.custom_emoji_content,
-    );
-    
-    logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
-
     // Send to post author's inbox (if remote)
     const { data: postAuthor } = await supabase
       .from('profiles')
@@ -612,6 +605,15 @@ async function handleNewReaction(interaction: any): Promise<void> {
       .single();
 
     if (postAuthor && !postAuthor.is_local && postAuthor.inbox_url) {
+      const targetDomain = postAuthor.domain || undefined;
+      const { content, emojiData } = await resolveOutboundEmoji(
+        interaction.emoji_id,
+        interaction.custom_emoji_content,
+        targetDomain,
+      );
+      
+      logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
+
       const authorUrl = postAuthor.federated_id
         || `https://${postAuthor.domain}/users/${postAuthor.username}`;
       const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);

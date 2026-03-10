@@ -8,6 +8,7 @@
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
+import config from '../config/index.js';
 import { getFullEmojiUrl } from './urlUtils.js';
 import { logger } from './logger.js';
 
@@ -22,10 +23,15 @@ export interface ResolvedEmoji {
 /**
  * Format a pre-fetched emoji object for outbound federation.
  * Used when emoji data is already available (e.g. from a Supabase JOIN).
+ *
+ * @param targetDomain - When set, if the emoji originates from this domain
+ *                       we use `:name:` instead of `:name@domain:` so the
+ *                       remote instance recognises it as its own local emoji.
  */
 export function formatEmojiForFederation(
   emoji: { name: string; url: string | null; domain?: string | null } | null,
   customEmojiContent: string | null | undefined,
+  targetDomain?: string,
 ): ResolvedEmoji {
   if (!emoji) {
     return { content: customEmojiContent || '❤', emojiData: null };
@@ -33,9 +39,15 @@ export function formatEmojiForFederation(
 
   if (emoji.url) {
     const fullUrl = getFullEmojiUrl(emoji.url) || emoji.url;
-    const shortcode = emoji.domain
-      ? `:${emoji.name}@${emoji.domain}:`
-      : `:${emoji.name}:`;
+    // When the emoji originates from the target instance, use `:name:` (local).
+    // When it's our own emoji sent to a remote instance, qualify with our domain.
+    // When no target is specified (e.g. channel reactions), keep it simple.
+    const useLocalShortcode = emoji.domain
+      ? (targetDomain && emoji.domain.toLowerCase() === targetDomain.toLowerCase())
+      : !targetDomain;
+    const shortcode = useLocalShortcode
+      ? `:${emoji.name}:`
+      : `:${emoji.name}@${emoji.domain || config.INSTANCE_DOMAIN}:`;
     return {
       content: shortcode,
       emojiData: { name: emoji.name, url: fullUrl },
@@ -55,10 +67,15 @@ export function formatEmojiForFederation(
  * @param customEmojiContent - The `custom_emoji_content` field from the
  *                             reaction / interaction row (unicode char for
  *                             standard emojis, null for custom emojis)
+ * @param targetDomain       - Domain of the remote instance receiving the
+ *                             activity. When the emoji originates from this
+ *                             domain we omit the @domain suffix so the remote
+ *                             instance maps it to its own local emoji.
  */
 export async function resolveOutboundEmoji(
   emojiId: string | null | undefined,
   customEmojiContent: string | null | undefined,
+  targetDomain?: string,
 ): Promise<ResolvedEmoji> {
   if (!emojiId) {
     return { content: customEmojiContent || '❤', emojiData: null };
@@ -76,5 +93,5 @@ export async function resolveOutboundEmoji(
     return { content: customEmojiContent || '❤', emojiData: null };
   }
 
-  return formatEmojiForFederation(emoji, customEmojiContent);
+  return formatEmojiForFederation(emoji, customEmojiContent, targetDomain);
 }

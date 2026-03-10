@@ -233,6 +233,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_interaction_id uuid;
+    v_resolved_content text;
 BEGIN
     -- SECURITY: Verify the caller owns this profile
     IF NOT EXISTS (
@@ -244,13 +245,23 @@ BEGIN
     IF p_emoji_id IS NULL AND p_custom_emoji_content IS NULL THEN
         RAISE EXCEPTION 'Must provide either emoji_id or custom_emoji_content';
     END IF;
-    
+
+    -- Auto-populate custom_emoji_content from emoji table when missing
+    v_resolved_content := p_custom_emoji_content;
+    IF p_emoji_id IS NOT NULL AND v_resolved_content IS NULL THEN
+        SELECT CASE
+            WHEN e.url IS NOT NULL THEN ':' || e.name || ':'
+            ELSE e.name
+        END INTO v_resolved_content
+        FROM emojis e WHERE e.id = p_emoji_id;
+    END IF;
+
     INSERT INTO post_interactions (
         user_id, post_id, interaction_type,
         emoji_id, custom_emoji_content, is_local
     ) VALUES (
         p_user_id, p_post_id, 'emoji_reaction',
-        p_emoji_id, p_custom_emoji_content, true
+        p_emoji_id, v_resolved_content, true
     ) RETURNING id INTO v_interaction_id;
     
     RETURN v_interaction_id;

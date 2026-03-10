@@ -58,7 +58,8 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
     }
 
     if (type === 'create') {
-      const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content);
+      const targetDomain = postAuthor.domain || undefined;
+      const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content, targetDomain);
       logger.info(`🎯 Resolved emoji: content="${content}", hasEmojiData=${!!emojiData}, emojiUrl=${emojiData?.url ?? 'none'}`);
       const authorUrl = postAuthor.federated_id
         || `https://${postAuthor.domain}/users/${postAuthor.username}`;

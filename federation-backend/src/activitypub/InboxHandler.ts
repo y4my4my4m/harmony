@@ -329,12 +329,19 @@ async function handleInbox(
     }
 
     // Check if activity is addressed to this user
-    const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
-    const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);
-    const recipients = [...to, ...cc];
-
-    if (!recipients.includes(user.federated_id) && activity.type !== 'Follow') {
-      logger.warn(`Activity not addressed to ${username}`);
+    // Like/Undo/Accept/Reject are implicitly addressed (they reference the user's content)
+    const implicitTypes = ['Like', 'Undo', 'Accept', 'Reject', 'Follow'];
+    if (!implicitTypes.includes(activity.type)) {
+      const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
+      const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);
+      const recipients = [...to, ...cc];
+      const canonicalUrl = `https://${config.INSTANCE_DOMAIN}/users/${username}`;
+      const addressed = recipients.some((r: string) =>
+        r === user.federated_id || r === canonicalUrl
+      );
+      if (!addressed) {
+        logger.warn(`Activity not addressed to ${username}`);
+      }
     }
   }
 
