@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
-    username text UNIQUE,
+    username text,
     display_name text,
     avatar_url text DEFAULT '/default_avatar.webp'::text,
     bio text,
@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     federation_followers_only boolean DEFAULT false,
     manually_approves_followers boolean DEFAULT false,
 
-    CONSTRAINT profiles_username_check CHECK (username ~* '^[a-zA-Z0-9_]+$')
+    CONSTRAINT profiles_username_check CHECK (username ~* '^[a-zA-Z0-9_]+$'),
+    CONSTRAINT profiles_username_domain_key UNIQUE (username, domain)
 );
 
 -- Link profiles to auth.users
@@ -86,6 +87,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS profiles_federated_id_key
 -- Index for username lookups
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(username);
 CREATE INDEX IF NOT EXISTS idx_profiles_domain ON public.profiles(domain);
+CREATE INDEX IF NOT EXISTS idx_profiles_username_domain ON public.profiles(username, domain);
 CREATE INDEX IF NOT EXISTS idx_profiles_is_local ON public.profiles(is_local);
 
 COMMENT ON TABLE public.profiles IS 'User profiles - both local and federated users';

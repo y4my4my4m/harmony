@@ -317,8 +317,19 @@ const createServer = async () => {
 
     toast.success('Server created successfully!');
     closeModal();
-    // Refresh the page to show the new server
-    router.go(0);
+
+    if (result) {
+      serverChannelStore.setCurrentServer(result.id);
+      await serverChannelStore.fetchCategoriesAndChannels(result.id, undefined, true);
+
+      const firstTextChannel = serverChannelStore.channels.find(ch => ch.type === 0);
+      if (firstTextChannel) {
+        serverChannelStore.setCurrentChannel(firstTextChannel.id);
+        router.push({ name: 'ChatChannel', params: { serverId: result.id, channelId: firstTextChannel.id } });
+      } else {
+        router.push({ name: 'Chat' });
+      }
+    }
   } catch (error: any) {
     debug.error('Server creation error:', error);
     errorMessage.value = error.message || "An unexpected error occurred";
