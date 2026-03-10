@@ -8,6 +8,12 @@
 -- PROFILE TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- Promote first local user to instance admin
+CREATE TRIGGER promote_first_user_to_admin_trigger
+    BEFORE INSERT ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.promote_first_user_to_admin();
+
 -- Create notification preferences when profile is created
 CREATE TRIGGER create_notification_preferences_trigger
     AFTER INSERT ON public.profiles

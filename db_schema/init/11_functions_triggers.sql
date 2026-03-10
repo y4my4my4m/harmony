@@ -8,6 +8,28 @@
 -- PROFILE TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- Promote first local user to instance admin
+CREATE OR REPLACE FUNCTION public.promote_first_user_to_admin()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NEW.is_local = true OR NEW.is_local IS NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE is_local = true AND id != NEW.id
+        ) THEN
+            NEW.is_admin := true;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.promote_first_user_to_admin() IS 
+'Sets is_admin=true on the first local profile created on the instance.';
+
 -- Create notification preferences on new profile
 CREATE OR REPLACE FUNCTION public.create_notification_preferences()
 RETURNS trigger

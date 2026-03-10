@@ -51,10 +51,14 @@ DATABASE_URL=""
 SUPABASE_PROJECT_NAME=""   # folder name for self-hosted supabase (e.g. supabase-project)
 SUPABASE_PROJECT_DIR=""   # full path after setup
 SUPABASE_SITE_DOMAIN=""   # domain for Supabase (site URL, etc.)
+SUPABASE_DASHBOARD_PASSWORD=""  # password for Supabase Studio
+SUPABASE_PG_PASSWORD=""         # postgres password for self-hosted Supabase
+DB_SCHEMA_LOADED=false          # whether setup_database ran successfully
 
 ENABLE_FEDERATION=true
 ENABLE_VOICE=true
 ENABLE_BOTS=false
+USE_DOCKER=true          # run backend services in Docker (vs native Node)
 
 LIVEKIT_API_KEY=""
 LIVEKIT_API_SECRET=""
@@ -362,6 +366,15 @@ setup_selfhosted_supabase_docker() {
         rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
     fi
 
+    print_step "4b" "Supabase Studio credentials"
+    print_info "Supabase Studio is the admin dashboard for managing your database."
+    SUPABASE_DASHBOARD_PASSWORD=$(prompt_input "Studio dashboard password" "$(openssl rand -hex 16 2>/dev/null || echo 'change-me-please')")
+    if [[ -n "$SUPABASE_DASHBOARD_PASSWORD" ]]; then
+        sed -i.bak "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$SUPABASE_DASHBOARD_PASSWORD|" "$SUPABASE_PROJECT_DIR/.env"
+        rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
+        print_success "Dashboard password set"
+    fi
+
     print_step "5" "Pulling Docker images"
     (cd "$SUPABASE_PROJECT_DIR" && run_with_spinner "Pulling images..." docker compose pull)
 
@@ -436,8 +449,11 @@ configure_supabase() {
             print_info "The installer will clone the Supabase repo and set up your project."
             echo ""
 
-            SUPABASE_PROJECT_NAME=$(prompt_input "Supabase project folder name (db/backend)" "supabase-project")
-            SUPABASE_SITE_DOMAIN=$(prompt_input "Domain for this instance (Supabase site URL)" "$DOMAIN")
+            SUPABASE_PROJECT_NAME=$(prompt_input "Supabase project folder name" "supabase-project")
+            echo ""
+            print_info "The Supabase API needs its own subdomain (separate from the app)."
+            print_info "Example: if your app is at ${BOLD}$DOMAIN${RESET}, use ${BOLD}db.$DOMAIN${RESET}"
+            SUPABASE_SITE_DOMAIN=$(prompt_input "Supabase API domain" "db.$DOMAIN")
 
             if ! require_cmd git; then
                 print_error "git is required for self-hosted Supabase. Please install git first."
@@ -450,13 +466,12 @@ configure_supabase() {
 
             setup_selfhosted_supabase_docker
 
-            local pg_pass
-            pg_pass=$(prompt_input "Supabase Postgres password" "your-super-secret-and-long-postgres-password")
+            SUPABASE_PG_PASSWORD=$(prompt_input "Supabase Postgres password" "your-super-secret-and-long-postgres-password")
 
             SUPABASE_URL="http://supabase-kong:8000"
             SUPABASE_ANON_KEY=$(prompt_input "Supabase anon key" "")
             SUPABASE_SERVICE_KEY=$(prompt_input "Service role key" "")
-            DATABASE_URL="postgresql://supabase_admin:${pg_pass}@supabase-db:5432/postgres"
+            DATABASE_URL="postgresql://supabase_admin:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
         fi
     fi
 
@@ -519,6 +534,25 @@ configure_features() {
         ENABLE_BOTS=false
     fi
 
+    # Deployment method (production only)
+    if [[ "$MODE" == "production" ]]; then
+        echo ""
+        printf "  ${BOLD}Backend Deployment${RESET}\n"
+        print_info "How should the backend services (federation, voice, etc.) run?"
+        echo ""
+
+        local choice=0
+        prompt_choice "Backend deployment:" \
+            "Docker Compose (recommended — containers for all services)" \
+            "Native Node.js (run services directly, no Docker)" || choice=$?
+
+        if [[ $choice -eq 0 ]]; then
+            USE_DOCKER=true
+        else
+            USE_DOCKER=false
+        fi
+    fi
+
     # Summary
     echo ""
     print_line 50
@@ -538,6 +572,13 @@ configure_features() {
         printf "    ${BGREEN}[x]${RESET} Bot Gateway\n"
     else
         printf "    ${DIM}[ ]${RESET} Bot Gateway\n"
+    fi
+    if [[ "$MODE" == "production" ]]; then
+        if $USE_DOCKER; then
+            printf "    ${BGREEN}[x]${RESET} Docker Compose deployment\n"
+        else
+            printf "    ${BGREEN}[x]${RESET} Native Node.js deployment\n"
+        fi
     fi
     echo ""
 }
@@ -849,7 +890,7 @@ LKEOF
 }
 
 generate_docker_compose() {
-    if [[ "$MODE" != "production" ]]; then
+    if [[ "$MODE" != "production" ]] || ! $USE_DOCKER; then
         return
     fi
 
@@ -1212,8 +1253,21 @@ build_frontend() {
     if prompt_yn "Build frontend now?" "y"; then
         cd "$PROJECT_DIR"
         if require_cmd npm; then
-            run_with_spinner "Installing dependencies (npm ci)..." npm ci
+            run_with_spinner "Installing frontend dependencies (npm ci)..." npm ci
             run_with_spinner "Building frontend..." npm run build-only
+
+            # For native mode, also install backend deps
+            if ! $USE_DOCKER; then
+                if $ENABLE_FEDERATION && [[ -d "$PROJECT_DIR/federation-backend" ]]; then
+                    echo ""
+                    run_with_spinner "Installing federation-backend dependencies..." bash -c "cd $PROJECT_DIR/federation-backend && npm ci"
+                    run_with_spinner "Building federation-backend..." bash -c "cd $PROJECT_DIR/federation-backend && npm run build-only"
+                fi
+                if $ENABLE_BOTS && [[ -d "$PROJECT_DIR/bot-gateway" ]]; then
+                    run_with_spinner "Installing bot-gateway dependencies..." bash -c "cd $PROJECT_DIR/bot-gateway && npm ci"
+                    run_with_spinner "Building bot-gateway..." bash -c "cd $PROJECT_DIR/bot-gateway && npm run build-only"
+                fi
+            fi
         else
             print_error "npm not found. Install Node.js first."
         fi
@@ -1221,6 +1275,30 @@ build_frontend() {
 }
 
 start_services() {
+    if [[ "$MODE" == "production" ]] && ! $USE_DOCKER; then
+        echo ""
+        printf "  ${BOLD}Native deployment — manual service startup${RESET}\n"
+        echo ""
+        print_info "Start each service manually:"
+        echo ""
+        if $ENABLE_FEDERATION; then
+            printf "    ${CYAN}cd federation-backend && npm ci && npm run build-only && npm start${RESET}\n"
+        fi
+        if $ENABLE_BOTS; then
+            printf "    ${CYAN}cd bot-gateway && npm ci && npm run build-only && npm start${RESET}\n"
+        fi
+        if $ENABLE_VOICE; then
+            printf "    ${CYAN}# Install LiveKit server: https://docs.livekit.io/home/self-hosting/local/${RESET}\n"
+            printf "    ${CYAN}livekit-server --config webrtc/livekit.yaml${RESET}\n"
+        fi
+        echo ""
+        print_info "Consider using pm2 or systemd to keep services running."
+        printf "    ${CYAN}npm install -g pm2${RESET}\n"
+        printf "    ${CYAN}pm2 start federation-backend/dist/index.js --name harmony-federation${RESET}\n"
+        echo ""
+        return
+    fi
+
     echo ""
     printf "  ${BOLD}Start Docker services?${RESET}\n"
 
@@ -1357,6 +1435,14 @@ show_summary() {
     [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]] && printf "    ${CHECK} dev/nginx-docs.conf\n"
     echo ""
 
+    if [[ -n "$SUPABASE_DASHBOARD_PASSWORD" ]]; then
+        printf "  ${BOLD}Supabase Studio${RESET} ${DIM}(save these!)${RESET}\n"
+        echo ""
+        printf "    Username:   ${CYAN}supabase${RESET}\n"
+        printf "    Password:   ${CYAN}%s${RESET}\n" "$SUPABASE_DASHBOARD_PASSWORD"
+        echo ""
+    fi
+
     if $ENABLE_VOICE; then
         printf "  ${BOLD}LiveKit Credentials${RESET} ${DIM}(save these!)${RESET}\n"
         echo ""
@@ -1372,14 +1458,22 @@ show_summary() {
     if [[ "$MODE" == "production" ]]; then
         printf "  ${BOLD}Next Steps${RESET}\n"
         echo ""
+        local step=1
         if [[ "$SUPABASE_MODE" == "selfhosted" ]] && [[ -n "$SUPABASE_PROJECT_DIR" ]]; then
-            printf "    ${DIM}0.${RESET} Start Supabase: ${CYAN}cd %s && docker compose up -d${RESET}\n" "$SUPABASE_PROJECT_DIR"
-            printf "    ${DIM}1.${RESET} Verify your DNS points to this server\n"
-        else
-            printf "    ${DIM}1.${RESET} Verify your DNS points to this server\n"
+            if ! $DB_SCHEMA_LOADED; then
+                printf "    ${DIM}%d.${RESET} Start Supabase: ${CYAN}cd %s && docker compose up -d${RESET}\n" "$step" "$SUPABASE_PROJECT_DIR"
+                ((++step))
+                printf "    ${DIM}%d.${RESET} Load the schema: ${CYAN}psql -h localhost -p 5432 -U supabase_admin -d postgres -f db_schema/init/init.sql${RESET}\n" "$step"
+                ((++step))
+                printf "    ${DIM}%d.${RESET} Run migrations: ${CYAN}for f in db_schema/migrations/*.sql; do psql -h localhost -p 5432 -U supabase_admin -d postgres -f \"\$f\"; done${RESET}\n" "$step"
+                ((++step))
+            fi
         fi
-        printf "    ${DIM}2.${RESET} Visit ${CYAN}https://%s${RESET} and register\n" "$DOMAIN"
-        printf "    ${DIM}3.${RESET} First registered user becomes admin\n"
+        printf "    ${DIM}%d.${RESET} Verify your DNS points to this server\n" "$step"
+        ((++step))
+        printf "    ${DIM}%d.${RESET} Visit ${CYAN}https://%s${RESET} and register\n" "$step" "$DOMAIN"
+        ((++step))
+        printf "    ${DIM}%d.${RESET} First registered user automatically becomes admin\n" "$step"
         echo ""
     else
         printf "  ${BOLD}Next Steps${RESET}\n"
@@ -1401,6 +1495,124 @@ show_summary() {
         printf "    See: ${CYAN}docs/OPENSTATUS_SETUP.md${RESET}\n"
         echo ""
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Database schema setup
+# ---------------------------------------------------------------------------
+setup_database() {
+    print_box "Database Schema"
+
+    if [[ "$SUPABASE_MODE" == "cloud" ]]; then
+        print_info "For Supabase Cloud, run the schema via the SQL Editor in your dashboard."
+        echo ""
+        print_info "1. Go to ${BOLD}Supabase Dashboard → SQL Editor${RESET}"
+        print_info "2. Paste and run each file from ${BOLD}db_schema/init/${RESET} in order"
+        print_info "   (or use psql with your connection string):"
+        echo ""
+        printf "    ${CYAN}psql \"%s\" -f db_schema/init/init.sql${RESET}\n" "$DATABASE_URL"
+        echo ""
+        print_info "3. Then run each migration from ${BOLD}db_schema/migrations/${RESET}:"
+        echo ""
+        printf "    ${CYAN}for f in db_schema/migrations/*.sql; do psql \"%s\" -f \"\$f\"; done${RESET}\n" "$DATABASE_URL"
+        echo ""
+        return
+    fi
+
+    # Self-hosted: determine connection params
+    local db_host="localhost"
+    local db_port="5432"
+    local db_user="supabase_admin"
+    local db_name="postgres"
+
+    print_info "The database schema needs to be loaded into Supabase."
+    print_info "This runs ${BOLD}init.sql${RESET} (full schema) and then all migrations."
+    echo ""
+
+    if ! prompt_yn "Set up database schema now?" "y"; then
+        echo ""
+        print_info "Run it manually later:"
+        printf "    ${CYAN}psql -h %s -p %s -U %s -d %s -f db_schema/init/init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+        printf "    ${CYAN}for f in db_schema/migrations/*.sql; do psql -h %s -p %s -U %s -d %s -f \"\$f\"; done${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+        echo ""
+        return
+    fi
+
+    if ! require_cmd psql; then
+        print_warn "psql not found. Install the PostgreSQL client:"
+        local pkg_mgr
+        pkg_mgr=$(detect_pkg_manager)
+        case "$pkg_mgr" in
+            apt) printf "    ${CYAN}sudo apt install postgresql-client${RESET}\n" ;;
+            dnf) printf "    ${CYAN}sudo dnf install postgresql${RESET}\n" ;;
+            pacman) printf "    ${CYAN}sudo pacman -S postgresql-libs${RESET}\n" ;;
+            brew) printf "    ${CYAN}brew install libpq${RESET}\n" ;;
+            *) printf "    ${CYAN}Install postgresql-client for your platform${RESET}\n" ;;
+        esac
+        echo ""
+        print_info "Then run manually:"
+        printf "    ${CYAN}psql -h %s -p %s -U %s -d %s -f db_schema/init/init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+        echo ""
+        return
+    fi
+
+    local pg_pw="${SUPABASE_PG_PASSWORD:-postgres}"
+
+    # Test connection
+    print_info "Testing database connection..."
+    if ! PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null; then
+        print_error "Cannot connect to database at ${db_host}:${db_port}"
+        print_info "Make sure Supabase is running first, then run:"
+        printf "    ${CYAN}psql -h %s -p %s -U %s -d %s -f db_schema/init/init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+        echo ""
+        return
+    fi
+
+    print_success "Database connection OK"
+
+    # Run init schema
+    echo ""
+    print_info "Loading init schema..."
+    if PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" \
+        -f "$PROJECT_DIR/db_schema/init/init.sql" 2>&1 | tail -5; then
+        print_success "Init schema loaded"
+    else
+        print_error "Schema loading failed. Check errors above."
+        return
+    fi
+
+    # Run migrations in order
+    local migration_count=0
+    local migration_files
+    migration_files=$(find "$PROJECT_DIR/db_schema/migrations" -name '*.sql' -type f 2>/dev/null | sort)
+
+    if [[ -n "$migration_files" ]]; then
+        echo ""
+        print_info "Running migrations..."
+        while IFS= read -r migration; do
+            local fname
+            fname=$(basename "$migration")
+            if PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" \
+                -f "$migration" &>/dev/null; then
+                ((++migration_count))
+            else
+                print_warn "Migration may have had issues: $fname"
+            fi
+        done <<< "$migration_files"
+        print_success "Ran $migration_count migrations"
+    fi
+
+    # Set instance domain and name
+    echo ""
+    print_info "Configuring instance_config..."
+    PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c \
+        "UPDATE public.instance_config SET config_value = '\"$DOMAIN\"' WHERE config_key = 'domain';
+         UPDATE public.instance_config SET config_value = '\"$INSTANCE_NAME\"' WHERE config_key = 'instance_name';" &>/dev/null \
+        && print_success "Set domain=${BOLD}$DOMAIN${RESET}, name=${BOLD}$INSTANCE_NAME${RESET}" \
+        || print_warn "Could not update instance_config — set manually in the admin panel"
+
+    DB_SCHEMA_LOADED=true
+    echo ""
 }
 
 # ---------------------------------------------------------------------------
@@ -1431,12 +1643,14 @@ main() {
         setup_firewall
         build_frontend
         start_services
+        setup_database
     else
         print_box "Local Dev Setup"
 
         setup_local_hosts
         setup_local_certs
         start_services
+        setup_database
     fi
 
     show_summary

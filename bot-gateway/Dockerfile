@@ -12,7 +12,7 @@ RUN npm ci
 
 COPY src ./src
 
-RUN npm run build
+RUN npm run build-only
 
 # Stage 2: Production
 FROM node:20-alpine
