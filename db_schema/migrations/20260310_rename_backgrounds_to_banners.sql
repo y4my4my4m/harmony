@@ -30,44 +30,37 @@ DROP POLICY IF EXISTS "Users can upload their own background" ON storage.objects
 DROP POLICY IF EXISTS "Users can update their own background" ON storage.objects;
 DROP POLICY IF EXISTS "Users can delete their own background" ON storage.objects;
 
--- Create policies for banners bucket (idempotent)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read access for banners' AND tablename = 'objects' AND schemaname = 'storage') THEN
-        CREATE POLICY "Public read access for banners"
-            ON storage.objects FOR SELECT
-            USING (bucket_id = 'banners');
-    END IF;
+-- Create policies for banners bucket (idempotent: DROP IF EXISTS then CREATE)
+DROP POLICY IF EXISTS "Public read access for banners" ON storage.objects;
+CREATE POLICY "Public read access for banners"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'banners');
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can upload their own banner' AND tablename = 'objects' AND schemaname = 'storage') THEN
-        CREATE POLICY "Users can upload their own banner"
-            ON storage.objects FOR INSERT
-            WITH CHECK (
-                bucket_id = 'banners'
-                AND auth.role() = 'authenticated'
-                AND (storage.foldername(name))[1] = auth.uid()::text
-            );
-    END IF;
+DROP POLICY IF EXISTS "Users can upload their own banner" ON storage.objects;
+CREATE POLICY "Users can upload their own banner"
+    ON storage.objects FOR INSERT
+    WITH CHECK (
+        bucket_id = 'banners'
+        AND auth.role() = 'authenticated'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+    );
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own banner' AND tablename = 'objects' AND schemaname = 'storage') THEN
-        CREATE POLICY "Users can update their own banner"
-            ON storage.objects FOR UPDATE
-            USING (
-                bucket_id = 'banners'
-                AND auth.role() = 'authenticated'
-                AND (storage.foldername(name))[1] = auth.uid()::text
-            );
-    END IF;
+DROP POLICY IF EXISTS "Users can update their own banner" ON storage.objects;
+CREATE POLICY "Users can update their own banner"
+    ON storage.objects FOR UPDATE
+    USING (
+        bucket_id = 'banners'
+        AND auth.role() = 'authenticated'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+    );
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete their own banner' AND tablename = 'objects' AND schemaname = 'storage') THEN
-        CREATE POLICY "Users can delete their own banner"
-            ON storage.objects FOR DELETE
-            USING (
-                bucket_id = 'banners'
-                AND auth.role() = 'authenticated'
-                AND (storage.foldername(name))[1] = auth.uid()::text
-            );
-    END IF;
-END $$;
+DROP POLICY IF EXISTS "Users can delete their own banner" ON storage.objects;
+CREATE POLICY "Users can delete their own banner"
+    ON storage.objects FOR DELETE
+    USING (
+        bucket_id = 'banners'
+        AND auth.role() = 'authenticated'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+    );
 
 COMMIT;

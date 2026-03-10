@@ -92,38 +92,45 @@ ON CONFLICT (id) DO UPDATE SET
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- ---------------------------------------------------------------------------
--- STORAGE RLS POLICIES
+-- STORAGE RLS POLICIES (idempotent: DROP IF EXISTS then CREATE)
 -- ---------------------------------------------------------------------------
 
 -- Enable RLS on storage.objects
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Public read access for all public buckets
+DROP POLICY IF EXISTS "Public read access for avatars" ON storage.objects;
 CREATE POLICY "Public read access for avatars"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'avatars');
 
+DROP POLICY IF EXISTS "Public read access for banners" ON storage.objects;
 CREATE POLICY "Public read access for banners"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'banners');
 
+DROP POLICY IF EXISTS "Public read access for server_icons" ON storage.objects;
 CREATE POLICY "Public read access for server_icons"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'server_icons');
 
+DROP POLICY IF EXISTS "Public read access for server_banners" ON storage.objects;
 CREATE POLICY "Public read access for server_banners"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'server_banners');
 
+DROP POLICY IF EXISTS "Public read access for user_media" ON storage.objects;
 CREATE POLICY "Public read access for user_media"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'user_media');
 
+DROP POLICY IF EXISTS "Public read access for emojis" ON storage.objects;
 CREATE POLICY "Public read access for emojis"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'emojis');
 
 -- Authenticated users can upload to avatars (their own folder)
+DROP POLICY IF EXISTS "Users can upload their own avatar" ON storage.objects;
 CREATE POLICY "Users can upload their own avatar"
     ON storage.objects FOR INSERT
     WITH CHECK (
@@ -132,6 +139,7 @@ CREATE POLICY "Users can upload their own avatar"
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
+DROP POLICY IF EXISTS "Users can update their own avatar" ON storage.objects;
 CREATE POLICY "Users can update their own avatar"
     ON storage.objects FOR UPDATE
     USING (
@@ -140,6 +148,7 @@ CREATE POLICY "Users can update their own avatar"
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
+DROP POLICY IF EXISTS "Users can delete their own avatar" ON storage.objects;
 CREATE POLICY "Users can delete their own avatar"
     ON storage.objects FOR DELETE
     USING (
@@ -149,6 +158,7 @@ CREATE POLICY "Users can delete their own avatar"
     );
 
 -- Authenticated users can upload to banners (their own folder)
+DROP POLICY IF EXISTS "Users can upload their own banner" ON storage.objects;
 CREATE POLICY "Users can upload their own banner"
     ON storage.objects FOR INSERT
     WITH CHECK (
@@ -157,6 +167,7 @@ CREATE POLICY "Users can upload their own banner"
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
+DROP POLICY IF EXISTS "Users can update their own banner" ON storage.objects;
 CREATE POLICY "Users can update their own banner"
     ON storage.objects FOR UPDATE
     USING (
@@ -165,6 +176,7 @@ CREATE POLICY "Users can update their own banner"
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
+DROP POLICY IF EXISTS "Users can delete their own banner" ON storage.objects;
 CREATE POLICY "Users can delete their own banner"
     ON storage.objects FOR DELETE
     USING (
@@ -174,6 +186,7 @@ CREATE POLICY "Users can delete their own banner"
     );
 
 -- Authenticated users can upload to user_media
+DROP POLICY IF EXISTS "Authenticated users can upload user_media" ON storage.objects;
 CREATE POLICY "Authenticated users can upload user_media"
     ON storage.objects FOR INSERT
     WITH CHECK (
@@ -182,7 +195,7 @@ CREATE POLICY "Authenticated users can upload user_media"
     );
 
 -- Server owners can upload server icons/banners
--- (Uses server_id as folder name)
+DROP POLICY IF EXISTS "Server owners can upload server icons" ON storage.objects;
 CREATE POLICY "Server owners can upload server icons"
     ON storage.objects FOR INSERT
     WITH CHECK (
@@ -190,6 +203,7 @@ CREATE POLICY "Server owners can upload server icons"
         AND auth.role() = 'authenticated'
     );
 
+DROP POLICY IF EXISTS "Server owners can update server icons" ON storage.objects;
 CREATE POLICY "Server owners can update server icons"
     ON storage.objects FOR UPDATE
     USING (
@@ -197,6 +211,7 @@ CREATE POLICY "Server owners can update server icons"
         AND auth.role() = 'authenticated'
     );
 
+DROP POLICY IF EXISTS "Server owners can upload server banners" ON storage.objects;
 CREATE POLICY "Server owners can upload server banners"
     ON storage.objects FOR INSERT
     WITH CHECK (
@@ -204,6 +219,7 @@ CREATE POLICY "Server owners can upload server banners"
         AND auth.role() = 'authenticated'
     );
 
+DROP POLICY IF EXISTS "Server owners can update server banners" ON storage.objects;
 CREATE POLICY "Server owners can update server banners"
     ON storage.objects FOR UPDATE
     USING (
@@ -212,6 +228,7 @@ CREATE POLICY "Server owners can update server banners"
     );
 
 -- Emoji upload (server owners or global)
+DROP POLICY IF EXISTS "Users can upload emojis" ON storage.objects;
 CREATE POLICY "Users can upload emojis"
     ON storage.objects FOR INSERT
     WITH CHECK (
