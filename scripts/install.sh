@@ -328,6 +328,18 @@ configure_instance() {
     print_success "Instance: ${BOLD}$INSTANCE_NAME${RESET} at ${BOLD}$DOMAIN${RESET}"
 }
 
+# Set GOTRUE_MAILER_AUTOCONFIRM in Supabase .env (true = skip verification, false = require it)
+set_supabase_autoconfirm() {
+    local val="$1"  # "true" or "false"
+    local env_file="${SUPABASE_PROJECT_DIR:?}/.env"
+    if grep -q "^GOTRUE_MAILER_AUTOCONFIRM=" "$env_file" 2>/dev/null; then
+        sed -i.bak "s|^GOTRUE_MAILER_AUTOCONFIRM=.*|GOTRUE_MAILER_AUTOCONFIRM=$val|" "$env_file"
+    else
+        echo "GOTRUE_MAILER_AUTOCONFIRM=$val" >> "$env_file"
+    fi
+    rm -f "${env_file}.bak"
+}
+
 # ---------------------------------------------------------------------------
 # Self-hosted Supabase Docker setup
 # ---------------------------------------------------------------------------
@@ -378,6 +390,49 @@ setup_selfhosted_supabase_docker() {
         sed -i.bak "s|PROXY_DOMAIN=.*|PROXY_DOMAIN=$domain_clean|" "$SUPABASE_PROJECT_DIR/.env"
         rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
     fi
+
+    print_step "4b" "Email verification for signups"
+    echo ""
+    print_info "Require new users to verify their email before signing in?"
+    print_info "We recommend ${BOLD}Yes${RESET} and using a transactional email provider like ${BOLD}Resend${RESET} (resend.com — free tier available)."
+    print_info "If you skip verification, anyone can sign up with any email without confirmation."
+    echo ""
+    if prompt_yn "Require email verification?" "y"; then
+        # Verification enabled — need SMTP for emails to send
+        if prompt_yn "Configure Resend now? (you need an API key from resend.com)" "y"; then
+            local resend_key
+            resend_key=$(prompt_input "Resend API key (starts with re_)" "")
+            if [[ -n "$resend_key" ]]; then
+                # Resend SMTP: smtp.resend.com, port 465 or 587, user=resend, pass=API key
+                for line in \
+                    "GOTRUE_MAILER_AUTOCONFIRM=false" \
+                    "GOTRUE_SMTP_HOST=smtp.resend.com" \
+                    "GOTRUE_SMTP_PORT=587" \
+                    "GOTRUE_SMTP_USER=resend" \
+                    "GOTRUE_SMTP_PASS=$resend_key"; do
+                    local key="${line%%=*}"
+                    if grep -q "^${key}=" "$SUPABASE_PROJECT_DIR/.env" 2>/dev/null; then
+                        sed -i.bak "s|^${key}=.*|${line}|" "$SUPABASE_PROJECT_DIR/.env"
+                    else
+                        echo "$line" >> "$SUPABASE_PROJECT_DIR/.env"
+                    fi
+                done
+                rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
+                print_success "Resend SMTP configured; email verification enabled"
+            else
+                set_supabase_autoconfirm true
+                print_warn "No API key provided. Verification disabled for now. Add GOTRUE_SMTP_* to the Supabase .env later to enable."
+            fi
+        else
+            set_supabase_autoconfirm false
+            print_info "Verification is required. Add GOTRUE_SMTP_HOST, GOTRUE_SMTP_USER, GOTRUE_SMTP_PASS (and optionally GOTRUE_SMTP_PORT) to:"
+            printf "    ${CYAN}%s/.env${RESET}\n" "$SUPABASE_PROJECT_DIR"
+        fi
+    else
+        set_supabase_autoconfirm true
+        print_success "Email verification disabled (signups auto-confirmed)"
+    fi
+    echo ""
 
     print_step "5" "Pulling Docker images"
     (cd "$SUPABASE_PROJECT_DIR" && run_with_spinner "Pulling images..." docker compose pull)
