@@ -10,6 +10,8 @@ set -euo pipefail
 # Usage:
 #   ./scripts/install.sh              # Full interactive install
 #   ./scripts/install.sh --schema-setup-only   # Run only DB schema (init + migrations)
+#   ./scripts/install.sh --move-dist          # Build frontend and deploy dist to web root (/var/www/harmony if under /root)
+#   ./scripts/install.sh --move-dist --no-build  # Deploy existing dist only (no build)
 #     Loads DOMAIN/INSTANCE_NAME from .env; prompts for Postgres password if not set.
 # =============================================================================
 
@@ -1813,6 +1815,71 @@ main() {
 }
 
 # ---------------------------------------------------------------------------
+# --move-dist: build frontend (unless --no-build) and copy dist to web root
+# ---------------------------------------------------------------------------
+run_move_dist() {
+    local do_build=true
+    for a in "$@"; do
+        [[ "$a" == "--no-build" ]] && do_build=false
+    done
+
+    echo ""
+    print_box "Deploy Frontend to Web Root"
+    print_info "Project: ${BOLD}$PROJECT_DIR${RESET}"
+    echo ""
+
+    # Same logic as generate_nginx_config: nginx can't read /root/
+    local web_root
+    if [[ "$PROJECT_DIR" == /root/* ]]; then
+        web_root="/var/www/harmony"
+        print_info "Project is under /root/ — deploying to ${BOLD}$web_root${RESET}"
+    else
+        web_root="$PROJECT_DIR/dist"
+        print_info "Web root: ${BOLD}$web_root${RESET} (same as dist — no copy needed)"
+        if $do_build; then
+            cd "$PROJECT_DIR"
+            if require_cmd npm; then
+                run_with_spinner "Installing dependencies (npm ci)..." npm ci
+                run_with_spinner "Building frontend..." npm run build-only
+                print_success "Build complete. Nginx already serves from $web_root"
+            fi
+            return
+        else
+            print_success "No copy needed; nginx serves dist directly."
+            return
+        fi
+    fi
+
+    if $do_build; then
+        cd "$PROJECT_DIR"
+        if ! require_cmd npm; then
+            print_error "npm not found. Install Node.js first."
+            return 1
+        fi
+        run_with_spinner "Installing dependencies (npm ci)..." npm ci
+        run_with_spinner "Building frontend..." npm run build-only
+    fi
+
+    if [[ ! -d "$PROJECT_DIR/dist" ]]; then
+        print_error "dist/ not found. Run without --no-build to build first."
+        return 1
+    fi
+
+    echo ""
+    print_info "Deploying to ${BOLD}$web_root${RESET}..."
+    sudo mkdir -p "$web_root"
+    if require_cmd rsync; then
+        sudo rsync -a --delete "$PROJECT_DIR/dist/" "$web_root/"
+    else
+        sudo cp -a "$PROJECT_DIR/dist/"* "$web_root/"
+    fi
+    sudo chown -R www-data:www-data "$web_root"
+    print_success "Static files deployed to $web_root"
+    echo ""
+    print_info "Reload nginx if needed: ${CYAN}sudo systemctl reload nginx${RESET}"
+}
+
+# ---------------------------------------------------------------------------
 # --schema-setup-only: load config from .env and run only database schema setup
 # ---------------------------------------------------------------------------
 run_schema_setup_only() {
@@ -1896,10 +1963,14 @@ run_schema_setup_only() {
 
 # Parse args for standalone flags
 SCHEMA_SETUP_ONLY_ARG=
+MOVE_DIST_ARG=
 ARGS=()
 for arg in "$@"; do
     if [[ "$arg" == "--schema-setup-only" ]]; then
         SCHEMA_SETUP_ONLY_ARG=1
+    elif [[ "$arg" == "--move-dist" ]]; then
+        MOVE_DIST_ARG=1
+        ARGS+=("$arg")
     else
         ARGS+=("$arg")
     fi
@@ -1907,6 +1978,8 @@ done
 
 if [[ -n "$SCHEMA_SETUP_ONLY_ARG" ]]; then
     run_schema_setup_only
+elif [[ -n "$MOVE_DIST_ARG" ]]; then
+    run_move_dist "${ARGS[@]}"
 else
     main "${ARGS[@]}"
 fi
