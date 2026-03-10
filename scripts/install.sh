@@ -1642,7 +1642,7 @@ setup_database() {
     print_info "Loading init schema..."
     local init_ec=0
     if $use_docker_exec; then
-        docker exec -i -w /tmp/db_schema/init "$db_container" psql -U "$db_user" -d "$db_name" -f init.sql 2>&1 | tail -15
+        docker exec -w /tmp/db_schema/init "$db_container" psql -U "$db_user" -d "$db_name" -f init.sql 2>&1 | tail -15
         init_ec=${PIPESTATUS[0]}
     else
         (cd "$PROJECT_DIR/db_schema/init" && PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f init.sql) 2>&1 | tail -15
@@ -1668,7 +1668,7 @@ setup_database() {
             fname=$(basename "$migration")
             local mig_ec=0
             if $use_docker_exec; then
-                docker exec -i "$db_container" psql -U "$db_user" -d "$db_name" -f "/tmp/db_schema/migrations/$fname" &>/dev/null
+                docker exec "$db_container" psql -U "$db_user" -d "$db_name" -f "/tmp/db_schema/migrations/$fname" &>/dev/null
                 mig_ec=$?
             else
                 PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f "$migration" &>/dev/null

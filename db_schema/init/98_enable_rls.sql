@@ -1,19 +1,50 @@
-ALTER TABLE auth.audit_log_entries ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.flow_state ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.identities ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.instances ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.mfa_amr_claims ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.mfa_challenges ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.mfa_factors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.one_time_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.refresh_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.saml_providers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.saml_relay_states ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.schema_migrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.sso_domains ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.sso_providers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on Supabase-managed tables (auth, storage, realtime).
+-- These tables vary across Supabase versions, so skip any that don't exist.
+DO $$
+DECLARE
+    tbl text;
+    tbls text[] := ARRAY[
+        'auth.audit_log_entries',
+        'auth.flow_state',
+        'auth.identities',
+        'auth.instances',
+        'auth.mfa_amr_claims',
+        'auth.mfa_challenges',
+        'auth.mfa_factors',
+        'auth.one_time_tokens',
+        'auth.refresh_tokens',
+        'auth.saml_providers',
+        'auth.saml_relay_states',
+        'auth.schema_migrations',
+        'auth.sessions',
+        'auth.sso_domains',
+        'auth.sso_providers',
+        'auth.users',
+        'realtime.messages',
+        'storage.buckets',
+        'storage.buckets_analytics',
+        'storage.buckets_vectors',
+        'storage.iceberg_namespaces',
+        'storage.iceberg_tables',
+        'storage.migrations',
+        'storage.objects',
+        'storage.prefixes',
+        'storage.s3_multipart_uploads',
+        'storage.s3_multipart_uploads_parts',
+        'storage.vector_indexes'
+    ];
+BEGIN
+    FOREACH tbl IN ARRAY tbls LOOP
+        BEGIN
+            EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', tbl);
+        EXCEPTION WHEN undefined_table THEN
+            RAISE NOTICE 'Skipping RLS for non-existent table: %', tbl;
+        END;
+    END LOOP;
+END
+$$;
+
+-- Enable RLS on all Harmony public tables
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ap_activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ap_actor_cache ENABLE ROW LEVEL SECURITY;
@@ -103,15 +134,3 @@ ALTER TABLE public.user_timeline_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_view_contexts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.voice_channel_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.voice_federation_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.buckets_analytics ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.buckets_vectors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.iceberg_namespaces ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.iceberg_tables ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.migrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.prefixes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.s3_multipart_uploads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.s3_multipart_uploads_parts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE storage.vector_indexes ENABLE ROW LEVEL SECURITY;
