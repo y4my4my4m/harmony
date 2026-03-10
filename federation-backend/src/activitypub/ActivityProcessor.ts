@@ -2134,11 +2134,10 @@ export class ActivityProcessor {
     // For each local recipient, find or create DM conversation using the database function
     for (const recipientId of recipientIds) {
       try {
-        // Use the existing get_or_create_conversation function
         const { data: conversationId, error: convError } = await supabase
-          .rpc('get_or_create_conversation', {
-            user1_uuid: authorId,
-            user2_uuid: recipientId
+          .rpc('get_or_create_dm_conversation', {
+            p_user1_id: authorId,
+            p_user2_id: recipientId
           });
         
         if (convError || !conversationId) {

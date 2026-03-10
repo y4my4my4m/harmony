@@ -80,9 +80,9 @@ ALTER TABLE public.profiles
 -- Full replica identity for realtime
 ALTER TABLE public.profiles REPLICA IDENTITY FULL;
 
--- Unique federated_id for federation
-CREATE UNIQUE INDEX IF NOT EXISTS profiles_federated_id_key 
-    ON public.profiles(federated_id) WHERE federated_id IS NOT NULL;
+-- Unique constraint on federated_id for federation (ON CONFLICT upserts)
+ALTER TABLE public.profiles
+    ADD CONSTRAINT profiles_federated_id_unique UNIQUE (federated_id);
 
 -- Index for username lookups
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(username);
