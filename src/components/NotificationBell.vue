@@ -191,12 +191,14 @@ import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { useLayoutState } from '@/composables/useLayoutState'
 import NotificationItem from './NotificationItem.vue'
 import type { Notification } from '@/types'
 
 const notificationStore = useNotificationStore()
 const authStore = useAuthStore()
 const router = useRouter()
+const { closeMobileSidebars } = useLayoutState()
 
 // Reactive state
 const isOpen = ref(false)
@@ -281,9 +283,9 @@ const dismissNotification = async (notificationId: string) => {
 }
 
 const handleNotificationClick = (notification: Notification) => {
-  // markAsRead(notification.id)
   notificationStore.handleNotificationClick(notification)
   closePanel()
+  closeMobileSidebars()
 }
 
 const openSettings = () => {

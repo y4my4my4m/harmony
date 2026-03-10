@@ -1221,6 +1221,11 @@ export const useNotificationStore = defineStore('notification', {
                 params: { postId: navData.postId }
               })
               break
+
+            case 'profile':
+              // Navigate to user's profile (e.g. new follower)
+              router.push(`/social/profile/${navData.handle}`)
+              break
               
             case 'activitypub':
             case 'mention':

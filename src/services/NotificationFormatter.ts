@@ -468,7 +468,10 @@ export class NotificationFormatter {
       data.location?.server_id ||
       data.server_id ||
       // ActivityPub notifications with post IDs
-      (notification.type.startsWith('activitypub_') && data.post_id)
+      (notification.type.startsWith('activitypub_') && data.post_id) ||
+      // Follow notifications navigate to the follower's profile
+      (notification.type === 'activitypub_follow' && data.follower) ||
+      (notification.type === 'activitypub_follow_request' && data.follower)
     )
   }
   
@@ -479,13 +482,27 @@ export class NotificationFormatter {
   static getNavigationData(notification: Notification) {
     const data = notification.data
     
+    // ActivityPub follow → navigate to follower's profile
+    if (notification.type === 'activitypub_follow' || notification.type === 'activitypub_follow_request') {
+      const follower = data.follower
+      if (follower) {
+        const handle = follower.is_local
+          ? follower.username
+          : `${follower.username}@${follower.domain}`
+        return {
+          type: 'profile' as const,
+          handle,
+          userId: follower.id || follower.user_id
+        }
+      }
+    }
+
     // ActivityPub post navigation
     if (notification.type.startsWith('activitypub_') && data.post_id) {
       return {
         type: 'activitypub_post' as const,
         postId: data.post_id,
         postUrl: data.post_url,
-        // For mentions/replies, might want to highlight the specific part
         highlightUser: data.author?.id || data.user?.id
       }
     }
