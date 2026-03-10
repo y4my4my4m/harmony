@@ -141,13 +141,5 @@
 \i 98_enable_rls.sql
 
 \echo ''
-\echo '=============================================='
-\echo 'Harmony Database Initialization Complete!'
-\echo '=============================================='
-\echo ''
-\echo 'Next steps:'
-\echo '  1. Update instance_config.domain with your domain:'
-\echo '     UPDATE instance_config SET config_value=''"your-domain.com"'' WHERE config_key=''domain'';'
-\echo '  2. Configure storage bucket URLs if using custom domain'
-\echo '  3. Set up federation backend environment variables'
+\echo 'Harmony database initialization complete.'
 \echo ''
