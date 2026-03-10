@@ -288,7 +288,7 @@ router.get(
     const { data: interactions } = await supabase
       .from('post_interactions')
       .select(`
-        id, interaction_type, created_at,
+        id, interaction_type, created_at, custom_emoji_content,
         profile:profiles!post_interactions_user_id_fkey ( id, username, domain, is_local, ap_id ),
         emoji:emojis ( name, url )
       `)
@@ -311,6 +311,8 @@ router.get(
 
       if (i.emoji?.name) {
         item.content = i.emoji.url ? `:${i.emoji.name}:` : i.emoji.name;
+      } else if (i.custom_emoji_content) {
+        item.content = i.custom_emoji_content;
       }
       return item;
     });

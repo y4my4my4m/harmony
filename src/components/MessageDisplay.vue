@@ -2555,7 +2555,8 @@ defineExpose({ editLastOwnMessage });
 }
 
 .username-text:hover {
-  text-decoration: underline;
+  border-bottom: 2px solid;
+  padding-bottom: 2px;
 }
 
 .bot-badge {
@@ -2595,8 +2596,8 @@ defineExpose({ editLastOwnMessage });
   transition: all 0.2s ease;
 }
 
-.username:hover .instance-badge.admin, 
-.username:hover .instance-badge.mod {
+.instance-badge:hover.admin, 
+.instance-badge:hover.mod {
   color: var(--text-primary);
   background:  var(--harmony-secondary);
 }

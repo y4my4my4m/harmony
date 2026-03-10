@@ -149,7 +149,6 @@ const nameStyle = computed(() => {
   height: 1.2em;
   width: auto;
   vertical-align: -0.2em;
-  margin: 0 1px;
   object-fit: contain;
 }
 </style>
