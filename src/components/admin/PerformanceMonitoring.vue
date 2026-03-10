@@ -135,7 +135,7 @@
             class="distribution-item"
           >
             <div class="endpoint-info">
-              <span class="method" :class="endpoint.method.toLowerCase()">{{ endpoint.method }}</span>
+              <span class="method" :class="(endpoint.method ?? 'get').toLowerCase()">{{ endpoint.method }}</span>
               <span class="path">{{ endpoint.path }}</span>
             </div>
             <div class="endpoint-stats">

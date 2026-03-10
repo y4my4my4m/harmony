@@ -191,12 +191,12 @@ export function useAutoSuggest(
     for (const serverId in resolvedEmojiList) {
       const server = resolvedEmojiList[serverId];
       const matchingEmojis = server.emojis.filter((emoji: ResolvedEmoji) => 
-        emoji.name.toLowerCase().includes(query) || 
-        emoji.display_name.toLowerCase().includes(query)
+        (emoji.name?.toLowerCase() ?? '').includes(query) || 
+        (emoji.display_name?.toLowerCase() ?? '').includes(query)
       );
 
       suggestions.push(...matchingEmojis.map((emoji: ResolvedEmoji): SuggestionItem => {
-        seenNames.add(emoji.name.toLowerCase());
+        seenNames.add((emoji.name ?? '').toLowerCase());
         return {
           id: emoji.id,
           name: emoji.name,
@@ -214,7 +214,7 @@ export function useAutoSuggest(
       
       for (const emoji of unifiedResults) {
         // Skip if already added from server emojis
-        if (seenNames.has(emoji.shortcode.toLowerCase())) continue;
+        if (seenNames.has((emoji.shortcode ?? '').toLowerCase())) continue;
         
         // Get URL for display (SVG or null for native)
         const svgUrl = getSvgUrl(emoji.shortcode);

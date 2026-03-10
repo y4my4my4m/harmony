@@ -248,10 +248,11 @@ function setEmojiPack(pack: EmojiPack): void {
  * Case insensitive lookup
  */
 function shortcodeToUnicode(shortcode: string): string | null {
-  if (!lookups.value) return null
+  if (!lookups.value || shortcode == null || shortcode === '') return null
   // Try exact match first, then lowercase
-  return lookups.value.shortcodeToUnicode[shortcode] || 
-         lookups.value.shortcodeToUnicode[shortcode.toLowerCase()] || 
+  const key = String(shortcode)
+  return lookups.value.shortcodeToUnicode[key] || 
+         lookups.value.shortcodeToUnicode[key.toLowerCase()] || 
          null
 }
 
@@ -677,7 +678,7 @@ function searchEmojis(query: string, limit: number = 50): EmojiEntry[] {
   
   return emojiData.value.emojis
     .filter(emoji => 
-      emoji.shortcode.toLowerCase().includes(lowerQuery) ||
+      (emoji.shortcode ?? '').toLowerCase().includes(lowerQuery) ||
       (emoji.name && emoji.name.toLowerCase().includes(lowerQuery)) ||
       (emoji.description && emoji.description.toLowerCase().includes(lowerQuery)) ||
       emoji.keywords?.some(kw => kw.toLowerCase().includes(lowerQuery))
