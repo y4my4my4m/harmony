@@ -3158,7 +3158,7 @@ BEGIN
 
   SELECT count(DISTINCT us.user_id) INTO v_with_keys
   FROM user_servers us
-  JOIN user_key_pairs ukp ON ukp.user_id = us.user_id AND ukp.is_active = true
+  JOIN user_key_pairs ukp ON ukp.user_id = us.user_id
   WHERE us.server_id = p_server_id;
 
   RETURN jsonb_build_object(

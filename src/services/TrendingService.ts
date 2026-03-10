@@ -639,7 +639,7 @@ class TrendingService {
     try {
       const { count, error } = await supabase
         .from('posts')
-        .select('*', { count: 'exact', head: true })
+        .select('*, author:profiles!inner(domain)', { count: 'exact', head: true })
         .eq('author.domain', domain);
       
       return count || 0;
