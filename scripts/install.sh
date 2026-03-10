@@ -538,13 +538,15 @@ configure_features() {
     if [[ "$MODE" == "production" ]]; then
         echo ""
         printf "  ${BOLD}Backend Deployment${RESET}\n"
-        print_info "How should the backend services (federation, voice, etc.) run?"
+        print_info "How should the backend services (federation, voice, bot-gateway) run?"
+        print_info "The web app is always built to static files and served by nginx."
+        print_info "Docker runs federation, LiveKit, Redis, and nginx in one stack — one-command deploy."
         echo ""
 
         local choice=0
         prompt_choice "Backend deployment:" \
-            "Docker Compose (recommended — containers for all services)" \
-            "Native Node.js (run services directly, no Docker)" || choice=$?
+            "Docker Compose (recommended — federation, LiveKit, nginx in containers)" \
+            "Native Node.js (run federation/LiveKit directly on the host)" || choice=$?
 
         if [[ $choice -eq 0 ]]; then
             USE_DOCKER=true
@@ -1246,8 +1248,12 @@ build_frontend() {
     fi
 
     echo ""
-    printf "  ${BOLD}Build frontend?${RESET}\n"
-    print_info "Runs npm ci && npm run build-only to produce dist/"
+    printf "  ${BOLD}Build frontend (static files)?${RESET}\n"
+    print_info "The Vue app is built once into ${BOLD}dist/${RESET} — static HTML/JS/CSS."
+    if $USE_DOCKER; then
+        print_info "The nginx container will serve that folder; it does not build the app."
+    fi
+    print_info "Required for both Docker and native. Runs: npm ci && npm run build-only"
     echo ""
 
     if prompt_yn "Build frontend now?" "y"; then
@@ -1463,9 +1469,9 @@ show_summary() {
             if ! $DB_SCHEMA_LOADED; then
                 printf "    ${DIM}%d.${RESET} Start Supabase: ${CYAN}cd %s && docker compose up -d${RESET}\n" "$step" "$SUPABASE_PROJECT_DIR"
                 ((++step))
-                printf "    ${DIM}%d.${RESET} Load the schema: ${CYAN}psql -h localhost -p 5432 -U supabase_admin -d postgres -f db_schema/init/init.sql${RESET}\n" "$step"
+                printf "    ${DIM}%d.${RESET} Load schema: ${CYAN}cd db_schema/init && PGPASSWORD=xxx psql -h localhost -p 5432 -U supabase_admin -d postgres -f init.sql${RESET}\n" "$step"
                 ((++step))
-                printf "    ${DIM}%d.${RESET} Run migrations: ${CYAN}for f in db_schema/migrations/*.sql; do psql -h localhost -p 5432 -U supabase_admin -d postgres -f \"\$f\"; done${RESET}\n" "$step"
+                printf "    ${DIM}%d.${RESET} Run migrations: ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql -h localhost -p 5432 -U supabase_admin -d postgres -f \"\$f\"; done${RESET}\n" "$step"
                 ((++step))
             fi
         fi
@@ -1504,17 +1510,16 @@ setup_database() {
     print_box "Database Schema"
 
     if [[ "$SUPABASE_MODE" == "cloud" ]]; then
-        print_info "For Supabase Cloud, run the schema via the SQL Editor in your dashboard."
+        print_info "For Supabase Cloud, run the schema via the SQL Editor or psql."
         echo ""
-        print_info "1. Go to ${BOLD}Supabase Dashboard → SQL Editor${RESET}"
-        print_info "2. Paste and run each file from ${BOLD}db_schema/init/${RESET} in order"
-        print_info "   (or use psql with your connection string):"
+        print_info "Option A: ${BOLD}Supabase Dashboard → SQL Editor${RESET} — run files from db_schema/init/ then db_schema/migrations/ in order."
         echo ""
-        printf "    ${CYAN}psql \"%s\" -f db_schema/init/init.sql${RESET}\n" "$DATABASE_URL"
+        print_info "Option B: Install PostgreSQL client, then from the project root:"
         echo ""
-        print_info "3. Then run each migration from ${BOLD}db_schema/migrations/${RESET}:"
+        printf "    ${CYAN}cd db_schema/init && psql \"%s\" -f init.sql${RESET}\n" "$DATABASE_URL"
+        printf "    ${DIM}# init.sql includes the other init files via \\\\i; must run from db_schema/init${RESET}\n"
         echo ""
-        printf "    ${CYAN}for f in db_schema/migrations/*.sql; do psql \"%s\" -f \"\$f\"; done${RESET}\n" "$DATABASE_URL"
+        printf "    ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql \"%s\" -f \"\$f\"; done${RESET}\n" "$DATABASE_URL"
         echo ""
         return
     fi
@@ -1531,57 +1536,80 @@ setup_database() {
 
     if ! prompt_yn "Set up database schema now?" "y"; then
         echo ""
-        print_info "Run it manually later:"
-        printf "    ${CYAN}psql -h %s -p %s -U %s -d %s -f db_schema/init/init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
-        printf "    ${CYAN}for f in db_schema/migrations/*.sql; do psql -h %s -p %s -U %s -d %s -f \"\$f\"; done${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
-        echo ""
-        return
-    fi
-
-    if ! require_cmd psql; then
-        print_warn "psql not found. Install the PostgreSQL client:"
-        local pkg_mgr
-        pkg_mgr=$(detect_pkg_manager)
-        case "$pkg_mgr" in
-            apt) printf "    ${CYAN}sudo apt install postgresql-client${RESET}\n" ;;
-            dnf) printf "    ${CYAN}sudo dnf install postgresql${RESET}\n" ;;
-            pacman) printf "    ${CYAN}sudo pacman -S postgresql-libs${RESET}\n" ;;
-            brew) printf "    ${CYAN}brew install libpq${RESET}\n" ;;
-            *) printf "    ${CYAN}Install postgresql-client for your platform${RESET}\n" ;;
-        esac
-        echo ""
-        print_info "Then run manually:"
-        printf "    ${CYAN}psql -h %s -p %s -U %s -d %s -f db_schema/init/init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+        print_info "Run it manually (init.sql uses \\i to include other files — run from db_schema/init):"
+        printf "    ${CYAN}cd db_schema/init && PGPASSWORD=... psql -h %s -p %s -U %s -d %s -f init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+        printf "    ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql -h %s -p %s -U %s -d %s -f \"\$f\"; done${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
         echo ""
         return
     fi
 
     local pg_pw="${SUPABASE_PG_PASSWORD:-postgres}"
+    local use_docker_for_psql=false
+
+    if ! require_cmd psql; then
+        if require_cmd docker; then
+            print_info "psql not found. Using a PostgreSQL client container to run the schema."
+            use_docker_for_psql=true
+        else
+            print_warn "psql not found. Install the PostgreSQL client:"
+            local pkg_mgr
+            pkg_mgr=$(detect_pkg_manager)
+            case "$pkg_mgr" in
+                apt) printf "    ${CYAN}sudo apt install postgresql-client${RESET}\n" ;;
+                dnf) printf "    ${CYAN}sudo dnf install postgresql${RESET}\n" ;;
+                pacman) printf "    ${CYAN}sudo pacman -S postgresql-libs${RESET}\n" ;;
+                brew) printf "    ${CYAN}brew install libpq${RESET}\n" ;;
+                *) printf "    ${CYAN}Install postgresql-client for your platform${RESET}\n" ;;
+            esac
+            echo ""
+            print_info "Then run (init must be run from db_schema/init so \\i includes work):"
+            printf "    ${CYAN}cd db_schema/init && PGPASSWORD=xxx psql -h %s -p %s -U %s -d %s -f init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+            printf "    ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql ... -f \"\$f\"; done${RESET}\n"
+            echo ""
+            return
+        fi
+    fi
 
     # Test connection
     print_info "Testing database connection..."
-    if ! PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null; then
-        print_error "Cannot connect to database at ${db_host}:${db_port}"
-        print_info "Make sure Supabase is running first, then run:"
-        printf "    ${CYAN}psql -h %s -p %s -U %s -d %s -f db_schema/init/init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
-        echo ""
-        return
+    if $use_docker_for_psql; then
+        if ! docker run --rm --network host -e PGPASSWORD="$pg_pw" postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null; then
+            print_error "Cannot connect to database at ${db_host}:${db_port}"
+            print_info "Make sure Supabase is running, then run manually (see above)."
+            echo ""
+            return
+        fi
+    else
+        if ! PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null; then
+            print_error "Cannot connect to database at ${db_host}:${db_port}"
+            print_info "Make sure Supabase is running first, then run:"
+            printf "    ${CYAN}cd db_schema/init && PGPASSWORD=xxx psql -h %s -p %s -U %s -d %s -f init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
+            echo ""
+            return
+        fi
     fi
 
     print_success "Database connection OK"
 
-    # Run init schema
+    # Run init schema (must run from db_schema/init so \i 00_extensions.sql etc. find the files)
     echo ""
     print_info "Loading init schema..."
-    if PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" \
-        -f "$PROJECT_DIR/db_schema/init/init.sql" 2>&1 | tail -5; then
-        print_success "Init schema loaded"
+    local init_ec=0
+    if $use_docker_for_psql; then
+        docker run --rm -v "$PROJECT_DIR:/app" -w /app/db_schema/init --network host -e PGPASSWORD="$pg_pw" \
+            postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f init.sql 2>&1 | tail -15
+        init_ec=${PIPESTATUS[0]}
     else
+        (cd "$PROJECT_DIR/db_schema/init" && PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f init.sql) 2>&1 | tail -15
+        init_ec=${PIPESTATUS[0]}
+    fi
+    if [[ $init_ec -ne 0 ]]; then
         print_error "Schema loading failed. Check errors above."
         return
     fi
+    print_success "Init schema loaded"
 
-    # Run migrations in order
+    # Run migrations in order (each file is standalone; -f with full path is fine)
     local migration_count=0
     local migration_files
     migration_files=$(find "$PROJECT_DIR/db_schema/migrations" -name '*.sql' -type f 2>/dev/null | sort)
@@ -1592,8 +1620,16 @@ setup_database() {
         while IFS= read -r migration; do
             local fname
             fname=$(basename "$migration")
-            if PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" \
-                -f "$migration" &>/dev/null; then
+            local mig_ec=0
+            if $use_docker_for_psql; then
+                docker run --rm -v "$PROJECT_DIR:/app" --network host -e PGPASSWORD="$pg_pw" \
+                    postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f "/app/db_schema/migrations/$fname" &>/dev/null
+                mig_ec=$?
+            else
+                PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f "$migration" &>/dev/null
+                mig_ec=$?
+            fi
+            if [[ $mig_ec -eq 0 ]]; then
                 ((++migration_count))
             else
                 print_warn "Migration may have had issues: $fname"
@@ -1605,11 +1641,22 @@ setup_database() {
     # Set instance domain and name
     echo ""
     print_info "Configuring instance_config..."
-    PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c \
-        "UPDATE public.instance_config SET config_value = '\"$DOMAIN\"' WHERE config_key = 'domain';
-         UPDATE public.instance_config SET config_value = '\"$INSTANCE_NAME\"' WHERE config_key = 'instance_name';" &>/dev/null \
-        && print_success "Set domain=${BOLD}$DOMAIN${RESET}, name=${BOLD}$INSTANCE_NAME${RESET}" \
-        || print_warn "Could not update instance_config — set manually in the admin panel"
+    local update_cmd="UPDATE public.instance_config SET config_value = '\"$DOMAIN\"' WHERE config_key = 'domain';
+         UPDATE public.instance_config SET config_value = '\"$INSTANCE_NAME\"' WHERE config_key = 'instance_name';"
+    local update_ec=0
+    if $use_docker_for_psql; then
+        echo "$update_cmd" | docker run --rm -i --network host -e PGPASSWORD="$pg_pw" \
+            postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" &>/dev/null
+        update_ec=$?
+    else
+        PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "$update_cmd" &>/dev/null
+        update_ec=$?
+    fi
+    if [[ $update_ec -eq 0 ]]; then
+        print_success "Set domain=${BOLD}$DOMAIN${RESET}, name=${BOLD}$INSTANCE_NAME${RESET}"
+    else
+        print_warn "Could not update instance_config — set manually in the admin panel"
+    fi
 
     DB_SCHEMA_LOADED=true
     echo ""
