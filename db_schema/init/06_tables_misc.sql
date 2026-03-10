@@ -292,7 +292,7 @@ CREATE TABLE IF NOT EXISTS public.bots (
     username text NOT NULL,
     discriminator text DEFAULT '0000'::text,
     display_name text,
-    avatar_url text DEFAULT '/default_avatar.png'::text,
+    avatar_url text DEFAULT '/default_avatar.webp'::text,
     banner_url text,
     bio text,
     

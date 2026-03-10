@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS public.federation_health (
 ALTER TABLE public.federation_health REPLICA IDENTITY FULL;
 CREATE INDEX IF NOT EXISTS idx_federation_health_timestamp ON public.federation_health(timestamp DESC);
 
--- Replace the broken view with one that reads from federation_health
+-- DROP first because CREATE OR REPLACE cannot change column list of an existing view
+DROP VIEW IF EXISTS public.federation_health_metrics;
 CREATE OR REPLACE VIEW public.federation_health_metrics AS
 SELECT 
     fh.id,

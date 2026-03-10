@@ -411,6 +411,21 @@ CREATE TRIGGER federation_endpoint_health_cleanup_trigger
     WHEN ((NEW.is_dead = true) AND (OLD.is_dead IS NULL OR OLD.is_dead = false))
     EXECUTE FUNCTION public.trigger_cleanup_dead_endpoint();
 
+-- Federate thread creation/updates
+DROP TRIGGER IF EXISTS trigger_federate_thread ON public.threads;
+CREATE TRIGGER trigger_federate_thread
+    AFTER INSERT OR UPDATE ON public.threads
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_queue_thread_federation();
+
+-- Unpin message on soft-delete
+DROP TRIGGER IF EXISTS trigger_unpin_on_delete ON public.messages;
+CREATE TRIGGER trigger_unpin_on_delete
+    BEFORE UPDATE OF is_deleted ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.is_deleted = true AND OLD.is_deleted = false AND OLD.is_pinned = true)
+    EXECUTE FUNCTION public.handle_pinned_message_delete();
+
 DO $$
 BEGIN
     RAISE NOTICE 'Triggers created successfully';

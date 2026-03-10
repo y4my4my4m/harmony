@@ -199,30 +199,26 @@ COMMENT ON TABLE public.federation_delivery_queue IS 'Queue for outgoing federat
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.federation_endpoint_health (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
     endpoint_url text NOT NULL UNIQUE,
-    
-    -- Health stats
-    success_count integer DEFAULT 0,
-    failure_count integer DEFAULT 0,
+    domain text NOT NULL,
+    is_dead boolean DEFAULT false,
+    first_failure_at timestamp with time zone,
     last_success_at timestamp with time zone,
     last_failure_at timestamp with time zone,
-    last_error text,
-    
-    -- Backoff
-    next_retry_at timestamp with time zone DEFAULT now(),
-    backoff_level integer DEFAULT 0,
-    
-    -- Status
-    is_dead boolean DEFAULT false,
-    
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    consecutive_failures integer DEFAULT 0,
+    total_failures integer DEFAULT 0,
+    total_successes integer DEFAULT 0,
+    last_http_status integer,
+    last_error_message text
 );
 
 CREATE INDEX IF NOT EXISTS idx_federation_endpoint_health_url ON public.federation_endpoint_health(endpoint_url);
+CREATE INDEX IF NOT EXISTS idx_federation_endpoint_health_domain ON public.federation_endpoint_health(domain);
 CREATE INDEX IF NOT EXISTS idx_federation_endpoint_health_dead ON public.federation_endpoint_health(is_dead) WHERE is_dead = true;
 
-COMMENT ON TABLE public.federation_endpoint_health IS 'Health tracking for federation endpoints';
+COMMENT ON TABLE public.federation_endpoint_health IS 'Tracks health of federation endpoints. Dead after 24-48h of consistent failures.';
 
 -- ---------------------------------------------------------------------------
 -- SERVER FEDERATION EVENTS

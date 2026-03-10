@@ -84,7 +84,6 @@ ALTER TABLE public.bots ADD COLUMN IF NOT EXISTS command_count bigint DEFAULT 0;
 ALTER TABLE public.bots ADD COLUMN IF NOT EXISTS last_online_at timestamp with time zone;
 ALTER TABLE public.bots ADD COLUMN IF NOT EXISTS settings jsonb DEFAULT '{}'::jsonb;
 
--- Set avatar_url default if it's null
-ALTER TABLE public.bots ALTER COLUMN avatar_url SET DEFAULT '/default_avatar.png';
+ALTER TABLE public.bots ALTER COLUMN avatar_url SET DEFAULT '/default_avatar.webp';
 
 COMMIT;

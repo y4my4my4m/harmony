@@ -363,6 +363,135 @@ COMMENT ON FUNCTION public.upsert_ap_activity IS
 
 
 -- =============================================================================
+-- update_endpoint_health - Track federation endpoint delivery health
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.update_endpoint_health(
+    p_endpoint_url text,
+    p_domain text,
+    p_success boolean,
+    p_http_status integer DEFAULT NULL,
+    p_error_message text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_health_record RECORD;
+    v_is_permanent_error boolean;
+BEGIN
+    v_is_permanent_error := p_http_status IN (404, 410);
+
+    SELECT * INTO v_health_record
+    FROM federation_endpoint_health WHERE endpoint_url = p_endpoint_url FOR UPDATE;
+
+    IF NOT FOUND THEN
+        INSERT INTO federation_endpoint_health (
+            endpoint_url, domain, is_dead, first_failure_at,
+            last_success_at, last_failure_at, consecutive_failures,
+            total_failures, total_successes, last_http_status, last_error_message
+        ) VALUES (
+            p_endpoint_url, p_domain, false,
+            CASE WHEN NOT p_success THEN NOW() ELSE NULL END,
+            CASE WHEN p_success THEN NOW() ELSE NULL END,
+            CASE WHEN NOT p_success THEN NOW() ELSE NULL END,
+            CASE WHEN NOT p_success THEN 1 ELSE 0 END,
+            CASE WHEN NOT p_success THEN 1 ELSE 0 END,
+            CASE WHEN p_success THEN 1 ELSE 0 END,
+            p_http_status, p_error_message
+        );
+        RETURN;
+    END IF;
+
+    IF p_success THEN
+        UPDATE federation_endpoint_health SET
+            is_dead = false, last_success_at = NOW(), consecutive_failures = 0,
+            total_successes = total_successes + 1, last_http_status = p_http_status,
+            last_error_message = NULL, first_failure_at = NULL, updated_at = NOW()
+        WHERE endpoint_url = p_endpoint_url;
+    ELSE
+        UPDATE federation_endpoint_health SET
+            last_failure_at = NOW(), consecutive_failures = consecutive_failures + 1,
+            total_failures = total_failures + 1, last_http_status = p_http_status,
+            last_error_message = p_error_message,
+            first_failure_at = COALESCE(first_failure_at, NOW()), updated_at = NOW()
+        WHERE endpoint_url = p_endpoint_url
+        RETURNING * INTO v_health_record;
+
+        IF v_health_record.first_failure_at IS NOT NULL THEN
+            IF (v_is_permanent_error AND NOW() - v_health_record.first_failure_at >= INTERVAL '24 hours')
+                OR (NOW() - v_health_record.first_failure_at >= INTERVAL '48 hours') THEN
+                UPDATE federation_endpoint_health SET is_dead = true, updated_at = NOW()
+                WHERE endpoint_url = p_endpoint_url;
+            END IF;
+        END IF;
+    END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION public.update_endpoint_health IS
+'Tracks endpoint delivery health. Marks endpoints dead after 24h (permanent errors) or 48h (any error).';
+
+-- =============================================================================
+-- enable/disable_federation_triggers - Bulk toggle for all federation triggers
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.enable_federation_triggers()
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+    ALTER TABLE public.posts ENABLE TRIGGER trigger_federate_post;
+    ALTER TABLE public.post_interactions ENABLE TRIGGER trigger_federate_post_interaction;
+    ALTER TABLE public.post_interactions ENABLE TRIGGER trigger_federate_post_interaction_delete;
+    ALTER TABLE public.follows ENABLE TRIGGER trigger_federate_follow;
+    ALTER TABLE public.follows ENABLE TRIGGER trigger_federate_follow_delete;
+    ALTER TABLE public.messages ENABLE TRIGGER trigger_federate_dm;
+    ALTER TABLE public.messages ENABLE TRIGGER trigger_federate_channel_message;
+    ALTER TABLE public.messages ENABLE TRIGGER trigger_federate_channel_message_edit;
+    ALTER TABLE public.messages ENABLE TRIGGER trigger_federate_channel_message_delete;
+    ALTER TABLE public.reactions ENABLE TRIGGER trigger_federate_message_reaction;
+    ALTER TABLE public.reactions ENABLE TRIGGER trigger_federate_message_reaction_delete;
+    ALTER TABLE public.reactions ENABLE TRIGGER trigger_federate_channel_reaction;
+    ALTER TABLE public.reactions ENABLE TRIGGER trigger_federate_channel_reaction_delete;
+    ALTER TABLE public.user_blocks ENABLE TRIGGER trigger_federate_block;
+    ALTER TABLE public.user_blocks ENABLE TRIGGER trigger_federate_block_delete;
+    ALTER TABLE public.reports ENABLE TRIGGER trigger_federate_report;
+    ALTER TABLE public.profiles ENABLE TRIGGER trigger_federate_profile;
+    ALTER TABLE public.threads ENABLE TRIGGER trigger_federate_thread;
+    ALTER TABLE public.voice_channel_participants ENABLE TRIGGER trigger_federate_voice_channel_join;
+    ALTER TABLE public.voice_channel_participants ENABLE TRIGGER trigger_federate_voice_channel_leave;
+    RAISE NOTICE 'All federation triggers enabled';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.disable_federation_triggers()
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+    ALTER TABLE public.posts DISABLE TRIGGER trigger_federate_post;
+    ALTER TABLE public.post_interactions DISABLE TRIGGER trigger_federate_post_interaction;
+    ALTER TABLE public.post_interactions DISABLE TRIGGER trigger_federate_post_interaction_delete;
+    ALTER TABLE public.follows DISABLE TRIGGER trigger_federate_follow;
+    ALTER TABLE public.follows DISABLE TRIGGER trigger_federate_follow_delete;
+    ALTER TABLE public.messages DISABLE TRIGGER trigger_federate_dm;
+    ALTER TABLE public.messages DISABLE TRIGGER trigger_federate_channel_message;
+    ALTER TABLE public.messages DISABLE TRIGGER trigger_federate_channel_message_edit;
+    ALTER TABLE public.messages DISABLE TRIGGER trigger_federate_channel_message_delete;
+    ALTER TABLE public.reactions DISABLE TRIGGER trigger_federate_message_reaction;
+    ALTER TABLE public.reactions DISABLE TRIGGER trigger_federate_message_reaction_delete;
+    ALTER TABLE public.reactions DISABLE TRIGGER trigger_federate_channel_reaction;
+    ALTER TABLE public.reactions DISABLE TRIGGER trigger_federate_channel_reaction_delete;
+    ALTER TABLE public.user_blocks DISABLE TRIGGER trigger_federate_block;
+    ALTER TABLE public.user_blocks DISABLE TRIGGER trigger_federate_block_delete;
+    ALTER TABLE public.reports DISABLE TRIGGER trigger_federate_report;
+    ALTER TABLE public.profiles DISABLE TRIGGER trigger_federate_profile;
+    ALTER TABLE public.threads DISABLE TRIGGER trigger_federate_thread;
+    ALTER TABLE public.voice_channel_participants DISABLE TRIGGER trigger_federate_voice_channel_join;
+    ALTER TABLE public.voice_channel_participants DISABLE TRIGGER trigger_federate_voice_channel_leave;
+    RAISE NOTICE 'All federation triggers disabled';
+END;
+$$;
+
+-- =============================================================================
 DO $$
 BEGIN
     RAISE NOTICE 'Federation helper functions created successfully';

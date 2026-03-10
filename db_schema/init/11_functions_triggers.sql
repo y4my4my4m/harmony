@@ -627,23 +627,148 @@ BEGIN
 END;
 $$;
 
--- Queue profile update for federation
+-- Queue profile update for federation (includes custom_status)
 CREATE OR REPLACE FUNCTION public.trigger_queue_profile_federation()
 RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_job_id uuid;
+    v_has_pgboss boolean := false;
+BEGIN
+    IF NEW.is_local != true THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        IF (
+            OLD.display_name IS NOT DISTINCT FROM NEW.display_name AND
+            OLD.bio IS NOT DISTINCT FROM NEW.bio AND
+            OLD.avatar_url IS NOT DISTINCT FROM NEW.avatar_url AND
+            OLD.banner_url IS NOT DISTINCT FROM NEW.banner_url AND
+            OLD.custom_status IS NOT DISTINCT FROM NEW.custom_status
+        ) THEN
+            RETURN NEW;
+        END IF;
+    END IF;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'pgboss' AND table_name = 'job'
+    ) INTO v_has_pgboss;
+
+    IF v_has_pgboss THEN
+        INSERT INTO pgboss.job (
+            id, name, data, priority, retry_limit, expire_in, created_on, state
+        ) VALUES (
+            gen_random_uuid(), 'federate-profile',
+            jsonb_build_object(
+                'type', CASE WHEN TG_OP = 'INSERT' THEN 'create' ELSE 'update' END,
+                'profile_id', NEW.id,
+                'username', NEW.username,
+                'display_name', NEW.display_name,
+                'bio', NEW.bio,
+                'avatar_url', NEW.avatar_url,
+                'banner_url', NEW.banner_url,
+                'custom_status', NEW.custom_status
+            ),
+            3, 5, interval '1 hour', now(), 'created'
+        ) RETURNING id INTO v_job_id;
+        RAISE LOG 'Queued profile federation for % (job: %)', NEW.username, v_job_id;
+    ELSE
+        RAISE LOG 'Profile federation skipped for % - pg-boss not initialized', NEW.username;
+    END IF;
+
+    RETURN NEW;
+EXCEPTION
+    WHEN undefined_table THEN
+        RAISE LOG 'Profile federation skipped - required tables not available';
+        RETURN NEW;
+    WHEN OTHERS THEN
+        RAISE LOG 'Profile federation error: %', SQLERRM;
+        RETURN NEW;
+END;
+$$;
+
+-- Queue thread creation/updates for federation
+CREATE OR REPLACE FUNCTION public.trigger_queue_thread_federation()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_server_id UUID;
+    v_server_is_local BOOLEAN;
+    v_creator_is_local BOOLEAN;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        SELECT c.server_id, s.is_local_server INTO v_server_id, v_server_is_local
+        FROM public.channels c JOIN public.servers s ON c.server_id = s.id
+        WHERE c.id = NEW.channel_id;
+
+        SELECT is_local INTO v_creator_is_local FROM public.profiles WHERE id = NEW.created_by;
+
+        IF v_creator_is_local IS NOT TRUE THEN
+            NEW.federation_status := 'skipped';
+            RETURN NEW;
+        END IF;
+
+        NEW.federation_status := 'queued';
+        PERFORM public.queue_federation_job(
+            'federate-thread',
+            jsonb_build_object(
+                'type', 'create', 'thread_id', NEW.id, 'channel_id', NEW.channel_id,
+                'server_id', v_server_id, 'server_is_local', COALESCE(v_server_is_local, true),
+                'created_by', NEW.created_by, 'created_at', NEW.created_at
+            ), 5, 5, 900
+        );
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF (OLD.name IS NOT DISTINCT FROM NEW.name AND
+            OLD.archived IS NOT DISTINCT FROM NEW.archived AND
+            OLD.locked IS NOT DISTINCT FROM NEW.locked) THEN
+            RETURN NEW;
+        END IF;
+
+        SELECT c.server_id, s.is_local_server INTO v_server_id, v_server_is_local
+        FROM public.channels c JOIN public.servers s ON c.server_id = s.id
+        WHERE c.id = NEW.channel_id;
+
+        SELECT is_local INTO v_creator_is_local FROM public.profiles WHERE id = NEW.created_by;
+        IF v_creator_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+
+        IF NEW.federation_status = 'local' OR NEW.federation_status IS NULL THEN
+            NEW.federation_status := 'queued';
+        END IF;
+
+        PERFORM public.queue_federation_job(
+            'federate-thread',
+            jsonb_build_object(
+                'type', 'update', 'thread_id', NEW.id, 'channel_id', NEW.channel_id,
+                'server_id', v_server_id, 'server_is_local', COALESCE(v_server_is_local, true),
+                'created_by', NEW.created_by
+            ), 5, 5, 900
+        );
+    END IF;
+
+    RETURN NEW;
+EXCEPTION
+    WHEN undefined_table THEN RETURN NEW;
+    WHEN OTHERS THEN
+        RAISE LOG 'Thread federation error: %', SQLERRM;
+        RETURN NEW;
+END;
+$$;
+
+-- Unpin message when it's soft-deleted
+CREATE OR REPLACE FUNCTION public.handle_pinned_message_delete()
+RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
 AS $$
 BEGIN
-    -- Only federate significant changes
-    IF NEW.username != OLD.username 
-       OR NEW.display_name IS DISTINCT FROM OLD.display_name
-       OR NEW.avatar_url IS DISTINCT FROM OLD.avatar_url
-       OR NEW.bio IS DISTINCT FROM OLD.bio THEN
-        -- Mark profile as needing federation update
-        -- The federation backend will pick this up
-        NULL; -- Placeholder - actual queuing happens in federation backend
+    IF NEW.is_deleted = true AND OLD.is_deleted = false THEN
+        NEW.is_pinned := false;
+        NEW.pinned_at := NULL;
+        NEW.pinned_by := NULL;
     END IF;
-    
     RETURN NEW;
 END;
 $$;
@@ -989,14 +1114,44 @@ BEGIN
 END;
 $$;
 
--- Cleanup dead federation endpoint
+-- Cleanup users with dead federation endpoints
+CREATE OR REPLACE FUNCTION public.cleanup_dead_endpoint_users(p_endpoint_url text)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_dead_profiles RECORD;
+    v_follows_removed integer := 0;
+BEGIN
+    FOR v_dead_profiles IN
+        SELECT id, username, domain, inbox_url, shared_inbox_url
+        FROM profiles
+        WHERE (inbox_url = p_endpoint_url OR shared_inbox_url = p_endpoint_url)
+        AND is_local = false
+    LOOP
+        DELETE FROM follows WHERE following_id = v_dead_profiles.id;
+        GET DIAGNOSTICS v_follows_removed = ROW_COUNT;
+        DELETE FROM follows WHERE follower_id = v_dead_profiles.id;
+
+        UPDATE profiles SET
+            inbox_url = NULL, shared_inbox_url = NULL, updated_at = NOW()
+        WHERE id = v_dead_profiles.id;
+
+        RAISE NOTICE 'Cleaned up dead user: %@% (removed % follows)',
+            v_dead_profiles.username, v_dead_profiles.domain, v_follows_removed;
+    END LOOP;
+END;
+$$;
+
+-- Trigger: auto-cleanup when endpoint is marked dead
 CREATE OR REPLACE FUNCTION public.trigger_cleanup_dead_endpoint()
 RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
+LANGUAGE plpgsql SECURITY DEFINER
 AS $$
 BEGIN
-    -- Remove follows to dead endpoints
+    IF NEW.is_dead = true AND (OLD.is_dead IS NULL OR OLD.is_dead = false) THEN
+        PERFORM cleanup_dead_endpoint_users(NEW.endpoint_url);
+    END IF;
     RETURN NEW;
 END;
 $$;

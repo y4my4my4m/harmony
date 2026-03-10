@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS public.channel_categories (
 );
 
 CREATE INDEX IF NOT EXISTS idx_channel_categories_server ON public.channel_categories(server_id);
+CREATE INDEX IF NOT EXISTS idx_channel_categories_federation_status ON public.channel_categories(federation_status) WHERE federation_status = 'pending';
 
 COMMENT ON TABLE public.channel_categories IS 'Channel category groupings within servers';
 
@@ -108,6 +109,7 @@ ALTER TABLE public.channels REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_channels_server ON public.channels(server_id);
 CREATE INDEX IF NOT EXISTS idx_channels_category ON public.channels(category);
+CREATE INDEX IF NOT EXISTS idx_channels_federation_status ON public.channels(federation_status) WHERE federation_status = 'pending';
 
 COMMENT ON TABLE public.channels IS 'Server channels (text and voice)';
 

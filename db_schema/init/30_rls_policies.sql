@@ -499,6 +499,24 @@ DROP POLICY IF EXISTS "federated_instances_manage" ON public.federated_instances
 CREATE POLICY "federated_instances_manage" ON public.federated_instances
     FOR ALL USING (auth.uid() IS NOT NULL);
 
+-- Federation endpoint health
+ALTER TABLE public.federation_endpoint_health ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "federation_endpoint_health_select" ON public.federation_endpoint_health;
+CREATE POLICY "federation_endpoint_health_select" ON public.federation_endpoint_health
+    FOR SELECT USING (true);
+DROP POLICY IF EXISTS "federation_endpoint_health_manage" ON public.federation_endpoint_health;
+CREATE POLICY "federation_endpoint_health_manage" ON public.federation_endpoint_health
+    FOR ALL USING (auth.uid() IS NOT NULL);
+
+-- Federation health (instance-level)
+ALTER TABLE public.federation_health ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "federation_health_select_all" ON public.federation_health;
+CREATE POLICY "federation_health_select_all" ON public.federation_health
+    FOR SELECT USING (true);
+DROP POLICY IF EXISTS "federation_health_manage" ON public.federation_health;
+CREATE POLICY "federation_health_manage" ON public.federation_health
+    FOR ALL USING (auth.uid() IS NOT NULL);
+
 ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "oauth_providers_select_all" ON public.oauth_providers FOR SELECT USING (true);
 

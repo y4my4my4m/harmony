@@ -2647,77 +2647,147 @@ CREATE OR REPLACE FUNCTION public.create_federated_profile(
     p_domain text DEFAULT NULL,
     p_avatar_url text DEFAULT NULL,
     p_banner_url text DEFAULT NULL,
-    p_bio text DEFAULT NULL,
     p_federated_id text DEFAULT NULL,
+    p_bio text DEFAULT NULL,
     p_inbox_url text DEFAULT NULL,
     p_outbox_url text DEFAULT NULL,
     p_followers_url text DEFAULT NULL,
-    p_following_url text DEFAULT NULL
+    p_following_url text DEFAULT NULL,
+    p_public_key text DEFAULT NULL,
+    p_shared_inbox_url text DEFAULT NULL
 ) RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
+LANGUAGE plpgsql SECURITY DEFINER
 AS $$
 DECLARE
     v_profile_id uuid;
+    v_instance_domain text;
 BEGIN
-    -- Check if profile already exists with this federated_id
-    IF p_federated_id IS NOT NULL THEN
-        SELECT id INTO v_profile_id 
-        FROM public.profiles 
-        WHERE federated_id = p_federated_id;
-        
-        IF v_profile_id IS NOT NULL THEN
-            -- Update existing profile
-            UPDATE public.profiles SET
-                display_name = COALESCE(p_display_name, display_name),
-                avatar_url = COALESCE(p_avatar_url, avatar_url),
-                bio = COALESCE(p_bio, bio),
-                inbox_url = COALESCE(p_inbox_url, inbox_url),
-                outbox_url = COALESCE(p_outbox_url, outbox_url),
-                followers_url = COALESCE(p_followers_url, followers_url),
-                following_url = COALESCE(p_following_url, following_url),
-                last_synced_at = NOW()
-            WHERE id = v_profile_id;
-            
-            RETURN v_profile_id;
-        END IF;
+    SELECT COALESCE(
+        (SELECT trim(both '"' from config_value::text) FROM instance_config WHERE config_key = 'domain'),
+        'localhost'
+    ) INTO v_instance_domain;
+
+    IF p_domain = v_instance_domain THEN
+        RAISE WARNING 'Refusing to create federated profile for local domain: %@%', p_username, p_domain;
+        SELECT id INTO v_profile_id
+        FROM profiles WHERE username = p_username AND domain = p_domain AND is_local = true;
+        RETURN v_profile_id;
     END IF;
-    
-    -- Create new federated profile
-    INSERT INTO public.profiles (
-        username,
-        display_name,
-        domain,
-        avatar_url,
-        bio,
-        federated_id,
-        inbox_url,
-        outbox_url,
-        followers_url,
-        following_url,
-        is_local,
-        last_synced_at
+
+    INSERT INTO profiles (
+        username, display_name, domain, avatar_url, banner_url,
+        federated_id, bio, inbox_url, outbox_url, followers_url,
+        following_url, public_key, shared_inbox_url, is_local, last_synced_at
     ) VALUES (
-        p_username,
-        p_display_name,
-        p_domain,
-        p_avatar_url,
-        p_bio,
-        p_federated_id,
-        p_inbox_url,
-        p_outbox_url,
-        p_followers_url,
-        p_following_url,
-        false,  -- Not a local user
-        NOW()
+        p_username, COALESCE(p_display_name, p_username), p_domain,
+        p_avatar_url, p_banner_url, p_federated_id, p_bio,
+        p_inbox_url, p_outbox_url, p_followers_url,
+        p_following_url, p_public_key, p_shared_inbox_url, false, NOW()
     )
+    ON CONFLICT (username, domain) DO UPDATE SET
+        display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
+        avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+        banner_url = COALESCE(EXCLUDED.banner_url, profiles.banner_url),
+        federated_id = COALESCE(EXCLUDED.federated_id, profiles.federated_id),
+        bio = COALESCE(EXCLUDED.bio, profiles.bio),
+        inbox_url = COALESCE(EXCLUDED.inbox_url, profiles.inbox_url),
+        outbox_url = COALESCE(EXCLUDED.outbox_url, profiles.outbox_url),
+        followers_url = COALESCE(EXCLUDED.followers_url, profiles.followers_url),
+        following_url = COALESCE(EXCLUDED.following_url, profiles.following_url),
+        public_key = COALESCE(EXCLUDED.public_key, profiles.public_key),
+        shared_inbox_url = COALESCE(EXCLUDED.shared_inbox_url, profiles.shared_inbox_url),
+        last_synced_at = NOW(), updated_at = NOW()
+    WHERE profiles.is_local = false
     RETURNING id INTO v_profile_id;
-    
+
+    IF v_profile_id IS NULL THEN
+        SELECT id INTO v_profile_id
+        FROM profiles WHERE username = p_username AND domain = p_domain;
+    END IF;
+
     RETURN v_profile_id;
 END;
 $$;
 
-COMMENT ON FUNCTION public.create_federated_profile IS 'Creates or updates a profile for a remote federated user discovered via ActivityPub';
+COMMENT ON FUNCTION public.create_federated_profile IS 'Creates or updates a remote federated profile. Refuses to overwrite local users.';
+
+-- ---------------------------------------------------------------------------
+-- safe_upsert_remote_profile - Safe upsert with return flags
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.safe_upsert_remote_profile(
+    p_username text,
+    p_domain text,
+    p_federated_id text DEFAULT NULL,
+    p_display_name text DEFAULT NULL,
+    p_avatar_url text DEFAULT NULL,
+    p_banner_url text DEFAULT NULL,
+    p_bio text DEFAULT NULL,
+    p_public_key text DEFAULT NULL,
+    p_inbox_url text DEFAULT NULL,
+    p_outbox_url text DEFAULT NULL,
+    p_followers_url text DEFAULT NULL,
+    p_following_url text DEFAULT NULL,
+    p_shared_inbox_url text DEFAULT NULL
+) RETURNS TABLE(profile_id uuid, was_created boolean, was_updated boolean, is_local_user boolean)
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_profile_id uuid;
+    v_was_created boolean := false;
+    v_was_updated boolean := false;
+    v_is_local_user boolean := false;
+    v_instance_domain text;
+BEGIN
+    SELECT COALESCE(
+        (SELECT trim(both '"' from config_value::text) FROM instance_config WHERE config_key = 'domain'),
+        'localhost'
+    ) INTO v_instance_domain;
+
+    IF p_domain = v_instance_domain THEN
+        SELECT id, true INTO v_profile_id, v_is_local_user
+        FROM profiles WHERE username = p_username AND domain = p_domain AND is_local = true;
+        RETURN QUERY SELECT v_profile_id, false, false, true;
+        RETURN;
+    END IF;
+
+    SELECT id, is_local INTO v_profile_id, v_is_local_user
+    FROM profiles WHERE username = p_username AND domain = p_domain;
+
+    IF v_profile_id IS NULL THEN
+        INSERT INTO profiles (
+            username, domain, federated_id, display_name, avatar_url, banner_url,
+            bio, public_key, inbox_url, outbox_url, followers_url, following_url,
+            shared_inbox_url, is_local, last_synced_at
+        ) VALUES (
+            p_username, p_domain, p_federated_id, COALESCE(p_display_name, p_username),
+            p_avatar_url, p_banner_url, p_bio, p_public_key, p_inbox_url, p_outbox_url,
+            p_followers_url, p_following_url, p_shared_inbox_url, false, NOW()
+        )
+        RETURNING id INTO v_profile_id;
+        v_was_created := true;
+    ELSIF NOT v_is_local_user THEN
+        UPDATE profiles SET
+            federated_id = COALESCE(p_federated_id, federated_id),
+            display_name = COALESCE(p_display_name, display_name),
+            avatar_url = COALESCE(p_avatar_url, avatar_url),
+            banner_url = COALESCE(p_banner_url, banner_url),
+            bio = COALESCE(p_bio, bio),
+            public_key = COALESCE(p_public_key, public_key),
+            inbox_url = COALESCE(p_inbox_url, inbox_url),
+            outbox_url = COALESCE(p_outbox_url, outbox_url),
+            followers_url = COALESCE(p_followers_url, followers_url),
+            following_url = COALESCE(p_following_url, following_url),
+            shared_inbox_url = COALESCE(p_shared_inbox_url, shared_inbox_url),
+            last_synced_at = NOW(), updated_at = NOW()
+        WHERE id = v_profile_id;
+        v_was_updated := true;
+    END IF;
+
+    RETURN QUERY SELECT v_profile_id, v_was_created, v_was_updated, v_is_local_user;
+END;
+$$;
+
+COMMENT ON FUNCTION public.safe_upsert_remote_profile IS 'Safely upserts a remote profile with local-user protection. Returns status flags.';
 
 -- ---------------------------------------------------------------------------
 -- 2. get_activitypub_conversation_context - Get ancestors/descendants of a post
@@ -3275,3 +3345,103 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.handle_unified_notification_processing() IS 'Handles notifications for follows (with full profile data), reactions, and ActivityPub emoji reactions. Includes full reactor/sender profile in notification data for proper display.';
+
+-- ---------------------------------------------------------------------------
+-- clear_orphaned_public_keys - Clear public keys without matching private keys
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.clear_orphaned_public_keys()
+RETURNS INTEGER
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    cleared_count INTEGER;
+BEGIN
+    UPDATE profiles p SET public_key = NULL
+    WHERE p.is_local = true AND p.public_key IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM user_private_keys upk WHERE upk.user_id = p.id);
+    GET DIAGNOSTICS cleared_count = ROW_COUNT;
+    RETURN cleared_count;
+END;
+$$;
+
+COMMENT ON FUNCTION public.clear_orphaned_public_keys() IS 'Clear public keys from local profiles that have no matching private key.';
+
+-- ---------------------------------------------------------------------------
+-- get_voice_channel_participants - Voice channel participants with user info
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_voice_channel_participants(p_channel_id UUID)
+RETURNS TABLE (
+    user_id UUID, username TEXT, display_name TEXT, avatar_url TEXT,
+    is_federated BOOLEAN, federated_domain TEXT, joined_at TIMESTAMPTZ,
+    is_muted BOOLEAN, is_deafened BOOLEAN, is_video_enabled BOOLEAN,
+    is_screen_sharing BOOLEAN
+)
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT vcp.user_id, p.username, p.display_name, p.avatar_url,
+        vcp.is_federated, p.domain AS federated_domain, vcp.joined_at,
+        vcp.is_muted, vcp.is_deafened, vcp.is_video_enabled, vcp.is_screen_sharing
+    FROM public.voice_channel_participants vcp
+    JOIN public.profiles p ON p.id = vcp.user_id
+    WHERE vcp.channel_id = p_channel_id
+    ORDER BY vcp.joined_at ASC;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- get_next_folder_position - Next available position for a server folder
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_next_folder_position(p_user_id UUID)
+RETURNS INTEGER
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE max_position INTEGER;
+BEGIN
+    SELECT COALESCE(MAX(position), -1) + 1 INTO max_position
+    FROM server_folders WHERE user_id = p_user_id;
+    RETURN max_position;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- get_next_server_position - Next available position for a server in a folder
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_next_server_position(p_user_id UUID, p_folder_id UUID DEFAULT NULL)
+RETURNS INTEGER
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE max_position INTEGER;
+BEGIN
+    IF p_folder_id IS NULL THEN
+        SELECT COALESCE(MAX(position), -1) + 1 INTO max_position
+        FROM user_servers WHERE user_id = p_user_id AND folder_id IS NULL;
+    ELSE
+        SELECT COALESCE(MAX(position), -1) + 1 INTO max_position
+        FROM user_servers WHERE user_id = p_user_id AND folder_id = p_folder_id;
+    END IF;
+    RETURN max_position;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- record_metric - Record a raw performance metric
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.record_metric(
+    p_metric_type text, p_metric_name text, p_value double precision,
+    p_unit text DEFAULT 'ms', p_labels jsonb DEFAULT '{}'::jsonb,
+    p_source text DEFAULT 'backend'
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE v_id uuid;
+BEGIN
+    INSERT INTO public.performance_metrics (
+        metric_type, metric_name, value, unit, labels, source
+    ) VALUES (
+        p_metric_type, p_metric_name, p_value, p_unit, p_labels, p_source
+    ) RETURNING id INTO v_id;
+    RETURN v_id;
+END;
+$$;

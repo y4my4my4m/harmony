@@ -122,6 +122,7 @@ COMMENT ON VIEW public.federation_stats IS 'Aggregated federation activity stati
 -- FEDERATION HEALTH METRICS VIEW - Instance health for admin dashboard
 -- ---------------------------------------------------------------------------
 -- Based on federation_health table (71_views_performance.sql), not federated_instances
+DROP VIEW IF EXISTS public.federation_health_metrics;
 CREATE OR REPLACE VIEW public.federation_health_metrics AS
 SELECT 
     fh.id,
