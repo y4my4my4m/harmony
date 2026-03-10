@@ -186,7 +186,7 @@
                   class="member-item available"
                   @click="addMemberToRole(member.id)"
                 >
-                  <img :src="member.avatar_url || '/default_avatar.webp'" class="member-avatar" />
+                  <Avatar :src="member.avatar_url" :alt="member.display_name || member.username" size="xs" />
                   <span class="member-name">{{ member.display_name || member.username }}</span>
                   <button class="add-member-btn" title="Add to role">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -225,7 +225,7 @@
                   :key="member.id"
                   class="member-item"
                 >
-                  <img :src="member.avatar_url || '/default_avatar.webp'" class="member-avatar" />
+                  <Avatar :src="member.avatar_url" :alt="member.display_name || member.username" size="xs" />
                   <span class="member-name">
                     {{ member.display_name || member.username }}
                     <span v-if="isServerOwner(member.id)" class="owner-badge">Owner</span>
@@ -286,6 +286,7 @@ import draggable from 'vuedraggable'
 import { supabase } from '@/supabase'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import Avatar from '@/components/common/Avatar.vue'
 import type { ServerRole, Permission } from '@/types'
 
 interface Props {

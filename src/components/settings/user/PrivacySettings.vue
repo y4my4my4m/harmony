@@ -420,35 +420,6 @@
         </div>
       </div>
 
-      <div class="setting-item">
-        <div class="setting-info">
-          <h4 class="setting-label">Use data to improve Harmony</h4>
-          <p class="setting-description">
-            Allow Harmony to use your data to improve the service.
-          </p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch 
-            v-model="settings.allowDataCollection"
-            @change="onSettingChange"
-          />
-        </div>
-      </div>
-
-      <div class="setting-item">
-        <div class="setting-info">
-          <h4 class="setting-label">Use data for personalization</h4>
-          <p class="setting-description">
-            Allow Harmony to personalize your experience based on your activity.
-          </p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch 
-            v-model="settings.allowPersonalization"
-            @change="onSettingChange"
-          />
-        </div>
-      </div>
     </div>
 
     <div class="settings-section">
@@ -617,8 +588,6 @@ const settings = ref({
   allowFriendRequestsFromServerMembers: true,
   friendRequestSetting: 'everyone' as 'everyone' | 'friends-of-friends' | 'server-members' | 'no-one',
   stripUrlTrackers: true, // Default ON
-  allowDataCollection: false,
-  allowPersonalization: false,
 })
 
 const originalSettings = ref({ ...settings.value })

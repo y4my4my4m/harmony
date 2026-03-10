@@ -493,6 +493,29 @@ const navigateToDefaultIfNeeded = async () => {
 // Watch for route changes and servers loading
 watch(() => [route.name, route.params, serverChannelStore.servers.length], navigateToDefaultIfNeeded, { immediate: false })
 
+// Sync route params to store when navigating to /chat/:serverId/:channelId
+watch(
+  () => route.params.serverId as string | undefined,
+  async (routeServerId) => {
+    if (!routeServerId || props.isDM) return
+    if (serverChannelStore.servers.length === 0) return
+
+    if (serverChannelStore.currentServerId !== routeServerId) {
+      serverChannelStore.setCurrentServer(routeServerId)
+    }
+
+    if (serverChannelStore._loadedCategoriesServerId !== routeServerId) {
+      await serverChannelStore.fetchCategoriesAndChannels(routeServerId)
+    }
+
+    const routeChannelId = route.params.channelId as string | undefined
+    if (routeChannelId && serverChannelStore.currentChannelId !== routeChannelId) {
+      serverChannelStore.setCurrentChannel(routeChannelId)
+    }
+  },
+  { immediate: true }
+)
+
 // Funding
 const fundingConfig = ref<FundingConfigWithProgress | null>(null)
 const showFundingModal = ref(false)
