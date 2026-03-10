@@ -315,13 +315,43 @@ const hasChanges = computed(() => {
 })
 
 const emojiCacheStore = useEmojiCacheStore()
+
+// Async-resolve custom emojis from the DB so the preview can distinguish
+// between a custom emoji named "fire" and the standard unicode fire emoji.
+const SHORTCODE_RE = /:([a-zA-Z0-9_+-]+):/g
+const resolvedPinnedEmojis = ref<Array<{ id: string; name: string; url: string }>>([])
+watch(
+  () => localProfile.value.display_name,
+  async (dn) => {
+    if (!dn || !instanceSettings.settings.allowCustomEmojisInDisplayNames) {
+      resolvedPinnedEmojis.value = []
+      return
+    }
+    const codes: string[] = []
+    let m: RegExpExecArray | null
+    SHORTCODE_RE.lastIndex = 0
+    while ((m = SHORTCODE_RE.exec(dn)) !== null) codes.push(m[1])
+    if (codes.length === 0) { resolvedPinnedEmojis.value = []; return }
+
+    const { data } = await supabase
+      .from('emojis')
+      .select('id, name, url')
+      .in('name', codes)
+      .not('url', 'is', null)
+    resolvedPinnedEmojis.value = (data || []).map((e: any) => ({ id: e.id, name: e.name, url: e.url }))
+  },
+  { immediate: true },
+)
+
 const previewDisplayNameParts = computed(() => {
   const dn = localProfile.value.display_name
   if (!dn) return undefined
   if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) return undefined
-  // Dependency on emoji cache so preview updates when emojis finish loading
   emojiCacheStore.resolvedEmojis
-  return userDataService.resolveDisplayNameParts(dn)
+  return userDataService.resolveDisplayNameParts(
+    dn,
+    resolvedPinnedEmojis.value.length > 0 ? resolvedPinnedEmojis.value : undefined,
+  )
 })
 
 const bannerStyle = computed(() => {

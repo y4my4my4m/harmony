@@ -329,10 +329,14 @@ export class ProfileService {
     }
     if (shortcodes.length === 0) return []
 
+    // Only return custom emojis (with image URLs). Unicode emoji entries
+    // in the emojis table have url = null and must be excluded so they
+    // don't shadow the unified pack or a custom emoji with the same name.
     const { data: emojis } = await supabase
       .from('emojis')
       .select('id, name, url')
       .in('name', shortcodes)
+      .not('url', 'is', null)
 
     return (emojis || []).map((e: any) => ({ name: e.name, url: e.url, id: e.id }))
   }
