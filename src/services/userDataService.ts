@@ -1780,6 +1780,12 @@ class UserDataService extends EventTarget {
     if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined
     EMOJI_SHORTCODE_REGEX.lastIndex = 0
 
+    // Trigger lazy load of emoji data if not loaded — reResolveAllDisplayNames()
+    // will be called automatically when the load completes (see unifiedEmojiService)
+    if (!unifiedEmojiLoaded.value) {
+      loadEmojiData().catch(() => {})
+    }
+
     // Build a name->emoji map from pinned emojis for O(1) lookups
     const pinnedMap = new Map<string, { id: string; name: string; url: string }>()
     if (pinnedEmojis) {

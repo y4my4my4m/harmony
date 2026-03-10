@@ -461,7 +461,12 @@ ALTER TABLE public.hashtags ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "hashtags_select_all" ON public.hashtags FOR SELECT USING (true);
 
 ALTER TABLE public.federated_instances ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "federated_instances_select_all" ON public.federated_instances;
 CREATE POLICY "federated_instances_select_all" ON public.federated_instances FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "federated_instances_manage" ON public.federated_instances;
+CREATE POLICY "federated_instances_manage" ON public.federated_instances
+    FOR ALL USING (auth.uid() IS NOT NULL);
 
 ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "oauth_providers_select_all" ON public.oauth_providers FOR SELECT USING (true);

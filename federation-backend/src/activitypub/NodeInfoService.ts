@@ -33,24 +33,39 @@ router.get(
  * NodeInfo 2.0 endpoint
  * /nodeinfo/2.0
  */
+async function getInstanceConfig(supabase: any) {
+  const { data } = await supabase
+    .from('instance_config')
+    .select('config_key, config_value')
+    .in('config_key', ['instance_name', 'instance_description', 'open_registration']);
+
+  const cfg: Record<string, string> = {};
+  data?.forEach((row: any) => {
+    try {
+      cfg[row.config_key] = JSON.parse(row.config_value);
+    } catch {
+      cfg[row.config_key] = row.config_value;
+    }
+  });
+
+  return {
+    name: cfg.instance_name || config.INSTANCE_NAME,
+    description: cfg.instance_description || config.INSTANCE_DESCRIPTION,
+    openRegistrations: cfg.open_registration !== 'false' && cfg.open_registration !== false,
+  };
+}
+
 router.get(
   '/nodeinfo/2.0',
   asyncHandler(async (req: Request, res: Response) => {
     const supabase = getSupabaseClient();
 
-    // Get user count
-    const { count: userCount } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_local', true);
+    const [instanceCfg, { count: userCount }, { count: postCount }] = await Promise.all([
+      getInstanceConfig(supabase),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
+      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true),
+    ]);
 
-    // Get post count
-    const { count: postCount } = await supabase
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_local', true);
-
-    // Get active users (posted in last 6 months)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
@@ -79,10 +94,10 @@ router.get(
         },
         localPosts: postCount || 0,
       },
-      openRegistrations: true,
+      openRegistrations: instanceCfg.openRegistrations,
       metadata: {
-        nodeName: config.INSTANCE_NAME,
-        nodeDescription: config.INSTANCE_DESCRIPTION,
+        nodeName: instanceCfg.name,
+        nodeDescription: instanceCfg.description,
       },
     });
   })
@@ -95,18 +110,13 @@ router.get(
 router.get(
   '/nodeinfo/2.1',
   asyncHandler(async (req: Request, res: Response) => {
-    // Reuse 2.0 logic
     const supabase = getSupabaseClient();
 
-    const { count: userCount } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_local', true);
-
-    const { count: postCount } = await supabase
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_local', true);
+    const [instanceCfg, { count: userCount }, { count: postCount }] = await Promise.all([
+      getInstanceConfig(supabase),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
+      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true),
+    ]);
 
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -122,7 +132,7 @@ router.get(
       software: {
         name: 'harmony',
         version: '1.0.0',
-        repository: 'https://github.com/your-repo/harmony', // TODO: Update
+        repository: 'https://github.com/y4my4my4m/harmony',
       },
       protocols: ['activitypub'],
       services: {
@@ -137,10 +147,10 @@ router.get(
         },
         localPosts: postCount || 0,
       },
-      openRegistrations: true,
+      openRegistrations: instanceCfg.openRegistrations,
       metadata: {
-        nodeName: config.INSTANCE_NAME,
-        nodeDescription: config.INSTANCE_DESCRIPTION,
+        nodeName: instanceCfg.name,
+        nodeDescription: instanceCfg.description,
         features: [
           'discord_like_servers',
           'voice_chat',

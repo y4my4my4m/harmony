@@ -121,33 +121,29 @@ COMMENT ON VIEW public.federation_stats IS 'Aggregated federation activity stati
 -- ---------------------------------------------------------------------------
 -- FEDERATION HEALTH METRICS VIEW - Instance health for admin dashboard
 -- ---------------------------------------------------------------------------
+-- Based on federation_health table (71_views_performance.sql), not federated_instances
 CREATE OR REPLACE VIEW public.federation_health_metrics AS
 SELECT 
-    fi.id,
-    fi.domain AS remote_domain,
-    fi.software AS software_name,
-    fi.version AS software_version,
-    fi.is_blocked,
-    fi.is_silenced,
-    fi.last_successful_sync AS last_success_at,
-    fi.last_sync_attempt AS last_attempt_at,
-    fi.consecutive_failures AS failure_count,
-    fi.user_count,
-    fi.status_count,
-    fi.updated_at AS recorded_at,
-    CASE 
-        WHEN fi.is_blocked THEN 'blocked'
-        WHEN fi.consecutive_failures = 0 THEN 'healthy'
-        WHEN fi.consecutive_failures < 3 THEN 'degraded'
-        ELSE 'unhealthy'
-    END AS status,
+    fh.id,
+    fh.timestamp AS recorded_at,
+    fh.instance_domain AS remote_domain,
+    fh.status,
     CASE
-        WHEN fi.consecutive_failures = 0 THEN true
+        WHEN fh.status = 'healthy' THEN true
+        WHEN fh.status = 'degraded' THEN true
         ELSE false
-    END AS success
-FROM public.federated_instances fi;
+    END AS success,
+    fh.avg_latency_ms AS latency_ms,
+    fh.last_error,
+    (fh.metadata ->> 'software_name') AS software_name,
+    (fh.metadata ->> 'software_version') AS software_version,
+    fh.success_count,
+    fh.failure_count,
+    fh.last_success_at,
+    fh.last_failure_at
+FROM public.federation_health fh;
 
-COMMENT ON VIEW public.federation_health_metrics IS 'View of federation health for admin dashboard';
+COMMENT ON VIEW public.federation_health_metrics IS 'View of federation health transformed to match frontend expectations';
 
 -- ---------------------------------------------------------------------------
 -- INSTANCE HEALTH VIEW - Overall instance health summary
