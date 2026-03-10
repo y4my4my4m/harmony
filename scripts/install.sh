@@ -328,14 +328,15 @@ configure_instance() {
     print_success "Instance: ${BOLD}$INSTANCE_NAME${RESET} at ${BOLD}$DOMAIN${RESET}"
 }
 
-# Set GOTRUE_MAILER_AUTOCONFIRM in Supabase .env (true = skip verification, false = require it)
+# Set ENABLE_EMAIL_AUTOCONFIRM in Supabase .env (docker-compose maps it to GOTRUE_MAILER_AUTOCONFIRM)
+# true = skip verification (when no SMTP/Resend), false = require email verification
 set_supabase_autoconfirm() {
     local val="$1"  # "true" or "false"
     local env_file="${SUPABASE_PROJECT_DIR:?}/.env"
-    if grep -q "^GOTRUE_MAILER_AUTOCONFIRM=" "$env_file" 2>/dev/null; then
-        sed -i.bak "s|^GOTRUE_MAILER_AUTOCONFIRM=.*|GOTRUE_MAILER_AUTOCONFIRM=$val|" "$env_file"
+    if grep -q "^ENABLE_EMAIL_AUTOCONFIRM=" "$env_file" 2>/dev/null; then
+        sed -i.bak "s|^ENABLE_EMAIL_AUTOCONFIRM=.*|ENABLE_EMAIL_AUTOCONFIRM=$val|" "$env_file"
     else
-        echo "GOTRUE_MAILER_AUTOCONFIRM=$val" >> "$env_file"
+        echo "ENABLE_EMAIL_AUTOCONFIRM=$val" >> "$env_file"
     fi
     rm -f "${env_file}.bak"
 }
@@ -405,11 +406,11 @@ setup_selfhosted_supabase_docker() {
             if [[ -n "$resend_key" ]]; then
                 # Resend SMTP: smtp.resend.com, port 465 or 587, user=resend, pass=API key
                 for line in \
-                    "GOTRUE_MAILER_AUTOCONFIRM=false" \
-                    "GOTRUE_SMTP_HOST=smtp.resend.com" \
-                    "GOTRUE_SMTP_PORT=587" \
-                    "GOTRUE_SMTP_USER=resend" \
-                    "GOTRUE_SMTP_PASS=$resend_key"; do
+                    "ENABLE_EMAIL_AUTOCONFIRM=false" \
+                    "SMTP_HOST=smtp.resend.com" \
+                    "SMTP_PORT=587" \
+                    "SMTP_USER=resend" \
+                    "SMTP_PASS=$resend_key"; do
                     local key="${line%%=*}"
                     if grep -q "^${key}=" "$SUPABASE_PROJECT_DIR/.env" 2>/dev/null; then
                         sed -i.bak "s|^${key}=.*|${line}|" "$SUPABASE_PROJECT_DIR/.env"
@@ -421,11 +422,11 @@ setup_selfhosted_supabase_docker() {
                 print_success "Resend SMTP configured; email verification enabled"
             else
                 set_supabase_autoconfirm true
-                print_warn "No API key provided. Verification disabled for now. Add GOTRUE_SMTP_* to the Supabase .env later to enable."
+                print_warn "No API key provided. Verification disabled for now. Add SMTP_HOST, SMTP_USER, SMTP_PASS to the Supabase .env later to enable."
             fi
         else
-            set_supabase_autoconfirm false
-            print_info "Verification is required. Add GOTRUE_SMTP_HOST, GOTRUE_SMTP_USER, GOTRUE_SMTP_PASS (and optionally GOTRUE_SMTP_PORT) to:"
+            set_supabase_autoconfirm true
+            print_info "Autoconfirm enabled for now (no SMTP). Add SMTP_HOST, SMTP_USER, SMTP_PASS to .env and set ENABLE_EMAIL_AUTOCONFIRM=false when ready."
             printf "    ${CYAN}%s/.env${RESET}\n" "$SUPABASE_PROJECT_DIR"
         fi
     else
@@ -697,10 +698,12 @@ generate_supabase_keys() {
     SUPABASE_ANON_KEY=$(generate_supabase_jwt "anon" "$SUPABASE_JWT_SECRET")
     SUPABASE_SERVICE_KEY=$(generate_supabase_jwt "service_role" "$SUPABASE_JWT_SECRET")
 
+    # VAULT_ENC_KEY must be exactly 32 bytes (Supavisor AES-256-GCM). Hex-16 = 32 chars = safe for .env
     local vault_key
-    vault_key=$(openssl rand -hex 32)
+    vault_key=$(openssl rand -hex 16)
+    # PG_META_CRYPTO_KEY also needs exactly 32 chars (postgres-meta / Studio)
     local pg_meta_crypto
-    pg_meta_crypto=$(openssl rand -hex 32)
+    pg_meta_crypto=$(openssl rand -hex 16)
     local secret_key_base
     secret_key_base=$(openssl rand -base64 48 | tr -d '\n')
     local logflare_public
@@ -2219,9 +2222,9 @@ run_regenerate_keys() {
     new_service_key=$(generate_supabase_jwt "service_role" "$new_jwt_secret")
 
     local new_vault_key
-    new_vault_key=$(openssl rand -hex 32)
+    new_vault_key=$(openssl rand -hex 16)
     local new_pg_meta_crypto
-    new_pg_meta_crypto=$(openssl rand -hex 32)
+    new_pg_meta_crypto=$(openssl rand -hex 16)
     local new_secret_key_base
     new_secret_key_base=$(openssl rand -base64 48 | tr -d '\n')
     local new_logflare_public
