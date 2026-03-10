@@ -12,7 +12,7 @@ const router = Router();
 router.get(
   '/.well-known/nodeinfo',
   asyncHandler(async (req: Request, res: Response) => {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
 
     res.json({
       links: [

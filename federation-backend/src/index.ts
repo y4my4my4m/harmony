@@ -42,6 +42,9 @@ import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 
 const app: Application = express();
 
+// Trust the first proxy (nginx) so req.protocol / req.get('host') reflect the real client values
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors({

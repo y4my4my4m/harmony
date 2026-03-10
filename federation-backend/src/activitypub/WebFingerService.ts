@@ -31,21 +31,21 @@ router.get(
 
     const [, username, domain] = match;
 
-    // Verify domain matches our instance
-    if (domain !== config.INSTANCE_DOMAIN) {
+    // Verify domain matches our instance (case-insensitive per RFC 7033)
+    if (domain.toLowerCase() !== config.INSTANCE_DOMAIN.toLowerCase()) {
       return res.status(404).json({
         error: 'User not found on this instance',
       });
     }
 
-    // Lookup user
+    // Lookup user (case-insensitive username via ilike)
     const supabase = getSupabaseClient();
     const { data: user, error } = await supabase
       .from('profiles')
       .select('username, domain')
-      .eq('username', username)
+      .ilike('username', username)
       .eq('is_local', true)
-      .single();
+      .maybeSingle();
 
     if (error || !user) {
       return res.status(404).json({
@@ -53,10 +53,12 @@ router.get(
       });
     }
 
-    const userUrl = `https://${config.INSTANCE_DOMAIN}/users/${username}`;
+    const canonicalUsername = user.username;
+    const userUrl = `https://${config.INSTANCE_DOMAIN}/users/${canonicalUsername}`;
 
+    res.setHeader('Content-Type', 'application/jrd+json');
     res.json({
-      subject: `acct:${username}@${config.INSTANCE_DOMAIN}`,
+      subject: `acct:${canonicalUsername}@${config.INSTANCE_DOMAIN}`,
       aliases: [userUrl],
       links: [
         {
@@ -67,12 +69,40 @@ router.get(
         {
           rel: 'http://webfinger.net/rel/profile-page',
           type: 'text/html',
-          href: userUrl,
+          href: `https://${config.INSTANCE_DOMAIN}/social/profile/${canonicalUsername}`,
         },
       ],
     });
   })
 );
 
-export default router;
+/**
+ * host-meta (XML) — part of the WebFinger discovery chain.
+ * Some implementations fetch this first to discover the WebFinger template.
+ */
+router.get('/.well-known/host-meta', (req: Request, res: Response) => {
+  const domain = config.INSTANCE_DOMAIN;
+  res.setHeader('Content-Type', 'application/xrd+xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+  <Link rel="lrdd" type="application/xrd+xml" template="https://${domain}/.well-known/webfinger?resource={uri}" />
+</XRD>`);
+});
 
+/**
+ * host-meta.json — JSON variant of host-meta
+ */
+router.get('/.well-known/host-meta.json', (req: Request, res: Response) => {
+  const domain = config.INSTANCE_DOMAIN;
+  res.json({
+    links: [
+      {
+        rel: 'lrdd',
+        type: 'application/jrd+json',
+        template: `https://${domain}/.well-known/webfinger?resource={uri}`,
+      },
+    ],
+  });
+});
+
+export default router;
