@@ -1067,42 +1067,6 @@ $bot_env
 $bot_networks"
     fi
 
-    # --- Nginx ---
-    local nginx_volumes="      - ./dist:/usr/share/nginx/html:ro
-      - ./docs/.vitepress/dist:/usr/share/nginx/docs:ro
-      - ./dev/nginx-harmony.conf:/etc/nginx/conf.d/harmony.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro"
-
-    if $ENABLE_DOCS && [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]]; then
-        nginx_volumes+="
-      - ./dev/nginx-docs.conf:/etc/nginx/conf.d/docs.conf:ro"
-    fi
-
-    if $ENABLE_VOICE; then
-        nginx_volumes+="
-      - ./dev/nginx-livekit.conf:/etc/nginx/conf.d/livekit.conf:ro"
-    fi
-
-    compose+="
-
-  nginx:
-    image: nginx:alpine
-    container_name: harmony-nginx
-    restart: unless-stopped
-    ports:
-      - \"80:80\"
-      - \"443:443\"
-    volumes:
-$nginx_volumes
-    networks:
-      - harmony"
-
-    if $ENABLE_FEDERATION; then
-        compose+="
-    depends_on:
-      - federation-backend"
-    fi
-
     # --- Networks ---
     compose+="
 
