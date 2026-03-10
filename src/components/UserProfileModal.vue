@@ -585,11 +585,12 @@ const displayHandle = computed(() => {
   if (!props.user) return '@unknown'
   
   if (isFederatedUser(props.user)) {
-    return props.user.handle
+    return props.user.handle || '@unknown'
   }
   
   // For chat users, show @username
-  return `${props.user.username || 'unknown'}`
+  const u = props.user.username || 'unknown'
+  return u.startsWith('@') ? u : `@${u}`
 })
 
 const displayAbout = computed(() => {

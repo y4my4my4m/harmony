@@ -11,7 +11,7 @@
       <p class="user-name"><DisplayName :userId="currentUser.id" :fallback="currentUser.displayName" :truncate="true" /></p>
       <div class="user-status-container" @click="toggleStatusDropdown">
         <div class="status-dot" :class="currentStatusDisplay.class"></div>
-        <span class="status-text">{{ currentStatusDisplay.text }}</span>
+        <span class="status-text">Status: {{ currentStatusDisplay.text }}</span>
         <svg class="dropdown-arrow" :class="{ rotated: showStatusDropdown }" width="12" height="8" viewBox="0 0 12 8" fill="currentColor">
           <path d="M6 6L10.5 1.5L9 0L6 3L3 0L1.5 1.5L6 6Z"/>
         </svg>

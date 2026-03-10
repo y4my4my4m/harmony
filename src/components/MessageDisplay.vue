@@ -219,7 +219,7 @@
             <!-- Message actions for system messages (if hovered) -->
             <div class="message-actions" v-if="hoveredMessageId === item.message.id">
               <div class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
-              <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id)"><DeleteIcon/></div>
+              <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
               <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
             </div>
             
@@ -370,7 +370,7 @@
           <div class="action-btn" @click="replyTo(item.message)"><ReplyIcon/></div>
           <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
           <div class="action-btn" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
-          <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id)"><DeleteIcon/></div>
+          <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
           <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
         </div>
         
@@ -478,13 +478,13 @@
     @hide="handleHideReportedContent"
   />
 
-  <!-- Delete Message Confirmation Modal (for messages with threads) -->
+  <!-- Delete Message Confirmation Modal -->
   <ConfirmationModal
     :show="showDeleteConfirmModal"
     title="Delete Message"
-    :message="`This message has a thread attached: '${deleteConfirmConfig.threadName}'`"
-    secondary-message="Deleting this message will permanently delete the thread and all its replies. This action cannot be undone."
-    confirm-button-text="Delete Message & Thread"
+    :message="deleteConfirmConfig.hasThread ? `This message has a thread attached: '${deleteConfirmConfig.threadName}'` : 'Are you sure you want to delete this message? This action cannot be undone.'"
+    :secondary-message="deleteConfirmConfig.hasThread ? 'Deleting this message will permanently delete the thread and all its replies.' : undefined"
+    :confirm-button-text="deleteConfirmConfig.hasThread ? 'Delete Message & Thread' : 'Delete'"
     @close="cancelDeleteMessage"
     @confirm="confirmDeleteMessage"
   />
@@ -1598,7 +1598,18 @@ onMounted(() => {
     nextTick(() => {
       const messageElement = document.getElementById(`message-${messageId}`);
       if (messageElement) {
-        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const scrollContainer = messageElement.closest('.message-display') as HTMLElement;
+        if (scrollContainer) {
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const elementRect = messageElement.getBoundingClientRect();
+          const containerHeight = scrollContainer.clientHeight;
+          const elementHeight = messageElement.offsetHeight;
+          const relativeTop = elementRect.top - containerRect.top + scrollContainer.scrollTop;
+          const scrollTop = relativeTop - (containerHeight / 2) + (elementHeight / 2);
+          scrollContainer.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+        } else {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        }
         messageElement.classList.add('highlighted');
         setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
       }
@@ -1947,7 +1958,8 @@ const editLastOwnMessage = () => {
   }
 };
 
-const deleteMessage = (messageId: string) => {
+const deleteMessage = (messageId: string, event?: MouseEvent) => {
+  const bypassConfirm = event?.shiftKey === true;
   hoveredMessageId.value = null;
   const thread = getThreadForMessage(messageId);
   
@@ -1958,25 +1970,35 @@ const deleteMessage = (messageId: string) => {
       threadName: thread.name || 'this thread',
     };
     showDeleteConfirmModal.value = true;
-  } else {
+  } else if (bypassConfirm) {
     triggerDestructive();
     chatStore.deleteMessage(messageId);
+  } else {
+    deleteConfirmConfig.value = {
+      messageId,
+      hasThread: false,
+      threadName: '',
+    };
+    showDeleteConfirmModal.value = true;
   }
 };
 
 const confirmDeleteMessage = async () => {
-  const { messageId } = deleteConfirmConfig.value;
+  const { messageId, hasThread } = deleteConfirmConfig.value;
   
   // Haptic feedback for destructive action
   triggerDestructive();
   
-  // Delete the message (cascade will delete the thread)
-  await chatStore.deleteMessage(messageId);
+  if (props.channelId) {
+    await chatStore.deleteMessage(messageId);
+  } else if (props.conversationId) {
+    await dmStore.deleteMessage(messageId);
+  }
   
-  // Clear thread from local cache
-  threadsByMessageId.value.delete(messageId);
+  if (hasThread) {
+    threadsByMessageId.value.delete(messageId);
+  }
   
-  // Close the modal
   showDeleteConfirmModal.value = false;
 };
 
@@ -2939,6 +2961,11 @@ defineExpose({ editLastOwnMessage });
   
   .beginning-subtitle {
     font-size: 0.8125rem;
+  }
+
+  /* Shift message-actions left so emoji (safe) is under typical long-press, not delete */
+  .message-actions {
+    right: 100px;
   }
 }
 

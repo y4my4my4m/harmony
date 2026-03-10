@@ -263,6 +263,18 @@ export const useDMStore = defineStore('dm', () => {
     })
   }
 
+  const deleteMessage = async (messageId: string) => {
+    try {
+      debug.log('🔄 Deleting DM message via MessageService:', messageId)
+      await services.messages.deleteMessage(messageId)
+      removeMessageFromCache(messageId)
+      debug.log('✅ DM message deleted')
+    } catch (error: any) {
+      debug.error('❌ Error deleting DM message:', error)
+      throw new Error(error.message || 'Failed to delete message')
+    }
+  }
+
   // Fetch individual message (for replies that aren't in current message list)
   const fetchReplyMessage = async (messageId: string): Promise<Message | null> => {
     // Check if already cached
@@ -2554,6 +2566,7 @@ export const useDMStore = defineStore('dm', () => {
     fetchReplyMessage,
     
     // Actions
+    deleteMessage,
     initializeDMEnvironment,
     initializeDMEnvironmentForDirectAccess,
     fetchConversationDetails,

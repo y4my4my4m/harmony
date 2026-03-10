@@ -48,6 +48,9 @@ SUPABASE_URL=""
 SUPABASE_ANON_KEY=""
 SUPABASE_SERVICE_KEY=""
 DATABASE_URL=""
+SUPABASE_PROJECT_NAME=""   # folder name for self-hosted supabase (e.g. supabase-project)
+SUPABASE_PROJECT_DIR=""   # full path after setup
+SUPABASE_SITE_DOMAIN=""   # domain for Supabase (site URL, etc.)
 
 ENABLE_FEDERATION=true
 ENABLE_VOICE=true
@@ -310,6 +313,55 @@ configure_instance() {
 }
 
 # ---------------------------------------------------------------------------
+# Self-hosted Supabase Docker setup
+# ---------------------------------------------------------------------------
+setup_selfhosted_supabase_docker() {
+    local parent_dir
+    parent_dir="$(dirname "$PROJECT_DIR")"
+    local clone_dir="$parent_dir/supabase"
+    SUPABASE_PROJECT_DIR="$parent_dir/$SUPABASE_PROJECT_NAME"
+
+    echo ""
+    print_step "1" "Cloning Supabase repo"
+    if [[ -d "$clone_dir" ]]; then
+        print_info "Supabase repo already exists at $clone_dir, pulling latest..."
+        (cd "$clone_dir" && git pull --depth 1 2>/dev/null) || true
+    else
+        run_with_spinner "Cloning supabase/supabase..." git clone --depth 1 https://github.com/supabase/supabase "$clone_dir"
+    fi
+
+    print_step "2" "Creating Supabase project directory"
+    mkdir -p "$SUPABASE_PROJECT_DIR"
+
+    print_step "3" "Copying Docker compose files"
+    cp -rf "$clone_dir/docker/"* "$SUPABASE_PROJECT_DIR/"
+
+    print_step "4" "Copying .env.example to .env"
+    cp "$clone_dir/docker/.env.example" "$SUPABASE_PROJECT_DIR/.env"
+
+    if [[ -n "$SUPABASE_SITE_DOMAIN" ]]; then
+        local domain_clean="${SUPABASE_SITE_DOMAIN#http://}"
+        domain_clean="${domain_clean#https://}"
+        domain_clean="${domain_clean%/}"
+        local site_url="https://$domain_clean"
+        print_info "Updating .env with domain: $site_url"
+        sed -i.bak "s|SITE_URL=.*|SITE_URL=$site_url|" "$SUPABASE_PROJECT_DIR/.env"
+        sed -i.bak "s|SUPABASE_PUBLIC_URL=.*|SUPABASE_PUBLIC_URL=$site_url|" "$SUPABASE_PROJECT_DIR/.env"
+        sed -i.bak "s|API_EXTERNAL_URL=.*|API_EXTERNAL_URL=$site_url|" "$SUPABASE_PROJECT_DIR/.env"
+        sed -i.bak "s|PROXY_DOMAIN=.*|PROXY_DOMAIN=$domain_clean|" "$SUPABASE_PROJECT_DIR/.env"
+        rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
+    fi
+
+    print_step "5" "Pulling Docker images"
+    (cd "$SUPABASE_PROJECT_DIR" && run_with_spinner "Pulling images..." docker compose pull)
+
+    echo ""
+    print_success "Supabase project ready at: ${BOLD}$SUPABASE_PROJECT_DIR${RESET}"
+    print_info "To start Supabase: cd $SUPABASE_PROJECT_DIR && docker compose up -d"
+    echo ""
+}
+
+# ---------------------------------------------------------------------------
 # Supabase setup
 # ---------------------------------------------------------------------------
 configure_supabase() {
@@ -373,9 +425,22 @@ configure_supabase() {
             SUPABASE_MODE="selfhosted"
             echo ""
             print_info "Self-hosted Supabase will run in Docker alongside Harmony."
-            print_info "The installer will use docker-compose.full.yml which connects"
-            print_info "to the Supabase docker network automatically."
+            print_info "The installer will clone the Supabase repo and set up your project."
             echo ""
+
+            SUPABASE_PROJECT_NAME=$(prompt_input "Supabase project folder name (db/backend)" "supabase-project")
+            SUPABASE_SITE_DOMAIN=$(prompt_input "Domain for this instance (Supabase site URL)" "$DOMAIN")
+
+            if ! require_cmd git; then
+                print_error "git is required for self-hosted Supabase. Please install git first."
+                exit 1
+            fi
+            if ! require_cmd docker; then
+                print_error "Docker is required for self-hosted Supabase. Please install Docker first."
+                exit 1
+            fi
+
+            setup_selfhosted_supabase_docker
 
             local pg_pass
             pg_pass=$(prompt_input "Supabase Postgres password" "your-super-secret-and-long-postgres-password")
@@ -1130,6 +1195,7 @@ show_summary() {
     printf "  ${BOLD}Generated Files${RESET}\n"
     echo ""
     [[ -f "$PROJECT_DIR/.env" ]] && printf "    ${CHECK} .env\n"
+    [[ -n "$SUPABASE_PROJECT_DIR" ]] && [[ -d "$SUPABASE_PROJECT_DIR" ]] && printf "    ${CHECK} Supabase project: %s\n" "$SUPABASE_PROJECT_DIR"
     [[ -f "$PROJECT_DIR/federation-backend/.env" ]] && printf "    ${CHECK} federation-backend/.env\n"
     [[ -f "$PROJECT_DIR/bot-gateway/.env" ]] && printf "    ${CHECK} bot-gateway/.env\n"
     [[ -f "$PROJECT_DIR/webrtc/livekit.yaml" ]] && printf "    ${CHECK} webrtc/livekit.yaml\n"
@@ -1153,7 +1219,12 @@ show_summary() {
     if [[ "$MODE" == "production" ]]; then
         printf "  ${BOLD}Next Steps${RESET}\n"
         echo ""
-        printf "    ${DIM}1.${RESET} Verify your DNS points to this server\n"
+        if [[ "$SUPABASE_MODE" == "selfhosted" ]] && [[ -n "$SUPABASE_PROJECT_DIR" ]]; then
+            printf "    ${DIM}0.${RESET} Start Supabase: ${CYAN}cd %s && docker compose up -d${RESET}\n" "$SUPABASE_PROJECT_DIR"
+            printf "    ${DIM}1.${RESET} Verify your DNS points to this server\n"
+        else
+            printf "    ${DIM}1.${RESET} Verify your DNS points to this server\n"
+        fi
         printf "    ${DIM}2.${RESET} Visit ${CYAN}https://%s${RESET} and register\n" "$DOMAIN"
         printf "    ${DIM}3.${RESET} First registered user becomes admin\n"
         echo ""
