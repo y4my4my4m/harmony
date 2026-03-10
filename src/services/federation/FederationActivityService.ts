@@ -402,38 +402,40 @@ export class FederationActivityService {
   }) {
     const { activityId, activityType, actor, messageData, emojiData, operation } = params
     const instanceDomain = await this.getInstanceDomain()
+    const isNative = !emojiData.url
+    const emojiContent = emojiData.native || emojiData.name
 
     if (operation === 'add') {
-      // Like activity with emoji support (Pleroma/Misskey compatible)
-      return {
+      const activity: any = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: activityId,
         type: 'Like',
         actor: actor.federated_id,
         object: `${instanceDomain}/messages/${messageData.id}`,
         published: new Date().toISOString(),
-        content: emojiData.name,
-        tag: [{
+        content: emojiContent,
+      }
+
+      if (!isNative && emojiData.url) {
+        activity.tag = [{
           id: emojiData.url,
           type: 'Emoji',
-          name: emojiData.name,
-          icon: {
-            type: 'Image',
-            url: emojiData.url
-          }
+          name: `:${emojiData.name}:`,
+          icon: { type: 'Image', url: emojiData.url }
         }]
       }
+
+      return activity
     } else {
-      // Undo Like activity
       return {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: activityId,
         type: 'Undo',
         actor: actor.federated_id,
-                  object: {
+        object: {
           type: 'Like',
           object: `${instanceDomain}/messages/${messageData.id}`,
-          content: emojiData.name
+          content: emojiContent
         },
         published: new Date().toISOString()
       }
@@ -450,38 +452,40 @@ export class FederationActivityService {
   }) {
     const { activityId, activityType, actor, postData, emojiData, operation } = params
     const instanceDomain = await this.getInstanceDomain()
+    const isNative = !emojiData.url
+    const emojiContent = emojiData.native || emojiData.name
 
     if (operation === 'add') {
-      // Like activity with emoji support
-      return {
+      const activity: any = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: activityId,
         type: 'Like',
         actor: actor.federated_id,
         object: `${instanceDomain}/posts/${postData.id}`,
         published: new Date().toISOString(),
-        content: emojiData.name,
-        tag: [{
+        content: emojiContent,
+      }
+
+      if (!isNative && emojiData.url) {
+        activity.tag = [{
           id: emojiData.url,
           type: 'Emoji',
-          name: emojiData.name,
-          icon: {
-            type: 'Image',
-            url: emojiData.url
-          }
+          name: `:${emojiData.name}:`,
+          icon: { type: 'Image', url: emojiData.url }
         }]
       }
+
+      return activity
     } else {
-      // Undo Like activity
       return {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: activityId,
         type: 'Undo',
         actor: actor.federated_id,
-                  object: {
+        object: {
           type: 'Like',
           object: `${instanceDomain}/posts/${postData.id}`,
-          content: emojiData.name
+          content: emojiContent
         },
         published: new Date().toISOString()
       }
@@ -628,14 +632,23 @@ export class FederationActivityService {
     return error ? null : data
   }
 
-  private async getEmojiData(emojiId: string) {
-    const { data, error } = await supabase
-      .from('emojis')
-      .select('id, name, url')
-      .eq('id', emojiId)
-      .single()
+  private isValidUUID(str: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+  }
 
-    return error ? null : data
+  private async getEmojiData(emojiId: string) {
+    if (this.isValidUUID(emojiId)) {
+      const { data, error } = await supabase
+        .from('emojis')
+        .select('id, name, url')
+        .eq('id', emojiId)
+        .single()
+
+      return error ? null : data
+    }
+
+    // Native/unicode emoji — return a synthetic emoji object for federation
+    return { id: null, name: emojiId, url: null, native: emojiId }
   }
 
   private async getActorData(userId: string) {

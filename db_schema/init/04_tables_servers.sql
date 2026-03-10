@@ -233,6 +233,30 @@ CREATE INDEX IF NOT EXISTS idx_thread_members_thread ON public.thread_members(th
 CREATE INDEX IF NOT EXISTS idx_thread_members_user ON public.thread_members(user_id);
 
 -- ---------------------------------------------------------------------------
+-- EMOJIS (moved here from 06_tables_misc.sql — reactions FK depends on it)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.emojis (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    name character varying,
+    url character varying,
+    server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
+    uploader uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    
+    usage_count integer DEFAULT 0,
+    last_used timestamp with time zone,
+    
+    domain text
+);
+
+CREATE INDEX IF NOT EXISTS idx_emojis_server ON public.emojis(server_id);
+CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name::text));
+
+COMMENT ON TABLE public.emojis IS 'Custom emoji library';
+
+-- ---------------------------------------------------------------------------
 -- REACTIONS (for messages)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.reactions (

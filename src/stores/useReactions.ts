@@ -176,16 +176,13 @@ export const useReactionsStore = defineStore('reactions', () => {
       const result = await services.messages.toggleReaction(messageId, emojiId)
       debug.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
       
-      // 3. SUCCESS: Keep optimistic state! (No flash)  
-      // Our optimistic state has real emoji data, so just keep it
-      // Only update cache if emoji data was missing
-      
-      if (!emojiData && !emojiCache.getEmojiById(emojiId)) {
-        // Only refresh if we used fallback emoji data
-        setTimeout(() => {
-          fetchMessageReactions(messageId, true)
-        }, 1000) // Faster refresh if needed
-      }
+      // 3. SUCCESS: Schedule seamless transition from optimistic → real data
+      // Fetch real data, THEN clear optimistic (no visual gap)
+      setTimeout(async () => {
+        lastFetched.value.delete(messageId)
+        await fetchMessageReactions(messageId, true)
+        optimisticReactions.value.delete(messageId)
+      }, 1500)
       
       return { success: true }
       
@@ -216,19 +213,16 @@ export const useReactionsStore = defineStore('reactions', () => {
 
     debug.log('🔄 Realtime reaction update for message:', messageId)
     
-    // If we have fresh optimistic state, delay realtime to prevent flash
     if (optimisticReactions.value.has(messageId)) {
       debug.log('🔄 Delaying realtime - optimistic update present')
       
-      // Allow realtime updates after optimistic state has settled
       setTimeout(async () => {
-        if (optimisticReactions.value.has(messageId)) {
-          // Clear optimistic state and show real data
-          optimisticReactions.value.delete(messageId)
-        }
+        // Fetch real data FIRST (while optimistic state is still displayed)
         lastFetched.value.delete(messageId)
         await fetchMessageReactions(messageId, true)
-      }, 3000) // 3 second delay to let optimistic state be seen
+        // THEN clear optimistic state — computed falls through to fresh real data
+        optimisticReactions.value.delete(messageId)
+      }, 2000)
       return
     }
     

@@ -5,30 +5,8 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- EMOJIS
+-- EMOJIS — defined in 04_tables_servers.sql (reactions FK depends on it)
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.emojis (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now(),
-    
-    name character varying,
-    url character varying,
-    server_id uuid REFERENCES public.servers(id) ON DELETE CASCADE,
-    uploader uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-    
-    -- Usage tracking
-    usage_count integer DEFAULT 0,
-    last_used timestamp with time zone,
-    
-    -- Federation
-    domain text
-);
-
-CREATE INDEX IF NOT EXISTS idx_emojis_server ON public.emojis(server_id);
-CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name::text));
-
-COMMENT ON TABLE public.emojis IS 'Custom emoji library';
 
 -- ---------------------------------------------------------------------------
 -- EMOJI USAGE - Track emoji usage for analytics and suggestions

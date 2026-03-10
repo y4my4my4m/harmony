@@ -217,12 +217,8 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       const newReactions = createOptimisticReactions(currentReactions, emoji, userId, operation)
       optimisticReactions.value.set(postId, newReactions)
 
-      // Clear optimistic state after much longer time (like messages)
-      setTimeout(() => {
-        if (optimisticReactions.value.get(postId) === newReactions) {
-          optimisticReactions.value.delete(postId)
-        }
-      }, 30000) // 30 seconds like messages
+      // Schedule seamless transition from optimistic → real data after DB update
+      const optimisticRef = newReactions
 
       // Actual database update
       // Check if emoji.id is a valid UUID (server custom emoji) or native unicode
@@ -264,9 +260,15 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
         // Don't fail the entire operation if federation fails - user experience first!
       }
 
-      // DON'T refresh real data - just keep the optimistic state!
-      // This prevents flashing just like messages reactions
-      
+      // Fetch real data, THEN clear optimistic (no visual gap)
+      setTimeout(async () => {
+        lastFetched.value.delete(postId)
+        await fetchPostReactions(postId, true)
+        if (optimisticReactions.value.get(postId) === optimisticRef) {
+          optimisticReactions.value.delete(postId)
+        }
+      }, 1500)
+
       return { success: true }
     } catch (error: any) {
       debug.error('❌ Failed to toggle post reaction:', error)
@@ -337,7 +339,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
   }
 
   /**
-   * Real-time update handler - smart handling for optimistic state
+   * Real-time update handler - seamless transition from optimistic to real data
    */
   async function handleRealtimeUpdate(payload: any): Promise<void> {
     const postId = payload.new?.post_id || payload.old?.post_id
@@ -346,39 +348,16 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
 
     debug.log('🔄 Realtime reaction update for post:', postId)
     
-    // If we have optimistic state, enhance it with real user data instead of ignoring
     if (optimisticReactions.value.has(postId)) {
-      debug.log('🔄 Enhancing optimistic state with real user data from realtime')
+      debug.log('🔄 Delaying realtime - optimistic update present')
       
-      // Fetch fresh data to get real user information for tooltips
-      lastFetched.value.delete(postId)
-      await fetchPostReactions(postId, true)
-      
-      // Get the fresh real data
-      const realData = reactionsByPost.value.get(postId) || []
-      const optimisticData = optimisticReactions.value.get(postId) || []
-      
-      // Merge: keep optimistic counts/states but use real user_reactions for tooltips
-      const enhancedOptimistic = optimisticData.map(optReaction => {
-        const realReaction = realData.find(r => 
-          (r.emoji_id === optReaction.emoji_id) || 
-          (r.custom_emoji_content === optReaction.custom_emoji_content)
-        )
-        
-        if (realReaction) {
-          // Use real user_reactions data but keep optimistic counts/state
-          return {
-            ...optReaction,
-            user_reactions: realReaction.user_reactions // Real user data for tooltips!
-          }
-        }
-        
-        return optReaction
-      })
-      
-      // Update optimistic state with enhanced data
-      optimisticReactions.value.set(postId, enhancedOptimistic)
-      debug.log('✅ Enhanced optimistic state with real user data')
+      setTimeout(async () => {
+        // Fetch real data FIRST (optimistic state still displayed)
+        lastFetched.value.delete(postId)
+        await fetchPostReactions(postId, true)
+        // THEN clear optimistic — computed falls through to fresh real data
+        optimisticReactions.value.delete(postId)
+      }, 2000)
       return
     }
     
