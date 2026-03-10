@@ -60,6 +60,34 @@ export function getFullAvatarUrl(avatarUrl: string | null | undefined): string |
 }
 
 /**
+ * Convert an emoji URL to a full absolute URL for federation.
+ * Handles relative storage paths (local emojis) and full URLs (remote emojis).
+ */
+export function getFullEmojiUrl(emojiUrl: string | null | undefined): string | null {
+  if (!emojiUrl || typeof emojiUrl !== 'string') {
+    return null;
+  }
+
+  if (emojiUrl.startsWith('http://') || emojiUrl.startsWith('https://')) {
+    return emojiUrl;
+  }
+
+  if (emojiUrl.includes('/') && !emojiUrl.startsWith('/')) {
+    const supabase = getSupabaseClient();
+    const { data } = supabase.storage
+      .from('emojis')
+      .getPublicUrl(emojiUrl);
+    return makeUrlPublic(data.publicUrl);
+  }
+
+  if (emojiUrl.startsWith('/')) {
+    return `https://${config.INSTANCE_DOMAIN}${emojiUrl}`;
+  }
+
+  return null;
+}
+
+/**
  * Convert banner_url to full absolute URL for federation
  * Same logic as avatar, but for banners bucket
  */

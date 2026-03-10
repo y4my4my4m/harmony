@@ -8,6 +8,7 @@
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
+import { getFullEmojiUrl } from './urlUtils.js';
 import { logger } from './logger.js';
 
 export interface ResolvedEmoji {
@@ -31,12 +32,13 @@ export function formatEmojiForFederation(
   }
 
   if (emoji.url) {
+    const fullUrl = getFullEmojiUrl(emoji.url) || emoji.url;
     const shortcode = emoji.domain
       ? `:${emoji.name}@${emoji.domain}:`
       : `:${emoji.name}:`;
     return {
       content: shortcode,
-      emojiData: { name: emoji.name, url: emoji.url },
+      emojiData: { name: emoji.name, url: fullUrl },
     };
   }
 

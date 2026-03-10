@@ -59,9 +59,11 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
 
     if (type === 'create') {
       const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content);
+      logger.info(`🎯 Resolved emoji: content="${content}", hasEmojiData=${!!emojiData}, emojiUrl=${emojiData?.url ?? 'none'}`);
       const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
+      logger.debug(`📦 Like activity: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-      logger.info(`✅ Reaction queued for delivery to ${postAuthor.inbox_url}`);
+      logger.info(`✅ Reaction federated to ${postAuthor.inbox_url}`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
     } else if (type === 'delete') {
       const undoActivity = createUndoLikeActivity(user, post.ap_id);

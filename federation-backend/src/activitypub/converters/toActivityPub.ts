@@ -329,15 +329,19 @@ export function createLikeActivity(
     _misskey_reaction: reactionValue,
   };
 
-  // Add custom emoji tag for proper federation
   if (emojiData?.url) {
+    const ext = emojiData.url.split('.').pop()?.toLowerCase().split('?')[0] || '';
+    const mediaType = ext === 'gif' ? 'image/gif'
+      : ext === 'webp' ? 'image/webp'
+      : ext === 'svg' ? 'image/svg+xml'
+      : 'image/png';
     activity.tag = [{
       type: 'Emoji',
       id: emojiData.url,
       name: emojiContent,
       icon: {
         type: 'Image',
-        mediaType: 'image/png',
+        mediaType,
         url: emojiData.url,
       }
     }];
