@@ -1550,14 +1550,22 @@ setup_database() {
     fi
 
     local pg_pw="${SUPABASE_PG_PASSWORD:-postgres}"
-    local use_docker_for_psql=false
+    local use_docker_exec=false
+    local db_container="supabase-db"
 
-    if ! require_cmd psql; then
+    # Determine how to run psql: docker exec into supabase-db (best), local psql, or fallback
+    if require_cmd docker && docker inspect "$db_container" &>/dev/null; then
+        print_info "Found running ${BOLD}$db_container${RESET} container — will use docker exec."
+        use_docker_exec=true
+    elif require_cmd psql; then
+        print_info "Using local psql client."
+    else
+        print_warn "Neither supabase-db container nor psql found."
         if require_cmd docker; then
-            print_info "psql not found. Using a PostgreSQL client container to run the schema."
-            use_docker_for_psql=true
+            print_info "Start Supabase first, then re-run:"
+            printf "    ${CYAN}./scripts/install.sh --schema-setup-only${RESET}\n"
         else
-            print_warn "psql not found. Install the PostgreSQL client:"
+            print_warn "Install the PostgreSQL client:"
             local pkg_mgr
             pkg_mgr=$(detect_pkg_manager)
             case "$pkg_mgr" in
@@ -1567,23 +1575,24 @@ setup_database() {
                 brew) printf "    ${CYAN}brew install libpq${RESET}\n" ;;
                 *) printf "    ${CYAN}Install postgresql-client for your platform${RESET}\n" ;;
             esac
-            echo ""
-            print_info "Then run (init must be run from db_schema/init so \\i includes work):"
-            printf "    ${CYAN}cd db_schema/init && PGPASSWORD=xxx psql -h %s -p %s -U %s -d %s -f init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
-            printf "    ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql ... -f \"\$f\"; done${RESET}\n"
-            echo ""
-            return
         fi
+        echo ""
+        return
     fi
+
+    # Helper: run psql command via docker exec or local psql
+    run_psql() {
+        if $use_docker_exec; then
+            docker exec -i "$db_container" psql -U "$db_user" -d "$db_name" "$@"
+        else
+            PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" "$@"
+        fi
+    }
 
     # Test connection (with retries — Supabase can take a while to start)
     print_info "Testing database connection..."
     try_db_connect() {
-        if $use_docker_for_psql; then
-            docker run --rm --network host -e PGPASSWORD="$pg_pw" postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null
-        else
-            PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null
-        fi
+        run_psql -c "SELECT 1" &>/dev/null
     }
 
     local connected=false
@@ -1600,12 +1609,16 @@ setup_database() {
     done
 
     while ! $connected; do
-        print_error "Cannot connect to database at ${db_host}:${db_port}"
+        print_error "Cannot connect to database"
         print_info "Supabase may still be starting. You can retry or skip and run schema setup later."
         echo ""
         if prompt_yn "Retry in 10 seconds?" "y"; then
             print_info "Waiting 10 seconds..."
             sleep 10
+            # Re-check if container appeared
+            if $use_docker_exec || (require_cmd docker && docker inspect "$db_container" &>/dev/null); then
+                use_docker_exec=true
+            fi
             try_db_connect && connected=true
         else
             if prompt_yn "Skip and run schema setup later?" "y"; then
@@ -1618,13 +1631,18 @@ setup_database() {
 
     print_success "Database connection OK"
 
-    # Run init schema (must run from db_schema/init so \i 00_extensions.sql etc. find the files)
+    # Copy schema files into the container (init.sql uses \i for relative includes)
+    if $use_docker_exec; then
+        print_info "Copying schema files into container..."
+        docker cp "$PROJECT_DIR/db_schema" "$db_container:/tmp/db_schema"
+    fi
+
+    # Run init schema
     echo ""
     print_info "Loading init schema..."
     local init_ec=0
-    if $use_docker_for_psql; then
-        docker run --rm -v "$PROJECT_DIR:/app" -w /app/db_schema/init --network host -e PGPASSWORD="$pg_pw" \
-            postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f init.sql 2>&1 | tail -15
+    if $use_docker_exec; then
+        docker exec -i -w /tmp/db_schema/init "$db_container" psql -U "$db_user" -d "$db_name" -f init.sql 2>&1 | tail -15
         init_ec=${PIPESTATUS[0]}
     else
         (cd "$PROJECT_DIR/db_schema/init" && PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f init.sql) 2>&1 | tail -15
@@ -1632,11 +1650,12 @@ setup_database() {
     fi
     if [[ $init_ec -ne 0 ]]; then
         print_error "Schema loading failed. Check errors above."
+        $use_docker_exec && docker exec "$db_container" rm -rf /tmp/db_schema 2>/dev/null || true
         return
     fi
     print_success "Init schema loaded"
 
-    # Run migrations in order (each file is standalone; -f with full path is fine)
+    # Run migrations in order
     local migration_count=0
     local migration_files
     migration_files=$(find "$PROJECT_DIR/db_schema/migrations" -name '*.sql' -type f 2>/dev/null | sort)
@@ -1648,9 +1667,8 @@ setup_database() {
             local fname
             fname=$(basename "$migration")
             local mig_ec=0
-            if $use_docker_for_psql; then
-                docker run --rm -v "$PROJECT_DIR:/app" --network host -e PGPASSWORD="$pg_pw" \
-                    postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f "/app/db_schema/migrations/$fname" &>/dev/null
+            if $use_docker_exec; then
+                docker exec -i "$db_container" psql -U "$db_user" -d "$db_name" -f "/tmp/db_schema/migrations/$fname" &>/dev/null
                 mig_ec=$?
             else
                 PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f "$migration" &>/dev/null
@@ -1665,20 +1683,19 @@ setup_database() {
         print_success "Ran $migration_count migrations"
     fi
 
+    # Clean up copied files
+    if $use_docker_exec; then
+        docker exec "$db_container" rm -rf /tmp/db_schema 2>/dev/null || true
+    fi
+
     # Set instance domain and name
     echo ""
     print_info "Configuring instance_config..."
     local update_cmd="UPDATE public.instance_config SET config_value = '\"$DOMAIN\"' WHERE config_key = 'domain';
          UPDATE public.instance_config SET config_value = '\"$INSTANCE_NAME\"' WHERE config_key = 'instance_name';"
     local update_ec=0
-    if $use_docker_for_psql; then
-        echo "$update_cmd" | docker run --rm -i --network host -e PGPASSWORD="$pg_pw" \
-            postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" &>/dev/null
-        update_ec=$?
-    else
-        PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "$update_cmd" &>/dev/null
-        update_ec=$?
-    fi
+    echo "$update_cmd" | run_psql &>/dev/null
+    update_ec=$?
     if [[ $update_ec -eq 0 ]]; then
         print_success "Set domain=${BOLD}$DOMAIN${RESET}, name=${BOLD}$INSTANCE_NAME${RESET}"
     else
