@@ -211,7 +211,7 @@ CREATE POLICY "Only system can modify post hashtags" ON public.post_hashtags
     USING (false) WITH CHECK (false);
 
 -- ---------------------------------------------------------------------------
--- PREKEYS
+-- PREKEYS (schema varies: init uses used_at, production uses is_used)
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Users can insert their own prekeys" ON public.prekeys;
 CREATE POLICY "Users can insert their own prekeys" ON public.prekeys
@@ -226,8 +226,16 @@ CREATE POLICY "Users can update their own prekeys" ON public.prekeys
     );
 
 DROP POLICY IF EXISTS "Users can view others' unused public prekeys" ON public.prekeys;
-CREATE POLICY "Users can view others' unused public prekeys" ON public.prekeys
-    FOR SELECT USING (is_used = false);
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'prekeys' AND column_name = 'is_used'
+    ) THEN
+        EXECUTE 'CREATE POLICY "Users can view others'' unused public prekeys" ON public.prekeys FOR SELECT USING (is_used = false)';
+    ELSE
+        EXECUTE 'CREATE POLICY "Users can view others'' unused public prekeys" ON public.prekeys FOR SELECT USING (used_at IS NULL)';
+    END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- PUSH SUBSCRIPTIONS
@@ -237,15 +245,25 @@ CREATE POLICY "Service role can manage all push subscriptions" ON public.push_su
     TO service_role USING (true) WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
--- SERVER FEDERATION EVENTS
+-- SERVER FEDERATION EVENTS (init schema has no user_id column)
 -- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS "Users can create their own server events" ON public.server_federation_events;
-CREATE POLICY "Users can create their own server events" ON public.server_federation_events
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'server_federation_events' AND column_name = 'user_id'
+    ) THEN
+        EXECUTE 'DROP POLICY IF EXISTS "Users can create their own server events" ON public.server_federation_events';
+        EXECUTE 'CREATE POLICY "Users can create their own server events" ON public.server_federation_events FOR INSERT WITH CHECK (user_id = auth.uid())';
 
-DROP POLICY IF EXISTS "Users can view server events they're involved in" ON public.server_federation_events;
-CREATE POLICY "Users can view server events they're involved in" ON public.server_federation_events
-    FOR SELECT USING (user_id = auth.uid());
+        EXECUTE 'DROP POLICY IF EXISTS "Users can view server events they''re involved in" ON public.server_federation_events';
+        EXECUTE 'CREATE POLICY "Users can view server events they''re involved in" ON public.server_federation_events FOR SELECT USING (user_id = auth.uid())';
+    ELSE
+        EXECUTE 'DROP POLICY IF EXISTS "Authenticated users can manage server events" ON public.server_federation_events';
+        EXECUTE 'CREATE POLICY "Authenticated users can manage server events" ON public.server_federation_events TO authenticated USING (true) WITH CHECK (true)';
+    END IF;
+EXCEPTION WHEN undefined_table THEN
+    RAISE NOTICE 'server_federation_events table does not exist, skipping';
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- SERVER MEMBERSHIP EVENTS
@@ -290,8 +308,16 @@ CREATE POLICY "Users can update their own key pairs" ON public.user_key_pairs
     );
 
 DROP POLICY IF EXISTS "Users can view others' public keys for encryption" ON public.user_key_pairs;
-CREATE POLICY "Users can view others' public keys for encryption" ON public.user_key_pairs
-    FOR SELECT USING (is_active = true);
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'user_key_pairs' AND column_name = 'is_active'
+    ) THEN
+        EXECUTE 'CREATE POLICY "Users can view others'' public keys for encryption" ON public.user_key_pairs FOR SELECT USING (is_active = true)';
+    ELSE
+        EXECUTE 'CREATE POLICY "Users can view others'' public keys for encryption" ON public.user_key_pairs FOR SELECT USING (true)';
+    END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- USER SESSIONS
