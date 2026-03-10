@@ -14,21 +14,21 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # ---------------------------------------------------------------------------
 # Color & style constants
 # ---------------------------------------------------------------------------
-BOLD='\033[1m'
-DIM='\033[2m'
-UNDERLINE='\033[4m'
-RESET='\033[0m'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-BRED='\033[1;31m'
-BGREEN='\033[1;32m'
-BYELLOW='\033[1;33m'
-BCYAN='\033[1;36m'
+BOLD=$'\033[1m'
+DIM=$'\033[2m'
+UNDERLINE=$'\033[4m'
+RESET=$'\033[0m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[0;33m'
+BLUE=$'\033[0;34m'
+MAGENTA=$'\033[0;35m'
+CYAN=$'\033[0;36m'
+WHITE=$'\033[1;37m'
+BRED=$'\033[1;31m'
+BGREEN=$'\033[1;32m'
+BYELLOW=$'\033[1;33m'
+BCYAN=$'\033[1;36m'
 
 CHECK="${BGREEN}✓${RESET}"
 CROSS="${BRED}✗${RESET}"
@@ -267,11 +267,10 @@ select_mode() {
     print_info "Choose how you want to deploy Harmony:"
     echo ""
 
+    local choice=0
     prompt_choice "Select deployment mode:" \
         "Production (VPS) — Full self-hosting with nginx, SSL, Docker" \
-        "Local Development — Dev environment with hot-reload"
-
-    local choice=$?
+        "Local Development — Dev environment with hot-reload" || choice=$?
     if [[ $choice -eq 0 ]]; then
         MODE="production"
     else
@@ -383,11 +382,10 @@ configure_supabase() {
     echo ""
 
     if [[ "$MODE" == "local" ]]; then
+        local choice=0
         prompt_choice "Local Supabase setup:" \
             "Already running (supabase start or Docker)" \
-            "I need help setting it up"
-
-        local choice=$?
+            "I need help setting it up" || choice=$?
         if [[ $choice -eq 0 ]]; then
             SUPABASE_MODE="cloud"  # reuse cloud path for existing local
             echo ""
@@ -415,11 +413,10 @@ configure_supabase() {
             DATABASE_URL="postgresql://supabase_admin:postgres@localhost:54322/postgres"
         fi
     else
+        local choice=0
         prompt_choice "Supabase hosting:" \
             "Supabase Cloud (supabase.com — free tier available)" \
-            "Self-hosted Supabase (Docker on this VPS)"
-
-        local choice=$?
+            "Self-hosted Supabase (Docker on this VPS)" || choice=$?
         if [[ $choice -eq 0 ]]; then
             SUPABASE_MODE="cloud"
             echo ""
