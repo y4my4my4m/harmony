@@ -955,9 +955,7 @@ generate_docker_compose() {
     local selfhosted_supabase=false
     [[ "$SUPABASE_MODE" == "selfhosted" ]] && selfhosted_supabase=true
 
-    local compose="version: \"3.8\"
-
-services:"
+    local compose="services:"
 
     # --- Federation + Redis ---
     if $ENABLE_FEDERATION; then
@@ -1388,12 +1386,12 @@ start_services() {
         if require_cmd docker; then
             cd "$PROJECT_DIR"
             if [[ "$MODE" == "production" ]]; then
-                if docker compose up -d --build 2>&1; then
+                if docker compose up -d --build --remove-orphans 2>&1; then
                     print_success "Docker services started"
                 else
                     print_error "Docker compose failed. Check the output above."
                     print_info "You can try running manually:"
-                    printf "    ${CYAN}cd %s && docker compose up -d --build${RESET}\n" "$PROJECT_DIR"
+                    printf "    ${CYAN}cd %s && docker compose up -d --build --remove-orphans${RESET}\n" "$PROJECT_DIR"
                 fi
             else
                 cd dev
