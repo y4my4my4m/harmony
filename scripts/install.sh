@@ -12,8 +12,8 @@ set -euo pipefail
 #   ./scripts/install.sh --schema-setup-only   # Run only DB schema (init + migrations)
 #   ./scripts/install.sh --move-dist          # Build frontend and deploy dist to web root (/var/www/harmony if under /root)
 #   ./scripts/install.sh --move-dist --no-build  # Deploy existing dist only (no build)
-#   ./scripts/install.sh --regenerate-keys         # Regenerate JWT, anon, service_role keys (keeps passwords)
-#   ./scripts/install.sh --regenerate-all          # Regenerate all keys AND passwords
+#   ./scripts/install.sh --regenerate-keys [folder] # Regenerate JWT/anon/service_role (keeps passwords)
+#   ./scripts/install.sh --regenerate-all [folder]  # Regenerate all keys AND passwords (folder e.g. spacious)
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1987,6 +1987,8 @@ run_schema_setup_only() {
 # ---------------------------------------------------------------------------
 run_regenerate_keys() {
     local include_passwords="$1"  # "true" to also regenerate passwords
+    shift
+    local supabase_folder="$1"   # optional: e.g. "spacious" → look in ../spacious/.env
 
     echo ""
     print_box "Regenerate Supabase Keys"
@@ -1997,19 +1999,32 @@ run_regenerate_keys() {
     local parent_dir
     parent_dir="$(dirname "$PROJECT_DIR")"
 
-    # Find the Supabase project .env
+    # Find the Supabase project .env (custom folder first if provided, then defaults)
     local supabase_env=""
-    for candidate in "$parent_dir"/supabase-project/.env "$parent_dir"/supabase/.env "$parent_dir"/supabase-docker/.env; do
-        if [[ -f "$candidate" ]]; then
-            supabase_env="$candidate"
-            break
+    if [[ -n "$supabase_folder" ]]; then
+        if [[ -f "$parent_dir/$supabase_folder/.env" ]]; then
+            supabase_env="$parent_dir/$supabase_folder/.env"
+        elif [[ -f "$supabase_folder/.env" ]]; then
+            supabase_env="$supabase_folder/.env"
         fi
-    done
+    fi
+    if [[ -z "$supabase_env" ]]; then
+        for candidate in "$parent_dir"/supabase-project/.env "$parent_dir"/supabase/.env "$parent_dir"/supabase-docker/.env; do
+            if [[ -f "$candidate" ]]; then
+                supabase_env="$candidate"
+                break
+            fi
+        done
+    fi
 
     if [[ -z "$supabase_env" ]]; then
         print_error "Could not find Supabase project .env"
         print_info "Looked in: $parent_dir/supabase-project/, supabase/, supabase-docker/"
-        print_info "Provide the path manually or re-run the full installer."
+        if [[ -n "$supabase_folder" ]]; then
+            print_info "Also tried: $parent_dir/$supabase_folder/, $supabase_folder/"
+        fi
+        print_info "Usage: ./scripts/install.sh --regenerate-all [supabase-folder-name]"
+        print_info "Example: ./scripts/install.sh --regenerate-all spacious"
         return 1
     fi
 
@@ -2146,9 +2161,9 @@ if [[ -n "$SCHEMA_SETUP_ONLY_ARG" ]]; then
 elif [[ -n "$MOVE_DIST_ARG" ]]; then
     run_move_dist "${ARGS[@]}"
 elif [[ -n "$REGEN_KEYS_ARG" ]]; then
-    run_regenerate_keys "false"
+    run_regenerate_keys "false" "${ARGS[0]:-}"
 elif [[ -n "$REGEN_ALL_ARG" ]]; then
-    run_regenerate_keys "true"
+    run_regenerate_keys "true" "${ARGS[0]:-}"
 else
     main "${ARGS[@]}"
 fi
