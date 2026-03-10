@@ -1333,6 +1333,87 @@ setup_ssl() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# Docker daemon log limits (prevent container logs from filling disk)
+# ---------------------------------------------------------------------------
+setup_docker_log_limits() {
+    if [[ "$MODE" != "production" ]]; then
+        return
+    fi
+    if ! require_cmd docker; then
+        return
+    fi
+
+    echo ""
+    printf "  ${BOLD}Configure Docker log limits?${RESET}\n"
+    print_info "Container logs can fill the disk and affect the database. We recommend limiting them."
+    print_info "This updates ${BOLD}/etc/docker/daemon.json${RESET} with max-size (e.g. 50m) and max-file (e.g. 3)."
+    echo ""
+
+    if ! prompt_yn "Configure Docker daemon log limits?" "y"; then
+        return
+    fi
+
+    local daemon_json="/etc/docker/daemon.json"
+    local max_size="50m"
+    local max_file="3"
+
+    if [[ ! -f "$daemon_json" ]]; then
+        # Create new daemon.json
+        sudo tee "$daemon_json" >/dev/null << EOF
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "$max_size",
+    "max-file": "$max_file"
+  }
+}
+EOF
+        print_success "Created $daemon_json with log limits (max-size=$max_size, max-file=$max_file)"
+    else
+        # Merge into existing: ensure log-driver and log-opts exist (read via sudo)
+        local tmp_read tmp_write
+        tmp_read=$(mktemp)
+        tmp_write=$(mktemp)
+        sudo cat "$daemon_json" > "$tmp_read" 2>/dev/null || true
+        if python3 -c "
+import json
+with open('$tmp_read') as f:
+    try:
+        d = json.load(f)
+    except json.JSONDecodeError:
+        d = {}
+d['log-driver'] = 'json-file'
+d.setdefault('log-opts', {})
+d['log-opts']['max-size'] = '$max_size'
+d['log-opts']['max-file'] = '$max_file'
+with open('$tmp_write', 'w') as f:
+    json.dump(d, f, indent=2)
+" 2>/dev/null; then
+            sudo cp "$tmp_write" "$daemon_json"
+            print_success "Updated $daemon_json with log limits (max-size=$max_size, max-file=$max_file)"
+        else
+            print_warn "Could not merge into existing $daemon_json (python3 or JSON issue)."
+            print_info "Add manually to $daemon_json:"
+            printf "    ${CYAN}\"log-driver\": \"json-file\",${RESET}\n"
+            printf "    ${CYAN}\"log-opts\": { \"max-size\": \"%s\", \"max-file\": \"%s\" }${RESET}\n" "$max_size" "$max_file"
+            return
+        fi
+        rm -f "$tmp_read" "$tmp_write"
+    fi
+
+    echo ""
+    print_info "Restart Docker for changes to take effect:"
+    printf "    ${CYAN}sudo systemctl restart docker${RESET}\n"
+    if prompt_yn "Restart Docker now?" "y"; then
+        if sudo systemctl restart docker 2>/dev/null; then
+            print_success "Docker restarted"
+        else
+            print_warn "Could not restart Docker. Run manually: sudo systemctl restart docker"
+        fi
+    fi
+}
+
 setup_firewall() {
     if [[ "$MODE" != "production" ]]; then
         return
@@ -1875,6 +1956,7 @@ main() {
         setup_ssl
         install_nginx_config
         setup_firewall
+        setup_docker_log_limits
         build_frontend
         start_services
         setup_database
