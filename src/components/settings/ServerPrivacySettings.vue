@@ -57,6 +57,35 @@
             <li>{{ $t('server.federationBenefit2', 'Messages are shared with federated members in real-time') }}</li>
             <li>{{ $t('server.federationBenefit3', 'Server appears in federated server discovery') }}</li>
           </ul>
+          <div v-if="federatedMemberCount > 0" class="federated-member-count">
+            {{ federatedMemberCount }} federated member{{ federatedMemberCount !== 1 ? 's' : '' }} currently in this server
+          </div>
+        </div>
+      </div>
+
+      <!-- Warning dialog when disabling federation with existing members -->
+      <div v-if="showDisableWarning" class="disable-federation-warning-overlay" @click.self="cancelDisableFederation">
+        <div class="disable-federation-warning">
+          <div class="warning-header">
+            <svg class="warning-icon" width="24" height="24" viewBox="0 0 24 24">
+              <path fill="#ed4245" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+            </svg>
+            <h3>Disable Federation?</h3>
+          </div>
+          <p class="warning-body">
+            This server currently has <strong>{{ federatedMemberCount }}</strong> federated member{{ federatedMemberCount !== 1 ? 's' : '' }}
+            from other instances. Disabling federation will:
+          </p>
+          <ul class="warning-consequences">
+            <li>Block all new join requests from remote users</li>
+            <li>Stop delivering messages to and from remote members</li>
+            <li>Prevent reactions and voice participation from remote users</li>
+            <li>Existing federated members will remain in the member list but will be unable to interact</li>
+          </ul>
+          <div class="warning-actions">
+            <button class="btn-cancel" @click="cancelDisableFederation">Cancel</button>
+            <button class="btn-confirm-danger" @click="confirmDisableFederation">Disable Federation</button>
+          </div>
         </div>
       </div>
     </div>
@@ -186,18 +215,21 @@
 </template>
 
 <script setup lang="ts">
-import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { ref, onMounted, watch } from 'vue'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { supabase } from '@/supabase'
+import { useI18n } from 'vue-i18n'
 
-const instanceSettings = useInstanceSettingsStore();
-
-// Check if federation is enabled at instance level
-const instanceFederationEnabled = instanceSettings.isFederationEnabled;
+const { t } = useI18n()
+const instanceSettings = useInstanceSettingsStore()
+const instanceFederationEnabled = instanceSettings.isFederationEnabled
 
 interface ServerPermissions {
   canChangePrivacySettings: boolean
 }
 
 interface Props {
+  serverId: string
   isPublic: boolean
   federationEnabled: boolean
   loading: boolean
@@ -214,6 +246,32 @@ const props = withDefaults(defineProps<Props>(), {
 })
 const emit = defineEmits<Emits>()
 
+const federatedMemberCount = ref(0)
+const showDisableWarning = ref(false)
+
+async function fetchFederatedMemberCount() {
+  if (!props.serverId) return
+  const { count, error } = await supabase
+    .from('user_servers')
+    .select('id', { count: 'exact', head: true })
+    .eq('server_id', props.serverId)
+    .eq('status', 'accepted')
+    .not('member_instance', 'is', null)
+    .neq('member_instance', window.location.hostname)
+
+  if (!error && count !== null) {
+    federatedMemberCount.value = count
+  }
+}
+
+onMounted(() => {
+  fetchFederatedMemberCount()
+})
+
+watch(() => props.serverId, () => {
+  fetchFederatedMemberCount()
+})
+
 const handlePublicToggle = (event: Event) => {
   if (!props.permissions.canChangePrivacySettings) return
   const target = event.target as HTMLInputElement
@@ -223,7 +281,24 @@ const handlePublicToggle = (event: Event) => {
 const handleFederationToggle = (event: Event) => {
   if (!props.permissions.canChangePrivacySettings) return
   const target = event.target as HTMLInputElement
-  emit('update:federationEnabled', target.checked)
+  const newValue = target.checked
+
+  if (!newValue && federatedMemberCount.value > 0) {
+    showDisableWarning.value = true
+    target.checked = true
+    return
+  }
+
+  emit('update:federationEnabled', newValue)
+}
+
+function confirmDisableFederation() {
+  showDisableWarning.value = false
+  emit('update:federationEnabled', false)
+}
+
+function cancelDisableFederation() {
+  showDisableWarning.value = false
 }
 
 const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
@@ -408,6 +483,106 @@ input:checked + .toggle-slider:before {
 
 .federation-info {
   margin-top: 16px;
+}
+
+.federated-member-count {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(88, 101, 242, 0.1);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #8b9dff;
+}
+
+.disable-federation-warning-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.disable-federation-warning {
+  background: var(--bg-secondary, #2b2d31);
+  border-radius: 12px;
+  padding: 28px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.disable-federation-warning .warning-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.disable-federation-warning .warning-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.disable-federation-warning .warning-body {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.warning-consequences {
+  margin: 0 0 20px;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.warning-consequences li {
+  margin-bottom: 4px;
+}
+
+.warning-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.btn-confirm-danger {
+  padding: 10px 20px;
+  background: #ed4245;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-confirm-danger:hover {
+  background: #d63638;
 }
 
 .warning-card {

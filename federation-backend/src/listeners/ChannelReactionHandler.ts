@@ -117,19 +117,16 @@ export async function handleChannelReactionFederation(
 
     if (isCustomEmoji) {
       // Custom emoji - use :name@domain: format for federated emojis (Misskey-style)
-      // This ensures remote instances can properly identify and display the emoji
       if (emoji.domain) {
-        // Federated emoji - use :name@domain: format
         emojiContent = `:${emoji.name}@${emoji.domain}:`;
       } else {
-        // Local emoji - use :name: format
         emojiContent = `:${emoji.name}:`;
       }
       
       emojiTags = [{
         type: 'Emoji',
         id: emoji.url,
-        name: emojiContent, // Use the full format in the tag name too
+        name: emojiContent,
         icon: {
           type: 'Image',
           mediaType: 'image/png',
@@ -137,8 +134,9 @@ export async function handleChannelReactionFederation(
         },
       }];
     } else {
-      // Unicode emoji
-      emojiContent = emoji?.name || '❤️';
+      // Unicode emoji - prefer custom_emoji_content (actual unicode char),
+      // fall back to emojis table name, then default heart
+      emojiContent = reaction.custom_emoji_content || emoji?.name || '❤️';
     }
 
     const activity = {
@@ -233,16 +231,27 @@ export async function handleChannelReactionRemoval(
       return;
     }
 
-    // Get emoji info if available
-    let emoji = null;
+    // Get emoji info and the reaction's custom_emoji_content
+    let emoji: any = null;
+    let customEmojiContent: string | null = null;
+    
     if (emoji_id) {
       const { data } = await supabase
         .from('emojis')
-        .select('name, url')
+        .select('name, url, domain')
         .eq('id', emoji_id)
         .single();
       emoji = data;
     }
+
+    // Try to get custom_emoji_content from the reaction (may already be deleted)
+    const { data: existingReaction } = await supabase
+      .from('reactions')
+      .select('custom_emoji_content')
+      .eq('message_id', message_id)
+      .eq('user_id', user_id)
+      .maybeSingle();
+    customEmojiContent = existingReaction?.custom_emoji_content || null;
 
     const userApId = user.federated_id || `https://${hostDomain}/users/${user.username}`;
     const messageApId = message.metadata?.ap_id || `https://${hostDomain}/messages/${message_id}`;
@@ -253,15 +262,15 @@ export async function handleChannelReactionRemoval(
     // Format emoji content consistently with add reaction
     let emojiContent: string;
     if (emoji?.url) {
-      // Custom emoji - use :name@domain: format for federated emojis
+      // Custom emoji
       if (emoji.domain) {
         emojiContent = `:${emoji.name}@${emoji.domain}:`;
       } else {
         emojiContent = `:${emoji.name}:`;
       }
     } else {
-      // Unicode emoji
-      emojiContent = emoji?.name || '❤️';
+      // Unicode emoji - prefer custom_emoji_content, fall back to emojis table
+      emojiContent = customEmojiContent || emoji?.name || '❤️';
     }
     
     const undoActivity = {

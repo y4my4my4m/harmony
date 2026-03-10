@@ -135,6 +135,7 @@
           <!-- Privacy Settings Section -->
           <template v-if="activeSection === 'privacy'">
             <ServerPrivacySettings
+              :serverId="serverId"
               v-model:isPublic="server.public"
               :federationEnabled="server.federation_enabled ?? false"
               @update:federationEnabled="server.federation_enabled = $event"

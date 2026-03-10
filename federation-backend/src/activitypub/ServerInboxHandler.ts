@@ -64,13 +64,10 @@ export async function processServerInboxActivity(
   }
 
   // Route activity to appropriate handler
-  // NOTE: Join/Leave/Accept/Reject always allowed - users should be able to join/leave
-  // Create/Update/Delete only work if federation is enabled (for privacy)
+  // Leave/Accept/Reject always allowed so users can leave gracefully.
+  // Everything else (Join, Create, Update, Delete, reactions, channel CRUD, voice)
+  // requires federation_enabled on the server.
   switch (activity.type) {
-    case 'Join':
-      await processJoinServer(serverId, server, activity);
-      break;
-
     case 'Leave':
       await processLeaveServer(serverId, server, activity);
       break;
@@ -83,8 +80,18 @@ export async function processServerInboxActivity(
       await processRejectActivity(serverId, activity);
       break;
 
+    case 'Join':
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting Join`);
+        const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+        const derivedInbox = `${actorUrl}/inbox`;
+        await sendRejectActivity(serverId, server, activity, derivedInbox, 'Federation is disabled on this server');
+        return;
+      }
+      await processJoinServer(serverId, server, activity);
+      break;
+
     case 'Create':
-      // Check federation for content activities
       if (!server.federation_enabled) {
         logger.info(`Federation not enabled for server ${serverId}, rejecting Create`);
         return;
@@ -110,7 +117,7 @@ export async function processServerInboxActivity(
 
     case 'Like':
     case 'EmojiReaction':
-    case 'EmojiReact': // Some instances use EmojiReact instead of EmojiReaction
+    case 'EmojiReact':
       if (!server.federation_enabled) {
         logger.info(`Federation not enabled for server ${serverId}, rejecting reaction`);
         return;
@@ -119,12 +126,18 @@ export async function processServerInboxActivity(
       break;
 
     case 'Add':
-      // Add is for channel CRUD - allow even without federation for consistency
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting Add`);
+        return;
+      }
       await processAddActivity(serverId, server, activity);
       break;
 
     case 'Remove':
-      // Remove is for channel CRUD - allow even without federation
+      if (!server.federation_enabled) {
+        logger.info(`Federation not enabled for server ${serverId}, rejecting Remove`);
+        return;
+      }
       await processRemoveActivity(serverId, server, activity);
       break;
 
@@ -139,6 +152,10 @@ export async function processServerInboxActivity(
     default:
       // Check for Harmony-specific voice activities
       if (activity.type?.startsWith('harmony:Voice')) {
+        if (!server.federation_enabled) {
+          logger.info(`Federation not enabled for server ${serverId}, rejecting voice activity`);
+          return;
+        }
         const { VoiceActivityHandler } = await import('./VoiceActivityHandler.js');
         await VoiceActivityHandler.processVoiceActivity(activity);
       } else {
@@ -1095,12 +1112,14 @@ async function processReactionActivity(
   }
 
   // Add reaction (idempotent)
+  // For unicode emojis (no URL), set custom_emoji_content so the frontend can display them
   const { error } = await supabase
     .from('reactions')
     .upsert({
       message_id: message.id,
       user_id: user.id,
       emoji_id: emojiId,
+      custom_emoji_content: !emojiUrl ? emoji : null,
       metadata: { federated: true, ap_id: activity.id },
     }, {
       onConflict: 'message_id,user_id,emoji_id',
