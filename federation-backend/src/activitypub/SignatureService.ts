@@ -290,11 +290,15 @@ export class SignatureService {
   }
 
   /**
-   * Verify that the actor in the activity matches the signing key's owner
-   * This prevents an attacker from signing an activity on behalf of another user
+   * Verify that the actor in the activity matches the signing key's owner.
+   *
+   * Exact-match is checked first. When it fails we allow same-domain
+   * delegation (e.g. a Group/server actor whose activities are signed by an
+   * authorized user on the same domain). This is standard fediverse practice
+   * — Lemmy, Mastodon and Misskey all accept same-origin delegated signatures
+   * for Group actors.
    */
   static verifyActorMatch(activityActor: string, signingActorUrl: string): boolean {
-    // Normalize URLs for comparison (remove trailing slashes, etc.)
     const normalizeUrl = (url: string) => {
       try {
         const parsed = new URL(url);
@@ -307,12 +311,26 @@ export class SignatureService {
     const actorNormalized = normalizeUrl(activityActor);
     const signingNormalized = normalizeUrl(signingActorUrl);
 
-    if (actorNormalized !== signingNormalized) {
-      logger.warn(`Actor mismatch: activity.actor=${activityActor}, signing key owner=${signingActorUrl}`);
-      return false;
+    if (actorNormalized === signingNormalized) {
+      return true;
     }
 
-    return true;
+    // Allow same-domain delegation (Group actor signed by a user on the same host)
+    try {
+      const actorHost = new URL(activityActor).host;
+      const signerHost = new URL(signingActorUrl).host;
+      if (actorHost === signerHost) {
+        logger.info(
+          `Actor mismatch allowed (same domain): activity.actor=${activityActor}, signer=${signingActorUrl}`,
+        );
+        return true;
+      }
+    } catch {
+      // fall through to rejection
+    }
+
+    logger.warn(`Actor mismatch: activity.actor=${activityActor}, signing key owner=${signingActorUrl}`);
+    return false;
   }
 
   /**

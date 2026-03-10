@@ -6,7 +6,9 @@
 
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
-import { createLikeActivity, createUndoLikeActivity } from '../../listeners/FederationHandlers.js';
+import { createLikeActivity } from '../../activitypub/converters/toActivityPub.js';
+import { createUndoLikeActivity } from '../../listeners/FederationHandlers.js';
+import { resolveOutboundEmoji } from '../../utils/emojiResolvers.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
@@ -17,7 +19,6 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
   logger.info(`❤️ Processing reaction job: ${type} for interaction ${interaction_id}`);
 
   try {
-    // Get the post
     const { data: post } = await supabase
       .from('posts')
       .select('id, author_id, ap_id')
@@ -30,7 +31,6 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       return;
     }
 
-    // Get user who reacted
     const { data: user } = await supabase
       .from('profiles')
       .select('*')
@@ -45,30 +45,6 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
 
     await updateFederationStatus(interaction_id, 'post_interactions', 'processing');
 
-    // Get emoji data if custom emoji
-    let emojiContent = custom_emoji_content;
-    let emojiData = null;
-
-    if (emoji_id) {
-      const { data: emoji } = await supabase
-        .from('emojis')
-        .select('name, url')
-        .eq('id', emoji_id)
-        .single();
-
-      if (emoji) {
-        if (emoji.url) {
-          // Custom emoji with image URL — use :name: shortcode format
-          emojiData = emoji;
-          emojiContent = `:${emoji.name}:`;
-        } else if (!emojiContent) {
-          // Unicode emoji entry without custom_emoji_content fallback
-          emojiContent = emoji.name;
-        }
-      }
-    }
-
-    // Get post author's inbox for delivery
     const { data: postAuthor } = await supabase
       .from('profiles')
       .select('inbox_url, is_local')
@@ -82,19 +58,16 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
     }
 
     if (type === 'create') {
-      // Create Like activity
-      const activity = await createLikeActivity(user, post.ap_id, emojiContent, emojiData);
+      const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content);
+      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
       logger.info(`✅ Reaction queued for delivery to ${postAuthor.inbox_url}`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
-      
     } else if (type === 'delete') {
-      // Create Undo Like activity
       const undoActivity = createUndoLikeActivity(user, post.ap_id);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, undoActivity, user.id);
       logger.info(`✅ Undo reaction queued for delivery to ${postAuthor.inbox_url}`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
-      
     } else {
       logger.warn(`Unknown reaction job type: ${type}`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'failed');

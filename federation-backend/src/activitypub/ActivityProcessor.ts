@@ -932,95 +932,15 @@ export class ActivityProcessor {
 
     // Handle message (DM) reaction
     if (message) {
-      let emojiId = null;
-      
-      // For custom emojis with URLs, get or create emoji entry
-      if (emojiUrl && emojiName) {
-        logger.info(`🔍 Processing remote emoji for message reaction: ${emojiName} from ${emojiUrl}`);
-        
-        const cleanName = emojiName.replace(/:/g, '');
-        const emojiDomain = new URL(emojiUrl).hostname;
-        
-        // Cache in remote_emojis_cache
-        try {
-          await supabase.rpc('upsert_remote_emoji', {
-            p_shortcode: cleanName,
-            p_origin_domain: emojiDomain,
-            p_full_code: `:${cleanName}@${emojiDomain}:`,
-            p_url: emojiUrl,
-          });
-        } catch (cacheError) {
-          logger.debug(`Could not cache emoji: ${cacheError}`);
-        }
-        
-        // Check if emoji exists
-        const { data: existingEmoji } = await supabase
-          .from('emojis')
-          .select('id')
-          .eq('url', emojiUrl)
-          .maybeSingle();
-        
-        if (existingEmoji) {
-          emojiId = existingEmoji.id;
-        } else {
-          // Create new emoji entry
-          const { data: newEmoji } = await supabase
-            .from('emojis')
-            .insert({
-              name: cleanName,
-              url: emojiUrl,
-              server_id: null,
-              uploader: user.id,
-              domain: emojiDomain,
-            })
-            .select('id')
-            .single();
-          
-          if (newEmoji) {
-            emojiId = newEmoji.id;
-          }
-        }
-      } else {
-        // Standard emoji - find or create by name
-        let normalizedEmoji = emoji || '❤️';
-        if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
-          normalizedEmoji = '❤️';
-        }
-        
-        const { data: existingEmoji } = await supabase
-          .from('emojis')
-          .select('id')
-          .eq('name', normalizedEmoji)
-          .is('server_id', null)
-          .maybeSingle();
-        
-        if (existingEmoji) {
-          emojiId = existingEmoji.id;
-        } else {
-          // Create unicode emoji entry
-          const { data: newEmoji } = await supabase
-            .from('emojis')
-            .insert({
-              name: normalizedEmoji,
-              url: null, // Unicode emojis don't have URLs
-              server_id: null,
-              uploader: user.id,
-            })
-            .select('id')
-            .single();
-          
-          if (newEmoji) {
-            emojiId = newEmoji.id;
-          }
-        }
-      }
-      
+      const emojiId = await this.resolveInboundEmojiId(
+        supabase, emoji, emojiName, emojiUrl, user.id,
+      );
+
       if (!emojiId) {
         logger.error('❌ Could not find or create emoji for message reaction');
         return;
       }
-      
-      // Check if reaction already exists
+
       const { data: existing } = await supabase
         .from('reactions')
         .select('id')
@@ -1028,20 +948,19 @@ export class ActivityProcessor {
         .eq('user_id', user.id)
         .eq('emoji_id', emojiId)
         .maybeSingle();
-      
+
       if (existing) {
         logger.info(`🔄 Reaction already exists for user ${user.id} on message ${message.id}`);
         return;
       }
-      
-      // Insert into reactions table (for messages/DMs)
+
       const { error: reactionError } = await supabase.from('reactions').insert({
         message_id: message.id,
         user_id: user.id,
         emoji_id: emojiId,
         metadata: { federated: true, from_domain: new URL(actorUrl).hostname }
       });
-      
+
       if (reactionError) {
         logger.error('❌ Failed to insert message reaction:', reactionError);
       } else {
@@ -1052,100 +971,45 @@ export class ActivityProcessor {
 
     // Handle post reaction (existing logic)
     if (post) {
-      let emojiId = null;
+      const emojiId = await this.resolveInboundEmojiId(
+        supabase, emoji, emojiName, emojiUrl, user.id,
+      );
       
-      // For custom emojis with URLs, cache in remote_emojis_cache for the importer
-      // and use the emojis table for the reaction
-      if (emojiUrl && emojiName) {
-        logger.info(`🔍 Processing remote emoji: ${emojiName} from ${emojiUrl}`);
-        
-        const cleanName = emojiName.replace(/:/g, ''); // Remove colons
-        const emojiDomain = new URL(emojiUrl).hostname;
-        
-        // Cache in remote_emojis_cache for the emoji importer feature
-        try {
-          await supabase.rpc('upsert_remote_emoji', {
-            p_shortcode: cleanName,
-            p_origin_domain: emojiDomain,
-            p_full_code: `:${cleanName}@${emojiDomain}:`,
-            p_url: emojiUrl,
-          });
-          logger.info(`📬 Cached remote emoji in importer: ${cleanName}@${emojiDomain}`);
-        } catch (cacheError) {
-          logger.debug(`Could not cache emoji: ${cacheError}`);
-        }
-        
-        // Check if emoji already exists in emojis table (for reaction tracking)
-        const { data: existingEmoji, error: existingError } = await supabase
-          .from('emojis')
-          .select('id')
-          .eq('url', emojiUrl)
-          .maybeSingle();
-        
-        if (existingError) {
-          logger.error('Error checking for existing emoji:', existingError);
-        }
-        
-        if (existingEmoji) {
-          emojiId = existingEmoji.id;
-          logger.info(`♻️  Using existing emoji ID: ${emojiId}`);
-        } else {
-          // Create new emoji entry for this remote custom emoji (with domain set)
-          logger.info(`➕ Creating new emoji entry: ${cleanName}@${emojiDomain}`);
-          
-          const { data: newEmoji, error: insertError } = await supabase
-            .from('emojis')
-            .insert({
-              name: cleanName,
-              url: emojiUrl,
-              server_id: null, // Global/federated emoji
-              uploader: user.id,
-              domain: emojiDomain, // Mark as remote emoji
-            })
-            .select('id')
-            .single();
-          
-          if (insertError) {
-            logger.error('❌ Failed to create emoji:', insertError);
-          } else if (newEmoji) {
-            emojiId = newEmoji.id;
-            logger.info(`✨ Created emoji entry for remote emoji: ${cleanName}@${emojiDomain} (ID: ${emojiId})`);
-          }
-        }
+      // Normalize heart variants so Mastodon plain-Likes group consistently
+      let normalizedEmoji = emoji || '❤️';
+      if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
+        normalizedEmoji = '❤️';
       }
       
-      // Add reaction/like to post using post_interactions table
-      logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${emoji}`);
+      logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${normalizedEmoji}`);
       
-      // Check if reaction already exists to avoid duplicates
-      const { data: existing } = await supabase
+      // Duplicate check — match on user + post + specific emoji to allow
+      // multiple different reactions from the same user
+      const duplicateQuery = supabase
         .from('post_interactions')
         .select('id')
         .eq('post_id', post.id)
         .eq('user_id', user.id)
-        .eq('interaction_type', 'emoji_reaction')
-        .maybeSingle();
+        .eq('interaction_type', 'emoji_reaction');
+
+      if (emojiId) {
+        duplicateQuery.eq('emoji_id', emojiId);
+      } else {
+        duplicateQuery.eq('custom_emoji_content', normalizedEmoji);
+      }
+
+      const { data: existing } = await duplicateQuery.maybeSingle();
       
       if (existing) {
         logger.info(`🔄 Reaction already exists for user ${user.id} on post ${post.id}`);
         return;
       }
       
-      // Normalize the emoji content - ensure consistent representation
-      // Different Unicode representations of heart can cause grouping issues
-      let normalizedEmoji = emoji || '❤️';
-      
-      // Normalize common heart variants to a single representation
-      // This ensures Mastodon favorites all group together
-      if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
-        normalizedEmoji = '❤️'; // Standard red heart with variation selector
-      }
-      
       const { error: interactionError } = await supabase.from('post_interactions').insert({
         post_id: post.id,
         user_id: user.id,
         interaction_type: 'emoji_reaction',
-        emoji_id: emojiId, // Use created/found emoji ID
+        emoji_id: emojiId,
         custom_emoji_content: normalizedEmoji,
         is_local: false,
       });
@@ -1153,7 +1017,7 @@ export class ActivityProcessor {
       if (interactionError) {
         logger.error('❌ Failed to insert reaction:', interactionError);
       } else {
-        logger.info(`✅ Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
+        logger.info(`✅ Added reaction to post ${post.id}: ${normalizedEmoji}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
       }
     } else {
       logger.warn(`Post or message not found for like: ${objectUrl}`);
@@ -1902,6 +1766,86 @@ export class ActivityProcessor {
       .or(`and(follower_id.eq.${blocker.id},following_id.eq.${blocked.id}),and(follower_id.eq.${blocked.id},following_id.eq.${blocker.id})`);
 
     logger.info(`🚫 Blocked: ${actorUrl} → ${blockedUrl}`);
+  }
+
+  /**
+   * Resolve an inbound emoji into an emoji_id, creating entries as needed.
+   * Works for both custom emojis (with URL) and standard unicode emojis.
+   */
+  private static async resolveInboundEmojiId(
+    supabase: any,
+    emoji: string | undefined,
+    emojiName: string | undefined,
+    emojiUrl: string | undefined,
+    userId: string,
+  ): Promise<string | null> {
+    // Custom emoji with URL
+    if (emojiUrl && emojiName) {
+      const cleanName = emojiName.replace(/:/g, '');
+      const emojiDomain = new URL(emojiUrl).hostname;
+
+      try {
+        await supabase.rpc('upsert_remote_emoji', {
+          p_shortcode: cleanName,
+          p_origin_domain: emojiDomain,
+          p_full_code: `:${cleanName}@${emojiDomain}:`,
+          p_url: emojiUrl,
+        });
+      } catch (cacheError) {
+        logger.debug(`Could not cache emoji: ${cacheError}`);
+      }
+
+      const { data: existing } = await supabase
+        .from('emojis')
+        .select('id')
+        .eq('url', emojiUrl)
+        .maybeSingle();
+
+      if (existing) return existing.id;
+
+      const { data: created } = await supabase
+        .from('emojis')
+        .insert({
+          name: cleanName,
+          url: emojiUrl,
+          server_id: null,
+          uploader: userId,
+          domain: emojiDomain,
+        })
+        .select('id')
+        .single();
+
+      return created?.id ?? null;
+    }
+
+    // Standard unicode emoji — find or create a global emoji entry
+    let normalizedEmoji = emoji || '❤️';
+    if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
+      normalizedEmoji = '❤️';
+    }
+
+    const { data: existing } = await supabase
+      .from('emojis')
+      .select('id')
+      .eq('name', normalizedEmoji)
+      .is('url', null)
+      .is('server_id', null)
+      .maybeSingle();
+
+    if (existing) return existing.id;
+
+    const { data: created } = await supabase
+      .from('emojis')
+      .insert({
+        name: normalizedEmoji,
+        url: null,
+        server_id: null,
+        uploader: userId,
+      })
+      .select('id')
+      .single();
+
+    return created?.id ?? null;
   }
 
   /**

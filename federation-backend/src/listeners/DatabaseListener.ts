@@ -12,7 +12,9 @@ import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
-import { createPostActivity, createLikeActivity, createReblogActivity } from './FederationHandlers.js';
+import { createPostActivity, createReblogActivity } from './FederationHandlers.js';
+import { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
+import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 
@@ -595,33 +597,14 @@ async function handleNewReaction(interaction: any): Promise<void> {
       return;
     }
 
-    // Get emoji data if it's a custom emoji
-    let emojiContent = interaction.custom_emoji_content; // For unicode emojis
-    let emojiData = null;
+    const { content, emojiData } = await resolveOutboundEmoji(
+      interaction.emoji_id,
+      interaction.custom_emoji_content,
+    );
     
-    if (interaction.emoji_id) {
-      const { data: emoji } = await supabase
-        .from('emojis')
-        .select('name, url')
-        .eq('id', interaction.emoji_id)
-        .single();
-      
-      if (emoji) {
-        if (emoji.url) {
-          // Custom emoji with image URL — use :name: shortcode format
-          emojiData = emoji;
-          emojiContent = `:${emoji.name}:`;
-        } else if (!emojiContent) {
-          // Unicode emoji entry without custom_emoji_content fallback
-          emojiContent = emoji.name;
-        }
-      }
-    }
-    
-    logger.info(`🌐 Federating reaction: ${emojiContent} on post ${post.id}`);
+    logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
 
-    // Create Like activity with proper emoji data
-    const activity = await createLikeActivity(user, post.ap_id, emojiContent, emojiData);
+    const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
 
     // Send to post author's inbox (if remote)
     const { data: postAuthor } = await supabase

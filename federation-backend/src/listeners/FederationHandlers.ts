@@ -5,7 +5,6 @@
 import { 
   postToNote, 
   createFollowActivity as createFollow,
-  createLikeActivity as createLike,
   createAnnounceActivity as createAnnounce,
   createUpdateActivity,
   createDeleteActivity as createDelete,
@@ -75,16 +74,9 @@ export function createFollowActivity(follower: any, following: any): any {
 }
 
 /**
- * Create a Like activity (with emoji support)
+ * Re-export for backward compatibility. Prefer importing from toActivityPub directly.
  */
-export async function createLikeActivity(
-  user: any,
-  objectUrl: string,
-  emojiContent: string,
-  emojiData?: { name: string; url: string }
-): Promise<any> {
-  return createLike(user, objectUrl, emojiContent, emojiData);
-}
+export { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
 
 /**
  * Create an Announce activity (reblog)
