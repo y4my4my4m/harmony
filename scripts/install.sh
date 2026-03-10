@@ -1736,44 +1736,78 @@ main() {
 run_schema_setup_only() {
     local env_file="$PROJECT_DIR/.env"
     local fed_env="$PROJECT_DIR/federation-backend/.env"
+    local parent_dir
+    parent_dir="$(dirname "$PROJECT_DIR")"
 
     echo ""
-    print_box "Schema setup only"
-    print_info "Loading connection settings from existing .env files."
+    print_box "Schema Setup Only"
+    print_info "Reading config from installer-generated .env files."
     echo ""
 
-    # Load project .env (VITE_* and any HARMONY_* or DB vars)
+    # 1. Read DOMAIN and INSTANCE_NAME from the Harmony .env
     if [[ -f "$env_file" ]]; then
         while IFS= read -r line; do
             [[ "$line" =~ ^VITE_INSTANCE_DOMAIN= ]] && DOMAIN="${line#VITE_INSTANCE_DOMAIN=}"
             [[ "$line" =~ ^VITE_INSTANCE_NAME= ]] && INSTANCE_NAME="${line#VITE_INSTANCE_NAME=}"
-            [[ "$line" =~ ^HARMONY_DB_PASSWORD= ]] && SUPABASE_PG_PASSWORD="${line#HARMONY_DB_PASSWORD=}"
-            [[ "$line" =~ ^SUPABASE_PG_PASSWORD= ]] && SUPABASE_PG_PASSWORD="${line#SUPABASE_PG_PASSWORD=}"
-        done < <(grep -E '^VITE_INSTANCE_DOMAIN=|^VITE_INSTANCE_NAME=|^HARMONY_DB_PASSWORD=|^SUPABASE_PG_PASSWORD=' "$env_file" 2>/dev/null || true)
-        # Strip optional quotes
+        done < <(grep -E '^VITE_INSTANCE_DOMAIN=|^VITE_INSTANCE_NAME=' "$env_file" 2>/dev/null || true)
         DOMAIN="${DOMAIN//\"/}"
         INSTANCE_NAME="${INSTANCE_NAME//\"/}"
-        SUPABASE_PG_PASSWORD="${SUPABASE_PG_PASSWORD//\"/}"
     fi
 
-    # federation-backend/.env may have DATABASE_URL (for cloud); we use self-hosted path by default
-    if [[ -f "$fed_env" ]]; then
-        while IFS= read -r line; do
-            [[ "$line" =~ ^DATABASE_URL= ]] && DATABASE_URL="${line#DATABASE_URL=}"
-        done < <(grep '^DATABASE_URL=' "$fed_env" 2>/dev/null || true)
+    # 2. Find the Supabase project .env and read POSTGRES_PASSWORD from it
+    #    The installer creates it as a sibling dir (e.g. ../supabase-project/.env)
+    local supabase_env=""
+    for candidate in "$parent_dir"/supabase-project/.env "$parent_dir"/supabase/.env "$parent_dir"/supabase-docker/.env; do
+        if [[ -f "$candidate" ]]; then
+            supabase_env="$candidate"
+            break
+        fi
+    done
+
+    if [[ -n "$supabase_env" ]]; then
+        print_info "Found Supabase .env at: ${BOLD}$supabase_env${RESET}"
+        local pw_line
+        pw_line=$(grep '^POSTGRES_PASSWORD=' "$supabase_env" 2>/dev/null || true)
+        if [[ -n "$pw_line" ]]; then
+            SUPABASE_PG_PASSWORD="${pw_line#POSTGRES_PASSWORD=}"
+            SUPABASE_PG_PASSWORD="${SUPABASE_PG_PASSWORD//\"/}"
+        fi
     fi
 
-    # Defaults for self-hosted
+    # 3. Fall back: try parsing DATABASE_URL from federation-backend/.env
+    if [[ -z "$SUPABASE_PG_PASSWORD" ]] && [[ -f "$fed_env" ]]; then
+        local db_url_line
+        db_url_line=$(grep '^DATABASE_URL=' "$fed_env" 2>/dev/null || true)
+        if [[ -n "$db_url_line" ]]; then
+            DATABASE_URL="${db_url_line#DATABASE_URL=}"
+            # Extract password from postgresql://user:PASSWORD@host:port/db
+            local pw_from_url
+            pw_from_url=$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+            if [[ -n "$pw_from_url" ]]; then
+                SUPABASE_PG_PASSWORD="$pw_from_url"
+            fi
+        fi
+    fi
+
+    # Defaults
     DOMAIN="${DOMAIN:-localhost}"
     INSTANCE_NAME="${INSTANCE_NAME:-Harmony}"
     SUPABASE_MODE="selfhosted"
     SCHEMA_SETUP_ONLY=true
 
+    # 4. If still no password, prompt
     if [[ -z "$SUPABASE_PG_PASSWORD" ]]; then
-        print_info "Postgres password not in .env. You can set HARMONY_DB_PASSWORD or SUPABASE_PG_PASSWORD in .env to avoid this prompt."
+        print_warn "Could not find Postgres password in Supabase .env or DATABASE_URL."
+        print_info "Check your Supabase project's .env for POSTGRES_PASSWORD."
         SUPABASE_PG_PASSWORD=$(prompt_input "Supabase Postgres password" "")
         [[ -z "$SUPABASE_PG_PASSWORD" ]] && SUPABASE_PG_PASSWORD="postgres"
+    else
+        print_success "Found Postgres password"
     fi
+
+    echo ""
+    print_info "Domain: ${BOLD}$DOMAIN${RESET}  |  Instance: ${BOLD}$INSTANCE_NAME${RESET}"
+    echo ""
 
     setup_database
 }
