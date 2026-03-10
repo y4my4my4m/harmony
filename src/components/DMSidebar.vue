@@ -341,12 +341,17 @@ const handleGroupChatCreated = (conversationId: string) => {
   selectConversation(conversationId)
 }
 
+const stripShortcodes = (text: string): string => {
+  if (!text) return text
+  const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
+  return stripped || text
+}
+
 const getDefaultGroupName = (conversation: DMConversation): string => {
   if (conversation.participants && conversation.participants.length > 0) {
-    // Show first few participant names
     const names = conversation.participants
       .slice(0, 3)
-      .map(p => p.display_name || p.username)
+      .map(p => stripShortcodes(p.display_name || p.username))
       .join(', ')
     
     if (conversation.participants.length > 3) {

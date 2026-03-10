@@ -939,12 +939,17 @@ const getReceiverIds = (): string[] => {
 }
 
 // Group chat methods
+const stripShortcodes = (text: string): string => {
+  if (!text) return text
+  const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
+  return stripped || text
+}
+
 const getDefaultGroupName = (): string => {
   if (props.conversation.participants && props.conversation.participants.length > 0) {
-    // Show first few participant names
     const names = props.conversation.participants
       .slice(0, 3)
-      .map(p => p.display_name || p.username)
+      .map(p => stripShortcodes(p.display_name || p.username))
       .join(', ')
     
     if (props.conversation.participants.length > 3) {

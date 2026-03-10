@@ -16,7 +16,7 @@
             </div>
           </div>
           
-          <h2 class="caller-name">{{ callerName }}</h2>
+          <h2 class="caller-name"><DisplayName :user-id="callerId" :fallback="callerName" /></h2>
           <p class="call-type-text">
             {{ callType === 'video' ? 'Incoming video call' : 'Incoming voice call' }}
           </p>
@@ -67,6 +67,7 @@
 import { watch, onUnmounted } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import { useThemeStore } from '@/stores/useTheme'
 
 interface Props {

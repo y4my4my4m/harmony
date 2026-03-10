@@ -327,8 +327,8 @@ router.post(
       .single();
 
     if (!localServer) {
-      // Create local reference
-      localServer = await ServerDiscoveryService.createLocalServerReference(remoteServer);
+      // Create local reference (joining user becomes the reference owner)
+      localServer = await ServerDiscoveryService.createLocalServerReference(remoteServer, userId);
     }
 
     // Check if already a member
@@ -910,8 +910,10 @@ export class ServerDiscoveryService {
 
   /**
    * Create local reference to remote server
+   * @param remoteServer - The remote server ActivityPub Group object
+   * @param ownerUserId - Local user ID to set as the reference owner (required by NOT NULL constraint)
    */
-  static async createLocalServerReference(remoteServer: any): Promise<any> {
+  static async createLocalServerReference(remoteServer: any, ownerUserId?: string): Promise<any> {
     const supabase = getSupabaseClient();
 
     try {
@@ -933,6 +935,34 @@ export class ServerDiscoveryService {
         return existing;
       }
 
+      // Remote server references should always be owned by the instance admin
+      // to prevent cascade-deletion if the joining user leaves or is deleted.
+      const { data: admin } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('is_local', true)
+        .eq('is_admin', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (admin) {
+        ownerUserId = admin.id;
+      } else if (!ownerUserId) {
+        // No admin found (shouldn't happen) — fall back to the joining user
+        const { data: anyUser } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('is_local', true)
+          .limit(1)
+          .maybeSingle();
+        ownerUserId = anyUser?.id;
+      }
+
+      if (!ownerUserId) {
+        throw new Error('No local user found to set as remote server reference owner');
+      }
+
       // Extract server UUID from AP ID if possible
       // Format: https://instance.com/servers/{uuid}
       let serverUuid: string | undefined;
@@ -946,6 +976,7 @@ export class ServerDiscoveryService {
         name: remoteServer.name,
         description: remoteServer.summary || '',
         icon: remoteServer.icon?.url,
+        owner: ownerUserId,
         federation_enabled: true,
         federation_domain: hostDomain,
         ap_id: remoteServer.id,

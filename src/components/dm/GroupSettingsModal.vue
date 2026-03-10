@@ -115,7 +115,7 @@
             />
             <div class="participant-info">
               <div class="participant-name">
-                {{ participant.display_name || participant.username }}
+                <DisplayName :user-id="participant.id" :fallback="participant.display_name || participant.username" :truncate="true" />
                 <span v-if="participant.id === conversation.created_by" class="creator-badge">
                   Creator
                 </span>
@@ -213,6 +213,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import { uploadGroupIcon, deleteGroupIcon } from '@/utils/groupIconUtils'
 import { useDMStore, type DMConversation, type DMUser } from '@/stores/useDM'
@@ -254,12 +255,18 @@ const currentUser = computed(() => getCurrentUser.value)
 const isCreator = computed(() => currentUser.value?.id === props.conversation.created_by)
 const hasCustomIcon = computed(() => !!localIconPath.value)
 
+const stripShortcodes = (text: string): string => {
+  if (!text) return text
+  const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
+  return stripped || text
+}
+
 const defaultGroupName = computed(() => {
   if (props.participants.length > 0) {
     const names = props.participants
       .filter(p => p.id !== currentUser.value?.id)
       .slice(0, 3)
-      .map(p => p.display_name || p.username)
+      .map(p => stripShortcodes(p.display_name || p.username))
       .join(', ')
     
     if (props.participants.length > 4) {

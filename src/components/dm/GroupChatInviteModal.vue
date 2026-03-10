@@ -62,7 +62,7 @@
               class="user-avatar"
             />
             <div class="user-info">
-              <div class="user-name">{{ user.display_name || user.username }}</div>
+              <div class="user-name"><DisplayName :user-id="user.id" :fallback="user.display_name || user.username" :truncate="true" /></div>
               <div class="user-handle">{{ formatUserHandle(user) }}</div>
             </div>
             <div class="selection-indicator">
@@ -94,7 +94,7 @@
               size="xs"
               class="user-avatar"
             />
-            <span class="user-name">{{ user.display_name || user.username }}</span>
+            <span class="user-name"><DisplayName :user-id="user.id" :fallback="user.display_name || user.username" :truncate="true" /></span>
             <button 
               @click="removeUserFromSelection(user.id)"
               class="remove-user-btn"
@@ -159,7 +159,7 @@
               class="user-avatar"
             />
             <div class="user-info">
-              <div class="user-name">{{ participant.display_name || participant.username }}</div>
+              <div class="user-name"><DisplayName :user-id="participant.id" :fallback="participant.display_name || participant.username" :truncate="true" /></div>
               <div class="user-handle">{{ formatUserHandle(participant) }}</div>
             </div>
             <div v-if="participant.id === currentUserId" class="you-badge">You</div>
@@ -206,6 +206,7 @@ import { useAuthStore } from '@/stores/auth'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import type { DMUser } from '@/stores/useDM'
 
 interface Props {
@@ -394,8 +395,14 @@ const formatUserHandle = (user: DMUser): string => {
   return user.is_local ? `@${user.username}` : `@${user.username}@${user.domain || 'unknown'}`
 }
 
+const stripShortcodes = (text: string): string => {
+  if (!text) return text
+  const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
+  return stripped || text
+}
+
 const getGroupNamePreview = (): string => {
-  const names = selectedUsers.value.slice(0, 3).map(u => u.display_name || u.username)
+  const names = selectedUsers.value.slice(0, 3).map(u => stripShortcodes(u.display_name || u.username))
   if (selectedUsers.value.length > 3) {
     return `${names.join(', ')} and ${selectedUsers.value.length - 3} others`
   }

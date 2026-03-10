@@ -191,12 +191,23 @@ const joinCallFromBanner = async () => {
 const chatMessages = computed(() => dmStore.currentDMMessages)
 const currentConversation = computed(() => dmStore.getCurrentConversation)
 
-// DM username for placeholder
+// DM username for placeholder (strip shortcodes since placeholder is plain text)
+const stripShortcodes = (text: string): string => {
+  if (!text) return text
+  const stripped = text.replace(/:[a-zA-Z0-9_+-]+:/g, '').replace(/\s+/g, ' ').trim()
+  return stripped || text
+}
+
 const currentDMUsername = computed(() => {
   const conversation = currentConversation.value
   if (!conversation) return undefined
-  const otherParticipant = conversation.other_participants?.[0]
-  return otherParticipant?.display_name || otherParticipant?.username || conversation.other_user?.display_name || conversation.other_user?.username
+  const otherUserId = conversation.other_participants?.[0]?.id || conversation.other_user?.id
+  if (otherUserId) {
+    const name = getUserDisplayName(otherUserId).value
+    if (name && name !== 'Unknown User') return stripShortcodes(name)
+  }
+  const rawName = conversation.other_participants?.[0]?.display_name || conversation.other_participants?.[0]?.username || conversation.other_user?.display_name || conversation.other_user?.username
+  return rawName ? stripShortcodes(rawName) : undefined
 })
 
 const existingParticipants = computed(() => {

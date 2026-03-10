@@ -76,7 +76,7 @@
         <!-- User Info -->
         <div class="user-info">
           <h4 class="user-name">
-            {{ user.display_name || user.username }}
+            <DisplayName :user-id="user.id" :fallback="user.display_name || user.username" :truncate="true" />
           </h4>
           <p class="user-handle" :style="{ color: user.color || '#888' }">
             {{ formatUserHandle(user) }}
@@ -125,6 +125,7 @@ import { useUserData } from '@/composables/useUserData'
 import { services } from '@/services'
 import type { Profile } from '@/types'
 import Avatar from '../common/Avatar.vue'
+import DisplayName from '../DisplayName.vue'
 
 // Emits
 const emit = defineEmits<{
