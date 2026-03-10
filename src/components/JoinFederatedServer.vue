@@ -96,7 +96,12 @@
           <div v-if="isInvite && inviteInfo" class="invite-details">
             <div v-if="inviteInfo.createdBy" class="invite-creator">
               <span class="detail-label">{{ $t('federation.invitedBy') }}:</span>
-              <span class="detail-value">{{ inviteInfo.createdBy.displayName || inviteInfo.createdBy.username }}</span>
+              <span class="detail-value">
+                <DisplayName
+                  :parts="inviterDisplayNameParts"
+                  :fallback="inviteInfo.createdBy.displayName || inviteInfo.createdBy.username || ''"
+                />
+              </span>
             </div>
             <div v-if="inviteInfo.expiresAt" class="invite-expiry">
               <span class="detail-label">{{ $t('federation.expires') }}:</span>
@@ -148,12 +153,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { federationServerService, type RemoteServer, type InviteInfo } from '@/services/federation'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRouter } from 'vue-router'
 import { debug } from '@/utils/debug'
+import DisplayName from '@/components/DisplayName.vue'
+import { userDataService } from '@/services/userDataService'
 
 const emit = defineEmits<{
   close: []
@@ -163,6 +171,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const authStore = useAuthStore()
 const serverChannelStore = useServerChannelStore()
+const instanceSettings = useInstanceSettingsStore()
 
 const serverUrl = ref('')
 const isLoading = ref(false)
@@ -171,6 +180,14 @@ const error = ref('')
 const discoveredServer = ref<RemoteServer | null>(null)
 const inviteInfo = ref<InviteInfo | null>(null)
 const isInvite = ref(false)
+
+const inviterDisplayNameParts = computed(() => {
+  const creator = inviteInfo.value?.createdBy
+  if (!creator?.displayName && !creator?.username) return undefined
+  if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) return undefined
+  const dn = creator.displayName || creator.username || ''
+  return userDataService.resolveDisplayNameParts(dn)
+})
 
 async function discoverServer() {
   if (!serverUrl.value) return
@@ -422,18 +439,18 @@ function formatExpiry(expiresAt: string): string {
 
 .server-preview {
   display: flex;
-  gap: 16px;
-  padding: 20px;
+  gap: 20px;
+  padding: 24px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  border-radius: 16px;
   margin-bottom: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .server-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -462,10 +479,11 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .server-name {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 0 4px;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
 }
 
 .server-instance {
@@ -474,7 +492,7 @@ function formatExpiry(expiresAt: string): string {
   gap: 6px;
   font-size: 13px;
   color: #00d4ff;
-  margin: 0 0 8px;
+  margin: 0 0 12px;
 }
 
 .instance-icon {
@@ -512,14 +530,14 @@ function formatExpiry(expiresAt: string): string {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  background: rgba(87, 242, 135, 0.15);
-  border: 1px solid rgba(87, 242, 135, 0.3);
-  border-radius: 12px;
+  padding: 6px 12px;
+  background: rgba(87, 242, 135, 0.12);
+  border: 1px solid rgba(87, 242, 135, 0.25);
+  border-radius: 10px;
   color: #57f287;
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .invite-icon {
@@ -528,9 +546,9 @@ function formatExpiry(expiresAt: string): string {
 
 .invite-details {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 10px 14px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
   margin-bottom: 12px;
@@ -541,11 +559,19 @@ function formatExpiry(expiresAt: string): string {
 .invite-expiry {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.invite-creator .detail-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .detail-label {
   color: #72767d;
+  flex-shrink: 0;
 }
 
 .detail-value {
@@ -553,31 +579,38 @@ function formatExpiry(expiresAt: string): string {
   font-weight: 500;
 }
 
+.detail-value :deep(.display-name) {
+  display: inline;
+}
+
 .channels-preview {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
 .channel-tag {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
   font-size: 12px;
   color: var(--text-secondary);
 }
 
 .channel-icon {
   font-size: 11px;
+  opacity: 0.8;
 }
 
 .more-channels {
   font-size: 12px;
   color: #72767d;
-  padding: 4px 10px;
+  padding: 5px 0;
 }
 
 .modal-actions {

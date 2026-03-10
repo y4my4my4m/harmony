@@ -346,13 +346,17 @@ router.post(
       });
     }
 
-    // Create pending membership
+    // Public servers: accept immediately so the user can interact right away.
+    // Private servers: stay pending until we get an Accept from the remote.
+    const isPublicServer = localServer.public !== false && remoteServer.discoverable !== false;
+    const initialStatus = isPublicServer ? 'accepted' : 'pending';
+
     const { error: membershipError } = await supabase
       .from('user_servers')
       .insert({
         server_id: localServer.id,
         user_id: userId,
-        status: 'pending',
+        status: initialStatus,
         member_instance: config.INSTANCE_DOMAIN,
       });
 
@@ -361,7 +365,7 @@ router.post(
       return res.status(500).json({ error: 'Failed to create membership' });
     }
 
-    // Send Join activity to remote server
+    // Send Join activity to remote server (notifies them even for public servers)
     const joinActivity = ServerDiscoveryService.createJoinActivity(
       user.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${user.username}`,
       remoteServer.id,
@@ -375,20 +379,17 @@ router.post(
         userId
       );
 
-      // Get default channel (first text channel, not a category)
-      // Use maybeSingle() since there might be no channels yet
       const { data: defaultChannel } = await supabase
         .from('channels')
         .select('id')
         .eq('server_id', localServer.id)
-        .eq('type', 0) // text channel
+        .eq('type', 0)
         .order('order', { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      logger.info(`🎯 Join complete: server=${localServer.id}, defaultChannel=${defaultChannel?.id || 'none'}`);
+      logger.info(`🎯 Join complete: server=${localServer.id}, status=${initialStatus}, defaultChannel=${defaultChannel?.id || 'none'}`);
 
-      // Sync remote server members in the background
       if (remoteServer.members) {
         ServerDiscoveryService.syncRemoteServerMembers(localServer.id, remoteServer.members)
           .catch(err => logger.error('Failed to sync remote members:', err));
@@ -396,10 +397,10 @@ router.post(
 
       res.json({
         success: true,
-        message: 'Join request sent',
+        message: isPublicServer ? 'Joined server' : 'Join request sent',
         serverId: localServer.id,
         defaultChannelId: defaultChannel?.id || null,
-        status: 'pending',
+        status: initialStatus,
       });
     } catch (error) {
       // Rollback membership
