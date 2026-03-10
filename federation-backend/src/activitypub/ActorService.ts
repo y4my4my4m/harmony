@@ -1736,6 +1736,23 @@ router.get(
       });
     }
 
+    // Ensure federated_id is set for local users (required for incoming activity lookups)
+    const expectedFederatedId = `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`;
+    if (!profile.federated_id || profile.federated_id !== expectedFederatedId) {
+      await supabase
+        .from('profiles')
+        .update({
+          federated_id: expectedFederatedId,
+          inbox_url: `${expectedFederatedId}/inbox`,
+          outbox_url: `${expectedFederatedId}/outbox`,
+          followers_url: `${expectedFederatedId}/followers`,
+          following_url: `${expectedFederatedId}/following`,
+          shared_inbox_url: `https://${config.INSTANCE_DOMAIN}/inbox`,
+        })
+        .eq('id', profile.id);
+      profile.federated_id = expectedFederatedId;
+    }
+
     // SAFETY NET: Generate keys on-the-fly if missing
     // This ensures users are always federation-ready when their Actor is requested
     if (!profile.public_key) {

@@ -11,6 +11,7 @@ import {
   normalizeActor,
 } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
+import config from '../config/index.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -19,6 +20,58 @@ function extractMessageId(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
   const match = url.match(/\/messages\/([a-f0-9-]{36})/);
   return match ? match[1] : null;
+}
+
+/**
+ * Resolve an actor URL to a profile ID.
+ * Tries federated_id first; falls back to extracting username from
+ * our own domain's URL pattern (handles local users whose federated_id
+ * was never set).
+ */
+async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string } | null> {
+  const supabase = getSupabaseClient();
+
+  // 1) Direct federated_id lookup
+  const { data: byFedId } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('federated_id', actorUrl)
+    .maybeSingle();
+  if (byFedId) return byFedId;
+
+  // 2) Fallback: if the URL matches our domain, extract username
+  const localPattern = new RegExp(
+    `^https?://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/users/([^/]+)$`,
+    'i'
+  );
+  const match = actorUrl.match(localPattern);
+  if (match) {
+    const username = match[1];
+    const { data: byUsername } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('username', username)
+      .eq('is_local', true)
+      .maybeSingle();
+    if (byUsername) {
+      // Backfill federated_id so future lookups are fast
+      await supabase
+        .from('profiles')
+        .update({
+          federated_id: `https://${config.INSTANCE_DOMAIN}/users/${username}`,
+          inbox_url: `https://${config.INSTANCE_DOMAIN}/users/${username}/inbox`,
+          outbox_url: `https://${config.INSTANCE_DOMAIN}/users/${username}/outbox`,
+          followers_url: `https://${config.INSTANCE_DOMAIN}/users/${username}/followers`,
+          following_url: `https://${config.INSTANCE_DOMAIN}/users/${username}/following`,
+          shared_inbox_url: `https://${config.INSTANCE_DOMAIN}/inbox`,
+        })
+        .eq('id', byUsername.id);
+      logger.info(`Backfilled federated_id for local user ${username}`);
+      return byUsername;
+    }
+  }
+
+  return null;
 }
 
 export class ActivityProcessor {
@@ -109,21 +162,12 @@ export class ActivityProcessor {
     // Ensure remote user exists
     await this.ensureRemoteUser(followerUrl);
 
-    // Get follower and following IDs
-    const { data: follower } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', followerUrl)
-      .single();
-
-    const { data: following } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', followingUrl)
-      .single();
+    // Get follower and following IDs (resolveProfileByActorUrl handles local users without federated_id)
+    const follower = await resolveProfileByActorUrl(followerUrl);
+    const following = await resolveProfileByActorUrl(followingUrl);
 
     if (!follower || !following) {
-      logger.error('Failed to find users for follow relationship');
+      logger.error(`Failed to find users for follow relationship: follower=${!!follower}, following=${!!following} (${followerUrl} → ${followingUrl})`);
       return;
     }
 
@@ -237,11 +281,7 @@ export class ActivityProcessor {
       await this.ensureRemoteUser(normalizeActor(activity.actor));
 
       // Get author ID
-      const { data: author } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('federated_id', normalizeActor(activity.actor))
-        .single();
+      const author = await resolveProfileByActorUrl(normalizeActor(activity.actor));
 
       if (!author) {
         logger.error('Failed to find author for post');
@@ -2080,14 +2120,9 @@ export class ActivityProcessor {
     for (const recipientUrl of allRecipients) {
       if (typeof recipientUrl !== 'string') continue;
       
-      const { data: recipient } = await supabase
-        .from('profiles')
-        .select('id, is_local')
-        .eq('federated_id', recipientUrl)
-        .single();
-      
-      if (recipient?.is_local) {
-        recipientIds.push(recipient.id);
+      const resolved = await resolveProfileByActorUrl(recipientUrl);
+      if (resolved) {
+        recipientIds.push(resolved.id);
       }
     }
     

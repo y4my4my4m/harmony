@@ -866,6 +866,9 @@ API_BASE_URL=$api_base_url
 SUPABASE_URL=$SUPABASE_URL
 SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY
+# Public URL for generating externally-reachable media URLs (avatars, banners, emojis)
+# Must be set when SUPABASE_URL is a Docker-internal address (e.g. http://supabase-kong:8000)
+PUBLIC_SUPABASE_URL=$SUPABASE_URL
 DATABASE_URL=$DATABASE_URL
 
 INSTANCE_DOMAIN=$DOMAIN
