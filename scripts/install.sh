@@ -12,7 +12,8 @@ set -euo pipefail
 #   ./scripts/install.sh --schema-setup-only   # Run only DB schema (init + migrations)
 #   ./scripts/install.sh --move-dist          # Build frontend and deploy dist to web root (/var/www/harmony if under /root)
 #   ./scripts/install.sh --move-dist --no-build  # Deploy existing dist only (no build)
-#     Loads DOMAIN/INSTANCE_NAME from .env; prompts for Postgres password if not set.
+#   ./scripts/install.sh --regenerate-keys         # Regenerate JWT, anon, service_role keys (keeps passwords)
+#   ./scripts/install.sh --regenerate-all          # Regenerate all keys AND passwords
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,6 +53,8 @@ LIVEKIT_SUBDOMAIN=""
 
 SUPABASE_MODE=""      # "cloud" | "selfhosted"
 SUPABASE_URL=""
+SUPABASE_INTERNAL_URL=""   # docker-internal URL for backend services
+SUPABASE_JWT_SECRET=""
 SUPABASE_ANON_KEY=""
 SUPABASE_SERVICE_KEY=""
 DATABASE_URL=""
@@ -376,15 +379,6 @@ setup_selfhosted_supabase_docker() {
         rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
     fi
 
-    print_step "4b" "Supabase Studio credentials"
-    print_info "Supabase Studio is the admin dashboard for managing your database."
-    SUPABASE_DASHBOARD_PASSWORD=$(prompt_input "Studio dashboard password" "$(openssl rand -hex 16 2>/dev/null || echo 'change-me-please')")
-    if [[ -n "$SUPABASE_DASHBOARD_PASSWORD" ]]; then
-        sed -i.bak "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$SUPABASE_DASHBOARD_PASSWORD|" "$SUPABASE_PROJECT_DIR/.env"
-        rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
-        print_success "Dashboard password set"
-    fi
-
     print_step "5" "Pulling Docker images"
     (cd "$SUPABASE_PROJECT_DIR" && run_with_spinner "Pulling images..." docker compose pull)
 
@@ -476,12 +470,11 @@ configure_supabase() {
 
             setup_selfhosted_supabase_docker
 
-            SUPABASE_PG_PASSWORD=$(prompt_input "Supabase Postgres password" "your-super-secret-and-long-postgres-password")
+            # Auto-generate all keys and write them into the Supabase .env
+            generate_supabase_keys
 
             SUPABASE_URL="https://$SUPABASE_SITE_DOMAIN"
             SUPABASE_INTERNAL_URL="http://supabase-kong:8000"
-            SUPABASE_ANON_KEY=$(prompt_input "Supabase anon key" "")
-            SUPABASE_SERVICE_KEY=$(prompt_input "Service role key" "")
             DATABASE_URL="postgresql://supabase_admin:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
         fi
     fi
@@ -616,6 +609,64 @@ configure_features() {
 # ---------------------------------------------------------------------------
 # Generate LiveKit keys
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Generate Supabase JWT keys (for self-hosted)
+# JWT_SECRET → ANON_KEY + SERVICE_ROLE_KEY (HS256 JWTs)
+# ---------------------------------------------------------------------------
+generate_supabase_jwt() {
+    local role="$1"    # "anon" or "service_role"
+    local secret="$2"  # JWT_SECRET
+
+    local header
+    header=$(printf '{"alg":"HS256","typ":"JWT"}' | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+
+    local now
+    now=$(date +%s)
+    local exp=$((now + 157680000))  # 5 years
+
+    local payload
+    payload=$(printf '{"role":"%s","iss":"supabase","iat":%d,"exp":%d}' "$role" "$now" "$exp" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+
+    local body="${header}.${payload}"
+    local signature
+    signature=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" -binary | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+
+    echo "${body}.${signature}"
+}
+
+generate_supabase_keys() {
+    print_info "Generating secure Supabase credentials..."
+
+    SUPABASE_JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')
+    SUPABASE_PG_PASSWORD=$(openssl rand -hex 24)
+    SUPABASE_ANON_KEY=$(generate_supabase_jwt "anon" "$SUPABASE_JWT_SECRET")
+    SUPABASE_SERVICE_KEY=$(generate_supabase_jwt "service_role" "$SUPABASE_JWT_SECRET")
+
+    local vault_key
+    vault_key=$(openssl rand -hex 32)
+    local logflare_key
+    logflare_key=$(openssl rand -hex 32)
+
+    # Dashboard password (Studio UI login)
+    SUPABASE_DASHBOARD_PASSWORD=$(openssl rand -hex 16 2>/dev/null || echo 'change-me-please')
+
+    # Write all secrets into the Supabase project .env
+    if [[ -f "$SUPABASE_PROJECT_DIR/.env" ]]; then
+        sed -i.bak \
+            -e "s|JWT_SECRET=.*|JWT_SECRET=$SUPABASE_JWT_SECRET|" \
+            -e "s|ANON_KEY=.*|ANON_KEY=$SUPABASE_ANON_KEY|" \
+            -e "s|SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY|" \
+            -e "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$SUPABASE_PG_PASSWORD|" \
+            -e "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$SUPABASE_DASHBOARD_PASSWORD|" \
+            -e "s|VAULT_ENC_KEY=.*|VAULT_ENC_KEY=$vault_key|" \
+            -e "s|LOGFLARE_API_KEY=.*|LOGFLARE_API_KEY=$logflare_key|" \
+            "$SUPABASE_PROJECT_DIR/.env"
+        rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
+    fi
+
+    print_success "Generated all Supabase credentials (JWT, keys, passwords)"
+}
+
 generate_livekit_keys() {
     if $ENABLE_VOICE; then
         LIVEKIT_API_KEY="devkey$(openssl rand -hex 8)"
@@ -1481,8 +1532,14 @@ show_summary() {
     if [[ -n "$SUPABASE_DASHBOARD_PASSWORD" ]]; then
         printf "  ${BOLD}Supabase Studio${RESET} ${DIM}(save these!)${RESET}\n"
         echo ""
+        if [[ -n "$SUPABASE_SITE_DOMAIN" ]]; then
+            printf "    URL:        ${CYAN}https://%s${RESET}\n" "$SUPABASE_SITE_DOMAIN"
+        fi
         printf "    Username:   ${CYAN}supabase${RESET}\n"
         printf "    Password:   ${CYAN}%s${RESET}\n" "$SUPABASE_DASHBOARD_PASSWORD"
+        echo ""
+        print_info "All keys (JWT, anon, service_role) are saved in:"
+        printf "      ${CYAN}%s/.env${RESET}\n" "$SUPABASE_PROJECT_DIR"
         echo ""
     fi
 
@@ -1925,9 +1982,149 @@ run_schema_setup_only() {
     setup_database
 }
 
+# ---------------------------------------------------------------------------
+# --regenerate-keys / --regenerate-all: regenerate Supabase keys in-place
+# ---------------------------------------------------------------------------
+run_regenerate_keys() {
+    local include_passwords="$1"  # "true" to also regenerate passwords
+
+    echo ""
+    print_box "Regenerate Supabase Keys"
+
+    local env_file="$PROJECT_DIR/.env"
+    local fed_env="$PROJECT_DIR/federation-backend/.env"
+    local bot_env="$PROJECT_DIR/bot-gateway/.env"
+    local parent_dir
+    parent_dir="$(dirname "$PROJECT_DIR")"
+
+    # Find the Supabase project .env
+    local supabase_env=""
+    for candidate in "$parent_dir"/supabase-project/.env "$parent_dir"/supabase/.env "$parent_dir"/supabase-docker/.env; do
+        if [[ -f "$candidate" ]]; then
+            supabase_env="$candidate"
+            break
+        fi
+    done
+
+    if [[ -z "$supabase_env" ]]; then
+        print_error "Could not find Supabase project .env"
+        print_info "Looked in: $parent_dir/supabase-project/, supabase/, supabase-docker/"
+        print_info "Provide the path manually or re-run the full installer."
+        return 1
+    fi
+
+    print_info "Supabase .env: ${BOLD}$supabase_env${RESET}"
+    echo ""
+
+    # Read existing postgres password (needed for DATABASE_URL if not regenerating passwords)
+    local existing_pg_pw=""
+    existing_pg_pw=$(grep '^POSTGRES_PASSWORD=' "$supabase_env" 2>/dev/null | head -1 | cut -d= -f2-)
+    existing_pg_pw="${existing_pg_pw//\"/}"
+
+    # Generate new JWT secret and keys
+    local new_jwt_secret
+    new_jwt_secret=$(openssl rand -base64 48 | tr -d '\n')
+    local new_anon_key
+    new_anon_key=$(generate_supabase_jwt "anon" "$new_jwt_secret")
+    local new_service_key
+    new_service_key=$(generate_supabase_jwt "service_role" "$new_jwt_secret")
+
+    local new_vault_key
+    new_vault_key=$(openssl rand -hex 32)
+    local new_logflare_key
+    new_logflare_key=$(openssl rand -hex 32)
+
+    # Update Supabase .env — keys always
+    sed -i.bak \
+        -e "s|JWT_SECRET=.*|JWT_SECRET=$new_jwt_secret|" \
+        -e "s|ANON_KEY=.*|ANON_KEY=$new_anon_key|" \
+        -e "s|SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=$new_service_key|" \
+        -e "s|VAULT_ENC_KEY=.*|VAULT_ENC_KEY=$new_vault_key|" \
+        -e "s|LOGFLARE_API_KEY=.*|LOGFLARE_API_KEY=$new_logflare_key|" \
+        "$supabase_env"
+    rm -f "${supabase_env}.bak"
+    print_success "Updated JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY, VAULT_ENC_KEY"
+
+    local pg_pw="${existing_pg_pw}"
+
+    if [[ "$include_passwords" == "true" ]]; then
+        pg_pw=$(openssl rand -hex 24)
+        local new_dashboard_pw
+        new_dashboard_pw=$(openssl rand -hex 16)
+
+        sed -i.bak \
+            -e "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$pg_pw|" \
+            -e "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$new_dashboard_pw|" \
+            "$supabase_env"
+        rm -f "${supabase_env}.bak"
+        print_success "Updated POSTGRES_PASSWORD, DASHBOARD_PASSWORD"
+        echo ""
+        printf "    ${BOLD}New Supabase Studio password:${RESET} ${CYAN}%s${RESET}\n" "$new_dashboard_pw"
+        printf "    ${BOLD}New Postgres password:${RESET}        ${CYAN}%s${RESET}\n" "$pg_pw"
+        echo ""
+    fi
+
+    # Update Harmony frontend .env
+    if [[ -f "$env_file" ]]; then
+        sed -i.bak \
+            -e "s|VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$new_anon_key|" \
+            "$env_file"
+        rm -f "${env_file}.bak"
+        print_success "Updated .env (VITE_SUPABASE_ANON_KEY)"
+    fi
+
+    # Update federation-backend .env
+    if [[ -f "$fed_env" ]]; then
+        sed -i.bak \
+            -e "s|SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$new_anon_key|" \
+            -e "s|SUPABASE_SERVICE_ROLE_KEY=.*|SUPABASE_SERVICE_ROLE_KEY=$new_service_key|" \
+            "$fed_env"
+        if [[ "$include_passwords" == "true" ]]; then
+            # Update DATABASE_URL password
+            sed -i.bak2 \
+                -e "s|postgresql://supabase_admin:[^@]*@|postgresql://supabase_admin:${pg_pw}@|" \
+                "$fed_env"
+            rm -f "${fed_env}.bak2"
+        fi
+        rm -f "${fed_env}.bak"
+        print_success "Updated federation-backend/.env"
+    fi
+
+    # Update bot-gateway .env
+    if [[ -f "$bot_env" ]]; then
+        sed -i.bak \
+            -e "s|SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$new_anon_key|" \
+            -e "s|SUPABASE_SERVICE_ROLE_KEY=.*|SUPABASE_SERVICE_ROLE_KEY=$new_service_key|" \
+            "$bot_env"
+        rm -f "${bot_env}.bak"
+        print_success "Updated bot-gateway/.env"
+    fi
+
+    echo ""
+    print_line 50
+    echo ""
+    print_warn "You must restart all services for new keys to take effect:"
+    echo ""
+    local supabase_dir
+    supabase_dir="$(dirname "$supabase_env")"
+    printf "    ${CYAN}cd %s && docker compose down && docker compose up -d${RESET}\n" "$supabase_dir"
+    printf "    ${CYAN}cd %s && docker compose down && docker compose up -d${RESET}\n" "$PROJECT_DIR"
+    echo ""
+    if [[ "$include_passwords" == "true" ]]; then
+        print_warn "Postgres password changed — if Supabase DB has data, update the password inside the container too:"
+        printf "    ${CYAN}docker exec -it supabase-db psql -U supabase_admin -c \"ALTER ROLE supabase_admin PASSWORD '%s';\"${RESET}\n" "$pg_pw"
+        echo ""
+    fi
+    print_info "Then rebuild the frontend (new anon key is baked into the build):"
+    printf "    ${CYAN}npm run build-only && ./scripts/install.sh --move-dist --no-build${RESET}\n"
+    echo ""
+}
+
 # Parse args for standalone flags
 SCHEMA_SETUP_ONLY_ARG=
 MOVE_DIST_ARG=
+REGEN_KEYS_ARG=
+REGEN_ALL_ARG=
 ARGS=()
 for arg in "$@"; do
     if [[ "$arg" == "--schema-setup-only" ]]; then
@@ -1935,6 +2132,10 @@ for arg in "$@"; do
     elif [[ "$arg" == "--move-dist" ]]; then
         MOVE_DIST_ARG=1
         ARGS+=("$arg")
+    elif [[ "$arg" == "--regenerate-keys" ]]; then
+        REGEN_KEYS_ARG=1
+    elif [[ "$arg" == "--regenerate-all" || "$arg" == "--regenerate-all-keys-and-passwords" ]]; then
+        REGEN_ALL_ARG=1
     else
         ARGS+=("$arg")
     fi
@@ -1944,6 +2145,10 @@ if [[ -n "$SCHEMA_SETUP_ONLY_ARG" ]]; then
     run_schema_setup_only
 elif [[ -n "$MOVE_DIST_ARG" ]]; then
     run_move_dist "${ARGS[@]}"
+elif [[ -n "$REGEN_KEYS_ARG" ]]; then
+    run_regenerate_keys "false"
+elif [[ -n "$REGEN_ALL_ARG" ]]; then
+    run_regenerate_keys "true"
 else
     main "${ARGS[@]}"
 fi
