@@ -1784,9 +1784,20 @@ setup_database() {
 
     local pg_pw="${SUPABASE_PG_PASSWORD:-postgres}"
     local use_docker_exec=false
-    local db_container="supabase-db"
+    local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 
-    # Determine how to run psql: docker exec into supabase-db (best), local psql, or fallback
+    # Discover DB container if default doesn't exist (e.g. project in "spacious" → spacious-db)
+    if require_cmd docker && ! docker inspect "$db_container" &>/dev/null 2>/dev/null; then
+        local try_name
+        for try_name in $(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '\-db$|_db_1$' || true); do
+            if docker inspect "$try_name" &>/dev/null; then
+                db_container="$try_name"
+                break
+            fi
+        done
+    fi
+
+    # Determine how to run psql: docker exec into db container (best), local psql, or fallback
     if require_cmd docker && docker inspect "$db_container" &>/dev/null; then
         print_info "Found running ${BOLD}$db_container${RESET} container — will use docker exec."
         use_docker_exec=true
@@ -1813,33 +1824,49 @@ setup_database() {
         return
     fi
 
-    # Helper: run psql command via docker exec or local psql
+    # Helper: run psql command via docker exec or local psql (PGPASSWORD used by both)
     run_psql() {
         if $use_docker_exec; then
-            docker exec -i "$db_container" psql -U "$db_user" -d "$db_name" "$@"
+            docker exec -e PGPASSWORD="$pg_pw" -i "$db_container" psql -U "$db_user" -d "$db_name" "$@"
         else
             PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" "$@"
         fi
     }
 
-    # Test connection (with retries — Supabase can take a while to start)
-    print_info "Testing database connection..."
+    # Test connection (with retries — Supabase init can take 60–90+ seconds on first boot)
+    print_info "Testing database connection (Supabase init may take 1–2 minutes)..."
     try_db_connect() {
         run_psql -c "SELECT 1" &>/dev/null
     }
 
     local connected=false
-    local auto_retries=3
+    local auto_retries=12
+    local retry_sleep=10
     for ((i=1; i<=auto_retries; i++)); do
         if try_db_connect; then
             connected=true
             break
         fi
         if [[ $i -lt $auto_retries ]]; then
-            print_info "Waiting 5 seconds before retry ($i/$auto_retries)..."
-            sleep 5
+            print_info "Waiting ${retry_sleep}s before retry ($i/$auto_retries)..."
+            sleep "$retry_sleep"
         fi
     done
+
+    # If supabase_admin fails, try postgres (Supabase roles.sql has a known bug leaving supabase_admin without password)
+    if ! $connected && [[ "$db_user" == "supabase_admin" ]]; then
+        print_info "supabase_admin failed — trying postgres (password from .env)..."
+        db_user="postgres"
+        for ((i=1; i<=3; i++)); do
+            if try_db_connect; then
+                connected=true
+                print_success "Connected as postgres"
+                print_info "supabase_admin has a known init bug in some Supabase postgres images (roles.sql omits it); analytics may fail. Schema will load."
+                break
+            fi
+            [[ $i -lt 3 ]] && sleep 5
+        done
+    fi
 
     while ! $connected; do
         print_error "Cannot connect to database"
@@ -1875,7 +1902,7 @@ setup_database() {
     print_info "Loading init schema..."
     local init_ec=0
     if $use_docker_exec; then
-        docker exec -w /tmp/db_schema/init "$db_container" psql -U "$db_user" -d "$db_name" -f init.sql 2>&1 | tail -15
+        docker exec -e PGPASSWORD="$pg_pw" -w /tmp/db_schema/init "$db_container" psql -U "$db_user" -d "$db_name" -f init.sql 2>&1 | tail -15
         init_ec=${PIPESTATUS[0]}
     else
         (cd "$PROJECT_DIR/db_schema/init" && PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f init.sql) 2>&1 | tail -15
@@ -1901,7 +1928,7 @@ setup_database() {
             fname=$(basename "$migration")
             local mig_ec=0
             if $use_docker_exec; then
-                docker exec "$db_container" psql -U "$db_user" -d "$db_name" -f "/tmp/db_schema/migrations/$fname" &>/dev/null
+                docker exec -e PGPASSWORD="$pg_pw" "$db_container" psql -U "$db_user" -d "$db_name" -f "/tmp/db_schema/migrations/$fname" &>/dev/null
                 mig_ec=$?
             else
                 PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -f "$migration" &>/dev/null
@@ -2071,9 +2098,9 @@ run_schema_setup_only() {
     fi
 
     # 2. Find the Supabase project .env and read POSTGRES_PASSWORD from it
-    #    The installer creates it as a sibling dir (e.g. ../supabase-project/.env)
+    #    The installer creates it as a sibling dir (e.g. ../supabase-project/.env, ../spacious/.env)
     local supabase_env=""
-    for candidate in "$parent_dir"/supabase-project/.env "$parent_dir"/supabase/.env "$parent_dir"/supabase-docker/.env; do
+    for candidate in "$parent_dir"/supabase-project/.env "$parent_dir"/supabase/.env "$parent_dir"/supabase-docker/.env "$parent_dir"/spacious/.env; do
         if [[ -f "$candidate" ]]; then
             supabase_env="$candidate"
             break
@@ -2082,6 +2109,7 @@ run_schema_setup_only() {
 
     if [[ -n "$supabase_env" ]]; then
         print_info "Found Supabase .env at: ${BOLD}$supabase_env${RESET}"
+        SUPABASE_PROJECT_DIR="$(dirname "$supabase_env")"
         local pw_line
         pw_line=$(grep '^POSTGRES_PASSWORD=' "$supabase_env" 2>/dev/null || true)
         if [[ -n "$pw_line" ]]; then
