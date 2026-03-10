@@ -365,15 +365,20 @@ setup_selfhosted_supabase_docker() {
     print_step "3" "Copying Docker compose files"
     cp -rf "$clone_dir/docker/"* "$SUPABASE_PROJECT_DIR/"
 
-    print_info "Adding IMGPROXY_MAX_ANIMATION_FRAMES to imgproxy service"
-    if grep -q "IMGPROXY_MAX_ANIMATION_FRAMES" "$SUPABASE_PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
-        print_info "IMGPROXY_MAX_ANIMATION_FRAMES already present"
-    elif grep -q "IMGPROXY_MAX_SRC_RESOLUTION" "$SUPABASE_PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
-        # Add after IMGPROXY_MAX_SRC_RESOLUTION (match indentation of env vars)
-        sed -i.bak '/IMGPROXY_MAX_SRC_RESOLUTION:/a\      IMGPROXY_MAX_ANIMATION_FRAMES: 120' "$SUPABASE_PROJECT_DIR/docker-compose.yml"
+    print_info "Configuring imgproxy for Harmony (higher resolution, animation frames)"
+    if grep -q "IMGPROXY_MAX_SRC_RESOLUTION" "$SUPABASE_PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
+        # Bump max source resolution from 16.8 to 50 megapixels (modern phone photos can exceed 16.8)
+        sed -i.bak 's/IMGPROXY_MAX_SRC_RESOLUTION:.*/IMGPROXY_MAX_SRC_RESOLUTION: 50/' "$SUPABASE_PROJECT_DIR/docker-compose.yml"
         rm -f "$SUPABASE_PROJECT_DIR/docker-compose.yml.bak"
+        # Add animation frames if not present
+        if ! grep -q "IMGPROXY_MAX_ANIMATION_FRAMES" "$SUPABASE_PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
+            sed -i.bak '/IMGPROXY_MAX_SRC_RESOLUTION:/a\      IMGPROXY_MAX_ANIMATION_FRAMES: 120' "$SUPABASE_PROJECT_DIR/docker-compose.yml"
+            rm -f "$SUPABASE_PROJECT_DIR/docker-compose.yml.bak"
+        fi
     else
-        print_warn "Could not find imgproxy env in docker-compose.yml; add IMGPROXY_MAX_ANIMATION_FRAMES: 120 manually"
+        print_warn "Could not find IMGPROXY_MAX_SRC_RESOLUTION in docker-compose.yml; add manually:"
+        print_info "  IMGPROXY_MAX_SRC_RESOLUTION: 50"
+        print_info "  IMGPROXY_MAX_ANIMATION_FRAMES: 120"
     fi
 
     print_step "4" "Copying .env.example to .env"
