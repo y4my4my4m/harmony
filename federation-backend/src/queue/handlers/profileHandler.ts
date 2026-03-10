@@ -7,18 +7,19 @@
 
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
+import { profileToActor } from '../../activitypub/converters/toActivityPub.js';
+import { resolveLocalProfileEmojis } from '../../activitypub/emojiResolver.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
 import type { FederationJobData } from '../QueueManager.js';
 
 export async function handleProfileJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { profile_id, username, display_name, bio, avatar_url, banner_url, custom_status } = data;
+  const { profile_id, username } = data;
 
   logger.info(`👤 Processing profile update job for: ${username}`);
 
   try {
-    // Get full profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -33,31 +34,11 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
     const domain = config.INSTANCE_DOMAIN;
     const actorUrl = `https://${domain}/users/${profile.username}`;
 
-    // Parse custom_status if available
-    let customStatusData = null;
-    if (profile.custom_status) {
-      try {
-        customStatusData = typeof profile.custom_status === 'string' 
-          ? JSON.parse(profile.custom_status) 
-          : profile.custom_status;
-        
-        // Ensure emoji_url is absolute for federation
-        if (customStatusData.emoji_url && typeof customStatusData.emoji_url === 'string') {
-          // If it's already absolute, keep it; otherwise convert to absolute
-          if (!customStatusData.emoji_url.startsWith('http://') && !customStatusData.emoji_url.startsWith('https://')) {
-            // Relative path - convert to full Supabase URL
-            const { data } = supabase.storage
-              .from('emojis')
-              .getPublicUrl(customStatusData.emoji_url);
-            customStatusData.emoji_url = data.publicUrl;
-          }
-        }
-      } catch (e) {
-        logger.debug('Failed to parse custom_status:', e);
-      }
-    }
+    // Resolve emoji shortcodes so the Actor includes proper tags
+    await resolveLocalProfileEmojis(profile, supabase);
 
-    // Create Update Person activity
+    const actor = profileToActor(profile);
+
     const updateActivity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -67,40 +48,9 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
       type: 'Update',
       actor: actorUrl,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
-      object: {
-        id: actorUrl,
-        type: 'Person',
-        preferredUsername: profile.username,
-        name: profile.display_name || profile.username,
-        summary: profile.bio || '',
-        url: `https://${domain}/@${profile.username}`,
-        icon: profile.avatar_url ? {
-          type: 'Image',
-          mediaType: 'image/png',
-          url: profile.avatar_url
-        } : undefined,
-        image: profile.banner_url ? {
-          type: 'Image',
-          mediaType: 'image/png',
-          url: profile.banner_url
-        } : undefined,
-        // Include custom status in federation (Discord-style status)
-        ...(customStatusData ? {
-          'harmony:customStatus': customStatusData
-        } : {}),
-        inbox: `${actorUrl}/inbox`,
-        outbox: `${actorUrl}/outbox`,
-        followers: `${actorUrl}/followers`,
-        following: `${actorUrl}/following`,
-        publicKey: {
-          id: `${actorUrl}#main-key`,
-          owner: actorUrl,
-          publicKeyPem: profile.public_key
-        }
-      }
+      object: actor,
     };
 
-    // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(profile.id, updateActivity);
     
     logger.info(`✅ Profile update federated for ${profile.username}`);

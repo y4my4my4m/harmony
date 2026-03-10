@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
 import { actorToProfile } from './converters/fromActivityPub.js';
+import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
@@ -1778,6 +1779,9 @@ router.get(
         // Continue anyway - the Actor response will just have no public key
       }
     }
+
+    // Resolve emoji shortcodes for local users so remote instances can render them
+    await resolveLocalProfileEmojis(profile, supabase);
 
     // Convert to ActivityPub Actor
     const actor = profileToActor(profile);

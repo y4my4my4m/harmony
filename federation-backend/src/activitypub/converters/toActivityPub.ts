@@ -190,13 +190,18 @@ export function profileToActor(profile: any): any {
       if (!emoji.name || !emoji.url) continue;
       const shortcode = emoji.name.includes(':') ? emoji.name : `:${emoji.name}:`;
       const emojiUrl = emoji.url.startsWith('http') ? emoji.url : `https://${domain}${emoji.url}`;
+      const ext = emojiUrl.split('.').pop()?.toLowerCase().split('?')[0] || '';
+      const mediaType = ext === 'gif' ? 'image/gif'
+        : ext === 'webp' ? 'image/webp'
+        : ext === 'svg' ? 'image/svg+xml'
+        : 'image/png';
       emojiTags.push({
         type: 'Emoji',
         id: emoji.id ? `https://${domain}/emojis/${emoji.id}` : emojiUrl,
         name: shortcode,
         icon: {
           type: 'Image',
-          mediaType: 'image/png',
+          mediaType,
           url: emojiUrl,
         },
       });

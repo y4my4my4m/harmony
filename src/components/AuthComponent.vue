@@ -191,6 +191,11 @@
       </div>
     </div>
 
+    <!-- Powered by Harmony -->
+    <a href="https://github.com/y4my4my4m/harmony" target="_blank" rel="noopener" class="powered-by">
+      Powered by <strong>Harmony</strong>
+    </a>
+
     <!-- Forgot Password Modal -->
     <Teleport to="body">
       <Transition name="modal">
@@ -1965,6 +1970,31 @@ onMounted(async () => {
   .forgot-link {
     align-self: flex-start;
   }
+}
+
+/* ========================================
+   Powered By
+   ======================================== */
+.powered-by {
+  position: fixed;
+  bottom: 16px;
+  right: 20px;
+  z-index: 20;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.powered-by:hover {
+  opacity: 1;
+  color: var(--text-muted);
+}
+
+.powered-by strong {
+  font-weight: 600;
+  color: var(--primary);
 }
 
 /* Safe area insets for notched phones */
