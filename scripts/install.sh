@@ -843,7 +843,8 @@ NODE_ENV=${MODE/local/development}
 PORT=3001
 API_BASE_URL=$api_base_url
 
-SUPABASE_URL=${SUPABASE_INTERNAL_URL:-$SUPABASE_URL}
+# Use public URL in .env so federation works when run on host (pm2/node). Docker compose overrides with internal URL.
+SUPABASE_URL=$SUPABASE_URL
 SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY
 DATABASE_URL=$DATABASE_URL
@@ -1083,6 +1084,7 @@ generate_docker_compose() {
       - PORT=3001"
 
         if $selfhosted_supabase; then
+            # Supabase compose uses name: supabase → network is supabase_default
             fed_networks+="
       - supabase_default"
             fed_env+="
