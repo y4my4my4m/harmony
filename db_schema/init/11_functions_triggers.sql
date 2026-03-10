@@ -168,41 +168,42 @@ BEGIN
 END;
 $$;
 
--- Create default server structure (categories, channels)
-CREATE OR REPLACE FUNCTION public.trigger_create_default_server_structure()
-RETURNS trigger
+-- Helper: create default server structure (categories, channels)
+CREATE OR REPLACE FUNCTION public.create_default_server_structure(p_server_id uuid)
+RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
     v_text_category_id uuid;
     v_voice_category_id uuid;
-    v_general_channel_id uuid;
 BEGIN
-    -- Create default TEXT CHANNELS category
-    INSERT INTO channel_categories (server_id, name, "order")
-    VALUES (NEW.id, 'Text Channels', 0)
+    INSERT INTO public.channel_categories (server_id, name, "order")
+    VALUES (p_server_id, 'Text Channels', 0)
     RETURNING id INTO v_text_category_id;
-    
-    -- Create default general text channel
-    INSERT INTO channels (server_id, name, type, category, "order")
-    VALUES (NEW.id, 'general', 0, v_text_category_id, 0)
-    RETURNING id INTO v_general_channel_id;
-    
-    -- Create default VOICE CHANNELS category
-    INSERT INTO channel_categories (server_id, name, "order")
-    VALUES (NEW.id, 'Voice Channels', 1)
+
+    INSERT INTO public.channels (server_id, name, type, category, "order")
+    VALUES (p_server_id, 'general', 0, v_text_category_id, 0);
+
+    INSERT INTO public.channel_categories (server_id, name, "order")
+    VALUES (p_server_id, 'Voice Channels', 1)
     RETURNING id INTO v_voice_category_id;
-    
-    -- Create default voice channel
-    INSERT INTO channels (server_id, name, type, category, "order")
-    VALUES (NEW.id, 'General', 1, v_voice_category_id, 0);
-    
-    -- Create server_settings row with system_channel_id pointing to general
-    INSERT INTO server_settings (server_id, system_channel_id)
-    VALUES (NEW.id, v_general_channel_id)
-    ON CONFLICT (server_id) DO UPDATE SET system_channel_id = EXCLUDED.system_channel_id;
-    
+
+    INSERT INTO public.channels (server_id, name, type, category, "order")
+    VALUES (p_server_id, 'voice chat', 1, v_voice_category_id, 0);
+END;
+$$;
+
+-- Create default server structure trigger (skips remote servers)
+CREATE OR REPLACE FUNCTION public.trigger_create_default_server_structure()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NEW.is_local_server = true OR NEW.is_local_server IS NULL THEN
+        PERFORM public.create_default_server_structure(NEW.id);
+    END IF;
     RETURN NEW;
 END;
 $$;

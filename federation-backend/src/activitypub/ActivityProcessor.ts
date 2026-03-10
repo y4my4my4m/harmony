@@ -223,14 +223,54 @@ export class ActivityProcessor {
   private static async processAccept(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
-    // Update follow status to accepted
-    if (activity.object && activity.object.type === 'Follow') {
+    if (!activity.object) return;
+
+    if (activity.object.type === 'Follow') {
       await supabase
         .from('follows')
         .update({ status: 'accepted' })
         .eq('ap_activity_id', activity.object.id);
 
       logger.info(`Follow accepted: ${activity.object.id}`);
+    } else if (activity.object.type === 'Join') {
+      const serverApId = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+      const userActorUrl = typeof activity.object.actor === 'string'
+        ? activity.object.actor
+        : activity.object.actor?.id;
+
+      if (!serverApId || !userActorUrl) {
+        logger.warn('Accept(Join): missing server or user actor URL');
+        return;
+      }
+
+      const { data: server } = await supabase
+        .from('servers')
+        .select('id')
+        .eq('ap_id', serverApId)
+        .maybeSingle();
+
+      if (!server) {
+        logger.warn(`Accept(Join): no local server reference for ${serverApId}`);
+        return;
+      }
+
+      const userProfile = await resolveProfileByActorUrl(userActorUrl);
+      if (!userProfile) {
+        logger.warn(`Accept(Join): could not resolve user ${userActorUrl}`);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('user_servers')
+        .update({ status: 'accepted' })
+        .eq('server_id', server.id)
+        .eq('user_id', userProfile.id);
+
+      if (error) {
+        logger.error('Accept(Join): failed to update membership:', error);
+      } else {
+        logger.info(`✅ Join accepted for user ${userProfile.id} in server ${server.id}`);
+      }
     }
   }
 
@@ -240,14 +280,54 @@ export class ActivityProcessor {
   private static async processReject(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
-    // Update follow status to rejected or delete
-    if (activity.object && activity.object.type === 'Follow') {
+    if (!activity.object) return;
+
+    if (activity.object.type === 'Follow') {
       await supabase
         .from('follows')
         .delete()
         .eq('ap_activity_id', activity.object.id);
 
       logger.info(`Follow rejected: ${activity.object.id}`);
+    } else if (activity.object.type === 'Join') {
+      const serverApId = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+      const userActorUrl = typeof activity.object.actor === 'string'
+        ? activity.object.actor
+        : activity.object.actor?.id;
+
+      if (!serverApId || !userActorUrl) {
+        logger.warn('Reject(Join): missing server or user actor URL');
+        return;
+      }
+
+      const { data: server } = await supabase
+        .from('servers')
+        .select('id')
+        .eq('ap_id', serverApId)
+        .maybeSingle();
+
+      if (!server) {
+        logger.warn(`Reject(Join): no local server reference for ${serverApId}`);
+        return;
+      }
+
+      const userProfile = await resolveProfileByActorUrl(userActorUrl);
+      if (!userProfile) {
+        logger.warn(`Reject(Join): could not resolve user ${userActorUrl}`);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('user_servers')
+        .delete()
+        .eq('server_id', server.id)
+        .eq('user_id', userProfile.id);
+
+      if (error) {
+        logger.error('Reject(Join): failed to remove membership:', error);
+      } else {
+        logger.info(`❌ Join rejected for user ${userProfile.id} in server ${server.id}`);
+      }
     }
   }
 
