@@ -38,6 +38,8 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
     content: extractContentAsHtml(post.content),
     to: getToAddresses(post.visibility, authorUrl),
     cc: getCcAddresses(post.visibility, authorUrl),
+    likes: `${postUrl}/likes`,
+    replies: `${postUrl}/replies`,
   };
 
   // Add content warning (ActivityPub uses 'summary' for CW)

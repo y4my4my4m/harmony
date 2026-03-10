@@ -240,6 +240,181 @@ router.get(
 );
 
 /**
+ * Likes collection for a post
+ * GET /posts/:postId/likes
+ */
+router.get(
+  '/posts/:postId/likes',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { postId } = req.params;
+    const supabase = getSupabaseClient();
+    const postUrl = `https://${config.INSTANCE_DOMAIN}/posts/${postId}`;
+
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id, ap_id')
+      .eq('id', postId)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const { count } = await supabase
+      .from('post_interactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('post_id', postId)
+      .in('interaction_type', ['emoji_reaction', 'favorite']);
+
+    const page = req.query.page as string | undefined;
+    const collectionUrl = `${postUrl}/likes`;
+
+    if (!page) {
+      res.setHeader('Content-Type', 'application/activity+json');
+      return res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: collectionUrl,
+        type: 'OrderedCollection',
+        totalItems: count || 0,
+        first: `${collectionUrl}?page=1`,
+      });
+    }
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limit = 50;
+    const offset = (pageNum - 1) * limit;
+
+    const { data: interactions } = await supabase
+      .from('post_interactions')
+      .select(`
+        id, interaction_type, created_at,
+        profile:profiles!post_interactions_user_id_fkey ( id, username, domain, is_local, ap_id ),
+        emoji:emojis ( name, url )
+      `)
+      .eq('post_id', postId)
+      .in('interaction_type', ['emoji_reaction', 'favorite'])
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    const items = (interactions || []).map((i: any) => {
+      const profile = i.profile;
+      const actorUrl = profile?.is_local
+        ? `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`
+        : profile?.ap_id || `https://${profile?.domain}/users/${profile?.username}`;
+
+      const item: any = {
+        type: 'Like',
+        actor: actorUrl,
+        object: post.ap_id || postUrl,
+      };
+
+      if (i.emoji?.name) {
+        item.content = i.emoji.url ? `:${i.emoji.name}:` : i.emoji.name;
+      }
+      return item;
+    });
+
+    const totalItems = count || 0;
+    const result: any = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${collectionUrl}?page=${pageNum}`,
+      type: 'OrderedCollectionPage',
+      partOf: collectionUrl,
+      totalItems,
+      orderedItems: items,
+    };
+
+    if (offset + limit < totalItems) {
+      result.next = `${collectionUrl}?page=${pageNum + 1}`;
+    }
+
+    res.setHeader('Content-Type', 'application/activity+json');
+    return res.json(result);
+  })
+);
+
+/**
+ * Replies collection for a post
+ * GET /posts/:postId/replies
+ */
+router.get(
+  '/posts/:postId/replies',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { postId } = req.params;
+    const supabase = getSupabaseClient();
+    const postUrl = `https://${config.INSTANCE_DOMAIN}/posts/${postId}`;
+
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id, ap_id')
+      .eq('id', postId)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const { count } = await supabase
+      .from('posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('in_reply_to', postId)
+      .eq('is_deleted', false);
+
+    const page = req.query.page as string | undefined;
+    const collectionUrl = `${postUrl}/replies`;
+
+    if (!page) {
+      res.setHeader('Content-Type', 'application/activity+json');
+      return res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: collectionUrl,
+        type: 'OrderedCollection',
+        totalItems: count || 0,
+        first: `${collectionUrl}?page=1`,
+      });
+    }
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limit = 20;
+    const offset = (pageNum - 1) * limit;
+
+    const { data: replies } = await supabase
+      .from('posts')
+      .select(`
+        id, ap_id, created_at, content, visibility, content_warning, is_sensitive,
+        author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url, domain, is_local )
+      `)
+      .eq('in_reply_to', postId)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    const items = (replies || []).map((reply: any) =>
+      postToNote(reply, reply.author)
+    );
+
+    const totalItems = count || 0;
+    const result: any = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${collectionUrl}?page=${pageNum}`,
+      type: 'OrderedCollectionPage',
+      partOf: collectionUrl,
+      totalItems,
+      orderedItems: items,
+    };
+
+    if (offset + limit < totalItems) {
+      result.next = `${collectionUrl}?page=${pageNum + 1}`;
+    }
+
+    res.setHeader('Content-Type', 'application/activity+json');
+    return res.json(result);
+  })
+);
+
+/**
  * Process delivery queue (called by cron or manually)
  * POST /api/activitypub/process-delivery
  */
