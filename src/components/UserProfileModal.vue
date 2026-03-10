@@ -137,6 +137,12 @@
           </div>
         </div>
 
+        <!-- Custom Status (global, for any user with one set) -->
+        <div v-if="customStatusDisplay" class="custom-status-section">
+          <span class="custom-status-label">Custom Status</span>
+          <span class="custom-status-text">{{ customStatusDisplay }}</span>
+        </div>
+
         <!-- Federation Info (for remote users) -->
         <div v-if="isFederatedUser(user)" class="federation-section">
           <h3 class="section-title">
@@ -340,6 +346,7 @@ import { useServerChannelStore } from '../stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl } from '@/utils/bannerUtils'
+import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 import { coreProfileService } from '@/services/core/CoreProfileService'
 import { roleService, type ServerRole, Permission } from '@/services/RoleService'
 import BaseModal from './common/BaseModal.vue'
@@ -392,6 +399,7 @@ const {
   getUserAvatarUrl,
   getUserColor,
   getUserBannerUrl,
+  getUserCustomStatus,
   subscribeToProfilePresence,
   unsubscribeFromProfilePresence,
   getPresenceAwareStatus
@@ -658,6 +666,13 @@ const userStatusText = computed(() => {
   // Local users - use real-time status text
   const statusText = getUserStatusText(props.user.id).value
   return statusText || 'Offline'
+})
+
+// Custom status (global, stored on profile)
+const customStatusDisplay = computed(() => {
+  if (!props.user) return ''
+  const status = getUserCustomStatus(props.user.id).value
+  return formatCustomStatusDisplay(status)
 })
 
 // Reactive computed properties using useUserData
@@ -1412,6 +1427,29 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 12px;
+}
+
+.custom-status-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+}
+
+.custom-status-label {
+  font-size: 11px;
+  color: #b5bac1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.custom-status-text {
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
 .about-content {

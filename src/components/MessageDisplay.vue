@@ -281,7 +281,7 @@
                 </span>
                 <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)" />
               </span>
-              <span class="timestamp">
+              <span class="timestamp" :title="formatFullTimestamp(item.message.created_at)">
                 {{ formatTimestamp(item.message.created_at) }}
                 <!-- Pin indicator -->
                 <span 
@@ -333,7 +333,7 @@
         
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
-          <div class="message-gutter" :data-timestamp="formatTimeOnly(item.message.created_at)"></div>
+          <div class="message-gutter" :data-timestamp="formatTimeOnly(item.message.created_at)" :title="formatFullTimestamp(item.message.created_at)"></div>
           <div class="message-main">
             <UnifiedMessageContent 
               :content="item.message.content"
@@ -1799,6 +1799,13 @@ const formatTimeOnly = (timestamp: Date) => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
   return format(date, 'p');
+};
+
+/** Full datetime for title/tooltip (e.g. "March 9, 2025 at 3:45 PM") */
+const formatFullTimestamp = (timestamp: Date) => {
+  const date = new Date(timestamp);
+  if (!isValid(date)) return '';
+  return format(date, "MMMM d, yyyy 'at' p");
 };
 
 const formatSystemTimestamp = (timestamp: Date) => {
