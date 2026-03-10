@@ -64,7 +64,9 @@ SCHEMA_SETUP_ONLY=false         # true when invoked with --schema-setup-only
 ENABLE_FEDERATION=true
 ENABLE_VOICE=true
 ENABLE_BOTS=false
+ENABLE_DOCS=false
 USE_DOCKER=true          # run backend services in Docker (vs native Node)
+WEB_ROOT=""              # where nginx serves dist/ from (set during config gen)
 
 LIVEKIT_API_KEY=""
 LIVEKIT_API_SECRET=""
@@ -540,6 +542,18 @@ configure_features() {
         ENABLE_BOTS=false
     fi
 
+    # Documentation site
+    echo ""
+    printf "  ${BOLD}Documentation Site${RESET}\n"
+    print_info "Serves API and user docs at docs.$DOMAIN (VitePress)."
+    print_info "You can always enable this later."
+    echo ""
+    if prompt_yn "Serve documentation site?" "n"; then
+        ENABLE_DOCS=true
+    else
+        ENABLE_DOCS=false
+    fi
+
     # Deployment method (production only)
     if [[ "$MODE" == "production" ]]; then
         echo ""
@@ -580,6 +594,11 @@ configure_features() {
         printf "    ${BGREEN}[x]${RESET} Bot Gateway\n"
     else
         printf "    ${DIM}[ ]${RESET} Bot Gateway\n"
+    fi
+    if $ENABLE_DOCS; then
+        printf "    ${BGREEN}[x]${RESET} Documentation Site (docs.$DOMAIN)\n"
+    else
+        printf "    ${DIM}[ ]${RESET} Documentation Site\n"
     fi
     if [[ "$MODE" == "production" ]]; then
         if $USE_DOCKER; then
@@ -830,8 +849,19 @@ generate_nginx_config() {
         fi
     fi
 
+    # Determine web root — nginx can't traverse /root/, so use /var/www/harmony
+    if [[ "$PROJECT_DIR" == /root/* ]]; then
+        WEB_ROOT="/var/www/harmony"
+        print_warn "Project is inside /root/ — nginx cannot access it."
+        print_info "Static files will be served from ${BOLD}$WEB_ROOT${RESET}"
+    else
+        WEB_ROOT="$PROJECT_DIR/dist"
+    fi
+
     # Generate main harmony config (without the commented LiveKit block)
+    # Replace dist root separately so /var/www/harmony works correctly
     sed -e "s/YOUR_DOMAIN/$DOMAIN/g" \
+        -e "s|/path/to/harmony/dist|$WEB_ROOT|g" \
         -e "s|/path/to/harmony|$PROJECT_DIR|g" \
         "$template" | sed '/^# ====.*LIVEKIT/,$ d' > "$output"
 
@@ -859,6 +889,7 @@ server {
 
 server {
     listen 443 ssl;
+    http2 on;
     server_name $LIVEKIT_SUBDOMAIN;
 
     ssl_certificate /etc/letsencrypt/live/$LIVEKIT_SUBDOMAIN/fullchain.pem;
@@ -885,15 +916,22 @@ LKEOF
         fi
     fi
 
-    # Generate docs nginx config
-    local docs_template="$PROJECT_DIR/dev/nginx-docs.template.conf"
-    local docs_output="$PROJECT_DIR/dev/nginx-docs.conf"
+    # Generate docs nginx config (only if docs enabled)
+    if $ENABLE_DOCS; then
+        local docs_template="$PROJECT_DIR/dev/nginx-docs.template.conf"
+        local docs_output="$PROJECT_DIR/dev/nginx-docs.conf"
+        local docs_web_root="$PROJECT_DIR/docs/.vitepress/dist"
+        if [[ "$PROJECT_DIR" == /root/* ]]; then
+            docs_web_root="/var/www/harmony-docs"
+        fi
 
-    if [[ -f "$docs_template" ]]; then
-        sed -e "s/YOUR_DOMAIN/$DOMAIN/g" \
-            -e "s|/path/to/harmony|$PROJECT_DIR|g" \
-            "$docs_template" > "$docs_output"
-        print_success "Generated ${BOLD}dev/nginx-docs.conf${RESET} from template"
+        if [[ -f "$docs_template" ]]; then
+            sed -e "s/YOUR_DOMAIN/$DOMAIN/g" \
+                -e "s|/path/to/harmony/docs/.vitepress/dist|$docs_web_root|g" \
+                -e "s|/path/to/harmony|$PROJECT_DIR|g" \
+                "$docs_template" > "$docs_output"
+            print_success "Generated ${BOLD}dev/nginx-docs.conf${RESET} from template"
+        fi
     fi
 }
 
@@ -1034,7 +1072,7 @@ $bot_networks"
       - ./dev/nginx-harmony.conf:/etc/nginx/conf.d/harmony.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro"
 
-    if [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]] || [[ -f "$PROJECT_DIR/dev/nginx-docs.template.conf" ]]; then
+    if $ENABLE_DOCS && [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]]; then
         nginx_volumes+="
       - ./dev/nginx-docs.conf:/etc/nginx/conf.d/docs.conf:ro"
     fi
@@ -1117,7 +1155,7 @@ install_nginx_config() {
             fi
         fi
 
-        if [[ -f /etc/nginx/sites-available/harmony-docs ]]; then
+        if $ENABLE_DOCS && [[ -f /etc/nginx/sites-available/harmony-docs ]]; then
             if ! prompt_yn "/etc/nginx/sites-available/harmony-docs already exists. Overwrite?" "n"; then
                 skip_docs=true
             fi
@@ -1135,7 +1173,7 @@ install_nginx_config() {
             print_success "Installed sites-available/harmony"
         fi
 
-        if ! $skip_docs && [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]]; then
+        if $ENABLE_DOCS && ! $skip_docs && [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]]; then
             sudo cp "$PROJECT_DIR/dev/nginx-docs.conf" /etc/nginx/sites-available/harmony-docs
             sudo ln -sf /etc/nginx/sites-available/harmony-docs /etc/nginx/sites-enabled/harmony-docs
             print_success "Installed sites-available/harmony-docs"
@@ -1165,7 +1203,11 @@ setup_ssl() {
     echo ""
     printf "  ${BOLD}Set up SSL with Let's Encrypt?${RESET}\n"
     print_info "Obtains free SSL certificates before installing nginx configs."
-    print_info "Domains: ${BOLD}$DOMAIN${RESET}, docs.$DOMAIN"
+    local cert_domains="${BOLD}$DOMAIN${RESET}"
+    if $ENABLE_DOCS; then
+        cert_domains+=", docs.$DOMAIN"
+    fi
+    print_info "Domains: $cert_domains"
     if $ENABLE_VOICE && [[ -n "$LIVEKIT_SUBDOMAIN" ]]; then
         print_info "LiveKit: ${BOLD}$LIVEKIT_SUBDOMAIN${RESET}"
     fi
@@ -1181,10 +1223,14 @@ setup_ssl() {
                 sudo systemctl stop nginx 2>/dev/null || true
             fi
 
-            # Main domain + docs
-            sudo certbot certonly --standalone -d "$DOMAIN" -d "docs.$DOMAIN" || {
+            # Main domain (+ docs subdomain if enabled)
+            local certbot_domains="-d $DOMAIN"
+            if $ENABLE_DOCS; then
+                certbot_domains+=" -d docs.$DOMAIN"
+            fi
+            sudo certbot certonly --standalone $certbot_domains || {
                 print_warn "Certbot failed for $DOMAIN. You can run it manually later:"
-                printf "  ${CYAN}sudo certbot certonly --standalone -d %s -d docs.%s${RESET}\n" "$DOMAIN" "$DOMAIN"
+                printf "  ${CYAN}sudo certbot certonly --standalone %s${RESET}\n" "$certbot_domains"
             }
 
             # LiveKit subdomain needs its own cert
@@ -1267,6 +1313,20 @@ build_frontend() {
         if require_cmd npm; then
             run_with_spinner "Installing frontend dependencies (npm ci)..." npm ci
             run_with_spinner "Building frontend..." npm run build-only
+
+            # Copy dist to web root if it differs from the build output
+            if [[ -n "$WEB_ROOT" && "$WEB_ROOT" != "$PROJECT_DIR/dist" && -d "$PROJECT_DIR/dist" ]]; then
+                echo ""
+                print_info "Deploying to ${BOLD}$WEB_ROOT${RESET}..."
+                sudo mkdir -p "$WEB_ROOT"
+                if require_cmd rsync; then
+                    sudo rsync -a --delete "$PROJECT_DIR/dist/" "$WEB_ROOT/"
+                else
+                    sudo cp -a "$PROJECT_DIR/dist/"* "$WEB_ROOT/"
+                fi
+                sudo chown -R www-data:www-data "$WEB_ROOT"
+                print_success "Static files deployed to $WEB_ROOT"
+            fi
 
             # For native mode, also install backend deps
             if ! $USE_DOCKER; then
@@ -1445,6 +1505,11 @@ show_summary() {
     [[ -f "$PROJECT_DIR/dev/nginx-harmony.conf" ]] && printf "    ${CHECK} dev/nginx-harmony.conf\n"
     [[ -f "$PROJECT_DIR/dev/nginx-livekit.conf" ]] && printf "    ${CHECK} dev/nginx-livekit.conf\n"
     [[ -f "$PROJECT_DIR/dev/nginx-docs.conf" ]] && printf "    ${CHECK} dev/nginx-docs.conf\n"
+    if [[ -n "$WEB_ROOT" && "$WEB_ROOT" != "$PROJECT_DIR/dist" ]]; then
+        printf "    ${CHECK} Web root: ${BOLD}%s${RESET}\n" "$WEB_ROOT"
+        print_info "After rebuilding, re-deploy with:"
+        printf "      ${CYAN}sudo cp -a dist/* %s/ && sudo chown -R www-data:www-data %s${RESET}\n" "$WEB_ROOT" "$WEB_ROOT"
+    fi
     echo ""
 
     if [[ -n "$SUPABASE_DASHBOARD_PASSWORD" ]]; then
