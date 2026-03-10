@@ -4,6 +4,16 @@ import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
 import { getSupabaseClient } from '../../config/supabase.js';
 
 /**
+ * Insert zero-width spaces around :shortcode: patterns so parsers like
+ * Misskey MFM can detect word boundaries (e.g. `:fire:y4my4m:fire:` →
+ * `\u200b:fire:\u200by4my4m\u200b:fire:\u200b`).
+ */
+function normalizeShortcodeBoundaries(text: string): string {
+  if (!text || !text.includes(':')) return text;
+  return text.replace(/:([a-zA-Z0-9_+-]+):/g, '\u200b:$1:\u200b');
+}
+
+/**
  * Convert internal post format to ActivityPub Note
  * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
  */
@@ -118,7 +128,7 @@ export function profileToActor(profile: any): any {
     id: userUrl,
     type: 'Person',
     preferredUsername: profile.username,
-    name: profile.display_name || profile.username,
+    name: normalizeShortcodeBoundaries(profile.display_name || profile.username),
     summary: profile.bio || '',
     inbox: `${userUrl}/inbox`,
     outbox: `${userUrl}/outbox`,

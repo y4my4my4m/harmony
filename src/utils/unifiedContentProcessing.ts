@@ -75,9 +75,9 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
             .select('id, username, domain, display_name, is_local')
             .eq('username', username)
             .eq('domain', domain)
-            .single();
+            .maybeSingle();
           
-          if (error && error.code !== 'PGRST116') { // PGRST116 is "not found", which is ok
+          if (error && error.code !== 'PGRST116') {
             debug.warn(`Error fetching remote user ${usernameDomain}:`, error);
           }
           

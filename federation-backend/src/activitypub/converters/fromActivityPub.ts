@@ -13,7 +13,10 @@ export function noteToContent(note: any): any[] {
   
   // Step 1: Clean HTML to get plain text
   let cleanText = note.content;
-  cleanText = cleanText.replace(/<[^>]*>/g, ''); // Remove all HTML tags
+  cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
+  cleanText = cleanText.replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n');
+  cleanText = cleanText.replace(/<[^>]*>/g, ' '); // Replace tags with space to preserve word boundaries
+  cleanText = cleanText.replace(/[ \t]+/g, ' ');
   cleanText = cleanText.replace(/&nbsp;/g, ' ');
   cleanText = cleanText.replace(/&amp;/g, '&');
   cleanText = cleanText.replace(/&lt;/g, '<');
@@ -267,7 +270,8 @@ export function actorToProfile(actor: any): {
     let bio = actor.summary;
     bio = bio.replace(/<br\s*\/?>/gi, '\n');  // <br>, <br/>, <br />
     bio = bio.replace(/<\/p>\s*<p>/gi, '\n\n'); // Paragraph breaks
-    bio = bio.replace(/<[^>]*>/g, ''); // Strip remaining HTML tags
+    bio = bio.replace(/<[^>]*>/g, ' '); // Replace tags with space to preserve word boundaries
+    bio = bio.replace(/[ \t]+/g, ' ');
     bio = bio.replace(/&nbsp;/g, ' ');
     bio = bio.replace(/&amp;/g, '&');
     bio = bio.replace(/&lt;/g, '<');

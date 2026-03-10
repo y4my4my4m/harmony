@@ -1773,8 +1773,13 @@ class UserDataService extends EventTarget {
    * Priority: pinnedEmojis (from federation_metadata) > emoji cache > unified emoji pack.
    * Called once per profile load/update — not on every render.
    */
-  resolveDisplayNameParts(displayName: string, pinnedEmojis?: Array<{ id: string; name: string; url: string }>): DisplayNamePart[] | undefined {
+  resolveDisplayNameParts(displayName: string | any[], pinnedEmojis?: Array<{ id: string; name: string; url: string }>): DisplayNamePart[] | undefined {
     if (!displayName) return undefined
+
+    if (typeof displayName !== 'string') {
+      if (Array.isArray(displayName)) return displayName as DisplayNamePart[]
+      return undefined
+    }
 
     EMOJI_SHORTCODE_REGEX.lastIndex = 0
     if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined

@@ -136,23 +136,32 @@ CREATE POLICY "Users can view federation delivery queue" ON public.federation_de
     FOR SELECT TO authenticated USING (true);
 
 -- ---------------------------------------------------------------------------
--- FEDERATED VOICE CALLS
+-- FEDERATED VOICE CALLS (schema varies: init vs production)
 -- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS "System can insert calls" ON public.federated_voice_calls;
-CREATE POLICY "System can insert calls" ON public.federated_voice_calls
-    FOR INSERT WITH CHECK (true);
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'federated_voice_calls' AND column_name = 'caller_id'
+    ) THEN
+        EXECUTE 'DROP POLICY IF EXISTS "System can insert calls" ON public.federated_voice_calls';
+        EXECUTE 'CREATE POLICY "System can insert calls" ON public.federated_voice_calls FOR INSERT WITH CHECK (true)';
 
-DROP POLICY IF EXISTS "Recipients can update call status" ON public.federated_voice_calls;
-CREATE POLICY "Recipients can update call status" ON public.federated_voice_calls
-    FOR UPDATE USING (auth.uid() = recipient_id) WITH CHECK (auth.uid() = recipient_id);
+        EXECUTE 'DROP POLICY IF EXISTS "Recipients can update call status" ON public.federated_voice_calls';
+        EXECUTE 'CREATE POLICY "Recipients can update call status" ON public.federated_voice_calls FOR UPDATE USING (auth.uid() = recipient_id) WITH CHECK (auth.uid() = recipient_id)';
 
-DROP POLICY IF EXISTS "Update own calls" ON public.federated_voice_calls;
-CREATE POLICY "Update own calls" ON public.federated_voice_calls
-    FOR UPDATE USING (caller_id = auth.uid() OR recipient_id = auth.uid());
+        EXECUTE 'DROP POLICY IF EXISTS "Update own calls" ON public.federated_voice_calls';
+        EXECUTE 'CREATE POLICY "Update own calls" ON public.federated_voice_calls FOR UPDATE USING (caller_id = auth.uid() OR recipient_id = auth.uid())';
 
-DROP POLICY IF EXISTS "Service role full access on calls" ON public.federated_voice_calls;
-CREATE POLICY "Service role full access on calls" ON public.federated_voice_calls
-    TO service_role USING (true) WITH CHECK (true);
+        EXECUTE 'DROP POLICY IF EXISTS "Service role full access on calls" ON public.federated_voice_calls';
+        EXECUTE 'CREATE POLICY "Service role full access on calls" ON public.federated_voice_calls TO service_role USING (true) WITH CHECK (true)';
+    ELSE
+        RAISE NOTICE 'federated_voice_calls: caller_id column not found, skipping user-level policies';
+        EXECUTE 'DROP POLICY IF EXISTS "Service role full access on calls" ON public.federated_voice_calls';
+        EXECUTE 'CREATE POLICY "Service role full access on calls" ON public.federated_voice_calls TO service_role USING (true) WITH CHECK (true)';
+    END IF;
+EXCEPTION WHEN undefined_table THEN
+    RAISE NOTICE 'federated_voice_calls table does not exist, skipping';
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- GIF FAVORITES
@@ -179,11 +188,16 @@ CREATE POLICY "Admins can read metrics" ON public.performance_metrics
     );
 
 -- ---------------------------------------------------------------------------
--- PG BACKGROUND JOB
+-- PG BACKGROUND JOB (may not exist on all installations)
 -- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS "Service role manages all background jobs" ON public.pg_background_job;
-CREATE POLICY "Service role manages all background jobs" ON public.pg_background_job
-    USING (auth.role() = 'service_role');
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pg_background_job') THEN
+        EXECUTE 'DROP POLICY IF EXISTS "Service role manages all background jobs" ON public.pg_background_job';
+        EXECUTE 'CREATE POLICY "Service role manages all background jobs" ON public.pg_background_job USING (auth.role() = ''service_role'')';
+    ELSE
+        RAISE NOTICE 'pg_background_job table does not exist, skipping';
+    END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- POST HASHTAGS

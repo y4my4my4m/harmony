@@ -15,7 +15,7 @@ VALUES (
     'avatars',
     true,
     5242880, -- 5MB
-    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/apng']
 )
 ON CONFLICT (id) DO UPDATE SET
     public = EXCLUDED.public,
@@ -29,7 +29,7 @@ VALUES (
     'banners',
     true,
     10485760, -- 10MB
-    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/apng']
 )
 ON CONFLICT (id) DO UPDATE SET
     public = EXCLUDED.public,
@@ -43,7 +43,7 @@ VALUES (
     'server_icons',
     true,
     5242880, -- 5MB
-    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/apng']
 )
 ON CONFLICT (id) DO UPDATE SET
     public = EXCLUDED.public,
@@ -57,7 +57,7 @@ VALUES (
     'server_banners',
     true,
     10485760, -- 10MB
-    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/apng']
 )
 ON CONFLICT (id) DO UPDATE SET
     public = EXCLUDED.public,
@@ -84,7 +84,7 @@ VALUES (
     'emojis',
     true,
     1048576, -- 1MB
-    ARRAY['image/png', 'image/gif', 'image/webp']
+    ARRAY['image/png', 'image/gif', 'image/webp', 'image/apng', 'image/svg+xml', 'image/jpeg']
 )
 ON CONFLICT (id) DO UPDATE SET
     public = EXCLUDED.public,

@@ -1989,7 +1989,13 @@ export class ActivityProcessor {
     // If content is HTML string, convert to basic structure
     if (typeof content === 'string') {
       // Strip HTML tags for plain text
-      const plainText = content.replace(/<[^>]*>/g, '').trim();
+      const plainText = content
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n /g, '\n')
+        .trim();
       content = [{ type: 'text', content: plainText }];
     }
     

@@ -193,7 +193,7 @@
     "addFirstEmoji": "Ajoutez votre premier émoji personnalisé pour rendre votre serveur unique !",
     "allowCrossServer": "Autoriser les émojis inter-serveurs",
     "allowCrossServerDesc": "Permettre aux membres d'utiliser des émojis d'autres serveurs",
-    "emojiUploadRecommendation": "Taille recommandée : 128x128px. Taille maximale : 256KB. PNG, GIF pris en charge.",
+    "emojiUploadRecommendation": "Recommandé : 128×128px. Max : 1 Mo. Formats : PNG, GIF, WebP, APNG, SVG, JPEG.",
     "deleteEmoji": "Supprimer l'émoji",
     "dangerZone": "Zone de danger",
     "deleteServer": "Supprimer le serveur",

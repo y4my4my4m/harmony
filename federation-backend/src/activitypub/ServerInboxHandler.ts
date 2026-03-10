@@ -1453,7 +1453,10 @@ async function sendRejectActivity(
  */
 function stripHtml(html: string): string {
   return html
-    .replace(/<[^>]*>/g, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[ \t]+/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')

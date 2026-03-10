@@ -193,7 +193,7 @@
     "addFirstEmoji": "添加您的第一个自定义表情，让您的服务器独一无二！",
     "allowCrossServer": "允许跨服务器表情",
     "allowCrossServerDesc": "允许成员使用其他服务器的表情",
-    "emojiUploadRecommendation": "推荐大小：128x128px。最大文件大小：256KB。支持 PNG、GIF。",
+    "emojiUploadRecommendation": "推荐：128×128px。最大：1 MB。格式：PNG、GIF、WebP、APNG、SVG、JPEG。",
     "deleteEmoji": "删除表情",
     "dangerZone": "危险区域",
     "deleteServer": "删除服务器",

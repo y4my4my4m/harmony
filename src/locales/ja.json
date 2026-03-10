@@ -253,7 +253,7 @@
     "addFirstEmoji": "最初のカスタム絵文字を追加して、サーバーをユニークにしましょう！",
     "allowCrossServer": "クロスサーバー絵文字を許可",
     "allowCrossServerDesc": "メンバーが他のサーバーの絵文字を使用できるようにする",
-    "emojiUploadRecommendation": "推奨サイズ：128x128px。最大ファイルサイズ：256KB。PNG、GIFをサポート。",
+    "emojiUploadRecommendation": "推奨：128×128px。最大：1 MB。形式：PNG、GIF、WebP、APNG、SVG、JPEG。",
     "deleteEmoji": "絵文字を削除",
     "dangerZone": "危険ゾーン",
     "deleteServer": "サーバーを削除",

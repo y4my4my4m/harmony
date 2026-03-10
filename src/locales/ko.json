@@ -193,7 +193,7 @@
     "addFirstEmoji": "첫 번째 사용자 지정 이모지를 추가하여 서버를 고유하게 만드세요!",
     "allowCrossServer": "다른 서버의 이모지 허용",
     "allowCrossServerDesc": "멤버가 다른 서버의 이모지를 사용할 수 있도록 허용",
-    "emojiUploadRecommendation": "권장 크기: 128x128px. 최대 파일 크기: 256KB. PNG, GIF 지원.",
+    "emojiUploadRecommendation": "권장: 128×128px. 최대: 1 MB. 형식: PNG, GIF, WebP, APNG, SVG, JPEG.",
     "deleteEmoji": "이모지 삭제",
     "dangerZone": "위험 구역",
     "deleteServer": "서버 삭제",

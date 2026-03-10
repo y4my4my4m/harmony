@@ -64,7 +64,7 @@
           <input
             ref="emojiFileInput"
             type="file"
-            accept="image/*"
+            accept="image/png,image/gif,image/webp,image/apng,image/svg+xml,image/jpeg"
             multiple
             class="hidden-file-input"
             @change="handleEmojiUpload"

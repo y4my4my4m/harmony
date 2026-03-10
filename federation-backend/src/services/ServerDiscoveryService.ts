@@ -709,7 +709,7 @@ router.get(
           const messageData: any = {
             channel_id: channelId,
             user_id: author.id,
-            content: note.content ? [{ type: 'text', text: note.content.replace(/<[^>]*>/g, '').trim() }] : [],
+            content: note.content ? [{ type: 'text', text: note.content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim() }] : [],
             created_at: messageTimestamp,
             updated_at: note.updated || messageTimestamp, // Required field - fallback to created_at
             // IMPORTANT: 'federated: true' tells the BEFORE INSERT trigger to skip this message
