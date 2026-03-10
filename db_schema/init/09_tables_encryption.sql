@@ -5,26 +5,19 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- USER PRIVATE KEYS - User's private key material (encrypted at rest)
+-- USER PRIVATE KEYS - Federation key pairs (service_role access only)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.user_private_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
-    
-    -- Encrypted private key (encrypted with user's password-derived key)
-    encrypted_private_key text NOT NULL,
-    
-    -- Key derivation parameters
-    salt text,
-    iterations integer DEFAULT 100000,
-    
+    private_key text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_private_keys_user ON public.user_private_keys(user_id);
 
-COMMENT ON TABLE public.user_private_keys IS 'User private keys encrypted at rest';
+COMMENT ON TABLE public.user_private_keys IS 'Federation private keys - accessible only via service_role';
 
 -- ---------------------------------------------------------------------------
 -- MEGOLM ROOM SESSIONS - E2E encrypted room sessions

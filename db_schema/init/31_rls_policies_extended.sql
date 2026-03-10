@@ -292,9 +292,11 @@ ALTER TABLE public.mfa_recovery_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversation_encryption_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.server_encryption_settings ENABLE ROW LEVEL SECURITY;
 
--- User private keys: own only (NEVER expose to others!)
-CREATE POLICY "user_private_keys_own_only" ON public.user_private_keys
-    FOR ALL USING (user_id = public.get_current_profile_id());
+-- User private keys: service_role only (federation backend uses service_role key)
+DROP POLICY IF EXISTS "user_private_keys_own_only" ON public.user_private_keys;
+DROP POLICY IF EXISTS "Service role only access" ON public.user_private_keys;
+CREATE POLICY "Service role only access" ON public.user_private_keys
+    USING (auth.role() = 'service_role');
 
 -- Megolm room sessions: creator or shared with
 CREATE POLICY "megolm_room_sessions_select" ON public.megolm_room_sessions

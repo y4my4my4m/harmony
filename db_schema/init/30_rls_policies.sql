@@ -150,6 +150,46 @@ CREATE POLICY "Server owners can delete their servers" ON public.servers
     ));
 
 -- ---------------------------------------------------------------------------
+-- CHANNEL CATEGORIES RLS
+-- ---------------------------------------------------------------------------
+-- Note: 98_enable_rls.sql already enables RLS on this table.
+-- Categories are not sensitive — allow all authenticated users to read.
+
+DROP POLICY IF EXISTS "channel_categories_select" ON public.channel_categories;
+CREATE POLICY "channel_categories_select" ON public.channel_categories
+    FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "channel_categories_insert" ON public.channel_categories;
+CREATE POLICY "channel_categories_insert" ON public.channel_categories
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.servers
+            WHERE id = channel_categories.server_id
+            AND owner = public.get_current_profile_id()
+        )
+    );
+
+DROP POLICY IF EXISTS "channel_categories_update" ON public.channel_categories;
+CREATE POLICY "channel_categories_update" ON public.channel_categories
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.user_servers us
+            WHERE us.server_id = channel_categories.server_id
+            AND us.user_id = public.get_current_profile_id()
+        )
+    );
+
+DROP POLICY IF EXISTS "channel_categories_delete" ON public.channel_categories;
+CREATE POLICY "channel_categories_delete" ON public.channel_categories
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM public.servers
+            WHERE id = channel_categories.server_id
+            AND owner = public.get_current_profile_id()
+        )
+    );
+
+-- ---------------------------------------------------------------------------
 -- CHANNELS RLS
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.channels ENABLE ROW LEVEL SECURITY;
