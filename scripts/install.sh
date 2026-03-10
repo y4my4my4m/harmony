@@ -470,7 +470,7 @@ configure_supabase() {
             SUPABASE_URL=$(prompt_input "Supabase URL" "http://localhost:54321")
             SUPABASE_ANON_KEY=$(prompt_input "Anon key" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE")
             SUPABASE_SERVICE_KEY=$(prompt_input "Service role key" "")
-            DATABASE_URL=$(prompt_input "Database URL (for pg-boss)" "postgresql://supabase_admin:postgres@localhost:54322/postgres")
+            DATABASE_URL=$(prompt_input "Database URL (for pg-boss)" "postgresql://postgres:postgres@localhost:54322/postgres")
         else
             SUPABASE_MODE="selfhosted"
             echo ""
@@ -488,7 +488,7 @@ configure_supabase() {
             SUPABASE_URL=$(prompt_input "Supabase URL (once running)" "http://localhost:54321")
             SUPABASE_ANON_KEY=$(prompt_input "Anon key" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE")
             SUPABASE_SERVICE_KEY=""
-            DATABASE_URL="postgresql://supabase_admin:postgres@localhost:54322/postgres"
+            DATABASE_URL="postgresql://postgres:postgres@localhost:54322/postgres"
         fi
     else
         local choice=0
@@ -536,7 +536,7 @@ configure_supabase() {
 
             SUPABASE_URL="https://$SUPABASE_SITE_DOMAIN"
             SUPABASE_INTERNAL_URL="http://supabase-kong:8000"
-            DATABASE_URL="postgresql://supabase_admin:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
+            DATABASE_URL="postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
         fi
     fi
 
@@ -1095,7 +1095,7 @@ generate_docker_compose() {
             fed_env+="
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
-      - DATABASE_URL=postgresql://supabase_admin:\${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres"
+      - DATABASE_URL=postgresql://postgres:\${POSTGRES_PASSWORD}@supabase-db:5432/postgres"
         fi
 
         compose+="
@@ -2295,7 +2295,7 @@ run_regenerate_keys() {
         if [[ "$include_passwords" == "true" ]]; then
             # Update DATABASE_URL password
             sed -i.bak2 \
-                -e "s|postgresql://supabase_admin:[^@]*@|postgresql://supabase_admin:${pg_pw}@|" \
+                -e "s|postgresql://[^:]*:[^@]*@|postgresql://postgres:${pg_pw}@|" \
                 "$fed_env"
             rm -f "${fed_env}.bak2"
         fi

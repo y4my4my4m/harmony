@@ -62,40 +62,55 @@ COMMENT ON TABLE public.blocked_instances IS 'Blocked/defederated instances';
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.ap_activities (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    
-    -- Activity type: Create, Update, Delete, Follow, Like, Announce, etc.
-    activity_type text NOT NULL,
-    
-    -- Actor (who performed the action)
-    actor_id text NOT NULL,
-    
-    -- Object (what was acted upon)
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+
+    ap_id text NOT NULL,
+    ap_type text NOT NULL,
+
+    actor_id uuid,
+    actor_ap_id text NOT NULL,
+
     object_id text,
     object_type text,
-    
-    -- Target (for Add/Remove activities)
-    target_id text,
-    
-    -- Full activity JSON
-    activity_json jsonb NOT NULL,
-    
-    -- Processing status
+    target_id uuid,
+    target_type text,
+
+    activity_data jsonb DEFAULT '{}'::jsonb NOT NULL,
     status text DEFAULT 'pending'::text,
-    processed_at timestamp with time zone,
+
+    to_addresses text[] DEFAULT '{}'::text[],
+    cc_addresses text[] DEFAULT '{}'::text[],
+    bto_addresses text[] DEFAULT '{}'::text[],
+    bcc_addresses text[] DEFAULT '{}'::text[],
+
+    attempts integer DEFAULT 0,
+    last_attempt_at timestamp with time zone,
+    next_attempt_at timestamp with time zone,
     error_message text,
-    retry_count integer DEFAULT 0,
-    
-    -- Direction
-    is_inbound boolean DEFAULT true,
-    
-    CONSTRAINT ap_activities_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'rejected'))
+
+    is_local boolean DEFAULT true,
+    source_domain text,
+    origin_domain text,
+
+    CONSTRAINT ap_activities_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'received', 'processed')),
+    CONSTRAINT ap_activities_valid_type CHECK (ap_type IN (
+        'Create', 'Update', 'Delete', 'Follow', 'Accept', 'Reject', 'Undo',
+        'Like', 'EmojiReaction', 'Announce', 'Add', 'Remove', 'Invite',
+        'Join', 'Leave', 'Block', 'Flag', 'Move', 'Tombstone',
+        'VoiceJoin', 'VoiceLeave', 'VoiceUpdate',
+        'harmony:VoiceCallInvite', 'harmony:VoiceCallAccept',
+        'harmony:VoiceCallReject', 'harmony:VoiceCallEnd',
+        'harmony:VoiceChannelJoin', 'harmony:VoiceChannelLeave',
+        'harmony:VoiceChannelJoinAccept', 'harmony:VoiceChannelJoinReject'
+    ))
 );
 
 ALTER TABLE public.ap_activities REPLICA IDENTITY FULL;
 
-CREATE INDEX IF NOT EXISTS idx_ap_activities_type ON public.ap_activities(activity_type);
-CREATE INDEX IF NOT EXISTS idx_ap_activities_actor ON public.ap_activities(actor_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ap_activities_ap_id ON public.ap_activities(ap_id);
+CREATE INDEX IF NOT EXISTS idx_ap_activities_type ON public.ap_activities(ap_type);
+CREATE INDEX IF NOT EXISTS idx_ap_activities_actor ON public.ap_activities(actor_ap_id);
 CREATE INDEX IF NOT EXISTS idx_ap_activities_status ON public.ap_activities(status);
 CREATE INDEX IF NOT EXISTS idx_ap_activities_created ON public.ap_activities(created_at DESC);
 
@@ -106,25 +121,20 @@ COMMENT ON TABLE public.ap_activities IS 'ActivityPub activity log for federatio
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.ap_actor_cache (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    actor_url text NOT NULL UNIQUE,
-    actor_json jsonb NOT NULL,
-    
-    -- Extracted fields for quick access
-    username text,
-    domain text,
-    display_name text,
-    avatar_url text,
-    inbox_url text,
-    outbox_url text,
-    shared_inbox_url text,
-    public_key text,
-    
-    -- Cache metadata
-    fetched_at timestamp with time zone DEFAULT now(),
-    expires_at timestamp with time zone DEFAULT (now() + interval '24 hours')
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    ap_id text NOT NULL UNIQUE,
+    domain text NOT NULL,
+    username text NOT NULL,
+    actor_data jsonb NOT NULL,
+    last_fetched_at timestamp with time zone DEFAULT now(),
+    cache_expires_at timestamp with time zone DEFAULT (now() + interval '1 hour'),
+    fetch_attempts integer DEFAULT 0,
+    is_reachable boolean DEFAULT true,
+    last_error text
 );
 
-CREATE INDEX IF NOT EXISTS idx_ap_actor_cache_url ON public.ap_actor_cache(actor_url);
+CREATE INDEX IF NOT EXISTS idx_ap_actor_cache_ap_id ON public.ap_actor_cache(ap_id);
 CREATE INDEX IF NOT EXISTS idx_ap_actor_cache_domain ON public.ap_actor_cache(domain);
 
 COMMENT ON TABLE public.ap_actor_cache IS 'Cached remote ActivityPub actors';
