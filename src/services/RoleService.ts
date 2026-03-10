@@ -743,6 +743,10 @@ class RoleService {
     serverId: string,
     channelId?: string
   ): Promise<Record<Permission, boolean>> {
+    if (!userId || !serverId) {
+      return {} as Record<Permission, boolean>
+    }
+
     const cacheKey = `${userId}-${serverId}-${channelId || 'server'}`
 
     // Check cache first

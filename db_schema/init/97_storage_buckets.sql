@@ -22,11 +22,11 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- Backgrounds bucket (profile backgrounds/banners)
+-- Banners bucket (profile banners/backgrounds)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
-    'backgrounds',
-    'backgrounds',
+    'banners',
+    'banners',
     true,
     10485760, -- 10MB
     ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -103,9 +103,9 @@ CREATE POLICY "Public read access for avatars"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'avatars');
 
-CREATE POLICY "Public read access for backgrounds"
+CREATE POLICY "Public read access for banners"
     ON storage.objects FOR SELECT
-    USING (bucket_id = 'backgrounds');
+    USING (bucket_id = 'banners');
 
 CREATE POLICY "Public read access for server_icons"
     ON storage.objects FOR SELECT
@@ -148,27 +148,27 @@ CREATE POLICY "Users can delete their own avatar"
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
--- Authenticated users can upload to backgrounds (their own folder)
-CREATE POLICY "Users can upload their own background"
+-- Authenticated users can upload to banners (their own folder)
+CREATE POLICY "Users can upload their own banner"
     ON storage.objects FOR INSERT
     WITH CHECK (
-        bucket_id = 'backgrounds'
+        bucket_id = 'banners'
         AND auth.role() = 'authenticated'
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
-CREATE POLICY "Users can update their own background"
+CREATE POLICY "Users can update their own banner"
     ON storage.objects FOR UPDATE
     USING (
-        bucket_id = 'backgrounds'
+        bucket_id = 'banners'
         AND auth.role() = 'authenticated'
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
 
-CREATE POLICY "Users can delete their own background"
+CREATE POLICY "Users can delete their own banner"
     ON storage.objects FOR DELETE
     USING (
-        bucket_id = 'backgrounds'
+        bucket_id = 'banners'
         AND auth.role() = 'authenticated'
         AND (storage.foldername(name))[1] = auth.uid()::text
     );
