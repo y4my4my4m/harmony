@@ -699,13 +699,19 @@ generate_supabase_keys() {
 
     local vault_key
     vault_key=$(openssl rand -hex 32)
-    local logflare_key
-    logflare_key=$(openssl rand -hex 32)
+    local pg_meta_crypto
+    pg_meta_crypto=$(openssl rand -hex 32)
+    local secret_key_base
+    secret_key_base=$(openssl rand -base64 48 | tr -d '\n')
+    local logflare_public
+    logflare_public=$(openssl rand -hex 32)
+    local logflare_private
+    logflare_private=$(openssl rand -hex 32)
 
     # Dashboard password (Studio UI login)
     SUPABASE_DASHBOARD_PASSWORD=$(openssl rand -hex 16 2>/dev/null || echo 'change-me-please')
 
-    # Write all secrets into the Supabase project .env
+    # Write all secrets into the Supabase project .env (must match Supabase's expected var names)
     if [[ -f "$SUPABASE_PROJECT_DIR/.env" ]]; then
         sed -i.bak \
             -e "s|JWT_SECRET=.*|JWT_SECRET=$SUPABASE_JWT_SECRET|" \
@@ -713,8 +719,11 @@ generate_supabase_keys() {
             -e "s|SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY|" \
             -e "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$SUPABASE_PG_PASSWORD|" \
             -e "s|DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=$SUPABASE_DASHBOARD_PASSWORD|" \
+            -e "s|SECRET_KEY_BASE=.*|SECRET_KEY_BASE=$secret_key_base|" \
             -e "s|VAULT_ENC_KEY=.*|VAULT_ENC_KEY=$vault_key|" \
-            -e "s|LOGFLARE_API_KEY=.*|LOGFLARE_API_KEY=$logflare_key|" \
+            -e "s|PG_META_CRYPTO_KEY=.*|PG_META_CRYPTO_KEY=$pg_meta_crypto|" \
+            -e "s|LOGFLARE_PUBLIC_ACCESS_TOKEN=.*|LOGFLARE_PUBLIC_ACCESS_TOKEN=$logflare_public|" \
+            -e "s|LOGFLARE_PRIVATE_ACCESS_TOKEN=.*|LOGFLARE_PRIVATE_ACCESS_TOKEN=$logflare_private|" \
             "$SUPABASE_PROJECT_DIR/.env"
         rm -f "$SUPABASE_PROJECT_DIR/.env.bak"
     fi
@@ -2183,19 +2192,28 @@ run_regenerate_keys() {
 
     local new_vault_key
     new_vault_key=$(openssl rand -hex 32)
-    local new_logflare_key
-    new_logflare_key=$(openssl rand -hex 32)
+    local new_pg_meta_crypto
+    new_pg_meta_crypto=$(openssl rand -hex 32)
+    local new_secret_key_base
+    new_secret_key_base=$(openssl rand -base64 48 | tr -d '\n')
+    local new_logflare_public
+    new_logflare_public=$(openssl rand -hex 32)
+    local new_logflare_private
+    new_logflare_private=$(openssl rand -hex 32)
 
-    # Update Supabase .env — keys always
+    # Update Supabase .env — keys always (must match Supabase's expected var names)
     sed -i.bak \
         -e "s|JWT_SECRET=.*|JWT_SECRET=$new_jwt_secret|" \
         -e "s|ANON_KEY=.*|ANON_KEY=$new_anon_key|" \
         -e "s|SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=$new_service_key|" \
+        -e "s|SECRET_KEY_BASE=.*|SECRET_KEY_BASE=$new_secret_key_base|" \
         -e "s|VAULT_ENC_KEY=.*|VAULT_ENC_KEY=$new_vault_key|" \
-        -e "s|LOGFLARE_API_KEY=.*|LOGFLARE_API_KEY=$new_logflare_key|" \
+        -e "s|PG_META_CRYPTO_KEY=.*|PG_META_CRYPTO_KEY=$new_pg_meta_crypto|" \
+        -e "s|LOGFLARE_PUBLIC_ACCESS_TOKEN=.*|LOGFLARE_PUBLIC_ACCESS_TOKEN=$new_logflare_public|" \
+        -e "s|LOGFLARE_PRIVATE_ACCESS_TOKEN=.*|LOGFLARE_PRIVATE_ACCESS_TOKEN=$new_logflare_private|" \
         "$supabase_env"
     rm -f "${supabase_env}.bak"
-    print_success "Updated JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY, VAULT_ENC_KEY"
+    print_success "Updated JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY, SECRET_KEY_BASE, VAULT_ENC_KEY, PG_META_CRYPTO_KEY, LOGFLARE_*"
 
     local pg_pw="${existing_pg_pw}"
 
@@ -2213,6 +2231,10 @@ run_regenerate_keys() {
         echo ""
         printf "    ${BOLD}New Supabase Studio password:${RESET} ${CYAN}%s${RESET}\n" "$new_dashboard_pw"
         printf "    ${BOLD}New Postgres password:${RESET}        ${CYAN}%s${RESET}\n" "$pg_pw"
+        echo ""
+        print_warn "If the DB was already initialized, Postgres still uses the OLD password."
+        print_info "Either remove the DB volume and start fresh, or run inside the db container:"
+        printf "    ${DIM}ALTER ROLE supabase_admin PASSWORD '%s';${RESET}\n" "$pg_pw"
         echo ""
     fi
 
