@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.servers (
     
     name text NOT NULL,
     description text,
-    icon text DEFAULT '/default_server_icon.png'::text,
+    icon text DEFAULT '/default_server.webp'::text,
     banner text,
     
     -- Owner
