@@ -1213,13 +1213,15 @@ class UserDataService extends EventTarget {
     // UUID v4 regex pattern
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     
-    // Filter out non-UUID strings (e.g., federated: prefixed identities) and check if missing/stale
+    // Filter: load if missing, stale, or has Unknown username (incomplete presence-derived data)
     const missingUserIds = userIds.filter(id => {
       if (!uuidPattern.test(id)) {
         debug.warn(`⚠️ Skipping non-UUID user ID in loadUsersData: ${id}`)
         return false
       }
-      return !this.users.has(id) || this.isUserDataStale(id)
+      const existing = this.users.get(id)
+      const hasUnknownUsername = !existing?.username || existing.username === 'Unknown' || existing.username === 'unknown'
+      return !existing || this.isUserDataStale(id) || hasUnknownUsername
     })
     
     if (missingUserIds.length === 0) return
@@ -1234,6 +1236,7 @@ class UserDataService extends EventTarget {
       
       if (profiles) {
         profiles.forEach((profile: any) => {
+          const existing = this.users.get(profile.id)
           const dn = profile.display_name || profile.username || 'Unknown'
           const dnEmojis = this.extractDisplayNameEmojis(profile.federation_metadata)
           const userData: UserData = {
@@ -1251,17 +1254,17 @@ class UserDataService extends EventTarget {
               !profile.domain || 
               profile.domain === import.meta.env.VITE_DOMAIN
             ),
-            status: profile.status ?? UserStatus.Offline,
+            status: profile.status ?? existing?.status ?? UserStatus.Offline,
             customStatus: this.parseCustomStatus(profile.custom_status),
-            isOnline: false,
-            isMobile: false,
-            lastSeen: profile.updated_at || new Date().toISOString(),
-            lastHeartbeat: new Date().toISOString(),
+            isOnline: existing?.isOnline ?? false,
+            isMobile: existing?.isMobile ?? false,
+            lastSeen: existing?.lastSeen ?? profile.updated_at ?? new Date().toISOString(),
+            lastHeartbeat: existing?.lastHeartbeat ?? new Date().toISOString(),
             lastCacheUpdate: new Date().toISOString(),
             createdAt: profile.created_at || new Date().toISOString(),
             updatedAt: profile.updated_at,
-            isAdmin: profile.is_admin || false,
-            isModerator: profile.is_moderator || false,
+            isAdmin: profile.is_admin ?? existing?.isAdmin ?? false,
+            isModerator: profile.is_moderator ?? existing?.isModerator ?? false,
             source: 'database'
           }
           

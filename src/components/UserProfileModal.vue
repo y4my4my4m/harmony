@@ -394,6 +394,7 @@ watch(mutedUsersCount, (newVal) => {
 
 // Use professional presence system
 const { 
+  getUser,
   getUserStatusText,
   getUserDisplayName,
   getUserAvatarUrl,
@@ -588,9 +589,14 @@ const displayHandle = computed(() => {
     return props.user.handle || '@unknown'
   }
   
-  // For chat users, show @username
-  const u = props.user.username || 'unknown'
-  return u.startsWith('@') ? u : `@${u}`
+  // Prefer cache (userDataService) — single source of truth, gets presence + DB updates.
+  // props.user can be a stale reference if cache was replaced after we received it.
+  const userId = props.user.id || (props.user as any).user_id
+  const fromCache = userId ? getUser(userId).value?.username : null
+  const fromProps = props.user.username || (props.user as any).username
+  const u = fromCache || fromProps || 'unknown'
+  const clean = (u === 'unknown' || u === 'Unknown') ? 'unknown' : u
+  return clean.startsWith('@') ? clean : `@${clean}`
 })
 
 const displayAbout = computed(() => {
@@ -856,7 +862,7 @@ const mentionUser = () => {
     router.push('/monyverse')
     emit('close')
   } else {
-    const username = props.user.username
+    const username = props.user.username || getUser(props.user.id).value?.username
     if (username) {
       emit('mention', username)
     }
@@ -871,7 +877,8 @@ const navigateToProfile = () => {
   
   // Build the handle for navigation
   const user = props.user as any
-  let handle = user.handle || `@${user.username}`
+  const username = user.username || getUser(user.id).value?.username
+  let handle = user.handle || `@${username || 'unknown'}`
   
   // Remove leading @ for routing
   handle = handle.replace(/^@/, '')

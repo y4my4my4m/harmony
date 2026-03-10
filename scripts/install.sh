@@ -336,6 +336,17 @@ setup_selfhosted_supabase_docker() {
     print_step "3" "Copying Docker compose files"
     cp -rf "$clone_dir/docker/"* "$SUPABASE_PROJECT_DIR/"
 
+    print_info "Adding IMGPROXY_MAX_ANIMATION_FRAMES to imgproxy service"
+    if grep -q "IMGPROXY_MAX_ANIMATION_FRAMES" "$SUPABASE_PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
+        print_info "IMGPROXY_MAX_ANIMATION_FRAMES already present"
+    elif grep -q "IMGPROXY_MAX_SRC_RESOLUTION" "$SUPABASE_PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
+        # Add after IMGPROXY_MAX_SRC_RESOLUTION (match indentation of env vars)
+        sed -i.bak '/IMGPROXY_MAX_SRC_RESOLUTION:/a\      IMGPROXY_MAX_ANIMATION_FRAMES: 120' "$SUPABASE_PROJECT_DIR/docker-compose.yml"
+        rm -f "$SUPABASE_PROJECT_DIR/docker-compose.yml.bak"
+    else
+        print_warn "Could not find imgproxy env in docker-compose.yml; add IMGPROXY_MAX_ANIMATION_FRAMES: 120 manually"
+    fi
+
     print_step "4" "Copying .env.example to .env"
     cp "$clone_dir/docker/.env.example" "$SUPABASE_PROJECT_DIR/.env"
 

@@ -79,7 +79,7 @@
           }"
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
-          @touchstart.passive="handleMessageTouchStart(item.message.id)"
+          @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
           @touchend.passive="handleMessageTouchEnd"
           @touchmove.passive="handleMessageTouchMove"
         >
@@ -216,8 +216,8 @@
               </div>
             </div>
             
-            <!-- Message actions for system messages (if hovered) -->
-            <div class="message-actions" v-if="hoveredMessageId === item.message.id">
+            <!-- Message actions for system messages (if hovered); on mobile with tap use floating popup -->
+            <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
               <div class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
               <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
               <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
@@ -364,8 +364,8 @@
           </div>
         </div>
         
-        <!-- Message actions -->
-        <div class="message-actions" v-if="hoveredMessageId === item.message.id">
+        <!-- Message actions; on mobile with tap use floating popup -->
+        <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
           <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
           <div class="action-btn" @click="replyTo(item.message)"><ReplyIcon/></div>
           <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
@@ -451,6 +451,29 @@
       </span>
     </div>
   </div>
+
+  <!-- Mobile: message-actions floating above tap (thumb reach ~48px) -->
+  <Teleport to="body">
+    <div
+      v-if="isMobile && hoveredMessageId && mobileActionTapPosition && hoveredMessageItem"
+      class="message-actions message-actions-floating"
+      :style="floatingActionsStyle"
+    >
+      <template v-if="hoveredMessageItem.message.is_system">
+        <div class="action-btn" @click="openEmojiReactor(hoveredMessageItem.message, $event)"><ReactionIcon/></div>
+        <div class="action-btn" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" @click="openContextMenu(hoveredMessageItem.message, $event)"><MoreIcon/></div>
+      </template>
+      <template v-else>
+        <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(hoveredMessageItem.message, $event)"><ReactionIcon/></div>
+        <div class="action-btn" @click="replyTo(hoveredMessageItem.message)"><ReplyIcon/></div>
+        <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(hoveredMessageItem.message)" title="Create Thread"><ThreadIcon/></div>
+        <div class="action-btn" v-if="canEditMessage(hoveredMessageItem.message)" @click="startEdit(hoveredMessageItem.message)"><EditIcon/></div>
+        <div class="action-btn" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" @click="openContextMenu(hoveredMessageItem.message, $event)"><MoreIcon/></div>
+      </template>
+    </div>
+  </Teleport>
 
   <!-- Message Context Menu -->
   <MessageContextMenu
@@ -797,6 +820,26 @@ const displayItems = computed((): DisplayItem[] => {
   
   return result;
 });
+
+const hoveredMessageItem = computed(() => {
+  const id = hoveredMessageId.value;
+  if (!id) return null;
+  return displayItems.value.find((item) => item.type === 'message' && (item as { message: Message }).message?.id === id) as (DisplayItem & { message: Message }) | null;
+});
+
+const THUMB_REACH_PX = 48;
+const floatingActionsStyle = computed(() => {
+  const pos = mobileActionTapPosition.value;
+  if (!pos || typeof window === 'undefined') return {};
+  const bottomPx = Math.max(8, window.innerHeight - pos.y + THUMB_REACH_PX);
+  const popupWidth = 220;
+  const leftPx = Math.max(popupWidth / 2, Math.min(pos.x, window.innerWidth - popupWidth / 2));
+  return {
+    left: `${leftPx}px`,
+    bottom: `${bottomPx}px`,
+    transform: 'translateX(-50%)',
+  };
+});
 const { isCurrentUserServerOwner, canManageMessages } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const { isMobile } = useLayoutState();
@@ -1072,6 +1115,8 @@ const editableMessageContent = ref('');
 const hoveredMessageId = ref<string | null>(null);
 const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const LONG_PRESS_DURATION = 500;
+/** On mobile: tap position for positioning message-actions above the finger (thumb reach ~48px) */
+const mobileActionTapPosition = ref<{ x: number; y: number } | null>(null);
 
 const handleMessageMouseover = (messageId: string) => {
   if (!isMobile.value) {
@@ -1085,9 +1130,12 @@ const handleMessageMouseleave = () => {
   }
 };
 
-const handleMessageTouchStart = (messageId: string) => {
+const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
+  const touch = event.touches[0];
+  const tapPos = touch ? { x: touch.clientX, y: touch.clientY } : null;
   longPressTimer.value = setTimeout(() => {
     hoveredMessageId.value = messageId;
+    mobileActionTapPosition.value = tapPos;
     triggerInteraction();
   }, LONG_PRESS_DURATION);
 };
@@ -1113,6 +1161,10 @@ const dismissMobileActions = (event: MouseEvent) => {
     hoveredMessageId.value = null;
   }
 };
+
+watch(hoveredMessageId, (id) => {
+  if (!id) mobileActionTapPosition.value = null;
+});
 
 const isAtTop = ref(false);
 const hasScrollbar = ref(false);
@@ -2962,11 +3014,14 @@ defineExpose({ editLastOwnMessage });
   .beginning-subtitle {
     font-size: 0.8125rem;
   }
+}
 
-  /* Shift message-actions left so emoji (safe) is under typical long-press, not delete */
-  .message-actions {
-    right: 100px;
-  }
+/* Mobile: floating message-actions positioned above tap (thumb reach) */
+.message-actions-floating {
+  position: fixed !important;
+  top: auto !important;
+  right: auto !important;
+  z-index: 1000;
 }
 
 /* Dark theme adjustments */
