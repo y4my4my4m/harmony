@@ -604,16 +604,17 @@ async function handleNewReaction(interaction: any): Promise<void> {
     
     logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
 
-    const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
-
     // Send to post author's inbox (if remote)
     const { data: postAuthor } = await supabase
       .from('profiles')
-      .select('inbox_url, is_local')
+      .select('inbox_url, is_local, federated_id, username, domain')
       .eq('id', post.author_id)
       .single();
 
     if (postAuthor && !postAuthor.is_local && postAuthor.inbox_url) {
+      const authorUrl = postAuthor.federated_id
+        || `https://${postAuthor.domain}/users/${postAuthor.username}`;
+      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
       logger.info(`✅ Reaction queued for delivery to ${postAuthor.inbox_url}`);
     }
@@ -1828,13 +1829,11 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
     const supabase = getSupabaseClient();
     const domain = config.INSTANCE_DOMAIN;
 
-    // Skip if this is a federated reaction (has federated metadata)
     if (reaction.metadata?.federated) {
       logger.debug('Skipping federated reaction');
       return;
     }
 
-    // Get the user who reacted
     const { data: user } = await supabase
       .from('profiles')
       .select('*')
@@ -1846,10 +1845,9 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
       return;
     }
 
-    // Get the message that was reacted to
     const { data: message } = await supabase
       .from('messages')
-      .select('id, user_id, conversation_id')
+      .select('id, user_id, conversation_id, metadata')
       .eq('id', reaction.message_id)
       .single();
 
@@ -1858,7 +1856,6 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
       return;
     }
 
-    // Get all participants in the conversation (not just message author)
     const { data: participants } = await supabase
       .from('conversation_participants')
       .select(`
@@ -1873,10 +1870,9 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
         )
       `)
       .eq('conversation_id', message.conversation_id)
-      .neq('user_id', reaction.user_id) // Exclude the user who reacted
+      .neq('user_id', reaction.user_id)
       .is('left_at', null);
 
-    // Filter to only remote participants
     const remoteParticipants = participants?.filter(
       (p: any) => !p.profiles.is_local && p.profiles.domain
     ).map((p: any) => p.profiles);
@@ -1886,75 +1882,25 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
       return;
     }
 
-    // Get emoji data - try multiple sources
-    let emojiContent = '❤️'; // Default
-    let emojiData = null;
+    const { content: emojiContent, emojiData } = await resolveOutboundEmoji(
+      reaction.emoji_id,
+      reaction.custom_emoji_content,
+    );
 
-    if (reaction.emoji_id) {
-      logger.debug(`Looking up emoji_id: ${reaction.emoji_id}`);
-      
-      // First try the emojis table
-      const { data: emoji, error: emojiError } = await supabase
-          .from('emojis')
-          .select('id, name, url')
-          .eq('id', reaction.emoji_id)
-          .single();
+    // Use the original ap_id if the message came from a remote instance,
+    // otherwise use our local URL
+    const objectUrl = message.metadata?.ap_id
+      || `https://${domain}/messages/${message.id}`;
 
-      if (emojiError) {
-        logger.warn(`Failed to fetch emoji ${reaction.emoji_id}: ${emojiError.message}`);
-      }
+    const recipientUrls = remoteParticipants.map(
+      (p: any) => p.federated_id || `https://${p.domain}/users/${p.username}`,
+    );
+    const activity = createLikeActivity(
+      user, objectUrl, emojiContent, emojiData ?? undefined, recipientUrls,
+    );
 
-      if (emoji) {
-        logger.debug(`Found emoji: name=${emoji.name}, url=${emoji.url}`);
-        emojiData = { name: emoji.name, url: emoji.url };
-        
-        // Use shortcode format for custom emojis with URLs
-        emojiContent = emoji.url ? `:${emoji.name}:` : emoji.name;
-      } else {
-        // Check if emoji info is in reaction metadata
-        if (reaction.metadata?.emoji_name) {
-          logger.debug(`Using emoji from metadata: ${reaction.metadata.emoji_name}`);
-          emojiContent = reaction.metadata.emoji_url 
-            ? `:${reaction.metadata.emoji_name}:` 
-            : reaction.metadata.emoji_name;
-          if (reaction.metadata.emoji_url) {
-            emojiData = { name: reaction.metadata.emoji_name, url: reaction.metadata.emoji_url };
-          }
-        } else {
-          // Last resort: query the reaction with joined emoji data
-          const { data: reactionWithEmoji } = await supabase
-            .from('reactions')
-            .select(`
-              emoji_id,
-              emojis (
-                id, name, url
-              )
-            `)
-            .eq('id', reaction.id)
-            .single();
-          
-          if (reactionWithEmoji?.emojis) {
-            const e = reactionWithEmoji.emojis as any;
-            logger.debug(`Found emoji via join: name=${e.name}`);
-            emojiData = { name: e.name, url: e.url };
-            emojiContent = e.url ? `:${e.name}:` : e.name;
-          } else {
-            logger.warn(`Emoji not found for id ${reaction.emoji_id}, using default ❤️`);
-          }
-        }
-      }
-    }
-
-    // Build the message URL
-    const messageUrl = `https://${domain}/messages/${message.id}`;
-
-    // Create Like activity
-    const activity = await createLikeActivity(user, messageUrl, emojiContent, emojiData);
-
-    // Send to all remote participants
     for (const participant of remoteParticipants) {
       logger.info(`🌐 Federating message reaction: ${emojiContent} (emoji_id: ${reaction.emoji_id}) to ${participant.username}@${participant.domain}`);
-
       const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
       await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
       logger.info(`✅ Message reaction queued for delivery to ${inboxUrl}`);
@@ -1990,10 +1936,9 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
       return;
     }
 
-    // Get the message
     const { data: message } = await supabase
       .from('messages')
-      .select('id, user_id, conversation_id')
+      .select('id, user_id, conversation_id, metadata')
       .eq('id', deletedReaction.message_id)
       .single();
 
@@ -2002,7 +1947,6 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
       return;
     }
 
-    // Get all participants in the conversation
     const { data: participants } = await supabase
       .from('conversation_participants')
       .select(`
@@ -2019,7 +1963,6 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
       .neq('user_id', deletedReaction.user_id)
       .is('left_at', null);
 
-    // Filter to only remote participants
     const remoteParticipants = participants?.filter(
       (p: any) => !p.profiles.is_local && p.profiles.domain
     ).map((p: any) => p.profiles);
@@ -2029,12 +1972,11 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
       return;
     }
 
-    // Build the message URL
-    const messageUrl = `https://${domain}/messages/${message.id}`;
+    const objectUrl = message.metadata?.ap_id
+      || `https://${domain}/messages/${message.id}`;
 
-    // Create Undo Like activity
     const { createUndoLikeActivity } = await import('./FederationHandlers.js');
-    const activity = createUndoLikeActivity(user, messageUrl);
+    const activity = createUndoLikeActivity(user, objectUrl);
 
     // Send to all remote participants
     for (const participant of remoteParticipants) {

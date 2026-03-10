@@ -299,13 +299,18 @@ export function createAcceptActivity(actor: any, followActivity: any): any {
 }
 
 /**
- * Create a Like activity (for reactions)
+ * Create a Like activity (for reactions).
+ *
+ * @param recipientUrls - ActivityPub actor URLs to address the activity to.
+ *   For post reactions pass the post author URL; for DM reactions pass all
+ *   remote conversation participants. Omit for backwards-compat (no `to`).
  */
 export function createLikeActivity(
   user: any, 
   objectUrl: string, 
   emojiContent?: string,
-  emojiData?: { name: string; url: string }
+  emojiData?: { name: string; url: string },
+  recipientUrls?: string[],
 ): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
@@ -330,6 +335,10 @@ export function createLikeActivity(
     content: reactionValue,
     _misskey_reaction: reactionValue,
   };
+
+  if (recipientUrls && recipientUrls.length > 0) {
+    activity.to = recipientUrls;
+  }
 
   if (emojiData?.url) {
     const ext = emojiData.url.split('.').pop()?.toLowerCase().split('?')[0] || '';

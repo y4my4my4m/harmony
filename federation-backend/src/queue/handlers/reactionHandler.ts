@@ -47,7 +47,7 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
 
     const { data: postAuthor } = await supabase
       .from('profiles')
-      .select('inbox_url, is_local')
+      .select('inbox_url, is_local, federated_id, username, domain')
       .eq('id', post.author_id)
       .single();
 
@@ -60,8 +60,10 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
     if (type === 'create') {
       const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content);
       logger.info(`🎯 Resolved emoji: content="${content}", hasEmojiData=${!!emojiData}, emojiUrl=${emojiData?.url ?? 'none'}`);
-      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
-      logger.debug(`📦 Like activity: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
+      const authorUrl = postAuthor.federated_id
+        || `https://${postAuthor.domain}/users/${postAuthor.username}`;
+      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
+      logger.debug(`📦 Like activity: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, to: activity.to, tag: activity.tag })}`);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
       logger.info(`✅ Reaction federated to ${postAuthor.inbox_url}`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
