@@ -455,7 +455,38 @@ ALTER TABLE public.instance_config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "instance_config_select_all" ON public.instance_config FOR SELECT USING (true);
 
 ALTER TABLE public.emojis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "emojis_select_all" ON public.emojis;
 CREATE POLICY "emojis_select_all" ON public.emojis FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "emojis_insert_server_owner" ON public.emojis;
+CREATE POLICY "emojis_insert_server_owner" ON public.emojis
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.servers
+            WHERE id = emojis.server_id
+            AND owner = public.get_current_profile_id()
+        )
+    );
+
+DROP POLICY IF EXISTS "emojis_update_server_owner" ON public.emojis;
+CREATE POLICY "emojis_update_server_owner" ON public.emojis
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.servers
+            WHERE id = emojis.server_id
+            AND owner = public.get_current_profile_id()
+        )
+    );
+
+DROP POLICY IF EXISTS "emojis_delete_server_owner" ON public.emojis;
+CREATE POLICY "emojis_delete_server_owner" ON public.emojis
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM public.servers
+            WHERE id = emojis.server_id
+            AND owner = public.get_current_profile_id()
+        )
+    );
 
 ALTER TABLE public.hashtags ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "hashtags_select_all" ON public.hashtags FOR SELECT USING (true);

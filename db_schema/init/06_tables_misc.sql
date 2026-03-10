@@ -289,21 +289,36 @@ CREATE TABLE IF NOT EXISTS public.bots (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     
-    name text NOT NULL,
-    description text,
-    avatar_url text,
+    username text NOT NULL,
+    discriminator text DEFAULT '0000'::text,
+    display_name text,
+    avatar_url text DEFAULT '/default_avatar.png'::text,
+    banner_url text,
+    bio text,
     
     owner_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
-    -- Public bots can be added by anyone
-    is_public boolean DEFAULT false,
     is_verified boolean DEFAULT false,
+    is_public boolean DEFAULT true,
+    is_active boolean DEFAULT true,
+    
+    bot_type text DEFAULT 'bot'::text,
+    website_url text,
+    support_server_id uuid,
+    
+    -- Tags for discovery
+    tags text[] DEFAULT '{}'::text[],
     
     -- Stats
     server_count integer DEFAULT 0,
+    user_count integer DEFAULT 0,
+    command_count bigint DEFAULT 0,
     
-    -- Tags for discovery
-    tags text[] DEFAULT '{}'::text[]
+    last_online_at timestamp with time zone,
+    settings jsonb DEFAULT '{}'::jsonb,
+    
+    CONSTRAINT bots_bot_type_check CHECK (bot_type IN ('bot', 'bridge', 'integration')),
+    CONSTRAINT valid_username CHECK (username ~* '^[a-z0-9_-]+$' AND char_length(username) >= 3 AND char_length(username) <= 32)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bots_owner ON public.bots(owner_id);

@@ -79,7 +79,7 @@ router.post(
       if (existingUser) {
         logger.info(`✅ Found existing user in database: ${username}@${domain}`);
         
-        // Check if federation_metadata is missing or empty - if so, we need to refresh
+        // Check if federation_metadata is missing or incomplete - if so, force a refresh
         let needsMetadataRefresh = false;
         try {
           const metadata = existingUser.federation_metadata 
@@ -87,14 +87,19 @@ router.post(
                 ? JSON.parse(existingUser.federation_metadata) 
                 : existingUser.federation_metadata)
             : {};
-          needsMetadataRefresh = !metadata.bio_emojis || metadata.bio_emojis.length === 0;
+          const hasBioEmojis = Array.isArray(metadata.bio_emojis) && metadata.bio_emojis.length > 0;
+          const hasDisplayNameEmojis = Array.isArray(metadata.display_name_emojis) && metadata.display_name_emojis.length > 0;
+          needsMetadataRefresh = !hasBioEmojis && !hasDisplayNameEmojis;
         } catch {
           needsMetadataRefresh = true;
         }
         
-        // If metadata is missing, skip cache and do a full refresh
-        if (needsMetadataRefresh && existingUser.bio && existingUser.bio.includes(':')) {
-          logger.info(`🔄 User ${username}@${domain} has bio with emoji patterns but no emoji metadata - forcing refresh`);
+        // Refresh if metadata is missing AND display name or bio contain shortcode patterns
+        const hasEmojiPatterns = 
+          (existingUser.bio && existingUser.bio.includes(':')) ||
+          (existingUser.display_name && existingUser.display_name.includes(':'));
+        if (needsMetadataRefresh && hasEmojiPatterns) {
+          logger.info(`🔄 User ${username}@${domain} has emoji patterns but no emoji metadata - forcing refresh`);
           // Don't return cached - fall through to full fetch
         } else {
           // Check if we should trigger a background post fetch
