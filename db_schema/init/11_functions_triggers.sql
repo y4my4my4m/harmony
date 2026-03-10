@@ -567,11 +567,58 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-    -- Only for local posts that should be federated
-    IF NEW.is_local = true AND NEW.visibility IN ('public', 'unlisted') THEN
-        NEW.federation_status := 'queued';
+    IF NEW.is_local = false OR NEW.visibility NOT IN ('public', 'unlisted') THEN
+        NEW.federation_status := 'skipped';
+        RETURN NEW;
     END IF;
-    
+
+    IF TG_OP = 'INSERT' THEN
+        NEW.federation_status := 'queued';
+        PERFORM public.queue_federation_job(
+            'federate-post',
+            jsonb_build_object(
+                'type', 'create',
+                'post_id', NEW.id,
+                'author_id', NEW.author_id,
+                'visibility', NEW.visibility,
+                'created_at', NEW.created_at
+            ), 5, 5, 3600
+        );
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.federation_status IS DISTINCT FROM NEW.federation_status
+           AND OLD.content = NEW.content
+           AND OLD.is_deleted = NEW.is_deleted
+           AND OLD.is_pinned = NEW.is_pinned THEN
+            RETURN NEW;
+        END IF;
+
+        IF NEW.is_deleted = true AND OLD.is_deleted = false THEN
+            NEW.federation_status := 'queued';
+            PERFORM public.queue_federation_job(
+                'federate-post',
+                jsonb_build_object('type', 'delete', 'post_id', NEW.id, 'author_id', NEW.author_id),
+                10, 5, 3600
+            );
+        ELSIF NEW.is_pinned IS DISTINCT FROM OLD.is_pinned THEN
+            NEW.federation_status := 'queued';
+            PERFORM public.queue_federation_job(
+                'federate-post',
+                jsonb_build_object('type', 'pin_change', 'post_id', NEW.id, 'author_id', NEW.author_id, 'is_pinned', NEW.is_pinned),
+                5, 5, 3600
+            );
+        ELSIF NEW.content IS DISTINCT FROM OLD.content THEN
+            NEW.federation_status := 'queued';
+            PERFORM public.queue_federation_job(
+                'federate-post',
+                jsonb_build_object('type', 'update', 'post_id', NEW.id, 'author_id', NEW.author_id, 'visibility', NEW.visibility),
+                5, 5, 3600
+            );
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$;
@@ -583,17 +630,39 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    v_follower_local boolean;
-    v_following_local boolean;
+    v_follower_is_local BOOLEAN;
 BEGIN
-    SELECT is_local INTO v_follower_local FROM profiles WHERE id = NEW.follower_id;
-    SELECT is_local INTO v_following_local FROM profiles WHERE id = NEW.following_id;
-    
-    -- If following a remote user, queue for federation
-    IF v_follower_local = true AND v_following_local = false THEN
-        NEW.federation_status := 'queued';
+    SELECT is_local INTO v_follower_is_local FROM public.profiles WHERE id = NEW.follower_id;
+
+    IF v_follower_is_local = true THEN
+        IF TG_OP = 'INSERT' THEN
+            NEW.federation_status := 'queued';
+            PERFORM public.queue_federation_job(
+                'federate-follow',
+                jsonb_build_object(
+                    'type', 'create',
+                    'follow_id', NEW.id,
+                    'follower_id', NEW.follower_id,
+                    'following_id', NEW.following_id,
+                    'status', NEW.status
+                ), 5, 5, 3600
+            );
+        ELSIF TG_OP = 'DELETE' THEN
+            PERFORM public.queue_federation_job(
+                'federate-follow',
+                jsonb_build_object(
+                    'type', 'delete',
+                    'follow_id', OLD.id,
+                    'follower_id', OLD.follower_id,
+                    'following_id', OLD.following_id
+                ), 5, 5, 3600
+            );
+            RETURN OLD;
+        END IF;
+    ELSE
+        NEW.federation_status := 'skipped';
     END IF;
-    
+
     RETURN NEW;
 END;
 $$;
@@ -604,26 +673,36 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    v_post_is_local boolean;
-    v_user_is_local boolean;
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        SELECT is_local INTO v_user_is_local FROM profiles WHERE id = NEW.user_id;
-        SELECT is_local INTO v_post_is_local FROM posts WHERE id = NEW.post_id;
-        
-        -- If local user interacting with remote post, queue for federation
-        IF v_user_is_local = true AND v_post_is_local = false THEN
-            NEW.federation_status := 'queued';
-        END IF;
-        
-        RETURN NEW;
+        NEW.federation_status := 'queued';
+        PERFORM public.queue_federation_job(
+            'federate-reaction',
+            jsonb_build_object(
+                'type', 'create',
+                'interaction_id', NEW.id,
+                'interaction_type', NEW.interaction_type,
+                'post_id', NEW.post_id,
+                'user_id', NEW.user_id,
+                'emoji_id', NEW.emoji_id,
+                'custom_emoji_content', NEW.custom_emoji_content
+            ), 5, 3, 1800
+        );
     ELSIF TG_OP = 'DELETE' THEN
-        -- For deletes, we'd need to queue an Undo activity
+        PERFORM public.queue_federation_job(
+            'federate-reaction',
+            jsonb_build_object(
+                'type', 'delete',
+                'interaction_id', OLD.id,
+                'interaction_type', OLD.interaction_type,
+                'post_id', OLD.post_id,
+                'user_id', OLD.user_id
+            ), 5, 3, 1800
+        );
         RETURN OLD;
     END IF;
-    
-    RETURN NULL;
+
+    RETURN NEW;
 END;
 $$;
 
@@ -1060,6 +1139,20 @@ SECURITY DEFINER
 AS $$
 BEGIN
     NEW.federation_status := 'queued';
+
+    PERFORM public.queue_federation_job(
+        'federate-report',
+        jsonb_build_object(
+            'type', 'create',
+            'report_id', NEW.id,
+            'reporter_id', NEW.reporter_id,
+            'reported_user_id', NEW.reported_user_id,
+            'reported_post_id', NEW.reported_post_id,
+            'reason', NEW.reason
+        ),
+        10, 5, 7200
+    );
+
     RETURN NEW;
 END;
 $$;
