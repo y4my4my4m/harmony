@@ -276,12 +276,14 @@ async function handleInbox(
     // Verify the HTTP signature
     // IMPORTANT: Use req.originalUrl to get the full path as signed by the remote server
     // req.path may be relative to a mounted router and not match what was signed
+    // Use the raw body buffer for digest verification to avoid JSON re-serialization differences
+    const rawBody = (req as any).rawBody as Buffer | undefined;
     const verification = await SignatureService.verifySignature(
       signature,
       req.headers as Record<string, string>,
       req.method,
       req.originalUrl || req.path, // Use originalUrl to match signed (request-target)
-      activity // Pass body for digest verification
+      rawBody || activity // Prefer raw bytes, fall back to parsed object
     );
 
     if (!verification.verified) {

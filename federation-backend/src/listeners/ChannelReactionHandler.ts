@@ -139,16 +139,23 @@ export async function handleChannelReactionFederation(
       emojiContent = reaction.custom_emoji_content || emoji?.name || '❤️';
     }
 
-    const activity = {
+    const activity: any = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        {
+          'harmony': 'https://harmonyapp.dev/ns#',
+          'toot': 'http://joinmastodon.org/ns#',
+          'Emoji': 'toot:Emoji',
+          'misskey': 'https://misskey-hub.net/ns#',
+          '_misskey_reaction': 'misskey:_misskey_reaction',
+        },
       ],
       id: `${userApId}/activities/${crypto.randomUUID()}`,
-      type: isCustomEmoji ? 'EmojiReaction' : 'Like',
+      type: 'Like',
       actor: userApId,
       object: messageApId,
       content: emojiContent,
+      _misskey_reaction: emojiContent,
       tag: emojiTags,
       published: new Date().toISOString(),
     };
@@ -274,16 +281,23 @@ export async function handleChannelReactionRemoval(
     }
     
     const undoActivity = {
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        {
+          'misskey': 'https://misskey-hub.net/ns#',
+          '_misskey_reaction': 'misskey:_misskey_reaction',
+        },
+      ],
       id: `${userApId}/activities/${crypto.randomUUID()}`,
       type: 'Undo',
       actor: userApId,
       object: {
         id: originalLikeId,
-        type: emoji?.url ? 'EmojiReaction' : 'Like',
+        type: 'Like',
         actor: userApId,
         object: messageApId,
         content: emojiContent,
+        _misskey_reaction: emojiContent,
       },
       published: new Date().toISOString(),
     };

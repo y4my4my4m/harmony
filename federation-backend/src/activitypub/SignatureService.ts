@@ -445,8 +445,11 @@ export class SignatureService {
    * Create digest header for request body
    */
   static createDigest(body: any): string {
-    const bodyString = typeof body === 'string' ? body : JSON.stringify(body);
-    const hash = crypto.createHash('sha256').update(bodyString).digest('base64');
+    // Accept Buffer (raw bytes), string, or object
+    const data = Buffer.isBuffer(body) ? body
+      : typeof body === 'string' ? body
+      : JSON.stringify(body);
+    const hash = crypto.createHash('sha256').update(data).digest('base64');
     return `SHA-256=${hash}`;
   }
 }

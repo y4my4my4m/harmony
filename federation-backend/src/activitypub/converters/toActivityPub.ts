@@ -309,36 +309,38 @@ export function createLikeActivity(
   const userUrl = `https://${domain}/users/${user.username}`;
   const activityId = `${userUrl}/likes/${Date.now()}`;
 
+  const reactionValue = emojiContent || '❤';
+
   const activity: any = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       {
         'toot': 'http://joinmastodon.org/ns#',
-        'Emoji': 'toot:Emoji'
+        'Emoji': 'toot:Emoji',
+        'misskey': 'https://misskey-hub.net/ns#',
+        '_misskey_reaction': 'misskey:_misskey_reaction',
       }
     ],
     id: activityId,
     type: 'Like',
     actor: userUrl,
     object: objectUrl,
+    content: reactionValue,
+    _misskey_reaction: reactionValue,
   };
 
-  // Add emoji for Misskey-style reactions
-  if (emojiContent) {
-    activity.content = emojiContent;
-    activity._misskey_reaction = emojiContent;
-    
-    // Add custom emoji tag for proper federation
-    if (emojiData) {
-      activity.tag = [{
-        type: 'Emoji',
-        name: emojiContent,
-        icon: {
-          type: 'Image',
-          url: emojiData.url
-        }
-      }];
-    }
+  // Add custom emoji tag for proper federation
+  if (emojiData?.url) {
+    activity.tag = [{
+      type: 'Emoji',
+      id: emojiData.url,
+      name: emojiContent,
+      icon: {
+        type: 'Image',
+        mediaType: 'image/png',
+        url: emojiData.url,
+      }
+    }];
   }
 
   return activity;

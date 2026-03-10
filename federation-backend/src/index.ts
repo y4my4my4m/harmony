@@ -54,9 +54,15 @@ app.use(cors({
 
 // Body parsing middleware
 // ActivityPub uses application/activity+json and application/ld+json
+// The verify callback captures the raw body buffer for HTTP Signature digest verification.
+// JSON.stringify(JSON.parse(raw)) can differ from the original bytes (key ordering,
+// whitespace, Unicode escaping), causing digest mismatches with remote servers.
 app.use(express.json({ 
   limit: '10mb',
-  type: ['application/json', 'application/activity+json', 'application/ld+json']
+  type: ['application/json', 'application/activity+json', 'application/ld+json'],
+  verify: (req, _res, buf) => {
+    (req as any).rawBody = buf;
+  },
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

@@ -57,8 +57,14 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
         .single();
 
       if (emoji) {
-        emojiData = emoji;
-        emojiContent = `:${emoji.name}:`;
+        if (emoji.url) {
+          // Custom emoji with image URL — use :name: shortcode format
+          emojiData = emoji;
+          emojiContent = `:${emoji.name}:`;
+        } else if (!emojiContent) {
+          // Unicode emoji entry without custom_emoji_content fallback
+          emojiContent = emoji.name;
+        }
       }
     }
 
