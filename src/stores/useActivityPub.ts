@@ -12,6 +12,7 @@ import router from '@/router';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
+import { userDataService } from '@/services/userDataService';
 // InteractionService removed - using direct database operations
 import type { 
   Post, 
@@ -1340,6 +1341,22 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * Ensure post authors are loaded into userDataService so DisplayName
+     * can resolve federation_metadata.display_name_emojis for custom emoji rendering.
+     * Fire-and-forget: does not block the feed from rendering.
+     */
+    ensureAuthorProfilesCached(posts: TimelinePost[]) {
+      const authorIds = new Set<string>();
+      for (const post of posts) {
+        if (post.author_id) authorIds.add(post.author_id);
+        if ((post as any).reblog_author_id) authorIds.add((post as any).reblog_author_id);
+      }
+      if (authorIds.size > 0) {
+        userDataService.ensureUsersLoaded(Array.from(authorIds)).catch(() => {});
+      }
+    },
+
+    /**
      * PERFORMANCE: Batch fetch interactions for reblog original posts
      * This prevents N+1 queries when MonyPost renders reblogs
      */
@@ -1443,6 +1460,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
+        // Ensure author profiles are in userDataService (loads federation_metadata for emoji rendering)
+        this.ensureAuthorProfilesCached(posts);
+        
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
@@ -1488,6 +1508,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           await postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
         }
         
+        // Ensure author profiles are in userDataService (loads federation_metadata for emoji rendering)
+        this.ensureAuthorProfilesCached(posts);
+        
         // Batch load reblog interactions
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
@@ -1525,6 +1548,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           // Force batch fetch to ensure reactions load before components render
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
+        
+        // Ensure author profiles are in userDataService (loads federation_metadata for emoji rendering)
+        this.ensureAuthorProfilesCached(posts);
         
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
@@ -1592,6 +1618,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           // Force batch fetch to ensure reactions load before components render
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
+        
+        // Ensure author profiles are in userDataService (loads federation_metadata for emoji rendering)
+        this.ensureAuthorProfilesCached(posts);
         
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);

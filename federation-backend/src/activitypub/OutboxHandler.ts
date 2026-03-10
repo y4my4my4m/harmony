@@ -183,6 +183,63 @@ router.get(
 );
 
 /**
+ * Serve a single post as an ActivityPub Note object.
+ * Required so remote instances can dereference our post AP IDs
+ * (e.g. https://domain/posts/:uuid) and get JSON instead of the SPA HTML.
+ */
+router.get(
+  '/posts/:postId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { postId } = req.params;
+    const accept = req.headers.accept || '';
+
+    const wantsActivityPub =
+      accept.includes('application/activity+json') ||
+      accept.includes('application/ld+json');
+
+    if (!wantsActivityPub) {
+      // Browser request — let nginx / SPA handle it
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    const supabase = getSupabaseClient();
+
+    const { data: post, error } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        author:profiles!posts_author_id_fkey (
+          id, username, display_name, avatar_url, domain, is_local, public_key
+        )
+      `)
+      .eq('id', postId)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
+    if (error || !post || !post.author) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const note = postToNote(post, post.author);
+
+    if (post.in_reply_to) {
+      const { data: parent } = await supabase
+        .from('posts')
+        .select('ap_id, id')
+        .eq('id', post.in_reply_to)
+        .maybeSingle();
+      if (parent) {
+        note.inReplyTo = parent.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${parent.id}`;
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.json(note);
+  })
+);
+
+/**
  * Process delivery queue (called by cron or manually)
  * POST /api/activitypub/process-delivery
  */
