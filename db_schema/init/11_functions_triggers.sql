@@ -780,22 +780,48 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    v_server_federatable boolean;
+    v_server_id UUID;
+    v_server_is_local BOOLEAN;
+    v_author_is_local BOOLEAN;
 BEGIN
-    -- Check if server has federation enabled and remote members
-    SELECT federation_enabled AND EXISTS(
-        SELECT 1 FROM user_servers us
-        JOIN profiles p ON us.user_id = p.id
-        WHERE us.server_id = (SELECT server_id FROM channels WHERE id = NEW.channel_id)
-          AND p.is_local = false
-    ) INTO v_server_federatable
-    FROM servers
-    WHERE id = (SELECT server_id FROM channels WHERE id = NEW.channel_id);
-    
-    IF v_server_federatable THEN
+    IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
+        IF NEW.metadata ? 'federated' THEN
+            NEW.federation_status := 'skipped';
+            RETURN NEW;
+        END IF;
+
+        SELECT is_local INTO v_author_is_local
+        FROM public.profiles
+        WHERE id = NEW.user_id;
+
+        IF v_author_is_local IS NOT TRUE THEN
+            NEW.federation_status := 'skipped';
+            RETURN NEW;
+        END IF;
+
+        SELECT c.server_id, s.is_local_server
+        INTO v_server_id, v_server_is_local
+        FROM public.channels c
+        JOIN public.servers s ON c.server_id = s.id
+        WHERE c.id = NEW.channel_id;
+
         NEW.federation_status := 'queued';
+
+        PERFORM public.queue_federation_job(
+            'federate-channel-message',
+            jsonb_build_object(
+                'type', 'create',
+                'message_id', NEW.id,
+                'channel_id', NEW.channel_id,
+                'user_id', NEW.user_id,
+                'server_id', v_server_id,
+                'server_is_local', COALESCE(v_server_is_local, true),
+                'created_at', NEW.created_at
+            ),
+            5, 5, 900
+        );
     END IF;
-    
+
     RETURN NEW;
 END;
 $$;
@@ -806,34 +832,60 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    v_has_remote_participant boolean;
 BEGIN
-    -- Check if conversation has remote participants
-    SELECT EXISTS(
-        SELECT 1 FROM conversation_participants cp
-        JOIN profiles p ON cp.user_id = p.id
-        WHERE cp.conversation_id = NEW.conversation_id
-          AND p.is_local = false
-    ) INTO v_has_remote_participant;
-    
-    IF v_has_remote_participant THEN
+    IF NEW.conversation_id IS NOT NULL AND NOT (NEW.metadata ? 'federated') THEN
         NEW.federation_status := 'queued';
+
+        PERFORM public.queue_federation_job(
+            'federate-dm',
+            jsonb_build_object(
+                'type', 'create',
+                'message_id', NEW.id,
+                'conversation_id', NEW.conversation_id,
+                'user_id', NEW.user_id,
+                'created_at', NEW.created_at
+            ),
+            5, 5, 3600
+        );
+    ELSE
+        NEW.federation_status := 'skipped';
     END IF;
-    
+
     RETURN NEW;
 END;
 $$;
 
--- Queue reaction for federation
+-- Queue channel reaction for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_reaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_user_is_local BOOLEAN;
+    v_is_channel_message BOOLEAN;
 BEGIN
-    -- Similar logic to channel messages
+    SELECT is_local INTO v_user_is_local FROM public.profiles WHERE id = NEW.user_id;
+    IF v_user_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+
+    SELECT (channel_id IS NOT NULL AND conversation_id IS NULL) INTO v_is_channel_message
+    FROM public.messages WHERE id = NEW.message_id;
+    IF v_is_channel_message IS NOT TRUE THEN RETURN NEW; END IF;
+
+    IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+
     NEW.federation_status := 'queued';
+    PERFORM public.queue_federation_job(
+        'federate-channel-reaction',
+        jsonb_build_object(
+            'type', 'create',
+            'reaction_id', NEW.id,
+            'message_id', NEW.message_id,
+            'user_id', NEW.user_id,
+            'emoji_id', NEW.emoji_id,
+            'custom_emoji_content', NEW.custom_emoji_content
+        ), 5, 3, 1800
+    );
     RETURN NEW;
 END;
 $$;
@@ -843,44 +895,115 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_user_is_local BOOLEAN;
+    v_is_channel_message BOOLEAN;
 BEGIN
-    -- Queue Undo activity
+    SELECT is_local INTO v_user_is_local FROM public.profiles WHERE id = OLD.user_id;
+    IF v_user_is_local IS NOT TRUE THEN RETURN OLD; END IF;
+
+    SELECT (channel_id IS NOT NULL AND conversation_id IS NULL) INTO v_is_channel_message
+    FROM public.messages WHERE id = OLD.message_id;
+    IF v_is_channel_message IS NOT TRUE THEN RETURN OLD; END IF;
+
+    IF OLD.metadata ? 'federated' THEN RETURN OLD; END IF;
+
+    PERFORM public.queue_federation_job(
+        'federate-channel-reaction',
+        jsonb_build_object(
+            'type', 'delete',
+            'reaction_id', OLD.id,
+            'message_id', OLD.message_id,
+            'user_id', OLD.user_id,
+            'emoji_id', OLD.emoji_id,
+            'custom_emoji_content', OLD.custom_emoji_content
+        ), 5, 3, 1800
+    );
     RETURN OLD;
 END;
 $$;
 
+-- Queue DM reaction for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_message_reaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+    IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
     NEW.federation_status := 'queued';
+    PERFORM public.queue_federation_job(
+        'federate-message-reaction',
+        jsonb_build_object(
+            'type', 'create',
+            'reaction_id', NEW.id,
+            'message_id', NEW.message_id,
+            'user_id', NEW.user_id,
+            'emoji_id', NEW.emoji_id,
+            'custom_emoji_content', NEW.custom_emoji_content
+        ), 5, 3, 1800
+    );
     RETURN NEW;
 END;
 $$;
 
--- Queue message edit/delete for federation
+-- Queue channel message edit for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_edit_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_author_is_local BOOLEAN;
 BEGIN
-    IF NEW.federation_status = 'completed' THEN
-        NEW.federation_status := 'queued';
+    IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
+        IF OLD.content IS NOT DISTINCT FROM NEW.content THEN RETURN NEW; END IF;
+        IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+
+        SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
+        IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+
+        PERFORM public.queue_federation_job(
+            'federate-channel-message-edit',
+            jsonb_build_object(
+                'type', 'update',
+                'message_id', NEW.id,
+                'channel_id', NEW.channel_id,
+                'user_id', NEW.user_id
+            ), 5, 5, 900
+        );
     END IF;
     RETURN NEW;
 END;
 $$;
 
+-- Queue channel message delete for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_delete_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_author_is_local BOOLEAN;
 BEGIN
-    NEW.federation_status := 'queued';
+    IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
+        IF OLD.is_deleted = TRUE OR NEW.is_deleted = FALSE THEN RETURN NEW; END IF;
+        IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+
+        SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
+        IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+
+        PERFORM public.queue_federation_job(
+            'federate-channel-message-delete',
+            jsonb_build_object(
+                'type', 'delete',
+                'message_id', NEW.id,
+                'channel_id', NEW.channel_id,
+                'user_id', NEW.user_id,
+                'ap_id', NEW.metadata->>'ap_id'
+            ), 5, 5, 900
+        );
+    END IF;
     RETURN NEW;
 END;
 $$;
