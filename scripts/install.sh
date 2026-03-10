@@ -6,6 +6,11 @@ set -euo pipefail
 # =============================================================================
 # Pure bash, no external dependencies. ANSI-styled TUI with colors, spinners,
 # and Unicode box-drawing for a modern installer feel.
+#
+# Usage:
+#   ./scripts/install.sh              # Full interactive install
+#   ./scripts/install.sh --schema-setup-only   # Run only DB schema (init + migrations)
+#     Loads DOMAIN/INSTANCE_NAME from .env; prompts for Postgres password if not set.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,6 +59,7 @@ SUPABASE_SITE_DOMAIN=""   # domain for Supabase (site URL, etc.)
 SUPABASE_DASHBOARD_PASSWORD=""  # password for Supabase Studio
 SUPABASE_PG_PASSWORD=""         # postgres password for self-hosted Supabase
 DB_SCHEMA_LOADED=false          # whether setup_database ran successfully
+SCHEMA_SETUP_ONLY=false         # true when invoked with --schema-setup-only
 
 ENABLE_FEDERATION=true
 ENABLE_VOICE=true
@@ -1534,7 +1540,7 @@ setup_database() {
     print_info "This runs ${BOLD}init.sql${RESET} (full schema) and then all migrations."
     echo ""
 
-    if ! prompt_yn "Set up database schema now?" "y"; then
+    if ! $SCHEMA_SETUP_ONLY && ! prompt_yn "Set up database schema now?" "y"; then
         echo ""
         print_info "Run it manually (init.sql uses \\i to include other files — run from db_schema/init):"
         printf "    ${CYAN}cd db_schema/init && PGPASSWORD=... psql -h %s -p %s -U %s -d %s -f init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
@@ -1570,24 +1576,45 @@ setup_database() {
         fi
     fi
 
-    # Test connection
+    # Test connection (with retries — Supabase can take a while to start)
     print_info "Testing database connection..."
-    if $use_docker_for_psql; then
-        if ! docker run --rm --network host -e PGPASSWORD="$pg_pw" postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null; then
-            print_error "Cannot connect to database at ${db_host}:${db_port}"
-            print_info "Make sure Supabase is running, then run manually (see above)."
-            echo ""
-            return
+    try_db_connect() {
+        if $use_docker_for_psql; then
+            docker run --rm --network host -e PGPASSWORD="$pg_pw" postgres:15-alpine psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null
+        else
+            PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null
         fi
-    else
-        if ! PGPASSWORD="$pg_pw" psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name" -c "SELECT 1" &>/dev/null; then
-            print_error "Cannot connect to database at ${db_host}:${db_port}"
-            print_info "Make sure Supabase is running first, then run:"
-            printf "    ${CYAN}cd db_schema/init && PGPASSWORD=xxx psql -h %s -p %s -U %s -d %s -f init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
-            echo ""
-            return
+    }
+
+    local connected=false
+    local auto_retries=3
+    for ((i=1; i<=auto_retries; i++)); do
+        if try_db_connect; then
+            connected=true
+            break
         fi
-    fi
+        if [[ $i -lt $auto_retries ]]; then
+            print_info "Waiting 5 seconds before retry ($i/$auto_retries)..."
+            sleep 5
+        fi
+    done
+
+    while ! $connected; do
+        print_error "Cannot connect to database at ${db_host}:${db_port}"
+        print_info "Supabase may still be starting. You can retry or skip and run schema setup later."
+        echo ""
+        if prompt_yn "Retry in 10 seconds?" "y"; then
+            print_info "Waiting 10 seconds..."
+            sleep 10
+            try_db_connect && connected=true
+        else
+            if prompt_yn "Skip and run schema setup later?" "y"; then
+                print_info "Run when Supabase is ready: ${CYAN}./scripts/install.sh --schema-setup-only${RESET}"
+                echo ""
+                return
+            fi
+        fi
+    done
 
     print_success "Database connection OK"
 
@@ -1703,4 +1730,67 @@ main() {
     show_summary
 }
 
-main "$@"
+# ---------------------------------------------------------------------------
+# --schema-setup-only: load config from .env and run only database schema setup
+# ---------------------------------------------------------------------------
+run_schema_setup_only() {
+    local env_file="$PROJECT_DIR/.env"
+    local fed_env="$PROJECT_DIR/federation-backend/.env"
+
+    echo ""
+    print_box "Schema setup only"
+    print_info "Loading connection settings from existing .env files."
+    echo ""
+
+    # Load project .env (VITE_* and any HARMONY_* or DB vars)
+    if [[ -f "$env_file" ]]; then
+        while IFS= read -r line; do
+            [[ "$line" =~ ^VITE_INSTANCE_DOMAIN= ]] && DOMAIN="${line#VITE_INSTANCE_DOMAIN=}"
+            [[ "$line" =~ ^VITE_INSTANCE_NAME= ]] && INSTANCE_NAME="${line#VITE_INSTANCE_NAME=}"
+            [[ "$line" =~ ^HARMONY_DB_PASSWORD= ]] && SUPABASE_PG_PASSWORD="${line#HARMONY_DB_PASSWORD=}"
+            [[ "$line" =~ ^SUPABASE_PG_PASSWORD= ]] && SUPABASE_PG_PASSWORD="${line#SUPABASE_PG_PASSWORD=}"
+        done < <(grep -E '^VITE_INSTANCE_DOMAIN=|^VITE_INSTANCE_NAME=|^HARMONY_DB_PASSWORD=|^SUPABASE_PG_PASSWORD=' "$env_file" 2>/dev/null || true)
+        # Strip optional quotes
+        DOMAIN="${DOMAIN//\"/}"
+        INSTANCE_NAME="${INSTANCE_NAME//\"/}"
+        SUPABASE_PG_PASSWORD="${SUPABASE_PG_PASSWORD//\"/}"
+    fi
+
+    # federation-backend/.env may have DATABASE_URL (for cloud); we use self-hosted path by default
+    if [[ -f "$fed_env" ]]; then
+        while IFS= read -r line; do
+            [[ "$line" =~ ^DATABASE_URL= ]] && DATABASE_URL="${line#DATABASE_URL=}"
+        done < <(grep '^DATABASE_URL=' "$fed_env" 2>/dev/null || true)
+    fi
+
+    # Defaults for self-hosted
+    DOMAIN="${DOMAIN:-localhost}"
+    INSTANCE_NAME="${INSTANCE_NAME:-Harmony}"
+    SUPABASE_MODE="selfhosted"
+    SCHEMA_SETUP_ONLY=true
+
+    if [[ -z "$SUPABASE_PG_PASSWORD" ]]; then
+        print_info "Postgres password not in .env. You can set HARMONY_DB_PASSWORD or SUPABASE_PG_PASSWORD in .env to avoid this prompt."
+        SUPABASE_PG_PASSWORD=$(prompt_input "Supabase Postgres password" "")
+        [[ -z "$SUPABASE_PG_PASSWORD" ]] && SUPABASE_PG_PASSWORD="postgres"
+    fi
+
+    setup_database
+}
+
+# Parse args for standalone flags
+SCHEMA_SETUP_ONLY_ARG=
+ARGS=()
+for arg in "$@"; do
+    if [[ "$arg" == "--schema-setup-only" ]]; then
+        SCHEMA_SETUP_ONLY_ARG=1
+    else
+        ARGS+=("$arg")
+    fi
+done
+
+if [[ -n "$SCHEMA_SETUP_ONLY_ARG" ]]; then
+    run_schema_setup_only
+else
+    main "${ARGS[@]}"
+fi
