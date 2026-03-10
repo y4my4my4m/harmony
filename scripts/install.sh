@@ -2233,8 +2233,9 @@ run_regenerate_keys() {
         printf "    ${BOLD}New Postgres password:${RESET}        ${CYAN}%s${RESET}\n" "$pg_pw"
         echo ""
         print_warn "If the DB was already initialized, Postgres still uses the OLD password."
-        print_info "Either remove the DB volume and start fresh, or run inside the db container:"
-        printf "    ${DIM}ALTER ROLE supabase_admin PASSWORD '%s';${RESET}\n" "$pg_pw"
+        print_info "Supabase restricts superuser — ALTER ROLE does not work. You must remove the DB volume and start fresh:"
+        printf "    ${CYAN}cd %s && docker compose down -v && docker compose up -d${RESET}\n" "$(dirname "$supabase_env")"
+        print_info "(-v removes volumes; DB will reinitialize with the new password. Re-run schema/migrations.)"
         echo ""
     fi
 
@@ -2285,8 +2286,8 @@ run_regenerate_keys() {
     printf "    ${CYAN}cd %s && docker compose down && docker compose up -d${RESET}\n" "$PROJECT_DIR"
     echo ""
     if [[ "$include_passwords" == "true" ]]; then
-        print_warn "Postgres password changed — if Supabase DB has data, update the password inside the container too:"
-        printf "    ${CYAN}docker exec -it supabase-db psql -U supabase_admin -c \"ALTER ROLE supabase_admin PASSWORD '%s';\"${RESET}\n" "$pg_pw"
+        print_warn "Postgres password changed — if analytics fails with invalid_password, remove DB volume and restart:"
+        printf "    ${CYAN}cd %s && docker compose down -v && docker compose up -d${RESET}\n" "$supabase_dir"
         echo ""
     fi
     print_info "Then rebuild the frontend (new anon key is baked into the build):"
