@@ -124,9 +124,9 @@ prompt_input() {
     local result
 
     if [[ -n "$default" ]]; then
-        printf "  ${ARROW} ${BOLD}%s${RESET} ${DIM}[%s]${RESET}: " "$prompt_text" "$default"
+        printf "  ${ARROW} ${BOLD}%s${RESET} ${DIM}[%s]${RESET}: " "$prompt_text" "$default" >&2
     else
-        printf "  ${ARROW} ${BOLD}%s${RESET}: " "$prompt_text"
+        printf "  ${ARROW} ${BOLD}%s${RESET}: " "$prompt_text" >&2
     fi
     read -r result
     if [[ -z "$result" ]]; then
@@ -189,7 +189,7 @@ spinner() {
         local c="${spin_chars:i%${#spin_chars}:1}"
         printf "\r  ${CYAN}%s${RESET} %s" "$c" "$msg"
         sleep 0.1
-        ((i++))
+        ((++i))
     done
     wait "$pid" 2>/dev/null
     local exit_code=$?
