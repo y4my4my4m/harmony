@@ -81,6 +81,9 @@ export interface DonationRecord {
 const BADGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 const badgeCache = new Map<string, { badge: SupporterBadge | null; fetchedAt: number }>()
 
+// Dedup in-flight badge requests so concurrent calls for the same user share one RPC
+const pendingBadgeRequests = new Map<string, Promise<SupporterBadge | null>>()
+
 class FundingService {
   async getFundingConfig(): Promise<FundingConfig | null> {
     try {
@@ -276,19 +279,46 @@ class FundingService {
       return cached.badge
     }
 
-    try {
-      const { data, error } = await supabase.rpc('get_supporter_badge', {
-        p_user_id: userId
-      })
+    // Dedup concurrent requests for the same userId
+    const pending = pendingBadgeRequests.get(userId)
+    if (pending) return pending
 
-      if (error) throw error
-      const badge = data?.[0] || null
-      badgeCache.set(userId, { badge, fetchedAt: Date.now() })
-      return badge
-    } catch (error) {
-      debug.error('Failed to get supporter badge:', error)
-      return null
-    }
+    const request = (async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_supporter_badge', {
+          p_user_id: userId
+        })
+
+        if (error) throw error
+        const badge = data?.[0] || null
+        badgeCache.set(userId, { badge, fetchedAt: Date.now() })
+        return badge
+      } catch (error) {
+        debug.error('Failed to get supporter badge:', error)
+        return null
+      } finally {
+        pendingBadgeRequests.delete(userId)
+      }
+    })()
+
+    pendingBadgeRequests.set(userId, request)
+    return request
+  }
+
+  /**
+   * Batch-prefetch supporter badges for multiple users at once.
+   * Fills the cache so individual SupporterBadge components hit cache instead of RPC.
+   */
+  async prefetchBadges(userIds: string[]): Promise<void> {
+    const now = Date.now()
+    const uncached = [...new Set(userIds)].filter(id => {
+      const cached = badgeCache.get(id)
+      return !cached || now - cached.fetchedAt >= BADGE_CACHE_TTL
+    })
+    if (uncached.length === 0) return
+
+    // Fire all uncached requests in parallel (dedup handles concurrent calls)
+    await Promise.allSettled(uncached.map(id => this.getSupporterBadge(id)))
   }
 
   async addDonation(

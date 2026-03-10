@@ -482,11 +482,33 @@ async function loadUserRoles(userId: string) {
 }
 
 /**
- * Fetch instance info for a domain via nodeinfo
+ * Fetch instance info for a domain via nodeinfo.
+ * Skips when domain is the current instance (we already know it) or when the fetch
+ * would be cross-origin (causes CORS errors, e.g. app on https://har.mony.local
+ * fetching from http://localhost).
  */
 async function loadInstanceInfo(domain: string) {
   if (!domain || isLoadingInstanceInfo.value) return
-  
+
+  // Skip for current instance - no need to fetch our own nodeinfo
+  const currentHost = typeof window !== 'undefined' ? window.location.host : currentDomain
+  const domainNorm = domain.split(':')[0].toLowerCase()
+  const currentHostNorm = (currentHost?.split(':')[0] || currentDomain || '').toLowerCase()
+  if (domainNorm === currentHostNorm || domainNorm === (currentDomain || '').toLowerCase()) {
+    instanceInfo.value = { status: 'active', software: 'Harmony' }
+    return
+  }
+
+  // Skip when cross-origin would fail (e.g. HTTPS page fetching HTTP localhost)
+  if (typeof window !== 'undefined') {
+    const pageProtocol = window.location.protocol
+    const targetProtocol = (domain === 'localhost' || domain.startsWith('localhost:')) ? 'http:' : 'https:'
+    if (pageProtocol === 'https:' && targetProtocol === 'http:') {
+      instanceInfo.value = { status: 'unknown', software: undefined }
+      return
+    }
+  }
+
   isLoadingInstanceInfo.value = true
   try {
     // Try to fetch nodeinfo
@@ -541,16 +563,19 @@ async function loadInstanceInfo(domain: string) {
   }
 }
 
-// Type guards - check for ActivityPub-related properties
+// Type guard: only truly remote/federated users, not local users with a domain field
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
   if (!user) return false;
-  // Check for common federated user properties
-  return 'handle' in user || 
-         'domain' in user || 
-         'followers_count' in user || 
-         'following_count' in user ||
-         'posts_count' in user ||
-         'federated_id' in user;
+  const u = user as any;
+  // Explicitly remote (is_local === false) is the strongest signal
+  if (u.is_local === false) return true;
+  // Has a handle like @user@remote.server
+  if (u.handle && u.handle.includes('@') && u.handle.split('@').filter(Boolean).length >= 2) return true;
+  // Has a federated_id (ActivityPub canonical URL)
+  if (u.federated_id || u.ap_id) return true;
+  // Has a domain that differs from the current instance
+  if (u.domain && u.domain !== currentDomain && u.domain !== 'localhost') return true;
+  return false;
 }
 
 /**
@@ -584,19 +609,20 @@ const isCurrentUser = computed(() => {
 
 const displayHandle = computed(() => {
   if (!props.user) return '@unknown'
-  
+  const u = props.user as any
+
+  // Remote federated users: @username@domain
   if (isFederatedUser(props.user)) {
-    return props.user.handle || '@unknown'
+    if (u.handle) return u.handle
+    const username = u.username || getUser(props.user.id).value?.username
+    const domain = u.domain
+    if (username && domain) return `@${username}@${domain}`
   }
-  
-  // Prefer cache (userDataService) — single source of truth, gets presence + DB updates.
-  // props.user can be a stale reference if cache was replaced after we received it.
-  const userId = props.user.id || (props.user as any).user_id
-  const fromCache = userId ? getUser(userId).value?.username : null
-  const fromProps = props.user.username || (props.user as any).username
-  const u = fromCache || fromProps || 'unknown'
-  const clean = (u === 'unknown' || u === 'Unknown') ? 'unknown' : u
-  return clean.startsWith('@') ? clean : `@${clean}`
+
+  // Local users: @username
+  const username = u.username || getUser(props.user.id).value?.username
+  if (username && username !== 'Unknown' && username !== 'unknown') return `@${username}`
+  return '@unknown'
 })
 
 const displayAbout = computed(() => {

@@ -547,6 +547,7 @@ import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
+import { fundingService } from '@/services/FundingService';
 import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
@@ -1299,10 +1300,13 @@ watch(() => props.messages, (newMessages) => {
   });
 
   if (userIds.size > 0) {
+    const userIdArray = Array.from(userIds);
     setTimeout(() => {
-      ensureProfilesAvailable(Array.from(userIds)).catch(error => {
+      ensureProfilesAvailable(userIdArray).catch(error => {
         debug.error('Error ensuring user profiles are available:', error);
       });
+      // Batch-prefetch supporter badges to avoid N+1 RPC calls
+      fundingService.prefetchBadges(userIdArray).catch(() => {});
     }, 0);
   }
 

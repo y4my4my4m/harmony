@@ -581,6 +581,7 @@ const {
   getUserDomain,
   getUserCustomStatus,
   getUserProfile,
+  fetchUserProfile,
 } = useUserData();
 
 function getCustomStatusDisplay(userId: string): string {
@@ -922,8 +923,10 @@ watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId)
   }
 }, { immediate: true });
 
-const showUserProfile = (user: User) => {
-  selectedUser.value = user;
+const showUserProfile = async (user: User) => {
+  if (!user?.id) return;
+  const fetched = getUserProfile(user.id).value || await fetchUserProfile(user.id, true).catch(() => null);
+  selectedUser.value = (fetched || user) as User;
   showProfileModal.value = true;
 };
 
