@@ -157,13 +157,18 @@ class GlobalDMCallListenerService {
         break
         
       case 'timeout':
+        // Caller's timeout fired — dismiss our incoming call modal
+        debug.log('⏰ Call timed out — dismissing incoming call modal')
         dmCallSignaling.handleRemoteSignal(signal)
-        toast.warning('No answer - call timed out')
+        this.dismissIncomingCall()
+        toast.warning('Missed call')
         break
         
       case 'end':
+        // Caller cancelled or call ended — dismiss incoming call modal
+        debug.log('📞 Call ended/cancelled — dismissing incoming call modal')
         dmCallSignaling.handleRemoteSignal(signal)
-        toast.info('Call ended')
+        this.dismissIncomingCall()
         break
       
       case 'join':
