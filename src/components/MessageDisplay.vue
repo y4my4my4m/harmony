@@ -1248,6 +1248,7 @@ const rowVirtualizer = useVirtualizer(computed(() => ({
   getScrollElement: () => messageDisplayContainer.value,
   estimateSize: () => 60,
   overscan: 10,
+  initialOffset: displayItems.value.length * 60,
 })));
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
@@ -1317,12 +1318,18 @@ const getReplyUserId = (replyMessageId: string) => {
 };
 
 // --- WATCHERS ---
-watch(() => props.messages, (newMessages) => {
+let hasInitiallyScrolled = false;
+
+watch([() => props.channelId, () => props.conversationId], () => {
+  hasInitiallyScrolled = false;
+});
+
+watch(() => props.messages, (newMessages, oldMessages) => {
   if (!newMessages || !Array.isArray(newMessages)) {
     return;
   }
 
-  const oldDisplayItemCount = displayItems.value.length;
+  const oldMessageCount = oldMessages?.length ?? 0;
   const firstVisibleVRow = virtualRows.value[0];
   const firstVisibleKey = firstVisibleVRow ? displayItems.value[firstVisibleVRow.index]?.key : null;
 
@@ -1387,8 +1394,9 @@ watch(() => props.messages, (newMessages) => {
   if (newMessages.length > 0) {
     nextTick(() => {
       if (messageDisplayContainer.value) {
-        // If this is the initial load (no previous items), scroll to bottom
-        if (oldDisplayItemCount === 0 && newMessages.length > 0) {
+        // If this is the initial load, scroll to bottom
+        if (!hasInitiallyScrolled && newMessages.length > 0) {
+          hasInitiallyScrolled = true;
           debug.log('📜 Initial load - scrolling to bottom');
           
           // Set flag so we re-scroll when images load
@@ -1438,31 +1446,33 @@ watch(() => props.messages, (newMessages) => {
           debug.log('📜 Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
           debug.log('📜 Total embeds to load:', totalEmbeds);
           
-          const scrollToBottom = (finalAttempt = false) => {
+          let scrollAttempts = 0;
+          const scrollToBottom = () => {
+            scrollAttempts++;
+            const count = displayItems.value.length;
+            if (count > 0) {
+              rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
+            }
+            // Raw fallback: also set scrollTop directly in case virtualizer hasn't laid out yet
+            if (messageDisplayContainer.value) {
+              messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+            }
             requestAnimationFrame(() => {
-              const count = displayItems.value.length;
-              if (count > 0) {
-                rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
-              }
-              requestAnimationFrame(() => {
-                if (messageDisplayContainer.value) {
-                  const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-                  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-                  if (!isAtBottom && !finalAttempt) {
-                    setTimeout(() => scrollToBottom(true), 100);
-                  } else if (isAtBottom || finalAttempt) {
-                    setTimeout(() => {
-                      shouldBeAtBottom.value = false;
-                    }, 500);
-                  }
+              if (messageDisplayContainer.value) {
+                const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+                const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+                if (!isAtBottom && scrollAttempts < 8) {
+                  setTimeout(() => scrollToBottom(), scrollAttempts < 3 ? 50 : 150);
+                } else {
+                  setTimeout(() => { shouldBeAtBottom.value = false; }, 500);
                 }
-              });
+              }
             });
           };
           
           if (pendingImages.length === 0 && totalEmbeds === 0) {
-            // No images or embeds to wait for, scroll immediately
-            setTimeout(() => scrollToBottom(), 50);
+            // Scroll immediately, then retry after virtualizer renders
+            nextTick(() => scrollToBottom());
           } else {
             // Wait for images and embeds to load, but with a maximum timeout
             const maxWaitTime = 3000; // Maximum 3 seconds (increased for embeds)
@@ -1497,7 +1507,7 @@ watch(() => props.messages, (newMessages) => {
           }
         } 
         // When loading older messages, maintain scroll position by finding the previously-first-visible item
-        else if (displayItems.value.length > oldDisplayItemCount && oldDisplayItemCount > 0 && firstVisibleKey) {
+        else if (oldMessageCount > 0 && newMessages.length > oldMessageCount && firstVisibleKey) {
           debug.log('📜 Maintaining scroll position after loading older messages');
           const newIndex = displayItems.value.findIndex(item => item.key === firstVisibleKey);
           if (newIndex >= 0) {

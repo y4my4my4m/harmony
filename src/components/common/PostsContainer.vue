@@ -1,5 +1,5 @@
 <template>
-  <div class="posts-container">
+  <div class="posts-container" ref="scrollContainer">
     <!-- Loading State -->
     <div v-if="isLoading && posts.length === 0" class="loading-state">
       <div class="loading-spinner"></div>
@@ -20,40 +20,56 @@
       </button>
     </div>
 
-    <!-- Posts -->
-    <div v-else class="posts-list">
-      <MonyPost
-        v-for="post in posts"
-        :key="post.id"
-        :post="post"
-        v-bind="postProps"
-        @reply="$emit('reply', $event)"
-        @favorite="$emit('favorite', $event)"
-        @reblog="$emit('reblog', $event)"
-        @bookmark="$emit('bookmark', $event)"
-        @delete="$emit('delete', $event)"
-        @user-click="$emit('user-click', $event)"
-        @hashtag-click="$emit('hashtag-click', $event)"
-        @show-conversation="$emit('show-conversation', $event)"
-      />
-
-      <!-- Load More -->
-      <div v-if="hasMore" class="load-more-container">
-        <button
-          @click="$emit('load-more')"
-          :disabled="isLoading"
-          class="load-more-btn"
-        >
-          <Icon v-if="isLoading" name="loader" class="spinning" />
-          <span>{{ isLoading ? 'Loading...' : 'Load More' }}</span>
-        </button>
+    <!-- Virtualized Posts -->
+    <div v-else class="posts-list" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+      <div
+        v-for="virtualRow in virtualRows"
+        :key="posts[virtualRow.index].id"
+        :data-index="virtualRow.index"
+        :ref="measureElement"
+        :style="{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          transform: `translateY(${virtualRow.start}px)`
+        }"
+      >
+        <MonyPost
+          :post="posts[virtualRow.index]"
+          v-bind="postProps"
+          @reply="$emit('reply', $event)"
+          @favorite="$emit('favorite', $event)"
+          @reblog="$emit('reblog', $event)"
+          @bookmark="$emit('bookmark', $event)"
+          @delete="$emit('delete', $event)"
+          @user-click="$emit('user-click', $event)"
+          @hashtag-click="$emit('hashtag-click', $event)"
+          @show-conversation="$emit('show-conversation', $event)"
+        />
       </div>
+    </div>
+
+    <!-- Infinite scroll sentinel + fallback button -->
+    <div v-if="hasMore && posts.length > 0" ref="sentinelRef" class="load-more-container">
+      <div v-if="isLoading" class="loading-more">
+        <Icon name="loader" class="spinning" />
+        <span>Loading...</span>
+      </div>
+      <button
+        v-else
+        @click="$emit('load-more')"
+        class="load-more-btn"
+      >
+        Load More
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { TimelinePost } from '@/types'
@@ -82,7 +98,7 @@ const props = withDefaults(defineProps<Props>(), {
   postProps: () => ({})
 })
 
-defineEmits<{
+const emit = defineEmits<{
   'load-more': []
   'empty-action': []
   'reply': [post: any]
@@ -94,6 +110,58 @@ defineEmits<{
   'hashtag-click': [tag: string]
   'show-conversation': [postId: string]
 }>()
+
+const scrollContainer = ref<HTMLDivElement | null>(null)
+const sentinelRef = ref<HTMLDivElement | null>(null)
+
+// --- Virtual scrolling ---
+const rowVirtualizer = useVirtualizer(computed(() => ({
+  count: props.posts.length,
+  getScrollElement: () => scrollContainer.value,
+  estimateSize: () => 300,
+  overscan: 3,
+})))
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
+
+const measureElement = (el: any) => {
+  if (!el || !(el instanceof HTMLElement)) return
+  rowVirtualizer.value.measureElement(el)
+}
+
+// --- Infinite scroll via IntersectionObserver ---
+let observer: IntersectionObserver | null = null
+
+const setupObserver = () => {
+  if (observer) observer.disconnect()
+  if (!sentinelRef.value) return
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0]?.isIntersecting && props.hasMore && !props.isLoading) {
+        emit('load-more')
+      }
+    },
+    { root: scrollContainer.value, rootMargin: '200px' }
+  )
+  observer.observe(sentinelRef.value)
+}
+
+watch([() => props.hasMore, sentinelRef], () => {
+  setupObserver()
+})
+
+onMounted(() => {
+  setupObserver()
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+})
 </script>
 
 <style scoped>
@@ -181,6 +249,14 @@ defineEmits<{
   padding: var(--space-5);
 }
 
+.loading-more {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 .spinning {
   animation: spin 1s linear infinite;
 }
@@ -201,4 +277,4 @@ defineEmits<{
     min-height: 300px;
   }
 }
-</style> 
+</style>
