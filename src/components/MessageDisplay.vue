@@ -1317,19 +1317,37 @@ const getReplyUserId = (replyMessageId: string) => {
   return message?.user_id || 'unknown';
 };
 
+// Track if we should be at bottom (for initial load and new-message scroll)
+const shouldBeAtBottom = ref(false);
+
+// Track if user was at bottom before last messages update (for scroll-on-new-message)
+const userWasAtBottom = ref(true);
+
+// Independent tracking of message count and first ID, because deep watchers on reactive
+// arrays receive the same reference for old/new values (in-place .push() mutations).
+const lastKnownMessageCount = ref(0);
+const lastKnownFirstMessageId = ref<string | null>(null);
+
 // --- WATCHERS ---
 let hasInitiallyScrolled = false;
 
 watch([() => props.channelId, () => props.conversationId], () => {
   hasInitiallyScrolled = false;
+  userWasAtBottom.value = true;
+  lastKnownMessageCount.value = 0;
+  lastKnownFirstMessageId.value = null;
 });
 
-watch(() => props.messages, (newMessages, oldMessages) => {
+watch(() => props.messages, (newMessages) => {
   if (!newMessages || !Array.isArray(newMessages)) {
     return;
   }
 
-  const oldMessageCount = oldMessages?.length ?? 0;
+  const prevCount = lastKnownMessageCount.value;
+  const prevFirstId = lastKnownFirstMessageId.value;
+  lastKnownMessageCount.value = newMessages.length;
+  lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
+
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
 
   // Reset embed tracking for new messages
@@ -1504,16 +1522,39 @@ watch(() => props.messages, (newMessages, oldMessages) => {
             // Start checking after initial render
             setTimeout(checkAndScroll, 100);
           }
-        } 
-        // When loading older messages, maintain scroll position by compensating for new content height
-        else if (oldMessageCount > 0 && newMessages.length > oldMessageCount && oldScrollHeight > 0) {
-          debug.log('📜 Maintaining scroll position after loading older messages');
-          const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-          const scrollOffset = newScrollHeight - oldScrollHeight;
-          if (scrollOffset > 0) {
-            messageDisplayContainer.value.scrollTop += scrollOffset;
+        }
+        // New messages appended at bottom (sent or received) - scroll if user was at bottom
+        else if (prevCount > 0 && newMessages.length > prevCount && oldScrollHeight > 0) {
+          const isAppend = prevFirstId != null && newMessages[0]?.id === prevFirstId;
+          if (isAppend && userWasAtBottom.value) {
+            debug.log('📜 New messages - scrolling to bottom (user was at bottom)');
+            shouldBeAtBottom.value = true;
+            const scrollNewToBottom = (attempt = 0) => {
+              const count = displayItems.value.length;
+              if (count > 0) {
+                rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
+              }
+              if (messageDisplayContainer.value) {
+                messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+              }
+              if (attempt < 3) {
+                requestAnimationFrame(() => scrollNewToBottom(attempt + 1));
+              }
+            };
+            requestAnimationFrame(() => scrollNewToBottom());
+          } else if (isAppend && !userWasAtBottom.value) {
+            shouldBeAtBottom.value = false;
           }
-          shouldBeAtBottom.value = false;
+          // Load older messages (prepend) - maintain scroll position
+          else if (!isAppend) {
+            debug.log('📜 Maintaining scroll position after loading older messages');
+            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+            const scrollOffset = newScrollHeight - oldScrollHeight;
+            if (scrollOffset > 0) {
+              messageDisplayContainer.value.scrollTop += scrollOffset;
+            }
+            shouldBeAtBottom.value = false;
+          }
         }
         
         checkScrollable();
@@ -1827,8 +1868,11 @@ const handleScroll = throttle(() => {
   }
 
   const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+  userWasAtBottom.value = isAtBottom;
   if (!isAtBottom) {
     shouldBeAtBottom.value = false;
+  } else {
+    shouldBeAtBottom.value = true; // User scrolled back to bottom
   }
   
   emit('update:isAtBottom', isAtBottom);
@@ -2297,9 +2341,6 @@ const getReplyMessagePreview = (replyMessageId: string) => {
   return 'Loading...';
 };
 
-
-// Track if we should be at bottom (for initial load)
-const shouldBeAtBottom = ref(false);
 
 // Lightbox and Media
 const handleImageLoaded = (url: string) => {
