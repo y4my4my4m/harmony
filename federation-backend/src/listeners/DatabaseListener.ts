@@ -2091,8 +2091,11 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
  * Detect external URLs in a message and fetch previews via LinkPreviewService.
  * Local Harmony post URLs are already handled by the DB trigger (process_local_link_previews).
  * This handles everything else: YouTube, Spotify, Reddit, generic external URLs.
+ *
+ * Called from pg-boss job handlers (channelMessageHandler, dmHandler) for reliability,
+ * since Supabase Realtime may not fire consistently for all message INSERTs.
  */
-async function enrichMessageLinkPreviews(message: any): Promise<void> {
+export async function enrichMessageLinkPreviews(message: any): Promise<void> {
   const content = message.content;
   if (!Array.isArray(content)) return;
 

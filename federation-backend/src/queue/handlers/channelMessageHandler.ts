@@ -8,7 +8,7 @@
  */
 
 import { getSupabaseClient } from '../../config/supabase.js';
-import { handleNewChannelMessage } from '../../listeners/DatabaseListener.js';
+import { handleNewChannelMessage, enrichMessageLinkPreviews } from '../../listeners/DatabaseListener.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
@@ -43,6 +43,13 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
     }
 
     await updateFederationStatus(message_id, 'messages', 'processing');
+
+    // Enrich link previews (runs for ALL messages, regardless of federation)
+    try {
+      await enrichMessageLinkPreviews(message);
+    } catch (err) {
+      logger.warn(`Link preview enrichment failed for ${message_id}:`, err);
+    }
 
     // Use the existing handleNewChannelMessage function from DatabaseListener
     // It handles federation to remote server members

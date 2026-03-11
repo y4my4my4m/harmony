@@ -5,7 +5,7 @@
  */
 
 import { getSupabaseClient } from '../../config/supabase.js';
-import { handleNewDM } from '../../listeners/DatabaseListener.js';
+import { handleNewDM, enrichMessageLinkPreviews } from '../../listeners/DatabaseListener.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
@@ -43,6 +43,13 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
     }
 
     await updateFederationStatus(message_id, 'messages', 'processing');
+
+    // Enrich link previews (runs for ALL messages, regardless of federation)
+    try {
+      await enrichMessageLinkPreviews(message);
+    } catch (err) {
+      logger.warn(`Link preview enrichment failed for ${message_id}:`, err);
+    }
 
     // Use the existing handleNewDM function from FederationHandlers
     // It already handles finding remote participants and creating the DM activity
