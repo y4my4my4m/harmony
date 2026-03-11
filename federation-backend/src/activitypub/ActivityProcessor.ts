@@ -2221,18 +2221,36 @@ export class ActivityProcessor {
       logger.info(`Using conversation ${conversationId} for DM`);
     };
 
+    // Deduplicate: skip if we already stored a message with this ap_id
+    const { data: existing } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .contains('metadata', { ap_id: object.id })
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      logger.info(`⏭️ DM already exists for ${object.id}, skipping duplicate`);
+      return;
+    }
+
+    const metadata: Record<string, any> = {
+      ap_id: object.id,
+      from_domain: new URL(object.attributedTo || object.actor).hostname,
+      original_url: object.url || object.id,
+      published: object.published,
+      federated: true,
+    };
+    if (object.conversation) metadata.conversation = object.conversation;
+    if (object.inReplyTo) metadata.in_reply_to_ap = object.inReplyTo;
+
     const { error: messageError } = await supabase
       .from('messages')
       .insert({
         user_id: authorId,
         conversation_id: conversationId,
         content,
-        metadata: {
-          ap_id: object.id,
-          from_domain: new URL(object.attributedTo || object.actor).hostname,
-          original_url: object.url || object.id,
-          published: object.published,
-        },
+        metadata,
         created_at: object.published || new Date().toISOString(),
       })
 

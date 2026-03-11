@@ -694,12 +694,10 @@
           // Send the message with all parts
           if (messageParts.length > 0) {
             didAttemptSend = true;
+            handleDontReply();
             if (props.isDM) {
-              // Emit event for DM messages to be handled by parent component
-              // Use the replyMessageId parameter passed from MessageInput
               emit('sendMessage', messageParts, replyMessageId || undefined);
             } else {
-              // Handle server channel messages directly
               if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
                 await chatStore.sendMessage(
                   serverChannelStore.currentServerId,
@@ -721,8 +719,6 @@
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
           }
-        } finally {
-          if (didAttemptSend) handleDontReply();
         }
       };
 

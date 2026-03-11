@@ -1819,11 +1819,28 @@ export async function handleNewDM(message: any): Promise<void> {
       tag: [...baseTags, ...mentionTags],
       to: allToUrls,
       cc: [],
-      directMessage: true
+      directMessage: true,
+      conversation: `tag:${domain},${new Date(message.created_at).getFullYear()}:conversation-${message.conversation_id}`,
     };
 
     if (conversationType === 'group') {
       note['harmony:conversationType'] = 'group';
+
+      // Thread group messages: find the first federated message in this conversation
+      // so Mastodon/Misskey can display them as a single conversation thread
+      const { data: firstMsg } = await supabase
+        .from('messages')
+        .select('id, created_at')
+        .eq('conversation_id', message.conversation_id)
+        .eq('federation_status', 'completed')
+        .neq('id', message.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single();
+
+      if (firstMsg) {
+        note.inReplyTo = `https://${domain}/messages/${firstMsg.id}`;
+      }
     }
     
     const activity = {

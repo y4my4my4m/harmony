@@ -581,6 +581,15 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       });
     });
 
+    // Auto-focus editor when replying
+    watch(() => props.replyMessageId, (newId) => {
+      if (newId) {
+        nextTick(() => {
+          richEditorRef.value?.focus();
+        });
+      }
+    });
+
     // Watch for changes in attached files to emit to parent
     watch(attachedFiles, (newFiles) => {
       emit('files-attached', newFiles);

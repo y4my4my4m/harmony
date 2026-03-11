@@ -1266,8 +1266,12 @@ const currentServerData = computed(() => {
 });
 
 // --- HELPER FUNCTIONS ---
+const getReplyMessage = (replyMessageId: string) => {
+  return props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId] || null;
+};
+
 const getReplyUserId = (replyMessageId: string) => {
-  const message = props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId];
+  const message = getReplyMessage(replyMessageId);
   return message?.user_id || 'unknown';
 };
 
@@ -2215,8 +2219,18 @@ const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
 };
 
 const getReplyUserDisplayName = (replyMessageId: string) => {
-  const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? 'Unknown User' : getUserDisplayName(userId).value;
+  const message = getReplyMessage(replyMessageId);
+  if (message?.metadata?.discord_user) {
+    const du = message.metadata.discord_user;
+    return du.display_name || du.username || 'Discord User';
+  }
+  if (message?.bot_id) {
+    const bot = botDataCache.value.get(message.bot_id);
+    return bot?.display_name || bot?.username || 'Bot';
+  }
+  const userId = message?.user_id;
+  if (!userId) return 'Unknown User';
+  return getUserDisplayName(userId).value;
 };
 
 const getReplyUserColor = (replyMessageId: string) => {
@@ -3030,6 +3044,33 @@ defineExpose({ editLastOwnMessage });
   
   .beginning-subtitle {
     font-size: 0.8125rem;
+  }
+
+  .message-meta {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .username {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .username-text {
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .instance-badge {
+    font-size: 0;
+    padding: 0.15rem;
+    gap: 0;
+  }
+  .instance-badge svg {
+    width: 10px;
+    height: 10px;
   }
 }
 
