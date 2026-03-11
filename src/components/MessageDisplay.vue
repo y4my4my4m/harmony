@@ -23,6 +23,9 @@
       <div class="loading-spinner"></div>
       <span>{{ $t('message.loadingOlder') }}</span>
     </div>
+
+    <!-- Sentinel for auto-loading older messages when the top is visible -->
+    <div ref="topSentinelRef" class="top-sentinel"></div>
     
     <!-- Virtual scrolled message list -->
     <div v-if="displayItems.length > 0" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
@@ -1132,6 +1135,7 @@ const isAllMessagesLoaded = computed(() => {
 
 // --- REFS ---
 const messageDisplayContainer = ref<HTMLDivElement | null>(null);
+const topSentinelRef = ref<HTMLDivElement | null>(null);
 const imageLoaded: Ref<Record<string, boolean>> = ref({});
 const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
 const replyMessages = ref<Record<string, Message>>({});
@@ -1563,10 +1567,28 @@ watch(() => props.messages, (newMessages) => {
         isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
         const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
         emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
+
       }
     });
   }
 }, { immediate: true, deep: true });
+
+// After loading older messages finishes, if the sentinel is still visible (content
+// still doesn't fill the viewport), load another batch. IntersectionObserver only
+// fires on intersection *changes*, so we need to re-trigger manually.
+watch(isLoadingOlderMessages, (loading, wasLoading) => {
+  if (wasLoading && !loading && !isAllMessagesLoaded.value && props.loadMoreMessages) {
+    // Delay to let virtualizer measure new elements before checking overflow
+    setTimeout(() => {
+      if (!messageDisplayContainer.value) return;
+      const { scrollHeight, clientHeight } = messageDisplayContainer.value;
+      if (scrollHeight <= clientHeight + 5) {
+        debug.log('📜 Still no scrollbar after loading — auto-loading more');
+        props.loadMoreMessages();
+      }
+    }, 300);
+  }
+});
 
 watch(() => props.messages.map(msg => msg.reactions?.length), () => {
   const hasVisibleReactions = props.messages.some(msg => msg.reactions && msg.reactions.length > 0);
@@ -1746,11 +1768,37 @@ onUnmounted(() => {
     intersectionObserver.disconnect();
     intersectionObserver = null;
   }
+  if (topSentinelObserver) {
+    topSentinelObserver.disconnect();
+    topSentinelObserver = null;
+  }
   observedMessages.clear();
   // Note: Don't reset pendingUnreadUpdate here - flushUnreadUpdate already handles it
   // and resetting here could interfere with the async operation
 });
 
+
+// --- TOP SENTINEL OBSERVER ---
+// When the top of the message list is visible (either because user scrolled to top
+// or because content doesn't fill the viewport), auto-load older messages.
+let topSentinelObserver: IntersectionObserver | null = null;
+
+const setupTopSentinelObserver = () => {
+  if (topSentinelObserver) topSentinelObserver.disconnect();
+  if (!topSentinelRef.value || !messageDisplayContainer.value) return;
+
+  topSentinelObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
+        debug.log('📜 Top sentinel visible — auto-loading older messages');
+        props.loadMoreMessages();
+      }
+    },
+    { root: messageDisplayContainer.value, threshold: 0 }
+  );
+  topSentinelObserver.observe(topSentinelRef.value);
+};
 
 // --- LIFECYCLE HOOKS ---
 onMounted(() => {
@@ -1759,6 +1807,7 @@ onMounted(() => {
     checkScrollable();
     messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
   }
+  setupTopSentinelObserver();
   chatStore.highlightMessage = (messageId: string) => {
     const idx = displayItems.value.findIndex(
       item => item.type === 'message' && item.message?.id === messageId
@@ -3344,6 +3393,12 @@ defineExpose({ editLastOwnMessage });
 }
 
 /* Loading older messages indicator at top */
+.top-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+}
+
 .loading-older-messages {
   display: flex;
   align-items: center;
