@@ -950,34 +950,54 @@ export class ActivityProcessor {
 
     // Handle message (DM) reaction
     if (message) {
-      const emojiId = await this.resolveInboundEmojiId(
-        supabase, emoji, emojiName, emojiUrl, user.id,
-      );
+      const isCustomEmoji = !!(emojiUrl && emojiName);
+      let reactionData: any = {
+        message_id: message.id,
+        user_id: user.id,
+        metadata: { federated: true, from_domain: new URL(actorUrl).hostname },
+      };
 
-      if (!emojiId) {
-        logger.error('❌ Could not find or create emoji for message reaction');
-        return;
+      if (isCustomEmoji) {
+        // Custom emoji with URL — resolve to an emoji_id in the emojis table
+        const emojiId = await this.resolveInboundEmojiId(
+          supabase, emoji, emojiName, emojiUrl, user.id,
+        );
+        if (!emojiId) {
+          logger.error('❌ Could not find or create emoji for message reaction');
+          return;
+        }
+        reactionData.emoji_id = emojiId;
+      } else {
+        // Native/unicode emoji — store as custom_emoji_content with null emoji_id
+        // This matches how local reactions are stored and groups correctly
+        let normalizedEmoji = emoji || '❤️';
+        if (normalizedEmoji === '❤') normalizedEmoji = '❤️';
+        reactionData.emoji_id = null;
+        reactionData.custom_emoji_content = normalizedEmoji;
       }
 
-      const { data: existing } = await supabase
+      // Deduplicate check
+      let dupQuery = supabase
         .from('reactions')
         .select('id')
         .eq('message_id', message.id)
-        .eq('user_id', user.id)
-        .eq('emoji_id', emojiId)
-        .maybeSingle();
+        .eq('user_id', user.id);
+
+      if (reactionData.emoji_id) {
+        dupQuery = dupQuery.eq('emoji_id', reactionData.emoji_id);
+      } else {
+        dupQuery = dupQuery.is('emoji_id', null)
+          .eq('custom_emoji_content', reactionData.custom_emoji_content);
+      }
+
+      const { data: existing } = await dupQuery.maybeSingle();
 
       if (existing) {
         logger.info(`🔄 Reaction already exists for user ${user.id} on message ${message.id}`);
         return;
       }
 
-      const { error: reactionError } = await supabase.from('reactions').insert({
-        message_id: message.id,
-        user_id: user.id,
-        emoji_id: emojiId,
-        metadata: { federated: true, from_domain: new URL(actorUrl).hostname }
-      });
+      const { error: reactionError } = await supabase.from('reactions').insert(reactionData);
 
       if (reactionError) {
         logger.error('❌ Failed to insert message reaction:', reactionError);
