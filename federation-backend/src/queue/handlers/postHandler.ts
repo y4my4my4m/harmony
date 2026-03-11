@@ -8,6 +8,7 @@
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { createPostActivity, createDeleteActivity, createPostUpdateActivity } from '../../listeners/FederationHandlers.js';
+import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
@@ -57,6 +58,16 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
         // Create activity for new post
         activity = await createPostActivity(post, author);
         
+        // Persist ap_id so reaction/reply handlers can find it
+        if (!post.ap_id) {
+          const apId = `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`;
+          await supabase
+            .from('posts')
+            .update({ ap_id: apId })
+            .eq('id', post.id);
+          logger.info(`📌 Set ap_id for post ${post.id}: ${apId}`);
+        }
+
         // Broadcast to followers
         await DeliveryQueue.broadcastToFollowers(author.id, activity);
         

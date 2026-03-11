@@ -9,6 +9,7 @@ import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { createLikeActivity } from '../../activitypub/converters/toActivityPub.js';
 import { createUndoLikeActivity } from '../../listeners/FederationHandlers.js';
 import { resolveOutboundEmoji } from '../../utils/emojiResolvers.js';
+import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
@@ -21,14 +22,28 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
   try {
     const { data: post } = await supabase
       .from('posts')
-      .select('id, author_id, ap_id')
+      .select('id, author_id, ap_id, is_local')
       .eq('id', post_id)
       .single();
 
-    if (!post || !post.ap_id) {
-      logger.info(`⏭️ Reaction on post without ap_id (post_id=${post_id}, found=${!!post}, ap_id=${post?.ap_id ?? 'null'}), skipping federation`);
+    if (!post) {
+      logger.info(`⏭️ Reaction on missing post (post_id=${post_id}), skipping federation`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
+    }
+
+    // For local posts that were federated but never had ap_id persisted, construct it
+    if (!post.ap_id) {
+      if (post.is_local !== false) {
+        post.ap_id = `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`;
+        logger.info(`🔧 Constructed ap_id for local post: ${post.ap_id}`);
+        // Persist it for future lookups
+        await supabase.from('posts').update({ ap_id: post.ap_id }).eq('id', post.id);
+      } else {
+        logger.info(`⏭️ Remote post without ap_id (post_id=${post_id}), skipping federation`);
+        await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
+        return;
+      }
     }
 
     const { data: user } = await supabase
