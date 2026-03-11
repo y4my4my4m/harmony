@@ -30,7 +30,7 @@
           <Icon name="copy" class="action-item-icon" />
           Copy User ID
         </div>
-        <div class="action-item" @click="openInviteModal">
+        <div v-if="isInServerContext" class="action-item" @click="openInviteModal">
           <Icon name="share" class="action-item-icon" />
           Send Server Invite
         </div>
@@ -310,14 +310,43 @@
               Mention
             </button>
 
-            <!-- Share Invite (always available for non-current users) -->
-            <button 
-              @click="openInviteModal"
-              class="secondary-action-btn"
-            >
-              <Icon name="share" :size="16" />
-              Share Invite
-            </button>
+            <!-- Invite to Server -->
+            <div class="invite-btn-wrapper">
+              <button 
+                v-if="isInServerContext"
+                @click="openInviteModal"
+                class="secondary-action-btn"
+              >
+                <Icon name="share" :size="16" />
+                Invite to Server
+              </button>
+              <button 
+                v-else-if="availableServers.length > 0"
+                @click="showServerPicker = !showServerPicker"
+                class="secondary-action-btn"
+              >
+                <Icon name="share" :size="16" />
+                Invite to Server
+              </button>
+              <div v-if="showServerPicker && !isInServerContext" class="server-picker-dropdown" @click.stop>
+                <p class="picker-label">Choose a server:</p>
+                <button
+                  v-for="server in availableServers"
+                  :key="server.id"
+                  class="server-picker-item"
+                  @click="inviteToServer(server)"
+                >
+                  <img 
+                    v-if="server.icon_url"
+                    :src="server.icon_url"
+                    :alt="server.name"
+                    class="picker-server-icon"
+                  />
+                  <div v-else class="picker-server-initial">{{ server.name?.charAt(0) || '?' }}</div>
+                  <span class="picker-server-name">{{ server.name }}</span>
+                </button>
+              </div>
+            </div>
           </template>
         </div>
       </div>
@@ -424,6 +453,13 @@ const showKickBanModal = ref(false)
 const kickBanMode = ref<'kick' | 'ban'>('kick')
 const canKick = ref(false)
 const canBan = ref(false)
+
+// Server invite picker state
+const showServerPicker = ref(false)
+
+const availableServers = computed(() => {
+  return serverChannelStore.servers || []
+})
 
 // Get the current instance domain
 const currentDomain = import.meta.env.VITE_DOMAIN as string
@@ -593,7 +629,12 @@ function getProfileUrl(user: FederatedUser | User | null): string {
     return `https://${currentDomain}/social/profile/${fed.username || (user as User).username}`
   }
   
-  // For remote users, use federated_id if available (canonical URL)
+  // For remote users, prefer the human-readable 'url' field from the AP actor
+  if ((fed as any).url) {
+    return (fed as any).url
+  }
+  
+  // federated_id is the AP actor ID (e.g. /users/name) — not always a viewable page
   if (fed.federated_id) {
     return fed.federated_id
   }
@@ -881,38 +922,45 @@ const handleFollowToggle = async () => {
 const mentionUser = () => {
   if (!props.user) return
 
+  const username = props.user.username || getUser(props.user.id).value?.username
+  if (!username) return
+
   if (isFederatedUser(props.user)) {
-    activityPubStore.openComposer({
-      content: `${props.user.handle} `
-    })
-    router.push('/monyverse')
+    const handle = props.user.handle || `@${username}${props.user.domain ? '@' + props.user.domain : ''}`
+    const mentionText = handle.startsWith('@') ? handle : `@${handle}`
+    activityPubStore.openComposer({ content: `${mentionText} ` })
+    router.push('/social/home')
     emit('close')
   } else {
-    const username = props.user.username || getUser(props.user.id).value?.username
-    if (username) {
-      emit('mention', username)
-    }
+    activityPubStore.openComposer({ content: `@${username} ` })
+    router.push('/social/home')
+    emit('close')
+    emit('mention', username)
   }
 }
 
 const navigateToProfile = () => {
   if (!props.user) return
   
-  // Close modal and navigate to full profile
   emit('close')
   
-  // Build the handle for navigation
   const user = props.user as any
   const username = user.username || getUser(user.id).value?.username
-  let handle = user.handle || `@${username || 'unknown'}`
+  const domain = user.domain
+  const instanceDomain = import.meta.env.VITE_DOMAIN as string
+  const isRemote = user.is_local === false || (domain && domain !== instanceDomain)
+
+  let handle = user.handle
+  if (!handle) {
+    handle = isRemote && domain
+      ? `@${username || 'unknown'}@${domain}`
+      : `@${username || 'unknown'}`
+  }
   
-  // Remove leading @ for routing
   handle = handle.replace(/^@/, '')
   
-  // Remove local domain if present
-  const currentDomain = import.meta.env.VITE_DOMAIN as string
-  if (handle.endsWith(`@${currentDomain}`)) {
-    handle = handle.replace(`@${currentDomain}`, '')
+  if (handle.endsWith(`@${instanceDomain}`)) {
+    handle = handle.replace(`@${instanceDomain}`, '')
   }
   
   router.push({ 
@@ -924,6 +972,20 @@ const navigateToProfile = () => {
 const openInviteModal = () => {
   emit('invite')
   showActionsMenu.value = false
+}
+
+const inviteToServer = async (server: any) => {
+  showServerPicker.value = false
+  emit('close')
+  serverChannelStore.pendingInviteOpen = true
+  await serverChannelStore.setCurrentServer(server.id)
+  await serverChannelStore.fetchCategoriesAndChannels(server.id)
+  const firstChannel = serverChannelStore.channels[0]
+  if (firstChannel) {
+    router.push(`/chat/${server.id}/${firstChannel.id}`)
+  } else {
+    router.push(`/chat/${server.id}`)
+  }
 }
 
 // Check if the current user has blocked this user (uses store getter for reactivity)
@@ -1904,6 +1966,84 @@ onMounted(() => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+/* Server invite picker */
+.invite-btn-wrapper {
+  position: relative;
+}
+
+.server-picker-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--background-quinary, #1e1f22);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 30;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.picker-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px 6px;
+  margin: 0;
+}
+
+.server-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.server-picker-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.picker-server-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.picker-server-initial {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--harmony-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.picker-server-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Mobile responsive */

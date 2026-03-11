@@ -4,7 +4,8 @@
     :class="{ 
       compact: isCompact, 
       interactive: isInteractive,
-      'no-actions': !showActions 
+      'no-actions': !showActions,
+      'menu-open': showActionsMenu
     }" 
     @click="handleClick"
   >
@@ -375,7 +376,12 @@ const handleMessage = async () => {
 
 const handleMention = () => {
   if (isFederatedUser.value) {
-    emit('mention', props.user as FederatedUser)
+    const fed = props.user as FederatedUser
+    const handle = fed.handle || `@${fed.username}${fed.domain ? '@' + fed.domain : ''}`
+    const mentionText = handle.startsWith('@') ? handle : `@${handle}`
+    activityPubStore.openComposer({ content: `${mentionText} ` })
+    router.push('/social/home')
+    emit('mention', fed)
   }
 }
 
@@ -757,8 +763,7 @@ const vClickOutside = {
   z-index: 9999;
 }
 
-/* When menu is open, raise the card's stacking context */
-.profile-card:has(.actions-menu) {
+.profile-card.menu-open {
   z-index: 100;
 }
 

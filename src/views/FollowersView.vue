@@ -256,7 +256,13 @@ const handleUnfollow = (userId: string) => {
 };
 
 const handleUserClick = (user: FederatedUser) => {
-  router.push(`/social/profile/${user.handle.replace('@', '')}`);
+  let handle = user.handle
+  if (!handle) {
+    handle = user.is_local === false && user.domain
+      ? `@${user.username}@${user.domain}`
+      : `@${user.username}`
+  }
+  router.push(`/social/profile/${handle.replace(/^@/, '')}`);
 };
 
 // Watchers

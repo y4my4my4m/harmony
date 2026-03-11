@@ -768,6 +768,13 @@ const showCategoryCreator = () => isCategoryCreatorOpen.value = !isCategoryCreat
 const openInviteModal = () => showInviteModal.value = true;
 const closeInviteModal = () => showInviteModal.value = false;
 
+watch(() => serverChannelStore.pendingInviteOpen, (pending) => {
+  if (pending) {
+    serverChannelStore.pendingInviteOpen = false
+    openInviteModal()
+  }
+});
+
 // Threads methods
 const loadActiveThreads = async (forceRefresh = false) => {
   if (!props.currentServer?.id) return;

@@ -30,6 +30,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     // Tracks which server's categories/channels are currently loaded in memory
     // Since categories/channels are shared state, only ONE server's data exists at a time
     _loadedCategoriesServerId: null as string | null,
+    // Flag to auto-open invite modal after navigating to a server
+    pendingInviteOpen: false as boolean,
   }),
 
   getters: {

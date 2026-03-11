@@ -388,9 +388,13 @@ const handleBookmark = async (postId: string) => {
   }
 };
 
-const handleUserClick = (userId: string) => {
-  // Navigate to user profile
-  router.push(`/social/profile/${userId}`);
+const handleUserClick = (user: any) => {
+  if (!user) return
+  const handle = user.handle
+    || (user.is_local === false && user.domain
+      ? `@${user.username}@${user.domain}`
+      : `@${user.username || user.id}`)
+  router.push({ name: 'UserProfile', params: { handle } })
 };
 
 const sharePost = async () => {
