@@ -335,7 +335,7 @@
         <button 
           class="action-button favorite-button"
           :class="{ active: displayInteractionCounts.is_favorited }"
-          @click="toggleFavorite(originalPostId)"
+          @click="handleToggleFavorite"
           :title="displayInteractionCounts.is_favorited ? 'Unfavorite' : 'Favorite'"
         >
           <Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" />
@@ -989,25 +989,28 @@ const displayPostForReactions = computed(() => {
   return props.post;
 });
 
+// Optimistic override for favorite state — set immediately on click, reconciled after DB response
+const favoriteOverride = ref<{ is_favorited: boolean; favorites_count: number } | null>(null)
+
 const displayInteractionCounts = computed(() => {
+  const fav = favoriteOverride.value;
+
   if (isReblog.value && props.post.reblog) {
-    // Use fetched interaction state if available, fallback to stored values
     const interactions = originalPostInteractions.value;
     return {
-      favorites_count: props.post.reblog.favorites_count || 0,
+      favorites_count: fav?.favorites_count ?? props.post.reblog.favorites_count ?? 0,
       reblogs_count: props.post.reblog.reblogs_count || 0,
       replies_count: props.post.reblog.replies_count || 0,
-      is_favorited: interactions?.is_favorited ?? props.post.reblog.is_favorited ?? false,
-      // Use fetched interaction state - don't default to true
+      is_favorited: fav?.is_favorited ?? interactions?.is_favorited ?? props.post.reblog.is_favorited ?? false,
       is_reblogged: interactions?.is_reblogged ?? props.post.reblog.is_reblogged ?? false,
       is_bookmarked: interactions?.is_bookmarked ?? props.post.reblog.is_bookmarked ?? false
     };
   }
   return {
-    favorites_count: props.post.favorites_count || 0,
+    favorites_count: fav?.favorites_count ?? props.post.favorites_count ?? 0,
     reblogs_count: props.post.reblogs_count || 0,
     replies_count: props.post.replies_count || 0,
-    is_favorited: props.post.is_favorited || false,
+    is_favorited: fav?.is_favorited ?? props.post.is_favorited ?? false,
     is_reblogged: props.post.is_reblogged || false,
     is_bookmarked: props.post.is_bookmarked || false
   };
@@ -1490,6 +1493,38 @@ const handleMenuToggle = () => {
   showMenu.value = !showMenu.value;
   debug.log('🔘 Menu state after toggle:', showMenu.value);
 };
+
+// Optimistic favorite toggle — fills/unfills the heart immediately
+const handleToggleFavorite = async () => {
+  const postId = originalPostId.value
+  const targetPost = isReblog.value ? props.post.reblog : props.post
+  const wasFavorited = displayInteractionCounts.value.is_favorited
+  const prevCount = displayInteractionCounts.value.favorites_count
+
+  favoriteOverride.value = {
+    is_favorited: !wasFavorited,
+    favorites_count: Math.max(0, prevCount + (wasFavorited ? -1 : 1))
+  }
+
+  const result = await toggleFavorite(postId)
+
+  if (result.success) {
+    favoriteOverride.value = {
+      is_favorited: result.liked!,
+      favorites_count: result.newCount ?? favoriteOverride.value.favorites_count
+    }
+  } else {
+    favoriteOverride.value = null
+  }
+
+  // Also update the reblog interaction ref so it stays in sync
+  if (isReblog.value && originalPostInteractions.value) {
+    originalPostInteractions.value = {
+      ...originalPostInteractions.value,
+      is_favorited: favoriteOverride.value?.is_favorited ?? wasFavorited
+    }
+  }
+}
 
 // Reblog menu handlers
 const handleReblogClick = () => {

@@ -72,11 +72,13 @@ const MESSAGE_TEMPLATES = {
   
   dm: {
     title: (data: any) => {
-      // Handle both structured format (sender object) and legacy format
       const sender = data.sender
       const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
       const domain = sender?.domain
       const handle = domain && !sender?.is_local ? `@${domain}` : ''
+      if (data.is_invite) {
+        return `${senderUsername}${handle} added you to ${data.conversation?.name || 'a conversation'}`
+      }
       return `${senderUsername}${handle} sent you a message`
     },
     message: (data: any) => {
@@ -91,7 +93,29 @@ const MESSAGE_TEMPLATES = {
     shortTitle: (data: any) => {
       const sender = data.sender
       const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
+      if (data.is_invite) return `Invited by ${senderUsername}`
       return `DM from ${senderUsername}`
+    }
+  },
+
+  chat_message: {
+    title: (data: any) => {
+      const sender = data.sender
+      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
+      return `${senderUsername} sent a message`
+    },
+    message: (data: any) => {
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.preview || data.content_preview)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
+      }
+      return 'Click to view message'
+    },
+    shortTitle: (data: any) => {
+      const sender = data.sender
+      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
+      return `Message from ${senderUsername}`
     }
   },
   

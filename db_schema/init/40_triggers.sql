@@ -321,11 +321,17 @@ CREATE TRIGGER smart_route_channel_message
     WHEN (NEW.channel_id IS NOT NULL)
     EXECUTE FUNCTION public.route_channel_message();
 
--- Handle message federation
+-- Handle message federation (DM/group-chat/mention notifications)
 CREATE TRIGGER trg_handle_message_federation
     AFTER INSERT ON public.messages
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_message_federation();
+
+-- Notify user when added to a conversation
+CREATE TRIGGER trg_conversation_participant_added
+    AFTER INSERT ON public.conversation_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_conversation_participant_added();
 
 -- Queue channel message edit for federation
 CREATE TRIGGER trigger_federate_channel_message_edit

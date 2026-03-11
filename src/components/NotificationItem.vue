@@ -163,8 +163,8 @@
           </button>
         </template>
         
-        <!-- For DMs -->
-        <template v-if="notification.type === 'dm'">
+        <!-- For DMs / group chat messages -->
+        <template v-if="notification.type === 'dm' || notification.type === 'chat_message'">
           <button @click="replyToDM" class="quick-action-btn reply">
             <ReplyIcon class="quick-action-icon" />
             Reply
@@ -407,7 +407,7 @@ const getReactorName = () => {
 }
 
 const hasQuickActions = computed(() => {
-  return ['server_invite', 'dm', 'mention', 'reply'].includes(props.notification.type)
+  return ['server_invite', 'dm', 'chat_message', 'mention', 'reply'].includes(props.notification.type)
 })
 
 // Methods
@@ -460,6 +460,7 @@ const typeIcon = computed(() => {
   const iconMap = {
     mention: MentionIcon,
     dm: DMIcon,
+    chat_message: DMIcon,
     reaction: ReactionIcon,
     reply: ReplyIcon,
     server_invite: ServerInviteIcon,
@@ -533,6 +534,7 @@ const typeIcon = computed(() => {
 }
 
 .indicator--dm,
+.indicator--chat_message,
 .indicator--activitypub_dm {
   background: linear-gradient(180deg, #7289da, #5865f2);
 }
@@ -611,6 +613,7 @@ const typeIcon = computed(() => {
 }
 
 .overlay--dm svg,
+.overlay--chat_message svg,
 .overlay--activitypub_dm svg{
   /* background: linear-gradient(135deg, #7289da, #5865f2); */
   fill: #7289da;
@@ -1001,7 +1004,8 @@ const typeIcon = computed(() => {
   border-left-color: #f04747;
 }
 
-.notification-item--dm.notification-item--unread {
+.notification-item--dm.notification-item--unread,
+.notification-item--chat_message.notification-item--unread {
   border-left-color: #7289da;
 }
 
