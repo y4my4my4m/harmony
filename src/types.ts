@@ -324,7 +324,7 @@ export interface Reaction {
 
 // ReactionGroup represents an aggregated group of reactions for a specific emoji
 export interface ReactionGroup {
-  emoji_id: string;
+  emoji_id: string | null;
   emoji: Emoji;
   count: number;
   reactions: Array<{

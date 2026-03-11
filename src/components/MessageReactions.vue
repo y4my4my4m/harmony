@@ -10,13 +10,13 @@
       <!-- Reaction groups -->
       <div
         v-for="reactionGroup in reactions"
-        :key="reactionGroup.emoji_id"
+        :key="getReactionKey(reactionGroup)"
         class="reaction"
         :class="{ 
-          'reacted': hasUserReacted(reactionGroup.emoji_id),
+          'reacted': hasUserReacted(getReactionKey(reactionGroup)),
           'loading': isLoadingReactions 
         }"
-        @click="handleReactionClick(reactionGroup.emoji, reactionGroup.emoji_id)"
+        @click="handleReactionClick(reactionGroup.emoji, getReactionKey(reactionGroup))"
         @mouseenter="showTooltip($event, reactionGroup)"
         @mouseleave="hideTooltip"
       >
@@ -88,6 +88,11 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+
+const getReactionKey = (reactionGroup: any): string => {
+  if (reactionGroup.emoji_id) return reactionGroup.emoji_id
+  return reactionGroup.emoji?.name || 'unknown'
+};
 
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
