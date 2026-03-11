@@ -277,10 +277,14 @@ const handleSearch = () => {
   }
 
   searchTimeout.value = setTimeout(async () => {
-    const query = searchQuery.value.trim()
+    let query = searchQuery.value.trim()
     if (!query || !currentUserId.value) {
       searchResults.value = []
       return
+    }
+    // Allow @ prefix: strip leading @ so "y4my4m" and "@y4my4m" both work
+    if (query.startsWith('@')) {
+      query = query.slice(1).trim()
     }
 
     isSearching.value = true

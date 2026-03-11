@@ -2187,26 +2187,25 @@ export const useDMStore = defineStore('dm', () => {
 
       debug.log('✅ Created conversation:', conversationId)
 
-      // Add a system message about conversation creation
-      try {
-        const systemMessageContent = [{
-          type: 'text' as const,
-          text: `Group conversation created with ${options.participantIds.length} participants`
-        }]
+      // Return immediately — system message and fetch run in background for responsive UX
+      ;(async () => {
+        try {
+          const systemMessageContent = [{
+            type: 'text' as const,
+            text: `Group conversation created with ${options.participantIds.length} participants`
+          }]
+          await services.messages.sendDMMessage(
+            conversationId,
+            systemMessageContent,
+            undefined,
+            { isSystem: true }
+          )
+        } catch (systemMessageError) {
+          debug.warn('⚠️ Failed to send system message:', systemMessageError)
+        }
+        await fetchUserConversations(currentUserData.id)
+      })()
 
-        await services.messages.sendDMMessage(
-          conversationId,
-          systemMessageContent
-        )
-      } catch (systemMessageError) {
-        debug.warn('⚠️ Failed to send system message:', systemMessageError)
-        // Don't fail the operation for this
-      }
-
-      // Refresh conversations to include the new one
-      await fetchUserConversations(currentUserData.id)
-
-      debug.log('✅ Successfully created group conversation')
       return conversationId
       
     } catch (error) {
@@ -2325,7 +2324,9 @@ export const useDMStore = defineStore('dm', () => {
 
           await services.messages.sendDMMessage(
             conversationId,
-            systemMessageContent
+            systemMessageContent,
+            undefined,
+            { isSystem: true }
           )
         } catch (systemMessageError) {
           debug.warn('⚠️ Failed to send system message:', systemMessageError)

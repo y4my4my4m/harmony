@@ -88,7 +88,7 @@
       <div class="setting-section">
         <div class="section-header">
           <h3 class="section-title">
-            Participants ({{ participants.length }})
+            Participants ({{ displayParticipants.length }})
           </h3>
           <button 
             class="add-participant-btn"
@@ -102,7 +102,7 @@
         
         <div class="participants-list">
           <div 
-            v-for="participant in participants"
+            v-for="participant in displayParticipants"
             :key="participant.id"
             class="participant-item"
             :class="{ 'is-creator': participant.id === conversation.created_by }"
@@ -234,6 +234,15 @@ const emit = defineEmits<{
   updated: []
 }>()
 
+// Local participants list - fetched when modal opens if conversation.participants is empty
+const loadedParticipants = ref<DMUser[]>([])
+
+const displayParticipants = computed(() => {
+  const fromProps = props.participants || []
+  if (fromProps.length > 0) return fromProps
+  return loadedParticipants.value
+})
+
 // Composables
 const toast = useToast()
 const dmStore = useDMStore()
@@ -282,6 +291,15 @@ watch(() => props.conversation, (newConv) => {
   if (newConv) {
     localGroupName.value = newConv.name || ''
     localIconPath.value = newConv.icon_url
+  }
+}, { immediate: true })
+
+watch(() => props.show, async (isOpen) => {
+  if (isOpen && props.conversationId) {
+    loadedParticipants.value = []
+    if ((props.participants?.length ?? 0) === 0) {
+      loadedParticipants.value = await dmStore.getConversationParticipants(props.conversationId)
+    }
   }
 }, { immediate: true })
 

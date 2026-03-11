@@ -2184,47 +2184,61 @@ export class ActivityProcessor {
       logger.warn(`Direct message ${object.id} has no local recipients`);
       return;
     }
-    
-    // For each local recipient, find or create DM conversation using the database function
-    for (const recipientId of recipientIds) {
-      try {
-        const { data: conversationId, error: convError } = await supabase
-          .rpc('get_or_create_dm_conversation', {
-            p_user1_id: authorId,
-            p_user2_id: recipientId
-          });
-        
-        if (convError || !conversationId) {
-          logger.error(`Failed to get/create conversation:`, convError);
-          continue;
-        }
-        
-        logger.info(`Using conversation ${conversationId} for DM`);
-        
-        // Store message in messages table
-        const { error: messageError } = await supabase
-          .from('messages')
-          .insert({
-            user_id: authorId,
-            conversation_id: conversationId,
-            content,
-            metadata: {
-              ap_id: object.id,
-              from_domain: new URL(object.attributedTo || object.actor).hostname,
-              original_url: object.url || object.id,
-              published: object.published,
-            },
-            created_at: object.published || new Date().toISOString(),
-          });
-        
-        if (messageError) {
-          logger.error(`Failed to create DM from activity:`, messageError);
-        } else {
-          logger.info(`✅ Created DM in conversation ${conversationId} from ${object.id}`);
-        }
-      } catch (error) {
-        logger.error(`Error handling DM for recipient ${recipientId}:`, error);
+
+    let conversationId: string | null = null
+
+    if (recipientIds.length > 1) {
+      // Group DM: create or get group conversation (author + all local recipients)
+      const allParticipantIds = [authorId, ...recipientIds]
+      const { data: convId, error: convError } = await supabase
+        .rpc('get_or_create_federated_group_conversation', {
+          p_actor_id: authorId,
+          p_local_recipient_ids: recipientIds
+        })
+
+      if (convError || !convId) {
+        logger.error(`Failed to get/create group conversation:`, convError)
+        return
       }
+      conversationId = convId
+      logger.info(`Using group conversation ${conversationId} for DM (${recipientIds.length} recipients)`)
+    } else {
+      // 1:1 DM
+      const { data: convId, error: convError } = await supabase
+        .rpc('get_or_create_dm_conversation', {
+          p_user1_id: authorId,
+          p_user2_id: recipientIds[0]
+        })
+
+      if (convError || !convId) {
+        logger.error(`Failed to get/create conversation:`, convError)
+        return
+      }
+      conversationId = convId
+      logger.info(`Using conversation ${conversationId} for DM`)
+    }
+
+    if (!conversationId) return
+
+    const { error: messageError } = await supabase
+      .from('messages')
+      .insert({
+        user_id: authorId,
+        conversation_id: conversationId,
+        content,
+        metadata: {
+          ap_id: object.id,
+          from_domain: new URL(object.attributedTo || object.actor).hostname,
+          original_url: object.url || object.id,
+          published: object.published,
+        },
+        created_at: object.published || new Date().toISOString(),
+      })
+
+    if (messageError) {
+      logger.error(`Failed to create DM from activity:`, messageError)
+    } else {
+      logger.info(`✅ Created DM in conversation ${conversationId} from ${object.id}`)
     }
   }
 

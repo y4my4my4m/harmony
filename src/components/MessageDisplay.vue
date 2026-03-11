@@ -154,6 +154,18 @@
                     </template>
                   </div>
                 </template>
+                <!-- Group created / users added system message (DM) -->
+                <template v-else-if="item.message.metadata?.type === 'group_created'">
+                  <div class="system-icon">👥</div>
+                  <div class="system-text">
+                    <UnifiedMessageContent 
+                      :content="item.message.content"
+                      :message-id="item.message.id"
+                      :is-system="true"
+                      @show-user-profile="showUserProfile"
+                    />
+                  </div>
+                </template>
                 <!-- Member join system message -->
                 <template v-else-if="item.message.metadata?.type === 'member_join'">
                   <div class="system-icon">👋</div>

@@ -212,11 +212,13 @@ export class CoreMessageService {
   /**
    * Send a DM message (pure local database operation)
    * Note: Federation handling is done by orchestrator service
+   * @param options.isSystem - If true, stores as system message (no encryption, not federated)
    */
   async sendDMMessage(
     conversationId: string,
     content: MessagePart[],
-    replyTo?: string
+    replyTo?: string,
+    options?: { isSystem?: boolean }
   ): Promise<Message> {
     try {
       // Get current user from cached userDataService (no database calls)
@@ -225,10 +227,31 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      // Check encryption for conversation
+      const isSystem = options?.isSystem ?? false
+
+      // System messages: no encryption
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
+
+      if (isSystem) {
+        const messageData = {
+          user_id: currentUser.id,
+          conversation_id: conversationId,
+          content,
+          reply_to: null,
+          is_system: true,
+          metadata: { created_via: 'harmony_client', type: 'group_created' }
+        }
+        const { data: message, error } = await supabase
+          .from('messages')
+          .insert(messageData)
+          .select('*')
+          .single()
+        if (error) throw this.createError('INSERT_FAILED', error.message, error)
+        debug.log('✅ System message sent successfully')
+        return message
+      }
 
       // Check if conversation has encryption enabled
       const { data: convSettings } = await supabase

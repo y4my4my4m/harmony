@@ -1772,69 +1772,56 @@ export async function handleNewDM(message: any): Promise<void> {
     const messageUrl = `https://${domain}/messages/${message.id}`;
     
     // Convert content to HTML
-    // Use shared content utilities for consistent HTML conversion
     const htmlContent = convertContentToHTML(message.content);
-    
-    // Extract attachments and tags using shared utilities
     const attachments = extractAttachments(message.content);
-    const tags = extractActivityPubTags(message.content);
+    const baseTags = extractActivityPubTags(message.content);
     
-    // Send to each remote recipient
+    // Use ONE Create activity with ALL recipients in to: — receiver creates group when multiple local recipients
+    const recipientUrls = remoteUsers.map((p: any) => 
+      p.federated_id || `https://${p.domain}/users/${p.username}`
+    );
+    const mentionTags = remoteUsers.map((p: any) => ({
+      type: 'Mention',
+      href: p.federated_id || `https://${p.domain}/users/${p.username}`,
+      name: `@${p.username}@${p.domain}`
+    }));
+    
+    const note = {
+      id: messageUrl,
+      type: 'Note',
+      attributedTo: senderUrl,
+      published: message.created_at,
+      content: htmlContent,
+      contentMap: { en: htmlContent },
+      attachment: attachments,
+      tag: [...baseTags, ...mentionTags],
+      to: recipientUrls,
+      cc: [],
+      directMessage: true
+    };
+    
+    const activity = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${senderUrl}#dm-${message.id}`,
+      type: 'Create',
+      actor: senderUrl,
+      published: message.created_at,
+      object: note,
+      to: recipientUrls,
+      cc: []
+    };
+    
     for (const profile of remoteUsers) {
-      const recipientUrl = profile.federated_id || `https://${profile.domain}/users/${profile.username}`;
-      const activityId = `${senderUrl}#dm-${message.id}-${profile.id}`;
-      
-      // Add recipient as mention tag
-      const mentionTag = {
-        type: 'Mention',
-        href: recipientUrl,
-        name: `@${profile.username}@${profile.domain}`
-      };
-      
-      // Create Note object (DM format)
-      const note = {
-        id: messageUrl,
-        type: 'Note',
-        attributedTo: senderUrl,
-        published: message.created_at,
-        content: htmlContent,
-        contentMap: { en: htmlContent },
-        attachment: attachments,
-        tag: [...tags, mentionTag],
-        to: [recipientUrl],    // Direct addressing
-        cc: [],                // Empty CC for DMs
-        directMessage: true    // Explicit DM flag
-      };
-      
-      // Create ActivityPub Create activity
-      const activity = {
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        id: activityId,
-        type: 'Create',
-        actor: senderUrl,
-        published: message.created_at,
-        object: note,
-        to: [recipientUrl],
-        cc: []
-      };
-      
-      // Resolve inbox URL
       let inboxUrl = profile.inbox_url;
-      
       if (!inboxUrl) {
-        // Try to get shared inbox from instances table
         const { data: instance } = await supabase
           .from('instances')
           .select('shared_inbox_url')
           .eq('domain', profile.domain)
           .single();
-        
         inboxUrl = instance?.shared_inbox_url || `https://${profile.domain}/inbox`;
       }
-      
-      // Deliver the activity
       await DeliveryQueue.enqueue(activity, inboxUrl, sender.id);
-      
       logger.info(`✅ DM federated to ${profile.username}@${profile.domain}`);
     }
   } catch (error) {

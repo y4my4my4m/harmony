@@ -81,17 +81,18 @@ export class MessageService {
 
   /**
    * Send a DM message (simplified: database triggers handle federation)
+   * @param options.isSystem - If true, stores as system message (not federated)
    */
   async sendDMMessage(
     conversationId: string,
     content: MessagePart[],
-    replyTo?: string
+    replyTo?: string,
+    options?: { isSystem?: boolean }
   ): Promise<Message> {
     try {
       debug.log(`🚀 Simplified: Sending DM message to conversation: ${conversationId}`)
 
-      // Just send the message - database triggers handle federation automatically
-      const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo)
+      const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo, options)
 
       debug.log(`✅ Simplified: DM message sent successfully - database handling federation: ${message.id}`)
       return message
