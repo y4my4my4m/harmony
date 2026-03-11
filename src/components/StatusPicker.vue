@@ -19,7 +19,7 @@
             <div class="preview-content">
               <img 
                 v-if="currentStatus?.emoji_url" 
-                :src="currentStatus.emoji_url" 
+                :src="getEmojiUrl(currentStatus.emoji_url, 32)" 
                 :alt="currentStatus.emoji || 'Emoji'"
                 class="preview-emoji-img"
               />
@@ -131,6 +131,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, h } from 'vue'
 import { userDataService } from '@/services/userDataService'
+import { getEmojiUrl } from '@/utils/emojiUtils'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import type { CustomUserStatus, Emoji } from '@/types'
 

@@ -61,7 +61,7 @@
           />
           <img 
             v-if="currentCustomStatus?.emoji_url" 
-            :src="currentCustomStatus.emoji_url" 
+            :src="getEmojiUrl(currentCustomStatus.emoji_url, 20)" 
             :alt="currentCustomStatus.emoji || 'Emoji'"
             class="preview-emoji-img"
           />
@@ -129,6 +129,7 @@ import StatusPicker from '@/components/StatusPicker.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import ActivityIcon from '@/components/ActivityIcon.vue'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
+import { getEmojiUrl } from '@/utils/emojiUtils'
 
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const themeStore = useThemeStore()

@@ -112,6 +112,8 @@ Group and server icons use the storage **image transformation** API (resize, qua
 
 The app falls back to the raw public URL when the transform endpoint fails, so icons still display; enabling imgproxy restores optimized delivery.
 
+If your storage public URLs use a different domain than `VITE_SUPABASE_URL` (e.g. a CDN like `db.example.com`), set `VITE_STORAGE_DOMAIN=db.example.com` (comma-separated for multiple) so emoji and other transforms are applied to those URLs.
+
 ## Authentication
 
 Supabase Auth handles user authentication with:

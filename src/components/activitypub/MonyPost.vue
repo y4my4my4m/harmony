@@ -502,7 +502,7 @@
       <div class="tooltip-header">
         <img 
           v-if="tooltip.emoji?.url"
-          :src="tooltip.emoji.url"
+          :src="getEmojiUrl(tooltip.emoji.url, 48)"
           :alt="formatEmojiName(tooltip.emoji?.name) || 'emoji'"
           class="tooltip-emoji"
         />
@@ -552,6 +552,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import DisplayName from '@/components/DisplayName.vue';
 import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 

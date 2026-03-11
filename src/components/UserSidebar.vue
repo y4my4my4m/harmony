@@ -154,7 +154,7 @@
                   />
                   <img
                     v-if="getUserCustomStatus(item.user!.id).value?.emoji_url"
-                    :src="getUserCustomStatus(item.user!.id).value?.emoji_url"
+                    :src="getEmojiUrl(getUserCustomStatus(item.user!.id).value?.emoji_url, 20)"
                     :alt="getUserCustomStatus(item.user!.id).value?.emoji || 'Emoji'"
                     class="status-emoji-img"
                   />
@@ -203,6 +203,7 @@ import { UserStatus } from '@/types';
 import { useUserData } from '@/composables/useUserData';
 import { roleService, type ServerRole } from '@/services/RoleService';
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import ActivityIcon from '@/components/ActivityIcon.vue';
 
 // Props

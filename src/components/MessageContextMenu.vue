@@ -16,7 +16,7 @@
         @click="addQuickReaction(emoji)"
         :title="emoji.name"
       >
-        <img v-if="emoji.url" :src="emoji.url" :alt="emoji.name" class="quick-reaction-custom-emoji" />
+        <img v-if="emoji.url" :src="getEmojiUrl(emoji.url, 32)" :alt="emoji.name" class="quick-reaction-custom-emoji" />
         <template v-else>{{ emoji.native || emoji.name }}</template>
       </button>
       <button 
@@ -97,6 +97,7 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { messageService } from '@/services';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import type { Message, Emoji } from '@/types';
 
 interface Props {

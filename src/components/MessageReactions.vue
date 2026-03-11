@@ -23,7 +23,7 @@
         <!-- Custom server emoji with URL (priority) -->
         <img 
           v-if="reactionGroup.emoji?.url && !reactionGroup.emoji?.is_native"
-          :src="reactionGroup.emoji.url" 
+          :src="getEmojiUrl(reactionGroup.emoji.url, 32)" 
           :alt="reactionGroup.emoji.name || 'emoji'"
           class="reaction-emoji"
           @error="handleEmojiError(reactionGroup.emoji)"
@@ -68,6 +68,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import type { Message, Emoji } from '@/types';
 
 interface Props {

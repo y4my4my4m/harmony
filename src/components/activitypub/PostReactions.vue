@@ -22,7 +22,7 @@
         <!-- Custom emoji image -->
         <img 
           v-if="reaction.emoji_url"
-          :src="reaction.emoji_url" 
+          :src="getEmojiUrl(reaction.emoji_url, 32)" 
           :alt="reaction.emoji_name || 'emoji'"
           class="reaction-emoji"
           @error="handleEmojiError(reaction)"
@@ -50,6 +50,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { postReactionsRealtime } from '@/services/PostReactionsRealtime';
 import type { TimelinePost } from '@/types';
