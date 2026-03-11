@@ -101,66 +101,66 @@ const postReactionsStore = usePostReactionsStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
 
+// Strip @domain from shortcodes for comparison: ":name@domain:" → ":name:"
+const normalizeEmojiKey = (name: string | null | undefined): string => {
+  if (!name) return '';
+  return name.replace(/@[\w.-]+(?=:$)/, '');
+};
+
 // Use store-based reactions with safety checks, also include remote reactions from metadata
 const reactions = computed(() => {
   if (!props.post?.id) return [];
   
-  // Get local reactions from store
   const storeReactions = postReactionsStore.getPostReactions(props.post.id);
   const localReactions = Array.isArray(storeReactions) ? storeReactions : [];
   
-  // Check for remote reactions in post metadata (from federated fetch)
   const remoteReactions = props.post?.metadata?.remote_reactions;
   if (!remoteReactions || typeof remoteReactions !== 'object') {
     return localReactions;
   }
   
-  // Convert remote reactions to the same format and merge with local
-  // Format can be either { emoji: count } (old) or { emoji: { count, url, reactors } } (new)
   const remoteReactionGroups: PostEmojiReaction[] = Object.entries(remoteReactions).map(([emoji, value]) => {
-    // Handle both formats
     const count = typeof value === 'number' ? value : (value as any)?.count || 0;
     const url = typeof value === 'object' ? (value as any)?.url : null;
     const reactors = typeof value === 'object' ? (value as any)?.reactors : [];
-    
-    // Check if it's a custom emoji (starts and ends with :)
     const isCustomEmoji = emoji.startsWith(':') && emoji.endsWith(':');
     
     return {
       emoji_id: null,
       emoji_name: emoji,
-      emoji_url: url || null, // Use the URL from the fetched data
-      // For custom emojis without URL, show the emoji name; for unicode, show the emoji itself
+      emoji_url: url || null,
       custom_emoji_content: isCustomEmoji ? (url ? null : emoji) : emoji,
       reaction_count: count,
-      user_reactions: [], // Remote reactions don't have individual user data in this format
+      user_reactions: [],
       current_user_reacted: false,
-      reactors: reactors || [], // Include reactor info for tooltip/display
+      reactors: reactors || [],
     };
   });
   
-  // Merge: local reactions take priority, add remote ones that don't exist locally
+  // Merge: local reactions take priority, add remote ones that don't exist locally.
+  // Normalize emoji keys so ":name@domain:" matches ":name:" and plain names
+  // match their shortcoded equivalents.
   const mergedReactions = [...localReactions];
   for (const remote of remoteReactionGroups) {
-    const existingIndex = mergedReactions.findIndex(r => 
-      r.emoji_name === remote.emoji_name
-    );
+    const remoteKey = normalizeEmojiKey(remote.emoji_name);
+    const existingIndex = mergedReactions.findIndex(r => {
+      if (normalizeEmojiKey(r.emoji_name) === remoteKey) return true;
+      if (r.custom_emoji_content && normalizeEmojiKey(r.custom_emoji_content) === remoteKey) return true;
+      if (r.emoji_url && remote.emoji_url && r.emoji_url === remote.emoji_url) return true;
+      return false;
+    });
     
     if (existingIndex === -1) {
-      // Add remote reaction if not in local
       mergedReactions.push(remote);
     } else {
-      // Use the higher count between local and remote
       if (remote.reaction_count > mergedReactions[existingIndex].reaction_count) {
         mergedReactions[existingIndex].reaction_count = remote.reaction_count;
       }
-      // Also use the URL if we have one and the existing doesn't
       if (remote.emoji_url && !mergedReactions[existingIndex].emoji_url) {
         mergedReactions[existingIndex].emoji_url = remote.emoji_url;
       }
-      // Copy over reactors from remote if we don't have them locally
-      if (remote.reactors && remote.reactors.length > 0 && (!mergedReactions[existingIndex].reactors || mergedReactions[existingIndex].reactors.length === 0)) {
-        mergedReactions[existingIndex].reactors = remote.reactors;
+      if (remote.reactors && remote.reactors.length > 0 && (!mergedReactions[existingIndex].reactors || mergedReactions[existingIndex].reactors!.length === 0)) {
+        (mergedReactions[existingIndex] as any).reactors = remote.reactors;
       }
     }
   }

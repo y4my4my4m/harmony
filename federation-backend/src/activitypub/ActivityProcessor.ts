@@ -457,7 +457,19 @@ export class ActivityProcessor {
           }
         }
 
-        const { error } = await supabase.from('posts').upsert(postData);
+        // Deduplicate: a post may arrive multiple times (direct + follower delivery)
+        const { data: existingPost } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('ap_id', object.id)
+          .maybeSingle();
+
+        if (existingPost) {
+          logger.info(`⏭️ Post already exists for ${object.id}, skipping duplicate`);
+          return;
+        }
+
+        const { error } = await supabase.from('posts').insert(postData);
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
@@ -1547,24 +1559,42 @@ export class ActivityProcessor {
       poll_closed: !!object.closed || (endTime && new Date(endTime) < new Date()),
     };
 
-    // Store as a post with poll metadata
-    const { error } = await supabase.from('posts').upsert({
-      ap_id: object.id,
-      ap_type: 'Question',
-      author_id: author.id,
-      content,
-      visibility,
-      is_local: false,
-      created_at: object.published || new Date().toISOString(),
-      content_warning: object.summary || null,
-      is_sensitive: object.sensitive === true,
-      metadata: pollMetadata,
-    });
+    // Check if poll already exists (may arrive via Update for vote count changes)
+    const { data: existingPoll } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('ap_id', object.id)
+      .maybeSingle();
 
-    if (error) {
-      logger.error('Failed to create poll post:', error);
+    if (existingPoll) {
+      // Update existing poll metadata (vote counts, closed status)
+      const { error } = await supabase.from('posts')
+        .update({ metadata: pollMetadata })
+        .eq('id', existingPoll.id);
+      if (error) {
+        logger.error('Failed to update poll:', error);
+      } else {
+        logger.info(`📊 Updated poll: ${object.id}`);
+      }
     } else {
-      logger.info(`📊 Created poll: ${object.id} with ${options.length} options`);
+      const { error } = await supabase.from('posts').insert({
+        ap_id: object.id,
+        ap_type: 'Question',
+        author_id: author.id,
+        content,
+        visibility,
+        is_local: false,
+        created_at: object.published || new Date().toISOString(),
+        content_warning: object.summary || null,
+        is_sensitive: object.sensitive === true,
+        metadata: pollMetadata,
+      });
+
+      if (error) {
+        logger.error('Failed to create poll post:', error);
+      } else {
+        logger.info(`📊 Created poll: ${object.id} with ${options.length} options`);
+      }
     }
   }
 
