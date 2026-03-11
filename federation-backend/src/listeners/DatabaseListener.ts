@@ -92,8 +92,12 @@ export async function startDatabaseListener(): Promise<void> {
         filter: 'interaction_type=eq.emoji_reaction',
       },
       async (payload) => {
-        logger.info('❤️  New reaction detected:', payload.new.id);
-        await handleNewReaction(payload.new);
+        if (config.USE_PGBOSS_QUEUE) {
+          logger.debug('❤️ Post reaction detected - handled by pg-boss:', payload.new.id);
+        } else {
+          logger.info('❤️  New reaction detected:', payload.new.id);
+          await handleNewReaction(payload.new);
+        }
       }
     )
     .on(
@@ -105,8 +109,12 @@ export async function startDatabaseListener(): Promise<void> {
         filter: 'interaction_type=eq.favorite',
       },
       async (payload) => {
-        logger.info('⭐ New favorite/like detected:', payload.new.id);
-        await handleNewReaction(payload.new);
+        if (config.USE_PGBOSS_QUEUE) {
+          logger.debug('⭐ Post favorite detected - handled by pg-boss:', payload.new.id);
+        } else {
+          logger.info('⭐ New favorite/like detected:', payload.new.id);
+          await handleNewReaction(payload.new);
+        }
       }
     )
     .on(

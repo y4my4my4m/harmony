@@ -407,13 +407,22 @@ export class FederationActivityService {
 
     if (operation === 'add') {
       const activity: any = {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          {
+            'toot': 'http://joinmastodon.org/ns#',
+            'Emoji': 'toot:Emoji',
+            'misskey': 'https://misskey-hub.net/ns#',
+            '_misskey_reaction': 'misskey:_misskey_reaction',
+          }
+        ],
         id: activityId,
         type: 'Like',
         actor: actor.federated_id,
         object: `${instanceDomain}/messages/${messageData.id}`,
         published: new Date().toISOString(),
         content: emojiContent,
+        _misskey_reaction: emojiContent,
       }
 
       if (!isNative && emojiData.url) {
@@ -428,7 +437,13 @@ export class FederationActivityService {
       return activity
     } else {
       return {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          {
+            'misskey': 'https://misskey-hub.net/ns#',
+            '_misskey_reaction': 'misskey:_misskey_reaction',
+          }
+        ],
         id: activityId,
         type: 'Undo',
         actor: actor.federated_id,
@@ -454,16 +469,26 @@ export class FederationActivityService {
     const instanceDomain = await this.getInstanceDomain()
     const isNative = !emojiData.url
     const emojiContent = emojiData.native || emojiData.name
+    const objectUrl = postData.ap_id || `${instanceDomain}/posts/${postData.id}`
 
     if (operation === 'add') {
       const activity: any = {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          {
+            'toot': 'http://joinmastodon.org/ns#',
+            'Emoji': 'toot:Emoji',
+            'misskey': 'https://misskey-hub.net/ns#',
+            '_misskey_reaction': 'misskey:_misskey_reaction',
+          }
+        ],
         id: activityId,
         type: 'Like',
         actor: actor.federated_id,
-        object: `${instanceDomain}/posts/${postData.id}`,
+        object: objectUrl,
         published: new Date().toISOString(),
         content: emojiContent,
+        _misskey_reaction: emojiContent,
       }
 
       if (!isNative && emojiData.url) {
@@ -478,13 +503,19 @@ export class FederationActivityService {
       return activity
     } else {
       return {
-        '@context': 'https://www.w3.org/ns/activitystreams',
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          {
+            'misskey': 'https://misskey-hub.net/ns#',
+            '_misskey_reaction': 'misskey:_misskey_reaction',
+          }
+        ],
         id: activityId,
         type: 'Undo',
         actor: actor.federated_id,
         object: {
           type: 'Like',
-          object: `${instanceDomain}/posts/${postData.id}`,
+          object: objectUrl,
           content: emojiContent
         },
         published: new Date().toISOString()
@@ -625,7 +656,7 @@ export class FederationActivityService {
   private async getPostData(postId: string) {
     const { data, error } = await supabase
       .from('posts')
-      .select('id, content, author_id, visibility, created_at, is_local')
+      .select('id, content, author_id, visibility, created_at, is_local, ap_id')
       .eq('id', postId)
       .single()
 

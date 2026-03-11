@@ -26,7 +26,7 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       .single();
 
     if (!post || !post.ap_id) {
-      logger.debug('Reaction on post without ap_id, skipping federation');
+      logger.info(`⏭️ Reaction on post without ap_id (post_id=${post_id}, found=${!!post}, ap_id=${post?.ap_id ?? 'null'}), skipping federation`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
     }
@@ -38,7 +38,7 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       .single();
 
     if (!user || !user.is_local) {
-      logger.debug('Reaction from remote user, skipping');
+      logger.info(`⏭️ Reaction from remote/missing user (user_id=${user_id}, found=${!!user}, is_local=${user?.is_local}), skipping`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
     }
@@ -52,10 +52,12 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       .single();
 
     if (!postAuthor) {
-      logger.debug('Post author not found, skipping federation');
+      logger.info(`⏭️ Post author not found (author_id=${post.author_id}), skipping federation`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
     }
+
+    logger.info(`📋 Reaction context: post.ap_id=${post.ap_id}, postAuthor.is_local=${postAuthor.is_local}, emoji_id=${emoji_id}, custom_emoji_content=${custom_emoji_content}`);
 
     if (type === 'create') {
       const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
