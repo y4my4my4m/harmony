@@ -2459,7 +2459,7 @@ defineExpose({ editLastOwnMessage });
   margin-right: 4px;
   padding: 20px 0 10px 0;
   min-height: 0; /* Important for flex child with overflow */
-  contain: strict;
+  contain: layout paint;
 }
 
 /* Individual message item */

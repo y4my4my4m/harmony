@@ -317,12 +317,13 @@ class LiveKitService {
       const conversationId = roomName.replace(/^dm-/, '');
       logger.debug(`Extracted conversationId: ${conversationId}`);
       
-      // Check if user is a participant in this DM conversation
+      // Check if user is a participant in this conversation (direct or group)
       const { data: participant, error: participantError } = await supabase
-        .from('dm_participants')
+        .from('conversation_participants')
         .select('id')
         .eq('conversation_id', conversationId)
         .eq('user_id', userId)
+        .is('left_at', null)
         .single();
       
       if (participantError) {
