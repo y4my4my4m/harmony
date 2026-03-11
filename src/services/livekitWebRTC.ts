@@ -1559,6 +1559,15 @@ export class LiveKitWebRTCService {
       this.emit('connection-state-changed', { state });
     });
     
+    // Local participant speaking changes (voice activity indicator for ourselves)
+    this.room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+      this.localMediaState.isSpeaking = speaking;
+      this.localMediaState.audioLevel = speaking ? 50 : 0;
+      if (this.currentUserId) {
+        this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
+      }
+    });
+    
     // Participant connected
     this.room.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
       debug.log('👋 [LiveKit] Participant connected:', participant.identity);
@@ -1780,31 +1789,38 @@ export class LiveKitWebRTCService {
       }
     });
     
-    // Active speaker changes
-    this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: RemoteParticipant[]) => {
-      // Get a set of speaker identities for fast lookup
+    // Active speaker changes (includes both local and remote participants)
+    this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
       const speakerIdentities = new Set(speakers.map(s => s.identity));
+      
+      // Update local participant speaking state
+      const localIdentity = this.room?.localParticipant?.identity;
+      if (localIdentity && this.currentUserId) {
+        const localSpeaking = speakerIdentities.has(localIdentity);
+        if (this.localMediaState.isSpeaking !== localSpeaking) {
+          this.localMediaState.isSpeaking = localSpeaking;
+          this.localMediaState.audioLevel = localSpeaking ? 50 : 0;
+          this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
+        }
+      }
       
       // Track which resolved userIds we've already processed to avoid duplicates
       const processedUserIds = new Set<string>();
       
-      // Update speaking state for all users
+      // Update speaking state for remote users
       for (const [key, state] of this.allUserStates) {
-        // Skip if we've already processed this userId (we store by both UUID and identity)
         if (processedUserIds.has(state.userId)) {
           continue;
         }
         processedUserIds.add(state.userId);
         
-        // Check if this user is speaking - compare against both the key and any mapped identity
         const identity = uuidToIdentityCache.get(state.userId) || state.userId;
         const isSpeaking = speakerIdentities.has(identity) || speakerIdentities.has(key);
         
         if (state.isSpeaking !== isSpeaking) {
           state.isSpeaking = isSpeaking;
-          state.audioLevel = isSpeaking ? 50 : 0; // Approximate level
+          state.audioLevel = isSpeaking ? 50 : 0;
           this.allUserStates.set(key, state);
-          // Use state.userId (resolved UUID) for events
           this.emit('audio-level', { userId: state.userId, level: state.audioLevel });
         }
       }

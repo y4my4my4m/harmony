@@ -36,6 +36,7 @@ interface VoiceChannelState {
   currentChannelId: string | null;
   currentServerId: string | null;
   currentChannelName: string | null;
+  dmOtherUserId: string | null; // For DM calls: the other user's profile ID (for DisplayName rendering)
   isConnected: boolean;
   sessionStartTime: Date | null; // Track when the user joined the channel
   callStartTime: Date | null; // Track when the call started (first user joined)
@@ -111,6 +112,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     isConnecting: false,
     connectionAbortController: null,
     currentChannelName: null,
+    dmOtherUserId: null,
     sessionStartTime: null,
     callStartTime: null,
     
@@ -445,11 +447,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const { useDMStore } = await import('@/stores/useDM');
         const dmStore = useDMStore();
         const conv = dmStore.conversations.find((c: any) => c.id === conversationId);
+        this.dmOtherUserId = conv?.other_user?.id || null;
         this.currentChannelName = conv?.name
           || conv?.other_user?.display_name
           || conv?.other_user?.username
           || 'DM Call';
       } else {
+        this.dmOtherUserId = null;
         this.currentChannelName = serverChannelStore.getChannelNameById(channelId) || 'Voice Channel';
       }
       this.isConnected = true;

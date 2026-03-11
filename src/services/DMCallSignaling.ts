@@ -136,16 +136,11 @@ class DMCallSignalingService {
   }
 
   /**
-   * Send a call signal
+   * Send a call signal on the conversation channel.
+   * Creates a temporary channel if no subscription exists (e.g. when
+   * accepting from the global incoming-call modal before DMHeader mounts).
    */
   async sendSignal(conversationId: string, signal: CallSignal): Promise<void> {
-    const channel = this.channels.get(conversationId)
-    
-    if (!channel) {
-      debug.error('❌ No channel for conversation:', conversationId)
-      return
-    }
-    
     debug.log('📤 Sending call signal:', {
       conversation: conversationId,
       type: signal.type,
@@ -153,11 +148,25 @@ class DMCallSignalingService {
       callType: signal.callType
     })
     
-    await channel.send({
-      type: 'broadcast',
-      event: 'call-signal',
-      payload: signal
-    })
+    const existingChannel = this.channels.get(conversationId)
+    
+    if (existingChannel) {
+      await existingChannel.send({
+        type: 'broadcast',
+        event: 'call-signal',
+        payload: signal
+      })
+    } else {
+      const channelName = `dm-call:${conversationId}`
+      debug.log(`📤 No existing subscription — using temp channel: ${channelName}`)
+      const tempChannel = supabase.channel(channelName)
+      await tempChannel.send({
+        type: 'broadcast',
+        event: 'call-signal',
+        payload: signal
+      })
+      await tempChannel.unsubscribe()
+    }
     
     debug.log('✅ Call signal sent successfully')
   }

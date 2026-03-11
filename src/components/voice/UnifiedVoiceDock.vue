@@ -42,7 +42,8 @@
         <div class="user-details">
           <span class="user-name"><DisplayName v-if="currentUserId" :userId="currentUserId" :fallback="currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User'" :truncate="true" /></span>
           <span class="channel-name">
-            {{ channelName }}
+            <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
+            <template v-else>{{ channelName }}</template>
             <span class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
               {{ voiceStore.connectionMode === 'livekit' ? 'SFU' : voiceStore.connectionMode === 'p2p' ? 'P2P' : '' }}
             </span>
@@ -220,7 +221,10 @@
           @touchstart="startDrag"
         >
           <Icon name="volume" class="channel-icon" />
-          <span class="channel-name">{{ channelName }}</span>
+          <span class="channel-name">
+            <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
+            <template v-else>{{ channelName }}</template>
+          </span>
           <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
           <!-- Recent Speakers -->
           <RecentSpeakers class="recent-speakers-container" :max-speakers="4" />
