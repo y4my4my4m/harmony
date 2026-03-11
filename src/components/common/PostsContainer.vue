@@ -21,12 +21,13 @@
     </div>
 
     <!-- Virtualized Posts -->
-    <div v-else class="posts-list" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+    <div v-else class="posts-list" :style="{ height: `${totalSize}px`, position: 'relative' }">
       <div
         v-for="virtualRow in virtualRows"
         :key="posts[virtualRow.index].id"
         :data-index="virtualRow.index"
         :ref="measureElement"
+        class="virtual-post-row"
         :style="{
           position: 'absolute',
           top: 0,
@@ -168,10 +169,20 @@ onUnmounted(() => {
 .posts-container {
   display: flex;
   flex-direction: column;
+  align-items: center;
   width: 100%;
   overflow-y: auto;
   padding: 20px 0;
   height: calc(100% - 4px);
+}
+
+.posts-list {
+  width: 100%;
+  max-width: 600px;
+}
+
+.virtual-post-row {
+  padding: 6px 16px;
 }
 
 .loading-state,
@@ -247,6 +258,8 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   padding: var(--space-5);
+  width: 100%;
+  max-width: 600px;
 }
 
 .loading-more {
