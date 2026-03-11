@@ -1188,6 +1188,38 @@ export class CoreMessageService {
     }
   }
 
+  /**
+   * Send a system message in a channel (e.g., thread creation announcements).
+   * System messages bypass encryption and are rendered specially by MessageDisplay.
+   */
+  async sendSystemMessage(
+    channelId: string,
+    content: MessagePart[],
+    metadata: Record<string, any>
+  ): Promise<{ error: string | null }> {
+    try {
+      const userId = await this.getCurrentProfileId()
+      
+      const { error } = await supabase.from('messages').insert({
+        channel_id: channelId,
+        user_id: userId,
+        content,
+        is_system: true,
+        metadata,
+      })
+
+      if (error) {
+        debug.error('Failed to send system message:', error)
+        return { error: error.message }
+      }
+      return { error: null }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      debug.error('Failed to send system message:', msg)
+      return { error: msg }
+    }
+  }
+
   private createError(code: string, message: string, details?: any): CoreMessageServiceError {
     return { code, message, details }
   }

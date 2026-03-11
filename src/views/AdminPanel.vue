@@ -1607,6 +1607,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
+import { escapeHtml } from '@/utils/sanitize'
 import { useAuthStore } from '@/stores/auth'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRouter } from 'vue-router'
@@ -2697,7 +2698,8 @@ const updateReport = async (reportId: string, status: 'investigating' | 'resolve
 }
 
 const linkifyReportPreview = (text: string): string => {
-  return text.replace(
+  const escaped = escapeHtml(text)
+  return escaped.replace(
     /(https?:\/\/[^\s\]]+)/g,
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">$1</a>'
   )

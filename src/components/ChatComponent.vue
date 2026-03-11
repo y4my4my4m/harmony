@@ -129,6 +129,7 @@
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
+  import { coreMessageService } from '@/services/core/CoreMessageService';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
   import { useUserData } from '@/composables/useUserData';
@@ -473,27 +474,12 @@
       
       // Send a system message for thread creation
       const sendSystemThreadMessage = async (channelId: string, threadName: string, threadId: string) => {
-        try {
-          const userId = authStore.session?.user?.id;
-          if (!userId) return;
-          
-          // Content is minimal - the MessageDisplay renders thread_created messages specially using metadata
-          const content = [{ type: 'text' as const, text: 'started a thread' }];
-          
-          await supabase.from('messages').insert({
-            channel_id: channelId,
-            user_id: userId,
-            content: content,
-            is_system: true,
-            metadata: {
-              type: 'thread_created',
-              thread_id: threadId,
-              thread_name: threadName,
-            }
-          });
-        } catch (error) {
-          debug.error('Failed to send thread system message:', error);
-        }
+        const { error } = await coreMessageService.sendSystemMessage(
+          channelId,
+          [{ type: 'text' as const, text: 'started a thread' }],
+          { type: 'thread_created', thread_id: threadId, thread_name: threadName }
+        );
+        if (error) debug.error('Failed to send thread system message:', error);
       };
 
       const handleThreadUpdated = (thread: any) => {

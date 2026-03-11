@@ -293,6 +293,7 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
+import { throttle } from '@/utils/throttle'
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -478,30 +479,23 @@ const bannerStyle = computed(() => {
 })
 
 // Scroll handling with infinite scroll for posts
-let scrollDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-const handleScroll = () => {
+const handleScroll = throttle(() => {
   if (!scrollContainerRef.value) return;
   
   const container = scrollContainerRef.value;
   const scrollTop = container.scrollTop;
-  isScrolled.value = scrollTop > 50; // Trigger shrink after 50px scroll
+  isScrolled.value = scrollTop > 50;
   
-  // Infinite scroll: load more when near bottom (within 300px)
   if (activeTab.value === 'posts' && !isLoadingPosts.value && !isLoadingMoreRemote.value) {
     const scrollHeight = container.scrollHeight;
     const clientHeight = container.clientHeight;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     
     if (distanceFromBottom < 300 && hasMorePostsRef.value) {
-      // Debounce to avoid multiple rapid calls
-      if (scrollDebounceTimer) clearTimeout(scrollDebounceTimer);
-      scrollDebounceTimer = setTimeout(() => {
-        loadMorePosts();
-      }, 150);
+      loadMorePosts();
     }
   }
-};
+}, 100);
 
 // Header event handlers
 const handleSwitchFeed = (feed: string) => {

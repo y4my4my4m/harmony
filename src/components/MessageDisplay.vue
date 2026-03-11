@@ -539,6 +539,7 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
+import { throttle } from '@/utils/throttle';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -1758,7 +1759,7 @@ const checkScrollable = () => {
   }
 };
 
-const handleScroll = () => {
+const handleScroll = throttle(() => {
   if (!messageDisplayContainer.value) {
     return;
   }
@@ -1781,13 +1782,12 @@ const handleScroll = () => {
   }
 
   const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-  // Clear flag if user scrolls away from bottom
   if (!isAtBottom) {
     shouldBeAtBottom.value = false;
   }
   
   emit('update:isAtBottom', isAtBottom);
-};
+}, 16);
 
 const handleWheel = (event: WheelEvent) => {
   if (messageDisplayContainer.value && hasScrollbar.value && isAtTop.value && event.deltaY < 0) {
@@ -1803,7 +1803,9 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
   if (index === 0) return true;
   const prevMessage = props.messages[index - 1];
   if (!prevMessage) return true;
-  
+
+  if (message.is_system || prevMessage.is_system) return true;
+
   // For bot-puppeted messages (e.g., Discord bridge), compare the puppeted user identity
   // rather than the bot_id, since multiple Discord users are puppeted through the same bot
   if (message.bot_id && prevMessage.bot_id) {
@@ -2457,6 +2459,7 @@ defineExpose({ editLastOwnMessage });
   margin-right: 4px;
   padding: 20px 0 10px 0;
   min-height: 0; /* Important for flex child with overflow */
+  contain: strict;
 }
 
 /* Individual message item */
@@ -2464,6 +2467,8 @@ defineExpose({ editLastOwnMessage });
   position: relative;
   padding: 0.125rem 16px; /* 2px vertical padding */
   transition: background-color 0.1s ease-out;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48px;
 }
 
 /* Add margin to message-item only if its child .message-group has a header */
@@ -2582,7 +2587,7 @@ defineExpose({ editLastOwnMessage });
 
 .username-text:hover {
   border-bottom: 2px solid;
-  padding-bottom: 2px;
+  padding-bottom: 1px;
 }
 
 .bot-badge {

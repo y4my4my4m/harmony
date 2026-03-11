@@ -80,8 +80,8 @@ class HapticFeedbackManager {
         const vibrationPattern = duration || this.getPatternDuration(pattern)
         ;(navigator as any).webkitVibrate(vibrationPattern)
       }
-    } catch (error) {
-      debug.warn('Haptic feedback failed:', error)
+    } catch {
+      // Silently ignore - haptic feedback is non-critical
     }
   }
 

@@ -434,5 +434,80 @@ router.post(
   })
 );
 
+/**
+ * GET /messages/:id
+ * Serve a DM message as an ActivityPub Note object so remote instances
+ * can dereference inReplyTo references pointing to our messages.
+ * Only returns messages that have been federated (federation_status = 'completed').
+ * Requires HTTP Signature or Accept: application/activity+json.
+ */
+router.get(
+  '/messages/:id',
+  asyncHandler(async (req: Request, res: Response) => {
+    const accept = req.headers.accept || '';
+    const isAPRequest = accept.includes('application/activity+json')
+      || accept.includes('application/ld+json');
+
+    if (!isAPRequest) {
+      res.status(406).json({ error: 'Not Acceptable' });
+      return;
+    }
+
+    const messageId = req.params.id;
+    if (!messageId || !/^[a-f0-9-]{36}$/.test(messageId)) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const domain = config.INSTANCE_DOMAIN;
+
+    const { data: message, error } = await supabase
+      .from('messages')
+      .select(`
+        id, content, created_at, metadata,
+        user:profiles!messages_user_id_fkey(id, username),
+        conversation:conversations!messages_conversation_id_fkey(id, type)
+      `)
+      .eq('id', messageId)
+      .eq('federation_status', 'completed')
+      .single();
+
+    if (error || !message || !message.user) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+
+    const author = message.user as any;
+    const conv = message.conversation as any;
+
+    const note: any = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `https://${domain}/messages/${message.id}`,
+      type: 'Note',
+      attributedTo: `https://${domain}/users/${author.username}`,
+      published: message.created_at,
+      content: typeof message.content === 'string' ? message.content : '',
+    };
+
+    if (message.metadata?.conversation) {
+      note.conversation = message.metadata.conversation;
+    }
+    if (message.metadata?.in_reply_to_ap) {
+      note.inReplyTo = message.metadata.in_reply_to_ap;
+    }
+
+    if (conv?.type === 'group') {
+      note['harmony:conversationType'] = 'group';
+    }
+
+    note.directMessage = true;
+
+    res.set('Content-Type', 'application/activity+json; charset=utf-8');
+    res.set('Cache-Control', 'max-age=300');
+    res.json(note);
+  })
+);
+
 export default router;
 

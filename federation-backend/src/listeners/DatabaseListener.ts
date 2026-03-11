@@ -1808,6 +1808,22 @@ export async function handleNewDM(message: any): Promise<void> {
       name: `@${p.username}@${p.domain}`
     }));
     
+    // Check if the conversation has an established remote conversation tag
+    // (from the first incoming federated message). Use it so Mastodon groups
+    // all messages into the same thread.
+    let conversationTag = `tag:${domain},${new Date(message.created_at).getFullYear()}:conversation-${message.conversation_id}`;
+    const { data: existingConvMsg } = await supabase
+      .from('messages')
+      .select('metadata')
+      .eq('conversation_id', message.conversation_id)
+      .not('metadata->conversation', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
+    if (existingConvMsg?.metadata?.conversation) {
+      conversationTag = existingConvMsg.metadata.conversation;
+    }
+
     const note: any = {
       id: messageUrl,
       type: 'Note',
@@ -1820,26 +1836,27 @@ export async function handleNewDM(message: any): Promise<void> {
       to: allToUrls,
       cc: [],
       directMessage: true,
-      conversation: `tag:${domain},${new Date(message.created_at).getFullYear()}:conversation-${message.conversation_id}`,
+      conversation: conversationTag,
     };
 
     if (conversationType === 'group') {
       note['harmony:conversationType'] = 'group';
 
-      // Thread group messages: find the first federated message in this conversation
-      // so Mastodon/Misskey can display them as a single conversation thread
-      const { data: firstMsg } = await supabase
+      // Thread group messages using linear chain: set inReplyTo to the most
+      // recent message in the conversation (preferring remote AP IDs that
+      // Mastodon can resolve, falling back to our own message URLs).
+      const { data: prevMsg } = await supabase
         .from('messages')
-        .select('id, created_at')
+        .select('id, metadata')
         .eq('conversation_id', message.conversation_id)
-        .eq('federation_status', 'completed')
         .neq('id', message.id)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (firstMsg) {
-        note.inReplyTo = `https://${domain}/messages/${firstMsg.id}`;
+      if (prevMsg) {
+        note.inReplyTo = prevMsg.metadata?.ap_id
+          || `https://${domain}/messages/${prevMsg.id}`;
       }
     }
     
@@ -1854,6 +1871,21 @@ export async function handleNewDM(message: any): Promise<void> {
       cc: []
     };
     
+    // Store conversation tag and ap_id on the message metadata so future
+    // messages can reference it and the GET /messages/:id endpoint can serve it
+    const updatedMetadata = {
+      ...(message.metadata || {}),
+      ap_id: messageUrl,
+      conversation: conversationTag,
+    };
+    if (note.inReplyTo) {
+      updatedMetadata.in_reply_to_ap = note.inReplyTo;
+    }
+    await supabase
+      .from('messages')
+      .update({ metadata: updatedMetadata })
+      .eq('id', message.id);
+
     for (const profile of remoteUsers) {
       let inboxUrl = profile.inbox_url;
       if (!inboxUrl) {
