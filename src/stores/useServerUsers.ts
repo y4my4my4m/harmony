@@ -376,35 +376,20 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
     /**
      * Fetch current voice channel state from database
-     * Checks both user_presence (for local servers) and voice_channel_participants (for federated)
+     * Uses voice_channel_participants table for tracking
      */
     async fetchVoiceChannelState(serverId: string) {
       try {
         debug.log('📞 Fetching voice channel state for server:', serverId);
         
-        const channelUsers: Record<string, string[]> = {};
-        
-        // Fetch from user_presence (local server tracking)
-        const { data: presenceData, error: presenceError } = await supabase
-          .from('user_presence')
-          .select('user_id, voice_channel_id')
-          .eq('server_id', serverId)
-          .not('voice_channel_id', 'is', null);
-
-        if (!presenceError && presenceData) {
-          for (const presence of presenceData) {
-            if (presence.voice_channel_id) {
-              if (!channelUsers[presence.voice_channel_id]) {
-                channelUsers[presence.voice_channel_id] = [];
-              }
-              if (!channelUsers[presence.voice_channel_id].includes(presence.user_id)) {
-                channelUsers[presence.voice_channel_id].push(presence.user_id);
-              }
-            }
-          }
+        // DM voice calls don't use voice_channel_participants (non-UUID IDs)
+        if (serverId === 'dm') {
+          debug.log('📞 Skipping DB fetch for DM voice state');
+          return;
         }
         
-        // Also fetch from voice_channel_participants (federated tracking)
+        const channelUsers: Record<string, string[]> = {};
+        
         const { data: participantsData, error: participantsError } = await supabase
           .from('voice_channel_participants')
           .select('user_id, channel_id')
@@ -483,9 +468,11 @@ export const useServerUsersStore = defineStore('serverUsers', {
           callStartTime = this.voiceChannelCallStartTimes[channelId]?.toISOString();
         }
 
-        // Only write to voice_channel_participants for LOCAL servers
+        // Only write to voice_channel_participants for LOCAL servers with valid UUIDs
+        // DM calls use non-UUID IDs (server_id='dm', channel_id='dm-<uuid>')
         // For federated servers, the hosting instance handles this via VoiceChannelJoin activity
-        if (isLocalServer) {
+        const isDMCall = serverId === 'dm' || channelId.startsWith('dm-');
+        if (isLocalServer && !isDMCall) {
           supabase
             .from('voice_channel_participants')
             .upsert({
@@ -502,6 +489,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
                 debug.log('✅ Wrote to voice_channel_participants');
               }
             });
+        } else if (isDMCall) {
+          debug.log('📞 DM voice call - skipping voice_channel_participants DB write');
         } else {
           debug.log('📡 Federated voice channel - skipping local DB write');
         }
@@ -530,9 +519,11 @@ export const useServerUsersStore = defineStore('serverUsers', {
           }
         }
 
-        // Only write to voice_channel_participants for LOCAL servers
+        // Only write to voice_channel_participants for LOCAL servers with valid UUIDs
+        // DM calls use non-UUID IDs (server_id='dm', channel_id='dm-<uuid>')
         // For federated servers, the hosting instance handles this via VoiceChannelLeave activity
-        if (isLocalServer) {
+        const isDMCall = serverId === 'dm' || channelId.startsWith('dm-');
+        if (isLocalServer && !isDMCall) {
           supabase
             .from('voice_channel_participants')
             .delete()
@@ -545,6 +536,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
                 debug.log('✅ Removed from voice_channel_participants');
               }
             });
+        } else if (isDMCall) {
+          debug.log('📞 DM voice call - skipping voice_channel_participants DB delete');
         } else {
           debug.log('📡 Federated voice channel - skipping local DB delete');
         }
@@ -595,18 +588,22 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
 
       // Clean up database entry (fire-and-forget, don't block on this)
-      supabase
-        .from('voice_channel_participants')
-        .delete()
-        .eq('channel_id', channelId)
-        .eq('user_id', userId)
-        .then(({ error }) => {
-          if (error) {
-            debug.warn('Failed to cleanup voice_channel_participants:', error.message);
-          } else {
-            debug.log('✅ Cleaned up disconnected user from voice_channel_participants');
-          }
-        });
+      // DM calls use non-UUID IDs, skip DB cleanup for those
+      const isDMCall = channelId.startsWith('dm-');
+      if (!isDMCall) {
+        supabase
+          .from('voice_channel_participants')
+          .delete()
+          .eq('channel_id', channelId)
+          .eq('user_id', userId)
+          .then(({ error }) => {
+            if (error) {
+              debug.warn('Failed to cleanup voice_channel_participants:', error.message);
+            } else {
+              debug.log('✅ Cleaned up disconnected user from voice_channel_participants');
+            }
+          });
+      }
 
       // Broadcast the leave event so other clients update their UI
       this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);

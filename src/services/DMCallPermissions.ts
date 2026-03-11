@@ -170,17 +170,15 @@ class DMCallPermissionService {
    * Check if user is already in a call
    */
   private async isUserBusy(userId: string): Promise<boolean> {
-    // Check if user is in any voice channel
     try {
       const { data, error } = await supabase
-        .from('user_presence')
-        .select('voice_channel_id')
+        .from('voice_channel_participants')
+        .select('id')
         .eq('user_id', userId)
-        .eq('server_id', 'dm') // Check DM calls
-        .single()
+        .limit(1)
 
-      if (error || !data) return false
-      return !!data.voice_channel_id
+      if (error || !data || data.length === 0) return false
+      return true
     } catch {
       return false
     }
@@ -214,7 +212,7 @@ class DMCallPermissionService {
         .from('notification_preferences')
         .select('sound_voice_activity, desktop_notifications')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (error || !data) {
         // Default to enabled if no preferences found
