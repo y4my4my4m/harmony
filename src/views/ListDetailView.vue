@@ -86,35 +86,20 @@
 
     <!-- Timeline -->
     <div class="list-timeline" v-if="!showMembersPanel">
-      <div v-if="isLoading" class="loading">
-        <div class="loading-spinner" />
-        <span>Loading timeline...</span>
-      </div>
-      <div v-else-if="timelinePosts.length === 0" class="empty-timeline">
-        <div class="empty-icon">📭</div>
-        <h3>No posts yet</h3>
-        <p>Add members to this list to see their posts here.</p>
-      </div>
-      <div v-else data-timeline class="posts-list">
-        <MonyPost
-          v-for="post in timelinePosts"
-          :key="post.id"
-          :post="post"
-          @reply="$emit('reply-to-post', $event)"
-          @favorite="$emit('favorite-post', $event)"
-          @reblog="$emit('reblog-post', $event)"
-          @bookmark="$emit('bookmark-post', $event)"
-          @delete="$emit('delete-post', $event)"
-        />
-      </div>
-      <button
-        v-if="hasMore && !isLoading"
-        class="load-more-btn"
-        @click="loadMore"
-        :disabled="isLoadingMore"
-      >
-        {{ isLoadingMore ? 'Loading...' : 'Load more' }}
-      </button>
+      <PostsContainer
+        :posts="timelinePosts"
+        :is-loading="isLoading"
+        :has-more="hasMore"
+        loading-message="Loading timeline..."
+        empty-title="No posts yet"
+        empty-message="Add members to this list to see their posts here."
+        @load-more="loadMore"
+        @reply="$emit('reply-to-post', $event)"
+        @favorite="$emit('favorite-post', $event)"
+        @reblog="$emit('reblog-post', $event)"
+        @bookmark="$emit('bookmark-post', $event)"
+        @delete="$emit('delete-post', $event)"
+      />
     </div>
   </div>
 </template>
@@ -125,7 +110,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserListMember } from '@/stores/useActivityPub'
 import { supabase } from '@/supabase'
-import MonyPost from '@/components/activitypub/MonyPost.vue'
+import PostsContainer from '@/components/common/PostsContainer.vue'
 import type { TimelinePost } from '@/types'
 
 const router = useRouter()

@@ -62,458 +62,110 @@
       </div>
     </div>
 
-    <!-- User Groups -->
-    <div class="user-groups" v-if="props.visible">
-      <!-- Loading Indicator -->
+    <!-- User Groups (virtualized) -->
+    <div class="user-groups" ref="sidebarGroupsRef" v-if="props.visible">
       <div v-if="isLoadingUsers" class="loading-indicator">
         <div class="loading-spinner"></div>
         <span>{{ $t('server.loadingUsers') }}</span>
       </div>
-      
-      <!-- Hoisted Role Groups (displayed first) -->
-      <div 
-        v-for="role in hoistedRolesSorted" 
-        :key="`role-group-${role.id}`"
-        v-show="!isLoadingUsers && groupedUsers[`role:${role.id}`]?.length > 0"
-        class="user-group role-group"
-      >
-        <button 
-          @click="toggleGroup(`role:${role.id}`)"
-          class="group-header"
-          :class="{ 'group-collapsed': collapsedGroups[`role:${role.id}`] }"
-        >
-          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
-          </svg>
-          <span class="group-title">
-            <span class="role-color-dot" :style="{ backgroundColor: role.color || '#99AAB5' }"></span>
-            {{ role.name }} — {{ groupedUsers[`role:${role.id}`]?.length || 0 }}
-          </span>
-        </button>
-        <div v-if="!collapsedGroups[`role:${role.id}`]" class="user-list">
-          <div 
-            v-for="user in groupedUsers[`role:${role.id}`]" 
-            :key="user.id" 
-            class="user-item"
-            @click="showUserProfile(user)"
-          >
-            <Avatar
-              :src="getUserAvatarUrl(user.id).value"
-              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
-              size="sm"
-              :status="getStatusForAvatarValue(user.id)"
-              class="user-avatar"
-            />
-            <div class="user-info">
-              <div class="user-name-row">
-                <span 
-                  class="user-name" 
-                  :style="{ color: role.color || getUserColor(user.id).value || undefined }"
-                >
-                  <DisplayName :user-id="user.id" :truncate="true" />
-                </span>
-                <span 
-                  v-if="!isUserLocal(user.id).value" 
-                  class="federation-badge"
-                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
-                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-                  </svg>
-                </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-              </div>
-              <span 
-                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
-                class="user-domain"
-              >
-                {{ getUserDomain(user.id).value }}
-              </span>
-              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
-              <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
-                <ActivityIcon
-                  v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
-                  :type="getUserCustomStatus(user.id).value!.type"
-                  :size="14"
-                  class="status-activity-icon"
-                />
-                <img 
-                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
-                  class="status-emoji-img"
-                />
-                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
-                  {{ getUserCustomStatus(user.id).value?.emoji }}
-                </span>
-                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Online Users -->
-      <div v-if="!isLoadingUsers && groupedUsers.online.length > 0" class="user-group">
-        <button 
-          @click="toggleGroup('online')"
-          class="group-header"
-          :class="{ 'group-collapsed': collapsedGroups.online }"
-        >
-          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
-          </svg>
-          <span class="group-title">{{ $t('user.online') }} — {{ groupedUsers.online.length }}</span>
-        </button>
-        <div v-if="!collapsedGroups.online" class="user-list">
-          <div 
-            v-for="user in groupedUsers.online" 
-            :key="user.id" 
-            class="user-item"
-            @click="showUserProfile(user)"
-          >
-            <Avatar
-              :src="getUserAvatarUrl(user.id).value"
-              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
-              size="sm"
-              :status="getStatusForAvatarValue(user.id)"
-              class="user-avatar"
-            />
-            <div class="user-info">
-              <div class="user-name-row">
-                <span 
-                  class="user-name" 
-                  :style="{ color: getUserColor(user.id).value || undefined }"
-                >
-                  <DisplayName :user-id="user.id" :truncate="true" />
-                </span>
-                <span 
-                  v-if="!isUserLocal(user.id).value" 
-                  class="federation-badge"
-                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
-                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-                  </svg>
-                </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-              </div>
-              <span 
-                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
-                class="user-domain"
-              >
-                {{ getUserDomain(user.id).value }}
-              </span>
-              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
-              <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
-                <ActivityIcon
-                  v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
-                  :type="getUserCustomStatus(user.id).value!.type"
-                  :size="14"
-                  class="status-activity-icon"
-                />
-                <img 
-                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
-                  class="status-emoji-img"
-                />
-                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
-                  {{ getUserCustomStatus(user.id).value?.emoji }}
-                </span>
-                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Away Users -->
-      <div v-if="!isLoadingUsers && groupedUsers.away.length > 0" class="user-group">
-        <button 
-          @click="toggleGroup('away')"
-          class="group-header"
-          :class="{ 'group-collapsed': collapsedGroups.away }"
+      <div v-else-if="sidebarDisplayItems.length > 0" :style="{ height: `${sidebarTotalSize}px`, position: 'relative' }">
+        <div
+          v-for="virtualRow in sidebarVirtualRows"
+          :key="sidebarDisplayItems[virtualRow.index].key"
+          :data-index="virtualRow.index"
+          :ref="sidebarMeasureElement"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${virtualRow.start}px)`
+          }"
         >
-          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
-          </svg>
-          <span class="group-title">{{ $t('user.away') }} — {{ groupedUsers.away.length }}</span>
-        </button>
-        <div v-if="!collapsedGroups.away" class="user-list">
-          <div 
-            v-for="user in groupedUsers.away" 
-            :key="user.id" 
-            class="user-item"
-            @click="showUserProfile(user)"
-          >
-            <Avatar
-              :src="getUserAvatarUrl(user.id).value"
-              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
-              size="sm"
-              :status="getStatusForAvatarValue(user.id)"
-              class="user-avatar"
-            />
-            <div class="user-info">
-              <div class="user-name-row">
-                <span 
-                  class="user-name" 
-                  :style="{ color: getUserColor(user.id).value || undefined }"
-                >
-                  <DisplayName :user-id="user.id" :truncate="true" />
-                </span>
-                <span 
-                  v-if="!isUserLocal(user.id).value" 
-                  class="federation-badge"
-                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
-                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-                  </svg>
-                </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-              </div>
-              <span 
-                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
-                class="user-domain"
-              >
-                {{ getUserDomain(user.id).value }}
+          <template v-for="(item, _idx) in [sidebarDisplayItems[virtualRow.index]]" :key="_idx">
+            <!-- Group header -->
+            <button
+              v-if="item.type === 'header'"
+              @click="toggleGroup(item.groupKey!)"
+              class="group-header"
+              :class="{ 'group-collapsed': item.isCollapsed }"
+            >
+              <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+              </svg>
+              <span class="group-title">
+                <span v-if="item.roleColor" class="role-color-dot" :style="{ backgroundColor: item.roleColor }"></span>
+                {{ item.title }} — {{ item.count }}
               </span>
-              <!-- Custom Status -->
-              <div 
-                v-if="getUserCustomStatus(user.id).value?.text || getUserCustomStatus(user.id).value?.emoji || getUserCustomStatus(user.id).value?.emoji_url" 
-                class="user-custom-status"
-              >
-                <img 
-                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
-                  class="status-emoji-img"
-                />
-                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
-                  {{ getUserCustomStatus(user.id).value?.emoji }}
-                </span>
-                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            </button>
 
-      <!-- Busy Users -->
-      <div v-if="!isLoadingUsers && groupedUsers.busy.length > 0" class="user-group">
-        <button 
-          @click="toggleGroup('busy')"
-          class="group-header"
-          :class="{ 'group-collapsed': collapsedGroups.busy }"
-        >
-          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
-          </svg>
-          <span class="group-title">{{ $t('user.busy') }} — {{ groupedUsers.busy.length }}</span>
-        </button>
-        <div v-if="!collapsedGroups.busy" class="user-list">
-          <div 
-            v-for="user in groupedUsers.busy" 
-            :key="user.id" 
-            class="user-item"
-            @click="showUserProfile(user)"
-          >
-            <Avatar
-              :src="getUserAvatarUrl(user.id).value"
-              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
-              size="sm"
-              :status="getStatusForAvatarValue(user.id)"
-              class="user-avatar"
-            />
-            <div class="user-info">
-              <div class="user-name-row">
-                <span 
-                  class="user-name" 
-                  :style="{ color: getUserColor(user.id).value || undefined }"
+            <!-- User item -->
+            <div
+              v-else
+              class="user-item"
+              :class="{ 'offline-user': item.isOffline }"
+              @click="showUserProfile(item.user!)"
+            >
+              <Avatar
+                :src="getUserAvatarUrl(item.user!.id).value"
+                :alt="getUserDisplayName(item.user!.id).value || 'Unknown User'"
+                size="sm"
+                :status="getStatusForAvatarValue(item.user!.id)"
+                class="user-avatar"
+              />
+              <div class="user-info">
+                <div class="user-name-row">
+                  <span
+                    class="user-name"
+                    :style="{ color: item.nameColor || getUserColor(item.user!.id).value || undefined }"
+                  >
+                    <DisplayName :user-id="item.user!.id" :truncate="true" />
+                  </span>
+                  <span
+                    v-if="!isUserLocal(item.user!.id).value"
+                    class="federation-badge"
+                    :title="getUserDomain(item.user!.id).value ? `From ${getUserDomain(item.user!.id).value}` : 'Federated user'"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
+                      <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                    </svg>
+                  </span>
+                  <span v-if="isUserInstanceAdmin(item.user!.id).value" class="instance-badge admin" title="Instance Admin">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  </span>
+                  <span v-else-if="isUserInstanceMod(item.user!.id).value" class="instance-badge mod" title="Instance Moderator">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  </span>
+                </div>
+                <span
+                  v-if="!isUserLocal(item.user!.id).value && getUserDomain(item.user!.id).value"
+                  class="user-domain"
                 >
-                  <DisplayName :user-id="user.id" :truncate="true" />
+                  {{ getUserDomain(item.user!.id).value }}
                 </span>
-                <span 
-                  v-if="!isUserLocal(user.id).value" 
-                  class="federation-badge"
-                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
-                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-                  </svg>
-                </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-              </div>
-              <span 
-                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
-                class="user-domain"
-              >
-                {{ getUserDomain(user.id).value }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Federated Users -->
-      <div v-if="!isLoadingUsers && groupedUsers.federated.length > 0" class="user-group">
-        <button 
-          @click="toggleGroup('federated')"
-          class="group-header"
-          :class="{ 'group-collapsed': collapsedGroups.federated }"
-        >
-          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
-          </svg>
-          <span class="group-title">Federated — {{ groupedUsers.federated.length }}</span>
-        </button>
-        <div v-if="!collapsedGroups.federated" class="user-list">
-          <div 
-            v-for="user in groupedUsers.federated" 
-            :key="user.id" 
-            class="user-item"
-            @click="showUserProfile(user)"
-          >
-            <Avatar
-              :src="getUserAvatarUrl(user.id).value"
-              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
-              size="sm"
-              :status="getStatusForAvatarValue(user.id)"
-              class="user-avatar"
-            />
-            <div class="user-info">
-              <div class="user-name-row">
-                <span 
-                  class="user-name" 
-                  :style="{ color: getUserColor(user.id).value || undefined }"
-                >
-                  <DisplayName :user-id="user.id" :truncate="true" />
-                </span>
-                <span 
-                  v-if="!isUserLocal(user.id).value" 
-                  class="federation-badge"
-                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
-                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-                  </svg>
-                </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-              </div>
-              <span 
-                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
-                class="user-domain"
-              >
-                {{ getUserDomain(user.id).value }}
-              </span>
-              <!-- Custom Status: [activity icon] [emoji] "Playing" or "Playing: myCustomStatus" (activity-only for future SDK/game/stream) -->
-              <div v-if="hasCustomStatusToShow(user.id)" class="user-custom-status">
-                <ActivityIcon
-                  v-if="getUserCustomStatus(user.id).value?.type && getUserCustomStatus(user.id).value?.type !== 'custom'"
-                  :type="getUserCustomStatus(user.id).value!.type"
-                  :size="14"
-                  class="status-activity-icon"
-                />
-                <img 
-                  v-if="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :src="getUserCustomStatus(user.id).value?.emoji_url" 
-                  :alt="getUserCustomStatus(user.id).value?.emoji || 'Emoji'"
-                  class="status-emoji-img"
-                />
-                <span v-else-if="getUserCustomStatus(user.id).value?.emoji" class="status-emoji">
-                  {{ getUserCustomStatus(user.id).value?.emoji }}
-                </span>
-                <span v-if="getCustomStatusDisplay(user.id)" class="status-text">{{ getCustomStatusDisplay(user.id) }}</span>
+                <!-- Custom status (full: with ActivityIcon, partial: no ActivityIcon, none: hidden) -->
+                <div v-if="item.showStatus !== 'none' && hasCustomStatusToShow(item.user!.id)" class="user-custom-status">
+                  <ActivityIcon
+                    v-if="item.showStatus === 'full' && getUserCustomStatus(item.user!.id).value?.type && getUserCustomStatus(item.user!.id).value?.type !== 'custom'"
+                    :type="getUserCustomStatus(item.user!.id).value!.type"
+                    :size="14"
+                    class="status-activity-icon"
+                  />
+                  <img
+                    v-if="getUserCustomStatus(item.user!.id).value?.emoji_url"
+                    :src="getUserCustomStatus(item.user!.id).value?.emoji_url"
+                    :alt="getUserCustomStatus(item.user!.id).value?.emoji || 'Emoji'"
+                    class="status-emoji-img"
+                  />
+                  <span v-else-if="getUserCustomStatus(item.user!.id).value?.emoji" class="status-emoji">
+                    {{ getUserCustomStatus(item.user!.id).value?.emoji }}
+                  </span>
+                  <span v-if="getCustomStatusDisplay(item.user!.id)" class="status-text">{{ getCustomStatusDisplay(item.user!.id) }}</span>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Offline Users -->
-      <div v-if="!isLoadingUsers && groupedUsers.offline.length > 0" class="user-group">
-        <button 
-          @click="toggleGroup('offline')"
-          class="group-header"
-          :class="{ 'group-collapsed': collapsedGroups.offline }"
-        >
-          <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
-          </svg>
-          <span class="group-title">{{ $t('user.offline') }} — {{ groupedUsers.offline.length }}</span>
-        </button>
-        <div v-if="!collapsedGroups.offline" class="user-list">
-          <div 
-            v-for="user in groupedUsers.offline" 
-            :key="user.id" 
-            class="user-item offline-user"
-            @click="showUserProfile(user)"
-          >
-            <Avatar
-              :src="getUserAvatarUrl(user.id).value"
-              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
-              size="sm"
-              :status="getStatusForAvatarValue(user.id)"
-              class="user-avatar"
-            />
-            <div class="user-info">
-              <div class="user-name-row">
-                <span 
-                  class="user-name" 
-                  :style="{ color: getUserColor(user.id).value || undefined }"
-                >
-                  <DisplayName :user-id="user.id" :truncate="true" />
-                </span>
-                <span 
-                  v-if="!isUserLocal(user.id).value" 
-                  class="federation-badge"
-                  :title="getUserDomain(user.id).value ? `From ${getUserDomain(user.id).value}` : 'Federated user'"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
-                    <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-                  </svg>
-                </span>
-                <span v-if="isUserInstanceAdmin(user.id).value" class="instance-badge admin" title="Instance Admin">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-                <span v-else-if="isUserInstanceMod(user.id).value" class="instance-badge mod" title="Instance Moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                </span>
-              </div>
-              <span 
-                v-if="!isUserLocal(user.id).value && getUserDomain(user.id).value" 
-                class="user-domain"
-              >
-                {{ getUserDomain(user.id).value }}
-              </span>
-            </div>
-          </div>
+          </template>
         </div>
       </div>
     </div>
@@ -538,6 +190,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useVirtualizer } from '@tanstack/vue-virtual';
 import { debug } from '@/utils/debug'
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
@@ -831,6 +484,79 @@ const getHighestHoistedRole = (userId: string): ServerRole | null => {
   // Sort by position (highest first) and return first hoisted role
   const sorted = [...userRoles].sort((a, b) => b.position - a.position);
   return sorted.find(r => r.hoist) || null;
+};
+
+// --- VIRTUAL SCROLLING ---
+interface SidebarItem {
+  type: 'header' | 'user';
+  key: string;
+  groupKey?: string;
+  title?: string;
+  count?: number;
+  roleColor?: string;
+  isCollapsed?: boolean;
+  user?: User;
+  nameColor?: string | null;
+  isOffline?: boolean;
+  showStatus?: 'full' | 'partial' | 'none';
+}
+
+const sidebarGroupsRef = ref<HTMLDivElement | null>(null);
+
+const sidebarDisplayItems = computed((): SidebarItem[] => {
+  if (isLoadingUsers.value) return [];
+  const items: SidebarItem[] = [];
+
+  const addGroup = (
+    groupKey: string,
+    title: string,
+    users: User[],
+    opts: { roleColor?: string; nameColor?: string | null; isOffline?: boolean; showStatus?: 'full' | 'partial' | 'none' } = {}
+  ) => {
+    if (users.length === 0) return;
+    const collapsed = !!collapsedGroups.value[groupKey];
+    items.push({
+      type: 'header', key: `h-${groupKey}`, groupKey, title,
+      count: users.length, roleColor: opts.roleColor, isCollapsed: collapsed
+    });
+    if (!collapsed) {
+      for (const user of users) {
+        items.push({
+          type: 'user', key: `u-${user.id}-${groupKey}`, groupKey, user,
+          nameColor: opts.nameColor ?? null,
+          isOffline: opts.isOffline ?? false,
+          showStatus: opts.showStatus ?? 'full'
+        });
+      }
+    }
+  };
+
+  for (const role of hoistedRolesSorted.value) {
+    const roleUsers = groupedUsers.value[`role:${role.id}`] || [];
+    addGroup(`role:${role.id}`, role.name, roleUsers, { roleColor: role.color || '#99AAB5', nameColor: role.color });
+  }
+  addGroup('online', 'Online', groupedUsers.value.online, { showStatus: 'full' });
+  addGroup('away', 'Away', groupedUsers.value.away, { showStatus: 'partial' });
+  addGroup('busy', 'Busy', groupedUsers.value.busy, { showStatus: 'none' });
+  addGroup('federated', 'Federated', groupedUsers.value.federated, { showStatus: 'full' });
+  addGroup('offline', 'Offline', groupedUsers.value.offline, { isOffline: true, showStatus: 'none' });
+
+  return items;
+});
+
+const sidebarVirtualizer = useVirtualizer(computed(() => ({
+  count: sidebarDisplayItems.value.length,
+  getScrollElement: () => sidebarGroupsRef.value,
+  estimateSize: (index: number) => sidebarDisplayItems.value[index]?.type === 'header' ? 30 : 44,
+  overscan: 10,
+})));
+
+const sidebarVirtualRows = computed(() => sidebarVirtualizer.value.getVirtualItems());
+const sidebarTotalSize = computed(() => sidebarVirtualizer.value.getTotalSize());
+
+const sidebarMeasureElement = (el: any) => {
+  if (!el || !(el instanceof HTMLElement)) return;
+  sidebarVirtualizer.value.measureElement(el);
 };
 
 const fetchAndSetUsers = async (serverId: string | null) => {
