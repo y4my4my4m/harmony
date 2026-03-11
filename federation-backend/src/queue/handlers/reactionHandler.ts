@@ -83,14 +83,13 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
         const authorUrl = postAuthor.federated_id
           || `https://${postAuthor.domain}/users/${postAuthor.username}`;
         const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
-        logger.debug(`📦 Like activity: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, to: activity.to, tag: activity.tag })}`);
+        logger.info(`📦 Like activity payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
         await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
         logger.info(`✅ Reaction federated to post author ${postAuthor.inbox_url}`);
       }
 
-      // Broadcast to the post author's remote followers so all instances
-      // that have a copy of the post can display the reaction.
       const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
+      logger.info(`📦 Broadcast Like payload: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, tag: activity.tag })}`);
       await DeliveryQueue.broadcastToFollowers(post.author_id, activity);
       logger.info(`✅ Reaction broadcast to post author's remote followers`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
