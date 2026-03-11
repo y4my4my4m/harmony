@@ -346,10 +346,13 @@ export function createLikeActivity(
       : ext === 'webp' ? 'image/webp'
       : ext === 'svg' ? 'image/svg+xml'
       : 'image/png';
+    // Tag name uses base shortcode `:name:` (without @domain).
+    // Misskey matches by stripping @domain from _misskey_reaction.
+    const tagName = `:${emojiData.name}:`;
     activity.tag = [{
       type: 'Emoji',
       id: emojiData.url,
-      name: emojiContent,
+      name: tagName,
       icon: {
         type: 'Image',
         mediaType,

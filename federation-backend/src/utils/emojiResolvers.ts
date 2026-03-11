@@ -39,12 +39,13 @@ export function formatEmojiForFederation(
 
   if (emoji.url) {
     const fullUrl = getFullEmojiUrl(emoji.url) || emoji.url;
-    // When the emoji originates from the target instance, use `:name:` (local).
-    // When it's our own emoji sent to a remote instance, qualify with our domain.
-    // When no target is specified (e.g. channel reactions), keep it simple.
+    // When the emoji originates from the target instance, use `:name:` (local)
+    // so the remote instance recognises it as its own emoji.
+    // Otherwise always qualify with the originating domain — our own local
+    // emojis are never "local" to a remote instance.
     const useLocalShortcode = emoji.domain
       ? (targetDomain && emoji.domain.toLowerCase() === targetDomain.toLowerCase())
-      : !targetDomain;
+      : false;
     const shortcode = useLocalShortcode
       ? `:${emoji.name}:`
       : `:${emoji.name}@${emoji.domain || config.INSTANCE_DOMAIN}:`;
