@@ -589,7 +589,9 @@
       "title": "高级",
       "description": "高级用户的高级设置。",
       "developerMode": "开发者模式",
-      "hardwareAcceleration": "硬件加速"
+      "developerModeDescription": "启用开发人员功能和调试工具。",
+      "hardwareAcceleration": "硬件加速",
+      "copyRawData": "复制原始数据"
     }
   },
   "navigation": {

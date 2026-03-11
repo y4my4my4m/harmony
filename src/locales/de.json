@@ -589,7 +589,9 @@
       "title": "Erweitert",
       "description": "Erweiterte Einstellungen für Power-User.",
       "developerMode": "Entwicklermodus",
-      "hardwareAcceleration": "Hardwarebeschleunigung"
+      "developerModeDescription": "Entwicklerfunktionen und Debugging-Tools aktivieren.",
+      "hardwareAcceleration": "Hardwarebeschleunigung",
+      "copyRawData": "Rohe Daten kopieren"
     }
   },
   "navigation": {

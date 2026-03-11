@@ -584,7 +584,9 @@
       "title": "Advanced",
       "description": "Advanced settings for power users.",
       "developerMode": "Developer Mode",
-      "hardwareAcceleration": "Hardware Acceleration"
+      "developerModeDescription": "Enable developer features and debugging tools.",
+      "hardwareAcceleration": "Hardware Acceleration",
+      "copyRawData": "Copy raw data"
     }
   },
   "navigation": {

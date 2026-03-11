@@ -74,6 +74,18 @@
         <span>Report Message</span>
       </div>
     </template>
+
+    <template v-if="developerToolsEnabled">
+      <div class="context-menu-divider"></div>
+      
+      <div class="context-menu-item" @click="copyRawData">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span>{{ $t('settings.advanced.copyRawData') }}</span>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -83,6 +95,7 @@ import { debug } from '@/utils/debug'
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { messageService } from '@/services';
 import type { Message, Emoji } from '@/types';
 
@@ -112,6 +125,7 @@ const emit = defineEmits<Emits>();
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
 const { canPinMessages } = useServerPermissions();
+const { developerToolsEnabled } = useDeveloperTools();
 
 const isPinned = computed(() => props.message?.is_pinned || false);
 const canPin = computed(() => canPinMessages.value);
@@ -285,6 +299,20 @@ const togglePin = async () => {
 const reportMessage = () => {
   if (!props.message) return;
   emit('report', props.message);
+  emit('close');
+};
+
+const copyRawData = async () => {
+  if (!props.message) return;
+
+  try {
+    const json = JSON.stringify(props.message, null, 2);
+    await navigator.clipboard.writeText(json);
+    debug.log('Message raw data copied to clipboard');
+  } catch (error) {
+    debug.error('Failed to copy raw data:', error);
+  }
+
   emit('close');
 };
 </script>

@@ -573,7 +573,9 @@
       "title": "詳細設定",
       "description": "パワーユーザー向けの詳細設定。",
       "developerMode": "開発者モード",
-      "hardwareAcceleration": "ハードウェアアクセラレーション"
+      "developerModeDescription": "開発者向け機能とデバッグツールを有効にする。",
+      "hardwareAcceleration": "ハードウェアアクセラレーション",
+      "copyRawData": "生データをコピー"
     }
   },
   "navigation": {
