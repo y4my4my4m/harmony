@@ -1736,50 +1736,71 @@ BEGIN
 END;
 $$;
 
--- Process link previews (local)
+-- Process link previews (local Harmony URLs only, synchronous)
 CREATE OR REPLACE FUNCTION public.process_local_link_previews()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path TO 'public'
 AS $$
-BEGIN
-    -- Skip federated messages
-    IF COALESCE(NEW.metadata->>'federated', 'false') = 'true' THEN
-        RETURN NEW;
-    END IF;
-    
-    -- Placeholder for local link preview processing
-    RETURN NEW;
-END;
-$$;
+declare
+  v_instance_domain text;
+  v_embed_map jsonb := coalesce(NEW.metadata->'embeds', '{}'::jsonb);
+  v_original_map jsonb := v_embed_map;
+  v_part jsonb;
+  v_normalized_url text;
+  v_embed jsonb;
+begin
+  if coalesce(NEW.metadata->>'federated', 'false') = 'true' then
+    return NEW;
+  end if;
 
--- Process message link previews
-CREATE OR REPLACE FUNCTION public.process_message_link_previews()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    -- Skip federated messages
-    IF COALESCE(NEW.metadata->>'federated', 'false') = 'true' THEN
-        RETURN NEW;
-    END IF;
-    
-    -- Placeholder for link preview processing
-    RETURN NEW;
-END;
-$$;
+  if jsonb_typeof(NEW.content) <> 'array' then
+    return NEW;
+  end if;
 
--- Webhook external link previews
-CREATE OR REPLACE FUNCTION public.webhook_external_link_previews()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    -- Placeholder
-    RETURN NEW;
-END;
+  select trim(both '"' from config_value::text)
+    into v_instance_domain
+    from public.instance_config
+    where config_key = 'domain'
+    limit 1;
+
+  for v_part in
+    select value from jsonb_array_elements(NEW.content)
+  loop
+    if coalesce(v_part->>'type', '') <> 'url' then
+      continue;
+    end if;
+    if coalesce(v_part->>'preview', 'true') = 'false' then
+      continue;
+    end if;
+
+    v_normalized_url := public.normalize_embed_url(v_part->>'url');
+    if v_normalized_url is null or v_embed_map ? v_normalized_url then
+      continue;
+    end if;
+
+    begin
+      if v_instance_domain is not null
+         and public.extract_url_host(v_normalized_url) = lower(v_instance_domain) then
+        v_embed := public.fetch_link_preview(v_normalized_url);
+        
+        if v_embed is not null then
+          v_embed_map := v_embed_map || jsonb_build_object(v_normalized_url, v_embed);
+        end if;
+      end if;
+    exception
+      when others then
+        raise notice 'Failed to fetch local preview for %: %', v_normalized_url, SQLERRM;
+    end;
+  end loop;
+
+  if v_embed_map <> v_original_map then
+    NEW.metadata := coalesce(NEW.metadata, '{}'::jsonb) || jsonb_build_object('embeds', v_embed_map);
+  end if;
+
+  return NEW;
+end;
 $$;
 
 -- ---------------------------------------------------------------------------

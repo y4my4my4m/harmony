@@ -151,26 +151,13 @@ CREATE TRIGGER trigger_index_message
     FOR EACH ROW
     EXECUTE FUNCTION public.index_message();
 
--- Process local link previews
+-- Process local link previews (Harmony post URLs only, pure SQL, no HTTP)
+-- External URLs are enriched by the federation backend asynchronously
 CREATE TRIGGER trg_process_local_link_previews
     BEFORE INSERT ON public.messages
     FOR EACH ROW
     WHEN ((NEW.metadata ->> 'federated') IS DISTINCT FROM 'true')
     EXECUTE FUNCTION public.process_local_link_previews();
-
--- Process message link previews
-CREATE TRIGGER trg_process_message_link_previews
-    BEFORE INSERT ON public.messages
-    FOR EACH ROW
-    WHEN ((NEW.metadata ->> 'federated') IS DISTINCT FROM 'true')
-    EXECUTE FUNCTION public.process_message_link_previews();
-
--- Webhook external link previews
-CREATE TRIGGER trg_webhook_external_link_previews
-    AFTER INSERT ON public.messages
-    FOR EACH ROW
-    WHEN ((NEW.metadata ->> 'federated') IS DISTINCT FROM 'true')
-    EXECUTE FUNCTION public.webhook_external_link_previews();
 
 -- ---------------------------------------------------------------------------
 -- REACTION TRIGGERS

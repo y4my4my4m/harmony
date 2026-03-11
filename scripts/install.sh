@@ -2013,16 +2013,33 @@ setup_database() {
         docker exec "$db_container" rm -rf /tmp/db_schema 2>/dev/null || true
     fi
 
-    # Set instance domain and name
+    # Set instance domain, name, and link preview backend URL
     echo ""
     print_info "Configuring instance_config..."
+    local link_preview_url=""
+    if $ENABLE_FEDERATION; then
+        if [[ "$MODE" == "production" ]]; then
+            link_preview_url="https://$DOMAIN"
+        else
+            link_preview_url="https://har.mony.local"
+        fi
+    fi
     local update_cmd="UPDATE public.instance_config SET config_value = '\"$DOMAIN\"' WHERE config_key = 'domain';
          UPDATE public.instance_config SET config_value = '\"$INSTANCE_NAME\"' WHERE config_key = 'instance_name';"
+    if [[ -n "$link_preview_url" ]]; then
+        update_cmd+="
+         UPDATE public.instance_config
+         SET config_value = jsonb_set(config_value::jsonb, '{link_preview_backend_url}', '\"$link_preview_url\"'::jsonb, true)::text
+         WHERE config_key = 'federation_settings';"
+    fi
     local update_ec=0
     echo "$update_cmd" | run_psql &>/dev/null
     update_ec=$?
     if [[ $update_ec -eq 0 ]]; then
         print_success "Set domain=${BOLD}$DOMAIN${RESET}, name=${BOLD}$INSTANCE_NAME${RESET}"
+        if [[ -n "$link_preview_url" ]]; then
+            print_success "Set link_preview_backend_url=${BOLD}$link_preview_url${RESET}"
+        fi
     else
         print_warn "Could not update instance_config — set manually in the admin panel"
     fi

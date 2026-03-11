@@ -1100,6 +1100,12 @@ class UserDataService extends EventTarget {
     // Update our local user data if we have it
     const userData = this.users.get(userId)
     if (userData) {
+      if (updatedProfile.federation_metadata !== undefined) {
+        const dnEmojis = this.extractDisplayNameEmojis(updatedProfile.federation_metadata)
+        if (dnEmojis) {
+          userData.displayNameEmojis = dnEmojis
+        }
+      }
       if (updatedProfile.display_name !== undefined) {
         userData.displayName = updatedProfile.display_name
         userData.displayNameParts = this.resolveDisplayNameParts(updatedProfile.display_name, userData.displayNameEmojis)
@@ -1213,7 +1219,7 @@ class UserDataService extends EventTarget {
     // UUID v4 regex pattern
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     
-    // Filter: load if missing, stale, or has Unknown username (incomplete presence-derived data)
+    // Filter: load if missing, stale, has Unknown username, or was only populated from presence (lacks federation_metadata)
     const missingUserIds = userIds.filter(id => {
       if (!uuidPattern.test(id)) {
         debug.warn(`⚠️ Skipping non-UUID user ID in loadUsersData: ${id}`)
@@ -1221,7 +1227,8 @@ class UserDataService extends EventTarget {
       }
       const existing = this.users.get(id)
       const hasUnknownUsername = !existing?.username || existing.username === 'Unknown' || existing.username === 'unknown'
-      return !existing || this.isUserDataStale(id) || hasUnknownUsername
+      const isPresenceOnly = existing?.source === 'presence'
+      return !existing || this.isUserDataStale(id) || hasUnknownUsername || isPresenceOnly
     })
     
     if (missingUserIds.length === 0) return

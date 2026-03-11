@@ -22,7 +22,7 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('enable_outbound_federation', 'true', 'Whether outbound federation is enabled'),
     ('allow_custom_emojis_in_display_names', 'true', 'Whether users can use custom emojis in display names'),
     ('federation_retry_attempts', '3', 'Number of retry attempts for failed federation deliveries'),
-    ('federation_settings', '{"federation_enabled": true, "federation_require_approval": false, "federation_auto_accept_follows": true, "federation_delivery_timeout_ms": 10000, "federation_max_delivery_attempts": 5}', 'Federation configuration settings for the instance'),
+    ('federation_settings', '{"federation_enabled": true, "federation_require_approval": false, "federation_auto_accept_follows": true, "federation_delivery_timeout_ms": 10000, "federation_max_delivery_attempts": 5, "link_preview_backend_url": ""}', 'Federation configuration settings for the instance'),
     ('oauth_providers', '[]', 'Enabled OAuth providers'),
     ('features', '{"voice_enabled": true, "video_enabled": true, "e2e_encryption": true}', 'Feature flags'),
     ('terms_url', '""', 'URL to the Terms of Service page (shown on registration)'),
