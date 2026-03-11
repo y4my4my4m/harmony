@@ -71,17 +71,19 @@
       :initialTab="mediaPickerInitialTab"
     />
     
-    <!-- Emoji Popup for reactions only -->
-    <EmojiPopup
-      v-if="reactionEmojiOpen"
-      @click.stop
-      @sendEmoji="handleSendEmoji"
-      :closeEmojiList="closeReactionEmoji"
-      :emojiIconClicked="emojiIconClicked"
-      :position="'left'"
-      :triggerElement="reactionTriggerElement || undefined"
-      @resetEmojiIconClicked="emojiIconClicked = false"
-    />
+    <!-- Emoji Popup for reactions only (teleported to avoid transform containment from virtual scroll) -->
+    <Teleport to="body">
+      <EmojiPopup
+        v-if="reactionEmojiOpen"
+        @click.stop
+        @sendEmoji="handleSendEmoji"
+        :closeEmojiList="closeReactionEmoji"
+        :emojiIconClicked="emojiIconClicked"
+        :position="'left'"
+        :triggerElement="reactionTriggerElement || undefined"
+        @resetEmojiIconClicked="emojiIconClicked = false"
+      />
+    </Teleport>
     
     <!-- Thread View -->
     <ThreadView
