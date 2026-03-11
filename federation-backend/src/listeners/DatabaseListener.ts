@@ -1696,6 +1696,10 @@ async function handleChannelMessageDeletion(message: any): Promise<void> {
  */
 export async function handleNewDM(message: any): Promise<void> {
   try {
+    if (message.is_system) {
+      logger.debug('Skipping federation for system message');
+      return;
+    }
     const supabase = getSupabaseClient();
     const domain = config.INSTANCE_DOMAIN;
     
@@ -1767,6 +1771,14 @@ export async function handleNewDM(message: any): Promise<void> {
       remoteUsers.map((p: any) => `${p.username}@${p.domain}`)
     );
     
+    // Look up conversation type so the receiver knows group vs direct
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('type')
+      .eq('id', message.conversation_id)
+      .single();
+    const conversationType = conversation?.type || 'direct';
+
     // Build sender URL
     const senderUrl = `https://${domain}/users/${sender.username}`;
     const messageUrl = `https://${domain}/messages/${message.id}`;
@@ -1775,18 +1787,28 @@ export async function handleNewDM(message: any): Promise<void> {
     const htmlContent = convertContentToHTML(message.content);
     const attachments = extractAttachments(message.content);
     const baseTags = extractActivityPubTags(message.content);
-    
-    // Use ONE Create activity with ALL recipients in to: — receiver creates group when multiple local recipients
+
+    // Include ALL participants (local + remote) in to: so receiver can reconstruct the group
+    const allParticipantProfiles = profiles || [];
     const recipientUrls = remoteUsers.map((p: any) => 
       p.federated_id || `https://${p.domain}/users/${p.username}`
     );
+    // For group conversations, also include local participants (except sender) so the
+    // receiver knows the full participant list (they appear as non-resolvable URLs, which
+    // is fine — the receiver just counts them to decide group vs direct)
+    const localParticipantUrls = conversationType === 'group'
+      ? allParticipantProfiles
+          .filter((p: any) => p.is_local && p.id !== sender.id)
+          .map((p: any) => `https://${domain}/users/${p.username}`)
+      : [];
+    const allToUrls = [...recipientUrls, ...localParticipantUrls];
     const mentionTags = remoteUsers.map((p: any) => ({
       type: 'Mention',
       href: p.federated_id || `https://${p.domain}/users/${p.username}`,
       name: `@${p.username}@${p.domain}`
     }));
     
-    const note = {
+    const note: any = {
       id: messageUrl,
       type: 'Note',
       attributedTo: senderUrl,
@@ -1795,10 +1817,14 @@ export async function handleNewDM(message: any): Promise<void> {
       contentMap: { en: htmlContent },
       attachment: attachments,
       tag: [...baseTags, ...mentionTags],
-      to: recipientUrls,
+      to: allToUrls,
       cc: [],
       directMessage: true
     };
+
+    if (conversationType === 'group') {
+      note['harmony:conversationType'] = 'group';
+    }
     
     const activity = {
       '@context': 'https://www.w3.org/ns/activitystreams',

@@ -31,6 +31,7 @@ import { handleThreadJob } from './handlers/threadHandler.js';
 import { handlePushNotificationJob } from './handlers/pushNotificationHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
+import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
 
 // Job types
 export type JobType = 
@@ -52,6 +53,7 @@ export type JobType =
   | 'federate-thread'                // Thread create/update
   | 'federate-voice-join'            // Voice channel join
   | 'federate-voice-leave'           // Voice channel leave
+  | 'federate-group-invite'         // Group chat invite to remote user
   | 'send-push-notification'
   | 'sweep-pending'
   | 'maintenance';                   // Scheduled maintenance tasks
@@ -185,6 +187,7 @@ class QueueManagerService {
       'federate-profile',
       'federate-voice-join',
       'federate-voice-leave',
+      'federate-group-invite',
       'send-push-notification',
       'maintenance',
     ];
@@ -289,6 +292,7 @@ class QueueManagerService {
     await registerWithConcurrency('federate-thread', createHandler('federate-thread', '🧵', handleThreadJob));
     await registerWithConcurrency('federate-voice-join', createHandler('federate-voice-join', '🎤', handleVoiceJoinJob));
     await registerWithConcurrency('federate-voice-leave', createHandler('federate-voice-leave', '🔇', handleVoiceLeaveJob));
+    await registerWithConcurrency('federate-group-invite', createHandler('federate-group-invite', '📨', handleGroupInviteJob as any));
     await registerWithConcurrency('send-push-notification', createHandler('send-push-notification', '📱', handlePushNotificationJob as any));
     await registerWithConcurrency('maintenance', createHandler('maintenance', '🔧', handleMaintenanceJob as any));
 

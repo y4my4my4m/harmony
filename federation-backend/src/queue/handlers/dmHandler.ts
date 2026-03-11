@@ -5,14 +5,13 @@
  */
 
 import { getSupabaseClient } from '../../config/supabase.js';
-import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { handleNewDM } from '../../listeners/DatabaseListener.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../QueueManager.js';
 
 export async function handleDMJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { type, message_id, conversation_id, user_id } = data;
+  const { type, message_id } = data;
 
   logger.info(`💬 Processing DM job: ${type} for message ${message_id}`);
 
@@ -27,6 +26,12 @@ export async function handleDMJob(data: FederationJobData): Promise<void> {
     if (!message) {
       logger.error(`Message not found: ${message_id}`);
       await updateFederationStatus(message_id, 'messages', 'failed');
+      return;
+    }
+
+    if (message.is_system) {
+      logger.debug(`Skipping federation for system message: ${message_id}`);
+      await updateFederationStatus(message_id, 'messages', 'skipped');
       return;
     }
 

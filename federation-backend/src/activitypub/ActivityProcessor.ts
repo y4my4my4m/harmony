@@ -386,6 +386,12 @@ export class ActivityProcessor {
       // Determine visibility
       const visibility = this.determineVisibility(object);
 
+      // Route group invite notifications (sent when remote user is added to group)
+      if (object.metadata?.type === 'group_invite') {
+        await this.handleGroupInvite(object, author.id);
+        return;
+      }
+
       // Route direct messages to messages table, everything else to posts
       if (visibility === 'direct' || visibility === 'private') {
         await this.handleDirectMessage(object, author.id, content);
@@ -2185,40 +2191,35 @@ export class ActivityProcessor {
       return;
     }
 
-    let conversationId: string | null = null
+    // Decide group vs 1:1 based on sender metadata or recipient count
+    const isGroup = object['harmony:conversationType'] === 'group' || recipientIds.length > 1;
+    let conversationId: string | null = null;
 
-    if (recipientIds.length > 1) {
-      // Group DM: create or get group conversation (author + all local recipients)
-      const allParticipantIds = [authorId, ...recipientIds]
+    if (isGroup) {
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_federated_group_conversation', {
           p_actor_id: authorId,
           p_local_recipient_ids: recipientIds
-        })
-
+        });
       if (convError || !convId) {
-        logger.error(`Failed to get/create group conversation:`, convError)
-        return
+        logger.error(`Failed to get/create group conversation:`, convError);
+        return;
       }
-      conversationId = convId
-      logger.info(`Using group conversation ${conversationId} for DM (${recipientIds.length} recipients)`)
+      conversationId = convId;
+      logger.info(`Using group conversation ${conversationId} for DM (${recipientIds.length} local recipient(s))`);
     } else {
-      // 1:1 DM
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_dm_conversation', {
           p_user1_id: authorId,
           p_user2_id: recipientIds[0]
-        })
-
+        });
       if (convError || !convId) {
-        logger.error(`Failed to get/create conversation:`, convError)
-        return
+        logger.error(`Failed to get/create DM conversation:`, convError);
+        return;
       }
-      conversationId = convId
-      logger.info(`Using conversation ${conversationId} for DM`)
-    }
-
-    if (!conversationId) return
+      conversationId = convId;
+      logger.info(`Using conversation ${conversationId} for DM`);
+    };
 
     const { error: messageError } = await supabase
       .from('messages')
@@ -2240,6 +2241,70 @@ export class ActivityProcessor {
     } else {
       logger.info(`✅ Created DM in conversation ${conversationId} from ${object.id}`)
     }
+  }
+
+  /**
+   * Handle group invite (remote user added to group) — create conversation + notification
+   */
+  private static async handleGroupInvite(object: any, authorId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+
+    const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
+    const recipientIds: string[] = [];
+    for (const url of to) {
+      if (typeof url !== 'string') continue;
+      const resolved = await resolveProfileByActorUrl(url);
+      if (resolved) recipientIds.push(resolved.id);
+    }
+
+    if (recipientIds.length === 0) {
+      logger.warn(`Group invite ${object.id} has no local recipients`);
+      return;
+    }
+
+    const { data: conversationId, error: convError } = await supabase.rpc(
+      'get_or_create_federated_group_conversation',
+      { p_actor_id: authorId, p_local_recipient_ids: recipientIds }
+    );
+
+    if (convError || !conversationId) {
+      logger.error('Failed to get/create group for invite:', convError);
+      return;
+    }
+
+    const { data: inviter } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url')
+      .eq('id', authorId)
+      .single();
+
+    const conversationName = object.metadata?.conversation_name || 'a group conversation';
+
+    for (const userId of recipientIds) {
+      const { error: notifError } = await supabase.rpc('send_notification_to_user', {
+        notification_type: 'dm',
+        to_user_id: userId,
+        notification_data: {
+          sender: inviter ? {
+            user_id: inviter.id,
+            username: inviter.username,
+            display_name: inviter.display_name || inviter.username,
+            avatar_url: inviter.avatar_url
+          } : { user_id: authorId, username: 'unknown', display_name: 'Unknown', avatar_url: null },
+          conversation: { id: conversationId, name: conversationName },
+          conversation_id: conversationId,
+          preview: `You were added to ${conversationName}`,
+          is_invite: true
+        },
+        server_id: null,
+        channel_id: null,
+        conversation_id: conversationId,
+        from_user_id: authorId,
+        priority: 'normal'
+      });
+      if (notifError) logger.warn('Failed to create invite notification:', notifError);
+    }
+    logger.info(`Group invite processed: conversation ${conversationId}, ${recipientIds.length} recipient(s)`);
   }
 
   /**
