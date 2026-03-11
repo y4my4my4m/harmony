@@ -478,7 +478,16 @@ router.post(
     }
 
     const supabase = getSupabaseClient();
-    
+
+    // Skip federation fetch for local posts — data is already in the database
+    try {
+      const apDomain = new URL(post_ap_id).hostname;
+      if (apDomain === config.INSTANCE_DOMAIN) {
+        logger.debug(`📬 Skipping fetch-reactions for local post: ${post_ap_id}`);
+        return res.json({ success: true, reactions: [], count: 0 });
+      }
+    } catch { /* invalid URL, proceed */ }
+
     logger.info(`📬 Fetching reactions for remote post: ${post_ap_id}`);
 
     try {
@@ -1129,7 +1138,16 @@ router.post(
     }
 
     const supabase = getSupabaseClient();
-    
+
+    // Skip federation fetch for local posts — replies are already in the database
+    try {
+      const apDomain = new URL(post_ap_id).hostname;
+      if (apDomain === config.INSTANCE_DOMAIN) {
+        logger.debug(`📬 Skipping fetch-replies for local post: ${post_ap_id}`);
+        return res.json({ success: true, replies: [], count: 0 });
+      }
+    } catch { /* invalid URL, proceed */ }
+
     logger.info(`📬 Fetching replies for remote post: ${post_ap_id}`);
 
     try {

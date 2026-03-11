@@ -203,9 +203,11 @@ const loadPostWithContext = async () => {
       scrollToTimestamp(props.timestamp);
     }
     
-    // Auto-fetch remote reactions and replies for posts with an ap_id
-    if (result.mainPost?.ap_id) {
-      debug.log(`[PostView] Post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
+    // Auto-fetch remote reactions and replies only for REMOTE posts.
+    // Local post data (including reactions from remote users delivered via inbox)
+    // is already in the database and loaded above via fetchMultiplePostReactions.
+    if (result.mainPost?.ap_id && !result.mainPost.is_local) {
+      debug.log(`[PostView] Remote post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
       fetchRemoteDataInBackground(result.mainPost);
     }
     
