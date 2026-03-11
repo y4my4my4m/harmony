@@ -1979,6 +1979,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     resetState(): void {
       this.currentChannelId = null;
       this.currentServerId = null;
+      this.dmOtherUserId = null;
       this.isConnected = false;
       this.isConnecting = false;
       this.connectionAbortController = null;
