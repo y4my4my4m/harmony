@@ -1330,8 +1330,7 @@ watch(() => props.messages, (newMessages, oldMessages) => {
   }
 
   const oldMessageCount = oldMessages?.length ?? 0;
-  const firstVisibleVRow = virtualRows.value[0];
-  const firstVisibleKey = firstVisibleVRow ? displayItems.value[firstVisibleVRow.index]?.key : null;
+  const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
 
   // Reset embed tracking for new messages
   const newMessageIds = new Set(newMessages.map(m => m.id));
@@ -1506,12 +1505,13 @@ watch(() => props.messages, (newMessages, oldMessages) => {
             setTimeout(checkAndScroll, 100);
           }
         } 
-        // When loading older messages, maintain scroll position by finding the previously-first-visible item
-        else if (oldMessageCount > 0 && newMessages.length > oldMessageCount && firstVisibleKey) {
+        // When loading older messages, maintain scroll position by compensating for new content height
+        else if (oldMessageCount > 0 && newMessages.length > oldMessageCount && oldScrollHeight > 0) {
           debug.log('📜 Maintaining scroll position after loading older messages');
-          const newIndex = displayItems.value.findIndex(item => item.key === firstVisibleKey);
-          if (newIndex >= 0) {
-            rowVirtualizer.value.scrollToIndex(newIndex, { align: 'start' });
+          const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+          const scrollOffset = newScrollHeight - oldScrollHeight;
+          if (scrollOffset > 0) {
+            messageDisplayContainer.value.scrollTop += scrollOffset;
           }
           shouldBeAtBottom.value = false;
         }
