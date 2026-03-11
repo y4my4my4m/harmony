@@ -10,57 +10,10 @@
 
 -- Create group conversation
 CREATE OR REPLACE FUNCTION public.create_group_conversation(
-    creator_user_id uuid,
-    participant_ids uuid[] DEFAULT '{}',
-    conversation_name text DEFAULT NULL,
-    initial_metadata jsonb DEFAULT '{}'
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    new_conversation_id uuid;
-    participant_id uuid;
-BEGIN
-    -- SECURITY: Verify the caller is the creator
-    IF NOT EXISTS (
-        SELECT 1 FROM profiles WHERE id = creator_user_id AND auth_user_id = auth.uid()
-    ) THEN
-        RAISE EXCEPTION 'Unauthorized: You can only create conversations as yourself';
-    END IF;
-
-    -- Create group conversation using new schema (type, created_by, metadata)
-    INSERT INTO conversations (type, name, created_by, metadata)
-    VALUES ('group', conversation_name, creator_user_id, initial_metadata)
-    RETURNING id INTO new_conversation_id;
-    
-    -- Add creator as admin
-    INSERT INTO conversation_participants (conversation_id, user_id, role)
-    VALUES (new_conversation_id, creator_user_id, 'admin');
-    
-    -- Add other participants
-    IF participant_ids IS NOT NULL THEN
-        FOREACH participant_id IN ARRAY participant_ids
-        LOOP
-            IF participant_id != creator_user_id THEN
-                INSERT INTO conversation_participants (conversation_id, user_id, role)
-                VALUES (new_conversation_id, participant_id, 'member')
-                ON CONFLICT (conversation_id, user_id) DO NOTHING;
-            END IF;
-        END LOOP;
-    END IF;
-    
-    RETURN new_conversation_id;
-END;
-$$;
-
--- Get or create multi-participant conversation
-CREATE OR REPLACE FUNCTION public.create_or_get_multi_conversation(
-    participant_ids uuid[],
-    conversation_type text DEFAULT 'direct',
-    conversation_name text DEFAULT NULL,
-    created_by_id uuid DEFAULT NULL
+    p_creator_user_id uuid,
+    p_participant_ids uuid[] DEFAULT '{}',
+    p_conversation_name text DEFAULT NULL,
+    p_is_private boolean DEFAULT true
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -69,50 +22,39 @@ AS $$
 DECLARE
     v_conversation_id uuid;
     v_participant_id uuid;
-    v_caller_profile_id uuid;
 BEGIN
-    -- SECURITY: Get caller's profile ID
-    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
-    
-    IF v_caller_profile_id IS NULL THEN
-        RAISE EXCEPTION 'Unauthorized: Authentication required';
-    END IF;
-    
-    -- SECURITY: Caller must be one of the participants
-    IF NOT (v_caller_profile_id = ANY(participant_ids)) THEN
-        RAISE EXCEPTION 'Unauthorized: You must be a participant in the conversation';
+    -- SECURITY: Verify the caller is the creator
+    IF NOT EXISTS (
+        SELECT 1 FROM profiles WHERE id = p_creator_user_id AND auth_user_id = auth.uid()
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: You can only create conversations as yourself';
     END IF;
 
-    -- For direct conversations with 2 participants, try to find existing
-    IF array_length(participant_ids, 1) = 2 AND conversation_type = 'direct' THEN
-        SELECT c.id INTO v_conversation_id
-        FROM conversations c
-        WHERE c.type = 'direct'
-          AND EXISTS (SELECT 1 FROM conversation_participants WHERE conversation_id = c.id AND user_id = participant_ids[1])
-          AND EXISTS (SELECT 1 FROM conversation_participants WHERE conversation_id = c.id AND user_id = participant_ids[2]);
-        
-        IF v_conversation_id IS NOT NULL THEN
-            RETURN v_conversation_id;
-        END IF;
-    END IF;
-    
-    -- Create new conversation using new schema (type, created_by)
-    INSERT INTO conversations (type, name, created_by)
+    INSERT INTO conversations (type, name, created_by, metadata)
     VALUES (
-        CASE WHEN array_length(participant_ids, 1) > 2 THEN 'group' ELSE 'direct' END,
-        conversation_name,
-        COALESCE(created_by_id, v_caller_profile_id)
+        'group',
+        p_conversation_name,
+        p_creator_user_id,
+        jsonb_build_object('is_private', p_is_private)
     )
     RETURNING id INTO v_conversation_id;
-    
-    -- Add participants
-    FOREACH v_participant_id IN ARRAY participant_ids
-    LOOP
-        INSERT INTO conversation_participants (conversation_id, user_id, role)
-        VALUES (v_conversation_id, v_participant_id, 'member')
-        ON CONFLICT (conversation_id, user_id) DO NOTHING;
-    END LOOP;
-    
+
+    -- Add creator as admin
+    INSERT INTO conversation_participants (conversation_id, user_id, role)
+    VALUES (v_conversation_id, p_creator_user_id, 'admin');
+
+    -- Add other participants
+    IF p_participant_ids IS NOT NULL THEN
+        FOREACH v_participant_id IN ARRAY p_participant_ids
+        LOOP
+            IF v_participant_id != p_creator_user_id THEN
+                INSERT INTO conversation_participants (conversation_id, user_id, role)
+                VALUES (v_conversation_id, v_participant_id, 'member')
+                ON CONFLICT (conversation_id, user_id) DO NOTHING;
+            END IF;
+        END LOOP;
+    END IF;
+
     RETURN v_conversation_id;
 END;
 $$;
@@ -1145,9 +1087,8 @@ $$;
 -- ---------------------------------------------------------------------------
 -- GRANTS
 -- ---------------------------------------------------------------------------
--- Conversation functions (metadata param removed from create_group_conversation)
-GRANT EXECUTE ON FUNCTION public.create_group_conversation(uuid, uuid[], text, jsonb) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_or_get_multi_conversation(uuid[], text, text, uuid) TO authenticated;
+-- Conversation functions
+GRANT EXECUTE ON FUNCTION public.create_group_conversation(uuid, uuid[], text, boolean) TO authenticated;
 -- Timeline functions
 GRANT EXECUTE ON FUNCTION public.get_timeline(uuid, integer, timestamp) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_trending_hashtags(integer, integer) TO authenticated, anon;

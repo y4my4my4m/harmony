@@ -2174,10 +2174,10 @@ export const useDMStore = defineStore('dm', () => {
 
       // Create the conversation using database function (bypasses RLS)
       const { data: conversationId, error: createError } = await supabase.rpc('create_group_conversation', {
-        creator_user_id: currentUserData.id,
-        participant_user_ids: options.participantIds,
-        conversation_name: options.name || null,
-        is_private: options.isPrivate ?? true
+        p_creator_user_id: currentUserData.id,
+        p_participant_ids: options.participantIds,
+        p_conversation_name: options.name || null,
+        p_is_private: options.isPrivate ?? true
       })
 
       if (createError || !conversationId) {

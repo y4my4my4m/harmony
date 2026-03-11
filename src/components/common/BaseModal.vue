@@ -92,8 +92,9 @@ onUnmounted(() => {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -108,7 +109,7 @@ onUnmounted(() => {
 }
 
 .modal-container {
-  background:  var(--background-quinary);
+  background: var(--background-quinary);
   border-radius: 12px;
   border: 1px solid var(--border-primary);
   box-shadow: 
@@ -118,7 +119,8 @@ onUnmounted(() => {
   width: 100%;
   max-width: 540px;
   max-height: 90vh;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
 }
@@ -154,6 +156,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 28px 32px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
 }
 
 .header-content {
@@ -234,16 +237,17 @@ onUnmounted(() => {
 .modal-content {
   padding: 24px 32px;
   overflow-y: auto;
-  /* max-height: calc(90vh - 180px); */
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: auto;
-  border-radius:0; /* cancels the shared css border-radius */
+  border-radius: 0;
 }
 
 .modal-footer {
   padding: 20px 32px 28px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 
 /* Scrollbar styling */
