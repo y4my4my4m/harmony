@@ -626,13 +626,16 @@ class TrendingService {
     return totalEngagement / hours;
   }
 
-  private getInstanceStatus(instance: any): 'online' | 'slow' | 'offline' {
+  private getInstanceStatus(instance: any): 'online' | 'slow' | 'offline' | 'unknown' {
+    if (!instance.last_seen_at) return 'unknown';
     const lastSeen = new Date(instance.last_seen_at);
     const hoursSince = (Date.now() - lastSeen.getTime()) / (1000 * 60 * 60);
     
-    if (hoursSince < 1) return 'online';
-    if (hoursSince < 24) return 'slow';
-    return 'offline';
+    if (hoursSince < 24) return 'online';
+    if (hoursSince < 24 * 7) return 'slow';
+    // Beyond a week without federation activity — we don't actually know;
+    // the instance may be fine, we just haven't exchanged data recently.
+    return 'unknown';
   }
 
   private async getInstancePostCount(domain: string): Promise<number> {

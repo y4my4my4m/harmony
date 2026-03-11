@@ -233,7 +233,6 @@ import MonyPost from './MonyPost.vue';
 import InstanceDetailModal from './InstanceDetailModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
-import Avatar from '../common/Avatar.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 
 // Router
@@ -282,7 +281,6 @@ const suggestedUsers = ref<any[]>([]);
 const knownInstances = ref<any[]>([]);
 const selectedInstanceDetails = ref<any | null>(null);
 const showInstanceModal = ref(false);
-const instanceHealthCache = ref<Record<string, 'online' | 'offline'>>({});
 
 // Pagination
 const hasMoreContent = ref(false);
@@ -356,29 +354,9 @@ const loadTrendingContent = async () => {
   }
 };
 
-const CONCURRENT_PROBES = 4;
-const PROBE_STALE_HOURS = 24;
-
-async function probeWithConcurrency<T, R>(
-  items: T[],
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = [];
-  let idx = 0;
-  async function worker(): Promise<void> {
-    while (idx < items.length) {
-      const i = idx++;
-      results[i] = await fn(items[i]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENT_PROBES, items.length) }, () => worker()));
-  return results;
-}
-
 const loadInstances = async () => {
   try {
     isLoading.value = true;
-    instanceHealthCache.value = {};
 
     const instances = await activityPubService.getDiscoverableInstances({
       limit: 50,
@@ -386,23 +364,6 @@ const loadInstances = async () => {
     });
 
     knownInstances.value = instances;
-
-    const toProbe = instances.filter((inst: any) => {
-      if (!inst.domain) return false;
-      const cached = instanceHealthCache.value[inst.domain];
-      if (cached) return false;
-      if (!inst.last_seen_at) return true;
-      const hours = (Date.now() - new Date(inst.last_seen_at).getTime()) / (1000 * 60 * 60);
-      return hours > PROBE_STALE_HOURS;
-    });
-
-    if (toProbe.length > 0) {
-      await probeWithConcurrency(toProbe, async (inst: any) => {
-        const status = await activityPubService.probeInstanceHealth(inst.domain);
-        instanceHealthCache.value = { ...instanceHealthCache.value, [inst.domain]: status };
-        return status;
-      });
-    }
   } catch (error) {
     debug.error('Failed to load instances:', error);
     try {
@@ -470,17 +431,13 @@ const searchInstances = async (searchTerm: string) => {
 };
 
 const getInstanceStatus = (instance: any): 'online' | 'slow' | 'offline' | 'unknown' => {
-  if (instance.status && ['online', 'slow', 'offline'].includes(instance.status)) {
+  if (instance.status && ['online', 'slow', 'offline', 'unknown'].includes(instance.status)) {
     return instance.status;
   }
-  const probed = instanceHealthCache.value[instance.domain];
-  if (probed === 'online') return 'online';
-  if (probed === 'offline') return 'offline';
-  if (instance.last_seen_at) {
-    const hours = (Date.now() - new Date(instance.last_seen_at).getTime()) / (1000 * 60 * 60);
-    if (hours < 1) return 'online';
-    if (hours < 24) return 'slow';
-  }
+  if (!instance.last_seen_at) return 'unknown';
+  const hours = (Date.now() - new Date(instance.last_seen_at).getTime()) / (1000 * 60 * 60);
+  if (hours < 24) return 'online';
+  if (hours < 24 * 7) return 'slow';
   return 'unknown';
 };
 
@@ -500,7 +457,7 @@ const getInstanceStatusText = (instance: any) => {
     case 'offline':
       return t('activitypub.offline');
     default:
-      return t('activitypub.unknown');
+      return t('activitypub.lastSeenLongAgo', 'Idle');
   }
 };
 

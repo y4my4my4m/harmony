@@ -12,9 +12,15 @@
               {{ instance.software || 'Unknown' }}{{ instance.version ? ` ${instance.version}` : '' }}
             </p>
           </div>
-          <div class="instance-status-badge" :class="getStatusClass()">
-            <Icon :name="getStatusIcon()" :size="18" />
-            <span>{{ getStatusText() }}</span>
+          <div class="instance-badges">
+            <div v-if="instance.is_trusted" class="instance-badge trusted">
+              <Icon name="star" :size="14" />
+              Trusted
+            </div>
+            <div v-if="instance.is_blocked" class="instance-badge blocked">
+              <Icon name="shield-off" :size="14" />
+              Blocked
+            </div>
           </div>
         </div>
         <button @click="$emit('close')" class="close-btn" aria-label="Close">
@@ -23,140 +29,151 @@
       </header>
 
       <div class="instance-modal-body">
-      <!-- Instance Stats -->
-      <div class="stats-section">
-        <h3 class="section-title">Instance Statistics</h3>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <Icon name="users" :size="24" />
-            <div class="stat-content">
-              <div class="stat-value">{{ formatNumber(instance.user_count) }}</div>
-              <div class="stat-label">Users</div>
+        <!-- Instance Stats -->
+        <section class="modal-section">
+          <h3 class="section-heading">Instance Statistics</h3>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <Icon name="users" :size="22" class="stat-icon" />
+              <div class="stat-content">
+                <div class="stat-value">{{ formatNumber(instance.user_count) }}</div>
+                <div class="stat-label">Users</div>
+              </div>
             </div>
-          </div>
-          <div class="stat-card">
-            <Icon name="message-square" :size="24" />
-            <div class="stat-content">
-              <div class="stat-value">{{ formatNumber(instance.status_count) }}</div>
-              <div class="stat-label">Posts</div>
+            <div class="stat-card">
+              <Icon name="message-square" :size="22" class="stat-icon" />
+              <div class="stat-content">
+                <div class="stat-value">{{ formatNumber(instance.status_count) }}</div>
+                <div class="stat-label">Posts</div>
+              </div>
             </div>
-          </div>
-          <div class="stat-card">
-            <Icon name="activity" :size="24" />
-            <div class="stat-content">
-              <div class="stat-value">{{ formatTime(instance.last_seen_at) }}</div>
-              <div class="stat-label">Last Seen</div>
+            <div class="stat-card">
+              <Icon name="activity" :size="22" class="stat-icon" />
+              <div class="stat-content">
+                <div class="stat-value">{{ formatTimeAgo(instance.last_seen_at) }}</div>
+                <div class="stat-label">Last Seen</div>
+              </div>
             </div>
-          </div>
-          <div class="stat-card">
-            <Icon name="link" :size="24" />
-            <div class="stat-content">
-              <div class="stat-value">{{ instance.connection_count || 0 }}</div>
-              <div class="stat-label">Connections</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Instance Information -->
-      <div class="info-section">
-        <h3 class="section-title">About This Instance</h3>
-        <div class="info-content">
-          <div class="info-item">
-            <label>Description:</label>
-            <p>{{ instance.description || 'No description available' }}</p>
-          </div>
-          <div class="info-item" v-if="instance.admin_contact">
-            <label>Admin Contact:</label>
-            <p>{{ instance.admin_contact }}</p>
-          </div>
-          <div class="info-item">
-            <label>Instance Type:</label>
-            <p>{{ getInstanceType() }}</p>
-          </div>
-          <div class="info-item">
-            <label>First Discovered:</label>
-            <p>{{ formatDate(instance?.created_at) }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Federation Status -->
-      <div class="federation-section">
-        <h3 class="section-title">Federation Status</h3>
-        <div class="federation-info">
-          <div class="federation-item" :class="{ active: !instance.is_blocked }">
-            <Icon :name="instance.is_blocked ? 'shield-x' : 'shield-check'" :size="20" />
-            <span>{{ instance.is_blocked ? 'Blocked' : 'Federation Enabled' }}</span>
-          </div>
-          <div class="federation-item" :class="{ active: instance.is_trusted }">
-            <Icon :name="instance.is_trusted ? 'star' : 'shield'" :size="20" />
-            <span>{{ instance.is_trusted ? 'Trusted Instance' : 'Standard Instance' }}</span>
-          </div>
-          <div class="federation-item" :class="{ active: isActive }">
-            <Icon :name="isActive ? 'wifi' : 'wifi-off'" :size="20" />
-            <span>{{ isActive ? 'Recently Active' : 'Inactive' }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Activity -->
-      <div class="activity-section">
-        <h3 class="section-title">Recent Posts</h3>
-        
-        <!-- Loading state -->
-        <div v-if="isLoadingPosts" class="loading-posts">
-          <span>Loading posts...</span>
-        </div>
-        
-        <!-- Posts list -->
-        <div v-else-if="recentPosts.length > 0" class="recent-posts">
-          <div
-            v-for="post in recentPosts"
-            :key="post.id"
-            class="post-preview"
-            @click="viewPost(post)"
-          >
-            <div class="post-author">
-              <Avatar :src="post.author?.avatar_url" size="sm" :alt="post.author?.display_name" class="author-avatar" />
-              <span class="author-name">{{ post.author?.display_name || post.author?.username || 'Unknown' }}</span>
-            </div>
-            <div class="post-content">
-              {{ getPostText(post.content) }}
-            </div>
-            <div class="post-stats">
-              <span class="post-time">{{ formatTime(post.created_at) }}</span>
-              <div class="post-interactions">
-                <span><Icon name="heart" :size="14" /> {{ post.favorites_count || 0 }}</span>
-                <span><Icon name="repeat" :size="14" /> {{ post.reblogs_count || 0 }}</span>
+            <div class="stat-card">
+              <Icon name="link" :size="22" class="stat-icon" />
+              <div class="stat-content">
+                <div class="stat-value">{{ instance.connection_count || 0 }}</div>
+                <div class="stat-label">Connections</div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <!-- Empty state -->
-        <div v-else class="no-posts">
-          <p>No recent posts from this instance</p>
-        </div>
-      </div>
-    </div>
+        </section>
 
-    <footer class="instance-modal-footer">
-      <div class="footer-actions">
-        <button @click="viewAllPosts" class="primary-btn">
-          <Icon name="external-link" :size="16" />
-          View All Posts
-        </button>
-        <button @click="copyInstanceUrl" class="secondary-btn">
-          <Icon name="copy" :size="16" />
-          Copy URL
-        </button>
-        <button @click="openInNewTab" class="secondary-btn">
-          <Icon name="external-link" :size="16" />
+        <!-- About This Instance -->
+        <section class="modal-section">
+          <h3 class="section-heading">About This Instance</h3>
+          <div class="info-rows">
+            <div class="info-row">
+              <span class="info-label">Description:</span>
+              <span class="info-value">{{ instance.description || 'No description available' }}</span>
+            </div>
+            <div v-if="instance.admin_contact" class="info-row">
+              <span class="info-label">Admin Contact:</span>
+              <span class="info-value">{{ instance.admin_contact }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Instance Type:</span>
+              <span class="info-value">{{ instanceTypeLabel }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">First Discovered:</span>
+              <span class="info-value">{{ formatDate(instance?.created_at) }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Federation Status -->
+        <section class="modal-section">
+          <h3 class="section-heading">Federation Status</h3>
+          <div class="fed-status-list">
+            <div class="fed-row">
+              <div class="fed-indicator" :class="instance.is_blocked ? 'danger' : 'success'">
+                <Icon :name="instance.is_blocked ? 'shield-off' : 'shield-check'" :size="16" />
+              </div>
+              <span class="fed-label">{{ instance.is_blocked ? 'Blocked' : 'Federation Enabled' }}</span>
+            </div>
+            <div class="fed-row">
+              <div class="fed-indicator" :class="instance.is_trusted ? 'success' : 'muted'">
+                <Icon :name="instance.is_trusted ? 'star' : 'shield'" :size="16" />
+              </div>
+              <span class="fed-label">{{ instance.is_trusted ? 'Trusted Instance' : 'Standard Instance' }}</span>
+            </div>
+            <div class="fed-row">
+              <div class="fed-indicator" :class="activityStatus.class">
+                <Icon :name="activityStatus.icon" :size="16" />
+              </div>
+              <span class="fed-label">{{ activityStatus.text }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Recent Posts -->
+        <section class="modal-section">
+          <h3 class="section-heading">Recent Posts</h3>
+
+          <div v-if="isLoadingPosts" class="empty-placeholder">
+            <Icon name="loader" :size="20" class="spinning" />
+            <span>Loading posts...</span>
+          </div>
+
+          <div v-else-if="recentPosts.length > 0" class="recent-posts">
+            <div
+              v-for="post in recentPosts"
+              :key="post.id"
+              class="post-card"
+              @click="viewPost(post)"
+            >
+              <div class="post-author-row">
+                <Avatar :src="post.author?.avatar_url" size="sm" :alt="post.author?.display_name" />
+                <span class="post-author-name">
+                  <DisplayName
+                    v-if="post.author?.id"
+                    :userId="post.author.id"
+                    :fallback="post.author?.display_name || post.author?.username || 'Unknown'"
+                  />
+                  <template v-else>{{ post.author?.display_name || post.author?.username || 'Unknown' }}</template>
+                  <template v-if="post.author?.username">
+                    <span class="post-author-handle">{{ post.author.domain && post.author.domain !== currentDomain ? `@${post.author.username}@${post.author.domain}` : `@${post.author.username}` }}</span>
+                  </template>
+                </span>
+              </div>
+              <div class="post-text">{{ getPostText(post.content) }}</div>
+              <div class="post-meta">
+                <span class="post-time">{{ formatTimeAgo(post.created_at) }}</span>
+                <div class="post-counts">
+                  <span><Icon name="heart" :size="13" /> {{ post.favorites_count || 0 }}</span>
+                  <span><Icon name="repeat" :size="13" /> {{ post.reblogs_count || 0 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="empty-placeholder">
+            <Icon name="message-square" :size="20" />
+            <span>No recent posts from this instance</span>
+          </div>
+        </section>
+      </div>
+
+      <footer class="instance-modal-footer">
+        <button @click="openInNewTab" class="footer-btn secondary">
+          <Icon name="external-link" :size="15" />
           Visit Instance
         </button>
-      </div>
-    </footer>
+        <button @click="copyInstanceUrl" class="footer-btn secondary">
+          <Icon name="copy" :size="15" />
+          {{ urlCopied ? 'Copied!' : 'Copy URL' }}
+        </button>
+        <button @click="viewAllPosts" class="footer-btn primary">
+          <Icon name="eye" :size="15" />
+          View All Posts
+        </button>
+      </footer>
     </div>
   </BaseModal>
 </template>
@@ -169,8 +186,10 @@ import type { FederatedInstance, TimelinePost } from '@/types';
 import BaseModal from '@/components/common/BaseModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import DisplayName from '@/components/DisplayName.vue';
 
 const router = useRouter();
+const currentDomain = import.meta.env.VITE_DOMAIN as string;
 
 interface Props {
   instance: FederatedInstance;
@@ -183,66 +202,54 @@ defineEmits<{
   'view-posts': [instance: FederatedInstance];
 }>();
 
-// State
 const recentPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
+const urlCopied = ref(false);
 
-// Computed
-const isActive = computed(() => {
-  const lastSeen = new Date(props.instance.last_seen_at);
-  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  return lastSeen > oneWeekAgo;
+const activityStatus = computed(() => {
+  if (!props.instance.last_seen_at) {
+    return { text: 'No activity recorded', icon: 'help-circle', class: 'muted' };
+  }
+  const hours = (Date.now() - new Date(props.instance.last_seen_at).getTime()) / (1000 * 60 * 60);
+  if (hours < 24) return { text: 'Active today', icon: 'wifi', class: 'success' };
+  if (hours < 24 * 7) return { text: 'Active this week', icon: 'wifi', class: 'warning' };
+  return { text: `Last active ${formatTimeAgo(props.instance.last_seen_at)}`, icon: 'clock', class: 'muted' };
 });
 
-// Methods
-const getStatusClass = () => {
-  if (props.instance.is_blocked) return 'blocked';
-  if (props.instance.is_trusted) return 'trusted';
-  return 'neutral';
-};
-
-const getStatusIcon = () => {
-  if (props.instance.is_blocked) return 'shield-x';
-  if (props.instance.is_trusted) return 'shield-check';
-  return 'shield';
-};
-
-const getStatusText = () => {
-  if (props.instance.is_blocked) return 'Blocked';
-  if (props.instance.is_trusted) return 'Trusted';
-  return 'Federated';
-};
-
-const getInstanceType = () => {
-  if (props.instance.software) {
-    switch (props.instance.software.toLowerCase()) {
-      case 'mastodon': return 'Mastodon Instance';
-      case 'pleroma': return 'Pleroma Instance';
-      case 'misskey': return 'Misskey Instance';
-      case 'peertube': return 'PeerTube Instance';
-      case 'pixelfed': return 'PixelFed Instance';
-      default: return `${props.instance.software} Instance`;
-    }
-  }
-  return 'ActivityPub Instance';
-};
+const instanceTypeLabel = computed(() => {
+  const sw = props.instance.software?.toLowerCase();
+  if (!sw) return 'ActivityPub Instance';
+  const labels: Record<string, string> = {
+    mastodon: 'Mastodon Instance',
+    pleroma: 'Pleroma Instance',
+    misskey: 'Misskey Instance',
+    peertube: 'PeerTube Instance',
+    pixelfed: 'PixelFed Instance',
+    harmony: 'Harmony Instance',
+  };
+  return labels[sw] || `${props.instance.software} Instance`;
+});
 
 const formatNumber = (num: number): string => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toString();
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
+  if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
+  return String(num ?? 0);
 };
 
-const formatTime = (timestamp: string | null | undefined): string => {
+const formatTimeAgo = (timestamp: string | null | undefined): string => {
   if (!timestamp) return 'Unknown';
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  
-  if (hours < 1) return 'Just now';
+  const ms = Date.now() - new Date(timestamp).getTime();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(months / 12);
+  return `${years}y ago`;
 };
 
 const formatDate = (timestamp: string | null | undefined): string => {
@@ -256,11 +263,13 @@ const formatDate = (timestamp: string | null | undefined): string => {
 
 const getPostText = (content: any): string => {
   if (Array.isArray(content)) {
-    const textPart = content.find(part => part.type === 'text');
-    return textPart ? textPart.text.substring(0, 120) + '...' : '';
+    const textPart = content.find((p: any) => p.type === 'text');
+    const raw = textPart ? textPart.text : '';
+    return raw.length > 140 ? raw.substring(0, 140) + '...' : raw;
   }
   if (typeof content === 'string') {
-    return content.substring(0, 120) + '...';
+    const stripped = content.replace(/<[^>]+>/g, '');
+    return stripped.length > 140 ? stripped.substring(0, 140) + '...' : stripped;
   }
   return '';
 };
@@ -268,18 +277,9 @@ const getPostText = (content: any): string => {
 const loadRecentPosts = async () => {
   isLoadingPosts.value = true;
   try {
-    // Import the service dynamically
     const { activityPubService } = await import('@/services/activityPubService');
-    
-    // Try to get real posts from this instance
     const result = await activityPubService.getInstanceActivity(props.instance.domain, { limit: 3 });
-    
-    if (result.posts && result.posts.length > 0) {
-      recentPosts.value = result.posts;
-    } else {
-      // No posts found, leave empty
-      recentPosts.value = [];
-    }
+    recentPosts.value = result.posts?.length ? result.posts : [];
   } catch (error) {
     debug.error('Failed to load recent posts:', error);
     recentPosts.value = [];
@@ -299,7 +299,8 @@ const viewAllPosts = () => {
 const copyInstanceUrl = async () => {
   try {
     await navigator.clipboard.writeText(`https://${props.instance.domain}`);
-    // TODO: Show success toast
+    urlCopied.value = true;
+    setTimeout(() => { urlCopied.value = false; }, 2000);
   } catch (error) {
     debug.error('Failed to copy URL:', error);
   }
@@ -309,7 +310,6 @@ const openInNewTab = () => {
   window.open(`https://${props.instance.domain}`, '_blank');
 };
 
-// Lifecycle
 onMounted(() => {
   loadRecentPosts();
 });
@@ -317,14 +317,14 @@ onMounted(() => {
 
 <style scoped>
 .instance-detail-modal :deep(.modal-container) {
-  max-width: 640px;
+  max-width: 560px;
   width: 92vw;
 }
 
 .instance-detail-modal :deep(.modal-content) {
   padding: 0;
   overflow: hidden;
-  max-height: min(80vh, 560px);
+  max-height: min(85vh, 680px);
   display: flex;
   flex-direction: column;
 }
@@ -337,11 +337,12 @@ onMounted(() => {
   overflow: hidden;
 }
 
+/* ── Header ───────────────────────────── */
 .instance-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
@@ -350,7 +351,7 @@ onMounted(() => {
 .instance-header-main {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   flex: 1;
   min-width: 0;
 }
@@ -359,10 +360,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--background-tertiary), var(--background-quaternary));
+  background: var(--background-tertiary);
   border-radius: 12px;
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
@@ -374,57 +375,58 @@ onMounted(() => {
 }
 
 .instance-domain {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 2px 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
   color: var(--text-primary);
   letter-spacing: -0.01em;
 }
 
 .instance-software {
-  font-size: 0.8125rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  margin: 0;
+  margin: 2px 0 0;
 }
 
-.instance-status-badge {
+.instance-badges {
   display: flex;
-  align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  font-weight: 500;
   flex-shrink: 0;
 }
 
-.instance-status-badge.trusted {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+.instance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
-.instance-status-badge.blocked {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+.instance-badge.trusted {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
 }
 
-.instance-status-badge.neutral {
-  background: var(--background-tertiary);
-  color: var(--text-secondary);
+.instance-badge.blocked {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
 }
 
 .close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border: none;
   border-radius: 8px;
   background: var(--background-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   flex-shrink: 0;
 }
 
@@ -433,30 +435,36 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
+/* ── Body ─────────────────────────────── */
 .instance-modal-body {
-  padding: 20px 24px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding: 0 24px 16px;
 }
 
-.section-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  margin: 0 0 12px 0;
+.modal-section {
+  padding: 20px 0;
+}
+
+.modal-section + .modal-section {
+  border-top: 1px solid var(--border-color);
+}
+
+.section-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin: 0 0 14px;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
-.stats-section {
-  margin-bottom: 24px;
-}
-
+/* ── Stats Grid ───────────────────────── */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
 
 .stat-card {
@@ -464,223 +472,265 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--background-tertiary);
+  background: var(--background-secondary);
   border-radius: 10px;
   border: 1px solid var(--border-color);
 }
 
-.stat-content {
-  flex: 1;
+.stat-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .stat-value {
-  font-size: 1.125rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .stat-label {
-  font-size: 0.6875rem;
+  font-size: 0.65rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  margin-top: 1px;
 }
 
-.info-section {
-  margin-bottom: 24px;
-}
-
-.info-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.info-item label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  display: block;
-  margin-bottom: 4px;
-}
-
-.info-item p {
-  font-size: 14px;
-  color: var(--text-primary);
-  margin: 0;
-  line-height: 1.4;
-}
-
-.federation-section {
-  margin-bottom: 24px;
-}
-
-.federation-info {
+/* ── Info Rows ────────────────────────── */
+.info-rows {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.federation-item {
+.info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.info-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.info-value {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+/* ── Federation Status ────────────────── */
+.fed-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fed-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 10px 14px;
   border-radius: 8px;
   background: var(--background-secondary);
+}
+
+.fed-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.fed-indicator.success {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+}
+
+.fed-indicator.warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+}
+
+.fed-indicator.danger {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+
+.fed-indicator.muted {
+  background: rgba(156, 163, 175, 0.1);
   color: var(--text-secondary);
-  transition: all 0.2s ease;
 }
 
-.federation-item.active {
-  background: var(--success-background);
-  color: var(--success-color);
+.fed-label {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
-.activity-section {
-  margin-bottom: 16px;
-}
-
-.loading-posts,
-.no-posts {
-  padding: 24px;
-  text-align: center;
+/* ── Recent Posts ─────────────────────── */
+.empty-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 16px;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .recent-posts {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.post-preview {
-  padding: 16px;
+.post-card {
+  padding: 14px 16px;
   background: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
-.post-preview:hover {
+.post-card:hover {
   border-color: var(--harmony-primary);
-  background: var(--background-hover);
 }
 
-.post-author {
+.post-author-row {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.author-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.author-name {
-  font-size: 14px;
-  font-weight: 500;
+.post-author-name {
+  font-size: 0.875rem;
+  font-weight: 600;
   color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
 }
 
-.post-content {
-  font-size: 14px;
+.post-author-handle {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-text {
+  font-size: 0.875rem;
   color: var(--text-primary);
-  line-height: 1.4;
-  margin-bottom: 8px;
+  line-height: 1.45;
+  margin-bottom: 10px;
 }
 
-.post-stats {
+.post-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
-.post-interactions {
+.post-counts {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.post-interactions span {
+.post-counts span {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
+/* ── Footer ───────────────────────────── */
 .instance-modal-footer {
-  padding: 16px 24px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 14px 24px;
   border-top: 1px solid var(--border-color);
-  background: var(--background-secondary);
   flex-shrink: 0;
 }
 
-.footer-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.primary-btn,
-.secondary-btn {
-  display: flex;
+.footer-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 6px;
-  font-weight: 500;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.primary-btn {
-  background: var(--harmony-primary);
+  transition: all 0.15s ease;
   border: none;
-  color: var(--text-primary);
 }
 
-.primary-btn:hover {
-  background: var(--harmony-primary-hover);
+.footer-btn.primary {
+  background: var(--harmony-primary);
+  color: #fff;
 }
 
-.secondary-btn {
+.footer-btn.primary:hover {
+  background: var(--harmony-primary-hover, #4f46e5);
+}
+
+.footer-btn.secondary {
   background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
   color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
-.secondary-btn:hover {
+.footer-btn.secondary:hover {
   background: var(--background-hover);
   border-color: var(--border-hover);
 }
 
-/* Mobile Responsiveness */
-@media (max-width: 768px) {
-  .instance-detail-modal {
-    width: 95vw;
-    max-height: 95vh;
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ───────────────────────── */
+@media (max-width: 540px) {
+  .instance-modal-header {
+    padding: 16px;
   }
-  
+  .instance-modal-body {
+    padding: 0 16px 12px;
+  }
+  .instance-modal-footer {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .footer-actions {
-    flex-direction: column;
-  }
-  
-  .federation-info {
     gap: 8px;
   }
+  .stat-card {
+    padding: 12px;
+  }
+  .footer-btn {
+    flex: 1;
+    justify-content: center;
+  }
 }
-</style> 
+</style>
