@@ -24,8 +24,22 @@
       <span>{{ $t('message.loadingOlder') }}</span>
     </div>
     
-    <!-- Blocked Message Groups (Discord-like) -->
-    <template v-for="(item, itemIndex) in displayItems" :key="item.key">
+    <!-- Virtual scrolled message list -->
+    <div v-if="displayItems.length > 0" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+      <div
+        v-for="virtualRow in virtualRows"
+        :key="displayItems[virtualRow.index].key"
+        :data-index="virtualRow.index"
+        :ref="measureElement"
+        :style="{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          transform: `translateY(${virtualRow.start}px)`
+        }"
+      >
+      <template v-for="item in [displayItems[virtualRow.index]]" :key="0">
       <!-- Blocked Group Placeholder -->
       <div v-if="item.type === 'blocked-group'" class="blocked-message-group">
         <div class="blocked-group-content">
@@ -406,7 +420,9 @@
         </template>
       </div>
     </template>
-  </template>
+      </template>
+    </div>
+  </div>
   </div>
   
   <vue-easy-lightbox
@@ -569,6 +585,7 @@ import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage a
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
+import { useVirtualizer } from '@tanstack/vue-virtual';
 
 // --- PROPS & EMITS ---
 const props = defineProps({
@@ -1225,6 +1242,29 @@ const indexRef = ref(0);
 // --- CONSTANTS ---
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
+// --- VIRTUAL SCROLLING ---
+const rowVirtualizer = useVirtualizer(computed(() => ({
+  count: displayItems.value.length,
+  getScrollElement: () => messageDisplayContainer.value,
+  estimateSize: () => 60,
+  overscan: 10,
+})));
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
+
+const measureElement = (el: any) => {
+  if (!el || !(el instanceof HTMLElement)) return;
+  rowVirtualizer.value.measureElement(el);
+};
+
+const remeasureItem = (messageId: string) => {
+  const container = messageDisplayContainer.value;
+  if (!container) return;
+  const el = container.querySelector(`[data-message-id="${messageId}"]`)?.closest('[data-index]') as HTMLElement | null;
+  if (el) rowVirtualizer.value.measureElement(el);
+};
+
 // --- COMPUTED PROPERTIES ---
 const lightboxImages = computed(() => {
   let urls: Array<string> = [];
@@ -1282,7 +1322,9 @@ watch(() => props.messages, (newMessages) => {
     return;
   }
 
-  const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+  const oldDisplayItemCount = displayItems.value.length;
+  const firstVisibleVRow = virtualRows.value[0];
+  const firstVisibleKey = firstVisibleVRow ? displayItems.value[firstVisibleVRow.index]?.key : null;
 
   // Reset embed tracking for new messages
   const newMessageIds = new Set(newMessages.map(m => m.id));
@@ -1345,11 +1387,8 @@ watch(() => props.messages, (newMessages) => {
   if (newMessages.length > 0) {
     nextTick(() => {
       if (messageDisplayContainer.value) {
-        const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-        const scrollOffset = newScrollHeight - oldScrollHeight;
-        
-        // If this is the initial load (old height was 0), scroll to bottom
-        if (oldScrollHeight === 0 && newMessages.length > 0) {
+        // If this is the initial load (no previous items), scroll to bottom
+        if (oldDisplayItemCount === 0 && newMessages.length > 0) {
           debug.log('📜 Initial load - scrolling to bottom');
           
           // Set flag so we re-scroll when images load
@@ -1399,20 +1438,19 @@ watch(() => props.messages, (newMessages) => {
           debug.log('📜 Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
           debug.log('📜 Total embeds to load:', totalEmbeds);
           
-          // Function to scroll to bottom with proper timing
           const scrollToBottom = (finalAttempt = false) => {
             requestAnimationFrame(() => {
+              const count = displayItems.value.length;
+              if (count > 0) {
+                rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
+              }
               requestAnimationFrame(() => {
                 if (messageDisplayContainer.value) {
-                  messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
-                  // Verify we're actually at the bottom
                   const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
                   const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
                   if (!isAtBottom && !finalAttempt) {
-                    // If not at bottom, try one more time after a short delay
                     setTimeout(() => scrollToBottom(true), 100);
                   } else if (isAtBottom || finalAttempt) {
-                    // Clear flag after successful scroll or final attempt
                     setTimeout(() => {
                       shouldBeAtBottom.value = false;
                     }, 500);
@@ -1458,11 +1496,13 @@ watch(() => props.messages, (newMessages) => {
             setTimeout(checkAndScroll, 100);
           }
         } 
-        // When loading older messages, maintain scroll position by compensating for new content
-        else if (scrollOffset > 0 && oldScrollHeight > 0) {
+        // When loading older messages, maintain scroll position by finding the previously-first-visible item
+        else if (displayItems.value.length > oldDisplayItemCount && oldDisplayItemCount > 0 && firstVisibleKey) {
           debug.log('📜 Maintaining scroll position after loading older messages');
-          messageDisplayContainer.value.scrollTop += scrollOffset;
-          // Clear flag when loading older messages (user is scrolling up)
+          const newIndex = displayItems.value.findIndex(item => item.key === firstVisibleKey);
+          if (newIndex >= 0) {
+            rowVirtualizer.value.scrollToIndex(newIndex, { align: 'start' });
+          }
           shouldBeAtBottom.value = false;
         }
         
@@ -1666,27 +1706,22 @@ onMounted(() => {
     checkScrollable();
     messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
   }
-  // Implement highlight message functionality on the chat store
   chatStore.highlightMessage = (messageId: string) => {
-    nextTick(() => {
-      const messageElement = document.getElementById(`message-${messageId}`);
-      if (messageElement) {
-        const scrollContainer = messageElement.closest('.message-display') as HTMLElement;
-        if (scrollContainer) {
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const elementRect = messageElement.getBoundingClientRect();
-          const containerHeight = scrollContainer.clientHeight;
-          const elementHeight = messageElement.offsetHeight;
-          const relativeTop = elementRect.top - containerRect.top + scrollContainer.scrollTop;
-          const scrollTop = relativeTop - (containerHeight / 2) + (elementHeight / 2);
-          scrollContainer.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-        } else {
-          messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    const idx = displayItems.value.findIndex(
+      item => item.type === 'message' && item.message?.id === messageId
+    );
+    if (idx < 0) return;
+    rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
+    // Wait for the virtualizer to render the item, then highlight it
+    setTimeout(() => {
+      nextTick(() => {
+        const messageElement = document.getElementById(`message-${messageId}`);
+        if (messageElement) {
+          messageElement.classList.add('highlighted');
+          setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
         }
-        messageElement.classList.add('highlighted');
-        setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
-      }
-    });
+      });
+    }, 100);
   };
 });
 
@@ -2259,17 +2294,20 @@ const shouldBeAtBottom = ref(false);
 // Lightbox and Media
 const handleImageLoaded = (url: string) => {
   imageLoaded.value[url] = true;
-  
-  // If we should be at bottom and an image just loaded, re-scroll
-  if (shouldBeAtBottom.value && messageDisplayContainer.value) {
+
+  // Re-measure all visible virtual rows that may contain this image
+  nextTick(() => {
+    const container = messageDisplayContainer.value;
+    if (!container) return;
+    container.querySelectorAll('[data-index]').forEach(el => {
+      rowVirtualizer.value.measureElement(el as HTMLElement);
+    });
+  });
+
+  if (shouldBeAtBottom.value) {
     requestAnimationFrame(() => {
-      if (messageDisplayContainer.value) {
-        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-        if (!isAtBottom) {
-          messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
-        }
-      }
+      const count = displayItems.value.length;
+      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
     });
   }
 };
@@ -2280,17 +2318,13 @@ const handleEmbedLoaded = (messageId: string) => {
     embedLoaded.value[messageId] = 0;
   }
   embedLoaded.value[messageId] = (embedLoaded.value[messageId] || 0) + 1;
-  
-  // If we should be at bottom and an embed just loaded, re-scroll
-  if (shouldBeAtBottom.value && messageDisplayContainer.value) {
+
+  remeasureItem(messageId);
+
+  if (shouldBeAtBottom.value) {
     requestAnimationFrame(() => {
-      if (messageDisplayContainer.value) {
-        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-        if (!isAtBottom) {
-          messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
-        }
-      }
+      const count = displayItems.value.length;
+      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
     });
   }
 };
@@ -2465,10 +2499,8 @@ defineExpose({ editLastOwnMessage });
 /* Individual message item */
 .message-item {
   position: relative;
-  padding: 0.125rem 16px; /* 2px vertical padding */
+  padding: 0.125rem 16px;
   transition: background-color 0.1s ease-out;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 48px;
 }
 
 /* Add margin to message-item only if its child .message-group has a header */
