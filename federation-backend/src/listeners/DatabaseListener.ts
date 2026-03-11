@@ -1845,6 +1845,7 @@ export async function handleNewDM(message: any): Promise<void> {
       cc: [],
       directMessage: true,
       conversation: conversationTag,
+      'harmony:encrypted': message.encrypted === true ? true : undefined,
     };
 
     if (conversationType === 'group') {

@@ -2144,6 +2144,7 @@ export class ActivityProcessor {
         reply_to: object.inReplyTo ? extractMessageId(object.inReplyTo) : null,
         is_deleted: false,
         federation_status: 'completed',
+        encrypted: object['harmony:encrypted'] === true,
         metadata: {
           federated: true,
           ap_id: object.id,
@@ -2259,6 +2260,7 @@ export class ActivityProcessor {
         conversation_id: conversationId,
         content,
         metadata,
+        encrypted: object['harmony:encrypted'] === true,
         created_at: object.published || new Date().toISOString(),
       })
       .select('id, content, metadata')

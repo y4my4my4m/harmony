@@ -485,6 +485,7 @@ function createMessageActivity(
         'channelType': 'harmony:channelType',
         'serverId': 'harmony:serverId',
         'serverName': 'harmony:serverName',
+        'encrypted': 'harmony:encrypted',
       },
     ],
     id: activityType === 'Update' ? `${activityId}/updates/${Date.now()}` : activityId,
@@ -517,6 +518,9 @@ function createMessageActivity(
       // Tags and attachments
       tag: tags.length > 0 ? tags : undefined,
       attachment: attachments.length > 0 ? attachments : undefined,
+
+      // E2EE indicator — remote instances can't decrypt but should show the lock glyph
+      'harmony:encrypted': message.encrypted === true ? true : undefined,
     },
 
     // Addressing - to server members

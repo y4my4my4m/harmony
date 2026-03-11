@@ -630,6 +630,8 @@ async function processCreateActivity(
 
   // Insert message
   const messageTimestamp = object.published || new Date().toISOString();
+  const isEncrypted = object['harmony:encrypted'] === true;
+
   const { data: insertedMessage, error } = await supabase.from('messages').insert({
     channel_id: channel.id,
     user_id: author.id,
@@ -640,6 +642,7 @@ async function processCreateActivity(
       from_domain: new URL(actorUrl).hostname,
       federated: true,
     },
+    encrypted: isEncrypted,
     created_at: messageTimestamp,
     updated_at: object.updated || messageTimestamp, // Required field
     federation_status: 'completed',
