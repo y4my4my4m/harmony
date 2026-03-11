@@ -1534,7 +1534,8 @@ EXCEPTION
 END;
 $$;
 
--- Notify user when added to a conversation (local = notification, remote = federate invite)
+-- Notify user when added to a GROUP conversation (local = notification, remote = federate invite).
+-- Skips 1:1 DMs (type='direct') and the group creator.
 CREATE OR REPLACE FUNCTION public.handle_conversation_participant_added()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1550,10 +1551,21 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    SELECT * INTO v_conversation FROM conversations WHERE id = NEW.conversation_id;
+
+    -- Only notify for group conversations; 1:1 DMs (type='direct') need no invite notification.
+    IF v_conversation.type != 'group' THEN
+        RETURN NEW;
+    END IF;
+
+    -- Don't notify the creator of the group — they already know they created it.
+    IF NEW.user_id = v_conversation.created_by THEN
+        RETURN NEW;
+    END IF;
+
     SELECT * INTO v_added_profile FROM profiles WHERE id = NEW.user_id;
 
     IF v_added_profile.is_local THEN
-        SELECT * INTO v_conversation FROM conversations WHERE id = NEW.conversation_id;
         v_conversation_name := COALESCE(NULLIF(TRIM(v_conversation.name), ''), 'a group conversation');
 
         SELECT p.* INTO v_inviter

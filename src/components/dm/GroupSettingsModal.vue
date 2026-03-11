@@ -76,12 +76,21 @@
             class="group-name-input"
             :placeholder="defaultGroupName"
             maxlength="50"
-            @blur="updateGroupName"
-            @keydown.enter="updateGroupName"
           />
           <span class="char-count">{{ localGroupName.length }}/50</span>
         </div>
         <p class="input-help">Leave empty to use participant names</p>
+      </div>
+
+      <!-- Save changes (consistent with Server Settings, Channel Edit, etc.) -->
+      <div v-if="hasGroupNameChanges" class="settings-actions">
+        <button
+          class="save-btn"
+          :disabled="savingGroupName"
+          @click="saveGroupName"
+        >
+          {{ savingGroupName ? 'Saving...' : 'Save Changes' }}
+        </button>
       </div>
 
       <!-- Participants Section -->
@@ -258,11 +267,17 @@ const isDragOver = ref(false)
 const showAddParticipant = ref(false)
 const showLeaveConfirm = ref(false)
 const showDeleteConfirm = ref(false)
+const savingGroupName = ref(false)
 
 // Computed
 const currentUser = computed(() => getCurrentUser.value)
 const isCreator = computed(() => currentUser.value?.id === props.conversation.created_by)
 const hasCustomIcon = computed(() => !!localIconPath.value)
+
+const savedGroupName = computed(() => (props.conversation?.name ?? '').trim())
+const hasGroupNameChanges = computed(
+  () => (localGroupName.value?.trim() ?? '') !== savedGroupName.value
+)
 
 const stripShortcodes = (text: string): string => {
   if (!text) return text
@@ -383,27 +398,30 @@ async function removeIcon() {
   }
 }
 
-async function updateGroupName() {
-  if (!currentUser.value) return
-  
+async function saveGroupName() {
+  if (!currentUser.value || !hasGroupNameChanges.value || savingGroupName.value) return
+
+  savingGroupName.value = true
   try {
-    const { data, error } = await supabase.rpc('update_group_name', {
+    const { error } = await supabase.rpc('update_group_name', {
       conversation_uuid: props.conversationId,
       user_profile_id: currentUser.value.id,
       new_name: localGroupName.value.trim() || null
     })
-    
+
     if (error) {
       debug.error('Failed to update group name:', error)
       toast.error('Failed to update group name')
       return
     }
-    
+
     toast.success('Group name updated!')
     emit('updated')
   } catch (error: any) {
     debug.error('Group name update failed:', error)
     toast.error(error.message || 'Update failed')
+  } finally {
+    savingGroupName.value = false
   }
 }
 
@@ -639,6 +657,37 @@ async function deleteGroup() {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
+}
+
+/* Save changes (consistent with Server Settings, Channel Edit, etc.) */
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}
+
+.save-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--harmony-primary);
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: var(--harmony-primary-hover);
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Participants Section */

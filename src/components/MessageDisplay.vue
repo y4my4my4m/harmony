@@ -2584,11 +2584,14 @@ defineExpose({ editLastOwnMessage });
   align-items: center;
   gap: 0.25rem;
 }
-
-.username-text:hover {
-  border-bottom: 2px solid;
-  padding-bottom: 1px;
+/* 
+.username-text .display-name::v-deep(span) {
+  transition: color 0.2s ease, border-bottom 0.2s ease;
 }
+
+.username-text:hover .display-name::v-deep(span) {
+  border-bottom: 1px solid;
+} */
 
 .bot-badge {
   display: inline-block;

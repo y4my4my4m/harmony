@@ -15,7 +15,27 @@ const DEFAULT_QUALITY = 80
 const DEFAULT_SIZE = 128
 
 /**
- * Get the full URL for a group icon with optional transformations
+ * Get the raw public URL for a group icon (no imgproxy transform).
+ * Use when the transform endpoint returns 400 (e.g. imgproxy not enabled on self-hosted).
+ */
+export function getGroupIconUrlRaw(
+  conversationId: string,
+  iconPath: string | null | undefined
+): string {
+  if (!iconPath) {
+    return getDefaultGroupIcon(conversationId, DEFAULT_SIZE)
+  }
+  try {
+    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(iconPath)
+    return data?.publicUrl ? data.publicUrl : getDefaultGroupIcon(conversationId, DEFAULT_SIZE)
+  } catch {
+    return getDefaultGroupIcon(conversationId, DEFAULT_SIZE)
+  }
+}
+
+/**
+ * Get the full URL for a group icon with optional transformations (imgproxy).
+ * Prefer this for bandwidth/UX; use getGroupIconUrlRaw or component fallback when transform returns 400.
  */
 export function getGroupIconUrl(
   conversationId: string,
