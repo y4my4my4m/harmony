@@ -151,9 +151,15 @@ export async function handleChannelMessageFederation(
     }
 
     // CASE 2: Local server with remote members - federate to those members
-    // Check if server has federation enabled
     if (!server.federation_enabled) {
-      logger.info(`Federation not enabled for server ${server_id}`);
+      logger.info(`Federation not enabled for server ${server_id}, skipping`);
+      await supabase
+        .from('messages')
+        .update({ 
+          federation_status: 'skipped',
+          updated_at: message.updated_at || message.created_at
+        })
+        .eq('id', message_id);
       return;
     }
 

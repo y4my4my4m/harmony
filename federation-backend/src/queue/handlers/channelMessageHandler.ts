@@ -48,8 +48,21 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
     // It handles federation to remote server members
     await handleNewChannelMessage(message);
 
-    await updateFederationStatus(message_id, 'messages', 'completed');
-    logger.info(`✅ Channel message ${message_id} federated successfully`);
+    // Check what the inner handler set - it may have skipped federation
+    const { data: updated } = await supabase
+      .from('messages')
+      .select('federation_status')
+      .eq('id', message_id)
+      .single();
+
+    const status = updated?.federation_status || 'completed';
+    if (status !== 'completed') {
+      await updateFederationStatus(message_id, 'messages', status);
+      logger.info(`⏭️ Channel message ${message_id} federation skipped (${status})`);
+    } else {
+      await updateFederationStatus(message_id, 'messages', 'completed');
+      logger.info(`✅ Channel message ${message_id} federated successfully`);
+    }
 
   } catch (error) {
     logger.error(`Failed to federate channel message ${message_id}:`, error);
