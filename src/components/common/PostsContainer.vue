@@ -30,10 +30,9 @@
         class="virtual-post-row"
         :style="{
           position: 'absolute',
-          top: 0,
+          top: `${virtualRow.start}px`,
           left: 0,
           width: '100%',
-          transform: `translateY(${virtualRow.start}px)`
         }"
       >
         <MonyPost
