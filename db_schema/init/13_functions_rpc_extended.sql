@@ -104,6 +104,26 @@ IS 'Syncs ephemeral presence state to database table for PostgreSQL function acc
 GRANT EXECUTE ON FUNCTION public.sync_view_context_from_presence(text, uuid, uuid, uuid) TO authenticated;
 
 -- ---------------------------------------------------------------------------
+-- Function: can_manage_group_icon
+-- Returns true if the user is an active participant in the conversation (used by group icon RPCs/storage).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.can_manage_group_icon(conversation_uuid uuid, user_profile_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversation_uuid
+      AND cp.user_id = user_profile_id
+      AND cp.left_at IS NULL
+  );
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Function: send_notification (BASE function - must be created first)
 -- Other functions like send_notification_to_user depend on this
 -- ---------------------------------------------------------------------------
