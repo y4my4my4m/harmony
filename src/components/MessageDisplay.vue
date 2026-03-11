@@ -1119,13 +1119,15 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
 
 // Unified computed properties that work for both chat and DMs
 const isLoadingOlderMessages = computed(() => {
-  // Check both stores since MessageDisplay is used for both
-  return chatStore.loadingOlderMessages || dmStore.loadingMessages;
+  if (props.conversationId) return dmStore.loadingMessages;
+  if (props.channelId) return chatStore.loadingOlderMessages;
+  return false;
 });
 
 const isAllMessagesLoaded = computed(() => {
-  // Check both stores
-  return chatStore.allMessagesLoaded || dmStore.allMessagesLoaded;
+  if (props.conversationId) return dmStore.allMessagesLoaded;
+  if (props.channelId) return chatStore.allMessagesLoaded;
+  return false;
 });
 
 // --- REFS ---
