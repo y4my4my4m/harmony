@@ -597,29 +597,41 @@ async function handleNewReaction(interaction: any): Promise<void> {
       return;
     }
 
-    // Send to post author's inbox (if remote)
+    // Get post author profile
     const { data: postAuthor } = await supabase
       .from('profiles')
       .select('inbox_url, is_local, federated_id, username, domain')
       .eq('id', post.author_id)
       .single();
 
-    if (postAuthor && !postAuthor.is_local && postAuthor.inbox_url) {
-      const targetDomain = postAuthor.domain || undefined;
-      const { content, emojiData } = await resolveOutboundEmoji(
-        interaction.emoji_id,
-        interaction.custom_emoji_content,
-        targetDomain,
-      );
-      
-      logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
+    if (!postAuthor) {
+      logger.debug('Post author not found, skipping federation');
+      return;
+    }
 
+    const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
+    const { content, emojiData } = await resolveOutboundEmoji(
+      interaction.emoji_id,
+      interaction.custom_emoji_content,
+      targetDomain,
+    );
+
+    logger.info(`🌐 Federating reaction: ${content} on post ${post.id}`);
+
+    // Send to post author's inbox if they're remote
+    if (!postAuthor.is_local && postAuthor.inbox_url) {
       const authorUrl = postAuthor.federated_id
         || `https://${postAuthor.domain}/users/${postAuthor.username}`;
       const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
       await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-      logger.info(`✅ Reaction queued for delivery to ${postAuthor.inbox_url}`);
+      logger.info(`✅ Reaction sent to post author ${postAuthor.inbox_url}`);
     }
+
+    // Broadcast to the post author's remote followers so all instances
+    // that have a copy of the post can display the reaction.
+    const broadcastActivity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
+    await DeliveryQueue.broadcastToFollowers(post.author_id, broadcastActivity);
+    logger.info(`✅ Reaction broadcast to post author's remote followers`);
   } catch (error) {
     logger.error('Failed to handle new reaction:', error);
   }

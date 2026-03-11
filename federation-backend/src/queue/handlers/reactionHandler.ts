@@ -51,27 +51,42 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
       .eq('id', post.author_id)
       .single();
 
-    if (!postAuthor || postAuthor.is_local || !postAuthor.inbox_url) {
-      logger.debug('Post author is local or has no inbox, skipping federation');
+    if (!postAuthor) {
+      logger.debug('Post author not found, skipping federation');
       await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
       return;
     }
 
     if (type === 'create') {
-      const targetDomain = postAuthor.domain || undefined;
+      const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
       const { content, emojiData } = await resolveOutboundEmoji(emoji_id, custom_emoji_content, targetDomain);
       logger.info(`🎯 Resolved emoji: content="${content}", hasEmojiData=${!!emojiData}, emojiUrl=${emojiData?.url ?? 'none'}`);
-      const authorUrl = postAuthor.federated_id
-        || `https://${postAuthor.domain}/users/${postAuthor.username}`;
-      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
-      logger.debug(`📦 Like activity: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, to: activity.to, tag: activity.tag })}`);
-      await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-      logger.info(`✅ Reaction federated to ${postAuthor.inbox_url}`);
+
+      if (!postAuthor.is_local && postAuthor.inbox_url) {
+        const authorUrl = postAuthor.federated_id
+          || `https://${postAuthor.domain}/users/${postAuthor.username}`;
+        const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined, [authorUrl]);
+        logger.debug(`📦 Like activity: ${JSON.stringify({ content: activity.content, _misskey_reaction: activity._misskey_reaction, to: activity.to, tag: activity.tag })}`);
+        await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
+        logger.info(`✅ Reaction federated to post author ${postAuthor.inbox_url}`);
+      }
+
+      // Broadcast to the post author's remote followers so all instances
+      // that have a copy of the post can display the reaction.
+      const activity = createLikeActivity(user, post.ap_id, content, emojiData ?? undefined);
+      await DeliveryQueue.broadcastToFollowers(post.author_id, activity);
+      logger.info(`✅ Reaction broadcast to post author's remote followers`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
     } else if (type === 'delete') {
       const undoActivity = createUndoLikeActivity(user, post.ap_id);
-      await DeliveryQueue.sendToInbox(postAuthor.inbox_url, undoActivity, user.id);
-      logger.info(`✅ Undo reaction queued for delivery to ${postAuthor.inbox_url}`);
+
+      if (!postAuthor.is_local && postAuthor.inbox_url) {
+        await DeliveryQueue.sendToInbox(postAuthor.inbox_url, undoActivity, user.id);
+        logger.info(`✅ Undo reaction queued for delivery to ${postAuthor.inbox_url}`);
+      }
+
+      await DeliveryQueue.broadcastToFollowers(post.author_id, undoActivity);
+      logger.info(`✅ Undo reaction broadcast to post author's remote followers`);
       await updateFederationStatus(interaction_id, 'post_interactions', 'completed');
     } else {
       logger.warn(`Unknown reaction job type: ${type}`);
