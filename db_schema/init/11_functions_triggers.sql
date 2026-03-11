@@ -513,6 +513,41 @@ $$;
 -- REACTION TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- Update favorites_count / reblogs_count on post_interactions insert/delete
+CREATE OR REPLACE FUNCTION public.update_post_reaction_counts()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.interaction_type = 'emoji_reaction' OR NEW.interaction_type = 'favorite' THEN
+      UPDATE posts
+      SET favorites_count = favorites_count + 1
+      WHERE id = NEW.post_id;
+    ELSIF NEW.interaction_type = 'reblog' THEN
+      UPDATE posts
+      SET reblogs_count = reblogs_count + 1
+      WHERE id = NEW.post_id;
+    END IF;
+    RETURN NEW;
+
+  ELSIF TG_OP = 'DELETE' THEN
+    IF OLD.interaction_type = 'emoji_reaction' OR OLD.interaction_type = 'favorite' THEN
+      UPDATE posts
+      SET favorites_count = GREATEST(favorites_count - 1, 0)
+      WHERE id = OLD.post_id;
+    ELSIF OLD.interaction_type = 'reblog' THEN
+      UPDATE posts
+      SET reblogs_count = GREATEST(reblogs_count - 1, 0)
+      WHERE id = OLD.post_id;
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
 -- Check emoji reaction limit for posts
 CREATE OR REPLACE FUNCTION public.check_emoji_reaction_limit()
 RETURNS trigger

@@ -316,7 +316,16 @@ export function createLikeActivity(
   const userUrl = `https://${domain}/users/${user.username}`;
   const activityId = `${userUrl}/likes/${Date.now()}`;
 
-  const reactionValue = emojiContent || '❤';
+  const rawReaction = emojiContent || '❤';
+
+  // Misskey's isCustomEmojiRegexp /^:([\w+-]+)(?:@\.)?:$/ only matches
+  // `:name:` or `:name@.:` — NOT `:name@domain:`.  Sending the qualified
+  // form causes Misskey to fall back to a generic ❤.  Strip @domain here;
+  // Misskey infers the origin domain from the actor's host and the tag data
+  // provides the icon URL.
+  const reactionValue = emojiData
+    ? rawReaction.replace(/@[\w.-]+(?=:$)/, '')
+    : rawReaction;
 
   const activity: any = {
     '@context': [

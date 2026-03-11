@@ -403,7 +403,11 @@ export class FederationActivityService {
     const { activityId, activityType, actor, messageData, emojiData, operation } = params
     const instanceDomain = await this.getInstanceDomain()
     const isNative = !emojiData.url
-    const emojiContent = emojiData.native || emojiData.name
+    // Misskey expects `:name:` for custom emojis (no @domain); native emojis
+    // are sent as-is.  The domain is inferred from the actor's host.
+    const emojiContent = isNative
+      ? (emojiData.native || emojiData.name)
+      : `:${emojiData.name.replace(/:/g, '')}:`
 
     if (operation === 'add') {
       const activity: any = {
@@ -468,7 +472,9 @@ export class FederationActivityService {
     const { activityId, activityType, actor, postData, emojiData, operation } = params
     const instanceDomain = await this.getInstanceDomain()
     const isNative = !emojiData.url
-    const emojiContent = emojiData.native || emojiData.name
+    const emojiContent = isNative
+      ? (emojiData.native || emojiData.name)
+      : `:${emojiData.name.replace(/:/g, '')}:`
     const objectUrl = postData.ap_id || `${instanceDomain}/posts/${postData.id}`
 
     if (operation === 'add') {

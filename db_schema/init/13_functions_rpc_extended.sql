@@ -744,7 +744,7 @@ BEGIN
   ) INTO thread_posts
   FROM timeline_posts tp
   LEFT JOIN post_interactions fav ON tp.id = fav.post_id 
-    AND fav.user_id = p_user_id AND fav.interaction_type = 'favorite'
+    AND fav.user_id = p_user_id AND fav.interaction_type IN ('favorite', 'emoji_reaction')
   LEFT JOIN post_interactions reb ON tp.id = reb.post_id 
     AND reb.user_id = p_user_id AND reb.interaction_type = 'reblog'
   LEFT JOIN post_interactions book ON tp.id = book.post_id 
@@ -821,7 +821,7 @@ BEGIN
     JOIN posts p ON tp.id = p.id
     LEFT JOIN post_interactions fav ON tp.id = fav.post_id 
         AND fav.user_id = p_user_id 
-        AND fav.interaction_type = 'favorite'
+        AND fav.interaction_type IN ('favorite', 'emoji_reaction')
     LEFT JOIN post_interactions reb ON tp.id = reb.post_id 
         AND reb.user_id = p_user_id 
         AND reb.interaction_type = 'reblog'
@@ -1085,7 +1085,7 @@ BEGIN
       -- User interaction states (only if p_include_interactions is true)
       CASE 
         WHEN p_include_interactions THEN
-          EXISTS(SELECT 1 FROM post_interactions WHERE post_id = p.id AND user_id = p_user_id AND interaction_type = 'favorite')
+          EXISTS(SELECT 1 FROM post_interactions WHERE post_id = p.id AND user_id = p_user_id AND interaction_type IN ('favorite', 'emoji_reaction'))
         ELSE false
       END as is_favorited,
       CASE 
@@ -1230,7 +1230,7 @@ BEGIN
           'deleted_at', a.deleted_at,
           'is_favorited', CASE 
             WHEN p_include_interactions THEN
-              EXISTS(SELECT 1 FROM post_interactions WHERE post_id = a.id AND user_id = p_user_id AND interaction_type = 'favorite')
+              EXISTS(SELECT 1 FROM post_interactions WHERE post_id = a.id AND user_id = p_user_id AND interaction_type IN ('favorite', 'emoji_reaction'))
             ELSE false
           END,
           'is_reblogged', CASE 
@@ -1314,7 +1314,7 @@ BEGIN
           'depth', d.depth,
           'is_favorited', CASE 
             WHEN p_include_interactions THEN
-              EXISTS(SELECT 1 FROM post_interactions WHERE post_id = d.id AND user_id = p_user_id AND interaction_type = 'favorite')
+              EXISTS(SELECT 1 FROM post_interactions WHERE post_id = d.id AND user_id = p_user_id AND interaction_type IN ('favorite', 'emoji_reaction'))
             ELSE false
           END,
           'is_reblogged', CASE 

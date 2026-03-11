@@ -176,6 +176,12 @@ CREATE TRIGGER trg_webhook_external_link_previews
 -- REACTION TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- Update favorites_count / reblogs_count on post interactions
+CREATE TRIGGER trigger_update_post_reaction_counts
+    AFTER INSERT OR DELETE ON public.post_interactions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_post_reaction_counts();
+
 -- Check post emoji reaction limit
 CREATE TRIGGER trigger_check_emoji_reaction_limit
     BEFORE INSERT ON public.post_interactions
