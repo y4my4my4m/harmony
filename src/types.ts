@@ -263,6 +263,7 @@ export interface EmbedPayload {
   harmony?: HarmonyEmbedSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;
+  localPostId?: string;
   fetchedAt: string;
   expiresAt: string;
 }

@@ -1554,13 +1554,21 @@ watch(() => props.messages, (newMessages) => {
           }
           // Load older messages (prepend) - maintain scroll position
           else if (!isAppend) {
-            debug.log('📜 Maintaining scroll position after loading older messages');
-            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-            const scrollOffset = newScrollHeight - oldScrollHeight;
-            if (scrollOffset > 0) {
-              messageDisplayContainer.value.scrollTop += scrollOffset;
-            }
             shouldBeAtBottom.value = false;
+            const savedScrollTop = messageDisplayContainer.value.scrollTop;
+            const adjustScroll = (attempt = 0) => {
+              if (!messageDisplayContainer.value) return;
+              const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+              const scrollOffset = newScrollHeight - oldScrollHeight;
+              if (scrollOffset > 0) {
+                messageDisplayContainer.value.scrollTop = savedScrollTop + scrollOffset;
+              }
+              // Retry: virtualizer re-measures after first paint
+              if (attempt < 3) {
+                requestAnimationFrame(() => adjustScroll(attempt + 1));
+              }
+            };
+            nextTick(() => requestAnimationFrame(() => adjustScroll()));
           }
         }
         

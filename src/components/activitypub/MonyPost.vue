@@ -153,6 +153,7 @@
             <div 
               v-if="displayMediaAttachments?.length > 0"
               class="quoted-media-gallery"
+              :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
             >
               <div 
                 v-for="media in displayMediaAttachments" 
@@ -198,6 +199,7 @@
           <div 
             v-if="displayMediaAttachments?.length > 0"
             class="media-gallery"
+            :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
           >
             <div 
               v-for="media in displayMediaAttachments" 
@@ -2260,6 +2262,14 @@ const closeLightbox = () => {
   height: auto;
 }
 
+.post-text :deep(img.inline-emoji) {
+  height: 1.2em;
+  width: auto;
+  max-width: 120px;
+  vertical-align: -0.2em;
+  margin: 0 1px;
+}
+
 .interaction-stats {
   display: flex;
   gap: 1rem;
@@ -2551,22 +2561,30 @@ const closeLightbox = () => {
 
 .quoted-media-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.5rem;
+  gap: 4px;
   border-radius: 0.5rem;
   overflow: hidden;
+  max-height: 200px;
 }
 
-.quoted-media-gallery .media-item {
-  border-radius: 0.5rem;
-  overflow: hidden;
+.quoted-media-gallery.media-count-1 { grid-template-columns: 1fr; }
+.quoted-media-gallery.media-count-2 { grid-template-columns: 1fr 1fr; }
+.quoted-media-gallery.media-count-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.quoted-media-gallery.media-count-3 .media-item:first-child {
+  grid-row: 1 / 3;
+}
+.quoted-media-gallery.media-count-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
 }
 
 .quoted-media-gallery .media-image,
 .quoted-media-gallery .media-video {
   width: 100%;
-  height: auto;
-  max-height: 200px;
+  height: 100%;
   object-fit: cover;
 }
 
@@ -2574,34 +2592,65 @@ const closeLightbox = () => {
 
 .media-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.5rem;
+  gap: 4px;
   border-radius: 0.5rem;
   overflow: hidden;
   margin: 0.5rem 0.75rem 0.75rem;
+  max-height: 400px;
+}
+
+.media-gallery.media-count-1 {
+  grid-template-columns: 1fr;
+}
+
+.media-gallery.media-count-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.media-gallery.media-count-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.media-gallery.media-count-3 .media-item:first-child {
+  grid-row: 1 / 3;
+}
+
+.media-gallery.media-count-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
 }
 
 .media-item {
-  border-radius: 0.5rem;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 
 .media-image {
   width: 100%;
-  height: auto;
-  max-height: 400px;
+  height: 100%;
   object-fit: cover;
   display: block;
   cursor: pointer;
 }
 
+.media-gallery.media-count-1 .media-image {
+  max-height: 400px;
+  height: auto;
+}
+
 .media-video {
   width: 100%;
-  height: auto;
-  max-height: 400px;
+  height: 100%;
+  object-fit: cover;
   display: block;
-  border-radius: 0.5rem;
+}
+
+.media-gallery.media-count-1 .media-video {
+  max-height: 400px;
+  height: auto;
 }
 
 /* Mobile responsive */

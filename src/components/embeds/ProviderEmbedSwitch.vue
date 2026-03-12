@@ -95,6 +95,9 @@ import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
 import ServerInviteCard from './ServerInviteCard.vue';
 
+// Module-level cache so re-mounts (virtual scroller) don't re-fetch
+const fediversePostCache = new Map<string, TimelinePost>();
+
 const props = defineProps<{
   payload: EmbedPayload;
   messageId?: string;
@@ -454,16 +457,38 @@ async function loadFediversePost() {
     return;
   }
 
+  const postUrl = fedi.postUrl;
+
+  // Check module-level cache first (instant on virtual scroller re-mount)
+  const cached = fediversePostCache.get(postUrl);
+  if (cached) {
+    fediversePost.value = cached;
+    handleEmbedLoad();
+    return;
+  }
+
   try {
     const { useActivityPubStore } = await import('@/stores/useActivityPub');
     const store = useActivityPubStore();
-    const postUrl = fedi.postUrl;
 
-    // Check in-memory feeds first (free)
+    // If the backend already imported this post, load it directly by ID
+    const localPostId = props.payload.localPostId;
+    if (localPostId) {
+      const post = await store.loadPostWithAuthor(localPostId);
+      if (post) {
+        fediversePostCache.set(postUrl, post);
+        fediversePost.value = post;
+        handleEmbedLoad();
+        return;
+      }
+    }
+
+    // Check in-memory feeds (free)
     const feeds = [store.homeFeed, store.publicFeed, store.localFeed];
     for (const feed of feeds) {
       const found = feed.posts.find(p => p.url === postUrl || p.ap_id === postUrl);
       if (found) {
+        fediversePostCache.set(postUrl, found);
         fediversePost.value = found;
         handleEmbedLoad();
         return;
@@ -483,6 +508,7 @@ async function loadFediversePost() {
     if (localPost?.id) {
       const post = await store.loadPostWithAuthor(localPost.id);
       if (post) {
+        fediversePostCache.set(postUrl, post);
         fediversePost.value = post;
         handleEmbedLoad();
         return;
@@ -490,11 +516,15 @@ async function loadFediversePost() {
     }
 
     // Not in local DB — build synthetic post from embed data
-    fediversePost.value = buildSyntheticTimelinePost(fedi);
+    const synthetic = buildSyntheticTimelinePost(fedi);
+    fediversePostCache.set(postUrl, synthetic);
+    fediversePost.value = synthetic;
     handleEmbedLoad();
   } catch (error) {
     debug.warn('Failed to load fediverse post:', error);
-    fediversePost.value = buildSyntheticTimelinePost(fedi);
+    const synthetic = buildSyntheticTimelinePost(fedi);
+    fediversePostCache.set(postUrl, synthetic);
+    fediversePost.value = synthetic;
     handleEmbedLoad();
   }
 }

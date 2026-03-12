@@ -59,6 +59,7 @@ export interface EmbedPayload {
     };
   };
   fediverse?: FediverseEmbedData;
+  localPostId?: string;
 }
 
 const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
@@ -293,9 +294,9 @@ class LinkPreviewService {
     return 'fediverse';
   }
 
-  private async buildFediverseEmbed(url: string, prefetchedNote?: any): Promise<EmbedPayload> {
+  private async buildFediverseEmbed(url: string, prefetchedNote?: any, bypassCircuitBreaker = false): Promise<EmbedPayload> {
     try {
-      const note = prefetchedNote ?? await this.fetchActivityPubObject(url);
+      const note = prefetchedNote ?? await this.fetchActivityPubObject(url, false, bypassCircuitBreaker);
       if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
         return this.buildMinimalGenericPayload(url, 'Not a recognized AP Note type');
       }
@@ -407,11 +408,13 @@ class LinkPreviewService {
     return stats;
   }
 
-  private async fetchActivityPubObject(url: string, acceptJson = false): Promise<any> {
+  private async fetchActivityPubObject(url: string, acceptJson = false, bypassCircuitBreaker = false): Promise<any> {
     const domain = new URL(url).hostname;
-    const failedAt = this.apFailedDomains.get(domain);
-    if (failedAt && Date.now() - failedAt < LinkPreviewService.AP_DOMAIN_FAIL_TTL) {
-      throw new Error(`AP domain ${domain} recently failed, skipping`);
+    if (!bypassCircuitBreaker) {
+      const failedAt = this.apFailedDomains.get(domain);
+      if (failedAt && Date.now() - failedAt < LinkPreviewService.AP_DOMAIN_FAIL_TTL) {
+        throw new Error(`AP domain ${domain} recently failed, skipping`);
+      }
     }
 
     const controller = new AbortController();
@@ -555,7 +558,7 @@ class LinkPreviewService {
       if (apAlternate) {
         try {
           const apUrl = this.makeAbsoluteUrl(url, apAlternate);
-          const result = await this.buildFediverseEmbed(apUrl);
+          const result = await this.buildFediverseEmbed(apUrl, undefined, true);
           if (result.provider === 'fediverse-post') {
             result.url = url;
             result.normalizedUrl = url;
