@@ -36,47 +36,25 @@
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading && posts.length === 0" class="loading-state">
-      <div class="loading-spinner"></div>
-      <p>Loading posts...</p>
-    </div>
-
-    <!-- Empty State -->
-    <div v-else-if="!isLoading && posts.length === 0" class="empty-state">
-      <Icon name="hash" :size="48" />
-      <h3>No posts yet</h3>
-      <p>Be the first to post with #{{ hashtag }}</p>
-    </div>
-
-    <!-- Posts List -->
-    <div v-else class="posts-container">
-      <MonyPost
-        v-for="post in posts"
-        :key="post.id"
-        :post="post"
-        @reply="handleReply"
-        @favorite="handleFavorite"
-        @reblog="handleReblog"
-        @bookmark="handleBookmark"
-        @delete="handleDelete"
-        @user-click="handleUserClick"
-        @hashtag-click="handleHashtagClick"
-        @show-conversation="handleShowConversation"
-      />
-
-      <!-- Load More -->
-      <div v-if="hasMore" class="load-more-container">
-        <button
-          @click="loadMorePosts"
-          :disabled="isLoadingMore"
-          class="load-more-btn"
-        >
-          <Icon v-if="isLoadingMore" name="loader" class="spinning" />
-          <span>{{ isLoadingMore ? 'Loading...' : 'Load More' }}</span>
-        </button>
-      </div>
-    </div>
+    <!-- Posts (virtualized) -->
+    <PostsContainer
+      :posts="posts"
+      :is-loading="isLoading && posts.length === 0"
+      :has-more="hasMore"
+      loading-message="Loading posts..."
+      empty-title="No posts yet"
+      :empty-message="`Be the first to post with #${hashtag}`"
+      empty-icon="hash"
+      @load-more="loadMorePosts"
+      @reply="handleReply"
+      @favorite="handleFavorite"
+      @reblog="handleReblog"
+      @bookmark="handleBookmark"
+      @delete="handleDelete"
+      @user-click="handleUserClick"
+      @hashtag-click="handleHashtagClick"
+      @show-conversation="handleShowConversation"
+    />
   </div>
 </template>
 
@@ -88,8 +66,8 @@ import { trendingService } from '@/services/TrendingService'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useLayoutState } from '@/composables/useLayoutState'
-import MonyPost from '@/components/activitypub/MonyPost.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
+import PostsContainer from '@/components/common/PostsContainer.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { TimelinePost } from '@/types'
 

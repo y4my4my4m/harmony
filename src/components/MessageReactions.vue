@@ -10,20 +10,20 @@
       <!-- Reaction groups -->
       <div
         v-for="reactionGroup in reactions"
-        :key="reactionGroup.emoji_id"
+        :key="getReactionKey(reactionGroup)"
         class="reaction"
         :class="{ 
-          'reacted': hasUserReacted(reactionGroup.emoji_id),
+          'reacted': hasUserReacted(getReactionKey(reactionGroup)),
           'loading': isLoadingReactions 
         }"
-        @click="handleReactionClick(reactionGroup.emoji, reactionGroup.emoji_id)"
+        @click="handleReactionClick(reactionGroup.emoji, getReactionKey(reactionGroup))"
         @mouseenter="showTooltip($event, reactionGroup)"
         @mouseleave="hideTooltip"
       >
         <!-- Custom server emoji with URL (priority) -->
         <img 
           v-if="reactionGroup.emoji?.url && !reactionGroup.emoji?.is_native"
-          :src="reactionGroup.emoji.url" 
+          :src="getEmojiUrl(reactionGroup.emoji.url, 32)" 
           :alt="reactionGroup.emoji.name || 'emoji'"
           class="reaction-emoji"
           @error="handleEmojiError(reactionGroup.emoji)"
@@ -68,6 +68,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import type { Message, Emoji } from '@/types';
 
 interface Props {
@@ -87,6 +88,11 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+
+const getReactionKey = (reactionGroup: any): string => {
+  if (reactionGroup.emoji_id) return reactionGroup.emoji_id
+  return reactionGroup.emoji?.name || 'unknown'
+};
 
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();

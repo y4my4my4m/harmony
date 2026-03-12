@@ -23,9 +23,26 @@
       <div class="loading-spinner"></div>
       <span>{{ $t('message.loadingOlder') }}</span>
     </div>
+
+    <!-- Sentinel for auto-loading older messages when the top is visible -->
+    <div ref="topSentinelRef" class="top-sentinel"></div>
     
-    <!-- Blocked Message Groups (Discord-like) -->
-    <template v-for="(item, itemIndex) in displayItems" :key="item.key">
+    <!-- Virtual scrolled message list -->
+    <div v-if="displayItems.length > 0" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+      <div
+        v-for="virtualRow in virtualRows"
+        :key="displayItems[virtualRow.index].key"
+        :data-index="virtualRow.index"
+        :ref="measureElement"
+        :style="{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          transform: `translateY(${virtualRow.start}px)`
+        }"
+      >
+      <template v-for="item in [displayItems[virtualRow.index]]" :key="0">
       <!-- Blocked Group Placeholder -->
       <div v-if="item.type === 'blocked-group'" class="blocked-message-group">
         <div class="blocked-group-content">
@@ -406,7 +423,9 @@
         </template>
       </div>
     </template>
-  </template>
+      </template>
+    </div>
+  </div>
   </div>
   
   <vue-easy-lightbox
@@ -539,6 +558,7 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
+import { throttle } from '@/utils/throttle';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -568,6 +588,7 @@ import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage a
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
+import { useVirtualizer } from '@tanstack/vue-virtual';
 
 // --- PROPS & EMITS ---
 const props = defineProps({
@@ -1101,17 +1122,20 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
 
 // Unified computed properties that work for both chat and DMs
 const isLoadingOlderMessages = computed(() => {
-  // Check both stores since MessageDisplay is used for both
-  return chatStore.loadingOlderMessages || dmStore.loadingMessages;
+  if (props.conversationId) return dmStore.loadingMessages;
+  if (props.channelId) return chatStore.loadingOlderMessages;
+  return false;
 });
 
 const isAllMessagesLoaded = computed(() => {
-  // Check both stores
-  return chatStore.allMessagesLoaded || dmStore.allMessagesLoaded;
+  if (props.conversationId) return dmStore.allMessagesLoaded;
+  if (props.channelId) return chatStore.allMessagesLoaded;
+  return false;
 });
 
 // --- REFS ---
 const messageDisplayContainer = ref<HTMLDivElement | null>(null);
+const topSentinelRef = ref<HTMLDivElement | null>(null);
 const imageLoaded: Ref<Record<string, boolean>> = ref({});
 const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
 const replyMessages = ref<Record<string, Message>>({});
@@ -1224,6 +1248,30 @@ const indexRef = ref(0);
 // --- CONSTANTS ---
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
+// --- VIRTUAL SCROLLING ---
+const rowVirtualizer = useVirtualizer(computed(() => ({
+  count: displayItems.value.length,
+  getScrollElement: () => messageDisplayContainer.value,
+  estimateSize: () => 60,
+  overscan: 10,
+  initialOffset: displayItems.value.length * 60,
+})));
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
+
+const measureElement = (el: any) => {
+  if (!el || !(el instanceof HTMLElement)) return;
+  rowVirtualizer.value.measureElement(el);
+};
+
+const remeasureItem = (messageId: string) => {
+  const container = messageDisplayContainer.value;
+  if (!container) return;
+  const el = container.querySelector(`[data-message-id="${messageId}"]`)?.closest('[data-index]') as HTMLElement | null;
+  if (el) rowVirtualizer.value.measureElement(el);
+};
+
 // --- COMPUTED PROPERTIES ---
 const lightboxImages = computed(() => {
   let urls: Array<string> = [];
@@ -1275,13 +1323,38 @@ const getReplyUserId = (replyMessageId: string) => {
   return message?.user_id || 'unknown';
 };
 
+// Track if we should be at bottom (for initial load and new-message scroll)
+const shouldBeAtBottom = ref(false);
+
+// Track if user was at bottom before last messages update (for scroll-on-new-message)
+const userWasAtBottom = ref(true);
+
+// Independent tracking of message count and first ID, because deep watchers on reactive
+// arrays receive the same reference for old/new values (in-place .push() mutations).
+const lastKnownMessageCount = ref(0);
+const lastKnownFirstMessageId = ref<string | null>(null);
+
 // --- WATCHERS ---
+let hasInitiallyScrolled = false;
+
+watch([() => props.channelId, () => props.conversationId], () => {
+  hasInitiallyScrolled = false;
+  userWasAtBottom.value = true;
+  lastKnownMessageCount.value = 0;
+  lastKnownFirstMessageId.value = null;
+});
+
 watch(() => props.messages, (newMessages) => {
   if (!newMessages || !Array.isArray(newMessages)) {
     return;
   }
 
-  const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+  const prevCount = lastKnownMessageCount.value;
+  const prevFirstId = lastKnownFirstMessageId.value;
+  lastKnownMessageCount.value = newMessages.length;
+  lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
+
+  const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
 
   // Reset embed tracking for new messages
   const newMessageIds = new Set(newMessages.map(m => m.id));
@@ -1344,11 +1417,9 @@ watch(() => props.messages, (newMessages) => {
   if (newMessages.length > 0) {
     nextTick(() => {
       if (messageDisplayContainer.value) {
-        const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-        const scrollOffset = newScrollHeight - oldScrollHeight;
-        
-        // If this is the initial load (old height was 0), scroll to bottom
-        if (oldScrollHeight === 0 && newMessages.length > 0) {
+        // If this is the initial load, scroll to bottom
+        if (!hasInitiallyScrolled && newMessages.length > 0) {
+          hasInitiallyScrolled = true;
           debug.log('📜 Initial load - scrolling to bottom');
           
           // Set flag so we re-scroll when images load
@@ -1398,32 +1469,33 @@ watch(() => props.messages, (newMessages) => {
           debug.log('📜 Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
           debug.log('📜 Total embeds to load:', totalEmbeds);
           
-          // Function to scroll to bottom with proper timing
-          const scrollToBottom = (finalAttempt = false) => {
+          let scrollAttempts = 0;
+          const scrollToBottom = () => {
+            scrollAttempts++;
+            const count = displayItems.value.length;
+            if (count > 0) {
+              rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
+            }
+            // Raw fallback: also set scrollTop directly in case virtualizer hasn't laid out yet
+            if (messageDisplayContainer.value) {
+              messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+            }
             requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                if (messageDisplayContainer.value) {
-                  messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
-                  // Verify we're actually at the bottom
-                  const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-                  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-                  if (!isAtBottom && !finalAttempt) {
-                    // If not at bottom, try one more time after a short delay
-                    setTimeout(() => scrollToBottom(true), 100);
-                  } else if (isAtBottom || finalAttempt) {
-                    // Clear flag after successful scroll or final attempt
-                    setTimeout(() => {
-                      shouldBeAtBottom.value = false;
-                    }, 500);
-                  }
+              if (messageDisplayContainer.value) {
+                const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+                const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+                if (!isAtBottom && scrollAttempts < 8) {
+                  setTimeout(() => scrollToBottom(), scrollAttempts < 3 ? 50 : 150);
+                } else {
+                  setTimeout(() => { shouldBeAtBottom.value = false; }, 500);
                 }
-              });
+              }
             });
           };
           
           if (pendingImages.length === 0 && totalEmbeds === 0) {
-            // No images or embeds to wait for, scroll immediately
-            setTimeout(() => scrollToBottom(), 50);
+            // Scroll immediately, then retry after virtualizer renders
+            nextTick(() => scrollToBottom());
           } else {
             // Wait for images and embeds to load, but with a maximum timeout
             const maxWaitTime = 3000; // Maximum 3 seconds (increased for embeds)
@@ -1456,23 +1528,67 @@ watch(() => props.messages, (newMessages) => {
             // Start checking after initial render
             setTimeout(checkAndScroll, 100);
           }
-        } 
-        // When loading older messages, maintain scroll position by compensating for new content
-        else if (scrollOffset > 0 && oldScrollHeight > 0) {
-          debug.log('📜 Maintaining scroll position after loading older messages');
-          messageDisplayContainer.value.scrollTop += scrollOffset;
-          // Clear flag when loading older messages (user is scrolling up)
-          shouldBeAtBottom.value = false;
+        }
+        // New messages appended at bottom (sent or received) - scroll if user was at bottom
+        else if (prevCount > 0 && newMessages.length > prevCount && oldScrollHeight > 0) {
+          const isAppend = prevFirstId != null && newMessages[0]?.id === prevFirstId;
+          if (isAppend && userWasAtBottom.value) {
+            debug.log('📜 New messages - scrolling to bottom (user was at bottom)');
+            shouldBeAtBottom.value = true;
+            const scrollNewToBottom = (attempt = 0) => {
+              const count = displayItems.value.length;
+              if (count > 0) {
+                rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
+              }
+              if (messageDisplayContainer.value) {
+                messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+              }
+              if (attempt < 3) {
+                requestAnimationFrame(() => scrollNewToBottom(attempt + 1));
+              }
+            };
+            requestAnimationFrame(() => scrollNewToBottom());
+          } else if (isAppend && !userWasAtBottom.value) {
+            shouldBeAtBottom.value = false;
+          }
+          // Load older messages (prepend) - maintain scroll position
+          else if (!isAppend) {
+            debug.log('📜 Maintaining scroll position after loading older messages');
+            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+            const scrollOffset = newScrollHeight - oldScrollHeight;
+            if (scrollOffset > 0) {
+              messageDisplayContainer.value.scrollTop += scrollOffset;
+            }
+            shouldBeAtBottom.value = false;
+          }
         }
         
         checkScrollable();
         isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
         const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
         emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
+
       }
     });
   }
 }, { immediate: true, deep: true });
+
+// After loading older messages finishes, if the sentinel is still visible (content
+// still doesn't fill the viewport), load another batch. IntersectionObserver only
+// fires on intersection *changes*, so we need to re-trigger manually.
+watch(isLoadingOlderMessages, (loading, wasLoading) => {
+  if (wasLoading && !loading && !isAllMessagesLoaded.value && props.loadMoreMessages) {
+    // Delay to let virtualizer measure new elements before checking overflow
+    setTimeout(() => {
+      if (!messageDisplayContainer.value) return;
+      const { scrollHeight, clientHeight } = messageDisplayContainer.value;
+      if (scrollHeight <= clientHeight + 5) {
+        debug.log('📜 Still no scrollbar after loading — auto-loading more');
+        props.loadMoreMessages();
+      }
+    }, 300);
+  }
+});
 
 watch(() => props.messages.map(msg => msg.reactions?.length), () => {
   const hasVisibleReactions = props.messages.some(msg => msg.reactions && msg.reactions.length > 0);
@@ -1652,11 +1768,37 @@ onUnmounted(() => {
     intersectionObserver.disconnect();
     intersectionObserver = null;
   }
+  if (topSentinelObserver) {
+    topSentinelObserver.disconnect();
+    topSentinelObserver = null;
+  }
   observedMessages.clear();
   // Note: Don't reset pendingUnreadUpdate here - flushUnreadUpdate already handles it
   // and resetting here could interfere with the async operation
 });
 
+
+// --- TOP SENTINEL OBSERVER ---
+// When the top of the message list is visible (either because user scrolled to top
+// or because content doesn't fill the viewport), auto-load older messages.
+let topSentinelObserver: IntersectionObserver | null = null;
+
+const setupTopSentinelObserver = () => {
+  if (topSentinelObserver) topSentinelObserver.disconnect();
+  if (!topSentinelRef.value || !messageDisplayContainer.value) return;
+
+  topSentinelObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
+        debug.log('📜 Top sentinel visible — auto-loading older messages');
+        props.loadMoreMessages();
+      }
+    },
+    { root: messageDisplayContainer.value, threshold: 0 }
+  );
+  topSentinelObserver.observe(topSentinelRef.value);
+};
 
 // --- LIFECYCLE HOOKS ---
 onMounted(() => {
@@ -1665,27 +1807,23 @@ onMounted(() => {
     checkScrollable();
     messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
   }
-  // Implement highlight message functionality on the chat store
+  setupTopSentinelObserver();
   chatStore.highlightMessage = (messageId: string) => {
-    nextTick(() => {
-      const messageElement = document.getElementById(`message-${messageId}`);
-      if (messageElement) {
-        const scrollContainer = messageElement.closest('.message-display') as HTMLElement;
-        if (scrollContainer) {
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const elementRect = messageElement.getBoundingClientRect();
-          const containerHeight = scrollContainer.clientHeight;
-          const elementHeight = messageElement.offsetHeight;
-          const relativeTop = elementRect.top - containerRect.top + scrollContainer.scrollTop;
-          const scrollTop = relativeTop - (containerHeight / 2) + (elementHeight / 2);
-          scrollContainer.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-        } else {
-          messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    const idx = displayItems.value.findIndex(
+      item => item.type === 'message' && item.message?.id === messageId
+    );
+    if (idx < 0) return;
+    rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
+    // Wait for the virtualizer to render the item, then highlight it
+    setTimeout(() => {
+      nextTick(() => {
+        const messageElement = document.getElementById(`message-${messageId}`);
+        if (messageElement) {
+          messageElement.classList.add('highlighted');
+          setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
         }
-        messageElement.classList.add('highlighted');
-        setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
-      }
-    });
+      });
+    }, 100);
   };
 });
 
@@ -1758,7 +1896,7 @@ const checkScrollable = () => {
   }
 };
 
-const handleScroll = () => {
+const handleScroll = throttle(() => {
   if (!messageDisplayContainer.value) {
     return;
   }
@@ -1781,13 +1919,15 @@ const handleScroll = () => {
   }
 
   const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-  // Clear flag if user scrolls away from bottom
+  userWasAtBottom.value = isAtBottom;
   if (!isAtBottom) {
     shouldBeAtBottom.value = false;
+  } else {
+    shouldBeAtBottom.value = true; // User scrolled back to bottom
   }
   
   emit('update:isAtBottom', isAtBottom);
-};
+}, 16);
 
 const handleWheel = (event: WheelEvent) => {
   if (messageDisplayContainer.value && hasScrollbar.value && isAtTop.value && event.deltaY < 0) {
@@ -1803,7 +1943,9 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
   if (index === 0) return true;
   const prevMessage = props.messages[index - 1];
   if (!prevMessage) return true;
-  
+
+  if (message.is_system || prevMessage.is_system) return true;
+
   // For bot-puppeted messages (e.g., Discord bridge), compare the puppeted user identity
   // rather than the bot_id, since multiple Discord users are puppeted through the same bot
   if (message.bot_id && prevMessage.bot_id) {
@@ -2251,23 +2393,23 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 };
 
 
-// Track if we should be at bottom (for initial load)
-const shouldBeAtBottom = ref(false);
-
 // Lightbox and Media
 const handleImageLoaded = (url: string) => {
   imageLoaded.value[url] = true;
-  
-  // If we should be at bottom and an image just loaded, re-scroll
-  if (shouldBeAtBottom.value && messageDisplayContainer.value) {
+
+  // Re-measure all visible virtual rows that may contain this image
+  nextTick(() => {
+    const container = messageDisplayContainer.value;
+    if (!container) return;
+    container.querySelectorAll('[data-index]').forEach(el => {
+      rowVirtualizer.value.measureElement(el as HTMLElement);
+    });
+  });
+
+  if (shouldBeAtBottom.value) {
     requestAnimationFrame(() => {
-      if (messageDisplayContainer.value) {
-        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-        if (!isAtBottom) {
-          messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
-        }
-      }
+      const count = displayItems.value.length;
+      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
     });
   }
 };
@@ -2278,17 +2420,13 @@ const handleEmbedLoaded = (messageId: string) => {
     embedLoaded.value[messageId] = 0;
   }
   embedLoaded.value[messageId] = (embedLoaded.value[messageId] || 0) + 1;
-  
-  // If we should be at bottom and an embed just loaded, re-scroll
-  if (shouldBeAtBottom.value && messageDisplayContainer.value) {
+
+  remeasureItem(messageId);
+
+  if (shouldBeAtBottom.value) {
     requestAnimationFrame(() => {
-      if (messageDisplayContainer.value) {
-        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-        if (!isAtBottom) {
-          messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
-        }
-      }
+      const count = displayItems.value.length;
+      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
     });
   }
 };
@@ -2457,12 +2595,13 @@ defineExpose({ editLastOwnMessage });
   margin-right: 4px;
   padding: 20px 0 10px 0;
   min-height: 0; /* Important for flex child with overflow */
+  contain: layout paint;
 }
 
 /* Individual message item */
 .message-item {
   position: relative;
-  padding: 0.125rem 16px; /* 2px vertical padding */
+  padding: 0.125rem 16px;
   transition: background-color 0.1s ease-out;
 }
 
@@ -2579,11 +2718,14 @@ defineExpose({ editLastOwnMessage });
   align-items: center;
   gap: 0.25rem;
 }
-
-.username-text:hover {
-  border-bottom: 2px solid;
-  padding-bottom: 2px;
+/* 
+.username-text .display-name::v-deep(span) {
+  transition: color 0.2s ease, border-bottom 0.2s ease;
 }
+
+.username-text:hover .display-name::v-deep(span) {
+  border-bottom: 1px solid;
+} */
 
 .bot-badge {
   display: inline-block;
@@ -3251,6 +3393,12 @@ defineExpose({ editLastOwnMessage });
 }
 
 /* Loading older messages indicator at top */
+.top-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+}
+
 .loading-older-messages {
   display: flex;
   align-items: center;

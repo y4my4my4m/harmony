@@ -535,6 +535,7 @@ const handleCallSignal = async (signal: CallSignal) => {
       break
     
     case 'leave':
+      stopCallerRinging()
       dmCallSignaling.handleRemoteSignal(signal)
       updateActiveCallParticipants()
       break
@@ -735,6 +736,7 @@ const handleCloseDM = () => {
 const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
+      stopCallerRinging()
       // leaveVoiceChannel() handles DM call signaling cleanup automatically
       await voiceStore.leaveVoiceChannel()
       toast.info('Left call')
@@ -895,6 +897,7 @@ const toggleVideoCall = async () => {
         // Enable video immediately
         await voiceStore.toggleVideo()
         toast.success('Starting video call...')
+        startCallerRinging()
         // Show voice overlay in maximized mode (for caller)
         voiceStore.isOverlayVisible = true
         await new Promise(resolve => setTimeout(resolve, 100))

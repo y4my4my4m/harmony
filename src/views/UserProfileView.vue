@@ -196,39 +196,23 @@
           
           <!-- Posts Tab (hidden if blocked) -->
           <div v-else-if="activeTab === 'posts'" class="posts-tab">
-            <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
-              <Icon name="message-circle" :size="48" />
-              <h3>{{ t('activitypub.noMoniesHereYet') }}</h3>
-              <p>{{ isCurrentUser ? "You haven't" : `${(user?.display_name || user?.username) || 'Unknown User'} hasn't` }} posted anything yet.</p>
-            </div>
-            
-            <div v-else class="posts-list">
-              <MonyPost
-                v-for="post in userPosts"
-                data-timeline
-                :key="post.id"
-                :post="post"
-                @reply="replyToPost"
-                @favorite="handleFavorite"
-                @reblog="handleReblog"
-                @bookmark="handleBookmark"
-                @delete="handleDelete"
-                @user-click="showUserProfile"
-                @hashtag-click="navigateToHashtag"
-                @show-conversation="showConversation"
-              />
-              
-              <div v-if="hasMorePosts" class="load-more-container">
-                <button
-                  @click="loadMorePosts"
-                  :disabled="isLoadingPosts"
-                  class="load-more-btn"
-                >
-                  <Icon v-if="isLoadingPosts" name="loader" class="spinning" />
-                  <span>{{ isLoadingPosts ? 'Loading...' : 'Load More' }}</span>
-                </button>
-              </div>
-            </div>
+            <PostsContainer
+              :posts="userPosts"
+              :is-loading="isLoadingPosts"
+              :has-more="hasMorePosts"
+              :empty-title="t('activitypub.noMoniesHereYet')"
+              :empty-message="(isCurrentUser ? 'You haven\'t' : `${(user?.display_name || user?.username) || 'Unknown User'} hasn\'t`) + ' posted anything yet.'"
+              empty-icon="message-circle"
+              @load-more="loadMorePosts"
+              @reply="replyToPost"
+              @favorite="handleFavorite"
+              @reblog="handleReblog"
+              @bookmark="handleBookmark"
+              @delete="handleDelete"
+              @user-click="showUserProfile"
+              @hashtag-click="navigateToHashtag"
+              @show-conversation="showConversation"
+            />
           </div>
 
           <!-- Following Tab -->
@@ -293,6 +277,7 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
+import { throttle } from '@/utils/throttle'
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -311,8 +296,8 @@ import { format } from 'date-fns';
 // Components
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import DisplayName from '@/components/DisplayName.vue'
-import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyContent from '@/components/activitypub/MonyContent.vue';
+import PostsContainer from '@/components/common/PostsContainer.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
@@ -478,30 +463,23 @@ const bannerStyle = computed(() => {
 })
 
 // Scroll handling with infinite scroll for posts
-let scrollDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-const handleScroll = () => {
+const handleScroll = throttle(() => {
   if (!scrollContainerRef.value) return;
   
   const container = scrollContainerRef.value;
   const scrollTop = container.scrollTop;
-  isScrolled.value = scrollTop > 50; // Trigger shrink after 50px scroll
+  isScrolled.value = scrollTop > 50;
   
-  // Infinite scroll: load more when near bottom (within 300px)
   if (activeTab.value === 'posts' && !isLoadingPosts.value && !isLoadingMoreRemote.value) {
     const scrollHeight = container.scrollHeight;
     const clientHeight = container.clientHeight;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     
     if (distanceFromBottom < 300 && hasMorePostsRef.value) {
-      // Debounce to avoid multiple rapid calls
-      if (scrollDebounceTimer) clearTimeout(scrollDebounceTimer);
-      scrollDebounceTimer = setTimeout(() => {
-        loadMorePosts();
-      }, 150);
+      loadMorePosts();
     }
   }
-};
+}, 100);
 
 // Header event handlers
 const handleSwitchFeed = (feed: string) => {
@@ -1492,7 +1470,13 @@ document.addEventListener('click', handleClickOutside);
   overflow-y: auto;
 }
 
-.posts-tab,
+.posts-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .following-tab,
 .followers-tab {
   padding: 1.5rem;
@@ -1660,7 +1644,7 @@ document.addEventListener('click', handleClickOutside);
     grid-template-columns: 1fr;
   }
   
-  .posts-tab, .following-tab, .followers-tab {
+  .following-tab, .followers-tab {
     padding: 0.75rem 1rem;
   }
 

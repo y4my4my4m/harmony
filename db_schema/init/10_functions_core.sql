@@ -619,6 +619,114 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- LINK PREVIEW FUNCTIONS
+-- ---------------------------------------------------------------------------
+-- Architecture: local Harmony post URLs are resolved in SQL via build_harmony_embed.
+-- External URLs are handled entirely by the federation backend (no HTTP from DB).
+-- The federation backend detects URLs in new messages, fetches previews via
+-- LinkPreviewService, and writes embeds back via update_message_embeds RPC.
+-- ---------------------------------------------------------------------------
+
+-- Classify URL into provider type
+CREATE OR REPLACE FUNCTION public.detect_embed_provider(p_url text) RETURNS text
+    LANGUAGE plpgsql STABLE AS $_$
+declare
+  host text;
+  path text;
+  instance_domain text := lower(regexp_replace(public.get_instance_domain(), '^https?://', ''));
+begin
+  host := public.extract_url_host(p_url);
+  path := coalesce(substring(p_url from 'https?://[^/]+(/[^?#]*)'), '/');
+  if (host = instance_domain or host = 'har.mony.lol') and path ~ '^/posts/[0-9a-fA-F-]{36}' then
+    return 'harmony-post';
+  elsif host ~ '(youtube\.com|youtu\.be)$' then return 'youtube';
+  elsif host ~ 'spotify\.com$' then return 'spotify';
+  else return 'generic';
+  end if;
+end;
+$_$;
+
+-- Build embed payload for local Harmony posts (pure SQL, no HTTP)
+CREATE OR REPLACE FUNCTION public.build_harmony_embed(p_url text) RETURNS jsonb
+    LANGUAGE plpgsql AS $$
+declare
+  path text := coalesce(substring(p_url from 'https?://[^/]+(/[^?#]*)'), '/');
+  post_id uuid;
+  post_record record;
+  summary text;
+  first_image text;
+begin
+  post_id := substring(path from '/posts/([0-9a-fA-F-]{36})')::uuid;
+  if post_id is null then raise exception 'Invalid Harmony post URL: %', p_url; end if;
+
+  select p.id, p.content, p.media_attachments, p.visibility, p.is_deleted, p.is_local, p.metadata,
+         pr.id as author_id, pr.username, pr.display_name, pr.domain, pr.avatar_url, pr.color
+  into post_record
+  from posts p join profiles pr on pr.id = p.author_id where p.id = post_id;
+
+  if not found or post_record.is_deleted or post_record.visibility not in ('public', 'unlisted') then
+    raise exception 'Post % unavailable for embedding', post_id;
+  end if;
+
+  summary := left(regexp_replace(public.convert_jsonb_to_ap(post_record.content), '<[^>]+>', '', 'g'), 280);
+
+  if jsonb_typeof(post_record.media_attachments) = 'array' then
+    first_image := coalesce(post_record.media_attachments->0->>'preview_url', post_record.media_attachments->0->>'url');
+  end if;
+
+  return jsonb_strip_nulls(jsonb_build_object(
+    'title', coalesce(post_record.display_name, post_record.username, 'Harmony Post'),
+    'description', summary, 'siteName', public.get_instance_domain(),
+    'image', first_image, 'icon', post_record.avatar_url, 'color', post_record.color,
+    'harmony', jsonb_build_object(
+      'postId', post_record.id, 'instanceDomain', public.get_instance_domain(),
+      'visibility', post_record.visibility, 'isLocal', post_record.is_local,
+      'author', jsonb_build_object('id', post_record.author_id, 'username', post_record.username,
+        'display_name', post_record.display_name, 'domain', post_record.domain,
+        'avatar_url', post_record.avatar_url, 'color', post_record.color)
+    )
+  ));
+end;
+$$;
+
+-- Dispatcher for local URLs (only harmony-post matters; external URLs go through the backend)
+CREATE OR REPLACE FUNCTION public.fetch_link_preview(p_url text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public' AS $$
+declare
+  normalized_url text := public.normalize_embed_url(p_url);
+  provider text;
+  payload jsonb;
+begin
+  if normalized_url is null then raise exception 'URL is required'; end if;
+  provider := public.detect_embed_provider(normalized_url);
+  if provider = 'harmony-post' then
+    payload := public.build_harmony_embed(normalized_url);
+  else
+    return null;
+  end if;
+  return payload || jsonb_build_object(
+    'url', normalized_url, 'normalizedUrl', normalized_url, 'provider', provider,
+    'fetchedAt', now(), 'expiresAt', now() + interval '24 hours');
+end;
+$$;
+
+-- RPC: federation backend calls this to write embeds back after enrichment
+CREATE OR REPLACE FUNCTION public.update_message_embeds(p_message_id uuid, p_embeds jsonb) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public' AS $$
+begin
+  update public.messages
+  set metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('embeds',
+    coalesce(metadata->'embeds', '{}'::jsonb) || p_embeds
+  )
+  where id = p_message_id;
+end;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.update_message_embeds(uuid, jsonb) TO service_role;
+
+-- ---------------------------------------------------------------------------
 -- GRANTS
 -- ---------------------------------------------------------------------------
 GRANT EXECUTE ON FUNCTION public.get_current_profile_id() TO authenticated;

@@ -630,7 +630,9 @@ async function processCreateActivity(
 
   // Insert message
   const messageTimestamp = object.published || new Date().toISOString();
-  const { error } = await supabase.from('messages').insert({
+  const isEncrypted = object['harmony:encrypted'] === true;
+
+  const { data: insertedMessage, error } = await supabase.from('messages').insert({
     channel_id: channel.id,
     user_id: author.id,
     content: messageContent,
@@ -640,14 +642,23 @@ async function processCreateActivity(
       from_domain: new URL(actorUrl).hostname,
       federated: true,
     },
+    encrypted: isEncrypted,
     created_at: messageTimestamp,
     updated_at: object.updated || messageTimestamp, // Required field
     federation_status: 'completed',
-  });
+  }).select('id, content, metadata').single();
 
   if (error) {
     logger.error('Failed to insert server message:', error);
     return;
+  }
+
+  // Enrich link previews asynchronously for inbound federated messages
+  if (insertedMessage) {
+    const { enrichMessageLinkPreviews } = await import('../listeners/DatabaseListener.js');
+    enrichMessageLinkPreviews(insertedMessage).catch(err =>
+      logger.warn('Link preview enrichment failed for federated message:', err)
+    );
   }
   
   logger.info(`✅ Inserted federated message in #${channel.name} from ${author.username}`);

@@ -22,7 +22,7 @@
         <!-- Custom emoji image -->
         <img 
           v-if="reaction.emoji_url"
-          :src="reaction.emoji_url" 
+          :src="getEmojiUrl(reaction.emoji_url, 32)" 
           :alt="reaction.emoji_name || 'emoji'"
           class="reaction-emoji"
           @error="handleEmojiError(reaction)"
@@ -50,8 +50,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
-import { supabase } from '@/supabase';
+import { postReactionsRealtime } from '@/services/PostReactionsRealtime';
 import type { TimelinePost } from '@/types';
 
 interface Reactor {
@@ -288,37 +289,12 @@ const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
   }
 };
 
-// Load reactions when component mounts
 onMounted(() => {
-  // REMOVED individual loading - rely on batch fetch from timeline for performance
-  // loadReactions();
-  
-  // Subscribe to realtime updates for emoji reactions on this post
-  const channel = supabase
-    .channel(`post_reactions_${props.post.id}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'post_interactions',
-        filter: `post_id=eq.${props.post.id}`
-      },
-      (payload) => {
-        debug.log('🔔 Realtime reaction update:', payload);
-        // Use store's realtime handler for proper optimistic state management
-        if (payload.new?.interaction_type === 'emoji_reaction' || 
-            payload.old?.interaction_type === 'emoji_reaction') {
-          postReactionsStore.handleRealtimeUpdate(payload);
-        }
-      }
-    )
-    .subscribe();
+  postReactionsRealtime.subscribe(props.post.id);
+});
 
-  // Cleanup subscription on unmount
-  onUnmounted(() => {
-    supabase.removeChannel(channel);
-  });
+onUnmounted(() => {
+  postReactionsRealtime.unsubscribe(props.post.id);
 });
 
 // REMOVED: Individual loading on post change - batch fetch handles this

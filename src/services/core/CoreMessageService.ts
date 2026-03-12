@@ -843,6 +843,27 @@ export class CoreMessageService {
   ): Promise<Message[]> {
     const { limit = 50, before } = options
 
+    // Prefer local DB first — AP federation inserts messages with proper structured
+    // content (preserving custom emojis, etc.). The remote API re-parses HTML and
+    // loses that structure. Only fall back to remote fetch if local DB is empty.
+    const localMessages = await this.loadCachedRemoteMessages(channelId, options)
+    if (localMessages.length > 0) {
+      debug.log(`📦 Using ${localMessages.length} locally-synced messages for remote channel (AP federation)`)
+
+      // Batch load reactions from local DB
+      const messageIds = localMessages.map(m => m.id).filter(Boolean)
+      if (messageIds.length > 0) {
+        const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
+        localMessages.forEach(message => {
+          message.reactions = reactionsByMessage[message.id] || []
+        })
+        await this.populateReactionsStoreCache(reactionsByMessage)
+      }
+
+      return localMessages
+    }
+
+    // No local messages — fetch from remote server API
     try {
       const params = new URLSearchParams()
       params.append('limit', String(limit))
@@ -856,8 +877,7 @@ export class CoreMessageService {
 
       if (!response.ok) {
         debug.warn(`Failed to fetch remote messages: ${response.status}`)
-        // Fall back to local cache
-        return this.loadCachedRemoteMessages(channelId, options)
+        return []
       }
 
       const data = await response.json()
@@ -875,7 +895,7 @@ export class CoreMessageService {
         updated_at: msg.updated_at,
         metadata: msg.metadata || {},
         author: msg.author,
-        reactions: msg.reactions || [], // Use reactions from response if available
+        reactions: msg.reactions || [],
       }))
 
       // Reverse to get oldest-first for display
@@ -885,21 +905,18 @@ export class CoreMessageService {
       const messageIds = orderedMessages.map((m: Message) => m.id).filter((id: string) => id)
       
       if (messageIds.length > 0) {
-        // Check if reactions came from the response
         const hasReactionsFromResponse = orderedMessages.some((m: Message) => m.reactions && m.reactions.length > 0)
         
         if (hasReactionsFromResponse) {
-          // Use reactions from response - transform and cache them
           const reactionsByMessage: Record<string, any[]> = {}
           orderedMessages.forEach((m: Message) => {
             if (m.reactions && m.reactions.length > 0) {
-              // Transform reaction format if needed
               reactionsByMessage[m.id] = m.reactions.map((r: any) => ({
                 emoji_id: r.emoji?.id || r.emoji_id,
                 emoji: {
                   id: r.emoji?.id || r.emoji_id,
                   name: r.emoji?.name || r.emoji_name,
-                  url: r.emoji?.url, // Preserve remote emoji URL!
+                  url: r.emoji?.url,
                   is_native: r.emoji?.is_native ?? !r.emoji?.url,
                 },
                 count: r.count || 1,
@@ -910,13 +927,10 @@ export class CoreMessageService {
           })
           await this.populateReactionsStoreCache(reactionsByMessage)
         } else {
-          // Fall back to loading from local cache
           const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
-          
           orderedMessages.forEach((message: Message) => {
             message.reactions = reactionsByMessage[message.id] || []
           })
-          
           await this.populateReactionsStoreCache(reactionsByMessage)
         }
       }
@@ -924,8 +938,7 @@ export class CoreMessageService {
       return orderedMessages
     } catch (error) {
       debug.error('❌ Failed to fetch remote channel messages:', error)
-      // Fall back to cached messages
-      return this.loadCachedRemoteMessages(channelId, options)
+      return []
     }
   }
 
@@ -1185,6 +1198,38 @@ export class CoreMessageService {
     } catch (error) {
       debug.error('❌ Core: Failed to get current user profile ID:', error)
       throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+    }
+  }
+
+  /**
+   * Send a system message in a channel (e.g., thread creation announcements).
+   * System messages bypass encryption and are rendered specially by MessageDisplay.
+   */
+  async sendSystemMessage(
+    channelId: string,
+    content: MessagePart[],
+    metadata: Record<string, any>
+  ): Promise<{ error: string | null }> {
+    try {
+      const userId = await this.getCurrentProfileId()
+      
+      const { error } = await supabase.from('messages').insert({
+        channel_id: channelId,
+        user_id: userId,
+        content,
+        is_system: true,
+        metadata,
+      })
+
+      if (error) {
+        debug.error('Failed to send system message:', error)
+        return { error: error.message }
+      }
+      return { error: null }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      debug.error('Failed to send system message:', msg)
+      return { error: msg }
     }
   }
 

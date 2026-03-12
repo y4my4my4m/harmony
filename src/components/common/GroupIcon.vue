@@ -39,10 +39,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
-import { GroupIconPresets, getDefaultGroupIcon } from '@/utils/groupIconUtils'
+import { GroupIconPresets, getDefaultGroupIcon, getGroupIconUrlRaw } from '@/utils/groupIconUtils'
 
 interface Props {
   conversationId: string
@@ -71,15 +71,32 @@ const emit = defineEmits<{
 }>()
 
 const imageError = ref(false)
+/** When transform URL returns 400 (e.g. imgproxy disabled), we show raw URL so the icon still displays */
+const useRawUrlFallback = ref(false)
+
+watch(
+  () => [props.conversationId, props.iconPath],
+  () => {
+    imageError.value = false
+    useRawUrlFallback.value = false
+  }
+)
 
 // Memoize the URL to prevent flashing with error boundary
 const iconUrl = computed(() => {
   try {
-    if (imageError.value || !props.iconPath) {
+    if (!props.iconPath) {
+      return getDefaultGroupIcon(props.conversationId, getSizePixels(props.size))
+    }
+    // If transform failed before, use raw URL so the uploaded icon still loads
+    if (useRawUrlFallback.value) {
+      return getGroupIconUrlRaw(props.conversationId, props.iconPath)
+    }
+    if (imageError.value) {
       return getDefaultGroupIcon(props.conversationId, getSizePixels(props.size))
     }
 
-    // Use appropriate preset based on size
+    // Use appropriate preset based on size (imgproxy transform for bandwidth/UX)
     switch (props.size) {
       case 'xs':
       case 'sm':
@@ -112,6 +129,12 @@ function getSizePixels(size: string): number {
 }
 
 function handleImageError(event: Event) {
+  // Transform URL can return 400 if imgproxy isn't enabled (e.g. self-hosted). Try raw URL once.
+  if (!useRawUrlFallback.value && props.iconPath) {
+    debug.warn('Group icon transform URL failed, trying raw URL:', props.iconPath)
+    useRawUrlFallback.value = true
+    return
+  }
   debug.warn('Group icon failed to load, falling back to default:', props.iconPath)
   imageError.value = true
   emit('error', event)

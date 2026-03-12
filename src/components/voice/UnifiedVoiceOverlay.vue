@@ -18,7 +18,10 @@
               <Icon name="volume" />
             </div>
             <div class="channel-details">
-              <h2 class="channel-name">{{ props.channelName }}</h2>
+              <h2 class="channel-name">
+                <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="props.channelName" />
+                <template v-else>{{ props.channelName }}</template>
+              </h2>
               <p class="participant-count">
                 {{ connectionStats.total }} participant{{ connectionStats.total !== 1 ? 's' : '' }}
                 <span v-if="connectionStats.speaking > 0" class="speaking-count">
@@ -286,6 +289,7 @@ import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
+import DisplayName from '@/components/DisplayName.vue';
 
 // Centralized keybind system
 const keybinds = useKeybinds();
@@ -954,11 +958,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   flex: 1;
   padding: 16px 24px;
   overflow-y: auto;
-  min-height: 300px;
-  align-content: flex-start;
-  justify-content: center;
-  display: flex;
-  flex-direction: column;
+  min-height: 0;
 }
 
 

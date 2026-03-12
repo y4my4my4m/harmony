@@ -1,5 +1,5 @@
 <template>
-  <div class="followers-view">
+  <div class="followers-view" ref="scrollContainerRef">
     <!-- Header -->
     <div class="view-header">
       <div class="header-content">
@@ -56,34 +56,48 @@
         </router-link>
       </div>
 
-      <!-- Users List -->
+      <!-- Users List (virtualized) -->
       <div v-else class="users-list">
-        <div class="users-container">
-          <div 
-            v-for="user in users" 
-            :key="user.id"
-            class="user-item"
+        <div class="users-container" :style="{ height: `${usersTotalSize}px`, position: 'relative' }">
+          <div
+            v-for="virtualRow in usersVirtualRows"
+            :key="users[virtualRow.index].id"
+            :data-index="virtualRow.index"
+            :ref="usersMeasureElement"
+            class="virtual-user-row"
+            :style="{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualRow.start}px)`
+            }"
           >
-            <UserCard
-              :user="user"
-              :show-follow-btn="user.id !== currentUserId"
-              :show-more-actions="true"
-              @follow="handleFollow"
-              @unfollow="handleUnfollow"
-              @user-click="handleUserClick"
-            />
+            <div class="user-item">
+              <UserCard
+                :user="users[virtualRow.index]"
+                :show-follow-btn="users[virtualRow.index].id !== currentUserId"
+                :show-more-actions="true"
+                @follow="handleFollow"
+                @unfollow="handleUnfollow"
+                @user-click="handleUserClick"
+              />
+            </div>
           </div>
         </div>
 
-        <!-- Load More -->
-        <div v-if="hasMore" class="load-more-section">
+        <!-- Infinite scroll sentinel + fallback -->
+        <div v-if="hasMore" ref="sentinelRef" class="load-more-section">
+          <div v-if="isLoading" class="loading-more">
+            <Icon name="loader" class="spinning" />
+            <span>Loading...</span>
+          </div>
           <button 
+            v-else
             @click="loadMore"
-            :disabled="isLoading"
             class="load-more-btn"
           >
-            <Icon v-if="isLoading" name="loader" class="spinning" />
-            <span>{{ isLoading ? 'Loading...' : 'Load More' }}</span>
+            Load More
           </button>
         </div>
       </div>
@@ -92,7 +106,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useVirtualizer } from '@tanstack/vue-virtual';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -137,6 +152,44 @@ const hasMore = ref(true);
 const followersCount = ref(0);
 const followingCount = ref(0);
 const cursor = ref<string | null>(null);
+
+const scrollContainerRef = ref<HTMLDivElement | null>(null);
+const sentinelRef = ref<HTMLDivElement | null>(null);
+
+// Virtual scrolling
+const usersVirtualizer = useVirtualizer(computed(() => ({
+  count: users.value.length,
+  getScrollElement: () => scrollContainerRef.value,
+  estimateSize: () => 100,
+  overscan: 5,
+})));
+
+const usersVirtualRows = computed(() => usersVirtualizer.value.getVirtualItems());
+const usersTotalSize = computed(() => usersVirtualizer.value.getTotalSize());
+
+const usersMeasureElement = (el: any) => {
+  if (!el || !(el instanceof HTMLElement)) return;
+  usersVirtualizer.value.measureElement(el);
+};
+
+// Infinite scroll
+let scrollObserver: IntersectionObserver | null = null;
+
+const setupScrollObserver = () => {
+  if (scrollObserver) scrollObserver.disconnect();
+  if (!sentinelRef.value) return;
+  scrollObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries[0]?.isIntersecting && hasMore.value && !isLoading.value) {
+        loadMore();
+      }
+    },
+    { root: scrollContainerRef.value, rootMargin: '200px' }
+  );
+  scrollObserver.observe(sentinelRef.value);
+};
+
+watch([hasMore, sentinelRef], () => setupScrollObserver());
 
 // Computed
 const currentUserId = computed(() => authStore.session?.user?.id);
@@ -294,6 +347,14 @@ onMounted(async () => {
   
   loadCounts();
   loadUsers(true);
+  setupScrollObserver();
+});
+
+onUnmounted(() => {
+  if (scrollObserver) {
+    scrollObserver.disconnect();
+    scrollObserver = null;
+  }
 });
 </script>
 
@@ -442,10 +503,11 @@ onMounted(async () => {
 }
 
 .users-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow-y: visible;
+  width: 100%;
+}
+
+.virtual-user-row {
+  padding: 8px 0;
 }
 
 .user-item {
@@ -465,6 +527,14 @@ onMounted(async () => {
   display: flex;
   justify-content: center;
   padding: 24px;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .load-more-btn {

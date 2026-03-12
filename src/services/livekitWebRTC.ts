@@ -1059,12 +1059,20 @@ export class LiveKitWebRTCService {
       }
     }
     
-    // Mute/unmute all remote audio ELEMENTS based on deafen state
-    // We use audio element muting instead of track.setMuted() to avoid
-    // incorrectly changing the remote user's isMuted state
-    for (const audioElement of this.remoteMicAudioElements.values()) {
-      audioElement.muted = this.localMediaState.isDeafened;
+    // Mute/unmute spatial audio master output if active
+    try {
+      const { spatialAudioService } = require('@/services/spatialAudio');
+      spatialAudioService.setDeafened(this.localMediaState.isDeafened);
+    } catch (e) {
+      // Spatial audio not available, ignore
     }
+    
+    // Mute/unmute remote mic audio elements
+    // When undeafening, keep muted if spatial audio has taken over (traditionalAudioMuted)
+    for (const audioElement of this.remoteMicAudioElements.values()) {
+      audioElement.muted = this.localMediaState.isDeafened || this.traditionalAudioMuted;
+    }
+    // Screen share audio is always traditional (not spatial), only respect deafen
     for (const audioElement of this.remoteScreenShareAudioElements.values()) {
       audioElement.muted = this.localMediaState.isDeafened;
     }
@@ -1559,6 +1567,15 @@ export class LiveKitWebRTCService {
       this.emit('connection-state-changed', { state });
     });
     
+    // Local participant speaking changes (voice activity indicator for ourselves)
+    this.room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+      this.localMediaState.isSpeaking = speaking;
+      this.localMediaState.audioLevel = speaking ? 50 : 0;
+      if (this.currentUserId) {
+        this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
+      }
+    });
+    
     // Participant connected
     this.room.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
       debug.log('👋 [LiveKit] Participant connected:', participant.identity);
@@ -1632,12 +1649,12 @@ export class LiveKitWebRTCService {
         if (track instanceof RemoteAudioTrack) {
           const audioElement = track.attach();
           
-          // Apply deafen state if active
-          if (this.localMediaState.isDeafened) {
+          const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
+          
+          // Apply deafen state, and for mic audio also respect spatial audio muting
+          if (this.localMediaState.isDeafened || (!isScreenShareAudio && this.traditionalAudioMuted)) {
             audioElement.muted = true;
           }
-          
-          const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
           
           if (isScreenShareAudio) {
             // Clean up any existing screenshare audio for this participant first
@@ -1780,31 +1797,38 @@ export class LiveKitWebRTCService {
       }
     });
     
-    // Active speaker changes
-    this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: RemoteParticipant[]) => {
-      // Get a set of speaker identities for fast lookup
+    // Active speaker changes (includes both local and remote participants)
+    this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
       const speakerIdentities = new Set(speakers.map(s => s.identity));
+      
+      // Update local participant speaking state
+      const localIdentity = this.room?.localParticipant?.identity;
+      if (localIdentity && this.currentUserId) {
+        const localSpeaking = speakerIdentities.has(localIdentity);
+        if (this.localMediaState.isSpeaking !== localSpeaking) {
+          this.localMediaState.isSpeaking = localSpeaking;
+          this.localMediaState.audioLevel = localSpeaking ? 50 : 0;
+          this.emit('audio-level', { userId: this.currentUserId, level: this.localMediaState.audioLevel });
+        }
+      }
       
       // Track which resolved userIds we've already processed to avoid duplicates
       const processedUserIds = new Set<string>();
       
-      // Update speaking state for all users
+      // Update speaking state for remote users
       for (const [key, state] of this.allUserStates) {
-        // Skip if we've already processed this userId (we store by both UUID and identity)
         if (processedUserIds.has(state.userId)) {
           continue;
         }
         processedUserIds.add(state.userId);
         
-        // Check if this user is speaking - compare against both the key and any mapped identity
         const identity = uuidToIdentityCache.get(state.userId) || state.userId;
         const isSpeaking = speakerIdentities.has(identity) || speakerIdentities.has(key);
         
         if (state.isSpeaking !== isSpeaking) {
           state.isSpeaking = isSpeaking;
-          state.audioLevel = isSpeaking ? 50 : 0; // Approximate level
+          state.audioLevel = isSpeaking ? 50 : 0;
           this.allUserStates.set(key, state);
-          // Use state.userId (resolved UUID) for events
           this.emit('audio-level', { userId: state.userId, level: state.audioLevel });
         }
       }

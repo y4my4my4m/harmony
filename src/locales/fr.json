@@ -589,7 +589,9 @@
       "title": "Avancé",
       "description": "Paramètres avancés pour les utilisateurs expérimentés.",
       "developerMode": "Mode développeur",
-      "hardwareAcceleration": "Accélération matérielle"
+      "developerModeDescription": "Activer les fonctionnalités de développement et les outils de débogage.",
+      "hardwareAcceleration": "Accélération matérielle",
+      "copyRawData": "Copier les données brutes"
     }
   },
   "navigation": {

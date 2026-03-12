@@ -707,14 +707,23 @@ router.get(
         
         if (author?.id && !author.is_bridge) {
           const messageTimestamp = note.published || new Date().toISOString();
+
+          // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
+          let cachedContent: any[];
+          if (note['harmony:rawContent'] && Array.isArray(note['harmony:rawContent'])) {
+            cachedContent = note['harmony:rawContent'];
+          } else if (note.content) {
+            cachedContent = [{ type: 'text', text: note.content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim() }];
+          } else {
+            cachedContent = [];
+          }
+
           const messageData: any = {
             channel_id: channelId,
             user_id: author.id,
-            content: note.content ? [{ type: 'text', text: note.content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim() }] : [],
+            content: cachedContent,
             created_at: messageTimestamp,
-            updated_at: note.updated || messageTimestamp, // Required field - fallback to created_at
-            // IMPORTANT: 'federated: true' tells the BEFORE INSERT trigger to skip this message
-            // The trigger checks for this key and sets federation_status = 'skipped'
+            updated_at: note.updated || messageTimestamp,
             metadata: { ap_id: note.id, is_remote: true, federated: true },
             // This gets set by the trigger anyway when 'federated' key is present
             federation_status: 'skipped',

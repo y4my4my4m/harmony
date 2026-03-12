@@ -119,6 +119,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { debug } from '@/utils/debug'
+import { throttle } from '@/utils/throttle'
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
@@ -234,13 +235,12 @@ const loadMore = () => {
   }
 };
 
-const handleScroll = () => {
+const handleScroll = throttle(() => {
   if (!feedContainer.value) return;
   
   const { scrollTop, scrollHeight, clientHeight } = feedContainer.value;
   const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
   
-  // Get the current feed state
   const getCurrentFeed = () => {
     switch (currentView.value) {
       case 'home': return activityPubStore.homeFeed;
@@ -252,11 +252,10 @@ const handleScroll = () => {
   
   const currentFeed = getCurrentFeed();
   
-  // Auto-load when 80% scrolled (but not if manually loading or already loading)
   if (scrollPercentage > 0.8 && currentFeed.has_more && !isLoadingAnyFeed.value && !isManualLoading.value) {
     loadMore();
   }
-};
+}, 100);
 
 // Post interactions using composable for consistency
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();

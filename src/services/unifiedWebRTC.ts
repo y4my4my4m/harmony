@@ -999,11 +999,28 @@ export class UnifiedWebRTCService {
       }
     }
     
-    // Mute/unmute all remote audio elements
+    // Check spatial audio state to avoid double audio on undeafen
+    let isSpatialAudioActive = false;
+    try {
+      const { useSpatialAudioStore } = require('@/stores/spatialAudio');
+      const { spatialAudioService } = require('@/services/spatialAudio');
+      const spatialStore = useSpatialAudioStore();
+      const spatialStatus = spatialAudioService.getStatus();
+      isSpatialAudioActive = spatialStore.settings.enabled && spatialStatus.isInitialized;
+      
+      // Mute/unmute the spatial audio master output
+      spatialAudioService.setDeafened(this.localMediaState.isDeafened);
+    } catch (e) {
+      // Spatial audio not available, ignore
+    }
+    
+    // Mute/unmute traditional audio elements
+    // When undeafening, keep traditional audio muted if spatial audio is active
     this.connections.forEach(conn => {
       if (conn.audioElement) {
-        conn.audioElement.muted = this.localMediaState.isDeafened;
-        debug.log('🔊 Audio element for', conn.userId, this.localMediaState.isDeafened ? 'muted' : 'unmuted');
+        conn.audioElement.muted = this.localMediaState.isDeafened || isSpatialAudioActive;
+        debug.log('🔊 Audio element for', conn.userId, conn.audioElement.muted ? 'muted' : 'unmuted',
+                  '(deafened:', this.localMediaState.isDeafened, 'spatialActive:', isSpatialAudioActive, ')');
       }
     });
     

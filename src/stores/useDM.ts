@@ -608,10 +608,16 @@ export const useDMStore = defineStore('dm', () => {
   // Add method to fetch conversation details using participant system
   // OPTIMIZED: Reduced from 3 queries to 2 queries
   const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
-      // First check if we already have this conversation
+      // First check if we already have this conversation with full data
       const existingConv = conversations.value.find(c => c.id === conversationId)
       if (existingConv) {
-        return existingConv
+        // For group chats, ensure participants are loaded (metadata loader skips them)
+        const needsParticipants = existingConv.type === 'group' && (!existingConv.participants || existingConv.participants.length === 0)
+        // For direct chats, ensure other_user isn't a placeholder
+        const needsUserData = existingConv.type !== 'group' && existingConv.other_user?._isPlaceholder
+        if (!needsParticipants && !needsUserData) {
+          return existingConv
+        }
       }
 
     // REQUEST DEDUPLICATION: If already fetching this conversation, wait for that request
@@ -694,8 +700,11 @@ export const useDMStore = defineStore('dm', () => {
         return null
       }
 
-      // Add to conversations if not already there
-      if (!conversations.value.find(c => c.id === conversationId)) {
+      // Add or update in conversations array
+      const existingIdx = conversations.value.findIndex(c => c.id === conversationId)
+      if (existingIdx >= 0) {
+        conversations.value[existingIdx] = processedConv
+      } else {
         conversations.value.push(processedConv)
       }
 

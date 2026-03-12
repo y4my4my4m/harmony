@@ -16,6 +16,23 @@ export const useReactionsStore = defineStore('reactions', () => {
   const optimisticReactions = ref(new Map<string, ReactionGroup[]>()) // key: messageId
   const pendingToggleRequests = ref(new Set<string>())
 
+  const isUuid = (str: string): boolean =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+
+  function findReactionGroup(groups: ReactionGroup[], emojiId: string): ReactionGroup | undefined {
+    if (isUuid(emojiId)) {
+      return groups.find(r => r.emoji_id === emojiId)
+    }
+    return groups.find(r => !r.emoji_id && r.emoji?.name === emojiId)
+  }
+
+  function findReactionGroupIndex(groups: ReactionGroup[], emojiId: string): number {
+    if (isUuid(emojiId)) {
+      return groups.findIndex(r => r.emoji_id === emojiId)
+    }
+    return groups.findIndex(r => !r.emoji_id && r.emoji?.name === emojiId)
+  }
+
   // Simple getters - NO MERGING, NO LOOPS
   const getMessageReactions = computed(() => (messageId: string): ReactionGroup[] => {
     if (!messageId) return []
@@ -32,8 +49,7 @@ export const useReactionsStore = defineStore('reactions', () => {
 
   const hasUserReacted = computed(() => (messageId: string, emojiId: string, userId: string): boolean => {
     const reactions = getMessageReactions.value(messageId)
-    const reaction = reactions.find(r => r.emoji_id === emojiId)
-    // FIXED: Use 'reactions' array with user_id, not 'users' array with id
+    const reaction = findReactionGroup(reactions, emojiId)
     return reaction?.reactions?.some(r => r.user_id === userId) || false
   })
 
@@ -245,7 +261,7 @@ export const useReactionsStore = defineStore('reactions', () => {
      const result = JSON.parse(JSON.stringify(baseReactions)) as ReactionGroup[]
      
      if (operation === 'add') {
-       const existingIndex = result.findIndex(r => r.emoji_id === emojiId)
+       const existingIndex = findReactionGroupIndex(result, emojiId)
        
        if (existingIndex >= 0) {
          // Add user to existing group
@@ -319,15 +335,15 @@ export const useReactionsStore = defineStore('reactions', () => {
            }
          }
          
-         result.push({
-           emoji_id: emojiId,
-           emoji: emoji,
-           count: 1,
-           reactions: [{ reaction_id: 'temp-' + Date.now(), user_id: userId }]
-         })
+        result.push({
+          emoji_id: isUuid(emojiId) ? emojiId : null,
+          emoji: emoji,
+          count: 1,
+          reactions: [{ reaction_id: 'temp-' + Date.now(), user_id: userId }]
+        })
        }
-     } else if (operation === 'remove') {
-       const existingIndex = result.findIndex(r => r.emoji_id === emojiId)
+    } else if (operation === 'remove') {
+      const existingIndex = findReactionGroupIndex(result, emojiId)
        
        if (existingIndex >= 0) {
          const existing = result[existingIndex]

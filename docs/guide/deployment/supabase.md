@@ -95,8 +95,24 @@ Permissions use `bigint` bitmasks, not JSONB. See `permissionsService.ts` for bi
 
 - User avatars and banners
 - Server icons
+- Group icons (`group-icons`)
 - Message attachments
 - Custom emoji
+
+### Image transformations (imgproxy)
+
+Group and server icons use the storage **image transformation** API (resize, quality) for better bandwidth and load times. If requests to `/storage/v1/render/image/public/...` return **400 Bad Request**, image transformation is not enabled.
+
+- **Supabase Cloud (Pro+)**: Image transformations are available by default.
+- **Self-hosted**: Enable in your Supabase config, e.g. in `config.toml` under `[storage]`:
+  ```toml
+  image_transformation = { enabled = true }
+  ```
+  Then restart storage (e.g. `supabase stop` / `supabase start`). If you use Docker, ensure the imgproxy service is running and that `IMGPROXY_MAX_SRC_RESOLUTION` is set if you need to transform very large images (see [Supabase imgproxy issues](https://github.com/supabase/supabase/issues/21645)).
+
+The app falls back to the raw public URL when the transform endpoint fails, so icons still display; enabling imgproxy restores optimized delivery.
+
+If your storage public URLs use a different domain than `VITE_SUPABASE_URL` (e.g. a CDN like `db.example.com`), set `VITE_STORAGE_DOMAIN=db.example.com` (comma-separated for multiple) so emoji and other transforms are applied to those URLs.
 
 ## Authentication
 

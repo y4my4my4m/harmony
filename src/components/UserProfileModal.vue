@@ -367,6 +367,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
+import { escapeHtml } from '@/utils/sanitize'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
@@ -833,9 +834,9 @@ const formatLastSeen = (dateString: string) => {
 
 const formatFieldValue = (value: any) => {
   if (typeof value === 'string') {
-    return value.replace(/\n/g, '<br>')
+    return escapeHtml(value).replace(/\n/g, '<br>')
   }
-  return value
+  return escapeHtml(String(value))
 }
 
 const copyUserId = async () => {

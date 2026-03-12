@@ -30,6 +30,7 @@ export interface ActiveCall {
   channelId: string // dm-{conversationId}
   callType: 'voice' | 'video'
   callerId: string
+  receiverIds: string[] // who was called (for sending cancel/timeout notifications)
   participants: string[] // user IDs currently in call
   allParticipants: string[] // everyone who ever joined (for the ended message)
   startedAt: Date
@@ -135,16 +136,11 @@ class DMCallSignalingService {
   }
 
   /**
-   * Send a call signal
+   * Send a call signal on the conversation channel.
+   * Creates a temporary channel if no subscription exists (e.g. when
+   * accepting from the global incoming-call modal before DMHeader mounts).
    */
   async sendSignal(conversationId: string, signal: CallSignal): Promise<void> {
-    const channel = this.channels.get(conversationId)
-    
-    if (!channel) {
-      debug.error('❌ No channel for conversation:', conversationId)
-      return
-    }
-    
     debug.log('📤 Sending call signal:', {
       conversation: conversationId,
       type: signal.type,
@@ -152,11 +148,25 @@ class DMCallSignalingService {
       callType: signal.callType
     })
     
-    await channel.send({
-      type: 'broadcast',
-      event: 'call-signal',
-      payload: signal
-    })
+    const existingChannel = this.channels.get(conversationId)
+    
+    if (existingChannel) {
+      await existingChannel.send({
+        type: 'broadcast',
+        event: 'call-signal',
+        payload: signal
+      })
+    } else {
+      const channelName = `dm-call:${conversationId}`
+      debug.log(`📤 No existing subscription — using temp channel: ${channelName}`)
+      const tempChannel = supabase.channel(channelName)
+      await tempChannel.send({
+        type: 'broadcast',
+        event: 'call-signal',
+        payload: signal
+      })
+      await tempChannel.unsubscribe()
+    }
     
     debug.log('✅ Call signal sent successfully')
   }
@@ -213,6 +223,7 @@ class DMCallSignalingService {
       channelId: `dm-${conversationId}`,
       callType,
       callerId,
+      receiverIds,
       participants: [callerId],
       allParticipants: [callerId],
       startedAt,
@@ -249,6 +260,7 @@ class DMCallSignalingService {
   
   /**
    * Handle call timeout (no answer after 30 seconds)
+   * Discord behavior: stop ringing on both sides, show "No Answer"
    */
   private async handleCallTimeout(conversationId: string, callerId: string): Promise<void> {
     const call = this.activeCalls.get(conversationId)
@@ -264,16 +276,23 @@ class DMCallSignalingService {
       // Update system message to show missed call
       await this.finalizeCallMessage(call)
       
-      // Broadcast timeout on the conversation channel so the caller's DMHeader
-      // receives it and stops the ringtone
-      await this.sendSignal(conversationId, {
+      const timeoutSignal: CallSignal = {
         type: 'timeout',
         callerId,
         callType: call.callType,
         timestamp: Date.now(),
         conversationId,
         reason: 'timeout'
-      })
+      }
+      
+      // Broadcast on conversation channel (for the caller's DMHeader)
+      await this.sendSignal(conversationId, timeoutSignal)
+      
+      // Also notify each receiver on their user channel so GlobalDMCallListener
+      // can dismiss the incoming call modal
+      for (const receiverId of call.receiverIds) {
+        await this.sendSignalToUser(receiverId, timeoutSignal)
+      }
       
       this.deleteActiveCall(conversationId)
     } else {
@@ -414,6 +433,8 @@ class DMCallSignalingService {
 
   /**
    * Leave a call (participant leaves but call continues)
+   * If the caller leaves while still ringing (no one answered), this acts as
+   * a cancel: sends 'end' to receivers so their incoming call UI dismisses.
    */
   async leaveCall(
     conversationId: string,
@@ -422,29 +443,62 @@ class DMCallSignalingService {
     const call = this.activeCalls.get(conversationId)
     if (!call) return
     
-    const signal: CallSignal = {
-      type: 'leave',
-      callerId: userId,
-      callType: call.callType,
-      timestamp: Date.now(),
-      conversationId
+    // Clear timeout timer
+    if (call.timeoutTimer) {
+      clearTimeout(call.timeoutTimer)
+      call.timeoutTimer = undefined
     }
+    
+    // Check if this is a caller-cancel (caller hangs up before anyone answered)
+    const isCallerCancel = userId === call.callerId
+      && call.participants.length === 1
+      && call.participants[0] === userId
     
     // Remove from participants
     call.participants = call.participants.filter(id => id !== userId)
     
-    if (call.participants.length === 0) {
-      // Last person left -- finalize the system message
+    if (isCallerCancel) {
+      // Caller cancelled before anyone answered — treat as call end
       await this.finalizeCallMessage(call)
       this.deleteActiveCall(conversationId)
-    } else if (userId === call.callerId) {
-      // The call initiator (message owner) is leaving but others remain.
-      // Finalize now since only the owner can update the message (RLS).
-      await this.finalizeCallMessage(call)
-      this.deleteActiveCall(conversationId)
+      
+      const endSignal: CallSignal = {
+        type: 'end',
+        callerId: userId,
+        callType: call.callType,
+        timestamp: Date.now(),
+        conversationId
+      }
+      
+      // Notify on conversation channel
+      await this.sendSignal(conversationId, endSignal)
+      
+      // Notify each receiver on their user channel so GlobalDMCallListener
+      // dismisses the incoming call modal
+      for (const receiverId of call.receiverIds) {
+        await this.sendSignalToUser(receiverId, endSignal)
+      }
+    } else {
+      const signal: CallSignal = {
+        type: 'leave',
+        callerId: userId,
+        callType: call.callType,
+        timestamp: Date.now(),
+        conversationId
+      }
+      
+      if (call.participants.length === 0) {
+        await this.finalizeCallMessage(call)
+        this.deleteActiveCall(conversationId)
+      } else if (userId === call.callerId) {
+        // The call initiator is leaving but others remain.
+        // Finalize now since only the owner can update the message (RLS).
+        await this.finalizeCallMessage(call)
+        this.deleteActiveCall(conversationId)
+      }
+      
+      await this.sendSignal(conversationId, signal)
     }
-    
-    await this.sendSignal(conversationId, signal)
   }
 
   /**
@@ -485,6 +539,7 @@ class DMCallSignalingService {
       channelId: `dm-${conversationId}`,
       callType,
       callerId,
+      receiverIds: [],
       participants: [callerId],
       allParticipants: [callerId],
       startedAt: new Date(),
@@ -670,9 +725,12 @@ class DMCallSignalingService {
         channelId: roomName,
         callType,
         callerId,
+        receiverIds: [],
         participants: [callerId],
+        allParticipants: [callerId],
         startedAt: new Date(),
         timeoutTimer,
+        systemMessageId: null,
         isFederated: true,
         callerFederatedId,
         calleeFederatedId,

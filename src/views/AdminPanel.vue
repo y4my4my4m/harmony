@@ -1284,15 +1284,43 @@
             <div class="tiers-list" v-if="supporterTiers.length > 0">
               <div v-for="tier in supporterTiers" :key="tier.id" class="tier-item">
                 <template v-if="editingTierId === tier.id">
-                  <input v-model="editTierIcon" class="cyber-input" style="width: 50px;" />
+                  <div class="tier-icon-picker" style="position: relative;">
+                    <input v-model="editTierIcon" class="cyber-input" style="width: 60px;" />
+                    <button
+                      ref="editTierEmojiButtonRef"
+                      class="mod-btn emoji-picker-btn"
+                      @click.stop="showEditTierEmojiPicker = !showEditTierEmojiPicker"
+                      title="Pick emoji"
+                    >
+                      <template v-if="resolveIconForPreview(editTierIcon).type === 'img'">
+                        <img :src="resolveIconForPreview(editTierIcon).value" class="icon-preview-img" />
+                      </template>
+                      <template v-else>{{ editTierIcon || '😀' }}</template>
+                    </button>
+                    <EmojiPopup
+                      v-if="showEditTierEmojiPicker"
+                      @click.stop
+                      @sendEmoji="handleEditTierEmoji"
+                      :closeEmojiList="() => showEditTierEmojiPicker = false"
+                      :emojiIconClicked="true"
+                      :position="'below'"
+                      :triggerElement="editTierEmojiButtonRef || undefined"
+                      @resetEmojiIconClicked="() => {}"
+                    />
+                  </div>
                   <input v-model="editTierName" class="cyber-input" style="flex: 1;" />
                   <input v-model.number="editTierMinAmount" type="number" class="cyber-input" style="width: 90px;" min="0" />
                   <input v-model="editTierColor" type="color" class="color-input" />
                   <button class="mod-btn" @click="saveEditTier(tier.id)" title="Save"><Icon name="check" :size="14" /></button>
-                  <button class="mod-btn" @click="editingTierId = null" title="Cancel"><Icon name="x" :size="14" /></button>
+                  <button class="mod-btn" @click="editingTierId = null; showEditTierEmojiPicker = false" title="Cancel"><Icon name="x" :size="14" /></button>
                 </template>
                 <template v-else>
-                  <span class="tier-icon" :style="tier.badge_color ? { color: tier.badge_color } : {}">{{ tier.badge_icon || '⭐' }}</span>
+                  <span class="tier-icon" :style="tier.badge_color ? { color: tier.badge_color } : {}">
+                    <template v-if="resolveIconForPreview(tier.badge_icon || '⭐').type === 'img'">
+                      <img :src="resolveIconForPreview(tier.badge_icon || '⭐').value" class="icon-preview-img" />
+                    </template>
+                    <template v-else>{{ tier.badge_icon || '⭐' }}</template>
+                  </span>
                   <div class="tier-info">
                     <span class="tier-name">{{ tier.name }}</span>
                     <span class="tier-amount">Min: {{ tier.min_amount }}</span>
@@ -1309,7 +1337,30 @@
             <div class="add-tier-form">
               <input v-model="newTierName" class="cyber-input" placeholder="Tier name" />
               <input v-model.number="newTierMinAmount" type="number" class="cyber-input" placeholder="Min amount" min="0" style="width: 120px;" />
-              <input v-model="newTierIcon" class="cyber-input" placeholder="Icon" style="width: 60px;" />
+              <div class="tier-icon-picker" style="position: relative;">
+                <input v-model="newTierIcon" class="cyber-input" placeholder="Icon" style="width: 60px;" />
+                <button
+                  ref="newTierEmojiButtonRef"
+                  class="mod-btn emoji-picker-btn"
+                  @click.stop="showNewTierEmojiPicker = !showNewTierEmojiPicker"
+                  title="Pick emoji"
+                >
+                  <template v-if="resolveIconForPreview(newTierIcon).type === 'img'">
+                    <img :src="resolveIconForPreview(newTierIcon).value" class="icon-preview-img" />
+                  </template>
+                  <template v-else>{{ newTierIcon || '😀' }}</template>
+                </button>
+                <EmojiPopup
+                  v-if="showNewTierEmojiPicker"
+                  @click.stop
+                  @sendEmoji="handleNewTierEmoji"
+                  :closeEmojiList="() => showNewTierEmojiPicker = false"
+                  :emojiIconClicked="true"
+                  :position="'above'"
+                  :triggerElement="newTierEmojiButtonRef || undefined"
+                  @resetEmojiIconClicked="() => {}"
+                />
+              </div>
               <input v-model="newTierColor" type="color" class="color-input" title="Badge color" />
               <button class="action-btn" @click="addTier" :disabled="!newTierName || !newTierMinAmount">
                 <Icon name="plus" :size="16" /> Add
@@ -1607,6 +1658,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
+import { escapeHtml } from '@/utils/sanitize'
 import { useAuthStore } from '@/stores/auth'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRouter } from 'vue-router'
@@ -1627,6 +1679,9 @@ import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { userDataService } from '@/services/userDataService'
 import { activityPubService } from '@/services/activityPubService'
+import EmojiPopup from '@/components/EmojiPopup.vue'
+import { getEmojiUrl } from '@/utils/emojiUtils'
+import type { Emoji } from '@/types'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -1706,6 +1761,11 @@ const editTierName = ref('')
 const editTierMinAmount = ref<number>(0)
 const editTierIcon = ref('')
 const editTierColor = ref('#5865f2')
+
+const showNewTierEmojiPicker = ref(false)
+const showEditTierEmojiPicker = ref(false)
+const newTierEmojiButtonRef = ref<HTMLElement | null>(null)
+const editTierEmojiButtonRef = ref<HTMLElement | null>(null)
 
 // Supporter CRUD
 const addSupporterSearch = ref('')
@@ -2407,6 +2467,27 @@ const saveEditTier = async (tierId: string) => {
   }
 }
 
+const handleNewTierEmoji = (emoji: Emoji) => {
+  newTierIcon.value = emoji.url ? `:${emoji.name}:` : emoji.id
+  showNewTierEmojiPicker.value = false
+}
+
+const handleEditTierEmoji = (emoji: Emoji) => {
+  editTierIcon.value = emoji.url ? `:${emoji.name}:` : emoji.id
+  showEditTierEmojiPicker.value = false
+}
+
+const resolveIconForPreview = (icon: string): { type: 'text' | 'img'; value: string } => {
+  const match = icon.match(/^:([a-zA-Z0-9_+-]+):$/)
+  if (!match) return { type: 'text', value: icon }
+  const parts = userDataService.resolveDisplayNameParts(icon)
+  const emojiPart = parts?.find(p => p.type === 'emoji')
+  if (emojiPart && emojiPart.type === 'emoji') {
+    return { type: 'img', value: getEmojiUrl(emojiPart.emoji.url, 32) }
+  }
+  return { type: 'text', value: icon }
+}
+
 const deleteTier = async (tierId: string) => {
   if (!confirm('Delete this tier? Supporters on this tier will keep their status but lose the tier badge.')) return
   const success = await fundingService.deleteTier(tierId)
@@ -2697,7 +2778,8 @@ const updateReport = async (reportId: string, status: 'investigating' | 'resolve
 }
 
 const linkifyReportPreview = (text: string): string => {
-  return text.replace(
+  const escaped = escapeHtml(text)
+  return escaped.replace(
     /(https?:\/\/[^\s\]]+)/g,
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">$1</a>'
   )
@@ -5375,6 +5457,30 @@ const handleAddInstance = () => {
 
 .tier-icon {
   font-size: 18px;
+}
+
+.tier-icon-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.emoji-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  font-size: 16px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.icon-preview-img {
+  height: 1.2em;
+  width: auto;
+  vertical-align: -0.15em;
+  object-fit: contain;
 }
 
 .tier-info {

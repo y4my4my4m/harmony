@@ -13,7 +13,7 @@
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.advanced.developerMode') }}</h4>
-          <p class="setting-description">Enable developer features and debugging tools.</p>
+          <p class="setting-description">{{ $t('settings.advanced.developerModeDescription') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -102,9 +102,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import { useDeveloperTools } from '@/composables/useDeveloperTools'
 
 interface Props {
   loading: boolean
@@ -115,6 +116,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update-advanced': [settings: any]
 }>()
+
+const { developerToolsEnabled, setDeveloperToolsEnabled } = useDeveloperTools()
 
 const settings = ref({
   developerMode: false,
@@ -128,8 +131,18 @@ const hasChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
 })
 
+onMounted(() => {
+  settings.value.developerMode = developerToolsEnabled.value
+  originalSettings.value = { ...settings.value }
+})
+
+watch(developerToolsEnabled, (v) => {
+  settings.value.developerMode = v
+})
+
 const onSettingChange = () => {
-  // Settings changed
+  setDeveloperToolsEnabled(settings.value.developerMode)
+  emit('update-advanced', settings.value)
 }
 
 const clearCache = () => {

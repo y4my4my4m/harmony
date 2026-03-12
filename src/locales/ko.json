@@ -589,7 +589,9 @@
       "title": "고급",
       "description": "고급 사용자를 위한 고급 설정.",
       "developerMode": "개발자 모드",
-      "hardwareAcceleration": "하드웨어 가속"
+      "developerModeDescription": "개발자 기능 및 디버깅 도구를 활성화합니다.",
+      "hardwareAcceleration": "하드웨어 가속",
+      "copyRawData": "원시 데이터 복사"
     }
   },
   "navigation": {

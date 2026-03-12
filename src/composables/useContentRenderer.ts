@@ -19,6 +19,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
+import { escapeHtml } from '@/utils/sanitize';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -231,8 +232,8 @@ export function useContentRenderer(
     return parts.map(part => {
       switch (part.type) {
         case 'text': {
-          let text = part.text || '';
-          
+          let text = escapeHtml(part.text || '');
+
           // For mutant/twemoji pack: Replace unicode emojis with SVG images
           // For native pack: Leave unicode as-is (browser renders them)
           if (!isNativePack.value && emojiServiceLoaded.value) {
@@ -351,27 +352,28 @@ export function useContentRenderer(
         
         case 'url': {
           const url = part.url || '';
+          const safeUrl = escapeHtml(url);
           
           if (renderOptions.mode === 'preview') {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${url}</a>`;
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeUrl}</a>`;
           }
           
           // Check for media URLs
           if (renderOptions.showImages && isImageUrl(url)) {
             return `<div class="media-container image-container">
-              <img src="${url}" alt="Image" class="content-image" draggable="false" />
+              <img src="${safeUrl}" alt="Image" class="content-image" draggable="false" />
             </div>`;
           }
           
           if (renderOptions.showVideos && isVideoUrl(url)) {
             return `<div class="media-container video-container">
-              <video src="${url}" controls class="content-video"></video>
+              <video src="${safeUrl}" controls class="content-video"></video>
             </div>`;
           }
           
           if (renderOptions.showVideos && isAudioUrl(url)) {
             return `<div class="media-container audio-container">
-              <audio src="${url}" controls preload="metadata" class="content-audio"></audio>
+              <audio src="${safeUrl}" controls preload="metadata" class="content-audio"></audio>
             </div>`;
           }
           
@@ -383,9 +385,10 @@ export function useContentRenderer(
               if (embedUrl) {
                 const separator = embedUrl.includes('?') ? '&' : '?';
                 const fullEmbedUrl = `${embedUrl}${separator}enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`;
-                return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${url}</a>
+                const safeEmbedUrl = escapeHtml(fullEmbedUrl);
+                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeUrl}</a>
                   <div class="media-container video-container youtube-embed">
-                    <iframe src="${fullEmbedUrl}" frameborder="0" allowfullscreen
+                    <iframe src="${safeEmbedUrl}" frameborder="0" allowfullscreen
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       loading="lazy"></iframe>
                   </div>`;
@@ -393,36 +396,37 @@ export function useContentRenderer(
             }
           }
           
-          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${url}</a>`;
+          return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeUrl}</a>`;
         }
         
         case 'file': {
-          const fileName = part.fileName || 'file';
+          const fileName = escapeHtml(part.fileName || 'file');
           const fileSize = part.fileSize ? ` (${formatFileSize(part.fileSize)})` : '';
+          const safeFileUrl = escapeHtml(part.url || '');
           
           if (renderOptions.mode === 'preview') {
-            return `<span class="file-preview">[${part.fileType || 'file'}: ${fileName}${fileSize}]</span>`;
+            return `<span class="file-preview">[${escapeHtml(part.fileType || 'file')}: ${fileName}${fileSize}]</span>`;
           }
           
           if (part.fileType === 'image' && renderOptions.showImages) {
             return `<div class="media-container image-container">
-              <img src="${part.url}" alt="${fileName}" class="content-image" draggable="false" />
+              <img src="${safeFileUrl}" alt="${fileName}" class="content-image" draggable="false" />
             </div>`;
           }
           
           if (part.fileType === 'video' && renderOptions.showVideos) {
             return `<div class="media-container video-container">
-              <video src="${part.url}" controls class="content-video"></video>
+              <video src="${safeFileUrl}" controls class="content-video"></video>
             </div>`;
           }
           
           if (part.fileType === 'audio') {
             return `<div class="media-container audio-container">
-              <audio src="${part.url}" controls preload="metadata" class="content-audio"></audio>
+              <audio src="${safeFileUrl}" controls preload="metadata" class="content-audio"></audio>
             </div>`;
           }
           
-          return `<a href="${part.url}" target="_blank" rel="noopener noreferrer" class="file-link">
+          return `<a href="${safeFileUrl}" target="_blank" rel="noopener noreferrer" class="file-link">
             <span class="file-icon">📎</span>${fileName}${fileSize}
           </a>`;
         }

@@ -417,7 +417,7 @@ class PushNotificationServiceClass {
         .from('notification_preferences')
         .select('push_notifications, push_offline_only, push_mentions, push_dms')
         .eq('user_id', notification.user_id)
-        .single();
+        .maybeSingle();
 
       // Check if push is enabled for this notification type
       if (prefs && !prefs.push_notifications) {

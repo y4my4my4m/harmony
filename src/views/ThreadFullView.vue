@@ -948,8 +948,11 @@ onUnmounted(() => {
 /* Messages Section */
 .messages-section {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 16px 20px;
+  min-height: 0;
 }
 
 .loading-state,

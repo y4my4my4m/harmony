@@ -17,6 +17,7 @@ import { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
 import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
+import { linkPreviewService } from '../services/LinkPreviewService.js';
 
 /**
  * Start listening to database notifications
@@ -245,6 +246,13 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'messages',
       },
       async (payload) => {
+        // Enrich external link previews asynchronously for all local messages
+        if (!payload.new.metadata?.federated) {
+          enrichMessageLinkPreviews(payload.new).catch(err =>
+            logger.warn('Link preview enrichment failed:', err)
+          );
+        }
+
         // Handle DM messages (conversation_id set)
         // When pg-boss is enabled, DMs are handled by the job queue for reliable delivery
         if (payload.new.conversation_id && !payload.new.metadata?.federated) {
@@ -1808,6 +1816,22 @@ export async function handleNewDM(message: any): Promise<void> {
       name: `@${p.username}@${p.domain}`
     }));
     
+    // Check if the conversation has an established remote conversation tag
+    // (from the first incoming federated message). Use it so Mastodon groups
+    // all messages into the same thread.
+    let conversationTag = `tag:${domain},${new Date(message.created_at).getFullYear()}:conversation-${message.conversation_id}`;
+    const { data: existingConvMsg } = await supabase
+      .from('messages')
+      .select('metadata')
+      .eq('conversation_id', message.conversation_id)
+      .not('metadata->conversation', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
+    if (existingConvMsg?.metadata?.conversation) {
+      conversationTag = existingConvMsg.metadata.conversation;
+    }
+
     const note: any = {
       id: messageUrl,
       type: 'Note',
@@ -1820,26 +1844,28 @@ export async function handleNewDM(message: any): Promise<void> {
       to: allToUrls,
       cc: [],
       directMessage: true,
-      conversation: `tag:${domain},${new Date(message.created_at).getFullYear()}:conversation-${message.conversation_id}`,
+      conversation: conversationTag,
+      'harmony:encrypted': message.encrypted === true ? true : undefined,
     };
 
     if (conversationType === 'group') {
       note['harmony:conversationType'] = 'group';
 
-      // Thread group messages: find the first federated message in this conversation
-      // so Mastodon/Misskey can display them as a single conversation thread
-      const { data: firstMsg } = await supabase
+      // Thread group messages using linear chain: set inReplyTo to the most
+      // recent message in the conversation (preferring remote AP IDs that
+      // Mastodon can resolve, falling back to our own message URLs).
+      const { data: prevMsg } = await supabase
         .from('messages')
-        .select('id, created_at')
+        .select('id, metadata')
         .eq('conversation_id', message.conversation_id)
-        .eq('federation_status', 'completed')
         .neq('id', message.id)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (firstMsg) {
-        note.inReplyTo = `https://${domain}/messages/${firstMsg.id}`;
+      if (prevMsg) {
+        note.inReplyTo = prevMsg.metadata?.ap_id
+          || `https://${domain}/messages/${prevMsg.id}`;
       }
     }
     
@@ -1854,6 +1880,21 @@ export async function handleNewDM(message: any): Promise<void> {
       cc: []
     };
     
+    // Store conversation tag and ap_id on the message metadata so future
+    // messages can reference it and the GET /messages/:id endpoint can serve it
+    const updatedMetadata = {
+      ...(message.metadata || {}),
+      ap_id: messageUrl,
+      conversation: conversationTag,
+    };
+    if (note.inReplyTo) {
+      updatedMetadata.in_reply_to_ap = note.inReplyTo;
+    }
+    await supabase
+      .from('messages')
+      .update({ metadata: updatedMetadata })
+      .eq('id', message.id);
+
     for (const profile of remoteUsers) {
       let inboxUrl = profile.inbox_url;
       if (!inboxUrl) {
@@ -2040,6 +2081,73 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
     }
   } catch (error) {
     logger.error('Failed to handle message reaction removal:', error);
+  }
+}
+
+// =============================================================================
+// LINK PREVIEW ENRICHMENT
+// =============================================================================
+
+/**
+ * Detect external URLs in a message and fetch previews via LinkPreviewService.
+ * Local Harmony post URLs are already handled by the DB trigger (process_local_link_previews).
+ * This handles everything else: YouTube, Spotify, Reddit, generic external URLs.
+ *
+ * Called from pg-boss job handlers (channelMessageHandler, dmHandler) for reliability,
+ * since Supabase Realtime may not fire consistently for all message INSERTs.
+ */
+export async function enrichMessageLinkPreviews(message: any): Promise<void> {
+  const content = message.content;
+  if (!Array.isArray(content)) return;
+
+  const instanceDomain = config.INSTANCE_DOMAIN.toLowerCase();
+  const existingEmbeds: Record<string, any> = message.metadata?.embeds || {};
+
+  const urlParts = content.filter(
+    (part: any) =>
+      part.type === 'url' &&
+      typeof part.url === 'string' &&
+      part.preview !== 'false' &&
+      part.preview !== false
+  );
+
+  if (urlParts.length === 0) return;
+
+  const newEmbeds: Record<string, any> = {};
+
+  for (const part of urlParts) {
+    const url: string = part.url;
+    try {
+      const urlObj = new URL(url);
+      const host = urlObj.hostname.toLowerCase();
+
+      // Skip local Harmony URLs (already handled by DB trigger)
+      if (host === instanceDomain) continue;
+
+      // Skip if already embedded
+      if (existingEmbeds[url]) continue;
+
+      const preview = await linkPreviewService.getPreview(url);
+      if (preview) {
+        newEmbeds[url] = preview;
+      }
+    } catch (err) {
+      logger.debug(`Skipping invalid URL for preview: ${url}`);
+    }
+  }
+
+  if (Object.keys(newEmbeds).length === 0) return;
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('update_message_embeds', {
+    p_message_id: message.id,
+    p_embeds: newEmbeds,
+  });
+
+  if (error) {
+    logger.warn(`Failed to write embeds for message ${message.id}:`, error);
+  } else {
+    logger.info(`🔗 Enriched message ${message.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
   }
 }
 

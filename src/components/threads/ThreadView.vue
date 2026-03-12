@@ -1159,8 +1159,11 @@ onUnmounted(() => {
 /* Thread Messages - styled exactly like main chat */
 .thread-messages {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 16px 0;
+  min-height: 0;
 }
 
 .loading-state {

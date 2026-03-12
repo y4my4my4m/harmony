@@ -424,7 +424,9 @@
       "title": "Avanzado",
       "description": "Configuraciones avanzadas para usuarios avanzados.",
       "developerMode": "Modo desarrollador",
-      "hardwareAcceleration": "Aceleración de hardware"
+      "developerModeDescription": "Habilitar funciones de desarrollador y herramientas de depuración.",
+      "hardwareAcceleration": "Aceleración de hardware",
+      "copyRawData": "Copiar datos crudos"
     }
   },
   "navigation": {
