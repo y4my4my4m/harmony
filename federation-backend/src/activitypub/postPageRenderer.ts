@@ -8,6 +8,20 @@
 
 import config from '../config/index.js';
 
+/**
+ * Resolve a Supabase storage URL to a full absolute URL.
+ * Local users store relative paths like "user-id/file.webp" which need
+ * the Supabase storage base URL prepended.
+ */
+function resolveStorageUrl(raw: string | null | undefined, bucket: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  if (raw.startsWith('/')) return raw;
+  const base = config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL || '';
+  if (!base) return raw;
+  return `${base}/storage/v1/object/public/${bucket}/${raw}`;
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -118,10 +132,11 @@ function renderDisplayNameHtml(displayName: string, emojis?: DisplayNameEmoji[])
   const emojiMap = new Map<string, string>();
   for (const e of emojis) {
     if (!e.name || !e.url) continue;
+    const resolvedUrl = resolveStorageUrl(e.url, 'emojis');
     const cleanName = e.name.replace(/^:/, '').replace(/:$/, '');
-    emojiMap.set(cleanName, e.url);
+    emojiMap.set(cleanName, resolvedUrl);
     const nameWithoutDomain = cleanName.replace(/@[^@]*$/, '');
-    emojiMap.set(nameWithoutDomain, e.url);
+    emojiMap.set(nameWithoutDomain, resolvedUrl);
   }
 
   let result = escapeHtml(displayName);
@@ -184,7 +199,7 @@ export function renderPostPage(post: any, author: any): string {
     ? `CW: ${escapeHtml(post.content_warning)}`
     : `${displayNamePlain}: "${ogDescription.substring(0, 80)}${ogDescription.length > 80 ? '...' : ''}"`;
 
-  const avatarUrl = author.avatar_url || `https://${domain}/default-avatar.png`;
+  const avatarUrl = resolveStorageUrl(author.avatar_url, 'avatars') || `https://${domain}/default-avatar.png`;
 
   const favorites = post.favorites_count || 0;
   const reblogs = post.reblogs_count || 0;
