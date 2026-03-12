@@ -8,7 +8,7 @@
   
   <!-- Regular embed with header/collapse -->
   <div v-else class="provider-embed" ref="embedWrapper" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
-    <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post'">
+    <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post' && payload.provider !== 'fediverse-post'">
       <div class="provider-embed__label">
         {{ providerLabel }}
       </div>
@@ -30,6 +30,12 @@
           <span v-if="harmonyError">{{ harmonyError }}</span>
           <span v-else>Loading Harmony post…</span>
         </div>
+      </template>
+      <template v-else-if="isFediverse">
+        <div v-if="payload.fediverse" class="provider-embed__post">
+          <FediPost :fediverse="payload.fediverse" />
+        </div>
+        <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
       </template>
       <div v-else-if="youtubeEmbedUrl" class="provider-embed__media provider-embed__media--video" ref="youtubeContainer">
         <iframe
@@ -64,6 +70,7 @@ import type { EmbedPayload, TimelinePost } from '@/types';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
+import FediPost from './FediPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
 import ServerInviteCard from './ServerInviteCard.vue';
 
@@ -120,12 +127,26 @@ const inviteCode = computed(() => {
 });
 
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
+const isFediverse = computed(() => props.payload.provider === 'fediverse-post');
 const providerLabel = computed(() => {
   switch (props.payload.provider) {
     case 'harmony-post':
       return 'Harmony Post';
     case 'harmony-invite':
       return 'Server Invite';
+    case 'fediverse-post': {
+      const platform = props.payload.fediverse?.platform;
+      const labels: Record<string, string> = {
+        mastodon: 'Mastodon Post',
+        misskey: 'Misskey Post',
+        pleroma: 'Pleroma Post',
+        gotosocial: 'GoToSocial Post',
+        pixelfed: 'Pixelfed Post',
+        harmony: 'Harmony Post',
+        lemmy: 'Lemmy Post',
+      };
+      return labels[platform || ''] || 'Fediverse Post';
+    }
     case 'youtube':
       return 'YouTube';
     case 'spotify':
@@ -162,6 +183,9 @@ const spotifyEmbedUrl = computed(() => {
 onMounted(() => {
   if (isHarmony.value) {
     loadHarmonyPost();
+  }
+  if (isFediverse.value) {
+    handleEmbedLoad();
   }
   // For YouTube, Spotify, and LinkEmbedCard, the load event will be handled by @load handlers
   

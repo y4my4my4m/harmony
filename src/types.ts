@@ -206,7 +206,25 @@ export interface UrlContent {
   embedId?: string;
 }
 
-export type EmbedProvider = 'harmony-post' | 'harmony-invite' | 'youtube' | 'spotify' | 'generic';
+export type EmbedProvider = 'harmony-post' | 'harmony-invite' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic';
+
+export interface FediverseEmbedSummary {
+  authorName: string;
+  authorHandle: string;
+  authorAvatar?: string;
+  authorUrl: string;
+  content: string;
+  published: string;
+  attachments?: Array<{
+    url: string;
+    mediaType?: string;
+    alt?: string;
+  }>;
+  sensitive?: boolean;
+  contentWarning?: string;
+  platform?: string;
+  postUrl: string;
+}
 
 export interface HarmonyEmbedSummary {
   postId: string;
@@ -238,6 +256,7 @@ export interface EmbedPayload {
   width?: number;
   height?: number;
   harmony?: HarmonyEmbedSummary;
+  fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;
   fetchedAt: string;
   expiresAt: string;

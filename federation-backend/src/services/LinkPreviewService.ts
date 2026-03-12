@@ -3,7 +3,25 @@ import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-export type EmbedProvider = 'harmony-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
+export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
+
+export interface FediverseEmbedData {
+  authorName: string;
+  authorHandle: string;
+  authorAvatar?: string;
+  authorUrl: string;
+  content: string;
+  published: string;
+  attachments?: Array<{
+    url: string;
+    mediaType?: string;
+    alt?: string;
+  }>;
+  sensitive?: boolean;
+  contentWarning?: string;
+  platform?: string;
+  postUrl: string;
+}
 
 export interface EmbedPayload {
   cacheKey: string;
@@ -35,10 +53,12 @@ export interface EmbedPayload {
       color?: string | null;
     };
   };
+  fediverse?: FediverseEmbedData;
 }
 
 const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
   'harmony-post': 5 * 60 * 1000, // 5 minutes
+  'fediverse-post': 30 * 60 * 1000, // 30 minutes
   youtube: 6 * 60 * 60 * 1000, // 6 hours
   spotify: 6 * 60 * 60 * 1000,
   reddit: 6 * 60 * 60 * 1000,
@@ -142,6 +162,8 @@ class LinkPreviewService {
     if (host.endsWith('reddit.com')) {
       return 'reddit';
     }
+    // Everything else goes through generic, which auto-discovers AP via
+    // <link rel="alternate" type="application/activity+json"> in the HTML.
     return 'generic';
   }
 
@@ -170,10 +192,10 @@ class LinkPreviewService {
     };
 
     const { data, error } = await this.supabase
-      .from<SupabasePost>('posts')
+      .from('posts')
       .select(LinkPreviewService.harmonyPostFields)
       .eq('id', postId)
-      .single();
+      .single() as { data: SupabasePost | null; error: any };
 
     if (error || !data) {
       logger.warn('Harmony post not found for embed', { postId, error });
@@ -186,7 +208,7 @@ class LinkPreviewService {
 
     const summary = this.extractTextSummary(data.content) || 'View post on Harmony';
     const mediaAttachments = Array.isArray(data.media_attachments) ? data.media_attachments : [];
-    const firstImage = mediaAttachments.find((attachment) => attachment?.type === 'image');
+    const firstImage = mediaAttachments.find((attachment: any) => attachment?.type === 'image');
 
     return {
       cacheKey: '',
@@ -216,6 +238,164 @@ class LinkPreviewService {
         },
       },
     };
+  }
+
+  /**
+   * Try to identify the fediverse platform from the AP Note's generator field,
+   * or by fetching the instance's NodeInfo. Falls back to 'fediverse'.
+   */
+  private async detectPlatform(note: any, url: string): Promise<string> {
+    // Some platforms set a generator on the Note (Mastodon does this)
+    if (note.generator?.name) {
+      return note.generator.name.toLowerCase();
+    }
+
+    // Try NodeInfo discovery (cached per domain for 24h)
+    const domain = new URL(url).hostname;
+    const cacheKey = `nodeinfo:${domain}`;
+    const cached = this.cache.get<string>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const wellKnown = await this.fetchActivityPubObject(
+        `https://${domain}/.well-known/nodeinfo`, true
+      ).catch(() => null);
+
+      if (wellKnown?.links?.length) {
+        const link = wellKnown.links.find((l: any) =>
+          l.rel?.includes('nodeinfo')
+        );
+        if (link?.href) {
+          const nodeInfo = await this.fetchActivityPubObject(link.href, true).catch(() => null);
+          if (nodeInfo?.software?.name) {
+            const name = nodeInfo.software.name.toLowerCase();
+            this.cache.set(cacheKey, name, 86400);
+            return name;
+          }
+        }
+      }
+    } catch {
+      // NodeInfo lookup is best-effort
+    }
+
+    this.cache.set(cacheKey, 'fediverse', 86400);
+    return 'fediverse';
+  }
+
+  private async buildFediverseEmbed(url: string): Promise<EmbedPayload> {
+    try {
+      const note = await this.fetchActivityPubObject(url);
+      if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
+        return this.fetchGenericPreview(url);
+      }
+
+      const actorUrl = typeof note.attributedTo === 'string'
+        ? note.attributedTo
+        : note.attributedTo?.id || note.attributedTo;
+
+      let authorName = 'Unknown';
+      let authorHandle = '';
+      let authorAvatar: string | undefined;
+      let authorUrl = actorUrl || url;
+
+      if (actorUrl && typeof actorUrl === 'string') {
+        try {
+          const actor = await this.fetchActivityPubObject(actorUrl);
+          if (actor) {
+            authorName = actor.name || actor.preferredUsername || 'Unknown';
+            const actorDomain = new URL(actorUrl).hostname;
+            authorHandle = `@${actor.preferredUsername || 'user'}@${actorDomain}`;
+            authorAvatar = actor.icon?.url || actor.icon;
+            if (typeof authorAvatar === 'object') authorAvatar = (authorAvatar as any)?.url;
+            authorUrl = actor.url || actorUrl;
+          }
+        } catch (err) {
+          logger.debug('Failed to fetch actor for fediverse embed', { actorUrl, err });
+          const domain = new URL(url).hostname;
+          authorHandle = `@unknown@${domain}`;
+        }
+      }
+
+      const content = note.content || '';
+      const plainText = content.replace(/<[^>]*>/g, '').trim();
+      const platform = await this.detectPlatform(note, url);
+
+      const attachments = Array.isArray(note.attachment)
+        ? note.attachment
+          .filter((a: any) => a.type === 'Document' || a.type === 'Image' || a.type === 'Video')
+          .map((a: any) => ({
+            url: a.url,
+            mediaType: a.mediaType,
+            alt: a.name || undefined,
+          }))
+        : [];
+
+      const firstImage = attachments.find((a: any) =>
+        a.mediaType?.startsWith('image/') || /\.(jpe?g|png|gif|webp|avif)/i.test(a.url || '')
+      );
+
+      return {
+        cacheKey: '',
+        url,
+        normalizedUrl: url,
+        provider: 'fediverse-post',
+        title: authorName,
+        description: plainText.substring(0, 280),
+        siteName: new URL(url).hostname,
+        image: firstImage?.url,
+        icon: authorAvatar,
+        fetchedAt: '',
+        expiresAt: '',
+        fediverse: {
+          authorName,
+          authorHandle,
+          authorAvatar,
+          authorUrl: typeof authorUrl === 'string' ? authorUrl : url,
+          content,
+          published: note.published || '',
+          attachments,
+          sensitive: note.sensitive || false,
+          contentWarning: note.summary || undefined,
+          platform,
+          postUrl: note.url || url,
+        },
+      };
+    } catch (err) {
+      logger.warn('Fediverse AP fetch failed, falling back to generic', { url, err });
+      return this.fetchGenericPreview(url);
+    }
+  }
+
+  private async fetchActivityPubObject(url: string, acceptJson = false): Promise<any> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const accept = acceptJson
+        ? 'application/json'
+        : 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json';
+      const response = await fetch(url, {
+        headers: {
+          Accept: accept,
+          'User-Agent': USER_AGENT,
+        },
+        signal: controller.signal,
+        redirect: 'follow',
+      });
+
+      if (!response.ok) {
+        throw new Error(`AP fetch failed (${response.status})`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('json')) {
+        throw new Error(`Not an AP response (${contentType})`);
+      }
+
+      return await response.json();
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async fetchOEmbed(url: string, endpoint: string): Promise<EmbedPayload> {
@@ -300,6 +480,26 @@ class LinkPreviewService {
       }
 
       const html = await response.text();
+
+      // Check for ActivityPub alternate link — upgrade to fediverse embed if found
+      const apAlternate = this.extractMeta(html, [
+        /<link[^>]+rel=["']alternate["'][^>]+type=["']application\/activity\+json["'][^>]*href=["']([^"']+)["']/i,
+        /<link[^>]+type=["']application\/activity\+json["'][^>]+rel=["']alternate["'][^>]*href=["']([^"']+)["']/i,
+      ]);
+      if (apAlternate) {
+        try {
+          const apUrl = this.makeAbsoluteUrl(url, apAlternate);
+          const result = await this.buildFediverseEmbed(apUrl);
+          if (result.provider === 'fediverse-post') {
+            result.url = url;
+            result.normalizedUrl = url;
+            return result;
+          }
+        } catch (err) {
+          logger.debug('AP discovery fallback failed, using generic', { url, err });
+        }
+      }
+
       const title = this.extractMeta(html, [
         /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
         /<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i,
