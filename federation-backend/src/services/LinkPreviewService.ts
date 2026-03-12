@@ -330,7 +330,8 @@ class LinkPreviewService {
       }
 
       const content = note.content || '';
-      const plainText = content.replace(/<[^>]*>/g, '').trim();
+      let plainText = content.replace(/<[^>]*>/g, '').trim();
+      plainText = plainText.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#x([\da-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)));
       const platform = await this.detectPlatform(note, url);
 
       const attachments = Array.isArray(note.attachment)
