@@ -521,11 +521,11 @@ class LinkPreviewService {
 
       const html = await response.text();
 
-      // Check for ActivityPub alternate link — upgrade to fediverse embed if found
-      const apAlternate = this.extractMeta(html, [
-        /<link[^>]+rel=["']alternate["'][^>]+type=["']application\/activity\+json["'][^>]*href=["']([^"']+)["']/i,
-        /<link[^>]+type=["']application\/activity\+json["'][^>]+rel=["']alternate["'][^>]*href=["']([^"']+)["']/i,
-      ]);
+      // Check for ActivityPub alternate link — upgrade to fediverse embed if found.
+      // Uses tag-level matching instead of fixed attribute-order regexes, since
+      // platforms emit attributes in different orders (Misskey: rel→href→type,
+      // Mastodon: rel→type→href, etc.).
+      const apAlternate = this.findApAlternateLink(html);
       if (apAlternate) {
         try {
           const apUrl = this.makeAbsoluteUrl(url, apAlternate);
@@ -533,6 +533,12 @@ class LinkPreviewService {
           if (result.provider === 'fediverse-post') {
             result.url = url;
             result.normalizedUrl = url;
+            // Enrich with HTML-embedded stats when the AP Note lacks them
+            // (Misskey embeds note data in a <script> tag; Mastodon AP Notes
+            // usually include stats directly)
+            if (result.fediverse && !result.fediverse.stats) {
+              result.fediverse.stats = this.extractStatsFromHtml(html);
+            }
             return result;
           }
         } catch (err) {
@@ -609,6 +615,50 @@ class LinkPreviewService {
       logger.debug('AP fallback also failed', { url, err });
     }
     return null;
+  }
+
+  /**
+   * Extract interaction stats from platform-specific JSON embedded in the HTML.
+   * Misskey embeds full note data in `<script id="misskey_clientCtx">`.
+   */
+  private extractStatsFromHtml(html: string): FediverseEmbedData['stats'] | undefined {
+    // Misskey / Sharkey / Firefish — embedded client context
+    const misskeyMatch = html.match(
+      /<script[^>]+id=["']misskey_clientCtx["'][^>]*>([\s\S]*?)<\/script>/i
+    );
+    if (misskeyMatch?.[1]) {
+      try {
+        const ctx = JSON.parse(misskeyMatch[1]);
+        const note = ctx.note;
+        if (note) {
+          return {
+            replies: note.repliesCount ?? undefined,
+            reblogs: note.renoteCount ?? undefined,
+            favourites: note.reactionCount ?? undefined,
+          };
+        }
+      } catch { /* malformed JSON, ignore */ }
+    }
+    return undefined;
+  }
+
+  /**
+   * Find `<link rel="alternate" type="application/activity+json" href="...">` regardless
+   * of attribute ordering. Handles Mastodon, Misskey, Pleroma, GoToSocial, etc.
+   */
+  private findApAlternateLink(html: string): string | undefined {
+    const linkTags = html.match(/<link[^>]*>/gi);
+    if (!linkTags) return undefined;
+
+    for (const tag of linkTags) {
+      const isAlternate = /rel=["']alternate["']/i.test(tag);
+      const isActivityJson = /type=["']application\/activity\+json["']/i.test(tag);
+      if (isAlternate && isActivityJson) {
+        const hrefMatch = tag.match(/href=["']([^"']+)["']/i);
+        if (hrefMatch?.[1]) return hrefMatch[1];
+      }
+    }
+    return undefined;
   }
 
   private extractTextSummary(content: any): string {
