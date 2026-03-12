@@ -775,8 +775,7 @@
         
         if (isPopupForReaction.value) {
           if (authStore.session?.user) {
-            // Play reaction sound using the new theme system
-            themeStore.testAudio('reaction');
+            themeStore.playAudio('reaction');
             
             // Track emoji usage when used as reaction
             if (!props.isDM && serverChannelStore.currentServerId) {

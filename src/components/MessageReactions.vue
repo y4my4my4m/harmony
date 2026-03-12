@@ -186,9 +186,8 @@ const getResolvedEmoji = (reactionGroup: any) => {
   }
 };
 
-// Handle add reaction button click
+// Handle add reaction button click (haptic fires on emoji selection, not popup open)
 const handleAddReactionClick = (event: MouseEvent) => {
-  triggerReaction();
   emit('open-emoji-picker', props.message.id, event);
 };
 

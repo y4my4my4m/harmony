@@ -100,7 +100,7 @@ export function useHapticSettings() {
     triggerHaptic,
     
     // Quick trigger methods with category check
-    triggerMessage: (pattern: HapticPattern = 'success') => triggerHaptic('messages', pattern),
+    triggerMessage: (pattern: HapticPattern = 'light') => triggerHaptic('messages', pattern),
     triggerReaction: () => triggerHaptic('reactions', 'selection'),
     triggerNavigation: (pattern: HapticPattern = 'light') => triggerHaptic('navigation', pattern),
     triggerVoice: (pattern: HapticPattern = 'medium') => triggerHaptic('voice', pattern),
