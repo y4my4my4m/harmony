@@ -26,18 +26,63 @@ version: "3.8"
 
 services:
   # ---------------------------------------------------------------------------
-  # Federation Backend
+  # Federation Backend (split: server + worker)
   # ---------------------------------------------------------------------------
-  # Handles ActivityPub federation, link previews, and WebRTC signaling
-  # 
+  # The HTTP server and queue worker run as separate containers for process
+  # isolation. A heavy delivery batch in the worker cannot block incoming
+  # ActivityPub requests on the server.
+  #
   # Required in .env file:
   #   - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
   #   - INSTANCE_DOMAIN
+  #   - DATABASE_URL, USE_PGBOSS_QUEUE=true
   #
-  # For reliable federation (recommended):
-  #   - DATABASE_URL (from Supabase Dashboard → Project Settings → Database)
-  #   - USE_PGBOSS_QUEUE=true
+  # For simple single-container mode instead, use --profile simple:
+  #   docker compose -f docker-compose.prod.yml --profile simple up -d
   # ---------------------------------------------------------------------------
+  federation-server:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - FEDERATION_MODE=server
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harmony
+    depends_on:
+      - redis
+
+  federation-worker:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-worker
+    restart: unless-stopped
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - FEDERATION_MODE=worker
+    networks:
+      - harmony
+    depends_on:
+      - redis
+
+  # Single-container mode (simple deployments / development)
+  # Activate with: docker compose --profile simple up -d
   federation-backend:
     build:
       context: ./federation-backend
@@ -51,7 +96,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      # If USE_PGBOSS_QUEUE=true in .env, DATABASE_URL must also be set!
+      - FEDERATION_MODE=unified
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
@@ -62,6 +107,8 @@ services:
       - harmony
     depends_on:
       - redis
+    profiles:
+      - simple
 
   # ---------------------------------------------------------------------------
   # Bot Gateway (Optional)
@@ -127,7 +174,8 @@ services:
     networks:
       - harmony
     depends_on:
-      - federation-backend
+      federation-server:
+        condition: service_started
 
 networks:
   harmony:

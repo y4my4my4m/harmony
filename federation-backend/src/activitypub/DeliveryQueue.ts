@@ -2,6 +2,32 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 
+const MAX_CONCURRENT_DOMAINS = 10;
+
+async function runWithConcurrencyLimit<T>(
+  tasks: (() => Promise<T>)[],
+  limit: number
+): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+  let idx = 0;
+
+  async function next(): Promise<void> {
+    while (idx < tasks.length) {
+      const i = idx++;
+      try {
+        const value = await tasks[i]();
+        results[i] = { status: 'fulfilled', value };
+      } catch (reason: any) {
+        results[i] = { status: 'rejected', reason };
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => next());
+  await Promise.all(workers);
+  return results;
+}
+
 interface QueueItem {
   id: string;
   activity_data: any;
@@ -70,7 +96,10 @@ export class DeliveryQueue {
   }
 
   /**
-   * Process pending deliveries from the queue
+   * Process pending deliveries from the queue.
+   * Groups items by target domain and processes domains concurrently
+   * (up to MAX_CONCURRENT_DOMAINS) while delivering sequentially within
+   * each domain to avoid flooding a single remote server.
    */
   static async processQueue(): Promise<{
     processed: number;
@@ -80,8 +109,6 @@ export class DeliveryQueue {
     const supabase = getSupabaseClient();
     const now = new Date().toISOString();
 
-    // Fetch pending items ready for delivery
-    // NOTE: Database uses next_attempt_at, not next_retry_at
     const { data: items, error } = await supabase
       .from('federation_delivery_queue')
       .select('*')
@@ -92,29 +119,57 @@ export class DeliveryQueue {
       .limit(50);
 
     if (error || !items || items.length === 0) {
-      logger.info('No items in delivery queue');
       return { processed: 0, succeeded: 0, failed: 0 };
+    }
+
+    // Group items by domain for concurrent-by-domain processing
+    const byDomain = new Map<string, QueueItem[]>();
+    for (const item of items) {
+      try {
+        const domain = new URL(item.target_inbox_url).hostname;
+        const list = byDomain.get(domain) || [];
+        list.push(item);
+        byDomain.set(domain, list);
+      } catch {
+        // Invalid URL -- process individually
+        const list = byDomain.get('__invalid__') || [];
+        list.push(item);
+        byDomain.set('__invalid__', list);
+      }
     }
 
     let succeeded = 0;
     let failed = 0;
 
-    for (const item of items) {
-      const success = await this.deliverActivity(item);
-      if (success) {
-        succeeded++;
-      } else {
-        failed++;
+    // Each task delivers all items for one domain sequentially
+    const domainTasks = Array.from(byDomain.entries()).map(
+      ([_domain, domainItems]) => async () => {
+        let s = 0;
+        let f = 0;
+        for (const item of domainItems) {
+          const success = await this.deliverActivity(item);
+          if (success) s++;
+          else f++;
+        }
+        return { s, f };
+      }
+    );
+
+    const results = await runWithConcurrencyLimit(domainTasks, MAX_CONCURRENT_DOMAINS);
+
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        succeeded += r.value.s;
+        failed += r.value.f;
       }
     }
 
-    logger.info(`Processed ${items.length} deliveries: ${succeeded} succeeded, ${failed} failed`);
+    logger.info(
+      `Processed ${items.length} deliveries across ${byDomain.size} domains: ` +
+      `${succeeded} succeeded, ${failed} failed`
+    );
 
-    return {
-      processed: items.length,
-      succeeded,
-      failed,
-    };
+    return { processed: items.length, succeeded, failed };
   }
 
   /**
@@ -461,34 +516,40 @@ export class DeliveryQueue {
       }
     }
 
-    // Enqueue deliveries (one per unique inbox)
-    // Skip dead endpoints to avoid unnecessary retries
-    let enqueued = 0;
+    // Filter out dead endpoints, then deliver concurrently by domain
+    const liveInboxes: { inbox: string; type: 'shared' | 'individual' }[] = [];
     let skipped = 0;
-    let sharedInboxCount = 0;
-    let individualInboxCount = 0;
-    
-    for (const [inbox, { type }] of inboxMap) {
-      // Check if endpoint is dead before enqueueing
+
+    for (const [inbox, entry] of inboxMap) {
       const isDead = await this.isEndpointDead(inbox);
       if (isDead) {
-        logger.info(`⏭️ Skipping dead endpoint in broadcast: ${inbox}`);
         skipped++;
         continue;
       }
+      liveInboxes.push(entry);
+    }
 
-      await this.enqueue(activityData, inbox, userId);
-      enqueued++;
-      
-      if (type === 'shared') {
-        sharedInboxCount++;
-      } else {
-        individualInboxCount++;
+    let enqueued = 0;
+    let sharedInboxCount = 0;
+    let individualInboxCount = 0;
+
+    const deliveryTasks = liveInboxes.map((entry) => async () => {
+      await this.enqueue(activityData, entry.inbox, userId);
+      return entry.type;
+    });
+
+    const results = await runWithConcurrencyLimit(deliveryTasks, MAX_CONCURRENT_DOMAINS);
+
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        enqueued++;
+        if (r.value === 'shared') sharedInboxCount++;
+        else individualInboxCount++;
       }
     }
 
     logger.info(
-      `Enqueued broadcast to ${enqueued} inboxes ` +
+      `Broadcast to ${enqueued} inboxes ` +
       `(${sharedInboxCount} shared, ${individualInboxCount} individual) ` +
       `for ${follows.length} remote followers` +
       (skipped > 0 ? ` (${skipped} dead endpoints skipped)` : '')

@@ -769,6 +769,14 @@ BEGIN
         make_interval(secs => p_expire_in_seconds), now(), 'created'
     )
     RETURNING id INTO v_job_id;
+
+    -- Notify the worker process so it can fetch the job instantly
+    -- instead of waiting for the next pg-boss poll cycle
+    PERFORM pg_notify('federation_jobs', json_build_object(
+        'name', p_job_name,
+        'id', v_job_id::text
+    )::text);
+
     RETURN v_job_id;
 EXCEPTION
     WHEN undefined_table OR insufficient_privilege THEN
@@ -786,6 +794,12 @@ EXCEPTION
                 NOW()
             )
             RETURNING id INTO v_job_id;
+
+            PERFORM pg_notify('federation_jobs', json_build_object(
+                'name', 'delivery-queue-fallback',
+                'id', v_job_id::text
+            )::text);
+
             RETURN v_job_id;
         ELSE
             RAISE LOG 'pg-boss not available, skipping job %', p_job_name;
