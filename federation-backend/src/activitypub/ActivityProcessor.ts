@@ -11,6 +11,7 @@ import {
   normalizeActor,
 } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
+import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
 
 /**
@@ -629,11 +630,17 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     try {
-      const response = await fetch(postUrl, {
+      let response = await fetch(postUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
       });
+
+      // Retry with HTTP signature for instances requiring authorized fetch
+      if (response.status === 401 || response.status === 403) {
+        logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${postUrl}`);
+        response = await SignatureService.signedApFetch(postUrl);
+      }
 
       if (!response.ok) {
         logger.warn(`Failed to fetch remote post ${postUrl}: ${response.status}`);
@@ -1935,11 +1942,17 @@ export class ActivityProcessor {
 
     // Fetch actor from remote server
     try {
-      const response = await fetch(actorUrl, {
+      let response = await fetch(actorUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
       });
+
+      // Retry with HTTP signature for instances requiring authorized fetch
+      if (response.status === 401 || response.status === 403) {
+        logger.debug(`Actor fetch got ${response.status}, retrying with HTTP signature: ${actorUrl}`);
+        response = await SignatureService.signedApFetch(actorUrl);
+      }
 
       if (!response.ok) {
         logger.error(`Failed to fetch actor ${actorUrl}: ${response.status}`);

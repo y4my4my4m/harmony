@@ -2,6 +2,7 @@ import NodeCache from 'node-cache';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { SignatureService } from '../activitypub/SignatureService.js';
 
 export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
 
@@ -424,7 +425,7 @@ class LinkPreviewService {
       const accept = acceptJson
         ? 'application/json'
         : 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json';
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         headers: {
           Accept: accept,
           'User-Agent': USER_AGENT,
@@ -432,6 +433,17 @@ class LinkPreviewService {
         signal: controller.signal,
         redirect: 'follow',
       });
+
+      // Retry with HTTP signature for instances requiring authorized fetch
+      if (response.status === 401 || response.status === 403) {
+        clearTimeout(timeout);
+        logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
+        try {
+          response = await SignatureService.signedApFetch(url);
+        } catch {
+          throw new Error(`Signed AP fetch also failed for ${url}`);
+        }
+      }
 
       if (!response.ok) {
         this.apFailedDomains.set(domain, Date.now());
