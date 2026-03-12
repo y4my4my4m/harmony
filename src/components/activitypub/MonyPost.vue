@@ -482,16 +482,18 @@
       @close="handleDeleteCancel"
     />
 
-    <!-- Emoji Popup for reactions -->
-    <EmojiPopup
-      v-if="showEmojiPopup"
-      :trigger-element="emojiTriggerRef"
-      :position="'above'"
-      :is-reaction="true"
-      :close-emoji-list="closeEmojiPopup"
-      @send-emoji="handleEmojiSelected"
-      @reset-emoji-icon-clicked="closeEmojiPopup"
-    />
+    <!-- Emoji Popup for reactions — teleported to body to escape stacking contexts -->
+    <Teleport to="body">
+      <EmojiPopup
+        v-if="showEmojiPopup"
+        :trigger-element="emojiTriggerRef"
+        :position="'above'"
+        :is-reaction="true"
+        :close-emoji-list="closeEmojiPopup"
+        @send-emoji="handleEmojiSelected"
+        @reset-emoji-icon-clicked="closeEmojiPopup"
+      />
+    </Teleport>
 
     <!-- Tooltip for reactions -->
     <div
@@ -2133,6 +2135,11 @@ const closeLightbox = () => {
   -webkit-user-select: text;
 }
 
+.post-text :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+
 .interaction-stats {
   display: flex;
   gap: 1rem;
@@ -2444,6 +2451,38 @@ const closeLightbox = () => {
 }
 
 /* Media Gallery Styles */
+
+.media-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin: 0.5rem 0.75rem 0.75rem;
+}
+
+.media-item {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.media-image {
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+.media-video {
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+  display: block;
+  border-radius: 0.5rem;
+}
 
 /* Mobile responsive */
 @media (max-width: 768px) {

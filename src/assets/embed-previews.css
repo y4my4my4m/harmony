@@ -7,7 +7,8 @@
   max-width: 480px;
 }
 
-.provider-embed.provider-harmony-post {
+.provider-embed.provider-harmony-post,
+.provider-embed.provider-fediverse-post {
   overflow: visible;
 }
 
@@ -75,10 +76,27 @@
   min-height: 152px;
 }
 
+.provider-embed__post {
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 0 0 14px 14px;
+}
+
 .provider-embed__post .mony-post {
   border-radius: 12px;
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   margin: 0;
+  max-width: 100%;
+}
+
+.provider-embed__post .media-gallery {
+  max-width: 100%;
+}
+
+.provider-embed__post .media-image,
+.provider-embed__post .media-video {
+  max-width: 100%;
+  height: auto;
 }
 
 .provider-embed__skeleton {

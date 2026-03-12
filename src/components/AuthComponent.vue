@@ -1516,7 +1516,7 @@ onMounted(async () => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 24px;
-  padding: 40px;
+  /* padding: 40px; */
   max-width: 420px;
   width: 100%;
   position: relative;
