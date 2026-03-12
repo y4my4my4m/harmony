@@ -1766,6 +1766,12 @@ watch(virtualRows, () => {
 
 // Cleanup on unmount
 onUnmounted(() => {
+  // Clear the virtual row observer timeout to prevent post-unmount access
+  if (virtualRowObserverTimeout) {
+    clearTimeout(virtualRowObserverTimeout);
+    virtualRowObserverTimeout = null;
+  }
+
   // Clear the debounce timeout first to prevent it from firing after unmount
   if (unreadUpdateTimeout) {
     clearTimeout(unreadUpdateTimeout);
