@@ -13,7 +13,7 @@
 
 import PgBoss from 'pg-boss';
 import { logger } from '../utils/logger.js';
-import config from '../config/index.js';
+import { NotificationListener } from './NotificationListener.js';
 
 // Import job handlers
 import { handlePostJob } from './handlers/postHandler.js';
@@ -68,6 +68,8 @@ class QueueManagerService {
   private boss: PgBoss | null = null;
   private isRunning = false;
   private sweepIntervalId: ReturnType<typeof setInterval> | null = null;
+  private notificationListener: NotificationListener | null = null;
+  private handlerMap: Map<string, (data: FederationJobData) => Promise<void>> = new Map();
 
   /**
    * Initialize pg-boss and start processing jobs
@@ -101,9 +103,6 @@ class QueueManagerService {
         // Monitor stuck jobs
         monitorStateIntervalSeconds: 30,
         
-        // UUID generation
-        uuid: 'v4',
-        
         // Application name for connection tracking
         application_name: 'harmony-federation-queue',
       });
@@ -131,8 +130,11 @@ class QueueManagerService {
 
       // Register job handlers
       await this.registerHandlers();
+
+      // Start LISTEN/NOTIFY listener for instant job pickup
+      await this.startNotificationListener(connectionString);
       
-      // Start periodic sweep for missed events
+      // Start periodic sweep as safety net for missed events
       this.startPeriodicSweep();
       
       this.isRunning = true;
@@ -262,7 +264,8 @@ class QueueManagerService {
     // Concurrency settings - process multiple jobs in parallel
     // Each queue gets its own workers for true parallelism
     const WORKERS_PER_QUEUE = 5;  // 5 concurrent workers per job type
-    const POLLING_INTERVAL = 1;    // Check for jobs every 1 second
+    // Polling is a safety net only -- NotificationListener handles instant pickup
+    const POLLING_INTERVAL = 10;   // Check for jobs every 10 seconds (fallback)
 
     // Register multiple workers per queue for parallel processing
     const registerWithConcurrency = async (
@@ -296,8 +299,31 @@ class QueueManagerService {
     await registerWithConcurrency('send-push-notification', createHandler('send-push-notification', '📱', handlePushNotificationJob as any));
     await registerWithConcurrency('maintenance', createHandler('maintenance', '🔧', handleMaintenanceJob as any));
 
-    logger.info(`✅ All job handlers registered (${WORKERS_PER_QUEUE} workers per queue)`);
-    
+    logger.info(`✅ All job handlers registered (${WORKERS_PER_QUEUE} workers per queue, ${POLLING_INTERVAL}s polling fallback)`);
+
+    // Build handler map for NotificationListener's instant-fetch path
+    this.handlerMap.set('federate-post', handlePostJob);
+    this.handlerMap.set('federate-reaction', handleReactionJob);
+    this.handlerMap.set('federate-follow', handleFollowJob);
+    this.handlerMap.set('federate-dm', handleDMJob);
+    this.handlerMap.set('federate-channel-message', handleChannelMessageJob);
+    this.handlerMap.set('federate-channel-message-edit', handleChannelMessageEditJob);
+    this.handlerMap.set('federate-channel-message-delete', handleChannelMessageDeleteJob);
+    this.handlerMap.set('federate-channel-reaction', handleChannelReactionJob);
+    this.handlerMap.set('federate-message-reaction', handleMessageReactionJob);
+    this.handlerMap.set('federate-channel-crud', handleChannelCrudJob);
+    this.handlerMap.set('federate-category-crud', handleCategoryCrudJob);
+    this.handlerMap.set('federate-server-update', handleServerUpdateJob);
+    this.handlerMap.set('federate-block', handleBlockJob);
+    this.handlerMap.set('federate-report', handleReportJob);
+    this.handlerMap.set('federate-profile', handleProfileJob);
+    this.handlerMap.set('federate-thread', handleThreadJob);
+    this.handlerMap.set('federate-voice-join', handleVoiceJoinJob);
+    this.handlerMap.set('federate-voice-leave', handleVoiceLeaveJob);
+    this.handlerMap.set('federate-group-invite', handleGroupInviteJob as any);
+    this.handlerMap.set('send-push-notification', handlePushNotificationJob as any);
+    this.handlerMap.set('maintenance', handleMaintenanceJob as any);
+
     // Schedule daily maintenance jobs
     await this.scheduleMaintenanceJobs();
   }
@@ -344,15 +370,46 @@ class QueueManagerService {
   }
 
   /**
-   * Start periodic sweep for pending federation items
-   * 
-   * For real-time performance, messages with federation_status='pending'
-   * will be picked up by this sweep. The sweep runs frequently to catch
-   * new items quickly.
+   * Start LISTEN/NOTIFY listener for instant job pickup.
+   * When queue_federation_job() inserts a job and calls pg_notify(),
+   * this listener fetches and processes the job immediately.
+   */
+  private async startNotificationListener(connectionString: string): Promise<void> {
+    if (!this.boss) return;
+
+    this.notificationListener = new NotificationListener(
+      connectionString,
+      this.boss,
+      async (jobType: string, job: PgBoss.Job<any>) => {
+        const handler = this.handlerMap.get(jobType);
+        if (!handler) {
+          logger.warn(`NotificationListener: no handler for job type "${jobType}"`);
+          return;
+        }
+
+        const jobData = (job as any).data;
+        if (!jobData) {
+          logger.warn(`NotificationListener: job ${job.id} has no data`);
+          return;
+        }
+
+        logger.info(`⚡ Instant processing ${jobType} job: ${job.id}`);
+        await handler(jobData);
+        logger.info(`✅ Instant ${jobType} job completed: ${job.id}`);
+      }
+    );
+
+    await this.notificationListener.start();
+    logger.info('⚡ NotificationListener started for instant job pickup');
+  }
+
+  /**
+   * Start periodic sweep as a safety net for pending federation items.
+   * With LISTEN/NOTIFY handling the fast path, this runs infrequently
+   * to catch edge cases (missed notifications during reconnects, etc.).
    */
   private startPeriodicSweep(): void {
-    // Run sweep every 10 seconds for responsive federation
-    const SWEEP_INTERVAL_MS = 10 * 1000; // 10 seconds
+    const SWEEP_INTERVAL_MS = 60 * 1000; // 60 seconds (safety net only)
     
     this.sweepIntervalId = setInterval(async () => {
       try {
@@ -362,7 +419,7 @@ class QueueManagerService {
       }
     }, SWEEP_INTERVAL_MS);
 
-    logger.info('🔄 Periodic sweep started (10 second interval)');
+    logger.info('🔄 Periodic sweep started (60 second safety net interval)');
   }
 
   /**
@@ -779,6 +836,12 @@ class QueueManagerService {
     if (!this.isRunning) return;
 
     logger.info('🛑 Stopping QueueManager...');
+
+    // Stop notification listener
+    if (this.notificationListener) {
+      await this.notificationListener.stop();
+      this.notificationListener = null;
+    }
 
     // Clear sweep interval
     if (this.sweepIntervalId) {

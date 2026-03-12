@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', {
     _mfaValidatedForSession: null as string | null, // Track which session we already validated MFA for
     _sessionCacheTimestamp: null as number | null, // Cache timestamp to prevent redundant getSession() calls
     _sessionCacheTimeout: 5000, // Cache session for 5 seconds to prevent duplicate calls
+    _pendingMFAVerification: false, // True while MFA login flow is in progress (prevents onAuthStateChange interference)
   }),
   getters: {
     isLoggedIn: (state) => {
@@ -264,7 +265,12 @@ export const useAuthStore = defineStore('auth', {
         
         // Handle new login (SIGNED_IN with different/new user)
         if (event === 'SIGNED_IN' && session) {
-          // Validate MFA for new logins only
+          // Skip validation if MFA flow is in progress — the AAL1 session is
+          // expected and will be upgraded to AAL2 by verify2FA()
+          if (this._pendingMFAVerification) {
+            debug.log('🔒 SIGNED_IN during pending MFA verification - skipping (will upgrade to AAL2)');
+            return;
+          }
           const isValid = await this.validateSessionForMFA(session);
           if (!isValid) {
             debug.warn('🚨 SIGNED_IN with invalid AAL1 session (MFA enabled) - rejecting');
@@ -424,21 +430,20 @@ export const useAuthStore = defineStore('auth', {
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
       
       if (totpFactor) {
-        // User has 2FA enabled
-        // IMPORTANT: Do NOT set this.session yet - even though a session exists,
-        // it's at AAL1 (password-only) and should not grant access until AAL2
         debug.log('🔒 2FA required - session is AAL1, need AAL2 verification');
         
-        // The session exists in Supabase's storage but at AAL1
-        // Our RLS policies should check for AAL2, providing backend protection
-        // We also don't set it in our store for frontend protection
+        // Signal that MFA is in progress so onAuthStateChange skips
+        // SIGNED_IN events for this AAL1 session (prevents race on mobile)
+        this._pendingMFAVerification = true;
         
-        // Create MFA challenge immediately
         const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
           factorId: totpFactor.id
         });
         
-        if (challengeError) throw challengeError;
+        if (challengeError) {
+          this._pendingMFAVerification = false;
+          throw challengeError;
+        }
         
         return {
           requires2FA: true,
@@ -460,28 +465,38 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
-      // Verify the 2FA code using the existing challenge
-      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId,
-        code
-      });
+      try {
+        // Race against a timeout to prevent infinite spinner on mobile
+        const verifyPromise = supabase.auth.mfa.verify({
+          factorId,
+          challengeId,
+          code
+        });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000)
+        );
 
-      if (verifyError) {
-        debug.error('❌ MFA verify error:', verifyError)
-        throw verifyError;
+        const { data: verifyData, error: verifyError } = await Promise.race([
+          verifyPromise,
+          timeoutPromise
+        ]);
+
+        if (verifyError) {
+          debug.error('❌ MFA verify error:', verifyError)
+          throw verifyError;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const { data: sessionData } = await supabase.auth.getSession();
+        this.session = sessionData.session;
+        
+        debug.log('✅ 2FA verified - session upgraded to AAL2');
+        
+        return { session: sessionData.session };
+      } finally {
+        this._pendingMFAVerification = false;
       }
-
-      // Wait for storage to update with the new session
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Get the upgraded session (now at AAL2)
-      const { data: sessionData } = await supabase.auth.getSession();
-      this.session = sessionData.session;
-      
-      debug.log('✅ 2FA verified - session upgraded to AAL2');
-      
-      return { session: sessionData.session };
     },
 
     async register(email: string, password: string) {
@@ -511,41 +526,47 @@ export const useAuthStore = defineStore('auth', {
         await this.setUserOffline(this.session.user.id);
       }
       this.cleanupOfflineHandlers();
-      
+
+      // Null session and sign out FIRST — this makes isLoggedIn false immediately,
+      // preventing reactive components from firing queries with stale/undefined data
+      // (e.g. user_roles with server_id=undefined, get_supporter_badge after auth gone)
+      this.session = null;
+      supabase.auth.signOut();
+
+      // Redirect to login BEFORE clearing stores so that components unmount
+      // before store resets trigger reactive watchers
+      const { default: router } = await import('@/router');
+      router.push('/login');
+
       // Clear user-scoped localStorage on logout
       userStorage.clearCurrentUser();
       
-      // ✅ CRITICAL: Clear profile store to prevent data leakage between users
+      // Clear stores in the background after navigation — order no longer matters
+      // since components have already unmounted
       try {
         const { useProfileStore } = await import('@/stores/useProfile')
         const profileStore = useProfileStore()
         profileStore.clearProfile()
-        debug.log('✅ Profile store cleared on logout')
       } catch (error) {
         debug.error('❌ Error clearing profile store:', error)
       }
       
-      // ✅ CRITICAL: Reset visual theme to prevent theme leakage between users
       try {
         const { useVisualTheme } = await import('@/composables/useVisualTheme')
         const visualTheme = useVisualTheme()
         visualTheme.reset()
-        debug.log('✅ Visual theme reset on logout')
       } catch (error) {
         debug.error('❌ Error resetting visual theme:', error)
       }
       
-      // ✅ CRITICAL: Clear ActivityPub timeline to prevent data leakage
       try {
         const { useActivityPubStore } = await import('@/stores/useActivityPub')
         const activityPubStore = useActivityPubStore()
         activityPubStore.clearTimelineCache()
-        debug.log('✅ ActivityPub timeline cleared on logout')
       } catch (error) {
         debug.error('❌ Error clearing ActivityPub timeline:', error)
       }
       
-      // Clear chat store caches to prevent data leakage between users
       try {
         const { useChatStore } = await import('@/stores/useChat')
         const chatStore = useChatStore()
@@ -554,57 +575,40 @@ export const useAuthStore = defineStore('auth', {
         chatStore.replyMessageCache.clear()
         chatStore.jumpedToMessages.clear()
         chatStore.$reset()
-        debug.log('✅ Chat store cleared on logout')
       } catch (error) {
         debug.error('❌ Error clearing chat store:', error)
       }
 
-      // Clear DM store to prevent conversation leakage between users
       try {
         const { useDMStore } = await import('@/stores/useDM')
         const dmStore = useDMStore()
         dmStore.cleanup()
-        debug.log('✅ DM store cleared on logout')
       } catch (error) {
         debug.error('❌ Error clearing DM store:', error)
       }
 
-      // Clear server channel store
       try {
         const { useServerChannelStore } = await import('@/stores/useServerChannel')
         const serverStore = useServerChannelStore()
         serverStore.$reset()
-        debug.log('✅ Server channel store cleared on logout')
       } catch (error) {
         debug.error('❌ Error clearing server channel store:', error)
       }
 
-      // Reset push notification state so the next user doesn't inherit it
       try {
         const { usePushNotifications } = await import('@/composables/usePushNotifications')
         const pushNotifications = usePushNotifications()
         pushNotifications.resetState()
-        debug.log('✅ Push notification state reset on logout')
       } catch (error) {
         debug.error('❌ Error resetting push notification state:', error)
       }
 
-      // Cleanup state persistence before logout
       try {
         const { statePersistence } = await import('@/services/StatePersistence')
         await statePersistence.cleanup()
-        debug.log('✅ State persistence cleaned up on logout')
       } catch (error) {
         debug.error('❌ Error cleaning up state persistence:', error)
       }
-      
-      // should make it async but for some reason it's bugging...
-      supabase.auth.signOut();
-      this.session = null;
-
-      // Redirect to login page (dynamic import to avoid circular dependency)
-      const { default: router } = await import('@/router');
-      router.push('/login');
     },
 
     /**
@@ -708,6 +712,14 @@ export const useAuthStore = defineStore('auth', {
         
         // If profile was fetched and has appearance_settings, theme will have loaded it
         // If not, theme will have used localStorage (which is fine)
+        
+        // Eagerly initialize audio theme in background so sounds are ready on first interaction
+        import('./useTheme').then(({ useThemeStore }) => {
+          const themeStore = useThemeStore();
+          if (!themeStore.isInitialized) {
+            themeStore.initialize().catch(() => {});
+          }
+        });
         
         debug.log('✅ User settings initialized');
       } catch (error) {

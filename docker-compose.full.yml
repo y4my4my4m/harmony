@@ -24,8 +24,60 @@ version: "3.8"
 
 services:
   # ---------------------------------------------------------------------------
-  # Federation Backend
+  # Federation Backend (split: server + worker)
   # ---------------------------------------------------------------------------
+  # Separate containers for process isolation. The worker handles pg-boss
+  # queues and delivery without blocking the HTTP server.
+  #
+  # For simple single-container mode: docker compose --profile simple up -d
+  # ---------------------------------------------------------------------------
+  federation-server:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - FEDERATION_MODE=server
+      - SUPABASE_URL=http://supabase-kong:8000
+      - USE_PGBOSS_QUEUE=true
+      - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harmony
+      - supabase_default
+
+  federation-worker:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-worker
+    restart: unless-stopped
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - FEDERATION_MODE=worker
+      - SUPABASE_URL=http://supabase-kong:8000
+      - USE_PGBOSS_QUEUE=true
+      - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+    networks:
+      - harmony
+      - supabase_default
+
+  # Single-container mode (simple deployments / development)
+  # Activate with: docker compose --profile simple up -d
   federation-backend:
     build:
       context: ./federation-backend
@@ -39,9 +91,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      # Override for Docker networking to Supabase
+      - FEDERATION_MODE=unified
       - SUPABASE_URL=http://supabase-kong:8000
-      # pg-boss queue (reliable federation) - enabled since we have direct DB access
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
     healthcheck:
@@ -53,8 +104,8 @@ services:
     networks:
       - harmony
       - supabase_default
-    depends_on:
-      - redis
+    profiles:
+      - simple
 
   # ---------------------------------------------------------------------------
   # Bot Gateway (Optional)
@@ -135,7 +186,8 @@ services:
     networks:
       - harmony
     depends_on:
-      - federation-backend
+      federation-server:
+        condition: service_started
 
 networks:
   harmony:

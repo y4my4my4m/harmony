@@ -53,6 +53,16 @@
         <Icon name="alert-circle" :size="48" />
         <h3>Post not found</h3>
         <p>{{ error }}</p>
+        <a
+          v-if="remoteOriginalUrl"
+          :href="remoteOriginalUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="back-home-btn"
+          style="text-decoration: none;"
+        >
+          View on original instance
+        </a>
         <button @click="goBack" class="back-home-btn">
           Go back to timeline
         </button>
@@ -111,6 +121,8 @@ import Icon from '@/components/common/Icon.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
 
+import { supabase } from '@/supabase';
+
 import type { 
   TimelinePost, 
   PostWithContext, 
@@ -119,14 +131,19 @@ import type {
 
 // Props
 interface Props {
-  postId: string;
+  postId?: string;
+  remoteHandle?: string;
+  remoteNoteId?: string;
   contextType?: PostContextType;
   highlightReply?: string;
   timestamp?: number | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  contextType: 'thread', // Always show full thread context for consistency
+  postId: undefined,
+  remoteHandle: undefined,
+  remoteNoteId: undefined,
+  contextType: 'thread',
   highlightReply: undefined,
   timestamp: null
 });
@@ -137,6 +154,19 @@ const route = useRoute();
 const activityPub = useActivityPubStore();
 const postReactionsStore = usePostReactionsStore();
 const toast = useToast();
+
+// Resolved post ID (may come from props or remote resolution)
+const resolvedPostId = ref<string | null>(null);
+
+// Reconstruct the likely original URL for remote posts (for "view on original instance" link)
+const remoteOriginalUrl = computed(() => {
+  if (!props.remoteHandle || !props.remoteNoteId) return null;
+  const cleaned = props.remoteHandle.replace(/^@/, '');
+  const atIdx = cleaned.indexOf('@');
+  if (atIdx < 0) return null;
+  const domain = cleaned.slice(atIdx + 1);
+  return `https://${domain}/notes/${props.remoteNoteId}`;
+});
 
 // Reactive state
 const isLoading = ref(true);
@@ -172,18 +202,115 @@ const allPostsInOrder = computed(() => {
   return posts;
 });
 
+// Resolve a remote post reference (@user@domain + noteId) to a local UUID
+const resolveRemotePost = async (handle: string, noteId: string): Promise<string | null> => {
+  const cleaned = handle.replace(/^@/, '');
+  const atIdx = cleaned.indexOf('@');
+  if (atIdx < 0) return null;
+
+  const username = cleaned.slice(0, atIdx);
+  const domain = cleaned.slice(atIdx + 1);
+  if (!username || !domain) return null;
+
+  // Strategy 1: find author profile, then search posts by author + noteId in ap_id
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('username', username)
+    .eq('domain', domain)
+    .limit(1)
+    .maybeSingle();
+
+  if (profile?.id) {
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('author_id', profile.id)
+      .like('ap_id', `%${noteId}%`)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (post?.id) return post.id;
+  }
+
+  // Strategy 2: try common AP URL patterns directly
+  const candidates = [
+    `https://${domain}/notes/${noteId}`,
+    `https://${domain}/users/${username}/statuses/${noteId}`,
+    `https://${domain}/@${username}/${noteId}`,
+    `https://${domain}/@${username}/statuses/${noteId}`,
+    `https://${domain}/notice/${noteId}`,
+    `https://${domain}/objects/${noteId}`,
+  ];
+
+  for (const candidate of candidates) {
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id')
+      .or(`ap_id.eq.${candidate},url.eq.${candidate}`)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (post?.id) return post.id;
+  }
+
+  // Strategy 3: ask federation backend to resolve/import the post
+  try {
+    const candidateUrl = `https://${domain}/users/${username}/statuses/${noteId}`;
+    const response = await fetch(`${activityPub.federationApiUrl}/resolve-post`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: candidateUrl }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.post_id) return data.post_id;
+    }
+  } catch {
+    // Federation resolve failed, try other candidates
+    for (const candidate of candidates.slice(0, 3)) {
+      try {
+        const response = await fetch(`${activityPub.federationApiUrl}/resolve-post`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: candidate }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.post_id) return data.post_id;
+        }
+      } catch { /* continue */ }
+    }
+  }
+
+  return null;
+};
+
 // Methods
 const loadPostWithContext = async () => {
   try {
     isLoading.value = true;
     error.value = null;
     
-    // Get postId from props or route params as fallback
-    const postId = props.postId || route.params.postId as string;
+    let postId = props.postId || route.params.postId as string;
+
+    // Resolve remote handle+noteId if provided instead of postId
+    if (!postId && props.remoteHandle && props.remoteNoteId) {
+      const resolved = await resolveRemotePost(props.remoteHandle, props.remoteNoteId);
+      if (!resolved) {
+        throw new Error(`Post not found on this instance. It may not have been federated here yet.`);
+      }
+      postId = resolved;
+      resolvedPostId.value = resolved;
+    }
     
     if (!postId) {
       throw new Error('No postId provided in props or route params');
     }
+
+    resolvedPostId.value = postId;
     
     const result = await activityPub.getPostWithContext(postId, {
       context: props.contextType,
@@ -410,10 +537,39 @@ const handleUserClick = (user: any) => {
   router.push({ name: 'UserProfile', params: { handle } })
 };
 
+// Extract the note/status ID from a fediverse AP URL
+const extractNoteId = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  try {
+    const path = new URL(url).pathname;
+    const segments = path.split('/').filter(Boolean);
+    // Return the last path segment (works for all common platforms)
+    return segments.length > 0 ? segments[segments.length - 1] : null;
+  } catch {
+    return null;
+  }
+};
+
+// Build the best URL for sharing this post
+const getPostUrl = (): string => {
+  if (props.remoteHandle && props.remoteNoteId) {
+    return `${window.location.origin}/social/posts/${props.remoteHandle}/${props.remoteNoteId}`;
+  }
+  if (mainPost.value && !mainPost.value.is_local && mainPost.value.author) {
+    const author = mainPost.value.author;
+    const noteId = extractNoteId(mainPost.value.ap_id || mainPost.value.url);
+    if (noteId && author.username && author.domain) {
+      return `${window.location.origin}/social/posts/@${author.username}@${author.domain}/${noteId}`;
+    }
+  }
+  const id = resolvedPostId.value || props.postId;
+  return `${window.location.origin}/posts/${id}`;
+};
+
 const sharePost = async () => {
   if (!mainPost.value) return;
-  
-  const url = `${window.location.origin}/posts/${props.postId}`;
+
+  const url = getPostUrl();
   const firstTextContent = mainPost.value.content.find(c => c.type === 'text');
   const previewText = firstTextContent?.type === 'text' ? firstTextContent.text : 'Check out this post';
   
@@ -447,7 +603,7 @@ const isOwnPost = computed(() => {
 
 const copyPostLink = async () => {
   showActionsMenu.value = false;
-  const url = `${window.location.origin}/posts/${props.postId}`;
+  const url = getPostUrl();
   try {
     await navigator.clipboard.writeText(url);
     toast.success('Link copied to clipboard');
@@ -523,6 +679,7 @@ const scrollToTimestamp = (timestamp: number) => {
 
 // Watchers
 watch(() => props.postId, loadPostWithContext);
+watch(() => props.remoteNoteId, loadPostWithContext);
 watch(() => props.contextType, loadPostWithContext);
 watch(() => props.highlightReply, loadPostWithContext);
 
@@ -535,6 +692,7 @@ onMounted(loadPostWithContext);
   display: flex;
   flex-direction: column;
   height: 100vh;
+  padding-bottom: 40px;
 }
 
 .post-header {

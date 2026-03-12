@@ -203,6 +203,7 @@ import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
 import { useDraftsStore } from '@/stores/drafts'
+import { useThemeStore } from '@/stores/useTheme'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { recordEmojiUsage } from '@/services/emojiService'
 import { debug } from '@/utils/debug'
@@ -235,6 +236,7 @@ const {
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const draftsStore = useDraftsStore()
+const themeStore = useThemeStore()
 
 // Current user ID for MessageDisplay
 const currentUserId = computed(() => authStore.session?.user?.id)
@@ -617,6 +619,7 @@ const close = () => {
 const handleSendReaction = async (messageId: string, emoji: Emoji) => {
   // Use the reactions store to toggle reaction
   try {
+    themeStore.playAudio('reaction')
     const { useReactionsStore } = await import('@/stores/useReactions')
     const reactionsStore = useReactionsStore()
     await reactionsStore.toggleReaction(messageId, emoji)
@@ -640,7 +643,7 @@ const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerEl
 
 const handleSendEmoji = async (emoji: Emoji) => {
   if (isPopupForReaction.value && authStore.session?.user) {
-    // Add reaction using chat store
+    themeStore.playAudio('reaction')
     await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id)
   }
   closeReactionEmoji()

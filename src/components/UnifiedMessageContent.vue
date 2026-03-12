@@ -183,6 +183,7 @@
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
             @embed-loaded="handleEmbedLoad"
+            @open-lightbox="$emit('open-lightbox', $event)"
           />
         </template>
         
@@ -193,6 +194,7 @@
             :message-id="messageId"
             :key="`${messageId}-embed-${part.previewId || part.url}`"
             @embed-loaded="handleEmbedLoad"
+            @open-lightbox="$emit('open-lightbox', $event)"
           />
         </template>
         

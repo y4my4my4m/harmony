@@ -368,7 +368,9 @@ function resetState(): void {
 }
 
 /**
- * Send a test push notification
+ * Send a test push notification.
+ * If the current device's subscription isn't found on the server (e.g. after
+ * logout/login cycle), automatically re-register it before retrying.
  */
 async function sendTestNotification(): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
@@ -380,8 +382,6 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
       return { success: false, error: 'Not authenticated' }
     }
 
-    // Get current device's push subscription endpoint so the test
-    // notification is only delivered to this device.
     let currentEndpoint: string | undefined
     try {
       const registration = await navigator.serviceWorker?.ready
@@ -393,19 +393,32 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
       // Fall back to sending to all devices
     }
 
-    const response = await fetch(`${FEDERATION_BACKEND_URL}/push/test`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(currentEndpoint ? { endpoint: currentEndpoint } : {})
-    })
+    const sendTest = async () => {
+      const response = await fetch(`${FEDERATION_BACKEND_URL}/push/test`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(currentEndpoint ? { endpoint: currentEndpoint } : {})
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send test notification')
+      }
+      return data
+    }
 
-    const data = await response.json()
+    let data = await sendTest()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to send test notification')
+    // If device-specific lookup failed, re-register the browser subscription
+    // with the server and retry — covers desync after logout/login
+    if (data.sent === 0 && currentEndpoint) {
+      debug.log('🔔 Test notification found no subscription, re-registering device...')
+      const resubResult = await subscribe()
+      if (resubResult.success) {
+        data = await sendTest()
+      }
     }
 
     return { 

@@ -868,7 +868,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.resetState();
         
         // Play leave sound
-        themeStore.testAudio('voice_disconnect');
+        themeStore.playAudio('voice_disconnect');
 
         return true;
       } catch (error) {
@@ -890,7 +890,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Give UI time to update before playing sound
       setTimeout(() => {
-        themeStore.testAudio(enabled ? 'camera_on' : 'camera_off');
+        themeStore.playAudio(enabled ? 'camera_on' : 'camera_off');
       }, 100);
       
       debug.log('📹 Video toggled, local stream updated:', {
@@ -919,7 +919,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Give UI time to update before playing sound
       setTimeout(() => {
-        themeStore.testAudio(enabled ? 'screenshare_on' : 'screenshare_off');
+        themeStore.playAudio(enabled ? 'screenshare_on' : 'screenshare_off');
       }, 100);
       
       debug.log('📺 Screen share toggled, local stream updated:', {
@@ -960,7 +960,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           } else {
             this.localState.isMuted = true;
           }
-          themeStore.testAudio('mic_off');
+          themeStore.playAudio('mic_off');
           debug.log('🎤 [PTT] Muted via button while transmitting');
           return true;
         } else {
@@ -968,7 +968,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // They need to hold the PTT key to transmit
           debug.log('🎤 [PTT] Ignoring unmute button - use PTT key to transmit');
           // Play a subtle sound to indicate the action was blocked
-          // themeStore.testAudio('error'); // Optional: play error sound
+          // themeStore.playAudio('error'); // Optional: play error sound
           return true; // Stay muted
         }
       }
@@ -977,13 +977,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       if (this.isConnected) {
         const muted = webrtcManager.toggleMute();
         this.localState = webrtcManager.getLocalState();
-        themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
+        themeStore.playAudio(muted ? 'mic_off' : 'mic_on');
         return muted;
       } else {
         // Toggle local state when not connected
         this.localState.isMuted = !this.localState.isMuted;
         debug.log('Setting preemptive mute state:', this.localState.isMuted);
-        themeStore.testAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
+        themeStore.playAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
         return this.localState.isMuted;
       }
     },
@@ -1004,7 +1004,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           webrtcManager.setMuted(muted);
           this.localState = webrtcManager.getLocalState();
           if (playSound) {
-            themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
+            themeStore.playAudio(muted ? 'mic_off' : 'mic_on');
           }
           debug.log('🎤 [PTT] Set muted state:', muted);
         }
@@ -1013,7 +1013,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (this.localState.isMuted !== muted) {
           this.localState.isMuted = muted;
           if (playSound) {
-            themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
+            themeStore.playAudio(muted ? 'mic_off' : 'mic_on');
           }
           debug.log('🎤 [PTT] Set preemptive muted state:', muted);
         }
@@ -1029,7 +1029,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       if (this.isConnected) {
         const deafened = webrtcManager.toggleDeafen();
         this.localState = webrtcManager.getLocalState();
-        themeStore.testAudio(deafened ? 'deafen_on' : 'deafen_off');
+        themeStore.playAudio(deafened ? 'deafen_on' : 'deafen_off');
         return deafened;
       } else {
         // Toggle local state when not connected
@@ -1041,7 +1041,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         debug.log('Setting preemptive deafen state:', this.localState.isDeafened);
-        themeStore.testAudio(this.localState.isDeafened ? 'deafen_on' : 'deafen_off');
+        themeStore.playAudio(this.localState.isDeafened ? 'deafen_on' : 'deafen_off');
         return this.localState.isDeafened;
       }
     },
@@ -1415,7 +1415,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // (self sound is played immediately in ChannelSidebar for optimistic UX)
         // Use currentUserId from authStore since localState.userId might be empty
         if (currentUserId && data.userId !== currentUserId) {
-          themeStore.testAudio('voice_connect');
+          themeStore.playAudio('voice_connect');
         }
       });
 
@@ -1451,7 +1451,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // (self disconnect sound is handled in leaveVoiceChannel/ChannelSidebar)
         // Use currentUserId from authStore since localState.userId might be empty
         if (currentUserId && data.userId !== currentUserId) {
-          themeStore.testAudio('voice_disconnect');
+          themeStore.playAudio('voice_disconnect');
         }
       });
 
@@ -1590,19 +1590,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.broadcastCallStartTime();
         }
       });
-    },
-
-    /**
-     * Play sound effect
-     */
-    playSound(filename: string): void {
-      try {
-        const audio = new Audio(`/assets/sounds/${filename}`);
-        audio.volume = 0.3;
-        audio.play().catch(e => debug.log('Could not play sound:', e));
-      } catch (error) {
-        debug.log('Error playing sound:', error);
-      }
     },
 
     /**

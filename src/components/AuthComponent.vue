@@ -9,7 +9,7 @@
       <!-- Branding Section (Desktop) -->
       <div class="auth-branding">
         <div class="brand-content">
-          <div class="logo-container" @click="themeStore.testAudio('ui_click')">
+          <div class="logo-container" @click="themeStore.playAudio('ui_click')">
             <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
             <div class="logo-pulse"></div>
           </div>
@@ -680,6 +680,7 @@ const close2FAModal = () => {
   pendingFactorId.value = ''
   pendingChallengeId.value = ''
   useRecoveryCode.value = false
+  authStore._pendingMFAVerification = false
 }
 
 // Forgot Password
@@ -1516,7 +1517,7 @@ onMounted(async () => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 24px;
-  padding: 40px;
+  /* padding: 40px; */
   max-width: 420px;
   width: 100%;
   position: relative;

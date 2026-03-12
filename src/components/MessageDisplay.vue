@@ -431,7 +431,7 @@
   <vue-easy-lightbox
     class="lightbox"
     :visible="isLightboxOpen"
-    :imgs="lightboxImages"
+    :imgs="activeLightboxImages"
     :index="indexRef"
     @hide="closeLightbox"
   />
@@ -1244,6 +1244,7 @@ const reportTargetUser = ref<{ username: string; display_name?: string; avatar_u
 
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
+const activeLightboxImages = ref<string[]>([]);
 
 // --- CONSTANTS ---
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
@@ -1553,13 +1554,21 @@ watch(() => props.messages, (newMessages) => {
           }
           // Load older messages (prepend) - maintain scroll position
           else if (!isAppend) {
-            debug.log('📜 Maintaining scroll position after loading older messages');
-            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-            const scrollOffset = newScrollHeight - oldScrollHeight;
-            if (scrollOffset > 0) {
-              messageDisplayContainer.value.scrollTop += scrollOffset;
-            }
             shouldBeAtBottom.value = false;
+            const savedScrollTop = messageDisplayContainer.value.scrollTop;
+            const adjustScroll = (attempt = 0) => {
+              if (!messageDisplayContainer.value) return;
+              const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+              const scrollOffset = newScrollHeight - oldScrollHeight;
+              if (scrollOffset > 0) {
+                messageDisplayContainer.value.scrollTop = savedScrollTop + scrollOffset;
+              }
+              // Retry: virtualizer re-measures after first paint
+              if (attempt < 3) {
+                requestAnimationFrame(() => adjustScroll(attempt + 1));
+              }
+            };
+            nextTick(() => requestAnimationFrame(() => adjustScroll()));
           }
         }
         
@@ -2553,8 +2562,13 @@ const handleOpenLightbox = (url: string) => {
   const index = lightboxImages.value.indexOf(url);
   if (index !== -1) {
     indexRef.value = index;
-    isLightboxOpen.value = true;
+    activeLightboxImages.value = lightboxImages.value;
+  } else {
+    // Image from an embed not in the pre-computed list — show standalone
+    activeLightboxImages.value = [url];
+    indexRef.value = 0;
   }
+  isLightboxOpen.value = true;
 };
 
 const closeLightbox = () => {

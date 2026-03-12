@@ -208,7 +208,7 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     
     // Play audio feedback immediately for better UX
     try {
-      await themeStore.testAudio('reaction');
+      await themeStore.playAudio('reaction');
     } catch (audioError) {
       debug.warn('Failed to play reaction audio:', audioError);
       // Don't block the reaction if audio fails
@@ -239,7 +239,7 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     debug.error('Failed to toggle reaction:', error);
     // Play error sound if available
     try {
-      await themeStore.testAudio('ui_error');
+      await themeStore.playAudio('ui_error');
     } catch (audioError) {
       debug.warn('Failed to play error audio:', audioError);
     }

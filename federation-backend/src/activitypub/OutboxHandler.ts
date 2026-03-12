@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { postToNote } from './converters/toActivityPub.js';
+import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
@@ -183,9 +184,13 @@ router.get(
 );
 
 /**
- * Serve a single post as an ActivityPub Note object.
- * Required so remote instances can dereference our post AP IDs
- * (e.g. https://domain/posts/:uuid) and get JSON instead of the SPA HTML.
+ * Serve a single post.
+ *
+ * Content negotiation:
+ *  - Accept: application/activity+json → ActivityPub Note (JSON)
+ *  - Anything else (browsers, crawlers) → HTML page with OG meta tags
+ *
+ * Only public and unlisted posts are served to anonymous viewers.
  */
 router.get(
   '/posts/:postId',
@@ -197,11 +202,6 @@ router.get(
       accept.includes('application/activity+json') ||
       accept.includes('application/ld+json');
 
-    if (!wantsActivityPub) {
-      // Browser request — let nginx / SPA handle it
-      return res.status(404).json({ error: 'Not found' });
-    }
-
     const supabase = getSupabaseClient();
 
     const { data: post, error } = await supabase
@@ -209,7 +209,7 @@ router.get(
       .select(`
         *,
         author:profiles!posts_author_id_fkey (
-          id, username, display_name, avatar_url, domain, is_local, public_key
+          id, username, display_name, avatar_url, domain, is_local, public_key, federation_metadata
         )
       `)
       .eq('id', postId)
@@ -217,27 +217,125 @@ router.get(
       .maybeSingle();
 
     if (error || !post || !post.author) {
+      if (wantsActivityPub) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+      return res.status(404).send(render404Page());
+    }
+
+    if (!wantsActivityPub && post.visibility !== 'public' && post.visibility !== 'unlisted') {
+      return res.status(404).send(render404Page());
+    }
+
+    if (wantsActivityPub) {
+      const note = postToNote(post, post.author);
+
+      if (post.in_reply_to) {
+        const { data: parent } = await supabase
+          .from('posts')
+          .select('ap_id, id')
+          .eq('id', post.in_reply_to)
+          .maybeSingle();
+        if (parent) {
+          note.inReplyTo = parent.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${parent.id}`;
+        }
+      }
+
+      res.setHeader('Content-Type', 'application/activity+json');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.json(note);
+    }
+
+    // HTML response for browsers and crawlers
+    const html = renderPostPage(post, post.author);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    // Override helmet's strict CSP for this page: allow inline script (auth
+    // redirect) and images from any HTTPS source (avatars, emojis, media
+    // from federated instances)
+    res.setHeader('Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' https:;");
+    return res.send(html);
+  })
+);
+
+/**
+ * oEmbed endpoint — allows platforms to embed Harmony posts.
+ * GET /oembed?url=https://domain/posts/:id&format=json
+ */
+router.get(
+  '/oembed',
+  asyncHandler(async (req: Request, res: Response) => {
+    const url = req.query.url as string;
+    if (!url) {
+      return res.status(400).json({ error: 'Missing url parameter' });
+    }
+
+    const postIdMatch = url.match(/\/posts\/([0-9a-f-]+)/);
+    if (!postIdMatch) {
+      return res.status(404).json({ error: 'Invalid post URL' });
+    }
+
+    const supabase = getSupabaseClient();
+    const { data: post } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        author:profiles!posts_author_id_fkey (
+          id, username, display_name, avatar_url, domain, is_local
+        )
+      `)
+      .eq('id', postIdMatch[1])
+      .eq('is_deleted', false)
+      .in('visibility', ['public', 'unlisted'])
+      .maybeSingle();
+
+    if (!post || !post.author) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    const note = postToNote(post, post.author);
-
-    if (post.in_reply_to) {
-      const { data: parent } = await supabase
-        .from('posts')
-        .select('ap_id, id')
-        .eq('id', post.in_reply_to)
-        .maybeSingle();
-      if (parent) {
-        note.inReplyTo = parent.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${parent.id}`;
-      }
-    }
-
-    res.setHeader('Content-Type', 'application/activity+json');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    return res.json(note);
+    const oembed = renderOEmbed(post, post.author);
+    res.setHeader('Content-Type', 'application/json+oembed');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.json(oembed);
   })
 );
+
+function render404Page(): string {
+  const domain = config.INSTANCE_DOMAIN;
+  const instanceName = config.INSTANCE_NAME;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Post not found - ${instanceName}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1117; color: #e6edf3;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; margin: 0;
+    }
+    .msg { text-align: center; }
+    .msg h1 { font-size: 48px; margin-bottom: 8px; color: #8b949e; }
+    .msg p { color: #8b949e; margin-bottom: 24px; }
+    .msg a {
+      color: #58a6ff; text-decoration: none;
+      padding: 10px 20px; border: 1px solid #30363d; border-radius: 8px;
+    }
+    .msg a:hover { background: #161b22; }
+  </style>
+</head>
+<body>
+  <div class="msg">
+    <h1>404</h1>
+    <p>This post doesn't exist or is not publicly visible.</p>
+    <a href="https://${domain}">Go to ${instanceName}</a>
+  </div>
+</body>
+</html>`;
+}
 
 /**
  * Likes collection for a post

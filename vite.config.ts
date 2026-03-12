@@ -12,7 +12,13 @@ export default defineConfig({
     allowedHosts: ['har.mony.local', 'localhost'],
   },
   plugins: [
-    vue(),
+    vue({
+      template: {
+        compilerOptions: {
+          comments: false
+        }
+      }
+    }),
     // Only preload critical chunks, not route chunks (saves ~500KB+ on initial load)
     selectivePreload({
       alwaysPreload: ['index', 'vendor', 'vue-vendor', 'supabase-vendor', 'crypto-vendor'],
@@ -70,10 +76,6 @@ export default defineConfig({
             }
             // Other node_modules
             return 'vendor'
-          }
-          // Megaman easter egg game - separate chunk (only loads after konami activation)
-          if (id.includes('/easteregg/megaman/') || id.includes('/components/easteregg/MegamanGame')) {
-            return 'megaman-game'
           }
           // Route-based chunks
           if (id.includes('/views/')) {

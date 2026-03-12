@@ -91,11 +91,11 @@ let ringtoneInterval: number | null = null
 
 const startRingtone = () => {
   // Play ringtone immediately
-  themeStore.testAudio('call_incoming')
+  themeStore.playAudio('call_incoming')
   
   // Play ringtone every 3 seconds
   ringtoneInterval = window.setInterval(() => {
-    themeStore.testAudio('call_incoming')
+    themeStore.playAudio('call_incoming')
   }, 3000)
 }
 

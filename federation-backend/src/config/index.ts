@@ -59,6 +59,12 @@ const envSchema = z.object({
   // Use pg-boss for job queue processing (more reliable but slightly higher latency)
   // When true, pg-boss handles DMs and message reactions; DatabaseListener handles channels only
   USE_PGBOSS_QUEUE: z.string().transform(v => v === 'true').default('true'),
+
+  // Process mode: run HTTP server, queue workers, or both in one process
+  //   'server'  - Express HTTP server only (ActivityPub inbox, WebFinger, health, etc.)
+  //   'worker'  - Queue workers only (pg-boss, LISTEN/NOTIFY, delivery retries)
+  //   'unified' - Both in one process (default, backward compatible)
+  FEDERATION_MODE: z.enum(['server', 'worker', 'unified']).default('unified'),
   
   // Federation Security
   // When true (default), reject unsigned activities or activities with invalid signatures

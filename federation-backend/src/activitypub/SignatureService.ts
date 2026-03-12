@@ -460,6 +460,54 @@ export class SignatureService {
   }
 
   /**
+   * Fetch an ActivityPub object with HTTP signature (for authorized fetch / secure mode).
+   * Uses any local user's keys to sign the GET request.
+   * Falls back to unsigned fetch if no local user is available.
+   */
+  static async signedApFetch(url: string, timeoutMs = 8000): Promise<Response> {
+    const supabase = getSupabaseClient();
+
+    // Find any local user that has a private key
+    const { data: signer } = await supabase
+      .from('user_private_keys')
+      .select('user_id')
+      .limit(1)
+      .maybeSingle();
+
+    let signingUserId = signer?.user_id;
+
+    // If no keys exist yet, pick the first local user and let signRequest generate keys
+    if (!signingUserId) {
+      const { data: firstUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('is_local', true)
+        .limit(1)
+        .maybeSingle();
+      signingUserId = firstUser?.id;
+    }
+
+    const headers: Record<string, string> = {
+      'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
+    };
+
+    if (signingUserId) {
+      try {
+        const signed = await this.signRequest(url, 'GET', null, signingUserId);
+        Object.assign(headers, signed.headers);
+      } catch (err) {
+        logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
+      }
+    }
+
+    return fetch(url, {
+      headers,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  }
+
+  /**
    * Create digest header for request body
    */
   static createDigest(body: any): string {

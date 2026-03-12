@@ -18,6 +18,7 @@ import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 import { linkPreviewService } from '../services/LinkPreviewService.js';
+import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 
 /**
  * Start listening to database notifications
@@ -247,7 +248,8 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         // Enrich external link previews asynchronously for all local messages
-        if (!payload.new.metadata?.federated) {
+        // Skip when pg-boss is enabled — the job handler already calls enrichMessageLinkPreviews
+        if (!config.USE_PGBOSS_QUEUE && !payload.new.metadata?.federated) {
           enrichMessageLinkPreviews(payload.new).catch(err =>
             logger.warn('Link preview enrichment failed:', err)
           );
@@ -2129,6 +2131,18 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
 
       const preview = await linkPreviewService.getPreview(url);
       if (preview) {
+        // Auto-import fediverse posts so reactions/interactions work immediately
+        if (preview.provider === 'fediverse-post' && preview.fediverse?.postUrl) {
+          try {
+            const imported = await ActivityProcessor.fetchAndCreateRemotePost(preview.fediverse.postUrl);
+            if (imported) {
+              preview.localPostId = imported.id;
+              logger.info(`📥 Auto-imported fediverse post ${preview.fediverse.postUrl} → ${imported.id}`);
+            }
+          } catch (importErr) {
+            logger.debug(`Could not auto-import fediverse post ${url}:`, importErr);
+          }
+        }
         newEmbeds[url] = preview;
       }
     } catch (err) {

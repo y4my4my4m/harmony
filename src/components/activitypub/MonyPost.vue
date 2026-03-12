@@ -153,6 +153,7 @@
             <div 
               v-if="displayMediaAttachments?.length > 0"
               class="quoted-media-gallery"
+              :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
             >
               <div 
                 v-for="media in displayMediaAttachments" 
@@ -164,6 +165,7 @@
                   :src="media.url" 
                   :alt="media.description || 'Media attachment'"
                   class="media-image"
+                  @click="handleImageClick(media.url)"
                 />
                 <video 
                   v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
@@ -197,8 +199,8 @@
           <div 
             v-if="displayMediaAttachments?.length > 0"
             class="media-gallery"
+            :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
           >
-            <!-- Simple media display for now -->
             <div 
               v-for="media in displayMediaAttachments" 
               :key="media.id"
@@ -209,6 +211,7 @@
                 :src="media.url" 
                 :alt="media.description || 'Media attachment'"
                 class="media-image"
+                @click="handleImageClick(media.url)"
               />
               <video 
                 v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
@@ -354,7 +357,7 @@
         <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
-          @click="toggleBookmark(originalPostId)"
+          @click="handleToggleBookmark"
           :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
         >
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
@@ -482,16 +485,18 @@
       @close="handleDeleteCancel"
     />
 
-    <!-- Emoji Popup for reactions -->
-    <EmojiPopup
-      v-if="showEmojiPopup"
-      :trigger-element="emojiTriggerRef"
-      :position="'above'"
-      :is-reaction="true"
-      :close-emoji-list="closeEmojiPopup"
-      @send-emoji="handleEmojiSelected"
-      @reset-emoji-icon-clicked="closeEmojiPopup"
-    />
+    <!-- Emoji Popup for reactions — teleported to body to escape stacking contexts -->
+    <Teleport to="body">
+      <EmojiPopup
+        v-if="showEmojiPopup"
+        :trigger-element="emojiTriggerRef"
+        :position="'above'"
+        :is-reaction="true"
+        :close-emoji-list="closeEmojiPopup"
+        @send-emoji="handleEmojiSelected"
+        @reset-emoji-icon-clicked="closeEmojiPopup"
+      />
+    </Teleport>
 
     <!-- Tooltip for reactions -->
     <div
@@ -528,8 +533,9 @@
       </div>
     </div>
     
-    <!-- Lightbox for images -->
+    <!-- Lightbox for images (only when not embedded in chat context) -->
     <vue-easy-lightbox
+      v-if="!embedded"
       :visible="showLightbox"
       :imgs="[currentLightboxImage]"
       :index="0"
@@ -572,13 +578,15 @@ import router from '@/router';
 // Props
 interface Props {
   post: TimelinePost;
-  hideReplyContext?: boolean; // Hide reply context when in thread view (parent is already visible)
-  isInThread?: boolean; // True when this post is displayed within a thread/conversation view
+  hideReplyContext?: boolean;
+  isInThread?: boolean;
+  embedded?: boolean; // When true, delegates lightbox to parent via open-lightbox emit
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hideReplyContext: false,
-  isInThread: false
+  isInThread: false,
+  embedded: false,
 });
 
 // Emits
@@ -589,9 +597,10 @@ const emit = defineEmits<{
   click: [post: TimelinePost];
   'user-mention-click': [handle: string];
   'hashtag-click': [tag: string];
-  'user-click': [user: any]; // For when clicking on the author
-  'show-conversation': [postId: string]; // New emit for showing conversation
-  'refresh': [postId: string]; // Refresh post data after fetching remote reactions
+  'user-click': [user: any];
+  'show-conversation': [postId: string];
+  'refresh': [postId: string];
+  'open-lightbox': [url: string];
 }>();
 
 // Stores and composables
@@ -646,8 +655,34 @@ const tooltipEmojiShortcode = computed(() => {
   return unicodeToShortcode(unicode) || ''
 })
 
+// Extract the note/status ID from a fediverse AP URL (last path segment)
+const extractNoteId = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  try {
+    const path = new URL(url).pathname;
+    const segments = path.split('/').filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : null;
+  } catch {
+    return null;
+  }
+};
+
 const handleTimeClick = () => {
-  // Navigate to PostDetail (the actual route) instead of PostView (which redirects)
+  // For remote/federated posts, use the friendly @handle/noteId URL
+  if (!props.post.is_local && props.post.author) {
+    const postAuthor = props.post.author;
+    const noteId = extractNoteId(props.post.ap_id || props.post.url);
+    if (noteId && postAuthor.username && postAuthor.domain) {
+      router.push({
+        name: 'RemotePostDetail',
+        params: {
+          handle: `@${postAuthor.username}@${postAuthor.domain}`,
+          noteId
+        }
+      });
+      return;
+    }
+  }
   router.push({ name: 'PostDetail', params: { postId: props.post.id } });
 };
 
@@ -691,6 +726,59 @@ const instanceDomain = computed(() => {
 const isRemotePost = computed(() => {
   return !props.post.is_local && props.post.ap_id;
 });
+
+// Synthetic posts are built from embed data and don't exist in the local DB
+const isSyntheticPost = computed(() => {
+  return props.post.metadata?.synthetic === true;
+});
+
+// Resolve a synthetic post into a real local post before interactions
+const resolveSyntheticPost = async (): Promise<string | null> => {
+  if (!isSyntheticPost.value) return originalPostId.value;
+
+  const postUrl = props.post.ap_id || props.post.url;
+  if (!postUrl) return null;
+
+  // Check local DB first (fast, no network)
+  try {
+    const { supabase } = await import('@/supabase');
+    const { data: localPost } = await supabase
+      .from('posts')
+      .select('id')
+      .or(`url.eq.${postUrl},ap_id.eq.${postUrl}`)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (localPost?.id) return localPost.id;
+  } catch {
+    // DB lookup failed, try federation backend
+  }
+
+  // Not local — ask federation backend to import via ActivityPub
+  try {
+    const { useActivityPubStore } = await import('@/stores/useActivityPub');
+    const apStore = useActivityPubStore();
+    const response = await fetch(`${apStore.federationApiUrl}/resolve-post`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: postUrl }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.post_id) return data.post_id;
+    }
+  } catch {
+    // Federation import failed
+  }
+
+  notificationStore.showToast(
+    'error',
+    'Could not import this post from the remote instance.',
+    5000
+  );
+  return null;
+};
 
 // State for fetching remote data
 const isFetchingReactions = ref(false);
@@ -1155,6 +1243,14 @@ const closeEmojiPopup = () => {
 const handleEmojiSelected = async (emoji: any) => {
   debug.log('Emoji selected:', emoji);
   
+  if (isSyntheticPost.value) {
+    const resolved = await resolveSyntheticPost();
+    if (!resolved) {
+      closeEmojiPopup();
+      return;
+    }
+  }
+
   const currentUser = getCurrentUser.value;
   if (!currentUser) {
     debug.warn('User not authenticated');
@@ -1164,7 +1260,7 @@ const handleEmojiSelected = async (emoji: any) => {
   try {
     // Play audio feedback immediately for better UX
     try {
-      await themeStore.testAudio('reaction');
+      await themeStore.playAudio('reaction');
     } catch (audioError) {
       debug.warn('Failed to play reaction audio:', audioError);
       // Don't block the reaction if audio fails
@@ -1195,7 +1291,7 @@ const handleEmojiSelected = async (emoji: any) => {
         debug.error('Failed to add emoji reaction:', error);
         // Play error sound if available
         try {
-          await themeStore.testAudio('ui_error');
+          await themeStore.playAudio('ui_error');
         } catch (audioError) {
           debug.warn('Failed to play error audio:', audioError);
         }
@@ -1212,7 +1308,7 @@ const handleEmojiSelected = async (emoji: any) => {
     debug.error('Error adding emoji reaction:', error);
     // Play error sound if available
     try {
-      await themeStore.testAudio('ui_error');
+      await themeStore.playAudio('ui_error');
     } catch (audioError) {
       debug.warn('Failed to play error audio:', audioError);
     }
@@ -1540,7 +1636,11 @@ const handleMenuToggle = () => {
 
 // Optimistic favorite toggle — fills/unfills the heart immediately
 const handleToggleFavorite = async () => {
-  const postId = originalPostId.value
+  const postId = isSyntheticPost.value
+    ? await resolveSyntheticPost()
+    : originalPostId.value;
+  if (!postId) return;
+
   const targetPost = isReblog.value ? props.post.reblog : props.post
   const wasFavorited = displayInteractionCounts.value.is_favorited
   const prevCount = displayInteractionCounts.value.favorites_count
@@ -1571,21 +1671,33 @@ const handleToggleFavorite = async () => {
 }
 
 // Reblog menu handlers
-const handleReblogClick = () => {
+const handleReblogClick = async () => {
   // If already reblogged, undo the reblog directly
   if (displayInteractionCounts.value.is_reblogged) {
-    // Always use the original post ID for reblog actions
-    toggleReblog(originalPostId.value);
+    const postId = isSyntheticPost.value
+      ? await resolveSyntheticPost()
+      : originalPostId.value;
+    if (!postId) return;
+    toggleReblog(postId);
     return;
   }
+
+  if (isSyntheticPost.value) {
+    const resolved = await resolveSyntheticPost();
+    if (!resolved) return;
+  }
+
   // Otherwise show the menu with options
   showReblogMenu.value = !showReblogMenu.value;
 };
 
 const handleSimpleReblog = async () => {
   showReblogMenu.value = false;
-  // Always reblog the original post, not a reblog of a reblog
-  await toggleReblog(originalPostId.value);
+  const postId = isSyntheticPost.value
+    ? await resolveSyntheticPost()
+    : originalPostId.value;
+  if (!postId) return;
+  await toggleReblog(postId);
 };
 
 const handleQuoteReblog = () => {
@@ -1597,6 +1709,14 @@ const handleQuoteReblog = () => {
     quotePost: originalPost,
     quoteAuthor: originalAuthor
   });
+};
+
+const handleToggleBookmark = async () => {
+  const postId = isSyntheticPost.value
+    ? await resolveSyntheticPost()
+    : originalPostId.value;
+  if (!postId) return;
+  toggleBookmark(postId);
 };
 
 // Fetch remote reactions for a remote post
@@ -1733,6 +1853,10 @@ const handleHashtagClick = (tag: string) => {
 };
 
 const handleImageClick = (url: string) => {
+  if (props.embedded) {
+    emit('open-lightbox', url);
+    return;
+  }
   currentLightboxImage.value = url;
   showLightbox.value = true;
 };
@@ -2133,6 +2257,19 @@ const closeLightbox = () => {
   -webkit-user-select: text;
 }
 
+.post-text :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+.post-text :deep(img.inline-emoji) {
+  height: 1.2em;
+  width: auto;
+  max-width: 120px;
+  vertical-align: -0.2em;
+  margin: 0 1px;
+}
+
 .interaction-stats {
   display: flex;
   gap: 1rem;
@@ -2424,26 +2561,97 @@ const closeLightbox = () => {
 
 .quoted-media-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.5rem;
+  gap: 4px;
   border-radius: 0.5rem;
   overflow: hidden;
+  max-height: 200px;
 }
 
-.quoted-media-gallery .media-item {
-  border-radius: 0.5rem;
-  overflow: hidden;
+.quoted-media-gallery.media-count-1 { grid-template-columns: 1fr; }
+.quoted-media-gallery.media-count-2 { grid-template-columns: 1fr 1fr; }
+.quoted-media-gallery.media-count-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.quoted-media-gallery.media-count-3 .media-item:first-child {
+  grid-row: 1 / 3;
+}
+.quoted-media-gallery.media-count-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
 }
 
 .quoted-media-gallery .media-image,
 .quoted-media-gallery .media-video {
   width: 100%;
-  height: auto;
-  max-height: 200px;
+  height: 100%;
   object-fit: cover;
 }
 
 /* Media Gallery Styles */
+
+.media-gallery {
+  display: grid;
+  gap: 4px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin: 0.5rem 0.75rem 0.75rem;
+  max-height: 400px;
+}
+
+.media-gallery.media-count-1 {
+  grid-template-columns: 1fr;
+}
+
+.media-gallery.media-count-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.media-gallery.media-count-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.media-gallery.media-count-3 .media-item:first-child {
+  grid-row: 1 / 3;
+}
+
+.media-gallery.media-count-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.media-item {
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+.media-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+.media-gallery.media-count-1 .media-image {
+  max-height: 400px;
+  height: auto;
+}
+
+.media-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.media-gallery.media-count-1 .media-video {
+  max-height: 400px;
+  height: auto;
+}
 
 /* Mobile responsive */
 @media (max-width: 768px) {

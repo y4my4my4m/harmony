@@ -25,11 +25,22 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
   const userDataMap: Record<string, { userId: string; isLocal: boolean; displayName?: string }> = {};
   
+  // Pre-scan for URLs to avoid resolving @mentions inside them
+  const urlRanges: Array<{ start: number; end: number }> = [];
+  const preUrlRegex = /\bhttps?:\/\/\S+/g;
+  let urlScan;
+  while ((urlScan = preUrlRegex.exec(content)) !== null) {
+    urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
+  }
+  const isInsideUrl = (pos: number): boolean =>
+    urlRanges.some(r => pos >= r.start && pos < r.end);
+
   let match;
   const uniqueUsernames = new Set<string>();
   
-  // Extract all unique usernames from content
+  // Extract all unique usernames from content, skipping those inside URLs
   while ((match = mentionRegex.exec(content)) !== null) {
+    if (isInsideUrl(match.index)) continue;
     const username = match[1];
     const domain = match[2];
     const mentionKey = domain ? `${username}@${domain}` : username;
@@ -127,7 +138,7 @@ export async function resolveRoleMentionsData(
 
   const map: Record<string, { name: string; color: string | null }> = {};
   try {
-    const query = supabase
+    let query = supabase
       .from('server_roles')
       .select('id, name, color')
       .in('id', Array.from(roleIds));
@@ -313,6 +324,17 @@ export async function parseContentToMessageParts(
 ): Promise<MessagePart[]> {
   if (!content) return [{ type: 'text', text: '' }];
 
+  // Pre-scan for URLs so we can skip @mentions and #hashtags that appear
+  // inside them (e.g., https://mastodon.social/@user/12345)
+  const urlRanges: Array<{ start: number; end: number }> = [];
+  const preUrlRegex = /\bhttps?:\/\/\S+/g;
+  let urlScan;
+  while ((urlScan = preUrlRegex.exec(content)) !== null) {
+    urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
+  }
+  const isInsideUrl = (pos: number): boolean =>
+    urlRanges.some(r => pos >= r.start && pos < r.end);
+
   // Parse role mentions, Discord bridged mentions, user mentions, and hashtags
   // @role:UUID - role mention
   // @d!ID:username - Discord bridged user
@@ -325,6 +347,10 @@ export async function parseContentToMessageParts(
   let match;
   
   while ((match = combinedRegex.exec(content)) !== null) {
+    // Skip mentions and hashtags that fall inside a URL — they'll be handled
+    // as part of the URL by parseTextForUrls (e.g., mastodon.social/@user/123)
+    if (isInsideUrl(match.index)) continue;
+
     // Add text before current match (if any)
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);

@@ -365,7 +365,7 @@ window.addEventListener('beforeunload', () => {
   width: 100%;
   max-width: 600px;
   height: 80vh;
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-quaternary);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -397,7 +397,7 @@ window.addEventListener('beforeunload', () => {
   background: none;
   border: none;
   border-radius: 6px;
-  color: #80848e;
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -423,13 +423,13 @@ window.addEventListener('beforeunload', () => {
   left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #80848e;
+  color: var(--text-tertiary);
   pointer-events: none;
 }
 
 .search-input {
   width: 100%;
-  background: var(--h-chat, #313338);
+  background: var(--background-tertiary);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 0.75rem 2.5rem 0.75rem 2.5rem;
@@ -440,11 +440,11 @@ window.addEventListener('beforeunload', () => {
 
 .search-input:focus {
   outline: none;
-  border-color: var(--h-brand, #5865f2);
+  border-color: var(--harmony-primary);
 }
 
 .search-input::placeholder {
-  color: #80848e;
+  color: var(--text-tertiary);
 }
 
 .clear-btn {
@@ -454,7 +454,7 @@ window.addEventListener('beforeunload', () => {
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #80848e;
+  color: var(--text-tertiary);
   cursor: pointer;
   border-radius: 4px;
   padding: 0.25rem;
@@ -478,7 +478,7 @@ window.addEventListener('beforeunload', () => {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  color: #80848e;
+  color: var(--text-tertiary);
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   cursor: pointer;
@@ -491,8 +491,8 @@ window.addEventListener('beforeunload', () => {
 }
 
 .filter-btn.active {
-  background: var(--h-brand, #5865f2);
-  border-color: var(--h-brand, #5865f2);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 
@@ -510,7 +510,7 @@ window.addEventListener('beforeunload', () => {
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #80848e;
+  color: var(--text-tertiary);
   padding: 2rem;
 }
 
@@ -518,7 +518,7 @@ window.addEventListener('beforeunload', () => {
   width: 32px;
   height: 32px;
   border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top: 3px solid var(--h-brand, #5865f2);
+  border-top: 3px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -532,7 +532,7 @@ window.addEventListener('beforeunload', () => {
 }
 
 .search-tips {
-  background: var(--h-chat, #313338);
+  background: var(--background-tertiary);
   border-radius: 8px;
   padding: 1rem;
   margin-top: 1rem;
@@ -615,7 +615,7 @@ window.addEventListener('beforeunload', () => {
 
 .recent-handle {
   font-size: 0.75rem;
-  color: #80848e;
+  color: var(--text-tertiary);
 }
 
 .results-list {
@@ -632,7 +632,7 @@ window.addEventListener('beforeunload', () => {
 
 .load-more-btn {
   width: 100%;
-  background: var(--h-chat, #313338);
+  background: var(--background-tertiary);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   color: var(--text-primary);

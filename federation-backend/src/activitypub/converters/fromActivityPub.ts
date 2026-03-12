@@ -22,7 +22,15 @@ export function noteToContent(note: any): any[] {
   cleanText = cleanText.replace(/&lt;/g, '<');
   cleanText = cleanText.replace(/&gt;/g, '>');
   cleanText = cleanText.replace(/&quot;/g, '"');
-  cleanText = cleanText.replace(/&#039;/g, "'");
+  cleanText = cleanText.replace(/&apos;/g, "'");
+  cleanText = cleanText.replace(/&#x([\da-fA-F]+);/g, (match, hex) => {
+    const cp = parseInt(hex, 16);
+    return cp >= 0 && cp <= 0x10FFFF ? String.fromCodePoint(cp) : match;
+  });
+  cleanText = cleanText.replace(/&#(\d+);/g, (match, n) => {
+    const cp = parseInt(n, 10);
+    return cp >= 0 && cp <= 0x10FFFF ? String.fromCodePoint(cp) : match;
+  });
   cleanText = cleanText.replace(/\s+/g, ' ').trim();
   
   // Build combined tags array (includes both standard AP tags and Misskey-style emojis)
