@@ -761,7 +761,7 @@ export function useVisualTheme() {
       screenReaderSupport: false,
     }
     // Apply default dark theme
-    applyTheme(PRESET_THEMES.dark)
+    applyPresetTheme('dark')
     debug.log('🎨 Visual theme reset for new user')
   }
 

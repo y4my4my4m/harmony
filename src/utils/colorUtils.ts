@@ -271,6 +271,10 @@ export interface ThemePalette {
   primaryLight: string
   primaryDark: string
   
+  // Secondary / accent brand colors
+  secondary: string
+  accent: string
+  
   // Background colors
   bgPrimary: string
   bgSecondary: string
@@ -348,6 +352,9 @@ export function generateThemePalette(
       primaryLight: adjustLightness(primaryColor, 20),
       primaryDark: adjustLightness(primaryColor, -15),
       
+      secondary: accentHex,
+      accent: adjustHue(accentHex, 30),
+      
       bgPrimary: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
       bgSecondary: oklchToHex(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h),
       bgTertiary: oklchToHex(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h),
@@ -397,6 +404,9 @@ export function generateThemePalette(
       primaryHover: adjustLightness(primaryColor, -8),
       primaryLight: adjustLightness(primaryColor, 15),
       primaryDark: adjustLightness(primaryColor, -12),
+      
+      secondary: accentHex,
+      accent: adjustHue(accentHex, 30),
       
       // System backgrounds (for BaseLayout, server sidebar, etc.)
       bgPrimary: oklchToHex(systemBgPrimaryOklch.l, systemBgPrimaryOklch.c, systemBgPrimaryOklch.h),
@@ -478,6 +488,20 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary', palette.primary)
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
+  
+  // Secondary / accent brand colors
+  root.style.setProperty('--harmony-secondary', palette.secondary)
+  root.style.setProperty('--harmony-secondary-hover', adjustLightness(palette.secondary, -8))
+  root.style.setProperty('--harmony-secondary-light', `${palette.secondary}1a`)
+  root.style.setProperty('--harmony-secondary-alpha', `${palette.secondary}26`)
+  root.style.setProperty('--harmony-secondary-alpha-light', `${palette.secondary}1a`)
+  root.style.setProperty('--harmony-secondary-alpha-strong', `${palette.secondary}40`)
+  root.style.setProperty('--harmony-accent', palette.accent)
+  root.style.setProperty('--harmony-accent-hover', adjustLightness(palette.accent, -8))
+  root.style.setProperty('--harmony-accent-light', `${palette.accent}1a`)
+  root.style.setProperty('--harmony-accent-alpha', `${palette.accent}26`)
+  root.style.setProperty('--harmony-accent-alpha-light', `${palette.accent}1a`)
+  root.style.setProperty('--harmony-accent-alpha-strong', `${palette.accent}40`)
   
   // Primary color alpha variants
   const primaryOklch = hexToOklch(palette.primary)

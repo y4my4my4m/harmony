@@ -1250,12 +1250,16 @@ const activeLightboxImages = ref<string[]>([]);
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
 // --- VIRTUAL SCROLLING ---
+// Track the initial offset separately so it doesn't change on prepend
+const frozenInitialOffset = ref(0);
+let hasSetInitialOffset = false;
+
 const rowVirtualizer = useVirtualizer(computed(() => ({
   count: displayItems.value.length,
   getScrollElement: () => messageDisplayContainer.value,
   estimateSize: () => 60,
-  overscan: 10,
-  initialOffset: displayItems.value.length * 60,
+  overscan: 15,
+  initialOffset: frozenInitialOffset.value,
 })));
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
@@ -1340,6 +1344,7 @@ let hasInitiallyScrolled = false;
 
 watch([() => props.channelId, () => props.conversationId], () => {
   hasInitiallyScrolled = false;
+  hasSetInitialOffset = false;
   userWasAtBottom.value = true;
   lastKnownMessageCount.value = 0;
   lastKnownFirstMessageId.value = null;
@@ -1421,6 +1426,11 @@ watch(() => props.messages, (newMessages) => {
         // If this is the initial load, scroll to bottom
         if (!hasInitiallyScrolled && newMessages.length > 0) {
           hasInitiallyScrolled = true;
+          // Freeze the initial offset for this channel
+          if (!hasSetInitialOffset) {
+            hasSetInitialOffset = true;
+            frozenInitialOffset.value = displayItems.value.length * 60;
+          }
           debug.log('📜 Initial load - scrolling to bottom');
           
           // Set flag so we re-scroll when images load
@@ -1552,19 +1562,25 @@ watch(() => props.messages, (newMessages) => {
           } else if (isAppend && !userWasAtBottom.value) {
             shouldBeAtBottom.value = false;
           }
-          // Load older messages (prepend) - maintain scroll position
+          // Load older messages (prepend) - maintain scroll position via virtualizer index
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            const savedScrollTop = messageDisplayContainer.value.scrollTop;
+            const numPrepended = newMessages.length - prevCount;
+            
+            // Find the virtual item that was previously first visible
+            const visibleItems = rowVirtualizer.value.getVirtualItems();
+            const firstVisibleItem = visibleItems.find(item => {
+              if (!messageDisplayContainer.value) return false;
+              return item.start >= messageDisplayContainer.value.scrollTop;
+            });
+            const previousVisibleIndex = firstVisibleItem?.index ?? 0;
+            const targetIndex = previousVisibleIndex + numPrepended;
+            
+            // Use the virtualizer to scroll to the shifted index
             const adjustScroll = (attempt = 0) => {
               if (!messageDisplayContainer.value) return;
-              const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-              const scrollOffset = newScrollHeight - oldScrollHeight;
-              if (scrollOffset > 0) {
-                messageDisplayContainer.value.scrollTop = savedScrollTop + scrollOffset;
-              }
-              // Retry: virtualizer re-measures after first paint
-              if (attempt < 3) {
+              rowVirtualizer.value.scrollToIndex(targetIndex, { align: 'start' });
+              if (attempt < 5) {
                 requestAnimationFrame(() => adjustScroll(attempt + 1));
               }
             };
@@ -1825,11 +1841,11 @@ const setupTopSentinelObserver = () => {
     (entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
-        debug.log('📜 Top sentinel visible — auto-loading older messages');
+        debug.log('📜 Top sentinel visible (prefetch zone) — auto-loading older messages');
         props.loadMoreMessages();
       }
     },
-    { root: messageDisplayContainer.value, threshold: 0 }
+    { root: messageDisplayContainer.value, threshold: 0, rootMargin: '600px 0px 0px 0px' }
   );
   topSentinelObserver.observe(topSentinelRef.value);
 };
@@ -1942,13 +1958,10 @@ const handleScroll = throttle(() => {
   
   if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
   
-  if (isAtTop.value) {
-    debug.log('📜 At top! hasScrollbar:', hasScrollbar.value, 'loadMoreMessages:', !!props.loadMoreMessages);
-    
-    if (props.loadMoreMessages) {
+  // Prefetch when near top (within 800px) instead of only at scrollTop === 0
+  if (scrollTop < 800 && hasScrollbar.value) {
+    if (!isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
       props.loadMoreMessages();
-    } else {
-      debug.log('❌ No loadMoreMessages function provided!');
     }
   }
 
@@ -2427,25 +2440,52 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 };
 
 
-// Lightbox and Media
-const handleImageLoaded = (url: string) => {
-  imageLoaded.value[url] = true;
-
-  // Re-measure all visible virtual rows that may contain this image
-  nextTick(() => {
-    const container = messageDisplayContainer.value;
-    if (!container) return;
-    container.querySelectorAll('[data-index]').forEach(el => {
-      rowVirtualizer.value.measureElement(el as HTMLElement);
-    });
-  });
-
+// Correct scroll position when an item above the viewport resizes
+const correctScrollAfterResize = (callback: () => void) => {
+  const container = messageDisplayContainer.value;
+  if (!container) { callback(); return; }
+  
   if (shouldBeAtBottom.value) {
+    callback();
     requestAnimationFrame(() => {
       const count = displayItems.value.length;
       if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
     });
+    return;
   }
+  
+  // Save state before measurement
+  const scrollTopBefore = container.scrollTop;
+  const totalSizeBefore = rowVirtualizer.value.getTotalSize();
+  
+  callback();
+  
+  // After re-measurement, compensate for any size change above viewport
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!container) return;
+      const totalSizeAfter = rowVirtualizer.value.getTotalSize();
+      const delta = totalSizeAfter - totalSizeBefore;
+      if (delta !== 0 && !shouldBeAtBottom.value) {
+        container.scrollTop = scrollTopBefore + delta;
+      }
+    });
+  });
+};
+
+// Lightbox and Media
+const handleImageLoaded = (url: string) => {
+  imageLoaded.value[url] = true;
+
+  correctScrollAfterResize(() => {
+    nextTick(() => {
+      const container = messageDisplayContainer.value;
+      if (!container) return;
+      container.querySelectorAll('[data-index]').forEach(el => {
+        rowVirtualizer.value.measureElement(el as HTMLElement);
+      });
+    });
+  });
 };
 
 // Handle embed loaded events
@@ -2455,14 +2495,9 @@ const handleEmbedLoaded = (messageId: string) => {
   }
   embedLoaded.value[messageId] = (embedLoaded.value[messageId] || 0) + 1;
 
-  remeasureItem(messageId);
-
-  if (shouldBeAtBottom.value) {
-    requestAnimationFrame(() => {
-      const count = displayItems.value.length;
-      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
-    });
-  }
+  correctScrollAfterResize(() => {
+    remeasureItem(messageId);
+  });
 };
 
 // Handle click-to-decrypt for encrypted messages

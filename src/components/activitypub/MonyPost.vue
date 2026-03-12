@@ -1038,6 +1038,8 @@ const loadOriginalPostInteractions = async () => {
   }
 };
 
+const REACTIONS_STALE_MS = 5 * 60 * 1000; // 5 minutes
+
 // Load reply context on mount if needed
 onMounted(() => {
   // Check for reply context in post or reblog
@@ -1055,6 +1057,15 @@ onMounted(() => {
   // For reblogs, fetch the user's interaction state with the original post
   if (isReblog.value) {
     loadOriginalPostInteractions();
+  }
+
+  // Auto-fetch reactions for remote posts (skip embedded posts to avoid excess requests)
+  if (isRemotePost.value && !props.embedded) {
+    const lastFetched = props.post.metadata?.remote_reactions_fetched_at;
+    const isStale = !lastFetched || (Date.now() - new Date(lastFetched as string).getTime()) > REACTIONS_STALE_MS;
+    if (isStale) {
+      fetchRemoteReactions();
+    }
   }
 });
 

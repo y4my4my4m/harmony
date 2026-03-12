@@ -35,19 +35,19 @@
         <template v-if="payload.fediverse">
           <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
             <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
-            <a v-if="fediverseSourceUrl" :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link">
+            <div v-if="fediverseSourceUrl" class="fedi-source-link">
               <span class="fedi-source-badge" :title="fediversePlatformLabel">
                 <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
                 <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
               </span>
-              <span class="fedi-source-link__right">
+              <a :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
                 View on {{ fediverseSourceDomain }}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                   <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                 </svg>
-              </span>
-            </a>
+              </a>
+            </div>
           </div>
           <div v-else-if="fediverseError" class="provider-embed__skeleton">
             <span>{{ fediverseError }}</span>
@@ -587,6 +587,7 @@ function openLink() {
   display: flex;
   align-items: center;
   gap: 4px;
+  cursor: pointer;
 }
 </style>
 
