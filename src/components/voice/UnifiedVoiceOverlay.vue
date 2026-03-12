@@ -958,11 +958,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   flex: 1;
   padding: 16px 24px;
   overflow-y: auto;
-  min-height: 300px;
-  align-content: flex-start;
-  justify-content: center;
-  display: flex;
-  flex-direction: column;
+  min-height: 0;
 }
 
 

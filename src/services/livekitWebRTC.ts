@@ -1059,12 +1059,20 @@ export class LiveKitWebRTCService {
       }
     }
     
-    // Mute/unmute all remote audio ELEMENTS based on deafen state
-    // We use audio element muting instead of track.setMuted() to avoid
-    // incorrectly changing the remote user's isMuted state
-    for (const audioElement of this.remoteMicAudioElements.values()) {
-      audioElement.muted = this.localMediaState.isDeafened;
+    // Mute/unmute spatial audio master output if active
+    try {
+      const { spatialAudioService } = require('@/services/spatialAudio');
+      spatialAudioService.setDeafened(this.localMediaState.isDeafened);
+    } catch (e) {
+      // Spatial audio not available, ignore
     }
+    
+    // Mute/unmute remote mic audio elements
+    // When undeafening, keep muted if spatial audio has taken over (traditionalAudioMuted)
+    for (const audioElement of this.remoteMicAudioElements.values()) {
+      audioElement.muted = this.localMediaState.isDeafened || this.traditionalAudioMuted;
+    }
+    // Screen share audio is always traditional (not spatial), only respect deafen
     for (const audioElement of this.remoteScreenShareAudioElements.values()) {
       audioElement.muted = this.localMediaState.isDeafened;
     }
@@ -1641,12 +1649,12 @@ export class LiveKitWebRTCService {
         if (track instanceof RemoteAudioTrack) {
           const audioElement = track.attach();
           
-          // Apply deafen state if active
-          if (this.localMediaState.isDeafened) {
+          const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
+          
+          // Apply deafen state, and for mic audio also respect spatial audio muting
+          if (this.localMediaState.isDeafened || (!isScreenShareAudio && this.traditionalAudioMuted)) {
             audioElement.muted = true;
           }
-          
-          const isScreenShareAudio = source === Track.Source.ScreenShareAudio;
           
           if (isScreenShareAudio) {
             // Clean up any existing screenshare audio for this participant first

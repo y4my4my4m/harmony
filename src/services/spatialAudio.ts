@@ -1039,6 +1039,17 @@ export class SpatialAudioService {
   }
 
   /**
+   * Mute/unmute the entire spatial audio output (used by deafen)
+   */
+  setDeafened(deafened: boolean): void {
+    if (!this.masterGainNode || !this.audioContext) return;
+    
+    const targetGain = deafened ? 0 : 1.0;
+    this.masterGainNode.gain.setTargetAtTime(targetGain, this.audioContext.currentTime, 0.015);
+    debug.log(`🔇 Spatial audio ${deafened ? 'deafened (gain→0)' : 'undeafened (gain→1)'}`);
+  }
+
+  /**
    * Get current spatial audio status
    */
   getStatus(): {
