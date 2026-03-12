@@ -247,7 +247,8 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         // Enrich external link previews asynchronously for all local messages
-        if (!payload.new.metadata?.federated) {
+        // Skip when pg-boss is enabled — the job handler already calls enrichMessageLinkPreviews
+        if (!config.USE_PGBOSS_QUEUE && !payload.new.metadata?.federated) {
           enrichMessageLinkPreviews(payload.new).catch(err =>
             logger.warn('Link preview enrichment failed:', err)
           );

@@ -76,6 +76,8 @@ class LinkPreviewService {
   private cache = new NodeCache({ stdTTL: 60 * 60 });
   private supabase = getSupabaseClient();
   private instanceDomain = config.INSTANCE_DOMAIN.toLowerCase();
+  private apFailedDomains = new Map<string, number>();
+  private static readonly AP_DOMAIN_FAIL_TTL = 5 * 60 * 1000; // skip domain for 5 min after failure
 
   private static readonly harmonyPostFields = `
         id,
@@ -406,6 +408,12 @@ class LinkPreviewService {
   }
 
   private async fetchActivityPubObject(url: string, acceptJson = false): Promise<any> {
+    const domain = new URL(url).hostname;
+    const failedAt = this.apFailedDomains.get(domain);
+    if (failedAt && Date.now() - failedAt < LinkPreviewService.AP_DOMAIN_FAIL_TTL) {
+      throw new Error(`AP domain ${domain} recently failed, skipping`);
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
@@ -423,6 +431,7 @@ class LinkPreviewService {
       });
 
       if (!response.ok) {
+        this.apFailedDomains.set(domain, Date.now());
         throw new Error(`AP fetch failed (${response.status})`);
       }
 
@@ -431,7 +440,12 @@ class LinkPreviewService {
         throw new Error(`Not an AP response (${contentType})`);
       }
 
+      // Success — clear any failure record
+      this.apFailedDomains.delete(domain);
       return await response.json();
+    } catch (err) {
+      this.apFailedDomains.set(domain, Date.now());
+      throw err;
     } finally {
       clearTimeout(timeout);
     }
@@ -507,12 +521,20 @@ class LinkPreviewService {
 
   private async fetchGenericPreview(url: string): Promise<EmbedPayload> {
     try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': USER_AGENT,
-          Accept: 'text/html,application/xhtml+xml',
-        },
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          headers: {
+            'User-Agent': USER_AGENT,
+            Accept: 'text/html,application/xhtml+xml',
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         // HTML fetch failed — try direct AP content negotiation as fallback.
