@@ -34,17 +34,19 @@
       <template v-else-if="isFediverse">
         <template v-if="payload.fediverse">
           <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
-            <div class="fedi-source-badge" :title="fediversePlatformLabel">
-              <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
-              <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
-            </div>
             <MonyPost :post="fediversePost" />
             <a v-if="fediverseSourceUrl" :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link">
-              View on {{ fediverseSourceDomain }}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
+              <span class="fedi-source-badge" :title="fediversePlatformLabel">
+                <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
+                <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
+              </span>
+              <span class="fedi-source-link__right">
+                View on {{ fediverseSourceDomain }}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </span>
             </a>
           </div>
           <div v-else-if="fediverseError" class="provider-embed__skeleton">
@@ -509,25 +511,28 @@ function openLink() {
 </script>
 
 <style scoped>
-.provider-embed__fediverse-wrap {
-  position: relative;
+.fedi-source-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 14px 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #8b949e);
+  text-decoration: none;
+  border-top: 1px solid var(--border-color, rgba(48, 54, 61, 0.5));
+}
+
+.fedi-source-link:hover {
+  color: var(--harmony-primary, #58a6ff);
 }
 
 .fedi-source-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--background-secondary, #1c2128);
-  border: 1px solid var(--border-color, #30363d);
-  padding: 2px 8px;
-  border-radius: 6px;
   font-size: 11px;
   color: var(--text-secondary, #8b949e);
-  pointer-events: none;
 }
 
 .fedi-badge-icon {
@@ -539,20 +544,10 @@ function openLink() {
   white-space: nowrap;
 }
 
-.fedi-source-link {
+.fedi-source-link__right {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 4px;
-  padding: 6px 14px 8px;
-  font-size: 12px;
-  color: var(--text-secondary, #8b949e);
-  text-decoration: none;
-  border-top: 1px solid var(--border-color, rgba(48, 54, 61, 0.5));
-}
-
-.fedi-source-link:hover {
-  color: var(--harmony-primary, #58a6ff);
 }
 </style>
 
