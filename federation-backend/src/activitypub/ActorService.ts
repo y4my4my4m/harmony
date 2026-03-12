@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
 import { actorToProfile } from './converters/fromActivityPub.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
+import { ActivityProcessor } from './ActivityProcessor.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
@@ -416,6 +417,46 @@ router.post(
         details: error.message
       });
     }
+  })
+);
+
+/**
+ * Resolve a remote post by URL — imports it (and its author) via ActivityPub if not already local.
+ * POST /resolve-post (proxied via /api/federation/resolve-post)
+ * Body: { url: string }
+ */
+router.post(
+  '/resolve-post',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'url is required' });
+    }
+
+    const supabase = getSupabaseClient();
+
+    const { data: existing } = await supabase
+      .from('posts')
+      .select('id, author_id')
+      .or(`ap_id.eq.${url},url.eq.${url}`)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      return res.json({ success: true, post_id: existing.id });
+    }
+
+    logger.info(`🔍 Resolving remote post: ${url}`);
+    const result = await ActivityProcessor.fetchAndCreateRemotePost(url);
+
+    if (!result) {
+      return res.status(404).json({ error: 'Could not resolve remote post' });
+    }
+
+    logger.info(`✅ Resolved remote post ${url} → ${result.id}`);
+    return res.json({ success: true, post_id: result.id });
   })
 );
 

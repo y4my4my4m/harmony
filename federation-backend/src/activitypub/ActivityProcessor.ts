@@ -621,7 +621,7 @@ export class ActivityProcessor {
   /**
    * Fetch a remote post and create it locally
    */
-  private static async fetchAndCreateRemotePost(postUrl: string): Promise<{
+  public static async fetchAndCreateRemotePost(postUrl: string): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;

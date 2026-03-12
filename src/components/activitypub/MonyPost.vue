@@ -733,6 +733,7 @@ const resolveSyntheticPost = async (): Promise<string | null> => {
   const postUrl = props.post.ap_id || props.post.url;
   if (!postUrl) return null;
 
+  // Check local DB first (fast, no network)
   try {
     const { supabase } = await import('@/supabase');
     const { data: localPost } = await supabase
@@ -745,12 +746,29 @@ const resolveSyntheticPost = async (): Promise<string | null> => {
 
     if (localPost?.id) return localPost.id;
   } catch {
-    // DB lookup failed
+    // DB lookup failed, try federation backend
+  }
+
+  // Not local — ask federation backend to import via ActivityPub
+  try {
+    const { useActivityPubStore } = await import('@/stores/useActivityPub');
+    const apStore = useActivityPubStore();
+    const response = await fetch(`${apStore.federationApiUrl}/resolve-post`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: postUrl }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.post_id) return data.post_id;
+    }
+  } catch {
+    // Federation import failed
   }
 
   notificationStore.showToast(
     'error',
-    'This post hasn\'t been imported yet. Try interacting on the original instance.',
+    'Could not import this post from the remote instance.',
     5000
   );
   return null;
