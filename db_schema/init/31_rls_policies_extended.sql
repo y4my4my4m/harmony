@@ -698,9 +698,7 @@ CREATE POLICY "Admin audit log admin access" ON public.admin_audit_log
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Blocked instances admin access" ON public.blocked_instances;
 CREATE POLICY "Blocked instances admin access" ON public.blocked_instances
-    TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.is_admin = true)
-    );
+    TO authenticated USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
 -- BOTS
@@ -831,9 +829,7 @@ CREATE POLICY "Users can delete own gif favorites" ON public.gif_favorites
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Admins can read metrics" ON public.performance_metrics;
 CREATE POLICY "Admins can read metrics" ON public.performance_metrics
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE profiles.auth_user_id = auth.uid() AND profiles.is_admin = true)
-    );
+    FOR SELECT USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
 -- PG BACKGROUND JOB (may not exist on all installations)
