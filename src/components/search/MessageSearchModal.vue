@@ -531,11 +531,11 @@ onMounted(() => {
   width: 90%;
   max-width: 800px;
   max-height: 90vh;
-  background: #2f3136;
+  background: var(--background-quaternary);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-modal);
 }
 
 .search-modal-header {
@@ -543,7 +543,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .search-modal-title {
@@ -564,13 +564,13 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-hover);
   color: var(--text-primary);
 }
 
 .search-input-container {
   padding: 16px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .search-input-wrapper {
@@ -582,15 +582,15 @@ onMounted(() => {
 .search-icon {
   position: absolute;
   left: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
 .search-input {
   width: 100%;
   padding: 12px 40px 12px 40px;
-  background: #202225;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 16px;
@@ -599,7 +599,7 @@ onMounted(() => {
 }
 
 .search-input:focus {
-  border-color: #5865f2;
+  border-color: var(--harmony-primary);
 }
 
 .clear-btn {
@@ -607,7 +607,7 @@ onMounted(() => {
   right: 8px;
   background: transparent;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -616,13 +616,13 @@ onMounted(() => {
 
 .clear-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-hover);
 }
 
 .filters-panel {
   padding: 16px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: #202225;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--background-tertiary);
 }
 
 .filters-header {
@@ -641,7 +641,7 @@ onMounted(() => {
 .clear-filters-btn {
   background: transparent;
   border: none;
-  color: #5865f2;
+  color: var(--harmony-primary);
   cursor: pointer;
   font-size: 14px;
   padding: 4px 8px;
@@ -650,7 +650,7 @@ onMounted(() => {
 }
 
 .clear-filters-btn:hover {
-  background: rgba(88, 101, 242, 0.1);
+  background: var(--harmony-primary-light);
 }
 
 .filters-grid {
@@ -682,8 +682,8 @@ onMounted(() => {
 
 .filter-input {
   padding: 8px 12px;
-  background: #2f3136;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -692,7 +692,7 @@ onMounted(() => {
 }
 
 .filter-input:focus {
-  border-color: #5865f2;
+  border-color: var(--harmony-primary);
 }
 
 .date-range-inputs {
@@ -724,8 +724,8 @@ onMounted(() => {
   top: 100%;
   left: 0;
   right: 0;
-  background: #2f3136;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   margin-top: 4px;
   max-height: 200px;
@@ -745,7 +745,7 @@ onMounted(() => {
 }
 
 .filter-suggestion-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-hover);
 }
 
 .active-filters {
@@ -795,7 +795,7 @@ onMounted(() => {
   padding: 12px 24px;
   background: transparent;
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-primary);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
@@ -803,13 +803,13 @@ onMounted(() => {
 }
 
 .toggle-filters-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--border-secondary);
   color: var(--text-primary);
 }
 
 .toggle-filters-btn.active {
-  background: #202225;
-  color: #5865f2;
+  background: var(--background-tertiary);
+  color: var(--harmony-primary);
 }
 
 .filter-badge {
@@ -837,14 +837,14 @@ onMounted(() => {
   justify-content: center;
   padding: 48px 24px;
   text-align: center;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #5865f2;
+  border: 3px solid var(--border-primary);
+  border-top-color: var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -881,7 +881,7 @@ onMounted(() => {
 }
 
 .retry-btn:hover {
-  background: #4752c4;
+  background: var(--harmony-primary-hover);
 }
 
 .encryption-notice {
@@ -892,7 +892,7 @@ onMounted(() => {
   background: rgba(250, 168, 26, 0.1);
   border: 1px solid rgba(250, 168, 26, 0.3);
   border-radius: 4px;
-  color: #faa81a;
+  color: var(--status-away);
   font-size: 12px;
   text-align: left;
   max-width: 400px;
@@ -928,7 +928,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #202225;
+  background: var(--background-tertiary);
   border: none;
   border-radius: 4px;
   color: var(--text-secondary);
@@ -938,7 +938,7 @@ onMounted(() => {
 }
 
 .recent-item:hover {
-  background: #2f3136;
+  background: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -950,14 +950,14 @@ onMounted(() => {
 
 .search-result-item {
   padding: 12px;
-  background: #202225;
+  background: var(--background-tertiary);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .search-result-item:hover {
-  background: #2f3136;
+  background: var(--background-quaternary);
 }
 
 .result-header {
@@ -980,11 +980,11 @@ onMounted(() => {
 }
 
 .result-channel {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .result-time {
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -1015,7 +1015,7 @@ onMounted(() => {
 }
 
 .load-more-btn:hover:not(:disabled) {
-  background: #4752c4;
+  background: var(--harmony-primary-hover);
 }
 
 .load-more-btn:disabled {
