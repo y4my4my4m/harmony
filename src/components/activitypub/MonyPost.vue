@@ -531,8 +531,9 @@
       </div>
     </div>
     
-    <!-- Lightbox for images -->
+    <!-- Lightbox for images (only when not embedded in chat context) -->
     <vue-easy-lightbox
+      v-if="!embedded"
       :visible="showLightbox"
       :imgs="[currentLightboxImage]"
       :index="0"
@@ -575,13 +576,15 @@ import router from '@/router';
 // Props
 interface Props {
   post: TimelinePost;
-  hideReplyContext?: boolean; // Hide reply context when in thread view (parent is already visible)
-  isInThread?: boolean; // True when this post is displayed within a thread/conversation view
+  hideReplyContext?: boolean;
+  isInThread?: boolean;
+  embedded?: boolean; // When true, delegates lightbox to parent via open-lightbox emit
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hideReplyContext: false,
-  isInThread: false
+  isInThread: false,
+  embedded: false,
 });
 
 // Emits
@@ -592,9 +595,10 @@ const emit = defineEmits<{
   click: [post: TimelinePost];
   'user-mention-click': [handle: string];
   'hashtag-click': [tag: string];
-  'user-click': [user: any]; // For when clicking on the author
-  'show-conversation': [postId: string]; // New emit for showing conversation
-  'refresh': [postId: string]; // Refresh post data after fetching remote reactions
+  'user-click': [user: any];
+  'show-conversation': [postId: string];
+  'refresh': [postId: string];
+  'open-lightbox': [url: string];
 }>();
 
 // Stores and composables
@@ -1847,6 +1851,10 @@ const handleHashtagClick = (tag: string) => {
 };
 
 const handleImageClick = (url: string) => {
+  if (props.embedded) {
+    emit('open-lightbox', url);
+    return;
+  }
   currentLightboxImage.value = url;
   showLightbox.value = true;
 };

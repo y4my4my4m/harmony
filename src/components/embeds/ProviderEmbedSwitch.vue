@@ -24,7 +24,7 @@
     <div v-if="!collapsed" class="provider-embed__content">
       <template v-if="isHarmony">
         <div v-if="harmonyPost" class="provider-embed__post">
-          <MonyPost :post="harmonyPost" />
+          <MonyPost :post="harmonyPost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
         </div>
         <div v-else class="provider-embed__skeleton">
           <span v-if="harmonyError">{{ harmonyError }}</span>
@@ -34,7 +34,7 @@
       <template v-else-if="isFediverse">
         <template v-if="payload.fediverse">
           <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
-            <MonyPost :post="fediversePost" />
+            <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
             <a v-if="fediverseSourceUrl" :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link">
               <span class="fedi-source-badge" :title="fediversePlatformLabel">
                 <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
@@ -102,6 +102,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'embed-loaded': [];
+  'open-lightbox': [url: string];
 }>();
 
 const collapsed = ref(false);

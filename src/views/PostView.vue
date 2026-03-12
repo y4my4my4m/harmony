@@ -662,6 +662,7 @@ onMounted(loadPostWithContext);
   display: flex;
   flex-direction: column;
   height: 100vh;
+  padding-bottom: 40px;
 }
 
 .post-header {

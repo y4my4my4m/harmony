@@ -431,7 +431,7 @@
   <vue-easy-lightbox
     class="lightbox"
     :visible="isLightboxOpen"
-    :imgs="lightboxImages"
+    :imgs="activeLightboxImages"
     :index="indexRef"
     @hide="closeLightbox"
   />
@@ -1244,6 +1244,7 @@ const reportTargetUser = ref<{ username: string; display_name?: string; avatar_u
 
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
+const activeLightboxImages = ref<string[]>([]);
 
 // --- CONSTANTS ---
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
@@ -2553,8 +2554,13 @@ const handleOpenLightbox = (url: string) => {
   const index = lightboxImages.value.indexOf(url);
   if (index !== -1) {
     indexRef.value = index;
-    isLightboxOpen.value = true;
+    activeLightboxImages.value = lightboxImages.value;
+  } else {
+    // Image from an embed not in the pre-computed list — show standalone
+    activeLightboxImages.value = [url];
+    indexRef.value = 0;
   }
+  isLightboxOpen.value = true;
 };
 
 const closeLightbox = () => {
