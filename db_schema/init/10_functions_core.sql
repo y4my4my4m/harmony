@@ -53,6 +53,73 @@ AS $$
     );
 $$;
 
+-- Check if current user is instance moderator
+CREATE OR REPLACE FUNCTION public.is_current_user_moderator()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT COALESCE(
+        (SELECT is_moderator FROM public.profiles WHERE auth_user_id = auth.uid()),
+        false
+    );
+$$;
+
+-- Check if current user is admin OR moderator
+CREATE OR REPLACE FUNCTION public.is_current_user_admin_or_mod()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+    SELECT COALESCE(
+        (SELECT (is_admin OR is_moderator) FROM public.profiles WHERE auth_user_id = auth.uid()),
+        false
+    );
+$$;
+
+-- Check if current user can manage messages in a given channel
+-- Checks server ownership, server admin role, and MANAGE_MESSAGES (bit 21)
+CREATE OR REPLACE FUNCTION public.can_current_user_manage_messages_in_channel(p_channel_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_profile_id uuid;
+    v_server_id uuid;
+    v_is_owner boolean;
+    v_has_perm boolean;
+BEGIN
+    v_profile_id := public.get_current_profile_id();
+    IF v_profile_id IS NULL THEN RETURN false; END IF;
+
+    SELECT server_id INTO v_server_id FROM public.channels WHERE id = p_channel_id;
+    IF v_server_id IS NULL THEN RETURN false; END IF;
+
+    SELECT (owner = v_profile_id) INTO v_is_owner FROM public.servers WHERE id = v_server_id;
+    IF v_is_owner THEN RETURN true; END IF;
+
+    -- Check if user has a role with ADMINISTRATOR (bit 0) or MANAGE_MESSAGES (bit 21)
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.user_roles ur
+        JOIN public.server_roles sr ON sr.id = ur.role_id
+        WHERE ur.user_id = v_profile_id
+          AND sr.server_id = v_server_id
+          AND (
+              sr.is_admin = true
+              OR (sr.permissions & (1::bigint << 0)) != 0
+              OR (sr.permissions & (1::bigint << 21)) != 0
+          )
+    ) INTO v_has_perm;
+
+    RETURN v_has_perm;
+END;
+$$;
+
 -- Check if author is suspended (used by RLS)
 CREATE OR REPLACE FUNCTION public.is_author_suspended(p_author_id uuid)
 RETURNS boolean
@@ -732,6 +799,9 @@ GRANT EXECUTE ON FUNCTION public.update_message_embeds(uuid, jsonb) TO service_r
 GRANT EXECUTE ON FUNCTION public.get_current_profile_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_current_user_profile_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_current_user_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_current_user_moderator() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_current_user_admin_or_mod() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_current_user_manage_messages_in_channel(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_or_get_direct_conversation(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_custom_status(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.set_custom_status(uuid, text, text, text, text, text, text, integer) TO authenticated;
