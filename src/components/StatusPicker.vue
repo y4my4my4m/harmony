@@ -5,7 +5,7 @@
         <div class="status-modal">
           <!-- Header -->
           <div class="modal-header">
-            <h2>Set Custom Status</h2>
+            <h2>{{ hasCurrentStatus ? 'Edit Custom Status' : 'Set Custom Status' }}</h2>
             <button class="close-btn" @click="close">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.3 5.71a1 1 0 00-1.42 0L12 10.59 7.11 5.7A1 1 0 105.7 7.11L10.59 12 5.7 16.89a1 1 0 101.41 1.41L12 13.41l4.89 4.89a1 1 0 001.41-1.41L13.41 12l4.89-4.89a1 1 0 000-1.4z"/>
@@ -297,15 +297,34 @@ const close = () => {
   emit('close')
 }
 
-// Reset form when modal opens
+/** Map expiresAt back to duration selector value for edit mode */
+function getDurationFromExpiresAt(expiresAt: string | undefined): string {
+  if (!expiresAt) return 'never'
+  const exp = new Date(expiresAt).getTime()
+  const now = Date.now()
+  const ms = exp - now
+  const min = ms / (60 * 1000)
+  if (min <= 35) return '30m'
+  if (min <= 90) return '1h'
+  if (min <= 4.5 * 60) return '4h'
+  const endOfDay = new Date(now)
+  endOfDay.setHours(23, 59, 59, 999)
+  if (exp <= endOfDay.getTime() + 60000) return 'today'
+  if (min <= 8 * 24 * 60) return '1w'
+  return 'never'
+}
+
+// Reset form when modal opens (prefill when editing)
 watch(() => props.isVisible, (visible) => {
   if (visible) {
     statusText.value = props.currentStatus?.text || ''
-    selectedEmoji.value = props.currentStatus?.emoji 
-      ? { native: props.currentStatus.emoji, url: props.currentStatus.emoji_url || undefined }
-      : null
+    selectedEmoji.value = props.currentStatus?.emoji
+      ? { native: props.currentStatus.emoji, url: (props.currentStatus as any).emoji_url || undefined }
+      : (props.currentStatus as any)?.emoji_url
+        ? { native: undefined, name: 'Emoji', url: (props.currentStatus as any).emoji_url }
+        : null
     selectedActivity.value = props.currentStatus?.type || 'custom'
-    selectedDuration.value = '4h'
+    selectedDuration.value = getDurationFromExpiresAt(props.currentStatus?.expiresAt)
     showEmojiPicker.value = false
   }
 })
