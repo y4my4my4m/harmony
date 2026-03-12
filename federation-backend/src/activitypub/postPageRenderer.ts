@@ -9,16 +9,35 @@
 import config from '../config/index.js';
 
 /**
- * Resolve a Supabase storage URL to a full absolute URL.
- * Local users store relative paths like "user-id/file.webp" which need
- * the Supabase storage base URL prepended.
+ * Resolve a Supabase storage URL to a full absolute URL using the render
+ * (imgproxy) path for on-the-fly resizing. Falls through for already-absolute
+ * URLs (e.g. federated avatars/emojis from other instances).
  */
-function resolveStorageUrl(raw: string | null | undefined, bucket: string): string {
+function resolveStorageUrl(
+  raw: string | null | undefined,
+  bucket: string,
+  width?: number,
+  height?: number,
+): string {
   if (!raw || typeof raw !== 'string') return '';
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+
+  // Already a full URL — append transform query params if it's our Supabase
+  // storage URL and no transforms are present yet
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    if (width && raw.includes('/storage/v1/') && !raw.includes('width=')) {
+      const sep = raw.includes('?') ? '&' : '?';
+      return `${raw}${sep}width=${width}&height=${height || width}&resize=contain&quality=80`;
+    }
+    return raw;
+  }
   if (raw.startsWith('/')) return raw;
+
   const base = config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL || '';
   if (!base) return raw;
+
+  if (width) {
+    return `${base}/storage/v1/render/image/public/${bucket}/${raw}?width=${width}&height=${height || width}&resize=contain&quality=80`;
+  }
   return `${base}/storage/v1/object/public/${bucket}/${raw}`;
 }
 
@@ -132,7 +151,7 @@ function renderDisplayNameHtml(displayName: string, emojis?: DisplayNameEmoji[])
   const emojiMap = new Map<string, string>();
   for (const e of emojis) {
     if (!e.name || !e.url) continue;
-    const resolvedUrl = resolveStorageUrl(e.url, 'emojis');
+    const resolvedUrl = resolveStorageUrl(e.url, 'emojis', 48);
     const cleanName = e.name.replace(/^:/, '').replace(/:$/, '');
     emojiMap.set(cleanName, resolvedUrl);
     const nameWithoutDomain = cleanName.replace(/@[^@]*$/, '');
@@ -199,7 +218,7 @@ export function renderPostPage(post: any, author: any): string {
     ? `CW: ${escapeHtml(post.content_warning)}`
     : `${displayNamePlain}: "${ogDescription.substring(0, 80)}${ogDescription.length > 80 ? '...' : ''}"`;
 
-  const avatarUrl = resolveStorageUrl(author.avatar_url, 'avatars') || `https://${domain}/default-avatar.png`;
+  const avatarUrl = resolveStorageUrl(author.avatar_url, 'avatars', 96) || `https://${domain}/default-avatar.png`;
 
   const favorites = post.favorites_count || 0;
   const reblogs = post.reblogs_count || 0;
