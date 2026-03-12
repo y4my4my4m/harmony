@@ -250,6 +250,11 @@ router.get(
     const html = renderPostPage(post, post.author);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=300');
+    // Override helmet's strict CSP for this page: allow inline script (auth
+    // redirect) and images from any HTTPS source (avatars, emojis, media
+    // from federated instances)
+    res.setHeader('Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' https:;");
     return res.send(html);
   })
 );
