@@ -239,6 +239,7 @@ const resolveRemotePost = async (handle: string, noteId: string): Promise<string
     `https://${domain}/notes/${noteId}`,
     `https://${domain}/users/${username}/statuses/${noteId}`,
     `https://${domain}/@${username}/${noteId}`,
+    `https://${domain}/@${username}/statuses/${noteId}`,
     `https://${domain}/notice/${noteId}`,
     `https://${domain}/objects/${noteId}`,
   ];
@@ -247,12 +248,41 @@ const resolveRemotePost = async (handle: string, noteId: string): Promise<string
     const { data: post } = await supabase
       .from('posts')
       .select('id')
-      .eq('ap_id', candidate)
+      .or(`ap_id.eq.${candidate},url.eq.${candidate}`)
       .eq('is_deleted', false)
       .limit(1)
       .maybeSingle();
 
     if (post?.id) return post.id;
+  }
+
+  // Strategy 3: ask federation backend to resolve/import the post
+  try {
+    const candidateUrl = `https://${domain}/users/${username}/statuses/${noteId}`;
+    const response = await fetch(`${activityPub.federationApiUrl}/resolve-post`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: candidateUrl }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.post_id) return data.post_id;
+    }
+  } catch {
+    // Federation resolve failed, try other candidates
+    for (const candidate of candidates.slice(0, 3)) {
+      try {
+        const response = await fetch(`${activityPub.federationApiUrl}/resolve-post`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: candidate }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.post_id) return data.post_id;
+        }
+      } catch { /* continue */ }
+    }
   }
 
   return null;

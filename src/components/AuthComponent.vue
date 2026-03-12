@@ -680,6 +680,7 @@ const close2FAModal = () => {
   pendingFactorId.value = ''
   pendingChallengeId.value = ''
   useRecoveryCode.value = false
+  authStore._pendingMFAVerification = false
 }
 
 // Forgot Password

@@ -436,10 +436,40 @@ router.post(
 
     const supabase = getSupabaseClient();
 
+    // Build a set of URL variants to check — fediverse platforms use different
+    // URL formats for the same post (e.g. GoToSocial: /users/x/statuses/ID vs /@x/statuses/ID)
+    const urlVariants = new Set<string>([url]);
+    try {
+      const parsed = new URL(url);
+      const path = parsed.pathname;
+      // GoToSocial: /users/username/statuses/ID ↔ /@username/statuses/ID
+      const gtsUsers = path.match(/^\/users\/([^/]+)\/statuses\/(.+)$/);
+      if (gtsUsers) {
+        urlVariants.add(`${parsed.origin}/@${gtsUsers[1]}/statuses/${gtsUsers[2]}`);
+      }
+      const gtsAt = path.match(/^\/@([^/]+)\/statuses\/(.+)$/);
+      if (gtsAt) {
+        urlVariants.add(`${parsed.origin}/users/${gtsAt[1]}/statuses/${gtsAt[2]}`);
+      }
+      // Mastodon: /users/username/statuses/ID ↔ /@username/ID
+      const mastoUsers = path.match(/^\/users\/([^/]+)\/statuses\/(.+)$/);
+      if (mastoUsers) {
+        urlVariants.add(`${parsed.origin}/@${mastoUsers[1]}/${mastoUsers[2]}`);
+      }
+      const mastoAt = path.match(/^\/@([^/]+)\/(\d+)$/);
+      if (mastoAt) {
+        urlVariants.add(`${parsed.origin}/users/${mastoAt[1]}/statuses/${mastoAt[2]}`);
+      }
+    } catch { /* invalid URL, just use the original */ }
+
+    const orFilter = [...urlVariants]
+      .flatMap(u => [`ap_id.eq.${u}`, `url.eq.${u}`])
+      .join(',');
+
     const { data: existing } = await supabase
       .from('posts')
       .select('id, author_id')
-      .or(`ap_id.eq.${url},url.eq.${url}`)
+      .or(orFilter)
       .eq('is_deleted', false)
       .limit(1)
       .maybeSingle();

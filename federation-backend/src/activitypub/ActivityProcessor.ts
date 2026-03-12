@@ -630,6 +630,21 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     try {
+      // Check if a post with this URL already exists (by ap_id or url)
+      // before doing any network requests
+      const { data: existing } = await supabase
+        .from('posts')
+        .select('id, in_reply_to, conversation_root_id')
+        .or(`ap_id.eq.${postUrl},url.eq.${postUrl}`)
+        .eq('is_deleted', false)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        logger.info(`⏭️ Post already exists for ${postUrl} → ${existing.id}, skipping fetch`);
+        return existing;
+      }
+
       let response = await fetch(postUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
@@ -653,6 +668,24 @@ export class ActivityProcessor {
       if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article') {
         logger.warn(`Remote object is not a Note/Article: ${remoteObject.type}`);
         return null;
+      }
+
+      // Deduplicate by the canonical AP id (may differ from the URL we fetched)
+      const apId = remoteObject.id;
+      const apUrl = remoteObject.url || apId;
+      if (apId !== postUrl || apUrl !== postUrl) {
+        const { data: existingByApId } = await supabase
+          .from('posts')
+          .select('id, in_reply_to, conversation_root_id')
+          .or(`ap_id.eq.${apId},url.eq.${apUrl}`)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingByApId) {
+          logger.info(`⏭️ Post already exists for AP id ${apId} → ${existingByApId.id}, skipping create`);
+          return existingByApId;
+        }
       }
 
       // Ensure author exists
@@ -679,8 +712,8 @@ export class ActivityProcessor {
       const { data: newPost, error } = await supabase
         .from('posts')
         .insert({
-          ap_id: remoteObject.id,
-          url: remoteObject.url || remoteObject.id,
+          ap_id: apId,
+          url: apUrl,
           author_id: author.id,
           content,
           visibility,
@@ -694,11 +727,23 @@ export class ActivityProcessor {
         .single();
 
       if (error) {
+        // Handle unique constraint violation gracefully (concurrent insert race)
+        if (error.code === '23505') {
+          const { data: raced } = await supabase
+            .from('posts')
+            .select('id, in_reply_to, conversation_root_id')
+            .eq('ap_id', apId)
+            .maybeSingle();
+          if (raced) {
+            logger.info(`⏭️ Concurrent insert resolved for ${apId} → ${raced.id}`);
+            return raced;
+          }
+        }
         logger.error('Failed to create remote post:', error);
         return null;
       }
 
-      logger.info(`✅ Fetched and created remote post: ${remoteObject.id}`);
+      logger.info(`✅ Fetched and created remote post: ${apId}`);
       return newPost;
     } catch (error) {
       logger.warn(`Error fetching remote post ${postUrl}:`, error);
