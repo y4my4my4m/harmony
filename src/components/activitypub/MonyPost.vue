@@ -649,8 +649,34 @@ const tooltipEmojiShortcode = computed(() => {
   return unicodeToShortcode(unicode) || ''
 })
 
+// Extract the note/status ID from a fediverse AP URL (last path segment)
+const extractNoteId = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  try {
+    const path = new URL(url).pathname;
+    const segments = path.split('/').filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : null;
+  } catch {
+    return null;
+  }
+};
+
 const handleTimeClick = () => {
-  // Navigate to PostDetail (the actual route) instead of PostView (which redirects)
+  // For remote/federated posts, use the friendly @handle/noteId URL
+  if (!props.post.is_local && props.post.author) {
+    const postAuthor = props.post.author;
+    const noteId = extractNoteId(props.post.ap_id || props.post.url);
+    if (noteId && postAuthor.username && postAuthor.domain) {
+      router.push({
+        name: 'RemotePostDetail',
+        params: {
+          handle: `@${postAuthor.username}@${postAuthor.domain}`,
+          noteId
+        }
+      });
+      return;
+    }
+  }
   router.push({ name: 'PostDetail', params: { postId: props.post.id } });
 };
 

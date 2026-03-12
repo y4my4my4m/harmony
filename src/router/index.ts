@@ -243,12 +243,26 @@ const router = createRouter({
           }
         },
         {
+          path: 'posts/:handle/:noteId',
+          name: 'RemotePostDetail',
+          component: () => import('@/views/PostView.vue'),
+          props: route => ({
+            remoteHandle: route.params.handle as string,
+            remoteNoteId: route.params.noteId as string,
+            contextType: (route.query.context as any) || 'thread',
+            highlightReply: route.query.highlight as string,
+            timestamp: route.query.t ? parseInt(route.query.t as string) : null,
+            currentView: CurrentView.POST,
+            viewType: ViewType.POST
+          })
+        },
+        {
           path: 'post/:postId',
           name: 'PostDetail',
           component: () => import('@/views/PostView.vue'),
           props: route => ({
             postId: route.params.postId as string,
-            contextType: (route.query.context as any) || 'thread', // Default to thread
+            contextType: (route.query.context as any) || 'thread',
             highlightReply: route.query.highlight as string,
             timestamp: route.query.t ? parseInt(route.query.t as string) : null,
             currentView: CurrentView.POST,

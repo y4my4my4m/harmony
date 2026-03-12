@@ -400,7 +400,15 @@ function buildSyntheticTimelinePost(fedi: FediverseEmbedSummary): TimelinePost {
     mime_type: att.mediaType,
   }));
 
-  const syntheticId = `fedi-embed-${btoa(fedi.postUrl).slice(0, 20)}`;
+  // Extract the note ID from the post URL for a readable synthetic ID
+  let noteId: string;
+  try {
+    const segments = new URL(fedi.postUrl).pathname.split('/').filter(Boolean);
+    noteId = segments[segments.length - 1] || 'unknown';
+  } catch {
+    noteId = 'unknown';
+  }
+  const syntheticId = `fedi-${domain}-${noteId}`;
 
   return {
     id: syntheticId,
