@@ -414,6 +414,17 @@ const setCursorPosition = (targetPosition: number) => {
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
+  // Pre-scan for URLs to avoid rendering @mentions inside them
+  // (e.g., https://mastodon.social/@user/12345)
+  const urlRanges: Array<{ start: number; end: number }> = [];
+  const preUrlRegex = /\bhttps?:\/\/\S+/g;
+  let urlScan;
+  while ((urlScan = preUrlRegex.exec(text)) !== null) {
+    urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
+  }
+  const isInsideUrl = (pos: number): boolean =>
+    urlRanges.some(r => pos >= r.start && pos < r.end);
+
   // Match role mentions, then user mentions
   // @role:UUID - role mention
   // @username@domain - remote user mention
@@ -424,6 +435,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   let match;
   
   while ((match = mentionRegex.exec(text)) !== null) {
+    if (isInsideUrl(match.index)) continue;
     const matchStart = match.index;
     const matchEnd = match.index + match[0].length;
     

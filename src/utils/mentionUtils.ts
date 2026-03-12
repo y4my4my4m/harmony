@@ -145,12 +145,23 @@ export function parseBioWithEmojis(bio: string, emojis: Array<{name: string, url
  * Supports both @username (local) and @username@domain (remote) formats
  */
 export function extractMentions(text: string): MentionMatch[] {
-  // Enhanced regex to match both local and remote mentions
+  // Pre-scan for URLs to avoid matching @mentions inside them
+  // (e.g., https://mastodon.social/@user/12345)
+  const urlRanges: Array<{ start: number; end: number }> = [];
+  const preUrlRegex = /\bhttps?:\/\/\S+/g;
+  let urlScan;
+  while ((urlScan = preUrlRegex.exec(text)) !== null) {
+    urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
+  }
+  const isInsideUrl = (pos: number): boolean =>
+    urlRanges.some(r => pos >= r.start && pos < r.end);
+
   const mentionRegex = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
   const mentions: MentionMatch[] = [];
   let match;
 
   while ((match = mentionRegex.exec(text)) !== null) {
+    if (isInsideUrl(match.index)) continue;
     mentions.push({
       full: match[0],
       username: match[1],
