@@ -10,6 +10,7 @@
 .provider-embed.provider-harmony-post,
 .provider-embed.provider-fediverse-post {
   overflow: visible;
+  max-width: 550px;
 }
 
 .provider-embed__header {
@@ -78,7 +79,6 @@
 
 .provider-embed__post {
   max-width: 100%;
-  overflow: hidden;
   border-radius: 0 0 14px 14px;
 }
 

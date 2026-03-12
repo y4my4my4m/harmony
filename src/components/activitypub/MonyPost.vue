@@ -164,6 +164,7 @@
                   :src="media.url" 
                   :alt="media.description || 'Media attachment'"
                   class="media-image"
+                  @click="handleImageClick(media.url)"
                 />
                 <video 
                   v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
@@ -198,7 +199,6 @@
             v-if="displayMediaAttachments?.length > 0"
             class="media-gallery"
           >
-            <!-- Simple media display for now -->
             <div 
               v-for="media in displayMediaAttachments" 
               :key="media.id"
@@ -209,6 +209,7 @@
                 :src="media.url" 
                 :alt="media.description || 'Media attachment'"
                 class="media-image"
+                @click="handleImageClick(media.url)"
               />
               <video 
                 v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
@@ -354,7 +355,7 @@
         <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
-          @click="toggleBookmark(originalPostId)"
+          @click="handleToggleBookmark"
           :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
         >
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
@@ -693,6 +694,41 @@ const instanceDomain = computed(() => {
 const isRemotePost = computed(() => {
   return !props.post.is_local && props.post.ap_id;
 });
+
+// Synthetic posts are built from embed data and don't exist in the local DB
+const isSyntheticPost = computed(() => {
+  return props.post.metadata?.synthetic === true;
+});
+
+// Resolve a synthetic post into a real local post before interactions
+const resolveSyntheticPost = async (): Promise<string | null> => {
+  if (!isSyntheticPost.value) return originalPostId.value;
+
+  const postUrl = props.post.ap_id || props.post.url;
+  if (!postUrl) return null;
+
+  try {
+    const { supabase } = await import('@/supabase');
+    const { data: localPost } = await supabase
+      .from('posts')
+      .select('id')
+      .or(`url.eq.${postUrl},ap_id.eq.${postUrl}`)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (localPost?.id) return localPost.id;
+  } catch {
+    // DB lookup failed
+  }
+
+  notificationStore.showToast(
+    'error',
+    'This post hasn\'t been imported yet. Try interacting on the original instance.',
+    5000
+  );
+  return null;
+};
 
 // State for fetching remote data
 const isFetchingReactions = ref(false);
@@ -1157,6 +1193,14 @@ const closeEmojiPopup = () => {
 const handleEmojiSelected = async (emoji: any) => {
   debug.log('Emoji selected:', emoji);
   
+  if (isSyntheticPost.value) {
+    const resolved = await resolveSyntheticPost();
+    if (!resolved) {
+      closeEmojiPopup();
+      return;
+    }
+  }
+
   const currentUser = getCurrentUser.value;
   if (!currentUser) {
     debug.warn('User not authenticated');
@@ -1542,7 +1586,11 @@ const handleMenuToggle = () => {
 
 // Optimistic favorite toggle — fills/unfills the heart immediately
 const handleToggleFavorite = async () => {
-  const postId = originalPostId.value
+  const postId = isSyntheticPost.value
+    ? await resolveSyntheticPost()
+    : originalPostId.value;
+  if (!postId) return;
+
   const targetPost = isReblog.value ? props.post.reblog : props.post
   const wasFavorited = displayInteractionCounts.value.is_favorited
   const prevCount = displayInteractionCounts.value.favorites_count
@@ -1573,21 +1621,33 @@ const handleToggleFavorite = async () => {
 }
 
 // Reblog menu handlers
-const handleReblogClick = () => {
+const handleReblogClick = async () => {
   // If already reblogged, undo the reblog directly
   if (displayInteractionCounts.value.is_reblogged) {
-    // Always use the original post ID for reblog actions
-    toggleReblog(originalPostId.value);
+    const postId = isSyntheticPost.value
+      ? await resolveSyntheticPost()
+      : originalPostId.value;
+    if (!postId) return;
+    toggleReblog(postId);
     return;
   }
+
+  if (isSyntheticPost.value) {
+    const resolved = await resolveSyntheticPost();
+    if (!resolved) return;
+  }
+
   // Otherwise show the menu with options
   showReblogMenu.value = !showReblogMenu.value;
 };
 
 const handleSimpleReblog = async () => {
   showReblogMenu.value = false;
-  // Always reblog the original post, not a reblog of a reblog
-  await toggleReblog(originalPostId.value);
+  const postId = isSyntheticPost.value
+    ? await resolveSyntheticPost()
+    : originalPostId.value;
+  if (!postId) return;
+  await toggleReblog(postId);
 };
 
 const handleQuoteReblog = () => {
@@ -1599,6 +1659,14 @@ const handleQuoteReblog = () => {
     quotePost: originalPost,
     quoteAuthor: originalAuthor
   });
+};
+
+const handleToggleBookmark = async () => {
+  const postId = isSyntheticPost.value
+    ? await resolveSyntheticPost()
+    : originalPostId.value;
+  if (!postId) return;
+  toggleBookmark(postId);
 };
 
 // Fetch remote reactions for a remote post

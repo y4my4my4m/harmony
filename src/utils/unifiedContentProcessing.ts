@@ -138,7 +138,7 @@ export async function resolveRoleMentionsData(
 
   const map: Record<string, { name: string; color: string | null }> = {};
   try {
-    const query = supabase
+    let query = supabase
       .from('server_roles')
       .select('id, name, color')
       .in('id', Array.from(roleIds));
