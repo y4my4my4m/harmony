@@ -37,6 +37,7 @@ import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import { userDataService } from '@/services/userDataService';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { roleService } from '@/services/RoleService';
@@ -804,7 +805,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
         if (emoji.url) {
           // SVG/Custom emoji - use image
           const img = document.createElement('img');
-          img.src = emoji.url;
+          img.src = getEmojiUrl(emoji.url, 48);
           img.alt = `:${token.content}:`;
           img.className = 'emoji-image';
           img.draggable = false;

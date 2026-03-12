@@ -357,9 +357,8 @@ function isCustomServerEmoji(emoji: { id: string; native?: string; name: string;
  * Handles custom server emojis by checking stored URL or looking up in emoji cache
  */
 function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {
-  // If it has a custom URL (not a local asset), use it
   if (emoji.url && !isLocalAssetUrl(emoji.url)) {
-    return emoji.url;
+    return getEmojiUrl(emoji.url, 42);
   }
   
   // If it's not identified as a custom emoji, return null (let other handlers deal with it)
@@ -374,7 +373,7 @@ function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: 
     if (serverEmojis && serverEmojis.length > 0) {
       const cachedEmoji = serverEmojis.find(e => e.name === emoji.name);
       if (cachedEmoji && cachedEmoji.url) {
-        return cachedEmoji.url;
+        return getEmojiUrl(cachedEmoji.url, 42);
       }
     }
   }
