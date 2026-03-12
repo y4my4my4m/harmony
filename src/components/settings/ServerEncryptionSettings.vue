@@ -82,13 +82,26 @@
         <div class="checkbox-option">
           <input
             type="checkbox"
+            id="encrypt-attachment-metadata"
+            checked
+            disabled
+          />
+          <label for="encrypt-attachment-metadata">
+            <span class="option-name">Encrypt attachment metadata</span>
+            <span class="option-hint">File URLs, names, and types are encrypted within message content when encryption is enabled</span>
+          </label>
+        </div>
+
+        <div class="checkbox-option disabled-option">
+          <input
+            type="checkbox"
             id="encrypt-attachments"
             v-model="encryptAttachments"
-            :disabled="!canModify || currentMode === 'disabled'"
+            disabled
           />
           <label for="encrypt-attachments">
-            <span class="option-name">Encrypt file attachments</span>
-            <span class="option-hint">Apply encryption to uploaded files</span>
+            <span class="option-name">Encrypt file blobs <span class="coming-soon-badge">Coming soon</span></span>
+            <span class="option-hint">Encrypt file data before upload so files are unreadable in storage without decryption keys</span>
           </label>
         </div>
       </div>
@@ -647,6 +660,29 @@ onMounted(() => {
 .option-hint {
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+.disabled-option {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.disabled-option label {
+  cursor: default;
+}
+
+.coming-soon-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  vertical-align: middle;
+  margin-left: 6px;
 }
 
 .stats-grid {

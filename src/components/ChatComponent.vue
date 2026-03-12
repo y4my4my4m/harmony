@@ -29,10 +29,26 @@
     />
     
     <!-- Encryption status bar -->
-    <!-- <div v-if="encryptionStatus" :class="['encryption-status-bar', encryptionStatus.level]">
+    <div v-if="encryptionStatus" :class="['encryption-status-bar', encryptionStatus.level]">
       <span class="encryption-status-icon">{{ encryptionStatus.icon }}</span>
       <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
-    </div> -->
+      <button
+        v-if="encryptionStatus.showSetup"
+        class="encryption-setup-btn"
+        @click="showEncryptionSetupWizard = true"
+      >
+        Set up now
+      </button>
+    </div>
+
+    <!-- Encryption setup wizard (launched from status bar prompt) -->
+    <Teleport to="body">
+      <RecoveryKeySetupWizard
+        v-if="showEncryptionSetupWizard"
+        @close="showEncryptionSetupWizard = false"
+        @complete="handleEncryptionSetupComplete"
+      />
+    </Teleport>
 
     <!-- Send error feedback -->
     <div v-if="sendError" class="encryption-status-bar error" @click="sendError = null">
@@ -110,10 +126,11 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+  import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import KickBanModal from './moderation/KickBanModal.vue';
+  const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
@@ -297,7 +314,8 @@
       const emojiIconClicked = ref(false);
 
       // Encryption status tracking
-      const encryptionStatusData = ref<{ level: string; icon: string; text: string } | null>(null)
+      const encryptionStatusData = ref<{ level: string; icon: string; text: string; showSetup?: boolean } | null>(null)
+      const showEncryptionSetupWizard = ref(false)
 
       const encryptionStatus = computed(() => encryptionStatusData.value)
 
@@ -314,11 +332,13 @@
         try {
           const { data: settings } = await supabase
             .from('server_encryption_settings')
-            .select('encryption_mode')
+            .select('encryption_mode, force_key_setup')
             .eq('server_id', serverId)
             .maybeSingle()
 
           const mode = settings?.encryption_mode || 'disabled'
+          const forceSetup = settings?.force_key_setup || false
+
           if (mode === 'disabled') {
             encryptionStatusData.value = null
             return
@@ -352,7 +372,15 @@
               encryptionStatusData.value = {
                 level: 'error',
                 icon: '⚠️',
-                text: 'Encryption required — set up in Settings > Encryption'
+                text: 'Encryption required — set up in Settings > Encryption',
+                showSetup: true
+              }
+            } else if (forceSetup) {
+              encryptionStatusData.value = {
+                level: 'setup-prompt',
+                icon: '🔑',
+                text: 'This server recommends encryption — set up your keys to enable E2EE',
+                showSetup: true
               }
             } else {
               encryptionStatusData.value = null
@@ -361,6 +389,11 @@
         } catch {
           encryptionStatusData.value = null
         }
+      }
+
+      function handleEncryptionSetupComplete() {
+        showEncryptionSetupWizard.value = false
+        checkEncryptionStatus()
       }
 
       watch(
@@ -860,6 +893,10 @@
     background: rgba(237, 66, 69, 0.08);
     cursor: pointer;
   }
+  .encryption-status-bar.setup-prompt {
+    color: var(--harmony-primary, #5865f2);
+    background: rgba(88, 101, 242, 0.06);
+  }
   .encryption-status-icon {
     font-size: 0.8rem;
     flex-shrink: 0;
@@ -868,5 +905,21 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .encryption-setup-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 2px 10px;
+    border-radius: 4px;
+    border: none;
+    background: var(--harmony-primary, #5865f2);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+  .encryption-setup-btn:hover {
+    filter: brightness(1.15);
   }
 </style>
