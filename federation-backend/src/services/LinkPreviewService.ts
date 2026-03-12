@@ -74,6 +74,70 @@ const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
 
 const USER_AGENT = 'HarmonyLinkPreview/1.0 (+https://har.mony.lol)';
 
+const NON_AP_DOMAINS = new Set([
+  'google.com', 'google.co.jp', 'google.co.uk', 'google.de', 'google.fr',
+  'googleapis.com', 'gstatic.com',
+  'facebook.com', 'fb.com', 'fbcdn.net',
+  'instagram.com',
+  'x.com', 'twitter.com', 't.co',
+  'tiktok.com',
+  'github.com', 'githubusercontent.com',
+  'wikipedia.org', 'wikimedia.org',
+  'twitch.tv',
+  'linkedin.com',
+  'imgur.com',
+  'discord.com', 'discord.gg', 'discordapp.com',
+  'medium.com',
+  'notion.so', 'notion.site',
+  'stackoverflow.com', 'stackexchange.com',
+  'amazon.com', 'amzn.to',
+  'apple.com',
+  'microsoft.com',
+  'steam.com', 'steampowered.com', 'steamcommunity.com',
+  'netflix.com',
+  'pinterest.com', 'pin.it',
+  'tumblr.com',
+  'vimeo.com',
+  'soundcloud.com',
+  'bandcamp.com',
+  'archive.org',
+  'dropbox.com',
+  'drive.google.com',
+  'docs.google.com',
+  'maps.google.com',
+  'youtu.be', 'youtube.com',
+  'open.spotify.com', 'spotify.com',
+  'reddit.com', 'redd.it',
+  'itch.io',
+  'patreon.com',
+  'ko-fi.com',
+  'gofundme.com',
+  'paypal.com',
+  'stripe.com',
+  'npm.io', 'npmjs.com',
+  'pypi.org',
+  'crates.io',
+  'hub.docker.com',
+  'vercel.app', 'netlify.app', 'pages.dev',
+]);
+
+function isNonApDomain(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  if (NON_AP_DOMAINS.has(lower)) return true;
+  for (const domain of NON_AP_DOMAINS) {
+    if (lower.endsWith('.' + domain)) return true;
+  }
+  return false;
+}
+
+function isActivityPubObject(obj: any): boolean {
+  if (!obj || typeof obj !== 'object') return false;
+  const ctx = obj['@context'];
+  if (typeof ctx === 'string') return ctx.includes('activitystreams');
+  if (Array.isArray(ctx)) return ctx.some((c: any) => typeof c === 'string' && c.includes('activitystreams'));
+  return false;
+}
+
 class LinkPreviewService {
   private cache = new NodeCache({ stdTTL: 60 * 60 });
   private supabase = getSupabaseClient();
@@ -331,7 +395,7 @@ class LinkPreviewService {
 
       const content = note.content || '';
       let plainText = content.replace(/<[^>]*>/g, '').trim();
-      plainText = plainText.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#x([\da-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)));
+      plainText = plainText.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#x([\da-fA-F]+);/g, (_m: string, h: string) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_m: string, n: string) => String.fromCodePoint(parseInt(n, 10)));
       const platform = await this.detectPlatform(note, url);
 
       const attachments = Array.isArray(note.attachment)
@@ -538,6 +602,24 @@ class LinkPreviewService {
   }
 
   private async fetchGenericPreview(url: string): Promise<EmbedPayload> {
+    const hostname = new URL(url).hostname;
+
+    // Step 1: Try AP content negotiation first (unless domain is known non-AP)
+    if (!isNonApDomain(hostname)) {
+      try {
+        const apObj = await this.fetchActivityPubObject(url);
+        if (isActivityPubObject(apObj)) {
+          if (apObj.type === 'Note' || apObj.type === 'Article' || apObj.type === 'Question') {
+            logger.info(`🔍 AP-first detection succeeded for ${url} (type: ${apObj.type})`);
+            return this.buildFediverseEmbed(url, apObj);
+          }
+        }
+      } catch {
+        // AP fetch failed — expected for non-fediverse URLs, continue to HTML
+      }
+    }
+
+    // Step 2: Fetch HTML and look for AP alternate link or extract OG metadata
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
@@ -555,20 +637,13 @@ class LinkPreviewService {
       }
 
       if (!response.ok) {
-        // HTML fetch failed — try direct AP content negotiation as fallback.
-        // Handles broken HTML endpoints where the AP JSON still works
-        // (e.g., cross-instance Harmony posts with misconfigured nginx).
-        const apFallback = await this.tryDirectApFetch(url);
-        if (apFallback) return apFallback;
         throw new Error(`Request failed (${response.status})`);
       }
 
       const html = await response.text();
 
       // Check for ActivityPub alternate link — upgrade to fediverse embed if found.
-      // Uses tag-level matching instead of fixed attribute-order regexes, since
-      // platforms emit attributes in different orders (Misskey: rel→href→type,
-      // Mastodon: rel→type→href, etc.).
+      // Still useful when the AP endpoint URL differs from the HTML page URL.
       const apAlternate = this.findApAlternateLink(html);
       if (apAlternate) {
         logger.info(`🔍 Found AP alternate link for ${url}: ${apAlternate}`);
@@ -578,9 +653,6 @@ class LinkPreviewService {
           if (result.provider === 'fediverse-post') {
             result.url = url;
             result.normalizedUrl = url;
-            // Enrich with HTML-embedded stats when the AP Note lacks them
-            // (Misskey embeds note data in a <script> tag; Mastodon AP Notes
-            // usually include stats directly)
             if (result.fediverse && !result.fediverse.stats) {
               result.fediverse.stats = this.extractStatsFromHtml(html);
             }
@@ -589,8 +661,6 @@ class LinkPreviewService {
         } catch (err) {
           logger.warn(`🔍 AP alternate link found but fetch failed for ${url}:`, err);
         }
-      } else {
-        logger.debug(`🔍 No AP alternate link found in HTML for ${url}`);
       }
 
       const title = this.extractMeta(html, [
@@ -620,17 +690,13 @@ class LinkPreviewService {
         provider: 'generic',
         title: title || url,
         description: description || undefined,
-        siteName: new URL(url).hostname,
+        siteName: hostname,
         image: image ? this.makeAbsoluteUrl(url, image) : undefined,
         icon: icon ? this.makeAbsoluteUrl(url, icon) : undefined,
         fetchedAt: '',
         expiresAt: '',
       };
     } catch (error) {
-      // Last resort: try AP content negotiation before giving up entirely
-      const apFallback = await this.tryDirectApFetch(url);
-      if (apFallback) return apFallback;
-
       logger.warn('Failed to fetch generic preview', { url, error });
       return {
         cacheKey: '',
@@ -639,7 +705,7 @@ class LinkPreviewService {
         provider: 'generic',
         title: url,
         description: (error as Error).message,
-        siteName: new URL(url).hostname,
+        siteName: hostname,
         fetchedAt: '',
         expiresAt: '',
       };
@@ -648,7 +714,7 @@ class LinkPreviewService {
 
   /**
    * Build a minimal generic payload without calling fetchGenericPreview.
-   * Avoids circular calls between buildFediverseEmbed ↔ fetchGenericPreview ↔ tryDirectApFetch.
+   * Avoids circular calls between buildFediverseEmbed ↔ fetchGenericPreview.
    */
   private buildMinimalGenericPayload(url: string, reason?: string): EmbedPayload {
     let hostname = url;
@@ -664,24 +730,6 @@ class LinkPreviewService {
       fetchedAt: '',
       expiresAt: '',
     };
-  }
-
-  /**
-   * Try fetching a URL directly as an ActivityPub object.
-   * Used as a fallback when the HTML fetch fails — the same URL
-   * may still respond to `Accept: application/activity+json`.
-   */
-  private async tryDirectApFetch(url: string): Promise<EmbedPayload | null> {
-    try {
-      const note = await this.fetchActivityPubObject(url);
-      if (note && (note.type === 'Note' || note.type === 'Article' || note.type === 'Question')) {
-        logger.info('AP fallback succeeded for URL that returned HTML error', { url });
-        return this.buildFediverseEmbed(url, note);
-      }
-    } catch (err) {
-      logger.debug('AP fallback also failed', { url, err });
-    }
-    return null;
   }
 
   /**

@@ -209,7 +209,7 @@ router.get(
       .select(`
         *,
         author:profiles!posts_author_id_fkey (
-          id, username, display_name, avatar_url, domain, is_local, public_key
+          id, username, display_name, avatar_url, domain, is_local, public_key, federation_metadata
         )
       `)
       .eq('id', postId)
