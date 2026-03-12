@@ -10,6 +10,7 @@
   />
   
   <NotificationToast />
+  <OfflineBanner />
   
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
@@ -39,6 +40,7 @@ import { useRouter, useRoute } from 'vue-router'
 import BaseLayout from '@/layouts/BaseLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
+import OfflineBanner from '@/components/OfflineBanner.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'

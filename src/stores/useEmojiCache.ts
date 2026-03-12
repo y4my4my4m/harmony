@@ -64,6 +64,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     // Request deduplication - prevents concurrent duplicate fetches
     _pendingEmojiLoads: null as Promise<void> | null,
     _loadingServerIds: new Set<string>() as Set<string>,
+
+    // Realtime channel reference for cleanup
+    _emojiChannel: null as any,
     
     // Performance metrics
     cacheHits: 0,
@@ -606,8 +609,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     // Set up real-time subscriptions for emoji changes
     setupRealtimeSubscriptions() {
-      // Subscribe to emoji table changes
-      supabase
+      this.cleanupRealtimeSubscriptions();
+
+      this._emojiChannel = supabase
         .channel('emoji-changes')
         .on(
           'postgres_changes',
@@ -619,6 +623,13 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         .subscribe();
 
       debug.log('🔔 Set up real-time emoji subscriptions');
+    },
+
+    cleanupRealtimeSubscriptions() {
+      if (this._emojiChannel) {
+        this._emojiChannel.unsubscribe();
+        this._emojiChannel = null;
+      }
     },
 
     // Cleanup expired cache entries and optimize memory

@@ -221,8 +221,27 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  const reprocessEncryptedDMMessages = async () => {
+  const reprocessEncryptedDMMessages = async (roomId?: string) => {
     try {
+      if (roomId) {
+        // Only reprocess the matching conversation
+        if (currentConversationId.value === roomId && currentDMMessages.value.length > 0) {
+          const hasEncrypted = currentDMMessages.value.some((m: Message) => m.encrypted && !m.decrypted)
+          if (hasEncrypted) {
+            currentDMMessages.value = await processMessageDecryption(currentDMMessages.value)
+          }
+        }
+        const cache = messageCache.value.get(roomId)
+        if (cache?.messages?.length) {
+          const hasCacheEncrypted = cache.messages.some((m: Message) => m.encrypted && !m.decrypted)
+          if (hasCacheEncrypted) {
+            cache.messages = await processMessageDecryption(cache.messages)
+          }
+        }
+        return
+      }
+
+      // Fallback: reprocess all
       const hasEncrypted = currentDMMessages.value.some((m: Message) => m.encrypted && !m.decrypted)
       if (hasEncrypted) {
         currentDMMessages.value = await processMessageDecryption(currentDMMessages.value)
@@ -246,9 +265,11 @@ export const useDMStore = defineStore('dm', () => {
   const setupEncryptionKeyListener = () => {
     if (_keyListenerActive) return
     _keyListenerActive = true
-    window.addEventListener('megolm-key-received', async () => {
-      debug.log('🔑 Key received — re-decrypting encrypted DM messages')
-      await reprocessEncryptedDMMessages()
+    window.addEventListener('megolm-key-received', async (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      const roomId = detail?.roomId as string | undefined
+      debug.log(`🔑 Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} — re-decrypting DMs`)
+      await reprocessEncryptedDMMessages(roomId)
     })
   }
 

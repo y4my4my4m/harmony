@@ -106,3 +106,30 @@ export const pushLimiter = createRateLimiter({
   message: 'Too many push notification requests, please try again later.'
 });
 
+/**
+ * Federation inbox rate limiter (per remote IP)
+ */
+export const inboxLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 120,
+  message: 'Too many inbox activities, please slow down.'
+});
+
+/**
+ * Link preview / proxy rate limiter (stricter — can be abused as HTTP proxy)
+ */
+export const linkPreviewLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 30,
+  message: 'Too many link preview requests, please try again later.'
+});
+
+/**
+ * Server discovery / lookup / invite resolution rate limiter
+ */
+export const discoveryLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 30,
+  message: 'Too many discovery requests, please try again later.'
+});
+

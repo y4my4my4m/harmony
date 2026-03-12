@@ -417,14 +417,21 @@
         hasActiveUploads.value = uploading;
       };
 
+      const handleEncryptionFallback = (e: Event) => {
+        sendError.value = 'Encryption failed — message sent unencrypted'
+        setTimeout(() => { sendError.value = null }, 6000)
+      };
+
       onMounted(() => {
         window.addEventListener('beforeunload', handleBeforeUnload);
         window.addEventListener('harmony-command', handleSlashCommand);
+        window.addEventListener('encryption-fallback', handleEncryptionFallback);
       });
 
       onUnmounted(() => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
         window.removeEventListener('harmony-command', handleSlashCommand);
+        window.removeEventListener('encryption-fallback', handleEncryptionFallback);
       });
 
       const replyingTo = (messageId: string, displayName: string, userId?: string) => {

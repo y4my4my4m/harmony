@@ -599,22 +599,22 @@ CREATE POLICY "user_list_members_delete" ON public.user_list_members
 DROP POLICY IF EXISTS "Users can create reports" ON public.reports;
 CREATE POLICY "Users can create reports" ON public.reports
     FOR INSERT TO authenticated
-    WITH CHECK (reporter_id = auth.uid());
+    WITH CHECK (reporter_id = public.get_current_profile_id());
 
 DROP POLICY IF EXISTS "Users can view own reports" ON public.reports;
 CREATE POLICY "Users can view own reports" ON public.reports
     FOR SELECT TO authenticated
-    USING (reporter_id = auth.uid());
+    USING (reporter_id = public.get_current_profile_id());
 
 DROP POLICY IF EXISTS "Admins can view all reports" ON public.reports;
 CREATE POLICY "Admins can view all reports" ON public.reports
     FOR SELECT TO authenticated
-    USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true));
+    USING (public.is_current_user_admin());
 
 DROP POLICY IF EXISTS "Admins can update reports" ON public.reports;
 CREATE POLICY "Admins can update reports" ON public.reports
     FOR UPDATE TO authenticated
-    USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true));
+    USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
 -- INSTANCE FUNDING RLS
@@ -625,9 +625,7 @@ CREATE POLICY "funding_select_all" ON public.instance_funding
 
 DROP POLICY IF EXISTS "funding_modify_admin" ON public.instance_funding;
 CREATE POLICY "funding_modify_admin" ON public.instance_funding
-    FOR ALL TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
-    );
+    FOR ALL TO authenticated USING (public.is_current_user_admin());
 
 DROP POLICY IF EXISTS "tiers_select_all" ON public.instance_supporter_tiers;
 CREATE POLICY "tiers_select_all" ON public.instance_supporter_tiers
@@ -635,9 +633,7 @@ CREATE POLICY "tiers_select_all" ON public.instance_supporter_tiers
 
 DROP POLICY IF EXISTS "tiers_modify_admin" ON public.instance_supporter_tiers;
 CREATE POLICY "tiers_modify_admin" ON public.instance_supporter_tiers
-    FOR ALL TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
-    );
+    FOR ALL TO authenticated USING (public.is_current_user_admin());
 
 DROP POLICY IF EXISTS "supporters_select_all" ON public.instance_supporters;
 CREATE POLICY "supporters_select_all" ON public.instance_supporters
@@ -645,22 +641,18 @@ CREATE POLICY "supporters_select_all" ON public.instance_supporters
 
 DROP POLICY IF EXISTS "supporters_modify_admin" ON public.instance_supporters;
 CREATE POLICY "supporters_modify_admin" ON public.instance_supporters
-    FOR ALL TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
-    );
+    FOR ALL TO authenticated USING (public.is_current_user_admin());
 
 DROP POLICY IF EXISTS "donation_history_select_admin" ON public.instance_donation_history;
 CREATE POLICY "donation_history_select_admin" ON public.instance_donation_history
     FOR SELECT TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
-        OR user_id = auth.uid()
+        public.is_current_user_admin()
+        OR user_id = public.get_current_profile_id()
     );
 
 DROP POLICY IF EXISTS "donation_history_modify_admin" ON public.instance_donation_history;
 CREATE POLICY "donation_history_modify_admin" ON public.instance_donation_history
-    FOR ALL TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
-    );
+    FOR ALL TO authenticated USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
 -- AP ACTIVITIES (ActivityPub activity log)
@@ -670,15 +662,15 @@ CREATE POLICY "System can manage ActivityPub activities" ON public.ap_activities
 
 DROP POLICY IF EXISTS "Users can view their own activities" ON public.ap_activities;
 CREATE POLICY "Users can view their own activities" ON public.ap_activities
-    FOR SELECT USING (actor_id = auth.uid());
+    FOR SELECT USING (actor_id = public.get_current_profile_id());
 
 DROP POLICY IF EXISTS "Users can create their own activities" ON public.ap_activities;
 CREATE POLICY "Users can create their own activities" ON public.ap_activities
-    FOR INSERT WITH CHECK (actor_id = auth.uid());
+    FOR INSERT WITH CHECK (actor_id = public.get_current_profile_id());
 
 DROP POLICY IF EXISTS "Users can update their own activities" ON public.ap_activities;
 CREATE POLICY "Users can update their own activities" ON public.ap_activities
-    FOR UPDATE USING (actor_id = auth.uid());
+    FOR UPDATE USING (actor_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
 -- AP ACTOR CACHE
@@ -699,18 +691,14 @@ CREATE POLICY "Service role can manage object cache" ON public.ap_object_cache
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Admin audit log admin access" ON public.admin_audit_log;
 CREATE POLICY "Admin audit log admin access" ON public.admin_audit_log
-    TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.is_admin = true)
-    );
+    TO authenticated USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
 -- BLOCKED INSTANCES
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Blocked instances admin access" ON public.blocked_instances;
 CREATE POLICY "Blocked instances admin access" ON public.blocked_instances
-    TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.is_admin = true)
-    );
+    TO authenticated USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
 -- BOTS
@@ -775,7 +763,7 @@ CREATE POLICY "Server owners can manage bot permissions" ON public.bot_server_pe
 DROP POLICY IF EXISTS "emoji_usage_access_policy" ON public.emoji_usage;
 CREATE POLICY "emoji_usage_access_policy" ON public.emoji_usage
     TO authenticated USING (
-        server_id IN (SELECT user_servers.server_id FROM public.user_servers WHERE user_servers.user_id = auth.uid())
+        server_id IN (SELECT us.server_id FROM public.user_servers us WHERE us.user_id = public.get_current_profile_id())
     );
 
 -- ---------------------------------------------------------------------------
@@ -805,10 +793,10 @@ DO $$ BEGIN
         EXECUTE 'CREATE POLICY "System can insert calls" ON public.federated_voice_calls FOR INSERT WITH CHECK (true)';
 
         EXECUTE 'DROP POLICY IF EXISTS "Recipients can update call status" ON public.federated_voice_calls';
-        EXECUTE 'CREATE POLICY "Recipients can update call status" ON public.federated_voice_calls FOR UPDATE USING (auth.uid() = recipient_id) WITH CHECK (auth.uid() = recipient_id)';
+        EXECUTE 'CREATE POLICY "Recipients can update call status" ON public.federated_voice_calls FOR UPDATE USING (public.get_current_profile_id() = recipient_id) WITH CHECK (public.get_current_profile_id() = recipient_id)';
 
         EXECUTE 'DROP POLICY IF EXISTS "Update own calls" ON public.federated_voice_calls';
-        EXECUTE 'CREATE POLICY "Update own calls" ON public.federated_voice_calls FOR UPDATE USING (caller_id = auth.uid() OR recipient_id = auth.uid())';
+        EXECUTE 'CREATE POLICY "Update own calls" ON public.federated_voice_calls FOR UPDATE USING (caller_id = public.get_current_profile_id() OR recipient_id = public.get_current_profile_id())';
 
         EXECUTE 'DROP POLICY IF EXISTS "Service role full access on calls" ON public.federated_voice_calls';
         EXECUTE 'CREATE POLICY "Service role full access on calls" ON public.federated_voice_calls TO service_role USING (true) WITH CHECK (true)';
@@ -826,24 +814,22 @@ END $$;
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Users can view own gif favorites" ON public.gif_favorites;
 CREATE POLICY "Users can view own gif favorites" ON public.gif_favorites
-    FOR SELECT USING (user_id = auth.uid());
+    FOR SELECT USING (user_id = public.get_current_profile_id());
 
 DROP POLICY IF EXISTS "Users can insert own gif favorites" ON public.gif_favorites;
 CREATE POLICY "Users can insert own gif favorites" ON public.gif_favorites
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
 
 DROP POLICY IF EXISTS "Users can delete own gif favorites" ON public.gif_favorites;
 CREATE POLICY "Users can delete own gif favorites" ON public.gif_favorites
-    FOR DELETE USING (user_id = auth.uid());
+    FOR DELETE USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
 -- PERFORMANCE METRICS
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Admins can read metrics" ON public.performance_metrics;
 CREATE POLICY "Admins can read metrics" ON public.performance_metrics
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE profiles.auth_user_id = auth.uid() AND profiles.is_admin = true)
-    );
+    FOR SELECT USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
 -- PG BACKGROUND JOB (may not exist on all installations)
@@ -911,10 +897,10 @@ DO $$ BEGIN
         WHERE table_schema = 'public' AND table_name = 'server_federation_events' AND column_name = 'user_id'
     ) THEN
         EXECUTE 'DROP POLICY IF EXISTS "Users can create their own server events" ON public.server_federation_events';
-        EXECUTE 'CREATE POLICY "Users can create their own server events" ON public.server_federation_events FOR INSERT WITH CHECK (user_id = auth.uid())';
+        EXECUTE 'CREATE POLICY "Users can create their own server events" ON public.server_federation_events FOR INSERT WITH CHECK (user_id = public.get_current_profile_id())';
 
         EXECUTE 'DROP POLICY IF EXISTS "Users can view server events they''re involved in" ON public.server_federation_events';
-        EXECUTE 'CREATE POLICY "Users can view server events they''re involved in" ON public.server_federation_events FOR SELECT USING (user_id = auth.uid())';
+        EXECUTE 'CREATE POLICY "Users can view server events they''re involved in" ON public.server_federation_events FOR SELECT USING (user_id = public.get_current_profile_id())';
     ELSE
         EXECUTE 'DROP POLICY IF EXISTS "Authenticated users can manage server events" ON public.server_federation_events';
         EXECUTE 'CREATE POLICY "Authenticated users can manage server events" ON public.server_federation_events TO authenticated USING (true) WITH CHECK (true)';
@@ -929,7 +915,7 @@ END $$;
 DROP POLICY IF EXISTS "Members can view server membership events" ON public.server_membership_events;
 CREATE POLICY "Members can view server membership events" ON public.server_membership_events
     FOR SELECT TO authenticated USING (
-        server_id IN (SELECT us.server_id FROM public.user_servers us WHERE us.user_id = auth.uid())
+        server_id IN (SELECT us.server_id FROM public.user_servers us WHERE us.user_id = public.get_current_profile_id())
     );
 
 DROP POLICY IF EXISTS "System can insert membership events" ON public.server_membership_events;
@@ -986,37 +972,37 @@ CREATE POLICY "Service role can manage all sessions" ON public.user_sessions
 
 DROP POLICY IF EXISTS "Users can view own sessions" ON public.user_sessions;
 CREATE POLICY "Users can view own sessions" ON public.user_sessions
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING (public.get_current_profile_id() = user_id);
 
 DROP POLICY IF EXISTS "Users can insert own sessions" ON public.user_sessions;
 CREATE POLICY "Users can insert own sessions" ON public.user_sessions
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT WITH CHECK (public.get_current_profile_id() = user_id);
 
 DROP POLICY IF EXISTS "Users can update own sessions" ON public.user_sessions;
 CREATE POLICY "Users can update own sessions" ON public.user_sessions
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE USING (public.get_current_profile_id() = user_id);
 
 DROP POLICY IF EXISTS "Users can delete own sessions" ON public.user_sessions;
 CREATE POLICY "Users can delete own sessions" ON public.user_sessions
-    FOR DELETE USING (auth.uid() = user_id);
+    FOR DELETE USING (public.get_current_profile_id() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- USER TIMELINE CACHE
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Users can access own timeline cache" ON public.user_timeline_cache;
 CREATE POLICY "Users can access own timeline cache" ON public.user_timeline_cache
-    USING (auth.uid() = user_id);
+    USING (public.get_current_profile_id() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- VOICE FEDERATION EVENTS
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Users can create their own voice events" ON public.voice_federation_events;
 CREATE POLICY "Users can create their own voice events" ON public.voice_federation_events
-    FOR INSERT WITH CHECK (user_id = auth.uid());
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
 
 DROP POLICY IF EXISTS "Users can view voice events they're involved in" ON public.voice_federation_events;
 CREATE POLICY "Users can view voice events they're involved in" ON public.voice_federation_events
-    FOR SELECT USING (user_id = auth.uid());
+    FOR SELECT USING (user_id = public.get_current_profile_id());
 
 DO $$
 BEGIN

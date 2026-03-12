@@ -17,7 +17,7 @@ import compression from 'compression';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { apiLimiter } from './middleware/rateLimit.js';
+import { apiLimiter, inboxLimiter, linkPreviewLimiter, discoveryLimiter } from './middleware/rateLimit.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
@@ -66,13 +66,13 @@ export function createApp(): Application {
 
   app.use('/', webFingerRouter);
   app.use('/', nodeInfoRouter);
-  app.use('/', actorRouter);
-  app.use('/', inboxRouter);
+  app.use('/', discoveryLimiter, actorRouter);
+  app.use('/', inboxLimiter, inboxRouter);
   app.use('/', outboxRouter);
-  app.use('/', groupRouter);
+  app.use('/', inboxLimiter, groupRouter);
 
-  app.use('/', serverDiscoveryRouter);
-  app.use('/link-preview', linkPreviewRouter);
+  app.use('/', discoveryLimiter, serverDiscoveryRouter);
+  app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
   app.use('/push', apiLimiter, pushRouter);
   app.use('/api/livekit', livekitRouter);
   app.use('/', voiceRouter);

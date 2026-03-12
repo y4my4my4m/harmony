@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
+import { validateExternalUrl } from '../utils/ssrfProtection.js';
 
 export class SignatureService {
   /**
@@ -380,6 +381,9 @@ export class SignatureService {
     
     // Finally, fetch from remote server
     try {
+      // SSRF protection: validate actor URL before fetching
+      validateExternalUrl(actorUrl);
+
       const response = await fetch(actorUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',

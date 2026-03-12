@@ -446,8 +446,27 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    async reprocessEncryptedMessages() {
+    async reprocessEncryptedMessages(roomId?: string) {
       try {
+        // If roomId provided, only reprocess that room's messages
+        if (roomId) {
+          if (this.currentChannelId === roomId && this.messages.length > 0) {
+            const hasEncrypted = this.messages.some((m: Message) => m.encrypted && !m.decrypted);
+            if (hasEncrypted) {
+              this.messages = await processMessageDecryption(this.messages);
+            }
+          }
+          const cache = this.messageCache.get(roomId);
+          if (cache?.messages?.length) {
+            const hasEncrypted = cache.messages.some((m: Message) => m.encrypted && !m.decrypted);
+            if (hasEncrypted) {
+              cache.messages = await processMessageDecryption(cache.messages);
+            }
+          }
+          return;
+        }
+
+        // Fallback: reprocess all
         if (this.messages.length > 0) {
           const hasEncrypted = this.messages.some((m: Message) => m.encrypted && !m.decrypted);
           if (hasEncrypted) {
@@ -471,9 +490,11 @@ export const useChatStore = defineStore('chat', {
       if ((this as any)._keyListenerActive) return;
       (this as any)._keyListenerActive = true;
 
-      const handler = async () => {
-        debug.log('🔑 Key received — re-decrypting encrypted messages');
-        await this.reprocessEncryptedMessages();
+      const handler = async (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        const roomId = detail?.roomId as string | undefined;
+        debug.log(`🔑 Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} — re-decrypting`);
+        await this.reprocessEncryptedMessages(roomId);
       };
       (this as any)._keyListenerHandler = handler;
       window.addEventListener('megolm-key-received', handler);

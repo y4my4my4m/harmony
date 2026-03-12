@@ -24,6 +24,7 @@
 import { supabase } from '@/supabase'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmService, type MegolmOutboundSession, type MegolmInboundSession } from './MegolmService'
+import { identityKeyStore } from './SecureSessionKeyStore'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { debug } from '@/utils/debug'
 
@@ -238,8 +239,23 @@ export class MegolmKeyBackupService {
     }
 
     try {
-      // Decrypt the session key
-      const sessionKey = await this.decryptSessionKeyForMe(request.encrypted_key)
+      // Fetch fulfiller's (sender's) public key for ECDH decryption
+      const { data: senderKey } = await supabase
+        .from('user_key_pairs')
+        .select('identity_public_key')
+        .eq('user_id', request.sender_user_id)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (!senderKey?.identity_public_key) {
+        debug.warn(`⚠️ No public key for sender ${request.sender_user_id.substring(0, 8)}, cannot decrypt`)
+        return
+      }
+
+      const sessionKey = await this.decryptSessionKeyFromSender(
+        request.encrypted_key,
+        senderKey.identity_public_key
+      )
 
       // Import the session
       await megolmService.importInboundSession(
@@ -271,72 +287,92 @@ export class MegolmKeyBackupService {
     }
   }
 
+  // =====================================================
+  // ECDH Key Exchange Helpers
+  // =====================================================
+
+  private async getMyPrivateKey(): Promise<CryptoKey> {
+    if (!this.userId) throw new Error('Not initialized')
+    const key = await identityKeyStore.load(this.userId)
+    if (key) return key
+    throw new Error('Identity private key not found — run encryption setup')
+  }
+
+  private async importPublicKey(publicKeyBase64: string): Promise<CryptoKey> {
+    const bytes = Uint8Array.from(atob(publicKeyBase64), c => c.charCodeAt(0))
+    return crypto.subtle.importKey(
+      'raw', bytes, { name: 'ECDH', namedCurve: 'P-256' }, false, []
+    )
+  }
+
+  private async deriveSharedKey(
+    privateKey: CryptoKey,
+    publicKey: CryptoKey,
+    usage: KeyUsage[]
+  ): Promise<CryptoKey> {
+    const sharedBits = await crypto.subtle.deriveBits(
+      { name: 'ECDH', public: publicKey }, privateKey, 256
+    )
+    const hkdfKey = await crypto.subtle.importKey(
+      'raw', sharedBits, 'HKDF', false, ['deriveKey']
+    )
+    return crypto.subtle.deriveKey(
+      {
+        name: 'HKDF',
+        hash: 'SHA-256',
+        salt: new TextEncoder().encode('harmony-megolm-session-exchange'),
+        info: new TextEncoder().encode('session-key-encryption'),
+      },
+      hkdfKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      usage
+    )
+  }
+
   /**
-   * Encrypt a session key for a specific user using their public key
+   * Encrypt a session key for a specific user using ECDH key agreement.
    */
   private async encryptSessionKeyForUser(sessionKey: string, recipientPublicKey: string): Promise<string> {
-    const encoder = new TextEncoder()
-    
-    // Derive encryption key from recipient's public key
-    const derivedKey = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(recipientPublicKey.substring(0, 32)),
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt']
-    )
+    const myPrivateKey = await this.getMyPrivateKey()
+    const recipientKey = await this.importPublicKey(recipientPublicKey)
+    const aesKey = await this.deriveSharedKey(myPrivateKey, recipientKey, ['encrypt'])
 
+    const encoder = new TextEncoder()
     const iv = crypto.getRandomValues(new Uint8Array(12))
     const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      derivedKey,
-      encoder.encode(sessionKey)
+      { name: 'AES-GCM', iv }, aesKey, encoder.encode(sessionKey)
     )
 
-    // Combine IV + ciphertext
     const combined = new Uint8Array(iv.length + encrypted.byteLength)
     combined.set(iv)
     combined.set(new Uint8Array(encrypted), iv.length)
 
-    return btoa(String.fromCharCode(...combined))
+    return 'v2:' + btoa(String.fromCharCode(...combined))
   }
 
   /**
-   * Decrypt a session key that was encrypted for us
+   * Decrypt a session key using ECDH with the sender's public key.
    */
-  private async decryptSessionKeyForMe(encryptedKey: string): Promise<string> {
-    // Get our identity key
-    const { data: myKey } = await supabase
-      .from('user_key_pairs')
-      .select('identity_public_key')
-      .eq('user_id', this.userId)
-      .eq('is_active', true)
-      .maybeSingle()
+  private async decryptSessionKeyFromSender(
+    encryptedKey: string,
+    senderPublicKey: string
+  ): Promise<string> {
+    const payload = encryptedKey.startsWith('v2:')
+      ? encryptedKey.slice(3)
+      : encryptedKey
 
-    if (!myKey?.identity_public_key) {
-      throw new Error('Cannot find my identity key')
-    }
+    const myPrivateKey = await this.getMyPrivateKey()
+    const senderKey = await this.importPublicKey(senderPublicKey)
+    const aesKey = await this.deriveSharedKey(myPrivateKey, senderKey, ['decrypt'])
 
-    const encoder = new TextEncoder()
-    const derivedKey = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(myKey.identity_public_key.substring(0, 32)),
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-    )
-
-    // Decode and decrypt
-    const combined = Uint8Array.from(atob(encryptedKey), c => c.charCodeAt(0))
+    const combined = Uint8Array.from(atob(payload), c => c.charCodeAt(0))
     const iv = combined.slice(0, 12)
     const ciphertext = combined.slice(12)
 
     const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      derivedKey,
-      ciphertext
+      { name: 'AES-GCM', iv }, aesKey, ciphertext
     )
-
     return new TextDecoder().decode(decrypted)
   }
 

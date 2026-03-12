@@ -191,6 +191,7 @@
 </template>
 
 <script setup lang="ts">
+// TODO: Consider virtualizing conversation list for users with many DMs
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'

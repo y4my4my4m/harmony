@@ -7,6 +7,7 @@ import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { validateExternalHostname } from '../utils/ssrfProtection.js';
 
 const router = Router();
 
@@ -129,6 +130,9 @@ router.post(
     }
 
     try {
+      // SSRF protection: validate the domain before fetching
+      validateExternalHostname(domain);
+
       // Step 1: WebFinger lookup
       const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:${encodeURIComponent(username)}@${encodeURIComponent(domain)}`;
       logger.info(`🌐 WebFinger lookup: ${webfingerUrl}`);

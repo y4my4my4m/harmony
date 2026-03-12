@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { SignatureService } from './SignatureService.js';
+import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { logger } from '../utils/logger.js';
 
 const MAX_CONCURRENT_DOMAINS = 10;
@@ -230,14 +231,20 @@ export class DeliveryQueue {
     targetInbox: string,
     senderId: string
   ): Promise<boolean> {
+    const targetDomain = new URL(targetInbox).hostname;
+
+    // Check if target instance is blocked
+    if (BlockedInstancesCache.isBlocked(targetDomain)) {
+      logger.info(`🚫 Skipping delivery to blocked instance: ${targetDomain}`);
+      return false;
+    }
+
     // Check if endpoint is dead before attempting delivery
     const isDead = await this.isEndpointDead(targetInbox);
     if (isDead) {
       logger.info(`⏭️ Skipping delivery to dead endpoint: ${targetInbox}`);
       return false;
     }
-
-    const targetDomain = new URL(targetInbox).hostname;
 
     try {
       // Sign the request
@@ -289,24 +296,36 @@ export class DeliveryQueue {
    */
   private static async deliverActivity(item: QueueItem): Promise<boolean> {
     const supabase = getSupabaseClient();
+    const targetDomain = new URL(item.target_inbox_url).hostname;
 
-    // Check if endpoint is dead before attempting delivery
-    const isDead = await this.isEndpointDead(item.target_inbox_url);
-    if (isDead) {
-      logger.info(`⏭️ Skipping delivery to dead endpoint: ${item.target_inbox_url}`);
-      // Mark queue item as failed since endpoint is dead
+    // Check if target instance is blocked
+    if (BlockedInstancesCache.isBlocked(targetDomain)) {
+      logger.info(`🚫 Skipping delivery to blocked instance: ${targetDomain}`);
       await supabase
         .from('federation_delivery_queue')
         .update({
           status: 'failed',
           last_attempt_at: new Date().toISOString(),
-          error_message: 'Endpoint marked as dead', // FIXED: was 'last_error'
+          error_message: 'Instance is blocked',
         })
         .eq('id', item.id);
       return false;
     }
 
-    const targetDomain = new URL(item.target_inbox_url).hostname;
+    // Check if endpoint is dead before attempting delivery
+    const isDead = await this.isEndpointDead(item.target_inbox_url);
+    if (isDead) {
+      logger.info(`⏭️ Skipping delivery to dead endpoint: ${item.target_inbox_url}`);
+      await supabase
+        .from('federation_delivery_queue')
+        .update({
+          status: 'failed',
+          last_attempt_at: new Date().toISOString(),
+          error_message: 'Endpoint marked as dead',
+        })
+        .eq('id', item.id);
+      return false;
+    }
 
     try {
       // Resolve sender_id if missing (legacy items don't have it)

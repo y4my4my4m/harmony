@@ -3,6 +3,7 @@ import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
+import { validateExternalUrl } from '../utils/ssrfProtection.js';
 
 export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
 
@@ -165,6 +166,10 @@ class LinkPreviewService {
 
   async getPreview(url: string): Promise<EmbedPayload> {
     const normalizedUrl = this.normalizeUrl(url);
+
+    // SSRF protection: reject private/internal URLs
+    validateExternalUrl(normalizedUrl);
+
     const provider = this.detectProvider(normalizedUrl);
     const cacheKey = `${provider}:${normalizedUrl}`;
 

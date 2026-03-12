@@ -179,3 +179,134 @@ class SecureSessionKeyStore {
 }
 
 export const secureSessionKeyStore = new SecureSessionKeyStore()
+
+// =====================================================
+// Identity Key Store
+// Stores ECDH private keys as non-extractable CryptoKey
+// objects in IndexedDB for session key exchange.
+// =====================================================
+
+const IDENTITY_DB_NAME = 'harmony_identity_keys'
+const IDENTITY_DB_VERSION = 1
+const IDENTITY_STORE_NAME = 'identity'
+
+class IdentityKeyStore {
+  private db: IDBDatabase | null = null
+
+  private async open(): Promise<IDBDatabase> {
+    if (this.db) return this.db
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(IDENTITY_DB_NAME, IDENTITY_DB_VERSION)
+
+      request.onerror = () => {
+        debug.warn('⚠️ IdentityKeyStore: Failed to open IndexedDB:', request.error)
+        reject(request.error)
+      }
+
+      request.onsuccess = () => {
+        this.db = request.result
+        this.db.onclose = () => { this.db = null }
+        resolve(this.db)
+      }
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result
+        if (!db.objectStoreNames.contains(IDENTITY_STORE_NAME)) {
+          db.createObjectStore(IDENTITY_STORE_NAME, { keyPath: 'userId' })
+        }
+      }
+    })
+  }
+
+  async store(userId: string, privateKey: CryptoKey): Promise<void> {
+    const db = await this.open()
+
+    // Re-import as non-extractable if needed
+    let safeKey = privateKey
+    if (privateKey.extractable) {
+      const raw = await crypto.subtle.exportKey('pkcs8', privateKey)
+      safeKey = await crypto.subtle.importKey(
+        'pkcs8',
+        raw,
+        { name: 'ECDH', namedCurve: 'P-256' },
+        false,
+        ['deriveBits']
+      )
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDENTITY_STORE_NAME, 'readwrite')
+      const store = tx.objectStore(IDENTITY_STORE_NAME)
+      store.put({ userId, privateKey: safeKey, storedAt: Date.now() })
+      tx.oncomplete = () => {
+        debug.log('🔐 Identity key stored securely in IndexedDB (non-extractable)')
+        resolve()
+      }
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async load(userId: string): Promise<CryptoKey | null> {
+    try {
+      const db = await this.open()
+
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDENTITY_STORE_NAME, 'readonly')
+        const store = tx.objectStore(IDENTITY_STORE_NAME)
+        const request = store.get(userId)
+
+        request.onsuccess = () => {
+          const result = request.result
+          if (!result?.privateKey) {
+            resolve(null)
+            return
+          }
+          resolve(result.privateKey)
+        }
+        request.onerror = () => reject(request.error)
+      })
+    } catch {
+      return null
+    }
+  }
+
+  async clear(userId: string): Promise<void> {
+    try {
+      const db = await this.open()
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDENTITY_STORE_NAME, 'readwrite')
+        const store = tx.objectStore(IDENTITY_STORE_NAME)
+        store.delete(userId)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+    } catch {
+      debug.warn('⚠️ Failed to clear identity key from IndexedDB')
+    }
+  }
+
+  async clearAll(): Promise<void> {
+    try {
+      const db = await this.open()
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDENTITY_STORE_NAME, 'readwrite')
+        const store = tx.objectStore(IDENTITY_STORE_NAME)
+        store.clear()
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+    } catch {
+      debug.warn('⚠️ Failed to clear all identity keys from IndexedDB')
+    }
+  }
+
+  close(): void {
+    if (this.db) {
+      this.db.close()
+      this.db = null
+    }
+  }
+}
+
+export const identityKeyStore = new IdentityKeyStore()
