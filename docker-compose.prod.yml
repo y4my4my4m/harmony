@@ -62,8 +62,6 @@ services:
       start_period: 10s
     networks:
       - harmony
-    depends_on:
-      - redis
 
   federation-worker:
     build:
@@ -78,8 +76,6 @@ services:
       - FEDERATION_MODE=worker
     networks:
       - harmony
-    depends_on:
-      - redis
 
   # Single-container mode (simple deployments / development)
   # Activate with: docker compose --profile simple up -d
@@ -105,8 +101,6 @@ services:
       start_period: 10s
     networks:
       - harmony
-    depends_on:
-      - redis
     profiles:
       - simple
 

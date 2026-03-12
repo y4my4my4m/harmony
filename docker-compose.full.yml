@@ -57,8 +57,6 @@ services:
     networks:
       - harmony
       - supabase_default
-    depends_on:
-      - redis
 
   federation-worker:
     build:
@@ -77,8 +75,6 @@ services:
     networks:
       - harmony
       - supabase_default
-    depends_on:
-      - redis
 
   # Single-container mode (simple deployments / development)
   # Activate with: docker compose --profile simple up -d
@@ -108,8 +104,6 @@ services:
     networks:
       - harmony
       - supabase_default
-    depends_on:
-      - redis
     profiles:
       - simple
 
