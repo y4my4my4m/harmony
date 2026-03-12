@@ -240,9 +240,13 @@ export const useThemeStore = defineStore('theme', {
      * Play audio for an action with error handling
      */
     async playAudio(action: AudioAction): Promise<void> {
-      if (!this.isReady) {
-        debug.warn(`🔊 Audio system not ready, skipping ${action}`)
-        return
+      if (!this.isInitialized) {
+        try {
+          await this.initialize()
+        } catch (error) {
+          debug.warn(`🔊 Audio system failed to auto-initialize, skipping ${action}`)
+          return
+        }
       }
       
       try {

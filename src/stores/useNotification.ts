@@ -1124,13 +1124,11 @@ export const useNotificationStore = defineStore('notification', {
         const { useThemeStore } = await import('./useTheme')
         const themeStore = useThemeStore()
 
-        // Ensure theme system is initialized
         if (!themeStore.isInitialized) {
           await themeStore.initialize()
         }
 
-        // Update the audio volume in theme store
-        themeStore.audioVolume = Math.max(0, Math.min(1, volume))
+        themeStore.setAudioVolume(Math.max(0, Math.min(1, volume)))
 
         debug.log(`🔊 Set notification volume to ${Math.round(volume * 100)}%`)
       } catch (error) {

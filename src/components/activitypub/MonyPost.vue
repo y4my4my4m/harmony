@@ -1164,7 +1164,7 @@ const handleEmojiSelected = async (emoji: any) => {
   try {
     // Play audio feedback immediately for better UX
     try {
-      await themeStore.testAudio('reaction');
+      await themeStore.playAudio('reaction');
     } catch (audioError) {
       debug.warn('Failed to play reaction audio:', audioError);
       // Don't block the reaction if audio fails
@@ -1195,7 +1195,7 @@ const handleEmojiSelected = async (emoji: any) => {
         debug.error('Failed to add emoji reaction:', error);
         // Play error sound if available
         try {
-          await themeStore.testAudio('ui_error');
+          await themeStore.playAudio('ui_error');
         } catch (audioError) {
           debug.warn('Failed to play error audio:', audioError);
         }
@@ -1212,7 +1212,7 @@ const handleEmojiSelected = async (emoji: any) => {
     debug.error('Error adding emoji reaction:', error);
     // Play error sound if available
     try {
-      await themeStore.testAudio('ui_error');
+      await themeStore.playAudio('ui_error');
     } catch (audioError) {
       debug.warn('Failed to play error audio:', audioError);
     }

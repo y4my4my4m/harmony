@@ -895,7 +895,7 @@ const getVoiceSessionStartTime = (channelId: string) => {
 
 const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
   // Play sound and haptic immediately for optimistic UX (don't wait for connection)
-  themeStore.testAudio('voice_connect');
+  themeStore.playAudio('voice_connect');
   triggerVoice('success');
   
   // Then attempt the actual connection
@@ -903,7 +903,7 @@ const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
   
   if (!success) {
     // Connection failed - play disconnect sound to indicate failure
-    themeStore.testAudio('voice_disconnect');
+    themeStore.playAudio('voice_disconnect');
     triggerVoice('warning');
   }
   
@@ -912,7 +912,7 @@ const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
 
 const leaveVoiceChannel = async (channelId: string) => {
   if (await voiceChannelStore.leaveVoiceChannel()) {
-    themeStore.testAudio('voice_disconnect');
+    themeStore.playAudio('voice_disconnect');
     // Haptic feedback for voice disconnect
     triggerVoice('warning');
   }

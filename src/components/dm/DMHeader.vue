@@ -314,9 +314,9 @@ const startCallerRinging = async () => {
   stopCallerRinging()
   const { useThemeStore } = await import('@/stores/useTheme')
   const themeStore = useThemeStore()
-  themeStore.testAudio('call_outgoing')
+  themeStore.playAudio('call_outgoing')
   callerRingtoneInterval = setInterval(() => {
-    themeStore.testAudio('call_outgoing')
+    themeStore.playAudio('call_outgoing')
   }, 3000)
 }
 
