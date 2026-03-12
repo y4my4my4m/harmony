@@ -288,17 +288,21 @@ const isNavItemActive = (navItem: { id: string; path: string }) => {
   return currentPath === navItem.path;
 };
 
-const refreshStats = () => {
-  // TODO: Implement refresh stats (TODO: is this really needed? should be handled in realtime...unless we want to check for federated maybe)
-  //activityPubStore.refreshStats();
-  return
+const refreshingStats = ref(false);
+
+const refreshStats = async () => {
+  if (refreshingStats.value) return;
+  refreshingStats.value = true;
+  try {
+    await activityPubStore.initialize();
+  } catch (e) {
+    debug.error('Failed to refresh stats:', e);
+  } finally {
+    refreshingStats.value = false;
+  }
 };
 
-const isRefreshing = computed(() => {
-  // TODO: Implement refresh stats
-  //return activityPubStore.isRefreshing;
-  return false
-});
+const isRefreshing = computed(() => refreshingStats.value);
 
 const navigateToFollowing = () => {
   router.push('/social/following');

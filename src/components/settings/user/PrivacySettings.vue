@@ -615,9 +615,25 @@ const resetSettings = () => {
   settings.value = { ...originalSettings.value }
 }
 
-const unblockUser = (userId: string) => {
-  blockedUsers.value = blockedUsers.value.filter(user => user.id !== userId)
-  // TODO: Implement actual unblock logic
+const unblockUser = async (userId: string) => {
+  try {
+    const profileId = props.profile?.id
+    if (!profileId) return
+
+    const { error } = await supabase
+      .from('user_blocks')
+      .delete()
+      .eq('blocker_id', profileId)
+      .eq('blocked_user_id', userId)
+
+    if (error) throw error
+
+    blockedUsers.value = blockedUsers.value.filter(user => user.id !== userId)
+    toast.success('User unblocked')
+  } catch (error: any) {
+    debug.error('Failed to unblock user:', error)
+    toast.error('Failed to unblock user')
+  }
 }
 
 // Password Change Methods
@@ -1008,12 +1024,55 @@ const copyRecoveryCodes = async () => {
 }
 
 // Initialize
-onMounted(() => {
-  // Load privacy settings from server
-  // TODO: Implement actual loading logic
-  
+onMounted(async () => {
   // Load URL tracker stripping setting from localStorage
   settings.value.stripUrlTrackers = isUrlTrackingStrippingEnabled()
+
+  const profileId = props.profile?.id
+  if (profileId) {
+    // Load blocked users
+    try {
+      const { data: blocks, error: blocksError } = await supabase
+        .from('user_blocks')
+        .select('blocked_user_id')
+        .eq('blocker_id', profileId)
+
+      if (!blocksError && blocks && blocks.length > 0) {
+        const blockedIds = blocks.map(b => b.blocked_user_id)
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .in('id', blockedIds)
+
+        if (profiles) {
+          blockedUsers.value = profiles as User[]
+        }
+      }
+    } catch (e) {
+      debug.error('Failed to load blocked users:', e)
+    }
+
+    // Load notification preferences for privacy settings
+    try {
+      const { data: prefs } = await supabase
+        .from('notification_preferences')
+        .select('*')
+        .eq('user_id', profileId)
+        .single()
+
+      if (prefs) {
+        if (prefs.allow_dm_from_server_members !== undefined)
+          settings.value.allowDMFromServerMembers = prefs.allow_dm_from_server_members
+        if (prefs.allow_dm_from_friends !== undefined)
+          settings.value.allowDMFromFriends = prefs.allow_dm_from_friends
+        if (prefs.allow_friend_requests !== undefined)
+          settings.value.allowFriendRequests = prefs.allow_friend_requests
+      }
+    } catch (e) {
+      debug.error('Failed to load notification preferences:', e)
+    }
+  }
+
   originalSettings.value = { ...settings.value }
   
   // Check 2FA status

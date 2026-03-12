@@ -487,7 +487,7 @@ export class FederationDecisionService {
   }
 
   private createError(code: string, message: string, details?: any): FederationDecisionServiceError {
-    const secureDetails = process.env.NODE_ENV === 'development' ? details : undefined
+    const secureDetails = import.meta.env.DEV ? details : undefined
     return { code, message, details: secureDetails }
   }
 }

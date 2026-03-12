@@ -22,9 +22,21 @@
         <button @click="sharePost" class="action-btn" title="Share">
           <Icon name="share" />
         </button>
-        <button @click="openActions" class="action-btn" title="More actions">
-          <Icon name="more-horizontal" />
-        </button>
+        <div class="more-actions-wrapper">
+          <button @click="showActionsMenu = !showActionsMenu" class="action-btn" title="More actions">
+            <Icon name="more-horizontal" />
+          </button>
+          <div v-if="showActionsMenu" class="actions-dropdown">
+            <button @click="copyPostLink" class="dropdown-item">
+              <Icon name="link" :size="16" />
+              <span>Copy link</span>
+            </button>
+            <button v-if="isOwnPost" @click="handleDeletePost" class="dropdown-item danger">
+              <Icon name="trash" :size="16" />
+              <span>Delete post</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -136,6 +148,7 @@ const replyingToPostId = ref<string | null>(null);
 const postContainer = ref<HTMLElement>();
 const postRefs = ref<Record<string, HTMLElement>>({});
 const maxThreadDepth = ref(10);
+const showActionsMenu = ref(false);
 
 // Computed properties
 const mainPost = computed(() => postWithContext.value?.mainPost);
@@ -425,9 +438,35 @@ const sharePost = async () => {
   }
 };
 
-const openActions = () => {
-  // TODO: Implement post actions menu
-  toast.info('Actions menu coming soon');
+const isOwnPost = computed(() => {
+  if (!mainPost.value) return false;
+  const currentDomain = import.meta.env.VITE_DOMAIN as string;
+  return mainPost.value.author?.is_local !== false && 
+    mainPost.value.author?.domain === currentDomain;
+});
+
+const copyPostLink = async () => {
+  showActionsMenu.value = false;
+  const url = `${window.location.origin}/posts/${props.postId}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success('Link copied to clipboard');
+  } catch {
+    toast.error('Failed to copy link');
+  }
+};
+
+const handleDeletePost = async () => {
+  showActionsMenu.value = false;
+  if (!mainPost.value) return;
+  try {
+    await activityPubService.deletePost(mainPost.value.id);
+    toast.success('Post deleted');
+    goBack();
+  } catch (err) {
+    debug.error('Failed to delete post:', err);
+    toast.error('Failed to delete post');
+  }
 };
 
 const goBack = () => {
@@ -600,6 +639,51 @@ onMounted(loadPostWithContext);
 .action-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+.more-actions-wrapper {
+  position: relative;
+}
+
+.actions-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 160px;
+  background: var(--background-secondary, #2b2d31);
+  border: 1px solid var(--border-color, #3f4147);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dropdown-item:hover {
+  background: var(--background-tertiary, #35373c);
+}
+
+.dropdown-item.danger {
+  color: #ed4245;
+}
+
+.dropdown-item.danger:hover {
+  background: rgba(237, 66, 69, 0.1);
 }
 
 .post-content {

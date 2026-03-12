@@ -458,7 +458,7 @@ export class CoreProfileService {
 
   private createError(code: string, message: string, details?: any): CoreProfileServiceError {
     // Security: Don't expose internal details in production
-    const secureDetails = process.env.NODE_ENV === 'development' ? details : undefined
+    const secureDetails = import.meta.env.DEV ? details : undefined
     return { code, message, details: secureDetails }
   }
 }

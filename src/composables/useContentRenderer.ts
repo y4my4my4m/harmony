@@ -268,7 +268,7 @@ export function useContentRenderer(
           }
           
           // Format hashtags
-          text = text.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+          text = text.replace(/(?<![&\w])#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
           
           return text;
         }
@@ -361,7 +361,7 @@ export function useContentRenderer(
           // Check for media URLs
           if (renderOptions.showImages && isImageUrl(url)) {
             return `<div class="media-container image-container">
-              <img src="${safeUrl}" alt="Image" class="content-image" draggable="false" />
+              <img src="${safeUrl}" alt="Image" class="content-image" loading="lazy" draggable="false" />
             </div>`;
           }
           
@@ -410,7 +410,7 @@ export function useContentRenderer(
           
           if (part.fileType === 'image' && renderOptions.showImages) {
             return `<div class="media-container image-container">
-              <img src="${safeFileUrl}" alt="${fileName}" class="content-image" draggable="false" />
+              <img src="${safeFileUrl}" alt="${fileName}" class="content-image" loading="lazy" draggable="false" />
             </div>`;
           }
           

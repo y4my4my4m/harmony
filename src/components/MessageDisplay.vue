@@ -1745,6 +1745,25 @@ watch(() => props.messages.length, () => {
   }
 }, { immediate: true });
 
+// Re-observe when virtual scroll renders new message elements
+let virtualRowObserverTimeout: ReturnType<typeof setTimeout> | null = null;
+watch(virtualRows, () => {
+  if (!intersectionObserver) return;
+  if (virtualRowObserverTimeout) clearTimeout(virtualRowObserverTimeout);
+  virtualRowObserverTimeout = setTimeout(() => {
+    nextTick(() => {
+      if (!messageDisplayContainer.value || !intersectionObserver) return;
+      const messageElements = messageDisplayContainer.value.querySelectorAll('[data-message-id]');
+      messageElements.forEach((el) => {
+        const id = el.getAttribute('data-message-id');
+        if (id && !id.startsWith('temp-') && !observedMessages.has(id)) {
+          intersectionObserver?.observe(el);
+        }
+      });
+    });
+  }, 100);
+});
+
 // Cleanup on unmount
 onUnmounted(() => {
   // Clear the debounce timeout first to prevent it from firing after unmount

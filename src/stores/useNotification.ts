@@ -497,7 +497,7 @@ export const useNotificationStore = defineStore('notification', {
         } catch (fallbackError) {
           debug.error('❌ Fallback fetch also failed:', fallbackError)
           // Create mock notifications for development/testing
-          if (process.env.NODE_ENV === 'development') {
+          if (import.meta.env.DEV) {
             this.createMockNotifications(userId)
           }
         }

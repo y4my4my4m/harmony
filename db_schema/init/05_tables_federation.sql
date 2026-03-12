@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS public.federation_delivery_queue (
     -- Error tracking
     last_error text,
     
-    CONSTRAINT federation_delivery_queue_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'dead'))
+    CONSTRAINT federation_delivery_queue_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'dead', 'delivered', 'cancelled'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_status ON public.federation_delivery_queue(status);

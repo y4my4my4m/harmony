@@ -286,7 +286,7 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
       // Send to current device only
       const { data: sub, error: subError } = await supabaseAdmin
         .from('push_subscriptions')
-        .select('id, endpoint, p256dh, auth, push_enabled, push_offline_only')
+        .select('id, endpoint, p256dh, auth')
         .eq('user_id', userId)
         .eq('endpoint', endpoint)
         .single();
@@ -302,8 +302,8 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
           endpoint: sub.endpoint,
           p256dh: sub.p256dh,
           auth: sub.auth,
-          push_enabled: sub.push_enabled,
-          push_offline_only: sub.push_offline_only ?? false,
+          push_enabled: true,
+          push_offline_only: false,
         },
         testPayload
       );

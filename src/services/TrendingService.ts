@@ -375,7 +375,8 @@ class TrendingService {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((row: any) => {
+      const now = Date.now();
+      const results = (data || []).map((row: any) => {
         const user: FederatedUser = {
           id: row.id,
           username: row.username,
@@ -385,7 +386,7 @@ class TrendingService {
           avatar_url: row.avatar_url || '/default_avatar.webp',
           bio: row.bio || '',
           is_local: row.domain === import.meta.env.VITE_DOMAIN as string || !row.domain,
-          verified: false, // Default value since column doesn't exist
+          verified: false,
           followers_count: row.followers_count || 0,
           following_count: row.following_count || 0,
           posts_count: row.posts_count || 0,
@@ -393,16 +394,33 @@ class TrendingService {
           updated_at: row.updated_at || row.created_at
         };
 
+        const followers = user.followers_count;
+        const posts = user.posts_count;
+        const createdAt = new Date(row.created_at).getTime();
+        const daysSinceCreated = Math.max(1, (now - createdAt) / (1000 * 60 * 60 * 24));
+        const updatedAt = new Date(row.updated_at || row.created_at).getTime();
+        const daysSinceActive = Math.max(0.1, (now - updatedAt) / (1000 * 60 * 60 * 24));
+        const recencyBoost = 1 / (1 + daysSinceActive / 7);
+
+        const trendingScore = ((followers * 0.3) + (posts * 2.0)) * recencyBoost;
+        const followersGrowth = (followers / daysSinceCreated) * 7;
+        const engagementRate = posts > 0 ? Math.min(100, (followers / posts) * 10) : 0;
+
         return {
           user,
-          trending_score: Math.random() * 100, // TODO: Implement real calculation
-          followers_growth: Math.random() * 50,
-          engagement_rate: Math.random() * 10,
+          trending_score: Math.round(trendingScore * 100) / 100,
+          followers_growth: Math.round(followersGrowth * 100) / 100,
+          engagement_rate: Math.round(engagementRate * 100) / 100,
           trending_rank: 0,
-          new_followers: Math.floor(Math.random() * 20),
-          posts_count: user.posts_count
+          new_followers: Math.round(followersGrowth),
+          posts_count: posts
         };
       });
+
+      results.sort((a, b) => b.trending_score - a.trending_score);
+      results.forEach((r, i) => { r.trending_rank = i + 1; });
+
+      return results;
     } catch (error) {
       debug.error('Failed to get trending users:', error);
       return [];

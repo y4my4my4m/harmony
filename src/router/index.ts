@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import {
@@ -40,7 +39,7 @@ const router = createRouter({
     {
       path: '/invite/:code',
       name: 'InviteAccept',
-      component: InviteAccept,
+      component: () => import('@/components/InviteAccept.vue'),
       meta: { requiresAuth: true }
     },
     {

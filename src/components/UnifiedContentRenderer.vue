@@ -474,7 +474,7 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
   rendered = rendered.replace(/`(.*?)`/g, '<code>$1</code>');
   
   // Hashtags
-  rendered = rendered.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+  rendered = rendered.replace(/(?<![&\w])#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
   
   return rendered;
 };

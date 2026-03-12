@@ -274,7 +274,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
 import { throttle } from '@/utils/throttle'
@@ -1070,6 +1070,10 @@ const handleClickOutside = (event: Event) => {
 };
 
 document.addEventListener('click', handleClickOutside);
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <style scoped>

@@ -920,9 +920,40 @@ const handleToggleFolderExpanded = (folder: ServerFolderType) => {
   serverChannelStore.toggleFolderExpanded(folder.id);
 };
 
-const handleMarkFolderAsRead = (folder: ServerFolderType) => {
-  // TODO: Implement mark as read for all servers in folder
+const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
   closeFolderContextMenu();
+  if (!folder.servers?.length) return;
+
+  try {
+    const { authContextService } = await import('@/services/AuthContextService');
+    const context = await authContextService.getCurrentContext();
+    const profileId = context.profileId;
+    if (!profileId) return;
+
+    const { supabase } = await import('@/supabase');
+    const serverIds = folder.servers.map(s => s.id);
+
+    const { data: channels } = await supabase
+      .from('channels')
+      .select('id')
+      .in('server_id', serverIds);
+
+    if (channels && channels.length > 0) {
+      const channelIds = channels.map(c => c.id);
+      await supabase
+        .from('unread_counts')
+        .update({
+          unread_messages: 0,
+          unread_mentions: 0,
+          last_read_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', profileId)
+        .in('channel_id', channelIds);
+    }
+  } catch (e) {
+    // Silently fail -- the UI will catch up on next fetch
+  }
 };
 
 // Server context menu actions

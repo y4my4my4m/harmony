@@ -813,6 +813,9 @@ const closeInviteModal = () => {
 
 .user-sidebar {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Member Count */
@@ -829,10 +832,10 @@ const closeInviteModal = () => {
 /* User Groups */
 .user-groups {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 8px 16px 8px;
-  height:100%;
   background-color: var(--background-primary-alpha);
 }
 

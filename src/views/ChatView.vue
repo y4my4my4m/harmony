@@ -189,7 +189,11 @@ const handleShowAllThreads = () => {
 }
 
 // Watch for route changes
-watch(() => route.params, loadMessages, { immediate: true })
+watch(
+  () => [route.params.channelId, route.params.conversationId, route.params.serverId],
+  loadMessages,
+  { immediate: true }
+)
 
 // Track view context in database for notification suppression
 useViewContextTracking()
@@ -274,6 +278,14 @@ const scrollToMessage = async (messageId: string) => {
           if (searchQuery) {
             highlightSearchText(retryElement, searchQuery)
           }
+        }
+        // Mark notification as read after jump regardless of element visibility
+        const notificationStore = useNotificationStore()
+        const jumpNotification = notificationStore.notifications.find(n => 
+          (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
+        )
+        if (jumpNotification) {
+          await notificationStore.markAsRead(jumpNotification.id)
         }
       }
     } else {

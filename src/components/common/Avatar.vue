@@ -5,6 +5,7 @@
       :src="avatarUrl"
       :alt="alt"
       class="avatar-image"
+      loading="lazy"
       @click="handleClick"
       @error="handleImageError"
       @load="handleImageLoad"

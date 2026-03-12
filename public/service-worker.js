@@ -12,9 +12,7 @@ const STATIC_RESOURCES = [
   '/',
   '/manifest.json',
   '/img/app_icon_square.webp',
-  '/favicon/android-icon-192x192.png',
-  '/src/main.ts',
-  '/src/App.vue'
+  '/favicon/android-icon-192x192.png'
 ]
 
 // Install event - precache critical resources
@@ -490,14 +488,12 @@ async function enhancedNetworkFirst(request, cacheName) {
     
     clearTimeout(timeoutId)
     
-    if (networkResponse.status === 200 && networkResponse.ok) {
-      // Only cache if response is good and not too large (mobile friendly)
+    if (networkResponse.status === 200 && networkResponse.ok && request.method === 'GET') {
       const contentLength = networkResponse.headers.get('content-length')
       const isSmallResponse = !contentLength || parseInt(contentLength) < 1024 * 1024 // 1MB limit
       
       if (isSmallResponse) {
         const cache = await caches.open(cacheName)
-        // Clone response before caching
         const responseClone = networkResponse.clone()
         cache.put(request, responseClone).catch(err => {
           console.warn('Failed to cache response:', err)
@@ -508,6 +504,13 @@ async function enhancedNetworkFirst(request, cacheName) {
     return networkResponse
   } catch (error) {
     console.log('🌐 Service Worker: Network failed, trying cache:', error.message)
+    
+    if (request.method !== 'GET') {
+      return new Response('Network unavailable', { 
+        status: 503,
+        headers: { 'Content-Type': 'text/plain' }
+      })
+    }
     
     const cachedResponse = await caches.match(request)
     if (cachedResponse) {
