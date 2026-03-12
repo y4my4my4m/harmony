@@ -121,11 +121,15 @@ class LinkPreviewService {
     payload.cacheKey = cacheKey;
     payload.url = url;
     payload.normalizedUrl = normalizedUrl;
-    payload.provider = provider;
+    // Preserve provider if fetchGenericPreview upgraded it (e.g., to 'fediverse-post')
+    if (!payload.provider || payload.provider === 'generic') {
+      payload.provider = provider;
+    }
+    const effectiveProvider = payload.provider;
     payload.fetchedAt = new Date().toISOString();
-    payload.expiresAt = new Date(Date.now() + TTL_BY_PROVIDER[provider]).toISOString();
+    payload.expiresAt = new Date(Date.now() + TTL_BY_PROVIDER[effectiveProvider]).toISOString();
 
-    this.cache.set(cacheKey, payload, TTL_BY_PROVIDER[provider] / 1000);
+    this.cache.set(cacheKey, payload, TTL_BY_PROVIDER[effectiveProvider] / 1000);
     return payload;
   }
 
