@@ -375,8 +375,15 @@ export const useReactionsStore = defineStore('reactions', () => {
      }
    }
 
-   // Cleanup timer - much simpler
-   setInterval(cleanupOptimisticState, 30000)
+   // Cleanup timer — store interval ID so it can be cleared on reset
+   let cleanupTimerId: ReturnType<typeof setInterval> | null = setInterval(cleanupOptimisticState, 30000)
+
+   function $dispose() {
+     if (cleanupTimerId) {
+       clearInterval(cleanupTimerId)
+       cleanupTimerId = null
+     }
+   }
 
    return {
      // State
@@ -405,6 +412,8 @@ export const useReactionsStore = defineStore('reactions', () => {
          reactionsByMessage.value.set(messageId, reactions)
          lastFetched.value.set(messageId, now)
        })
-     }
+     },
+
+     $dispose,
    }
 })

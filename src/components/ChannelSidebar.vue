@@ -329,6 +329,7 @@
 </template>
 
 <script setup lang="ts">
+// TODO: Consider virtualizing channel/category lists for servers with many channels
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';

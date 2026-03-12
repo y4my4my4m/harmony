@@ -302,7 +302,11 @@ export class CoreMessageService {
           }
         } catch (error) {
           debug.error('❌ DM encryption failed:', error)
-          debug.warn('⚠️ Falling back to unencrypted DM')
+          // Warn user instead of silently falling back to plaintext
+          console.warn('[Harmony] DM encryption failed — message will be sent unencrypted.', error)
+          window.dispatchEvent(new CustomEvent('encryption-fallback', {
+            detail: { type: 'dm', conversationId, error: String(error) }
+          }))
         }
       }
 

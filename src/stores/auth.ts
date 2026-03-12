@@ -562,9 +562,18 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { useActivityPubStore } = await import('@/stores/useActivityPub')
         const activityPubStore = useActivityPubStore()
+        activityPubStore.cleanupRealtimeSubscriptions()
         activityPubStore.clearTimelineCache()
       } catch (error) {
         debug.error('❌ Error clearing ActivityPub timeline:', error)
+      }
+
+      try {
+        const { useEmojiCacheStore } = await import('@/stores/useEmojiCache')
+        const emojiCacheStore = useEmojiCacheStore()
+        emojiCacheStore.cleanupRealtimeSubscriptions()
+      } catch (error) {
+        debug.error('❌ Error cleaning up emoji cache:', error)
       }
       
       try {

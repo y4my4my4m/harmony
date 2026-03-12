@@ -16,7 +16,7 @@ import { supabase } from '@/supabase'
 import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmKeyBackupService } from './MegolmKeyBackupService'
-import { secureSessionKeyStore } from './SecureSessionKeyStore'
+import { secureSessionKeyStore, identityKeyStore } from './SecureSessionKeyStore'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -141,44 +141,10 @@ export class MegolmMessageEncryptionService {
         return true
       }
 
-      // Legacy fallback: migrate from localStorage/sessionStorage mnemonic
-      let storedData = localStorage.getItem(`megolm_session_${this.currentUserId}`)
-        || sessionStorage.getItem(`megolm_session_${this.currentUserId}`)
-
-      if (!storedData) {
-        debug.log('🔐 No stored session — encryption locked')
-        return false
-      }
-
-      const words = JSON.parse(atob(storedData)) as string[]
-      if (!Array.isArray(words) || words.length < 12) {
-        debug.warn('⚠️ Invalid stored legacy session data')
-        this.clearLegacyStorage()
-        return false
-      }
-
-      debug.log('🔐 Found legacy mnemonic — migrating to IndexedDB...')
-      const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
-      await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
-      await this.ensureIdentityKeyPair()
-
-      // Migrate: store non-extractable keys in IndexedDB, then purge mnemonic
-      await secureSessionKeyStore.store(this.currentUserId, derivedKeys)
+      // No stored keys — encryption is locked
       this.clearLegacyStorage()
-
-      try {
-        const result = await megolmKeyBackupService.restoreFromBackup()
-        if (result.outboundCount + result.inboundCount > 0) {
-          debug.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
-        }
-      } catch { /* ignore */ }
-
-      try {
-        await megolmKeyBackupService.processPendingRequestsToMe()
-      } catch { /* ignore */ }
-
-      debug.log('✅ Auto-unlocked and migrated to secure IndexedDB storage')
-      return true
+      debug.log('🔐 No stored session — encryption locked')
+      return false
     } catch (error) {
       debug.warn('⚠️ Failed to auto-unlock:', error)
       return false
@@ -207,6 +173,7 @@ export class MegolmMessageEncryptionService {
   async lockEncryption(): Promise<void> {
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
+      await identityKeyStore.clear(this.currentUserId).catch(() => {})
       this.clearLegacyStorage()
     }
     megolmService.close()
@@ -345,44 +312,61 @@ export class MegolmMessageEncryptionService {
   }
 
   /**
-   * Ensure user has an identity key pair for session key exchange
+   * Ensure user has an identity key pair for session key exchange.
+   * Also ensures the private key CryptoKey is cached in IndexedDB for ECDH.
    */
   private async ensureIdentityKeyPair(): Promise<void> {
     if (!this.currentUserId) return
 
-    // Check if user already has an active key pair (use maybeSingle to avoid error)
+    const cachedKey = await identityKeyStore.load(this.currentUserId)
+
     const { data: existingKey } = await supabase
       .from('user_key_pairs')
-      .select('id')
+      .select('identity_public_key, identity_private_key_encrypted')
       .eq('user_id', this.currentUserId)
       .eq('is_active', true)
       .maybeSingle()
 
     if (existingKey) {
-      debug.log('✅ Identity key pair already exists')
+      if (cachedKey) return
+
+      // Key pair in DB but not in IndexedDB — decrypt from DB using recovery key
+      if (existingKey.identity_private_key_encrypted) {
+        try {
+          const privateKeyBase64 = await this.decryptPrivateKeyFromStorage(
+            existingKey.identity_private_key_encrypted
+          )
+          const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), c => c.charCodeAt(0))
+          const privateKey = await crypto.subtle.importKey(
+            'pkcs8', privateKeyBytes,
+            { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
+          )
+          await identityKeyStore.store(this.currentUserId, privateKey)
+          debug.log('✅ Restored identity key from DB to IndexedDB')
+          return
+        } catch (e) {
+          debug.warn('⚠️ Failed to restore identity key from DB:', e)
+        }
+      }
+
       return
     }
 
-    // Generate a new ECDH key pair for session key exchange
+    // Generate a new ECDH key pair
     const keyPair = await crypto.subtle.generateKey(
       { name: 'ECDH', namedCurve: 'P-256' },
       true,
       ['deriveBits']
     )
 
-    // Export public key as base64
     const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
     const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)))
 
-    // Export and encrypt private key
     const privateKeyRaw = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
     const privateKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(privateKeyRaw)))
-    
-    // Encrypt the private key with a simple encryption (recovery key based would be better)
-    // For now, use a simple obfuscation that can be stored in DB
+
     const encryptedPrivateKey = await this.encryptPrivateKeyForStorage(privateKeyBase64)
 
-    // Store both keys in the database
     const { error } = await supabase
       .from('user_key_pairs')
       .insert({
@@ -398,8 +382,12 @@ export class MegolmMessageEncryptionService {
       throw new Error('Failed to create identity key pair')
     }
 
-    // Also store locally for quick access
-    localStorage.setItem(`megolm_identity_private_${this.currentUserId}`, privateKeyBase64)
+    // Store non-extractable CryptoKey in IndexedDB
+    const nonExtractablePrivateKey = await crypto.subtle.importKey(
+      'pkcs8', privateKeyRaw,
+      { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
+    )
+    await identityKeyStore.store(this.currentUserId, nonExtractablePrivateKey)
 
     debug.log('✅ Identity key pair created')
   }
@@ -679,64 +667,128 @@ export class MegolmMessageEncryptionService {
   }
 
   /**
-   * Encrypt session key for a specific user
-   * In production, this would use asymmetric encryption with recipient's public key
+   * Get the current user's identity private key from IndexedDB.
+   */
+  private async getMyPrivateKey(): Promise<CryptoKey> {
+    if (!this.currentUserId) throw new Error('Not initialized')
+
+    const key = await identityKeyStore.load(this.currentUserId)
+    if (key) return key
+
+    throw new Error('Identity private key not found in IndexedDB — run encryption setup')
+  }
+
+  /**
+   * Import a base64-encoded ECDH public key as a CryptoKey.
+   */
+  private async importPublicKey(publicKeyBase64: string): Promise<CryptoKey> {
+    const publicKeyBytes = Uint8Array.from(atob(publicKeyBase64), c => c.charCodeAt(0))
+    return crypto.subtle.importKey(
+      'raw', publicKeyBytes,
+      { name: 'ECDH', namedCurve: 'P-256' }, false, []
+    )
+  }
+
+  /**
+   * Derive a shared AES-GCM key from ECDH key agreement.
+   */
+  private async deriveSharedKey(
+    privateKey: CryptoKey,
+    publicKey: CryptoKey,
+    usage: KeyUsage[]
+  ): Promise<CryptoKey> {
+    const sharedBits = await crypto.subtle.deriveBits(
+      { name: 'ECDH', public: publicKey },
+      privateKey,
+      256
+    )
+
+    const hkdfKey = await crypto.subtle.importKey(
+      'raw', sharedBits, 'HKDF', false, ['deriveKey']
+    )
+
+    return crypto.subtle.deriveKey(
+      {
+        name: 'HKDF',
+        hash: 'SHA-256',
+        salt: new TextEncoder().encode('harmony-megolm-session-exchange'),
+        info: new TextEncoder().encode('session-key-encryption'),
+      },
+      hkdfKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      usage
+    )
+  }
+
+  /**
+   * Encrypt session key for a recipient using ECDH key agreement (P-256 + HKDF + AES-GCM).
+   * Output is prefixed with 'v2:' as a format version marker.
    */
   private async encryptSessionKeyForUser(
     sessionKey: string,
     recipientPublicKey: string
   ): Promise<string> {
-    // For now, use a simple HKDF-based key derivation
-    // In production, implement proper ECIES or similar
-    const encoder = new TextEncoder()
-    
-    const derivedKey = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(recipientPublicKey.substring(0, 32)),
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt']
-    )
+    const myPrivateKey = await this.getMyPrivateKey()
+    const recipientKey = await this.importPublicKey(recipientPublicKey)
+    const aesKey = await this.deriveSharedKey(myPrivateKey, recipientKey, ['encrypt'])
 
+    const encoder = new TextEncoder()
     const iv = crypto.getRandomValues(new Uint8Array(12))
     const encrypted = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
-      derivedKey,
+      aesKey,
       encoder.encode(sessionKey)
     )
 
-    // Combine IV + ciphertext
     const combined = new Uint8Array(iv.length + encrypted.byteLength)
     combined.set(iv)
     combined.set(new Uint8Array(encrypted), iv.length)
 
-    return btoa(String.fromCharCode(...combined))
+    return 'v2:' + btoa(String.fromCharCode(...combined))
   }
 
   /**
-   * Encrypt private key for database storage
-   * Uses the recovery key derived encryption key
+   * Decrypt private key from database storage using recovery-derived encryption key.
+   */
+  private async decryptPrivateKeyFromStorage(encryptedData: string): Promise<string> {
+    const encryptionKey = recoveryKeyService.getEncryptionKey()
+    if (!encryptionKey) {
+      throw new Error('Recovery key not available — cannot decrypt identity key from DB')
+    }
+
+    const combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0))
+    const iv = combined.slice(0, 12)
+    const ciphertext = combined.slice(12)
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      encryptionKey,
+      ciphertext
+    )
+    return new TextDecoder().decode(decrypted)
+  }
+
+  /**
+   * Encrypt private key for database storage.
+   * Uses the recovery key derived encryption key.
    */
   private async encryptPrivateKeyForStorage(privateKeyBase64: string): Promise<string> {
-    // Get the encryption key from recovery key service
     const encryptionKey = recoveryKeyService.getEncryptionKey()
-    
+
     if (!encryptionKey) {
-      // If no encryption key, use a simple encoding (not ideal but works for compatibility)
-      debug.warn('⚠️ No encryption key available, using simple encoding for private key')
-      return btoa(privateKeyBase64)
+      throw new Error('Recovery key not available — cannot encrypt identity key for storage')
     }
 
     const encoder = new TextEncoder()
     const iv = crypto.getRandomValues(new Uint8Array(12))
-    
+
     const encrypted = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
       encryptionKey,
       encoder.encode(privateKeyBase64)
     )
 
-    // Combine IV + ciphertext
     const combined = new Uint8Array(iv.length + encrypted.byteLength)
     combined.set(iv)
     combined.set(new Uint8Array(encrypted), iv.length)
@@ -746,7 +798,7 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Claim pending session shares (from other users)
-   * OPTIMIZED: Single RPC call + parallel processing
+   * OPTIMIZED: Single RPC call + batch public-key fetch + parallel processing
    */
   async claimPendingSessionShares(): Promise<number> {
     if (!this.currentUserId) return 0
@@ -760,13 +812,31 @@ export class MegolmMessageEncryptionService {
 
     debug.log(`📥 Found ${shares.length} unclaimed session shares`)
 
-    // Process shares in parallel
+    // Batch-fetch sender public keys for ECDH decryption
+    const senderIds = [...new Set(shares.map((s: any) => s.sender_user_id))]
+    const { data: senderKeys } = await supabase
+      .from('user_key_pairs')
+      .select('user_id, identity_public_key')
+      .in('user_id', senderIds)
+      .eq('is_active', true)
+
+    const senderKeyMap = new Map<string, string>()
+    for (const k of senderKeys || []) {
+      if (k.identity_public_key) senderKeyMap.set(k.user_id, k.identity_public_key)
+    }
+
     const results = await Promise.all(shares.map(async (share: any) => {
       try {
-        // Decrypt the session key
-        const sessionKey = await this.decryptSessionKeyForMe(share.encrypted_session_key)
+        const senderPublicKey = senderKeyMap.get(share.sender_user_id)
+        if (!senderPublicKey) {
+          debug.warn(`⚠️ No public key for sender ${share.sender_user_id.substring(0, 8)}, skipping share`)
+          return false
+        }
+        const sessionKey = await this.decryptSessionKeyFromSender(
+          share.encrypted_session_key,
+          senderPublicKey
+        )
 
-        // Import the session
         await megolmService.importInboundSession(
           share.room_id,
           share.sender_user_id,
@@ -775,7 +845,6 @@ export class MegolmMessageEncryptionService {
           share.first_known_index
         )
 
-        // Mark as claimed (fire and forget)
         supabase.rpc('claim_session_share', {
           p_share_id: share.share_id,
           p_user_id: this.currentUserId
@@ -795,43 +864,28 @@ export class MegolmMessageEncryptionService {
   }
 
   /**
-   * Decrypt a session key that was encrypted for us
+   * Decrypt a session key using ECDH with the sender's public key.
    */
-  private async decryptSessionKeyForMe(encryptedSessionKey: string): Promise<string> {
-    // Get our identity key to derive decryption key
-    const { data: myKey } = await supabase
-      .from('user_key_pairs')
-      .select('identity_public_key')
-      .eq('user_id', this.currentUserId)
-      .eq('is_active', true)
-      .maybeSingle()
+  private async decryptSessionKeyFromSender(
+    encryptedSessionKey: string,
+    senderPublicKey: string
+  ): Promise<string> {
+    const payload = encryptedSessionKey.startsWith('v2:')
+      ? encryptedSessionKey.slice(3)
+      : encryptedSessionKey
 
-    if (!myKey?.identity_public_key) {
-      throw new Error('Cannot find my identity key - run encryption setup first')
-    }
+    const myPrivateKey = await this.getMyPrivateKey()
+    const senderKey = await this.importPublicKey(senderPublicKey)
+    const aesKey = await this.deriveSharedKey(myPrivateKey, senderKey, ['decrypt'])
 
-    const encoder = new TextEncoder()
-    const derivedKey = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(myKey.identity_public_key.substring(0, 32)),
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-    )
-
-    // Decode and decrypt
-    const combined = Uint8Array.from(atob(encryptedSessionKey), c => c.charCodeAt(0))
+    const combined = Uint8Array.from(atob(payload), c => c.charCodeAt(0))
     const iv = combined.slice(0, 12)
     const ciphertext = combined.slice(12)
 
     const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      derivedKey,
-      ciphertext
+      { name: 'AES-GCM', iv }, aesKey, ciphertext
     )
-
-    const decoder = new TextDecoder()
-    return decoder.decode(decrypted)
+    return new TextDecoder().decode(decrypted)
   }
 
   // =====================================================
@@ -934,6 +988,7 @@ export class MegolmMessageEncryptionService {
 
     // Clear stored keys
     await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
+    await identityKeyStore.clear(this.currentUserId).catch(() => {})
     this.clearLegacyStorage()
 
     // Delete backup
@@ -966,6 +1021,7 @@ export class MegolmMessageEncryptionService {
   async cleanup(): Promise<void> {
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
+      await identityKeyStore.clear(this.currentUserId).catch(() => {})
       this.clearLegacyStorage()
     }
     megolmService.close()

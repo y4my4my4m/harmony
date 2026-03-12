@@ -16,6 +16,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { SignatureService } from './SignatureService.js';
 
 const router = Router();
 
@@ -589,10 +590,45 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
     const activity = req.body;
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
 
-    // Import dynamically to avoid circular deps
+    // Verify HTTP signature (same pattern as user inbox)
+    const signature = req.headers.signature as string;
+    if (!signature) {
+      if (config.REQUIRE_VALID_SIGNATURES) {
+        logger.warn(`🚫 Rejecting unsigned server inbox activity from ${actorUrl}`);
+        res.status(401).json({ error: 'Missing HTTP Signature' });
+        return;
+      }
+      logger.warn(`⚠️ Accepting unsigned server inbox activity from ${actorUrl} (REQUIRE_VALID_SIGNATURES=false)`);
+    } else {
+      const rawBody = (req as any).rawBody as Buffer | undefined;
+      const verification = await SignatureService.verifySignature(
+        signature,
+        req.headers as Record<string, string>,
+        req.method,
+        req.originalUrl || req.path,
+        rawBody || activity
+      );
+
+      if (!verification.verified) {
+        if (config.REQUIRE_VALID_SIGNATURES) {
+          logger.warn(`🚫 Rejecting server inbox activity with invalid signature: ${verification.error}`);
+          res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
+          return;
+        }
+        logger.warn(`⚠️ Accepting invalid signature on server inbox (REQUIRE_VALID_SIGNATURES=false)`);
+      } else if (verification.actorUrl && actorUrl) {
+        const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
+        if (!actorMatch && config.REQUIRE_VALID_SIGNATURES) {
+          logger.warn(`🚫 Rejecting: actor mismatch on server inbox. Activity: ${actorUrl}, Signer: ${verification.actorUrl}`);
+          res.status(403).json({ error: 'Actor mismatch' });
+          return;
+        }
+      }
+    }
+
     const { processServerInboxActivity } = await import('./ServerInboxHandler.js');
-
     await processServerInboxActivity(serverId, activity);
 
     res.status(202).json({ message: 'Activity accepted' });

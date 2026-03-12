@@ -77,6 +77,10 @@ app.directive('scroll-bottom', {
 app.directive('click-outside', ClickOutsideDirective);
 app.directive('haptic', vHaptic);
 
+app.config.errorHandler = (err, instance, info) => {
+  debug.error(`[Vue Error] ${info}:`, err)
+}
+
 async function initializeApp() {
   try {
     // Wait for initial locale to load (ensures translations are available)

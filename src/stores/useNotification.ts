@@ -132,7 +132,8 @@ export const useNotificationStore = defineStore('notification', {
     cachedAuthUserId: null,
     // Reconnection state
     notificationRetryCount: 0,
-    notificationRetryTimeout: null as ReturnType<typeof setTimeout> | null
+    notificationRetryTimeout: null as ReturnType<typeof setTimeout> | null,
+    _dndCheckInterval: null as number | null
   }),
 
   getters: {
@@ -1006,9 +1007,10 @@ export const useNotificationStore = defineStore('notification', {
 
     setupDndCheck() {
       // Check DND status every minute
-      setInterval(() => {
+      if (this._dndCheckInterval) clearInterval(this._dndCheckInterval)
+      this._dndCheckInterval = setInterval(() => {
         this.isDndActive = this.isQuietHours
-      }, 60000)
+      }, 60000) as unknown as number
     },
 
     /**

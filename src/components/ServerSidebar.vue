@@ -253,6 +253,7 @@
 </template>
 
 <script setup lang="ts">
+// TODO: Consider virtualizing server list for users with many servers/folders
 import { computed, ref, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';

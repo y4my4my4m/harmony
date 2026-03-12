@@ -10,6 +10,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { validateExternalHostname, validateExternalUrl } from '../utils/ssrfProtection.js';
 
 const router = Router();
 
@@ -89,6 +90,12 @@ router.post(
 
     if (!instance || !code) {
       return res.status(400).json({ error: 'instance and code are required' });
+    }
+
+    try {
+      validateExternalHostname(instance);
+    } catch (err: any) {
+      return res.status(400).json({ error: `Invalid instance: ${err.message}` });
     }
 
     logger.info(`🎟️ Proxying invite resolution: ${code} from ${instance}`);
