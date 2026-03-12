@@ -277,7 +277,7 @@ function isCustomServerEmoji(emoji: { id: string; native?: string; name: string;
 }
 
 function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {
-  if (emoji.url && !isLocalAssetUrl(emoji.url)) return emoji.url;
+  if (emoji.url && !isLocalAssetUrl(emoji.url)) return getEmojiUrl(emoji.url, 42);
   if (!isCustomServerEmoji(emoji)) return null;
   
   const allServerIds = Array.from(emojiCacheStore.serverCaches.keys());
@@ -285,7 +285,7 @@ function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: 
     const serverEmojis = emojiCacheStore.getServerEmojis(serverId);
     if (serverEmojis && serverEmojis.length > 0) {
       const cachedEmoji = serverEmojis.find(e => e.name === emoji.name);
-      if (cachedEmoji && cachedEmoji.url) return cachedEmoji.url;
+      if (cachedEmoji && cachedEmoji.url) return getEmojiUrl(cachedEmoji.url, 42);
     }
   }
   return null;

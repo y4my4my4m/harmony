@@ -7,6 +7,10 @@
   max-width: 480px;
 }
 
+.provider-embed.provider-harmony-post {
+  overflow: visible;
+}
+
 .provider-embed__header {
   display: flex;
   align-items: center;

@@ -248,8 +248,13 @@ const toggleFullscreen = async () => {
   }
 }
 
-document.addEventListener('fullscreenchange', () => {
+const handleFullscreenChange = () => {
   isFullscreen.value = !!document.fullscreenElement
+}
+document.addEventListener('fullscreenchange', handleFullscreenChange)
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
 })
 
 // Metrics data

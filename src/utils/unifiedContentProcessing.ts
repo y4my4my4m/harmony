@@ -259,7 +259,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
 export async function resolveHashtagsData(content: string): Promise<Record<string, { id: string; count: number; last_updated: string; normalized: string }>> {
   // Unicode-aware hashtag regex: supports Japanese, Chinese, Korean, etc.
   // \p{L} = any letter, \p{N} = any number, includes CJK characters
-  const hashtagRegex = /#([\p{L}\p{N}_-]+)/gu;
+  const hashtagRegex = /(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
   const hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {};
   
   let match;
@@ -318,7 +318,7 @@ export async function parseContentToMessageParts(
   // @d!ID:username - Discord bridged user
   // @username or @username@domain - user mention
   // #hashtag - hashtag
-  const combinedRegex = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([\p{L}\p{N}_-]+)/gu;
+  const combinedRegex = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
   const parts: MessagePart[] = [];
   
   let lastIndex = 0;

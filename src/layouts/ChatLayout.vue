@@ -643,7 +643,7 @@ onMounted(() => {
 
 .right-sidebar-container.sidebar-open {
   transform: translateX(0);
-  height: 100vh;
+  height: 100%;
   width: 240px;
   border-left: 1px solid var(--border-color);
 }

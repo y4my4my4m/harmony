@@ -115,10 +115,7 @@ async function initializeApp() {
       debug.error('❌ Error initializing background services:', err)
     })
     
-    // Start reaction cache management
-    // TODO: revisit reactionCacheManager
-    // reactionCacheManager.startCleanup()
-    // debug.log('🎯 Reaction cache manager started')
+    reactionCacheManager.startCleanup()
   } catch (error) {
     debug.error('❌ Error initializing app:', error)
     // Still mount the app even if initialization fails

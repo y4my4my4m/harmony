@@ -147,7 +147,7 @@
                 <!-- Custom status (full: with ActivityIcon, partial: no ActivityIcon, none: hidden) -->
                 <div v-if="item.showStatus !== 'none' && hasCustomStatusToShow(item.user!.id)" class="user-custom-status">
                   <ActivityIcon
-                    v-if="item.showStatus === 'full' && getUserCustomStatus(item.user!.id).value?.type && getUserCustomStatus(item.user!.id).value?.type !== 'custom'"
+                    v-if="!getUserCustomStatus(item.user!.id).value?.emoji && item.showStatus === 'full' && getUserCustomStatus(item.user!.id).value?.type && getUserCustomStatus(item.user!.id).value?.type !== 'custom'"
                     :type="getUserCustomStatus(item.user!.id).value!.type"
                     :size="14"
                     class="status-activity-icon"
@@ -813,6 +813,9 @@ const closeInviteModal = () => {
 
 .user-sidebar {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Member Count */
@@ -829,10 +832,10 @@ const closeInviteModal = () => {
 /* User Groups */
 .user-groups {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 8px 16px 8px;
-  height:100%;
   background-color: var(--background-primary-alpha);
 }
 

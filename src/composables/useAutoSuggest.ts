@@ -1,4 +1,4 @@
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch, onScopeDispose } from 'vue';
 import type { Ref } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -1102,11 +1102,17 @@ export function useAutoSuggest(
     }
   });
 
-  // Watch window resize to reposition suggestions
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', updatePosition);
     window.addEventListener('scroll', updatePosition);
   }
+
+  onScopeDispose(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition);
+    }
+  });
 
   return {
     state,

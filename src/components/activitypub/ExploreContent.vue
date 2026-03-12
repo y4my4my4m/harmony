@@ -10,7 +10,19 @@
           <option value="users">{{ $t('activitypub.users') }}</option>
         </select>
         
-        <select v-if="currentView === 'instances'" v-model="selectedInstance" class="filter-select">
+        <select v-if="currentView === 'instances'" v-model="instanceStatusFilter" class="filter-select">
+          <option value="all">{{ $t('activitypub.allStatuses', 'All Statuses') }}</option>
+          <option value="online">{{ $t('activitypub.online') }}</option>
+          <option value="slow">{{ $t('activitypub.slow') }}</option>
+          <option value="idle">{{ $t('activitypub.lastSeenLongAgo', 'Idle') }}</option>
+        </select>
+
+        <select v-if="currentView === 'instances'" v-model="instanceSoftwareFilter" class="filter-select">
+          <option value="all">{{ $t('activitypub.allSoftware', 'All Software') }}</option>
+          <option v-for="sw in availableSoftware" :key="sw" :value="sw">{{ sw }}</option>
+        </select>
+
+        <select v-if="currentView !== 'instances'" v-model="selectedInstance" class="filter-select">
           <option value="all">{{ $t('activitypub.allInstances') }}</option>
           <option v-for="instance in knownInstances" :key="instance.domain" :value="instance.domain">
             {{ instance.domain }}
@@ -273,6 +285,8 @@ const selectedContentType = ref('all');
 const selectedInstance = ref('all');
 const selectedTimeRange = ref('24h');
 const instanceSearchTerm = ref('');
+const instanceStatusFilter = ref('all');
+const instanceSoftwareFilter = ref('all');
 
 // Data states
 const trendingHashtags = ref<any[]>([]);
@@ -287,15 +301,42 @@ const hasMoreContent = ref(false);
 const currentCursor = ref<string | null>(null);
 
 // Computed properties
+const availableSoftware = computed(() => {
+  const set = new Set<string>();
+  for (const inst of knownInstances.value) {
+    if (inst.software) set.add(inst.software);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+});
+
 const filteredInstances = computed(() => {
   if (!knownInstances.value) return [];
-  
+
   let filtered = knownInstances.value;
-  
-  if (selectedContentType.value !== 'all') {
-    // Apply content type filtering if needed
+
+  if (instanceSearchTerm.value.trim()) {
+    const term = instanceSearchTerm.value.trim().toLowerCase();
+    filtered = filtered.filter(i =>
+      i.domain?.toLowerCase().includes(term) ||
+      i.software?.toLowerCase().includes(term) ||
+      i.description?.toLowerCase().includes(term)
+    );
   }
-  
+
+  if (instanceStatusFilter.value !== 'all') {
+    filtered = filtered.filter(i => {
+      const status = getInstanceStatus(i);
+      if (instanceStatusFilter.value === 'idle') return status === 'unknown';
+      return status === instanceStatusFilter.value;
+    });
+  }
+
+  if (instanceSoftwareFilter.value !== 'all') {
+    filtered = filtered.filter(i =>
+      i.software?.toLowerCase() === instanceSoftwareFilter.value.toLowerCase()
+    );
+  }
+
   return filtered;
 });
 

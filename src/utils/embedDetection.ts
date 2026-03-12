@@ -59,7 +59,7 @@ export function detectEmbedProviderFromUrl(input: string | URL): EmbedProvider {
 }
 
 export function isHarmonyPostUrl(url: URL): boolean {
-  return harmonyDomains.has(url.hostname.toLowerCase()) && /^\/posts\/[a-zA-Z0-9-]+/.test(url.pathname);
+  return harmonyDomains.has(url.hostname.toLowerCase()) && /^\/(social\/)?posts\/[a-zA-Z0-9-]+/.test(url.pathname);
 }
 
 export function isHarmonyInviteUrl(url: URL): boolean {
@@ -82,8 +82,8 @@ export function getHarmonyPostId(url: URL): string | null {
   if (!isHarmonyPostUrl(url)) {
     return null;
   }
-  const match = url.pathname.match(/^\/posts\/([a-zA-Z0-9-]+)/);
-  return match ? match[1] : null;
+  const match = url.pathname.match(/^\/(social\/)?posts\/([a-zA-Z0-9-]+)/);
+  return match ? match[2] : null;
 }
 
 export function isYouTubeUrl(url: URL): boolean {

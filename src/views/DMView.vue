@@ -106,6 +106,7 @@ import { useUserData } from '@/composables/useUserData'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useViewContextTracking } from '@/composables/useViewContext'
+import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
 import type { MessagePart } from '@/types'
 
@@ -470,6 +471,15 @@ const scrollToMessage = async (messageId: string) => {
     const searchQuery = route.query.searchQuery as string
     if (searchQuery) {
       highlightSearchText(messageElement, searchQuery)
+    }
+  } else {
+    // Message not in DOM (virtualized) -- still mark notification as read
+    const notificationStore = useNotificationStore()
+    const notification = notificationStore.notifications.find(n => 
+      (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
+    )
+    if (notification) {
+      await notificationStore.markAsRead(notification.id)
     }
   }
 }

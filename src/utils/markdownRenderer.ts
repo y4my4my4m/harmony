@@ -1,5 +1,6 @@
 import { parseMarkdownWithMarkers, type MarkdownToken } from './markdownParser';
 import { highlightSyntax } from './syntaxHighlighter';
+import { getEmojiUrl } from './emojiUtils';
 
 export interface RenderOptions {
   showMarkers?: boolean; // Whether to show markdown markers
@@ -122,7 +123,7 @@ function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string
       if (emojiResolver) {
         const emoji = emojiResolver(token.content);
         if (emoji) {
-          return `<img class="md-emoji" src="${emoji.url}" alt=":${token.content}:" title=":${token.content}:" draggable="false">`;
+          return `<img class="md-emoji" src="${getEmojiUrl(emoji.url, 48)}" alt=":${token.content}:" title=":${token.content}:" draggable="false">`;
         }
       }
       return `:${escapeHtml(token.content)}:`;

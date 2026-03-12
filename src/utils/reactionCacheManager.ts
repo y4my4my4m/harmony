@@ -1,34 +1,65 @@
 import { useReactionsStore } from '@/stores/useReactions';
 import { debug } from '@/utils/debug'
 
-/**
- * Utility to manage reaction cache cleanup
- * Note: The reactions store handles its own internal cleanup automatically
- */
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_AGE = 10 * 60 * 1000; // 10 minutes
+
 export class ReactionCacheManager {
-  /**
-   * Clear optimistic state for a specific message
-   * This is useful when you know a message has been deleted or needs fresh data
-   */
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
   clearOptimisticState(messageId: string) {
     const reactionsStore = useReactionsStore();
     reactionsStore.clearOptimisticState(messageId);
-    debug.log(`🧹 Cleared optimistic state for message ${messageId}`);
   }
 
-  /**
-   * Clear all cached reactions data
-   * Only use this in extreme cases (user logout, data corruption, etc.)
-   */
   clearAllCache() {
     const reactionsStore = useReactionsStore();
-    // Force clear all cached data
-    Object.keys(reactionsStore.reactionsByMessage).forEach(messageId => {
-      reactionsStore.clearOptimisticState(messageId);
-    });
+    const map = reactionsStore.reactionsByMessage;
+    if (map instanceof Map) {
+      map.clear();
+    }
     debug.log('🧹 Cleared all reaction cache data');
+  }
+
+  startCleanup() {
+    if (this.cleanupInterval) return;
+    this.cleanupInterval = setInterval(() => {
+      this.pruneStaleEntries();
+    }, CLEANUP_INTERVAL);
+  }
+
+  stopCleanup() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  private pruneStaleEntries() {
+    try {
+      const reactionsStore = useReactionsStore();
+      const lastFetched = reactionsStore.lastFetched;
+      const reactionsByMessage = reactionsStore.reactionsByMessage;
+      const now = Date.now();
+      let pruned = 0;
+
+      if (lastFetched instanceof Map && reactionsByMessage instanceof Map) {
+        for (const [messageId, fetchedAt] of lastFetched) {
+          if (now - fetchedAt > MAX_CACHE_AGE) {
+            reactionsByMessage.delete(messageId);
+            lastFetched.delete(messageId);
+            pruned++;
+          }
+        }
+      }
+
+      if (pruned > 0) {
+        debug.log(`🧹 Pruned ${pruned} stale reaction cache entries`);
+      }
+    } catch (e) {
+      debug.error('Reaction cache cleanup error:', e);
+    }
   }
 }
 
-// Export singleton instance
 export const reactionCacheManager = new ReactionCacheManager();

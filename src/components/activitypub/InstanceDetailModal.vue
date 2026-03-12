@@ -324,9 +324,13 @@ onMounted(() => {
 .instance-detail-modal :deep(.modal-content) {
   padding: 0;
   overflow: hidden;
-  max-height: min(85vh, 680px);
+  max-height: min(85vh, 720px);
   display: flex;
   flex-direction: column;
+}
+
+.instance-detail-modal :deep(.modal-overlay) {
+  padding: 0;
 }
 
 .instance-detail-layout {
@@ -343,7 +347,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -440,11 +444,31 @@ onMounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 24px 16px;
+  padding: 0 20px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.instance-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.instance-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.instance-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.instance-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .modal-section {
-  padding: 20px 0;
+  padding: 14px 0;
 }
 
 .modal-section + .modal-section {
@@ -662,7 +686,7 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  padding: 14px 24px;
+  padding: 12px 20px;
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
 }

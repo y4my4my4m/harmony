@@ -640,7 +640,7 @@ const otherUserStatus = computed(() => {
   const status = getPresenceAwareStatus(props.conversation.other_user.id).value
   
   // Debug logging to help identify issues
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     debug.log(`🔍 DMHeader status for ${props.conversation.other_user.id}:`, {
       status,
       presenceInitialized: presenceInitialized.value,

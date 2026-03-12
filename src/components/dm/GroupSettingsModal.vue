@@ -228,6 +228,7 @@ import { uploadGroupIcon, deleteGroupIcon } from '@/utils/groupIconUtils'
 import { useDMStore, type DMConversation, type DMUser } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import { supabase } from '@/supabase'
+import { useRouter } from 'vue-router'
 
 interface Props {
   show: boolean
@@ -254,6 +255,7 @@ const displayParticipants = computed(() => {
 
 // Composables
 const toast = useToast()
+const router = useRouter()
 const dmStore = useDMStore()
 const { getCurrentUser } = useUserData()
 
@@ -438,8 +440,17 @@ async function removeParticipant(participant: DMUser) {
   if (!canRemoveParticipant(participant) || !currentUser.value) return
   
   try {
-    // TODO: Implement participant removal
-    toast.info('Participant removal not yet implemented')
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({ left_at: new Date().toISOString() })
+      .eq('conversation_id', props.conversationId)
+      .eq('user_id', participant.id)
+
+    if (error) throw error
+
+    toast.success(`Removed ${participant.display_name || participant.username} from the group`)
+    loadedParticipants.value = await dmStore.getConversationParticipants(props.conversationId)
+    emit('updated')
   } catch (error: any) {
     debug.error('Failed to remove participant:', error)
     toast.error(error.message || 'Removal failed')
@@ -455,9 +466,18 @@ async function leaveGroup() {
   if (!currentUser.value) return
   
   try {
-    // TODO: Implement leave group functionality
-    toast.info('Leave group not yet implemented')
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({ left_at: new Date().toISOString() })
+      .eq('conversation_id', props.conversationId)
+      .eq('user_id', currentUser.value.id)
+
+    if (error) throw error
+
     showLeaveConfirm.value = false
+    toast.success('You left the group')
+    emit('close')
+    router.push('/dm')
   } catch (error: any) {
     debug.error('Failed to leave group:', error)
     toast.error(error.message || 'Failed to leave group')
@@ -468,9 +488,17 @@ async function deleteGroup() {
   if (!isCreator.value || !currentUser.value) return
   
   try {
-    // TODO: Implement delete group functionality  
-    toast.info('Delete group not yet implemented')
+    const { error } = await supabase
+      .from('conversations')
+      .delete()
+      .eq('id', props.conversationId)
+
+    if (error) throw error
+
     showDeleteConfirm.value = false
+    toast.success('Group deleted')
+    emit('close')
+    router.push('/dm')
   } catch (error: any) {
     debug.error('Failed to delete group:', error)
     toast.error(error.message || 'Failed to delete group')

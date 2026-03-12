@@ -1,5 +1,5 @@
 <template>
-  <div class="mony-header">
+  <div ref="headerRef" class="mony-header">
     <div class="header-left">
       <button 
         v-if="isMobile"
@@ -13,8 +13,7 @@
     </div>
 
     <div class="header-center">
-      <!-- Feed Type Switcher -->
-      <div class="feed-switcher">
+      <div :class="['feed-switcher', { compact: isCompact }]">
         <button
           v-for="tab in feedTabs"
           :key="tab.id"
@@ -25,7 +24,7 @@
           <svg viewBox="0 0 24 24" class="tab-icon">
             <path :d="getIconPath(tab.icon)" fill="currentColor"/>
           </svg>
-          <span v-if="!isMobile || tab.showLabelOnMobile" class="tab-label">{{ tab.label }}</span>
+          <span class="tab-label">{{ tab.label }}</span>
         </button>
       </div>
     </div>
@@ -77,15 +76,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 
-// I18n
 const { t } = useI18n();
 const instanceSettings = useInstanceSettingsStore();
 
-// Props
 interface Props {
   currentView?: string
   isMobile?: boolean
@@ -98,7 +95,6 @@ const props = withDefaults(defineProps<Props>(), {
   rightSidebarOpen: false
 })
 
-// Emits
 const emit = defineEmits<{
   'switch-feed': [feedType: string]
   'refresh-timeline': []
@@ -108,41 +104,56 @@ const emit = defineEmits<{
   'toggle-right-sidebar': []
 }>()
 
-// All feed tabs with federation requirement flag
+const headerRef = ref<HTMLElement | null>(null);
+const isCompact = ref(false);
+let resizeObserver: ResizeObserver | null = null;
+
+const COMPACT_THRESHOLD = 600;
+
+onMounted(() => {
+  if (headerRef.value) {
+    resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        isCompact.value = entry.contentRect.width < COMPACT_THRESHOLD;
+      }
+    });
+    resizeObserver.observe(headerRef.value);
+  }
+});
+
+onUnmounted(() => {
+  resizeObserver?.disconnect();
+});
+
 const allFeedTabs = [
   { 
     id: 'home', 
     label: t('activitypub.home'), 
     icon: 'home',
-    showLabelOnMobile: true,
     requiresFederation: false
   },
   { 
     id: 'local', 
     label: t('activitypub.local'), 
     icon: 'users',
-    showLabelOnMobile: false,
     requiresFederation: false
   },
   { 
     id: 'public', 
     label: t('activitypub.federated'), 
     icon: 'globe',
-    showLabelOnMobile: false,
     requiresFederation: true
   },
   { 
     id: 'trending', 
     label: t('activitypub.trending'), 
     icon: 'trending-up',
-    showLabelOnMobile: false,
     requiresFederation: false
   },
   { 
     id: 'instances', 
     label: t('activitypub.instances'), 
     icon: 'server',
-    showLabelOnMobile: false,
     requiresFederation: true
   }
 ]
@@ -211,46 +222,6 @@ const getIconPath = (iconName: string): string => {
   justify-content: center;
   min-width: 0;
 }
-/* 
-.feed-switcher {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--background-secondary);
-  border-radius: 8px;
-  padding: 4px;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.feed-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.feed-tab:hover {
-  color: var(--text-primary);
-  background: var(--background-tertiary);
-}
-
-.feed-tab.active {
-  color: var(--harmony-primary, #5865f2);
-  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.1));
-} */
-
-
 /* Feed Switcher */
 .feed-switcher {
   display: flex;
@@ -326,9 +297,26 @@ const getIconPath = (iconName: string): string => {
 }
 
 .tab-label {
-  min-width: 0;
+  display: inline-block;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease,
+              margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.compact .feed-tab:not(.active) .tab-label {
+  max-width: 0;
+  opacity: 0;
+  margin-left: 0;
+}
+
+.compact .feed-tab.active .tab-label {
+  max-width: 120px;
+  opacity: 1;
+  margin-left: 4px;
 }
 
 .header-actions {
@@ -400,14 +388,6 @@ const getIconPath = (iconName: string): string => {
   .feed-tab {
     padding: 6px 8px;
     font-size: 12px;
-  }
-  
-  .tab-label {
-    display: none;
-  }
-  
-  .feed-tab .tab-label[data-show-on-mobile="true"] {
-    display: block;
   }
   
   .action-btn {

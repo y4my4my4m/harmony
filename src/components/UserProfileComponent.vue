@@ -47,10 +47,10 @@
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
-      <!-- Custom Status: click row to edit, [X] to clear only -->
+      <!-- Custom Status: click row to open edit popup, [X] to clear only -->
       <div 
         class="custom-status-preview"
-        @click.stop="openStatusPicker"
+        @click.stop.prevent="openStatusPicker"
       >
         <div class="preview-left">
           <ActivityIcon
@@ -320,10 +320,11 @@ const clearCustomStatus = async () => {
   }
 }
 
+// Open modal first so the dropdown closing (or click-outside) doesn't prevent the popup from showing
 const openStatusPicker = () => {
-  showStatusDropdown.value = false
+  showStatusPicker.value = true
   nextTick(() => {
-    showStatusPicker.value = true
+    showStatusDropdown.value = false
   })
 }
 

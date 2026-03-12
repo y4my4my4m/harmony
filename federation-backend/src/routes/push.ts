@@ -283,13 +283,12 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
     };
 
     if (endpoint) {
-      // Send to current device only
-      const { data: sub, error: subError } = await supabaseAdmin
-        .from('push_subscriptions')
-        .select('id, endpoint, p256dh, auth, push_enabled, push_offline_only')
-        .eq('user_id', userId)
-        .eq('endpoint', endpoint)
-        .single();
+      // Send to current device only — use the same RPC as production to get
+      // subscription data with real notification preferences from the JOIN
+      const { data: allSubs, error: subError } = await supabaseAdmin
+        .rpc('get_user_push_subscriptions', { p_user_id: userId });
+
+      const sub = (allSubs || []).find((s: any) => s.endpoint === endpoint);
 
       if (subError || !sub) {
         res.json({ success: false, sent: 0, failed: 0, message: 'Subscription not found for this device' });
@@ -298,12 +297,12 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
 
       const result = await PushNotificationService.sendToSubscription(
         {
-          subscription_id: sub.id,
+          subscription_id: sub.subscription_id,
           endpoint: sub.endpoint,
           p256dh: sub.p256dh,
           auth: sub.auth,
           push_enabled: sub.push_enabled,
-          push_offline_only: sub.push_offline_only ?? false,
+          push_offline_only: sub.push_offline_only,
         },
         testPayload
       );

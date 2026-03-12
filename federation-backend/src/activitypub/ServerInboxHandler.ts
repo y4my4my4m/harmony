@@ -560,28 +560,49 @@ async function processCreateActivity(
   }
 
   if (!channel) {
-    // Create local reference to remote channel
-    const channelName = object['harmony:channelName'] || 'remote-channel';
-    const channelType = object['harmony:channelType'] === 'voice' ? 1 : 0;
-
-    const { data: newChannel, error: channelError } = await supabase
-      .from('channels')
-      .insert({
-        server_id: serverId,
-        name: channelName,
-        type: channelType,
-        ap_id: context,
-        is_remote: true,
-      })
-      .select()
+    // For remote server references, try syncing the server to pick up new channels
+    // instead of blindly creating channels from incoming messages (security risk)
+    const { data: serverData } = await supabase
+      .from('servers')
+      .select('is_local_server, ap_id')
+      .eq('id', serverId)
       .single();
 
-    if (channelError) {
-      logger.error('Failed to create channel reference:', channelError);
-      return;
+    if (serverData && !serverData.is_local_server && serverData.ap_id) {
+      try {
+        const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService');
+        await ServerDiscoveryService.syncRemoteServer(serverId);
+
+        // Re-check for the channel after sync
+        const { data: syncedChannel } = await supabase
+          .from('channels')
+          .select('id, name')
+          .eq('ap_id', context)
+          .single();
+
+        if (!syncedChannel) {
+          const channelIdMatch = context.match(/\/channels\/([a-f0-9-]+)/);
+          if (channelIdMatch) {
+            const { data: localChannel } = await supabase
+              .from('channels')
+              .select('id, name')
+              .eq('id', channelIdMatch[1])
+              .eq('server_id', serverId)
+              .single();
+            channel = localChannel;
+          }
+        } else {
+          channel = syncedChannel;
+        }
+      } catch (syncError) {
+        logger.warn('Failed to sync remote server for missing channel:', syncError);
+      }
     }
 
-    channel = newChannel;
+    if (!channel) {
+      logger.warn(`Dropping message for unknown channel: ${context} (server: ${serverId}). Channel creation from messages is not allowed.`);
+      return;
+    }
   }
 
   // Parse content - handle both HTML string and harmony:rawContent

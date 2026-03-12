@@ -15,6 +15,7 @@
       :src="iconUrl"
       :alt="alt"
       class="icon-image"
+      loading="lazy"
       @error="handleImageError"
       @load="handleImageLoad"
     />

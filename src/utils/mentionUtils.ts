@@ -6,6 +6,7 @@
 import { supabase } from '@/supabase';
 import type { UserData } from '@/types';
 import { debug } from '@/utils/debug'
+import { getEmojiUrl } from '@/utils/emojiUtils';
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -66,7 +67,8 @@ function parseMfmOrMessagePartsToHtml(parts: any[]): string {
     if (p.type === 'text' && p.text != null) {
       html.push(escapeHtml(String(p.text)));
     } else if ((p.type === 'emoji' || p.type === 'emotion') && (p.emoji?.url || p.url)) {
-      const url = p.emoji?.url ?? p.url;
+      const rawUrl = p.emoji?.url ?? p.url;
+      const url = rawUrl ? getEmojiUrl(rawUrl, 48) : rawUrl;
       const name = p.emoji?.name ?? p.name ?? 'emoji';
       html.push(`<img class="inline-emoji" src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" />`);
     } else if (p.type === 'emoji' && p.name && !p.url) {

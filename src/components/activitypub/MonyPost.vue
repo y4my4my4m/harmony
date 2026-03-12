@@ -360,8 +360,9 @@
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
-        <div class="action-menu" v-click-outside="closeMenu">
+        <div class="action-menu">
           <button 
+            ref="menuButtonRef"
             class="action-button menu-button" 
             @click="handleMenuToggle"
             :title="showMenu ? 'Close menu' : 'More options'"
@@ -369,84 +370,83 @@
             <Icon name="more-horizontal" />
           </button>
         
-          <!-- Post action dropdown menu -->
-          <div v-if="showMenu" class="action-dropdown">
-          <button 
-            class="dropdown-item"
-            @click="copyLink"
-          >
-            <Icon name="link" />
-            <span>Copy link</span>
-          </button>
-          
-          <button 
-            v-if="canEdit"
-            class="dropdown-item"
-            @click="onEdit"
-          >
-            <Icon name="edit" />
-            <span>Edit</span>
-          </button>
-          
-          <!-- For reblogs, show "Undo Reblog" instead of "Delete" -->
-          <button 
-            v-if="isReblog && canDelete"
-            class="dropdown-item"
-            @click="onUndoReblog"
-          >
-            <Icon name="reblog" />
-            <span>Undo Reblog</span>
-          </button>
-          
-          <!-- Regular delete for non-reblog posts -->
-          <button 
-            v-if="!isReblog && canDelete"
-            class="dropdown-item danger"
-            @click="onDelete"
-          >
-            <Icon name="trash" />
-            <span>Delete</span>
-          </button>
-          
-          <!-- Fetch remote data for remote posts -->
-          <div v-if="isRemotePost" class="dropdown-divider"></div>
-          
-          <button 
-            v-if="isRemotePost && !isFetchingReactions"
-            class="dropdown-item"
-            @click="fetchRemoteReactions"
-          >
-            <Icon name="heart" />
-            <span>Fetch reactions</span>
-          </button>
-          
-          <button 
-            v-if="isRemotePost && !isFetchingReplies"
-            class="dropdown-item"
-            @click="fetchRemoteReplies"
-          >
-            <Icon name="message-circle" />
-            <span>Fetch replies</span>
-          </button>
-          
-          <div 
-            v-if="isRemotePost && (isFetchingReactions || isFetchingReplies)"
-            class="dropdown-item loading-item"
-          >
-            <Icon name="loader" class="spinning" />
-            <span>Loading...</span>
-          </div>
+          <!-- Teleported to body to escape virtual-scroll stacking contexts -->
+          <Teleport to="body">
+            <div v-if="showMenu" ref="dropdownRef" class="action-dropdown" :style="dropdownStyle">
+              <button 
+                class="dropdown-item"
+                @click="copyLink"
+              >
+                <Icon name="link" />
+                <span>Copy link</span>
+              </button>
+              
+              <button 
+                v-if="canEdit"
+                class="dropdown-item"
+                @click="onEdit"
+              >
+                <Icon name="edit" />
+                <span>Edit</span>
+              </button>
+              
+              <button 
+                v-if="isReblog && canDelete"
+                class="dropdown-item"
+                @click="onUndoReblog"
+              >
+                <Icon name="reblog" />
+                <span>Undo Reblog</span>
+              </button>
+              
+              <button 
+                v-if="!isReblog && canDelete"
+                class="dropdown-item danger"
+                @click="onDelete"
+              >
+                <Icon name="trash" />
+                <span>Delete</span>
+              </button>
+              
+              <div v-if="isRemotePost" class="dropdown-divider"></div>
+              
+              <button 
+                v-if="isRemotePost && !isFetchingReactions"
+                class="dropdown-item"
+                @click="fetchRemoteReactions"
+              >
+                <Icon name="heart" />
+                <span>Fetch reactions</span>
+              </button>
+              
+              <button 
+                v-if="isRemotePost && !isFetchingReplies"
+                class="dropdown-item"
+                @click="fetchRemoteReplies"
+              >
+                <Icon name="message-circle" />
+                <span>Fetch replies</span>
+              </button>
+              
+              <div 
+                v-if="isRemotePost && (isFetchingReactions || isFetchingReplies)"
+                class="dropdown-item loading-item"
+              >
+                <Icon name="loader" class="spinning" />
+                <span>Loading...</span>
+              </div>
 
-          <div v-if="!canDelete" class="dropdown-divider"></div>
-          <button
-            v-if="!canDelete"
-            class="dropdown-item danger"
-            @click="openReportModal"
-          >
-            <Icon name="flag" />
-            <span>Report Post</span>
-          </button>
-        </div>
+              <div v-if="!canDelete" class="dropdown-divider"></div>
+              <button
+                v-if="!canDelete"
+                class="dropdown-item danger"
+                @click="openReportModal"
+              >
+                <Icon name="flag" />
+                <span>Report Post</span>
+              </button>
+            </div>
+          </Teleport>
       </div>
     </div>
     </div>
@@ -539,7 +539,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
@@ -606,6 +606,8 @@ const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
+const menuButtonRef = ref<HTMLElement | null>(null);
+const dropdownRef = ref<HTMLElement | null>(null);
 const showReblogMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
@@ -1489,10 +1491,51 @@ const closeMenu = () => {
   showMenu.value = false;
 };
 
+function handleDropdownOutsideClick(e: MouseEvent) {
+  const target = e.target as Node;
+  if (menuButtonRef.value?.contains(target) || dropdownRef.value?.contains(target)) return;
+  closeMenu();
+}
+
+watch(showMenu, (isOpen) => {
+  if (isOpen) {
+    nextTick(() => {
+      document.addEventListener('mousedown', handleDropdownOutsideClick);
+    });
+  } else {
+    document.removeEventListener('mousedown', handleDropdownOutsideClick);
+  }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleDropdownOutsideClick);
+});
+
+const dropdownStyle = ref<Record<string, string>>({});
+
 const handleMenuToggle = () => {
-  debug.log('🔘 Menu button clicked, current state:', showMenu.value);
+  if (!showMenu.value && menuButtonRef.value) {
+    const rect = menuButtonRef.value.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const left = Math.max(8, rect.right - 150);
+
+    if (spaceBelow < 200) {
+      dropdownStyle.value = {
+        position: 'fixed',
+        bottom: `${window.innerHeight - rect.top + 4}px`,
+        left: `${left}px`,
+        zIndex: '9999',
+      };
+    } else {
+      dropdownStyle.value = {
+        position: 'fixed',
+        top: `${rect.bottom + 4}px`,
+        left: `${left}px`,
+        zIndex: '9999',
+      };
+    }
+  }
   showMenu.value = !showMenu.value;
-  debug.log('🔘 Menu state after toggle:', showMenu.value);
 };
 
 // Optimistic favorite toggle — fills/unfills the heart immediately
@@ -2218,22 +2261,22 @@ const closeLightbox = () => {
   color: #f59e0b;
 }
 
-.dropdown-divider {
+:global(.action-dropdown .dropdown-divider) {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
   margin: 0.5rem 0;
 }
 
-.loading-item {
+:global(.action-dropdown .loading-item) {
   color: #9ca3af;
   cursor: wait;
 }
 
-.loading-item .spinning {
-  animation: spin 1s linear infinite;
+:global(.action-dropdown .loading-item .spinning) {
+  animation: monypost-spin 1s linear infinite;
 }
 
-@keyframes spin {
+@keyframes monypost-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
@@ -2243,22 +2286,21 @@ const closeLightbox = () => {
   margin-left: auto;
 }
 
-.action-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  backdrop-filter: blur(3px);
-  background-color: var(--background-primary-alpha);
+/* Dropdown styles use :global() because the dropdown is Teleported to <body> */
+:global(.action-dropdown) {
+  position: fixed;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background-color: var(--background-primary-alpha, rgba(30, 31, 34, 0.85));
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 0.5rem;
   min-width: 150px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  margin-top: 0.25rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
 }
 
-.dropdown-item {
+:global(.action-dropdown .dropdown-item) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -2266,7 +2308,6 @@ const closeLightbox = () => {
   padding: 0.5rem;
   background: none;
   border: none;
-  /* color: var(--text-primary); */
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
@@ -2274,16 +2315,15 @@ const closeLightbox = () => {
   font-size: 0.875rem;
 }
 
-.dropdown-item:hover {
+:global(.action-dropdown .dropdown-item:hover) {
   background-color: var(--background-secondary-alpha);
 }
 
-.dropdown-item.danger {
-  /* color: #ef4444; */
+:global(.action-dropdown .dropdown-item.danger) {
   color: var(--error);
 }
 
-.dropdown-item.danger:hover {
+:global(.action-dropdown .dropdown-item.danger:hover) {
   background-color: rgba(239, 68, 68, 0.1);
 }
 

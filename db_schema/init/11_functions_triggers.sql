@@ -194,14 +194,14 @@ BEGIN
 END;
 $$;
 
--- Create default server structure trigger (skips remote servers)
+-- Create default server structure trigger (only for local servers)
 CREATE OR REPLACE FUNCTION public.trigger_create_default_server_structure()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-    IF NEW.is_local_server = true OR NEW.is_local_server IS NULL THEN
+    IF NEW.is_local_server = true THEN
         PERFORM public.create_default_server_structure(NEW.id);
     END IF;
     RETURN NEW;
@@ -1814,8 +1814,18 @@ SET search_path TO 'public'
 AS $$
 DECLARE
     v_channel_id uuid;
+    v_is_local boolean;
 BEGIN
     IF NEW.status IS NOT NULL AND NEW.status != 'accepted' THEN
+        RETURN NEW;
+    END IF;
+
+    -- Only emit join messages for local servers, not remote server references
+    SELECT is_local_server INTO v_is_local
+    FROM servers
+    WHERE id = NEW.server_id;
+
+    IF v_is_local IS NOT TRUE THEN
         RETURN NEW;
     END IF;
 

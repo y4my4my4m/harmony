@@ -6,6 +6,7 @@
       :alt="alt"
       class="server-image"
       :class="[classes, `shape-${shape}`]"
+      loading="lazy"
       @click="handleClick"
       @error="onImgError"
     />

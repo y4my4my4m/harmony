@@ -23,7 +23,6 @@
               <div class="preview-header" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgHeader : theme.headerColor }"></div>
               <div class="preview-sidebar" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgSidebar : theme.sidebarColor }"></div>
               <div class="preview-chat" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgMain : theme.chatColor }"></div>
-              <!-- Show accent color dot for custom theme -->
               <div v-if="theme.id === 'custom'" class="preview-accent-dot" :style="{ backgroundColor: settings.customPrimaryColor }"></div>
             </div>
           </div>
@@ -32,10 +31,69 @@
             <p class="theme-description">{{ $t(`settings.appearance.themes.${theme.id}Desc`) }}</p>
           </div>
         </div>
+
+        <!-- Saved custom themes as cards in the grid -->
+        <div
+          v-for="saved in savedThemesList"
+          :key="saved.id"
+          class="theme-option saved-theme-option"
+          :class="{ active: activeSavedThemeId === saved.id }"
+          @click="applySavedTheme(saved.id)"
+        >
+          <div class="theme-preview" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }">
+            <div class="theme-preview-content">
+              <div class="preview-header" :style="{ backgroundColor: getSavedThemePreview(saved).bgHeader }"></div>
+              <div class="preview-sidebar" :style="{ backgroundColor: getSavedThemePreview(saved).bgSidebar }"></div>
+              <div class="preview-chat" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }"></div>
+              <div class="preview-accent-dot" :style="{ backgroundColor: saved.settings.customPrimaryColor || '#5865f2' }"></div>
+            </div>
+            <button
+              class="saved-theme-delete-btn"
+              title="Delete theme"
+              @click.stop="confirmDeleteSavedTheme(saved)"
+            >
+              &times;
+            </button>
+          </div>
+          <div class="theme-info">
+            <h4 class="theme-name">{{ saved.name }}</h4>
+            <p class="theme-description">Saved theme</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete confirmation -->
+      <div v-if="themeToDelete" class="delete-theme-confirm">
+        <p>Delete "<strong>{{ themeToDelete.name }}</strong>"?</p>
+        <div class="delete-confirm-actions">
+          <button class="cancel-delete-btn" @click="themeToDelete = null">Cancel</button>
+          <button class="confirm-delete-btn" @click="confirmDelete">Delete</button>
+        </div>
       </div>
       
-      <!-- Custom Color Picker -->
+
+      <!-- Custom Color Picker (only when Custom theme is selected) -->
       <div v-if="settings.theme === 'custom'" class="custom-color-section">
+        <!-- Community Presets -->
+        <div class="community-presets-section">
+          <h4 class="section-subtitle">Community Presets</h4>
+          <p class="section-help">Quick-apply curated themes from the community</p>
+          <div class="presets-grid">
+            <button
+              v-for="preset in communityPresets"
+              :key="preset.name"
+              class="preset-card"
+              @click="applyPresetTheme(preset)"
+            >
+              <div class="preset-swatch" :style="{ background: preset.settings.customPrimaryColor }"></div>
+              <div class="preset-info">
+                <span class="preset-name">{{ preset.name }}</span>
+                <span class="preset-desc">{{ preset.description }}</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
         <h4 class="section-subtitle">{{ $t('settings.appearance.customTheme') }}</h4>
         <p class="section-help">{{ $t('settings.appearance.customThemeHelp') }}</p>
         
@@ -132,24 +190,18 @@
             @change="onCustomColorChange"
           />
         </div>
-      </div>
 
-      <!-- Community Presets -->
-      <div class="community-presets-section">
-        <h4 class="section-subtitle">Community Presets</h4>
-        <p class="section-help">Quick-apply curated themes from the community</p>
-        <div class="presets-grid">
-          <button
-            v-for="preset in communityPresets"
-            :key="preset.name"
-            class="preset-card"
-            @click="applyPresetTheme(preset)"
-          >
-            <div class="preset-swatch" :style="{ background: preset.settings.customPrimaryColor }"></div>
-            <div class="preset-info">
-              <span class="preset-name">{{ preset.name }}</span>
-              <span class="preset-desc">{{ preset.description }}</span>
-            </div>
+        <!-- Save current theme -->
+        <div class="save-theme-row">
+          <input
+            v-model="savedThemeName"
+            type="text"
+            class="theme-name-input"
+            placeholder="Theme name"
+            @keyup.enter="saveCurrentTheme"
+          />
+          <button class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">
+            Save theme
           </button>
         </div>
       </div>
@@ -173,33 +225,6 @@
             @change="handleImportFile"
           />
         </div>
-      </div>
-
-      <!-- My Saved Themes -->
-      <div class="saved-themes-section">
-        <h4 class="section-subtitle">My saved themes</h4>
-        <p class="section-help">Save your current theme to switch between them later</p>
-        <div class="save-theme-row">
-          <input
-            v-model="savedThemeName"
-            type="text"
-            class="theme-name-input"
-            placeholder="Theme name"
-          />
-          <button class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">
-            Save theme
-          </button>
-        </div>
-        <div v-if="savedThemesList.length > 0" class="saved-themes-list">
-          <div v-for="t in savedThemesList" :key="t.id" class="saved-theme-item">
-            <span class="saved-theme-name">{{ t.name }}</span>
-            <div class="saved-theme-actions">
-              <button class="apply-theme-btn" @click="applySavedTheme(t.id)">Apply</button>
-              <button class="delete-theme-btn" @click="deleteSavedThemeItem(t.id)">Delete</button>
-            </div>
-          </div>
-        </div>
-        <p v-else class="section-help muted">No saved themes yet</p>
       </div>
 
       <!-- Advanced CSS Variable Overrides -->
@@ -554,11 +579,36 @@ const savedThemeName = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
 const toast = useToast()
 
-// Saved themes (refresh when we need to show the list)
+// Saved themes
 const savedThemesList = ref(visualTheme.getSavedCustomThemes())
+const activeSavedThemeId = ref<string | null>(null)
+const themeToDelete = ref<{ id: string; name: string } | null>(null)
 
 function refreshSavedThemes() {
   savedThemesList.value = visualTheme.getSavedCustomThemes()
+}
+
+function getSavedThemePreview(saved: { settings: Partial<typeof settings.value> }) {
+  return generatePreviewColors(
+    saved.settings.customBackgroundColor || '#5865f2',
+    saved.settings.customThemeMode || 'dark',
+    saved.settings.customBackgroundLightness || 0,
+    saved.settings.customBackgroundChroma || 0
+  )
+}
+
+function confirmDeleteSavedTheme(saved: { id: string; name: string }) {
+  themeToDelete.value = saved
+}
+
+function confirmDelete() {
+  if (!themeToDelete.value) return
+  const id = themeToDelete.value.id
+  visualTheme.deleteSavedTheme(id)
+  refreshSavedThemes()
+  if (activeSavedThemeId.value === id) activeSavedThemeId.value = null
+  toast.success('Theme removed')
+  themeToDelete.value = null
 }
 
 function exportTheme() {
@@ -610,15 +660,10 @@ function saveCurrentTheme() {
 function applySavedTheme(id: string) {
   if (visualTheme.loadSavedTheme(id)) {
     Object.assign(settings.value, visualTheme.currentSettings.value)
+    activeSavedThemeId.value = id
     previewTheme()
     toast.success('Theme applied')
   }
-}
-
-function deleteSavedThemeItem(id: string) {
-  visualTheme.deleteSavedTheme(id)
-  refreshSavedThemes()
-  toast.success('Theme removed')
 }
 
 // Import community presets and theme helpers
@@ -705,6 +750,7 @@ const hasChanges = computed(() => {
 // Methods
 const selectTheme = (themeId: string) => {
   settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
+  activeSavedThemeId.value = null
   previewTheme()
 }
 
@@ -960,6 +1006,95 @@ onMounted(async () => {
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Saved theme cards */
+.saved-theme-option .theme-preview {
+  position: relative;
+}
+
+.saved-theme-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.saved-theme-option:hover .saved-theme-delete-btn {
+  opacity: 1;
+}
+
+.saved-theme-delete-btn:hover {
+  background: var(--error, #ed4245);
+}
+
+.delete-theme-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.delete-theme-confirm p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cancel-delete-btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.cancel-delete-btn:hover {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+}
+
+.confirm-delete-btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--error, #ed4245);
+  color: #fff;
+  border: none;
+}
+
+.confirm-delete-btn:hover {
+  filter: brightness(1.1);
 }
 
 .custom-color-section {
@@ -1529,17 +1664,12 @@ onMounted(async () => {
   pointer-events: none;
 }
 
-/* My saved themes */
-.saved-themes-section {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--h-chat-light);
-}
-
 .save-theme-row {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--h-chat-light);
 }
 
 .theme-name-input {
@@ -1574,63 +1704,6 @@ onMounted(async () => {
 .save-theme-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.saved-themes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.saved-theme-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  background: var(--h-chat);
-  border: 1px solid var(--h-chat-light);
-  border-radius: 6px;
-}
-
-.saved-theme-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.saved-theme-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.apply-theme-btn,
-.delete-theme-btn {
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.apply-theme-btn {
-  background: var(--harmony-primary);
-  color: var(--text-primary);
-  border: none;
-}
-
-.apply-theme-btn:hover {
-  filter: brightness(1.1);
-}
-
-.delete-theme-btn {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--h-chat-light);
-}
-
-.delete-theme-btn:hover {
-  color: var(--error, #ed4245);
-  border-color: var(--error, #ed4245);
 }
 
 .section-help.muted {
