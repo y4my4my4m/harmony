@@ -59,19 +59,28 @@ CREATE POLICY "donation_history_modify_admin" ON public.instance_donation_histor
     FOR ALL TO authenticated USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
--- AP ACTIVITIES
+-- AP ACTIVITIES (conditional — actor_id must be uuid; old schema had actor_id as text)
 -- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS "Users can view their own activities" ON public.ap_activities;
-CREATE POLICY "Users can view their own activities" ON public.ap_activities
-    FOR SELECT USING (actor_id = public.get_current_profile_id());
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'ap_activities' AND column_name = 'actor_id'
+        AND data_type = 'uuid'
+    ) THEN
+        EXECUTE 'DROP POLICY IF EXISTS "Users can view their own activities" ON public.ap_activities';
+        EXECUTE 'CREATE POLICY "Users can view their own activities" ON public.ap_activities FOR SELECT USING (actor_id = public.get_current_profile_id())';
 
-DROP POLICY IF EXISTS "Users can create their own activities" ON public.ap_activities;
-CREATE POLICY "Users can create their own activities" ON public.ap_activities
-    FOR INSERT WITH CHECK (actor_id = public.get_current_profile_id());
+        EXECUTE 'DROP POLICY IF EXISTS "Users can create their own activities" ON public.ap_activities';
+        EXECUTE 'CREATE POLICY "Users can create their own activities" ON public.ap_activities FOR INSERT WITH CHECK (actor_id = public.get_current_profile_id())';
 
-DROP POLICY IF EXISTS "Users can update their own activities" ON public.ap_activities;
-CREATE POLICY "Users can update their own activities" ON public.ap_activities
-    FOR UPDATE USING (actor_id = public.get_current_profile_id());
+        EXECUTE 'DROP POLICY IF EXISTS "Users can update their own activities" ON public.ap_activities';
+        EXECUTE 'CREATE POLICY "Users can update their own activities" ON public.ap_activities FOR UPDATE USING (actor_id = public.get_current_profile_id())';
+    ELSE
+        RAISE NOTICE 'ap_activities.actor_id is not uuid (old schema?) — skipping user-level ap_activities policies. Run 20260310_ap_activities_schema_update first.';
+    END IF;
+EXCEPTION WHEN undefined_table THEN
+    RAISE NOTICE 'ap_activities table does not exist, skipping';
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- ADMIN AUDIT LOG
