@@ -32,9 +32,28 @@
         </div>
       </template>
       <template v-else-if="isFediverse">
-        <div v-if="payload.fediverse" class="provider-embed__post">
-          <FediPost :fediverse="payload.fediverse" />
-        </div>
+        <template v-if="payload.fediverse">
+          <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
+            <div class="fedi-source-badge" :title="fediversePlatformLabel">
+              <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
+              <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
+            </div>
+            <MonyPost :post="fediversePost" />
+            <a v-if="fediverseSourceUrl" :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link">
+              View on {{ fediverseSourceDomain }}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          </div>
+          <div v-else-if="fediverseError" class="provider-embed__skeleton">
+            <span>{{ fediverseError }}</span>
+          </div>
+          <div v-else class="provider-embed__skeleton">
+            <span>Loading fediverse post…</span>
+          </div>
+        </template>
         <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
       </template>
       <div v-else-if="youtubeEmbedUrl" class="provider-embed__media provider-embed__media--video" ref="youtubeContainer">
@@ -66,11 +85,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
-import type { EmbedPayload, TimelinePost } from '@/types';
+import type { EmbedPayload, TimelinePost, FediverseEmbedSummary } from '@/types';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
-import FediPost from './FediPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
 import ServerInviteCard from './ServerInviteCard.vue';
 
@@ -86,6 +104,8 @@ const emit = defineEmits<{
 const collapsed = ref(false);
 const harmonyPost = ref<TimelinePost | null>(null);
 const harmonyError = ref<string | null>(null);
+const fediversePost = ref<TimelinePost | null>(null);
+const fediverseError = ref<string | null>(null);
 const embedWrapper = ref<HTMLElement | null>(null);
 const youtubeContainer = ref<HTMLElement | null>(null);
 const youtubeIframe = ref<HTMLIFrameElement | null>(null);
@@ -185,7 +205,7 @@ onMounted(() => {
     loadHarmonyPost();
   }
   if (isFediverse.value) {
-    handleEmbedLoad();
+    loadFediversePost();
   }
   // For YouTube, Spotify, and LinkEmbedCard, the load event will be handled by @load handlers
   
@@ -330,6 +350,143 @@ async function loadHarmonyPost() {
   }
 }
 
+// Fediverse embed platform helpers
+const FEDI_PLATFORM_MAP: Record<string, { icon: string; label: string }> = {
+  mastodon: { icon: '🐘', label: 'Mastodon' },
+  misskey: { icon: '🌎', label: 'Misskey' },
+  pleroma: { icon: '🔵', label: 'Pleroma' },
+  gotosocial: { icon: '🐿️', label: 'GoToSocial' },
+  pixelfed: { icon: '📷', label: 'Pixelfed' },
+  harmony: { icon: '🎵', label: 'Harmony' },
+  lemmy: { icon: '🐭', label: 'Lemmy' },
+};
+
+const fediversePlatformLabel = computed(() => {
+  const p = props.payload.fediverse?.platform || '';
+  return FEDI_PLATFORM_MAP[p]?.label || 'Fediverse';
+});
+
+const fediversePlatformIcon = computed(() => {
+  const p = props.payload.fediverse?.platform || '';
+  return FEDI_PLATFORM_MAP[p]?.icon || '🌐';
+});
+
+const fediverseSourceUrl = computed(() => {
+  return props.payload.fediverse?.postUrl || props.payload.url;
+});
+
+const fediverseSourceDomain = computed(() => {
+  try {
+    return new URL(fediverseSourceUrl.value).hostname;
+  } catch {
+    return 'source';
+  }
+});
+
+function buildSyntheticTimelinePost(fedi: FediverseEmbedSummary): TimelinePost {
+  const handleMatch = fedi.authorHandle.match(/@?([^@]+)@(.+)/);
+  const username = handleMatch?.[1] || 'unknown';
+  const domain = handleMatch?.[2] || 'unknown';
+
+  const mediaAttachments = (fedi.attachments || []).map((att, idx) => ({
+    id: `fedi-att-${idx}`,
+    type: (att.mediaType?.startsWith('image/') ? 'image'
+         : att.mediaType?.startsWith('video/') ? 'video' : 'unknown') as 'image' | 'video' | 'unknown',
+    url: att.url,
+    description: att.alt,
+    mime_type: att.mediaType,
+  }));
+
+  const syntheticId = `fedi-embed-${btoa(fedi.postUrl).slice(0, 20)}`;
+
+  return {
+    id: syntheticId,
+    created_at: fedi.published || new Date().toISOString(),
+    updated_at: fedi.published || new Date().toISOString(),
+    content: fedi.content || '',
+    content_warning: fedi.contentWarning,
+    language: 'en',
+    author_id: syntheticId,
+    ap_id: fedi.postUrl,
+    ap_type: 'Note',
+    url: fedi.postUrl,
+    visibility: 'public',
+    is_local: false,
+    is_federated: true,
+    replies_count: fedi.stats?.replies || 0,
+    reblogs_count: fedi.stats?.reblogs || 0,
+    favorites_count: fedi.stats?.favourites || 0,
+    media_attachments: mediaAttachments,
+    metadata: { synthetic: true, platform: fedi.platform },
+    is_sensitive: fedi.sensitive || false,
+    is_deleted: false,
+    author: {
+      id: syntheticId,
+      username,
+      display_name: fedi.authorName || username,
+      avatar_url: fedi.authorAvatar,
+      domain,
+      is_local: false,
+    },
+    is_favorited: false,
+    is_reblogged: false,
+    is_bookmarked: false,
+  } as TimelinePost;
+}
+
+async function loadFediversePost() {
+  const fedi = props.payload.fediverse;
+  if (!fedi) {
+    fediverseError.value = 'No fediverse data';
+    handleEmbedLoad();
+    return;
+  }
+
+  try {
+    const { useActivityPubStore } = await import('@/stores/useActivityPub');
+    const store = useActivityPubStore();
+    const postUrl = fedi.postUrl;
+
+    // Check in-memory feeds first (free)
+    const feeds = [store.homeFeed, store.publicFeed, store.localFeed];
+    for (const feed of feeds) {
+      const found = feed.posts.find(p => p.url === postUrl || p.ap_id === postUrl);
+      if (found) {
+        fediversePost.value = found;
+        handleEmbedLoad();
+        return;
+      }
+    }
+
+    // Try DB lookup by URL or AP ID
+    const { supabase } = await import('@/supabase');
+    const { data: localPost } = await supabase
+      .from('posts')
+      .select('id')
+      .or(`url.eq.${postUrl},ap_id.eq.${postUrl}`)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+
+    if (localPost?.id) {
+      const post = await store.loadPostWithAuthor(localPost.id);
+      if (post) {
+        fediversePost.value = post;
+        handleEmbedLoad();
+        return;
+      }
+    }
+
+    // Not in local DB — build synthetic post from embed data
+    fediversePost.value = buildSyntheticTimelinePost(fedi);
+    handleEmbedLoad();
+  } catch (error) {
+    debug.warn('Failed to load fediverse post:', error);
+    fediversePost.value = buildSyntheticTimelinePost(fedi);
+    handleEmbedLoad();
+  }
+}
+
 function handleEmbedLoad() {
   if (!embedLoaded.value) {
     embedLoaded.value = true;
@@ -349,4 +506,52 @@ function openLink() {
   window.open(props.payload.url, '_blank', 'noopener,noreferrer');
 }
 </script>
+
+<style scoped>
+.provider-embed__fediverse-wrap {
+  position: relative;
+}
+
+.fedi-source-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--background-secondary, #1c2128);
+  border: 1px solid var(--border-color, #30363d);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-secondary, #8b949e);
+  pointer-events: none;
+}
+
+.fedi-badge-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.fedi-badge-label {
+  white-space: nowrap;
+}
+
+.fedi-source-link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 6px 14px 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #8b949e);
+  text-decoration: none;
+  border-top: 1px solid var(--border-color, rgba(48, 54, 61, 0.5));
+}
+
+.fedi-source-link:hover {
+  color: var(--harmony-primary, #58a6ff);
+}
+</style>
 
