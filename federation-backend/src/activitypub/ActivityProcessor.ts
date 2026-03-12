@@ -680,15 +680,14 @@ export class ActivityProcessor {
         .from('posts')
         .insert({
           ap_id: remoteObject.id,
+          url: remoteObject.url || remoteObject.id,
           author_id: author.id,
           content,
           visibility,
           is_local: false,
           in_reply_to: remoteObject.inReplyTo || null,
           created_at: remoteObject.published || new Date().toISOString(),
-          // Content warning (ActivityPub uses 'summary' for CW)
           content_warning: remoteObject.summary || null,
-          // Sensitive flag
           is_sensitive: remoteObject.sensitive === true,
         })
         .select('id, in_reply_to, conversation_root_id')

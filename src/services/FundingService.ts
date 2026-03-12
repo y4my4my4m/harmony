@@ -295,6 +295,7 @@ class FundingService {
         return badge
       } catch (error) {
         debug.error('Failed to get supporter badge:', error)
+        badgeCache.set(userId, { badge: null, fetchedAt: Date.now() })
         return null
       } finally {
         pendingBadgeRequests.delete(userId)

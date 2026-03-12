@@ -203,7 +203,7 @@ export const getViewModeFromRoute = (routeName: string | null | undefined): View
     'UserProfile', 'Followers', 'Following', // Profile routes
     'Lists', 'Notifications', 'Bookmarks', // Social feature routes
     'SocialTrending', 'SocialInstances', // Explore routes
-    'PostView', 'PostDetail', 'ConversationThread' // Post routes
+    'PostView', 'PostDetail', 'RemotePostDetail', 'DirectPost', 'ConversationThread' // Post routes
   ];
   
   return activityPubRoutes.includes(routeName) ? ViewMode.ACTIVITYPUB : ViewMode.CHAT;

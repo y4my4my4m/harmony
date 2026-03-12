@@ -100,6 +100,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { formatDistanceToNow, format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import type { FediverseEmbedSummary } from '@/types';
 
 const props = defineProps<{
@@ -109,11 +110,11 @@ const props = defineProps<{
 const showContent = ref(false);
 
 const sanitizedContent = computed(() => {
-  let html = props.fediverse.content || '';
-  html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
-  html = html.replace(/on\w+="[^"]*"/gi, '');
-  html = html.replace(/on\w+='[^']*'/gi, '');
-  return html;
+  return DOMPurify.sanitize(props.fediverse.content || '', {
+    ALLOWED_TAGS: ['p', 'br', 'a', 'span', 'em', 'strong', 'b', 'i', 'del', 'pre', 'code', 'blockquote', 'ul', 'ol', 'li', 'img', 'video', 'audio', 'source', 'picture', 'figure', 'figcaption', 'sub', 'sup'],
+    ALLOWED_ATTR: ['href', 'rel', 'target', 'class', 'title', 'src', 'alt', 'width', 'height', 'loading', 'controls', 'type'],
+    ALLOW_DATA_ATTR: false,
+  });
 });
 
 const imageAttachments = computed(() => {
