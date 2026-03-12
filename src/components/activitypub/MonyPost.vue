@@ -360,7 +360,7 @@
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
-        <div class="action-menu" v-click-outside="closeMenu">
+        <div class="action-menu">
           <button 
             ref="menuButtonRef"
             class="action-button menu-button" 
@@ -372,7 +372,7 @@
         
           <!-- Teleported to body to escape virtual-scroll stacking contexts -->
           <Teleport to="body">
-            <div v-if="showMenu" class="action-dropdown" :style="dropdownStyle" v-click-outside="closeMenu">
+            <div v-if="showMenu" ref="dropdownRef" class="action-dropdown" :style="dropdownStyle">
               <button 
                 class="dropdown-item"
                 @click="copyLink"
@@ -539,7 +539,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
@@ -607,6 +607,7 @@ const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
 const menuButtonRef = ref<HTMLElement | null>(null);
+const dropdownRef = ref<HTMLElement | null>(null);
 const showReblogMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
@@ -1489,6 +1490,26 @@ const copyLink = async () => {
 const closeMenu = () => {
   showMenu.value = false;
 };
+
+function handleDropdownOutsideClick(e: MouseEvent) {
+  const target = e.target as Node;
+  if (menuButtonRef.value?.contains(target) || dropdownRef.value?.contains(target)) return;
+  closeMenu();
+}
+
+watch(showMenu, (isOpen) => {
+  if (isOpen) {
+    nextTick(() => {
+      document.addEventListener('mousedown', handleDropdownOutsideClick);
+    });
+  } else {
+    document.removeEventListener('mousedown', handleDropdownOutsideClick);
+  }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleDropdownOutsideClick);
+});
 
 const dropdownStyle = ref<Record<string, string>>({});
 

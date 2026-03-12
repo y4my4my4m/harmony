@@ -28,19 +28,6 @@
       @mentionUser="(username: string) => { messageContent += `@${username} `; }"
     />
     
-    <!-- Encryption status bar -->
-    <div v-if="encryptionStatus" :class="['encryption-status-bar', encryptionStatus.level]">
-      <span class="encryption-status-icon">{{ encryptionStatus.icon }}</span>
-      <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
-      <button
-        v-if="encryptionStatus.showSetup"
-        class="encryption-setup-btn"
-        @click="showEncryptionSetupWizard = true"
-      >
-        Set up now
-      </button>
-    </div>
-
     <!-- Encryption setup wizard (launched from status bar prompt) -->
     <Teleport to="body">
       <RecoveryKeySetupWizard
@@ -54,6 +41,21 @@
     <div v-if="sendError" class="encryption-status-bar error" @click="sendError = null">
       <span class="encryption-status-icon">⚠️</span>
       <span class="encryption-status-text">{{ sendError }}</span>
+    </div>
+
+    <!-- Encryption status tag (inline, floated right of typing indicator) -->
+    <div class="input-status-row">
+      <div v-if="encryptionStatus" :class="['encryption-status-tag', encryptionStatus.level]">
+        <span class="encryption-status-icon">{{ encryptionStatus.icon }}</span>
+        <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
+        <button
+          v-if="encryptionStatus.showSetup"
+          class="encryption-setup-btn"
+          @click="showEncryptionSetupWizard = true"
+        >
+          Set up now
+        </button>
+      </div>
     </div>
 
     <MessageInput 
@@ -880,25 +882,50 @@
     line-height: 1;
     border-top: 1px solid var(--border-color, rgba(255,255,255,0.06));
   }
-  .encryption-status-bar.active {
-    color: var(--color-success, #43b581);
-    opacity: 0.7;
-  }
-  .encryption-status-bar.locked {
-    color: var(--color-warning, #faa61a);
-    background: rgba(250, 166, 26, 0.06);
-  }
   .encryption-status-bar.error {
     color: var(--color-error, #ed4245);
     background: rgba(237, 66, 69, 0.08);
     cursor: pointer;
   }
-  .encryption-status-bar.setup-prompt {
-    color: var(--harmony-primary, #5865f2);
-    background: rgba(88, 101, 242, 0.06);
+
+  .input-status-row {
+    position: relative;
+    height: 0;
+    z-index: 1;
   }
+  .encryption-status-tag {
+    position: absolute;
+    bottom: 6px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.65rem;
+    line-height: 1;
+    opacity: 0.7;
+    pointer-events: auto;
+  }
+  .encryption-status-tag.active {
+    color: var(--color-success, #43b581);
+  }
+  .encryption-status-tag.locked {
+    color: var(--color-warning, #faa61a);
+  }
+  .encryption-status-tag.setup-prompt {
+    color: var(--harmony-primary, #5865f2);
+    opacity: 1;
+  }
+  .encryption-status-tag.error {
+    color: var(--color-error, #ed4245);
+  }
+  @media (max-width: 768px) {
+    .encryption-status-tag {
+      display: none;
+    }
+  }
+
   .encryption-status-icon {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     flex-shrink: 0;
   }
   .encryption-status-text {
@@ -907,14 +934,14 @@
     text-overflow: ellipsis;
   }
   .encryption-setup-btn {
-    margin-left: auto;
+    margin-left: 4px;
     flex-shrink: 0;
-    padding: 2px 10px;
-    border-radius: 4px;
+    padding: 1px 6px;
+    border-radius: 3px;
     border: none;
     background: var(--harmony-primary, #5865f2);
     color: #fff;
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     font-weight: 600;
     cursor: pointer;
     transition: filter 0.15s ease;

@@ -424,7 +424,7 @@ export class CoreMessageService {
       }
 
       // Update the message with the new content (encrypted or plaintext)
-      const { data: message, error } = await supabase
+      const { data: messages, error } = await supabase
         .from('messages')
         .update({ 
           content: finalContent,
@@ -433,9 +433,13 @@ export class CoreMessageService {
         })
         .eq('id', messageId)
         .select('*')
-        .single()
 
       if (error) throw this.createError('UPDATE_FAILED', error.message, error)
+
+      const message = messages?.[0]
+      if (!message) {
+        throw this.createError('UPDATE_FAILED', 'Message not found or you do not have permission to edit it')
+      }
 
       debug.log('✅ Message edited successfully (local only)')
       return message
