@@ -295,7 +295,7 @@ class LinkPreviewService {
     try {
       const note = prefetchedNote ?? await this.fetchActivityPubObject(url);
       if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
-        return this.fetchGenericPreview(url);
+        return this.buildMinimalGenericPayload(url, 'Not a recognized AP Note type');
       }
 
       const actorUrl = typeof note.attributedTo === 'string'
@@ -374,7 +374,7 @@ class LinkPreviewService {
       };
     } catch (err) {
       logger.warn('Fediverse AP fetch failed, falling back to generic', { url, err });
-      return this.fetchGenericPreview(url);
+      return this.buildMinimalGenericPayload(url, (err as Error).message);
     }
   }
 
@@ -601,6 +601,26 @@ class LinkPreviewService {
         expiresAt: '',
       };
     }
+  }
+
+  /**
+   * Build a minimal generic payload without calling fetchGenericPreview.
+   * Avoids circular calls between buildFediverseEmbed ↔ fetchGenericPreview ↔ tryDirectApFetch.
+   */
+  private buildMinimalGenericPayload(url: string, reason?: string): EmbedPayload {
+    let hostname = url;
+    try { hostname = new URL(url).hostname; } catch {}
+    return {
+      cacheKey: '',
+      url,
+      normalizedUrl: url,
+      provider: 'generic',
+      title: hostname,
+      description: reason || '',
+      siteName: hostname,
+      fetchedAt: '',
+      expiresAt: '',
+    };
   }
 
   /**

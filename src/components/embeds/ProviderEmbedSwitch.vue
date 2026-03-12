@@ -86,6 +86,7 @@
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { EmbedPayload, TimelinePost, FediverseEmbedSummary } from '@/types';
+import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
@@ -403,7 +404,7 @@ function buildSyntheticTimelinePost(fedi: FediverseEmbedSummary): TimelinePost {
     id: syntheticId,
     created_at: fedi.published || new Date().toISOString(),
     updated_at: fedi.published || new Date().toISOString(),
-    content: fedi.content || '',
+    content: convertActivityPubHTMLToMessageParts(fedi.content || ''),
     content_warning: fedi.contentWarning,
     language: 'en',
     author_id: syntheticId,

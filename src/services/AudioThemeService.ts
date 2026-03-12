@@ -292,28 +292,52 @@ export class AudioThemeService {
    */
   private async performAudioPlayback(action: AudioAction): Promise<void> {
     try {
-      // Try to get the audio with fallback
-      const audio = await this.getAudioWithFallback(action)
-      if (!audio) {
+      // Fast path: try cached audio first (stays within user gesture window)
+      const soundPath = this.resolveSoundPath(action)
+      if (!soundPath) {
         debug.warn(`No sound available for action: ${action}`)
         return
       }
 
+      const cached = this.audioCache.has(soundPath) ? this.audioCache.get(soundPath)! : null
+      if (cached) {
+        const audioClone = cached.cloneNode() as HTMLAudioElement
+        audioClone.volume = this.settings.volume
+        await audioClone.play()
+        this.emit('audioPlayed', { action, soundPath, theme: this.settings.selectedTheme })
+        return
+      }
+
+      // Not cached — play directly without waiting for canplaythrough
+      // so the browser doesn't expire the user gesture
+      const audio = new Audio(soundPath)
       audio.volume = this.settings.volume
-      audio.currentTime = 0
-      
-      // Clone for concurrent playback
-      const audioClone = audio.cloneNode() as HTMLAudioElement
-      audioClone.volume = this.settings.volume
-      
-      await audioClone.play()
-      
-      const soundPath = audio.src
+      const playPromise = audio.play()
+
+      // Cache in background for next time
+      audio.addEventListener('canplaythrough', () => {
+        this.addToCache(soundPath, audio)
+      }, { once: true })
+
+      await playPromise
       this.emit('audioPlayed', { action, soundPath, theme: this.settings.selectedTheme })
     } catch (error) {
       debug.warn(`Failed to play audio for ${action}:`, error)
       this.emit('audioError', { action, soundPath: '', error })
     }
+  }
+
+  /**
+   * Resolve the sound file path for an action without loading it
+   */
+  private resolveSoundPath(action: AudioAction): string | null {
+    const currentTheme = this.getCurrentTheme()
+    if (currentTheme?.sounds[action]) return currentTheme.sounds[action]
+
+    const defaultTheme = this.themes.get('default')
+    if (defaultTheme?.sounds[action]) return defaultTheme.sounds[action]
+
+    return null
   }
 
   /**

@@ -65,6 +65,7 @@ import { computed, onMounted, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
+import { useThemeStore } from '@/stores/useTheme';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
@@ -96,6 +97,7 @@ const getReactionKey = (reactionGroup: any): string => {
 
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
+const themeStore = useThemeStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
 const { resolveEmoji, isNativePack } = useUnifiedEmoji();
@@ -133,6 +135,7 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   // Dismiss tooltip immediately so it doesn't linger if the chip is removed from DOM
   emit('hide-reaction-tooltip');
   
+  themeStore.playAudio('reaction');
   triggerReaction();
   
   recordEmojiUsage({

@@ -709,6 +709,14 @@ export const useAuthStore = defineStore('auth', {
         // If profile was fetched and has appearance_settings, theme will have loaded it
         // If not, theme will have used localStorage (which is fine)
         
+        // Eagerly initialize audio theme in background so sounds are ready on first interaction
+        import('./useTheme').then(({ useThemeStore }) => {
+          const themeStore = useThemeStore();
+          if (!themeStore.isInitialized) {
+            themeStore.initialize().catch(() => {});
+          }
+        });
+        
         debug.log('✅ User settings initialized');
       } catch (error) {
         debug.error('❌ Error initializing user settings:', error);
