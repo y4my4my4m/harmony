@@ -21,6 +21,11 @@ export interface FediverseEmbedData {
   contentWarning?: string;
   platform?: string;
   postUrl: string;
+  stats?: {
+    replies?: number;
+    reblogs?: number;
+    favourites?: number;
+  };
 }
 
 export interface EmbedPayload {
@@ -282,9 +287,9 @@ class LinkPreviewService {
     return 'fediverse';
   }
 
-  private async buildFediverseEmbed(url: string): Promise<EmbedPayload> {
+  private async buildFediverseEmbed(url: string, prefetchedNote?: any): Promise<EmbedPayload> {
     try {
-      const note = await this.fetchActivityPubObject(url);
+      const note = prefetchedNote ?? await this.fetchActivityPubObject(url);
       if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
         return this.fetchGenericPreview(url);
       }
@@ -334,6 +339,8 @@ class LinkPreviewService {
         a.mediaType?.startsWith('image/') || /\.(jpe?g|png|gif|webp|avif)/i.test(a.url || '')
       );
 
+      const stats = this.extractInteractionStats(note);
+
       return {
         cacheKey: '',
         url,
@@ -358,12 +365,40 @@ class LinkPreviewService {
           contentWarning: note.summary || undefined,
           platform,
           postUrl: note.url || url,
+          stats,
         },
       };
     } catch (err) {
       logger.warn('Fediverse AP fetch failed, falling back to generic', { url, err });
       return this.fetchGenericPreview(url);
     }
+  }
+
+  /**
+   * Extract replies/reblogs/favourites counts from AP Note collections.
+   * Mastodon uses replies/shares/likes collections with totalItems.
+   * Misskey may use different fields or omit them entirely.
+   */
+  private extractInteractionStats(note: any): FediverseEmbedData['stats'] {
+    const stats: NonNullable<FediverseEmbedData['stats']> = {};
+
+    const extractCount = (field: any): number | undefined => {
+      if (typeof field === 'number') return field;
+      if (field?.totalItems !== undefined) return field.totalItems;
+      if (field?.orderedItems) return Array.isArray(field.orderedItems) ? field.orderedItems.length : undefined;
+      if (field?.items) return Array.isArray(field.items) ? field.items.length : undefined;
+      return undefined;
+    };
+
+    stats.replies = extractCount(note.replies) ?? extractCount(note.repliesCount);
+    stats.reblogs = extractCount(note.shares) ?? extractCount(note.renoteCount);
+    stats.favourites = extractCount(note.likes) ?? extractCount(note.favouritesCount)
+      ?? extractCount(note.reactionCount);
+
+    if (stats.replies === undefined && stats.reblogs === undefined && stats.favourites === undefined) {
+      return undefined;
+    }
+    return stats;
   }
 
   private async fetchActivityPubObject(url: string, acceptJson = false): Promise<any> {
@@ -476,6 +511,11 @@ class LinkPreviewService {
       });
 
       if (!response.ok) {
+        // HTML fetch failed — try direct AP content negotiation as fallback.
+        // Handles broken HTML endpoints where the AP JSON still works
+        // (e.g., cross-instance Harmony posts with misconfigured nginx).
+        const apFallback = await this.tryDirectApFetch(url);
+        if (apFallback) return apFallback;
         throw new Error(`Request failed (${response.status})`);
       }
 
@@ -534,6 +574,10 @@ class LinkPreviewService {
         expiresAt: '',
       };
     } catch (error) {
+      // Last resort: try AP content negotiation before giving up entirely
+      const apFallback = await this.tryDirectApFetch(url);
+      if (apFallback) return apFallback;
+
       logger.warn('Failed to fetch generic preview', { url, error });
       return {
         cacheKey: '',
@@ -547,6 +591,24 @@ class LinkPreviewService {
         expiresAt: '',
       };
     }
+  }
+
+  /**
+   * Try fetching a URL directly as an ActivityPub object.
+   * Used as a fallback when the HTML fetch fails — the same URL
+   * may still respond to `Accept: application/activity+json`.
+   */
+  private async tryDirectApFetch(url: string): Promise<EmbedPayload | null> {
+    try {
+      const note = await this.fetchActivityPubObject(url);
+      if (note && (note.type === 'Note' || note.type === 'Article' || note.type === 'Question')) {
+        logger.info('AP fallback succeeded for URL that returned HTML error', { url });
+        return this.buildFediverseEmbed(url, note);
+      }
+    } catch (err) {
+      logger.debug('AP fallback also failed', { url, err });
+    }
+    return null;
   }
 
   private extractTextSummary(content: any): string {

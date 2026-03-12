@@ -224,6 +224,11 @@ export interface FediverseEmbedSummary {
   contentWarning?: string;
   platform?: string;
   postUrl: string;
+  stats?: {
+    replies?: number;
+    reblogs?: number;
+    favourites?: number;
+  };
 }
 
 export interface HarmonyEmbedSummary {

@@ -65,6 +65,27 @@
     </div>
 
     <div class="fedi-post__footer">
+      <div v-if="hasStats" class="fedi-post__stats">
+        <span v-if="fediverse.stats?.replies != null" class="fedi-post__stat" title="Replies">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          {{ formatCount(fediverse.stats.replies) }}
+        </span>
+        <span v-if="fediverse.stats?.reblogs != null" class="fedi-post__stat" title="Boosts">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+            <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+          </svg>
+          {{ formatCount(fediverse.stats.reblogs) }}
+        </span>
+        <span v-if="fediverse.stats?.favourites != null" class="fedi-post__stat" title="Favourites">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          {{ formatCount(fediverse.stats.favourites) }}
+        </span>
+      </div>
       <a :href="fediverse.postUrl" target="_blank" rel="noopener noreferrer" class="fedi-post__view-link">
         View on {{ sourceDomain }}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -126,6 +147,17 @@ const fullDate = computed(() => {
     return props.fediverse.published;
   }
 });
+
+const hasStats = computed(() => {
+  const s = props.fediverse.stats;
+  return s && (s.replies != null || s.reblogs != null || s.favourites != null);
+});
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
 
 const PLATFORM_MAP: Record<string, { icon: string; label: string }> = {
   mastodon: { icon: '🐘', label: 'Mastodon' },
@@ -337,6 +369,24 @@ const platformIcon = computed(() => {
 .fedi-post__footer {
   padding: 8px 14px 10px;
   border-top: 1px solid var(--border-color, rgba(48, 54, 61, 0.5));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fedi-post__stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fedi-post__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary, #8b949e);
 }
 
 .fedi-post__view-link {
@@ -346,6 +396,7 @@ const platformIcon = computed(() => {
   font-size: 12px;
   color: var(--text-secondary, #8b949e);
   text-decoration: none;
+  margin-left: auto;
 }
 
 .fedi-post__view-link:hover {
