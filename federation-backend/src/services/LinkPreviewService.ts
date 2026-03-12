@@ -313,7 +313,7 @@ class LinkPreviewService {
 
       if (actorUrl && typeof actorUrl === 'string') {
         try {
-          const actor = await this.fetchActivityPubObject(actorUrl);
+          const actor = await this.fetchActivityPubObject(actorUrl, false, bypassCircuitBreaker);
           if (actor) {
             authorName = actor.name || actor.preferredUsername || 'Unknown';
             const actorDomain = new URL(actorUrl).hostname;
@@ -437,10 +437,12 @@ class LinkPreviewService {
       // Retry with HTTP signature for instances requiring authorized fetch
       if (response.status === 401 || response.status === 403) {
         clearTimeout(timeout);
-        logger.debug(`AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
+        logger.info(`🔐 AP fetch got ${response.status}, retrying with HTTP signature: ${url}`);
         try {
           response = await SignatureService.signedApFetch(url);
-        } catch {
+          logger.info(`🔐 Signed AP fetch result: ${response.status} for ${url}`);
+        } catch (signedErr) {
+          logger.warn(`🔐 Signed AP fetch failed for ${url}:`, signedErr);
           throw new Error(`Signed AP fetch also failed for ${url}`);
         }
       }
@@ -568,6 +570,7 @@ class LinkPreviewService {
       // Mastodon: rel→type→href, etc.).
       const apAlternate = this.findApAlternateLink(html);
       if (apAlternate) {
+        logger.info(`🔍 Found AP alternate link for ${url}: ${apAlternate}`);
         try {
           const apUrl = this.makeAbsoluteUrl(url, apAlternate);
           const result = await this.buildFediverseEmbed(apUrl, undefined, true);
@@ -583,8 +586,10 @@ class LinkPreviewService {
             return result;
           }
         } catch (err) {
-          logger.debug('AP discovery fallback failed, using generic', { url, err });
+          logger.warn(`🔍 AP alternate link found but fetch failed for ${url}:`, err);
         }
+      } else {
+        logger.debug(`🔍 No AP alternate link found in HTML for ${url}`);
       }
 
       const title = this.extractMeta(html, [
