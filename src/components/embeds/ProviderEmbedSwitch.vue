@@ -357,7 +357,7 @@ const FEDI_PLATFORM_MAP: Record<string, { icon: string; label: string }> = {
   pleroma: { icon: '🔵', label: 'Pleroma' },
   gotosocial: { icon: '🐿️', label: 'GoToSocial' },
   pixelfed: { icon: '📷', label: 'Pixelfed' },
-  harmony: { icon: '🎵', label: 'Harmony' },
+  harmony: { icon: '🐻‍❄️', label: 'Harmony' },
   lemmy: { icon: '🐭', label: 'Lemmy' },
 };
 
