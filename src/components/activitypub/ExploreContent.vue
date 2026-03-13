@@ -38,7 +38,7 @@
         </select>
         
         <button @click="refreshContent" class="refresh-btn" :disabled="isLoading">
-          <Icon name="refresh" :class="{ spinning: isLoading }" />
+          <Icon name="refresh-cw" :size="16" :class="{ spinning: isLoading }" />
           {{ $t('activitypub.refresh') }}
         </button>
       </div>
@@ -690,21 +690,24 @@ defineExpose({ refreshContent });
 }
 
 .refresh-btn {
-  background: var(--h-chat-light);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-primary);
   color: var(--text-primary);
   font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover, #4752c4);
+  border-color: var(--harmony-primary-alpha);
+  background: var(--harmony-primary-light);
+  color: var(--harmony-primary);
 }
 
 .refresh-btn:disabled {

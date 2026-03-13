@@ -864,14 +864,22 @@ const vClickOutside = {
 }
 
 .composer-inline-content {
-  border: 1px solid var(--background-tertiary-alpha);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: 0;
   background-color: var(--background-primary);
+  box-shadow: 0 2px 5px 5px #00000011;
   padding: 1rem;
   transition: all 0.2s ease;
+}
+
+.composer-inline-content:hover {
+  border-color: var(--harmony-primary-alpha);
+  box-shadow: 0 2px 5px 5px #00000022;
+}
+
+.composer-inline-content:focus-within {
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px var(--harmony-primary-light);
 }
 
 /* Header */
