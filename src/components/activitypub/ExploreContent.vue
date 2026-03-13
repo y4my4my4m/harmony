@@ -919,6 +919,7 @@ defineExpose({ refreshContent });
   background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  margin-bottom: 8px;
 }
 
 .hashtag-info {

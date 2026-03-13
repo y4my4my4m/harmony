@@ -427,7 +427,7 @@ const visibilityOptions = [
 const getCurrentText = () => content.value || '';
 const updateText = (newText: string, cursorPosition?: number) => {
   if (cursorPosition !== undefined && richEditorRef.value) {
-    debug.log('🔧 Composer updateText: setting skipNextWatch, cursor:', cursorPosition);
+    debug.log('🔧 Composer updateText:', { newText, cursorPosition });
     richEditorRef.value.skipNextWatch = true;
 
     content.value = newText;
@@ -439,10 +439,23 @@ const updateText = (newText: string, cursorPosition?: number) => {
 
       nextTick(() => {
         if (richEditorRef.value) {
+          // Mention display normalization (e.g. @user@localhost → @user for local)
+          // can shorten the rendered text vs. the raw text. Recalculate cursor
+          // position by anchoring from the end: the suffix after the cursor is
+          // unaffected by mention rendering, so we can subtract it from the
+          // rendered length to find the correct cursor position.
+          const renderedText = richEditorRef.value.getPlainText?.() || '';
+          const suffixLen = newText.length - cursorPosition;
+          const adjustedCursor = Math.max(0, renderedText.length - suffixLen);
+          debug.log('🔧 Composer cursor adjustment:', {
+            rawLen: newText.length, renderedLen: renderedText.length,
+            rawCursor: cursorPosition, adjustedCursor
+          });
+
           richEditorRef.value.focus();
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              richEditorRef.value?.setCursorPosition(cursorPosition);
+              richEditorRef.value?.setCursorPosition(adjustedCursor);
             });
           });
         }
