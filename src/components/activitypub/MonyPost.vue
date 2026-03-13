@@ -544,6 +544,13 @@
   </article>
 </template>
 
+<script lang="ts">
+// Module-level dedup: shared across all MonyPost instances.
+// Tracks post IDs that already had reactions fetched this session
+// so virtual scroller remounts don't re-trigger network calls.
+const fetchedReactionsThisSession = new Set<string>();
+</script>
+
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
@@ -1038,10 +1045,6 @@ const loadOriginalPostInteractions = async () => {
   }
 };
 
-// Session-level dedup: track which posts we've already fetched reactions for
-// so virtual scroller remounts don't re-trigger network calls
-const fetchedReactionsThisSession = new Set<string>();
-
 // Load reply context on mount if needed
 onMounted(() => {
   // Check for reply context in post or reblog
@@ -1063,7 +1066,9 @@ onMounted(() => {
 
   // Auto-fetch reactions for remote posts once per session.
   // After this fetch, data is in the DB and Supabase realtime handles updates.
-  if (isRemotePost.value && !fetchedReactionsThisSession.has(props.post.id)) {
+  // Skip synthetic posts (no DB record to store against).
+  const isSynthetic = props.post.id?.startsWith('fedi-') || (props.post.metadata as any)?.synthetic;
+  if (isRemotePost.value && !isSynthetic && !fetchedReactionsThisSession.has(props.post.id)) {
     fetchedReactionsThisSession.add(props.post.id);
     fetchRemoteReactions();
   }

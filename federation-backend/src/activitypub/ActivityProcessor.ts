@@ -347,6 +347,18 @@ export class ActivityProcessor {
     }
 
     if (object.type === 'Note' || object.type === 'Article') {
+      // Reject our own posts echoed back (federation round-trip)
+      const ownDomain = config.INSTANCE_DOMAIN;
+      if (object.id && typeof object.id === 'string') {
+        try {
+          const objectHost = new URL(object.id).hostname;
+          if (objectHost === ownDomain) {
+            logger.info(`⏭️ Ignoring own post echoed back: ${object.id}`);
+            return;
+          }
+        } catch { /* not a valid URL, continue */ }
+      }
+
       // Check if this is a Harmony channel message (not a regular ActivityPub post)
       const harmonyServerId = object['harmony:serverId'];
       const harmonyChannelName = object['harmony:channelName'];

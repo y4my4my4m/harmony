@@ -84,6 +84,12 @@
   </div>
 </template>
 
+<script lang="ts">
+import type { TimelinePost } from '@/types';
+// Module-level cache so re-mounts (virtual scroller) don't re-fetch
+const fediversePostCache = new Map<string, TimelinePost>();
+</script>
+
 <script setup lang="ts">
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
@@ -94,9 +100,6 @@ import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
 import ServerInviteCard from './ServerInviteCard.vue';
-
-// Module-level cache so re-mounts (virtual scroller) don't re-fetch
-const fediversePostCache = new Map<string, TimelinePost>();
 
 const props = defineProps<{
   payload: EmbedPayload;
