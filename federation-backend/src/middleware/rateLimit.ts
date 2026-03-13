@@ -104,7 +104,7 @@ export const authLimiter = createRateLimiter({
  */
 export const pushLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1 minute
-  maxRequests: 60,    // Generous: test flow can trigger test+subscribe+fetch+test (~4 req)
+  maxRequests: 200,   // Lenient: only POST/DELETE count (reads exempt). Abuse risk is low.
   message: 'Too many push notification requests, please try again later.',
   keyGenerator: (req: Request) => {
     const auth = req.headers.authorization;

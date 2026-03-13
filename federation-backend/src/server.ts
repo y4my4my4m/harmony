@@ -73,11 +73,17 @@ export function createApp(): Application {
 
   // Push must be before serverDiscoveryRouter — some proxies preserve /api/federation,
   // so /api/federation/push/test would otherwise hit discoveryLimiter (wrong 429 message)
-  // Skip rate limit for GET vapid-key (public, cheap) so users can always fetch it for subscribe
+  // Skip rate limit for cheap/safe endpoints. Abuse risk is low (test only hits user's own devices).
   const pushWithLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (req.method === 'GET' && req.path.endsWith('/vapid-key')) {
-      return next();
+    const p = (req.originalUrl || req.path || '').split('?')[0];
+    // Exempt GETs: vapid-key, status, subscriptions (cheap reads)
+    if (req.method === 'GET') {
+      if (p.endsWith('/vapid-key') || p.endsWith('/status') || p.endsWith('/subscriptions')) {
+        return next();
+      }
     }
+    // Exempt POST /test — sends only to user's own devices, low abuse risk
+    if (req.method === 'POST' && p.endsWith('/test')) return next();
     return pushLimiter(req, res, next);
   };
   app.use('/push', pushWithLimiter, pushRouter);
