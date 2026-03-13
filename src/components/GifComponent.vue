@@ -471,7 +471,7 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .category-button {
