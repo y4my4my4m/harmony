@@ -241,6 +241,7 @@ class PushNotificationServiceClass {
     payload: PushPayload
   ): Promise<{ success: boolean; error?: string }> {
     if (!this.isInitialized) {
+      logger.warn('⚠️ sendToSubscription called but push service not initialized (VAPID keys missing?)');
       return { success: false, error: 'Push service not initialized' };
     }
 
@@ -301,7 +302,7 @@ class PushNotificationServiceClass {
     }
   ): Promise<{ sent: number; failed: number }> {
     if (!this.isInitialized) {
-      logger.warn('Push service not initialized, skipping notification');
+      logger.warn('⚠️ sendToUser called but push service not initialized (VAPID keys missing?)');
       return { sent: 0, failed: 0 };
     }
 

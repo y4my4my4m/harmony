@@ -84,23 +84,16 @@ export class FederationActivityService {
         operation
       })
 
-      // Insert into ap_activities table (your edge functions read from here)
-      const { data, error } = await supabase
-        .from('ap_activities')
-        .insert({
-          ap_id: activityId,
-          ap_type: activityType,
-          actor_id: userId,
-          actor_ap_id: actorData.federated_id,
-          object_id: `message-${messageId}`,
-          object_type: operation === 'add' ? 'Note' : 'Like',
-          activity_data: activityData,
-          status: 'pending',
-          is_local: true,
-          created_at: new Date().toISOString()
-        })
-        .select('id')
-        .single()
+      // Use RPC to bypass PostgREST schema cache (PGRST204 "activity_data" column not found)
+      const { data: activityIdResult, error } = await supabase.rpc('insert_ap_activity_outbound', {
+        p_ap_id: activityId,
+        p_ap_type: activityType,
+        p_actor_id: userId,
+        p_actor_ap_id: actorData.federated_id,
+        p_activity_data: activityData,
+        p_object_id: `message-${messageId}`,
+        p_object_type: operation === 'add' ? 'Note' : 'Like'
+      })
 
       if (error) {
         debug.error('❌ Federation: Failed to create reaction activity:', error)
@@ -108,7 +101,7 @@ export class FederationActivityService {
       }
 
       debug.log(`✅ Federation: Message reaction activity created: ${activityId}`)
-      return { success: true, activityId: data.id }
+      return { success: true, activityId: activityIdResult }
 
     } catch (error) {
       debug.error('❌ Federation: Error creating message reaction activity:', error)
@@ -152,23 +145,17 @@ export class FederationActivityService {
         operation
       })
 
-      // Insert into ap_activities table
-      const { data, error } = await supabase
-        .from('ap_activities')
-        .insert({
-          ap_id: activityId,
-          ap_type: activityType,
-          actor_id: userId,
-          actor_ap_id: actorData.federated_id,
-          object_id: postId,
-          object_type: operation === 'add' ? 'Note' : 'Like',
-          activity_data: activityData,
-          status: 'pending',
-          is_local: true,
-          created_at: new Date().toISOString()
+      // Use RPC to bypass PostgREST schema cache (PGRST204 "activity_data" column not found)
+      const { data: activityIdResult, error } = await supabase
+        .rpc('insert_ap_activity_outbound', {
+          p_ap_id: activityId,
+          p_ap_type: activityType,
+          p_actor_id: userId,
+          p_actor_ap_id: actorData.federated_id,
+          p_activity_data: activityData,
+          p_object_id: postId,
+          p_object_type: operation === 'add' ? 'Note' : 'Like'
         })
-        .select('id')
-        .single()
 
       if (error) {
         debug.error('❌ Federation: Failed to create post reaction activity:', error)
@@ -176,7 +163,7 @@ export class FederationActivityService {
       }
 
       debug.log(`✅ Federation: Post reaction activity created: ${activityId}`)
-      return { success: true, activityId: data.id }
+      return { success: true, activityId: activityIdResult }
 
     } catch (error) {
       debug.error('❌ Federation: Error creating post reaction activity:', error)
@@ -227,23 +214,16 @@ export class FederationActivityService {
         operation
       })
 
-      // Insert into ap_activities table
-      const { data, error } = await supabase
-        .from('ap_activities')
-        .insert({
-          ap_id: activityId,
-          ap_type: activityType,
-          actor_id: postData.author_id,
-          actor_ap_id: actorData.federated_id,
-          object_id: postId,
-          object_type: 'Note',
-          activity_data: activityData,
-          status: 'pending',
-          is_local: true,
-          created_at: new Date().toISOString()
-        })
-        .select('id')
-        .single()
+      // Use RPC to bypass PostgREST schema cache
+      const { data: activityIdResult, error } = await supabase.rpc('insert_ap_activity_outbound', {
+        p_ap_id: activityId,
+        p_ap_type: activityType,
+        p_actor_id: postData.author_id,
+        p_actor_ap_id: actorData.federated_id,
+        p_activity_data: activityData,
+        p_object_id: postId,
+        p_object_type: 'Note'
+      })
 
       if (error) {
         debug.error('❌ Federation: Failed to create post activity:', error)
@@ -251,7 +231,7 @@ export class FederationActivityService {
       }
 
       debug.log(`✅ Federation: Post activity created: ${activityId}`)
-      return { success: true, activityId: data.id }
+      return { success: true, activityId: activityIdResult }
 
     } catch (error) {
       debug.error('❌ Federation: Error creating post activity:', error)
@@ -296,23 +276,16 @@ export class FederationActivityService {
         operation
       })
 
-      // Insert into ap_activities table
-      const { data, error } = await supabase
-        .from('ap_activities')
-        .insert({
-          ap_id: activityId,
-          ap_type: activityType,
-          actor_id: followerId,
-          actor_ap_id: actorData.federated_id,
-          object_id: targetUserId,
-          object_type: operation === 'follow' ? 'Person' : 'Follow',
-          activity_data: activityData,
-          status: 'pending',
-          is_local: true,
-          created_at: new Date().toISOString()
-        })
-        .select('id')
-        .single()
+      // Use RPC to bypass PostgREST schema cache
+      const { data: activityIdResult, error } = await supabase.rpc('insert_ap_activity_outbound', {
+        p_ap_id: activityId,
+        p_ap_type: activityType,
+        p_actor_id: followerId,
+        p_actor_ap_id: actorData.federated_id,
+        p_activity_data: activityData,
+        p_object_id: targetUserId,
+        p_object_type: operation === 'follow' ? 'Person' : 'Follow'
+      })
 
       if (error) {
         debug.error('❌ Federation: Failed to create follow activity:', error)
@@ -320,7 +293,7 @@ export class FederationActivityService {
       }
 
       debug.log(`✅ Federation: Follow activity created: ${activityId}`)
-      return { success: true, activityId: data.id }
+      return { success: true, activityId: activityIdResult }
 
     } catch (error) {
       debug.error('❌ Federation: Error creating follow activity:', error)
@@ -356,23 +329,16 @@ export class FederationActivityService {
         actor: actorData
       })
 
-      // Insert into ap_activities table
-      const { data, error } = await supabase
-        .from('ap_activities')
-        .insert({
-          ap_id: activityId,
-          ap_type: 'Update',
-          actor_id: userId,
-          actor_ap_id: actorData.federated_id,
-          object_id: userId,
-          object_type: 'Person',
-          activity_data: activityData,
-          status: 'pending',
-          is_local: true,
-          created_at: new Date().toISOString()
+      const { data: activityIdResult, error } = await supabase
+        .rpc('insert_ap_activity_outbound', {
+          p_ap_id: activityId,
+          p_ap_type: 'Update',
+          p_actor_id: userId,
+          p_actor_ap_id: actorData.federated_id,
+          p_activity_data: activityData,
+          p_object_id: userId,
+          p_object_type: 'Person'
         })
-        .select('id')
-        .single()
 
       if (error) {
         debug.error('❌ Federation: Failed to create profile update activity:', error)
@@ -380,7 +346,7 @@ export class FederationActivityService {
       }
 
       debug.log(`✅ Federation: Profile update activity created: ${activityId}`)
-      return { success: true, activityId: data.id }
+      return { success: true, activityId: activityIdResult }
 
     } catch (error) {
       debug.error('❌ Federation: Error creating profile update activity:', error)

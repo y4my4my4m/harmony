@@ -425,8 +425,32 @@ const visibilityOptions = [
 
 // AutoSuggest setup
 const getCurrentText = () => content.value || '';
-const updateText = (newText: string) => {
-  content.value = newText;
+const updateText = (newText: string, cursorPosition?: number) => {
+  if (cursorPosition !== undefined && richEditorRef.value) {
+    debug.log('🔧 Composer updateText: setting skipNextWatch, cursor:', cursorPosition);
+    richEditorRef.value.skipNextWatch = true;
+
+    content.value = newText;
+
+    nextTick(() => {
+      if (richEditorRef.value?.renderContent) {
+        richEditorRef.value.renderContent(newText, true);
+      }
+
+      nextTick(() => {
+        if (richEditorRef.value) {
+          richEditorRef.value.focus();
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              richEditorRef.value?.setCursorPosition(cursorPosition);
+            });
+          });
+        }
+      });
+    });
+  } else {
+    content.value = newText;
+  }
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'activitypub',

@@ -34,6 +34,7 @@ import groupRouter from './activitypub/GroupService.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
+import { PushNotificationService } from './services/PushNotificationService.js';
 
 export function createApp(): Application {
   const app: Application = express();
@@ -107,5 +108,11 @@ export async function startServer(): Promise<void> {
     BlockedInstancesCache.initialize().catch((error) => {
       logger.error('Failed to initialize blocked instances cache:', error);
     });
+
+    if (PushNotificationService.initialize()) {
+      logger.info('Push notification service initialized (server)');
+    } else {
+      logger.warn('Push notifications not available (VAPID not configured)');
+    }
   });
 }
