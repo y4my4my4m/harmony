@@ -458,7 +458,7 @@ async function restoreEncryption() {
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.55;
-  margin: 10px 0x;
+  margin: 20px 0;
 }
 
 /* Phrase Input */
