@@ -12,6 +12,7 @@
 /* ===== MESSAGE FONT SIZE ===== */
 :root {
   --message-font-size: 14px;
+  --harmony-senary-alpha: #0a0b0dc7;
 }
 
 .message-content,

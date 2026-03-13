@@ -400,12 +400,13 @@ onMounted(async () => {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  background: var(--harmony-senary-alpha);
 }
 
 .search-input {
   width: 100%;
   padding: 8px 12px;
-  background: var(--background-tertiary);
+  background: var(--harmony-senary-alpha);
   border: none;
   border-radius: 4px;
   color: var(--text-primary);
@@ -581,12 +582,12 @@ onMounted(async () => {
 }
 
 .emoji-content::-webkit-scrollbar-thumb {
-  background: var(--background-quaternary);
+  background: var(--harmony-senary-alpha, rgba(10, 11, 13, 0.8));
   border-radius: 4px;
 }
 
 .emoji-content::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background: var(--background-senary, #0a0b0d);
 }
 
 .emoji-preview-bar {

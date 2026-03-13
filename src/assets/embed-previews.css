@@ -219,3 +219,109 @@
   }
 }
 
+/* Mobile: MonyPost embeds in chat – prevent truncation and cramped layout */
+@media (max-width: 768px) {
+  .provider-embed__post,
+  .provider-embed__fediverse-wrap {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .provider-embed__post .mony-post,
+  .provider-embed__fediverse-wrap .mony-post {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+
+  .provider-embed__post .author-details,
+  .provider-embed__fediverse-wrap .author-details {
+    min-width: 0;
+  }
+
+  .provider-embed__post .author-handle,
+  .provider-embed__fediverse-wrap .author-handle {
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+
+  .provider-embed__post .post-header,
+  .provider-embed__fediverse-wrap .post-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .provider-embed__post .post-actions,
+  .provider-embed__fediverse-wrap .post-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0;
+  }
+
+  .provider-embed__post .action-button,
+  .provider-embed__fediverse-wrap .action-button {
+    flex-shrink: 0;
+    padding: 6px;
+    min-width: 32px;
+  }
+
+  .provider-embed__post .action-button span,
+  .provider-embed__fediverse-wrap .action-button span {
+    max-width: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .provider-embed__post .reply-context-container,
+  .provider-embed__fediverse-wrap .reply-context-container {
+    min-width: 0;
+  }
+
+  .provider-embed__post .reply-parent-author-info,
+  .provider-embed__fediverse-wrap .reply-parent-author-info,
+  .provider-embed__post .reply-indicator-bar,
+  .provider-embed__fediverse-wrap .reply-indicator-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .provider-embed__post .reply-parent-handle,
+  .provider-embed__fediverse-wrap .reply-parent-handle {
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+
+  .provider-embed__post .show-thread-btn,
+  .provider-embed__fediverse-wrap .show-thread-btn {
+    padding: 0.5rem 1rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .provider-embed__post .post-text a,
+  .provider-embed__fediverse-wrap .post-text a,
+  .provider-embed__post .post-text,
+  .provider-embed__fediverse-wrap .post-text {
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+
+  .fedi-source-link {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .fedi-source-link__right {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .provider-embed {
+    margin-left: 0;
+    margin-right: 0;
+    max-width: 100%;
+  }
+}
+
