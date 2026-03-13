@@ -853,7 +853,9 @@ const displayContent = computed(() => {
 });
 
 const displayMediaAttachments = computed(() => {
-  return (isReblog.value && props.post.reblog) ? props.post.reblog.media_attachments : props.post.media_attachments;
+  const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  const media = source?.media_attachments ?? source?.mediaAttachments;
+  return Array.isArray(media) ? media : [];
 });
 
 const displayContentWarning = computed(() => {
@@ -2402,10 +2404,14 @@ const closeLightbox = () => {
 }
 
 .quoted-media-gallery.media-count-1 { grid-template-columns: 1fr; }
-.quoted-media-gallery.media-count-2 { grid-template-columns: 1fr 1fr; }
+.quoted-media-gallery.media-count-2 {
+  grid-template-columns: 1fr 1fr;
+  aspect-ratio: 2 / 1;
+}
 .quoted-media-gallery.media-count-3 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1;
 }
 .quoted-media-gallery.media-count-3 .media-item:first-child {
   grid-row: 1 / 3;
@@ -2413,6 +2419,7 @@ const closeLightbox = () => {
 .quoted-media-gallery.media-count-4 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1;
 }
 
 .quoted-media-gallery .media-image,
@@ -2439,11 +2446,13 @@ const closeLightbox = () => {
 
 .media-gallery.media-count-2 {
   grid-template-columns: 1fr 1fr;
+  aspect-ratio: 2 / 1; /* two side-by-side cells */
 }
 
 .media-gallery.media-count-3 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1; /* square grid for L-shape layout */
 }
 
 .media-gallery.media-count-3 .media-item:first-child {
@@ -2453,6 +2462,7 @@ const closeLightbox = () => {
 .media-gallery.media-count-4 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1; /* 2x2 square grid */
 }
 
 .media-item {

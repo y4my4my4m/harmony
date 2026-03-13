@@ -94,10 +94,21 @@
   max-width: 100%;
 }
 
-.provider-embed__post .media-image,
-.provider-embed__post .media-video {
+/* Single media: preserve aspect ratio. Multi-media grid: keep height:100%+object-fit:cover for proper grid layout */
+.provider-embed__post .media-gallery.media-count-1 .media-image,
+.provider-embed__post .media-gallery.media-count-1 .media-video {
   max-width: 100%;
   height: auto;
+}
+
+.provider-embed__post .media-gallery.media-count-2 .media-image,
+.provider-embed__post .media-gallery.media-count-2 .media-video,
+.provider-embed__post .media-gallery.media-count-3 .media-image,
+.provider-embed__post .media-gallery.media-count-3 .media-video,
+.provider-embed__post .media-gallery.media-count-4 .media-image,
+.provider-embed__post .media-gallery.media-count-4 .media-video {
+  max-width: 100%;
+  /* height:100% + object-fit:cover from MonyPost - do not override for grid layout */
 }
 
 /* Bottom strip on fediverse embeds showing the source instance */

@@ -569,29 +569,66 @@ router.post(
       const reactions = await fetchRemotePostReactions(post_ap_id, post_id, supabase);
       
       // Fetch the updated post with metadata and counts to return to the frontend
-      let remote_reactions = null;
+      let remote_reactions: Record<string, { count: number; url?: string; reactors?: any[] }> | null = null;
       let favorites_count = 0;
       let replies_count = 0;
       let reblogs_count = 0;
-      
+      let updatedPost: { metadata?: any; favorites_count?: number; replies_count?: number; reblogs_count?: number } | null = null;
+
       if (post_id) {
-        const { data: updatedPost } = await supabase
+        const { data } = await supabase
           .from('posts')
           .select('metadata, favorites_count, replies_count, reblogs_count')
           .eq('id', post_id)
           .single();
-        
+        updatedPost = data ?? null;
+
         remote_reactions = updatedPost?.metadata?.remote_reactions || null;
         favorites_count = updatedPost?.favorites_count || 0;
         replies_count = updatedPost?.replies_count || 0;
         reblogs_count = updatedPost?.reblogs_count || 0;
+      }
+
+      // For non-Misskey instances (Mastodon, Pleroma, GoToSocial), fetchRemotePostReactions
+      // returns raw reactions but never builds remote_reactions. Aggregate them here.
+      if (!remote_reactions && reactions.length > 0) {
+        const byEmoji = new Map<string, { count: number; url?: string; reactors: any[] }>();
+        for (const r of reactions as Array<{ emoji: string; emoji_url?: string; actor?: any }>) {
+          const key = r.emoji;
+          if (!byEmoji.has(key)) {
+            byEmoji.set(key, { count: 0, url: r.emoji_url, reactors: [] });
+          }
+          const entry = byEmoji.get(key)!;
+          entry.count++;
+          if (entry.reactors.length < 10 && r.actor) {
+            entry.reactors.push({
+              username: r.actor.username,
+              display_name: r.actor.display_name || r.actor.username,
+              avatar_url: r.actor.avatar_url,
+              domain: r.actor.domain,
+            });
+          }
+        }
+        remote_reactions = Object.fromEntries(byEmoji);
+        if (post_id) {
+          await supabase
+            .from('posts')
+            .update({
+              metadata: {
+                ...(updatedPost?.metadata || {}),
+                remote_reactions,
+                remote_reactions_fetched_at: new Date().toISOString(),
+              },
+            })
+            .eq('id', post_id);
+        }
       }
       
       return res.json({
         success: true,
         reactions,
         count: reactions.length,
-        remote_reactions, // Include the aggregated data for immediate UI update
+        remote_reactions,
         favorites_count,
         replies_count,
         reblogs_count,
@@ -1118,7 +1155,7 @@ async function fetchRemotePostReactions(
             emoji = item._misskey_reaction;
             reactionContent = item._misskey_reaction;
           }
-          // Check for tag-based emoji (Mastodon style)
+          // Check for tag-based emoji (Mastodon/Pleroma: custom emoji with icon URL)
           if (item.tag && Array.isArray(item.tag)) {
             const emojiTag = item.tag.find((t: any) => t.type === 'Emoji');
             if (emojiTag) {
@@ -1131,6 +1168,15 @@ async function fetchRemotePostReactions(
         }
 
         if (!actorUrl) continue;
+
+        // Extract custom emoji URL (Mastodon/Pleroma: tag.icon.url)
+        let emojiUrl: string | null = null;
+        if (item.tag && Array.isArray(item.tag)) {
+          const emojiTag = item.tag.find((t: any) => t.type === 'Emoji');
+          if (emojiTag?.icon) {
+            emojiUrl = typeof emojiTag.icon === 'string' ? emojiTag.icon : emojiTag.icon?.url;
+          }
+        }
 
         // Try to get actor info
         let actorInfo: any = { url: actorUrl };
