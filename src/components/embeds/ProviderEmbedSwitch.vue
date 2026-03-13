@@ -93,8 +93,7 @@ const fediversePostCache = new Map<string, TimelinePost>();
 <script setup lang="ts">
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
-import type { EmbedPayload, TimelinePost, FediverseEmbedSummary } from '@/types';
-import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
+import type { EmbedPayload, TimelinePost } from '@/types';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
@@ -393,65 +392,6 @@ const fediverseSourceDomain = computed(() => {
   }
 });
 
-function buildSyntheticTimelinePost(fedi: FediverseEmbedSummary): TimelinePost {
-  const handleMatch = fedi.authorHandle.match(/@?([^@]+)@(.+)/);
-  const username = handleMatch?.[1] || 'unknown';
-  const domain = handleMatch?.[2] || 'unknown';
-
-  const mediaAttachments = (fedi.attachments || []).map((att, idx) => ({
-    id: `fedi-att-${idx}`,
-    type: (att.mediaType?.startsWith('image/') ? 'image'
-         : att.mediaType?.startsWith('video/') ? 'video' : 'unknown') as 'image' | 'video' | 'unknown',
-    url: att.url,
-    description: att.alt,
-    mime_type: att.mediaType,
-  }));
-
-  // Extract the note ID from the post URL for a readable synthetic ID
-  let noteId: string;
-  try {
-    const segments = new URL(fedi.postUrl).pathname.split('/').filter(Boolean);
-    noteId = segments[segments.length - 1] || 'unknown';
-  } catch {
-    noteId = 'unknown';
-  }
-  const syntheticId = `fedi-${domain}-${noteId}`;
-
-  return {
-    id: syntheticId,
-    created_at: fedi.published || new Date().toISOString(),
-    updated_at: fedi.published || new Date().toISOString(),
-    content: convertActivityPubHTMLToMessageParts(fedi.content || ''),
-    content_warning: fedi.contentWarning,
-    language: 'en',
-    author_id: syntheticId,
-    ap_id: fedi.postUrl,
-    ap_type: 'Note',
-    url: fedi.postUrl,
-    visibility: 'public',
-    is_local: false,
-    is_federated: true,
-    replies_count: fedi.stats?.replies || 0,
-    reblogs_count: fedi.stats?.reblogs || 0,
-    favorites_count: fedi.stats?.favourites || 0,
-    media_attachments: mediaAttachments,
-    metadata: { synthetic: true, platform: fedi.platform },
-    is_sensitive: fedi.sensitive || false,
-    is_deleted: false,
-    author: {
-      id: syntheticId,
-      username,
-      display_name: fedi.authorName || username,
-      avatar_url: fedi.authorAvatar,
-      domain,
-      is_local: false,
-    },
-    is_favorited: false,
-    is_reblogged: false,
-    is_bookmarked: false,
-  } as TimelinePost;
-}
-
 async function loadFediversePost() {
   const fedi = props.payload.fediverse;
   if (!fedi) {
@@ -498,36 +438,21 @@ async function loadFediversePost() {
       }
     }
 
-    // Try DB lookup by URL or AP ID
-    const { supabase } = await import('@/supabase');
-    const { data: localPost } = await supabase
-      .from('posts')
-      .select('id')
-      .or(`url.eq.${postUrl},ap_id.eq.${postUrl}`)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle();
-
-    if (localPost?.id) {
-      const post = await store.loadPostWithAuthor(localPost.id);
-      if (post) {
-        fediversePostCache.set(postUrl, post);
-        fediversePost.value = post;
-        handleEmbedLoad();
-        return;
-      }
+    // Unified resolve: DB lookup + federation import if missing
+    const { postResolverService } = await import('@/services/PostResolverService');
+    const resolved = await postResolverService.resolveByApUrl(postUrl);
+    if (resolved) {
+      fediversePostCache.set(postUrl, resolved);
+      fediversePost.value = resolved;
+      handleEmbedLoad();
+      return;
     }
 
-    // Not in local DB — build synthetic post from embed data
-    const synthetic = buildSyntheticTimelinePost(fedi);
-    fediversePostCache.set(postUrl, synthetic);
-    fediversePost.value = synthetic;
+    fediverseError.value = 'Could not load this post from the remote instance';
     handleEmbedLoad();
   } catch (error) {
     debug.warn('Failed to load fediverse post:', error);
-    const synthetic = buildSyntheticTimelinePost(fedi);
-    fediversePostCache.set(postUrl, synthetic);
-    fediversePost.value = synthetic;
+    fediverseError.value = 'Could not load this post';
     handleEmbedLoad();
   }
 }

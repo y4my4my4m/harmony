@@ -245,6 +245,22 @@ const router = createRouter({
         {
           path: 'posts/:handle/:noteId',
           name: 'RemotePostDetail',
+          beforeEnter: async (to) => {
+            const handle = to.params.handle as string
+            const noteId = to.params.noteId as string
+            const { postResolverService } = await import('@/services/PostResolverService')
+            const post = await postResolverService.resolveByHandle(handle, noteId)
+            if (post?.id) {
+              return {
+                name: 'PostDetail',
+                params: { postId: post.id },
+                query: to.query,
+                replace: true,
+              }
+            }
+            // Fallback: load PostView with remote params (shows error state)
+            return true
+          },
           component: () => import('@/views/PostView.vue'),
           props: route => ({
             remoteHandle: route.params.handle as string,

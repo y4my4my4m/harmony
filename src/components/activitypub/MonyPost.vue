@@ -416,7 +416,7 @@
               <button 
                 v-if="isRemotePost && !isFetchingReactions"
                 class="dropdown-item"
-                @click="fetchRemoteReactions"
+                @click="handleFetchRemoteReactions"
               >
                 <Icon name="heart" />
                 <span>Fetch reactions</span>
@@ -425,7 +425,7 @@
               <button 
                 v-if="isRemotePost && !isFetchingReplies"
                 class="dropdown-item"
-                @click="fetchRemoteReplies"
+                @click="handleFetchRemoteReplies"
               >
                 <Icon name="message-circle" />
                 <span>Fetch replies</span>
@@ -545,10 +545,6 @@
 </template>
 
 <script lang="ts">
-// Module-level dedup: shared across all MonyPost instances.
-// Tracks post IDs that already had reactions fetched this session
-// so virtual scroller remounts don't re-trigger network calls.
-const fetchedReactionsThisSession = new Set<string>();
 </script>
 
 <script setup lang="ts">
@@ -560,6 +556,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
+import { useRemotePostSync } from '@/composables/useRemotePostSync';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
 import DisplayName from '@/components/DisplayName.vue';
@@ -662,34 +659,7 @@ const tooltipEmojiShortcode = computed(() => {
   return unicodeToShortcode(unicode) || ''
 })
 
-// Extract the note/status ID from a fediverse AP URL (last path segment)
-const extractNoteId = (url: string | null | undefined): string | null => {
-  if (!url) return null;
-  try {
-    const path = new URL(url).pathname;
-    const segments = path.split('/').filter(Boolean);
-    return segments.length > 0 ? segments[segments.length - 1] : null;
-  } catch {
-    return null;
-  }
-};
-
 const handleTimeClick = () => {
-  // For remote/federated posts, use the friendly @handle/noteId URL
-  if (!props.post.is_local && props.post.author) {
-    const postAuthor = props.post.author;
-    const noteId = extractNoteId(props.post.ap_id || props.post.url);
-    if (noteId && postAuthor.username && postAuthor.domain) {
-      router.push({
-        name: 'RemotePostDetail',
-        params: {
-          handle: `@${postAuthor.username}@${postAuthor.domain}`,
-          noteId
-        }
-      });
-      return;
-    }
-  }
   router.push({ name: 'PostDetail', params: { postId: props.post.id } });
 };
 
@@ -734,62 +704,42 @@ const isRemotePost = computed(() => {
   return !props.post.is_local && props.post.ap_id;
 });
 
-// Synthetic posts are built from embed data and don't exist in the local DB
-const isSyntheticPost = computed(() => {
-  return props.post.metadata?.synthetic === true;
-});
-
-// Resolve a synthetic post into a real local post before interactions
-const resolveSyntheticPost = async (): Promise<string | null> => {
-  if (!isSyntheticPost.value) return originalPostId.value;
-
-  const postUrl = props.post.ap_id || props.post.url;
-  if (!postUrl) return null;
-
-  // Check local DB first (fast, no network)
-  try {
-    const { supabase } = await import('@/supabase');
-    const { data: localPost } = await supabase
-      .from('posts')
-      .select('id')
-      .or(`url.eq.${postUrl},ap_id.eq.${postUrl}`)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle();
-
-    if (localPost?.id) return localPost.id;
-  } catch {
-    // DB lookup failed, try federation backend
+// Remote post sync (reactions/replies) via composable
+const {
+  isFetchingReactions,
+  isFetchingReplies,
+  fetchRemoteReactions,
+  fetchRemoteReplies,
+} = useRemotePostSync(
+  () => props.post,
+  {
+    isRemote: isRemotePost,
+    autoFetchReactions: true,
+    onReactionsUpdate: (result: any) => {
+      if (result.remote_reactions) {
+        activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
+          remote_reactions: result.remote_reactions,
+          remote_reactions_fetched_at: new Date().toISOString(),
+        });
+        if (!props.post.metadata) {
+          (props.post as any).metadata = {};
+        }
+        (props.post.metadata as any).remote_reactions = result.remote_reactions;
+        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
+      }
+      if (result.favorites_count !== undefined) {
+        (props.post as any).favorites_count = result.favorites_count;
+      }
+      if (result.replies_count !== undefined) {
+        (props.post as any).replies_count = result.replies_count;
+      }
+      if (result.reblogs_count !== undefined) {
+        (props.post as any).reblogs_count = result.reblogs_count;
+      }
+    },
+    onRefresh: (postId: string) => emit('refresh', postId),
   }
-
-  // Not local — ask federation backend to import via ActivityPub
-  try {
-    const { useActivityPubStore } = await import('@/stores/useActivityPub');
-    const apStore = useActivityPubStore();
-    const response = await fetch(`${apStore.federationApiUrl}/resolve-post`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: postUrl }),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data.post_id) return data.post_id;
-    }
-  } catch {
-    // Federation import failed
-  }
-
-  notificationStore.showToast(
-    'error',
-    'Could not import this post from the remote instance.',
-    5000
-  );
-  return null;
-};
-
-// State for fetching remote data
-const isFetchingReactions = ref(false);
-const isFetchingReplies = ref(false);
+);
 
 // Reblog-related computed properties
 const isReblog = computed(() => {
@@ -1064,14 +1014,6 @@ onMounted(() => {
     loadOriginalPostInteractions();
   }
 
-  // Auto-fetch reactions for remote posts once per session.
-  // After this fetch, data is in the DB and Supabase realtime handles updates.
-  // Skip synthetic posts (no DB record to store against).
-  const isSynthetic = props.post.id?.startsWith('fedi-') || (props.post.metadata as any)?.synthetic;
-  if (isRemotePost.value && !isSynthetic && !fetchedReactionsThisSession.has(props.post.id)) {
-    fetchedReactionsThisSession.add(props.post.id);
-    fetchRemoteReactions();
-  }
 });
 
 // The ID of the original post - for reblogs, this is the reblogged post's ID
@@ -1259,14 +1201,6 @@ const closeEmojiPopup = () => {
 const handleEmojiSelected = async (emoji: any) => {
   debug.log('Emoji selected:', emoji);
   
-  if (isSyntheticPost.value) {
-    const resolved = await resolveSyntheticPost();
-    if (!resolved) {
-      closeEmojiPopup();
-      return;
-    }
-  }
-
   const currentUser = getCurrentUser.value;
   if (!currentUser) {
     debug.warn('User not authenticated');
@@ -1652,9 +1586,7 @@ const handleMenuToggle = () => {
 
 // Optimistic favorite toggle — fills/unfills the heart immediately
 const handleToggleFavorite = async () => {
-  const postId = isSyntheticPost.value
-    ? await resolveSyntheticPost()
-    : originalPostId.value;
+  const postId = originalPostId.value;
   if (!postId) return;
 
   const targetPost = isReblog.value ? props.post.reblog : props.post
@@ -1690,17 +1622,10 @@ const handleToggleFavorite = async () => {
 const handleReblogClick = async () => {
   // If already reblogged, undo the reblog directly
   if (displayInteractionCounts.value.is_reblogged) {
-    const postId = isSyntheticPost.value
-      ? await resolveSyntheticPost()
-      : originalPostId.value;
+    const postId = originalPostId.value;
     if (!postId) return;
     toggleReblog(postId);
     return;
-  }
-
-  if (isSyntheticPost.value) {
-    const resolved = await resolveSyntheticPost();
-    if (!resolved) return;
   }
 
   // Otherwise show the menu with options
@@ -1709,9 +1634,7 @@ const handleReblogClick = async () => {
 
 const handleSimpleReblog = async () => {
   showReblogMenu.value = false;
-  const postId = isSyntheticPost.value
-    ? await resolveSyntheticPost()
-    : originalPostId.value;
+  const postId = originalPostId.value;
   if (!postId) return;
   await toggleReblog(postId);
 };
@@ -1728,125 +1651,20 @@ const handleQuoteReblog = () => {
 };
 
 const handleToggleBookmark = async () => {
-  const postId = isSyntheticPost.value
-    ? await resolveSyntheticPost()
-    : originalPostId.value;
+  const postId = originalPostId.value;
   if (!postId) return;
   toggleBookmark(postId);
 };
 
-// Fetch remote reactions for a remote post
-const fetchRemoteReactions = async () => {
-  if (!isRemotePost.value || isFetchingReactions.value) return;
-  
-  const postApId = props.post.ap_id;
-  if (!postApId) return;
-  
-  isFetchingReactions.value = true;
+// Manual menu triggers for fetch — close menu before calling composable methods
+const handleFetchRemoteReactions = () => {
   showMenu.value = false;
-  
-  try {
-    const response = await fetch('/api/federation/fetch-reactions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: postApId,
-        post_id: props.post.id,
-      }),
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      debug.log(`📬 Fetched ${result.count} reactions for remote post`);
-      
-      if (result.count > 0) {
-        debug.log(`✅ Found ${result.count} reactions from remote instance`);
-      } else {
-        debug.log(`📭 No reactions found on remote instance`);
-      }
-      
-      // Update post metadata and counts immediately with the returned data
-      if (result.remote_reactions) {
-        // Update in store feeds
-        activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
-          remote_reactions: result.remote_reactions,
-          remote_reactions_fetched_at: new Date().toISOString(),
-        });
-        
-        // Also directly update the post's metadata for immediate reactivity
-        // (handles cases where post is in local ref like UserProfileView.userPosts)
-        if (!props.post.metadata) {
-          (props.post as any).metadata = {};
-        }
-        (props.post.metadata as any).remote_reactions = result.remote_reactions;
-        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
-        
-        debug.log(`✅ Updated post metadata with ${Object.keys(result.remote_reactions).length} reaction types`);
-      }
-      
-      // Update counts directly on the post for immediate reactivity
-      if (result.favorites_count !== undefined) {
-        (props.post as any).favorites_count = result.favorites_count;
-      }
-      if (result.replies_count !== undefined) {
-        (props.post as any).replies_count = result.replies_count;
-      }
-      if (result.reblogs_count !== undefined) {
-        (props.post as any).reblogs_count = result.reblogs_count;
-      }
-      
-      // Also emit refresh for any parent that wants to fully reload
-      emit('refresh', props.post.id);
-    } else {
-      debug.error('Failed to fetch remote reactions:', await response.text());
-    }
-  } catch (error) {
-    debug.error('Error fetching remote reactions:', error);
-  } finally {
-    isFetchingReactions.value = false;
-  }
+  fetchRemoteReactions();
 };
 
-// Fetch remote replies for a remote post
-const fetchRemoteReplies = async () => {
-  if (!isRemotePost.value || isFetchingReplies.value) return;
-  
-  const postApId = props.post.ap_id;
-  if (!postApId) return;
-  
-  isFetchingReplies.value = true;
+const handleFetchRemoteReplies = () => {
   showMenu.value = false;
-  
-  try {
-    const response = await fetch('/api/federation/fetch-replies', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: postApId,
-        post_id: props.post.id,
-      }),
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      debug.log(`📬 Fetched ${result.count} replies for remote post`);
-      
-      // Emit event to refresh post data
-      emit('refresh', props.post.id);
-      
-      if (result.count > 0) {
-        debug.log(`✅ Found ${result.count} replies from remote instance`);
-      } else {
-        debug.log(`📭 No replies found on remote instance`);
-      }
-    } else {
-      debug.error('Failed to fetch remote replies:', await response.text());
-    }
-  } catch (error) {
-    debug.error('Error fetching remote replies:', error);
-  } finally {
-    isFetchingReplies.value = false;
-  }
+  fetchRemoteReplies();
 };
 
 // Handle emoji picker for original post (for reblogs, target the original)
