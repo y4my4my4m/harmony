@@ -472,7 +472,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-secondary);
-  background: var(--harmony-senary-alpha);
+  background: var(--background-senary-alpha);
 }
 
 .category-button {
@@ -507,7 +507,7 @@ onUnmounted(() => {
 .gif-search {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--harmony-senary-alpha);
+  background: var(--background-senary-alpha);
 }
 
 .search-wrapper {
@@ -526,7 +526,7 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   padding: 8px 12px 8px 36px;
-  background: var(--harmony-senary-alpha);
+  background: var(--background-senary-alpha);
   border: none;
   border-radius: 4px;
   color: var(--text-primary);
@@ -666,7 +666,7 @@ onUnmounted(() => {
 }
 
 .gif-results::-webkit-scrollbar-thumb {
-  background: var(--harmony-senary-alpha, rgba(10, 11, 13, 0.8));
+  background: var(--background-senary-alpha, rgba(10, 11, 13, 0.8));
   border-radius: 4px;
 }
 

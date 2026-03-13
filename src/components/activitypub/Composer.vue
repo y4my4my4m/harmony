@@ -99,6 +99,7 @@
                 :placeholder="placeholder"
                 :max-height="200"
                 :min-height="60"
+                :bordered="mode === 'inline'"
                 @update:model-value="handleContentUpdate"
                 @keydown="handleKeydown"
                 @cursor-position-changed="handleCursorPositionChanged"
@@ -872,16 +873,6 @@ const vClickOutside = {
   transition: all 0.2s ease;
 }
 
-.composer-inline-content:hover {
-  border-color: var(--harmony-primary-alpha);
-  box-shadow: 0 2px 5px 5px #00000022;
-}
-
-.composer-inline-content:focus-within {
-  border-color: var(--harmony-primary);
-  box-shadow: 0 0 0 2px var(--harmony-primary-light);
-}
-
 /* Header */
 .composer-header {
   display: flex;
@@ -1033,6 +1024,7 @@ const vClickOutside = {
 
 .composer-user {
   flex-shrink: 0;
+  padding-right: 8px;
 }
 
 .composer-input-area {
@@ -1124,12 +1116,12 @@ const vClickOutside = {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
-
+/* 
 .composer-inline-content .compose-options {
   padding-top: 0.75rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   margin-top: 0.75rem;
-}
+} */
 
 .option-group {
   display: flex;
@@ -1350,8 +1342,11 @@ const vClickOutside = {
   .visibility-button span {
     display: none;
   }
+  
   .composer-user {
     position: absolute;
+    left: 13px;
+    top: 24px;
   }
 
   .text-input-container {

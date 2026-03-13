@@ -161,7 +161,7 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--border-secondary);
   gap: 4px;
   flex-shrink: 0;
-  background: var(--harmony-senary-alpha);
+  background: var(--background-senary-alpha);
 }
 
 .tab-button {

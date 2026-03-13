@@ -5,7 +5,8 @@
     :class="{ 
       'is-empty': !modelValue && !hasContent, 
       'is-focused': isFocused,
-      'single-line': isSingleLine 
+      'single-line': isSingleLine,
+      'bordered': bordered
     }"
     role="textbox"
     aria-multiline="true"
@@ -48,6 +49,8 @@ interface Props {
   placeholder?: string;
   maxHeight?: number;
   minHeight?: number;
+  /** When true, shows border with hover/focus states (harmony-primary-alpha on hover, harmony-primary on focus) */
+  bordered?: boolean;
 }
 
 interface Emits {
@@ -63,7 +66,8 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   placeholder: 'Type a message...',
   maxHeight: 200,
-  minHeight: 44
+  minHeight: 44,
+  bordered: false
 });
 
 const emit = defineEmits<Emits>();
@@ -1119,6 +1123,22 @@ onMounted(async () => {
   position: absolute;
   top: 11px;
   left: 12px;
+}
+
+/* Bordered variant: border with hover/focus states for composer inline mode */
+.rich-text-editor.bordered {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rich-text-editor.bordered:hover {
+  border-color: var(--harmony-primary-alpha);
+}
+
+.rich-text-editor.bordered.is-focused {
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px var(--harmony-primary-light);
 }
 
 /* Markdown markers styling */

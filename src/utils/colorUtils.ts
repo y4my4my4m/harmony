@@ -569,7 +569,7 @@ export function applyThemePalette(palette: ThemePalette): void {
       ? 22  // Light: dark overlay (L22) with theme hue for dropdowns/pickers
       : Math.max(1, bgTertiaryOklch.l - 4)  // Dark: one step darker than tertiary
     root.style.setProperty('--background-senary', oklchToString(senaryL, bgTertiaryOklch.c, bgTertiaryOklch.h))
-    root.style.setProperty('--harmony-senary-alpha', oklchToStringAlpha(senaryL, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.78))
+    root.style.setProperty('--background-senary-alpha', oklchToStringAlpha(senaryL, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.78))
   }
   
   // Text colors
