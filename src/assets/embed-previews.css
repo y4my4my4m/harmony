@@ -11,6 +11,7 @@
 .provider-embed.provider-fediverse-post {
   overflow: visible;
   max-width: 550px;
+  margin-bottom: 2px;
 }
 
 .provider-embed__header {

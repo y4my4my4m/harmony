@@ -223,7 +223,7 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--h-black', '#1e1f22')
     root.style.setProperty('--h-black-light', '#313336')
     root.style.setProperty('--h-black-lighter', '#40444b')
-    root.style.setProperty('--h-black-darker', '#0c0d0e')
+    root.style.setProperty('--h-black-darker', '#000000')
     root.style.setProperty('--h-black-alpha', 'rgba(30, 31, 34, 0.67)')
     
     // Original background system colors
