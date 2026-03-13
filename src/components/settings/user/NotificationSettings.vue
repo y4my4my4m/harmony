@@ -369,7 +369,7 @@
               </div>
             </div>
             <button 
-              @click="handleRemoveDevice(sub.id)"
+              @click="handleRemoveDevice(sub)"
               class="device-remove-btn"
               title="Remove this device"
             >
@@ -1053,8 +1053,8 @@ const handleTestPush = async () => {
   }
 }
 
-const handleRemoveDevice = async (subscriptionId: string) => {
-  const result = await pushNotifications.deleteSubscription(subscriptionId)
+const handleRemoveDevice = async (sub: { id: string; endpoint: string }) => {
+  const result = await pushNotifications.removeSubscription(sub)
   if (result.success) {
     toast.success('Device removed')
   } else {

@@ -258,7 +258,27 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
 }
 
 /**
- * Delete a specific subscription by ID
+ * Remove a subscription (device from list).
+ * If it's the current browser's subscription, use unsubscribe() which calls
+ * POST /push/unsubscribe. Otherwise use deleteSubscription() (DELETE by ID).
+ * Using unsubscribe for current device avoids rate-limit issues and is the
+ * canonical path for removing the active device.
+ */
+async function removeSubscription(subscription: { id: string; endpoint: string }): Promise<{ success: boolean; error?: string }> {
+  try {
+    const currentSub = await getCurrentSubscription()
+    const isCurrentDevice = currentSub && currentSub.endpoint === subscription.endpoint
+    if (isCurrentDevice) {
+      return unsubscribe()
+    }
+  } catch {
+    // Fall through to deleteSubscription if we can't determine current device
+  }
+  return deleteSubscription(subscription.id)
+}
+
+/**
+ * Delete a specific subscription by ID (for removing OTHER devices)
  */
 async function deleteSubscription(subscriptionId: string): Promise<{ success: boolean; error?: string }> {
   isLoading.value = true
@@ -567,6 +587,7 @@ export function usePushNotifications() {
     subscribe,
     unsubscribe,
     deleteSubscription,
+    removeSubscription,
     fetchSubscriptions,
     sendTestNotification,
     checkSubscriptionStatus,

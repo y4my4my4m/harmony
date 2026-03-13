@@ -17,7 +17,7 @@ import compression from 'compression';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { apiLimiter, inboxLimiter, linkPreviewLimiter, discoveryLimiter } from './middleware/rateLimit.js';
+import { inboxLimiter, linkPreviewLimiter, discoveryLimiter, pushLimiter } from './middleware/rateLimit.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
@@ -73,7 +73,7 @@ export function createApp(): Application {
 
   app.use('/', discoveryLimiter, serverDiscoveryRouter);
   app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
-  app.use('/push', apiLimiter, pushRouter);
+  app.use('/push', pushLimiter, pushRouter);
   app.use('/api/livekit', livekitRouter);
   app.use('/', voiceRouter);
 
