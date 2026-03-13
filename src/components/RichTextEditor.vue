@@ -222,10 +222,10 @@ const getPlainText = (): string => {
     processNode(child);
   }
   
-  // Only return empty if there's truly no content (no text, no BRs, or only whitespace)
-  // But preserve newlines if they exist (user might have typed them)
+  // Treat as empty when there's no actual text (trimmed is empty).
+  // Lone <br> from browser when user deletes everything → text is '\n', trimmed is '' → return ''.
   const trimmed = text.trim();
-  if (trimmed.length === 0 && !text.includes('\n')) {
+  if (trimmed.length === 0) {
     return '';
   }
   
@@ -862,14 +862,11 @@ const handleInput = (event?: Event) => {
   // Rendering will happen when modelValue changes externally
   
   // Ensure editor is empty when text is removed (for placeholder to show)
-  // But preserve intentional newlines (user might have typed them)
+  // Clear stray <br> that browsers leave when user deletes all content
   const hasNoContent = !text || text.trim().length === 0;
-  const hasNoNewlines = !text?.includes('\n');
-  
-  if (hasNoContent && hasNoNewlines) {
+  if (hasNoContent) {
     nextTick(() => {
       if (editorRef.value) {
-        // Only clear if there's no actual content (no text, no intentional newlines)
         const hasOnlyWhitespace = editorRef.value.textContent?.trim().length === 0;
         if (hasOnlyWhitespace && editorRef.value.innerHTML.trim() !== '') {
           editorRef.value.innerHTML = '';
