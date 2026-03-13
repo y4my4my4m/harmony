@@ -71,9 +71,12 @@ export function createApp(): Application {
   app.use('/', outboxRouter);
   app.use('/', inboxLimiter, groupRouter);
 
+  // Push must be before serverDiscoveryRouter — some proxies preserve /api/federation,
+  // so /api/federation/push/test would otherwise hit discoveryLimiter (wrong 429 message)
+  app.use('/push', pushLimiter, pushRouter);
+  app.use('/api/federation/push', pushLimiter, pushRouter);
   app.use('/', discoveryLimiter, serverDiscoveryRouter);
   app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
-  app.use('/push', pushLimiter, pushRouter);
   app.use('/api/livekit', livekitRouter);
   app.use('/', voiceRouter);
 
