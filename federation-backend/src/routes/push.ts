@@ -77,6 +77,8 @@ router.post('/subscribe', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    logger.info(`📤 Push subscribe: authUserId=${user.id}, profileId=${profile?.id ?? 'null'}, userId=${userId}, endpoint=${subscription.endpoint.slice(0, 90)}`);
+
     const result = await PushNotificationService.saveSubscription(
       userId,
       subscription,
@@ -268,6 +270,9 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
     const userId = profile?.id || user.id;
     const { endpoint } = req.body || {};
 
+    // Debug: trace test lookup for "no active subscription" troubleshooting
+    logger.info(`📤 Push test: authUserId=${user.id}, profileId=${profile?.id ?? 'null'}, userId=${userId}, hasEndpoint=${!!endpoint}, endpointPrefix=${(endpoint ?? '').slice(0, 60)}...`);
+
     const testPayload = {
       title: '🔔 Test Notification',
       message: 'Push notifications are working!',
@@ -291,6 +296,9 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
       const sub = (allSubs || []).find((s: any) => s.endpoint === endpoint);
 
       if (subError || !sub) {
+        // Debug: log why lookup failed
+        const rpcEndpoints = (allSubs || []).map((s: any) => (s.endpoint ?? '').slice(0, 60));
+        logger.warn(`📤 Push test: subscription not found. subError=${subError?.message ?? 'none'}, allSubsCount=${(allSubs || []).length}, endpointMatch=${!!sub}. Client endpoint len=${(endpoint ?? '').length}. RPC endpoints (first 60 chars each): ${JSON.stringify(rpcEndpoints)}`);
         res.json({ success: false, sent: 0, failed: 0, message: 'Subscription not found for this device' });
         return;
       }

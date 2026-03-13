@@ -2,8 +2,13 @@
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="recovery-modal">
       <div class="modal-header">
-        <h2>🔑 Restore Encryption</h2>
-        <button class="close-btn" @click="$emit('close')" :disabled="isRestoring">×</button>
+        <h2 class="modal-title">
+          <span class="title-icon">🔑</span>
+          Restore Encryption
+        </h2>
+        <button class="close-btn" @click="$emit('close')" :disabled="isRestoring" aria-label="Close">
+          <Icon name="x" :size="18" />
+        </button>
       </div>
 
       <div class="modal-content">
@@ -14,14 +19,16 @@
             :class="{ active: activeTab === 'phrase' }"
             @click="activeTab = 'phrase'"
           >
-            📝 Recovery Phrase
+            <Icon name="file" :size="16" class="tab-icon" />
+            Recovery Phrase
           </button>
           <button 
             class="tab-btn"
             :class="{ active: activeTab === 'qr' }"
             @click="activeTab = 'qr'"
           >
-            📱 QR Code
+            <Icon name="smartphone" :size="16" class="tab-icon" />
+            QR Code
           </button>
         </div>
 
@@ -31,7 +38,8 @@
             Enter your 12-word recovery phrase to restore access to your encrypted messages.
           </p>
 
-          <div class="phrase-input-grid">
+          <div class="phrase-input-wrap" :class="{ valid: isValid }">
+            <div class="phrase-input-grid">
             <div 
               v-for="i in 12" 
               :key="i"
@@ -46,6 +54,7 @@
                 @paste.prevent="handlePaste($event)"
               />
             </div>
+          </div>
           </div>
 
           <div class="quick-actions">
@@ -112,7 +121,7 @@
           <input 
             type="text"
             v-model="verificationCode"
-            placeholder="Enter verification code to verify"
+            placeholder="ENTER VERIFICATION CODE TO VERIFY"
             maxlength="6"
           />
           <p class="hint">
@@ -151,6 +160,7 @@
 import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
+import Icon from '@/components/common/Icon.vue'
 
 const toast = useToast()
 const emit = defineEmits(['close', 'restored'])
@@ -329,14 +339,14 @@ async function restoreEncryption() {
 }
 
 .recovery-modal {
-  background: var(--bg-primary, #1a1a2e);
+  background: var(--background-primary, #1a1a1e);
   border-radius: 16px;
-  border: 1px solid var(--border-color, #333);
-  max-width: 600px;
+  border: 1px solid var(--border-color);
+  max-width: 560px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
 
 .modal-header {
@@ -344,27 +354,47 @@ async function restoreEncryption() {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color, #333);
+  border-bottom: 1px solid var(--border-color);
 }
 
-.modal-header h2 {
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
-  font-size: 20px;
-  color: var(--text-primary, #fff);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 28px;
-  color: var(--text-secondary, #888);
-  cursor: pointer;
-  padding: 0;
+.title-icon {
+  font-size: 22px;
   line-height: 1;
 }
 
-.close-btn:hover {
-  color: var(--text-primary, #fff);
+.close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s, background 0.2s;
+}
+
+.close-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--background-hover, rgba(255,255,255,0.06));
+}
+
+.close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Tabs */
@@ -375,26 +405,35 @@ async function restoreEncryption() {
 }
 
 .tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   flex: 1;
-  padding: 12px;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 1px solid var(--border-color, #444);
-  border-radius: 8px;
-  color: var(--text-secondary, #888);
+  padding: 12px 16px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tab-btn .tab-icon {
+  flex-shrink: 0;
 }
 
 .tab-btn:hover {
-  border-color: var(--primary, #5865f2);
-  color: var(--text-primary, #fff);
+  border-color: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.5));
+  color: var(--text-primary);
 }
 
 .tab-btn.active {
-  background: var(--primary, #5865f2);
-  border-color: var(--primary, #5865f2);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  color: #fff;
 }
 
 /* Tab Content */
@@ -416,18 +455,32 @@ async function restoreEncryption() {
 }
 
 .description {
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 20px;
+  line-height: 1.55;
+  margin: 10px 0x;
 }
 
-/* Phrase Input Grid */
+/* Phrase Input */
+.phrase-input-wrap {
+  padding: 18px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.phrase-input-wrap.valid {
+  border-color: rgba(39, 174, 96, 0.4);
+  box-shadow: 0 0 0 1px rgba(39, 174, 96, 0.15);
+}
+
 .phrase-input-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+  margin-bottom: 14px;
 }
 
 .word-input {
@@ -438,46 +491,70 @@ async function restoreEncryption() {
 
 .word-input label {
   font-size: 11px;
-  color: var(--text-secondary, #888);
-  padding-left: 4px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding-left: 2px;
 }
 
 .word-input input {
-  padding: 10px 12px;
-  background: var(--bg-secondary, #2a2a3e);
-  border: 1px solid var(--border-color, #444);
-  border-radius: 6px;
-  color: var(--text-primary, #fff);
+  padding: 8px 12px;
+  background: var(--background-senary-alpha, rgba(10, 11, 13, 0.8));
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.word-input input:hover {
+  border-color: var(--border-hover, rgba(255,255,255,0.12));
 }
 
 .word-input input:focus {
   outline: none;
-  border-color: var(--primary, #5865f2);
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px var(--harmony-primary-light, rgba(88, 101, 242, 0.15));
 }
 
 /* Quick Actions */
 .quick-actions {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.quick-actions .btn-secondary.btn-sm {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.quick-actions .btn-secondary.btn-sm:hover {
+  background: var(--background-hover, rgba(255,255,255,0.04));
+  border-color: var(--border-hover, rgba(255,255,255,0.12));
+  color: var(--text-primary);
 }
 
 /* Validation Message */
 .validation-message {
-  padding: 12px;
-  background: rgba(39, 174, 96, 0.1);
-  border: 1px solid rgba(39, 174, 96, 0.3);
+  padding: 10px 14px;
   border-radius: 8px;
-  color: var(--success, #27ae60);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.validation-message:not(.error) {
+  background: rgba(39, 174, 96, 0.08);
+  border: 1px solid rgba(39, 174, 96, 0.25);
+  color: #3dbe6b;
 }
 
 .validation-message.error {
-  background: rgba(231, 76, 60, 0.1);
-  border-color: rgba(231, 76, 60, 0.3);
-  color: var(--danger, #e74c3c);
+  background: rgba(231, 76, 60, 0.08);
+  border: 1px solid rgba(231, 76, 60, 0.25);
+  color: #e74c3c;
 }
 
 /* QR Section */
