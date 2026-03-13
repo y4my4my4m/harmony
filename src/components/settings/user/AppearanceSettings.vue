@@ -1523,12 +1523,12 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background-color: var(--h-primary, #5865f2);
+  background-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--h-primary-dark, #4752c4);
+  background-color: var(--harmony-primary-hover);
 }
 
 .btn-secondary {

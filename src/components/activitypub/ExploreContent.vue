@@ -66,80 +66,108 @@
 
       <!-- Trending Content -->
       <div v-else-if="currentView === 'trending'" class="trending-content">
-        <!-- Trending Hashtags -->
-        <div class="section trending-hashtags">
-          <h3 class="section-title">
-            <Icon name="hash" />
-            {{ $t('activitypub.trendingHashtags') }}
-          </h3>
-          <div v-if="trendingHashtags.length > 0" class="hashtag-grid">
-            <div 
-              v-for="hashtag in trendingHashtags" 
-              :key="hashtag.tag"
-              @click="loadHashtagPosts(hashtag.tag)"
-              class="hashtag-item"
-            >
-              <div class="hashtag-info">
-                <span class="hashtag-name">#{{ hashtag.tag }}</span>
-                <span class="hashtag-count">{{ formatNumber(hashtag.daily_uses) }} {{ $t('activitypub.postsCount') }}</span>
-              </div>
-              <div class="hashtag-trend">
-                <Icon :name="getTrendIcon(hashtag.trend)" :class="`trend-${hashtag.trend}`" />
-                <span class="trend-change">{{ hashtag.change_percent > 0 ? '+' : '' }}{{ hashtag.change_percent }}%</span>
+        <!-- Getting Started Hero (when all sections empty) -->
+        <div v-if="allEmpty" class="trending-hero">
+          <h2 class="hero-title">{{ $t('activitypub.trendingGettingStarted') }}</h2>
+          <p class="hero-desc">{{ $t('activitypub.trendingGettingStartedDesc') }}</p>
+          <ul class="hero-tips">
+            <li>{{ $t('activitypub.trendingHeroTip1') }}</li>
+            <li>{{ $t('activitypub.trendingHeroTip2') }}</li>
+            <li>{{ $t('activitypub.trendingHeroTip3') }}</li>
+          </ul>
+          <div class="hero-actions">
+            <button class="hero-btn hero-btn-primary" @click="openComposer">
+              {{ $t('activitypub.createFirstPost') }}
+            </button>
+            <button class="hero-btn hero-btn-secondary" @click="navigateToInstances">
+              {{ $t('activitypub.browseInstances') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Individual Sections (when any has content or when showing empty with hints) -->
+        <div class="trending-sections">
+          <!-- Trending Hashtags -->
+          <div class="section trending-section trending-hashtags">
+            <h3 class="section-title">
+              <Icon name="hash" />
+              {{ $t('activitypub.trendingHashtags') }}
+            </h3>
+            <div v-if="trendingHashtags.length > 0" class="hashtag-grid">
+              <div 
+                v-for="hashtag in trendingHashtags" 
+                :key="hashtag.tag"
+                @click="loadHashtagPosts(hashtag.tag)"
+                class="hashtag-item"
+              >
+                <div class="hashtag-info">
+                  <span class="hashtag-name">#{{ hashtag.tag }}</span>
+                  <span class="hashtag-count">{{ formatNumber(hashtag.daily_uses) }} {{ $t('activitypub.postsCount') }}</span>
+                </div>
+                <div class="hashtag-trend">
+                  <Icon :name="getTrendIcon(hashtag.trend)" :class="`trend-${hashtag.trend}`" />
+                  <span class="trend-change">{{ hashtag.change_percent > 0 ? '+' : '' }}{{ hashtag.change_percent }}%</span>
+                </div>
               </div>
             </div>
+            <div v-else class="empty-state section-empty-state" style="display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px 0;">
+              <Icon name="hash" :size="40" class="empty-icon" style="margin-bottom: 12px;" />
+              <p class="empty-title" style="margin-bottom: 2px;">{{ $t('activitypub.noTrendingHashtags') }}</p>
+              <p class="empty-subtitle" style="margin-bottom: 10px; color: var(--text-secondary, #b5bac1); text-align: center;">{{ $t('activitypub.noTrendingHashtagsHint') }}</p>
+              <button class="btn btn-primary" style="margin-top: 6px;" @click="openComposer">
+                {{ $t('activitypub.createFirstPost') }}
+              </button>
+            </div>
           </div>
-          <div v-else class="empty-state">
-            <Icon name="hash" />
-            <p>{{ $t('activitypub.noTrendingHashtags') }}</p>
-          </div>
-        </div>
 
-        <!-- Trending Posts -->
-        <div class="section trending-posts">
-          <h3 class="section-title">
-            <Icon name="trending-up" />
-            {{ $t('activitypub.trendingPosts') }}
-          </h3>
-          <div v-if="trendingPosts.length > 0" data-timeline class="posts-list">
-            <MonyPost
-              v-for="trendingPost in trendingPosts"
-              :key="trendingPost.post?.id || trendingPost.id"
-              :post="trendingPost.post || trendingPost"
-              @reply="$emit('reply-to-post', $event)"
-              @favorite="$emit('favorite-post', $event)"
-              @reblog="$emit('reblog-post', $event)"
-              @bookmark="$emit('bookmark-post', $event)"
-              @delete="$emit('delete-post', $event)"
-              @show-user-profile="$emit('show-user-profile', $event)"
-              @show-conversation="$emit('show-conversation', $event)"
-            />
+          <!-- Trending Posts -->
+          <div class="section trending-section trending-posts">
+            <h3 class="section-title">
+              <Icon name="trending-up" />
+              {{ $t('activitypub.trendingPosts') }}
+            </h3>
+            <div v-if="trendingPosts.length > 0" data-timeline class="posts-list">
+              <MonyPost
+                v-for="trendingPost in trendingPosts"
+                :key="trendingPost.post?.id || trendingPost.id"
+                :post="trendingPost.post || trendingPost"
+                @reply="$emit('reply-to-post', $event)"
+                @favorite="$emit('favorite-post', $event)"
+                @reblog="$emit('reblog-post', $event)"
+                @bookmark="$emit('bookmark-post', $event)"
+                @delete="$emit('delete-post', $event)"
+                @show-user-profile="$emit('show-user-profile', $event)"
+                @show-conversation="$emit('show-conversation', $event)"
+              />
+            </div>
+            <div v-else class="empty-state section-empty-state">
+              <Icon name="trending-up" :size="40" class="empty-icon" />
+              <p class="empty-title">{{ $t('activitypub.noTrendingPosts') }}</p>
+              <p class="empty-subtitle">{{ $t('activitypub.noTrendingPostsHint') }}</p>
+            </div>
           </div>
-          <div v-else class="empty-state">
-            <Icon name="trending-up" />
-            <p>{{ $t('activitypub.noTrendingPosts') }}</p>
-          </div>
-        </div>
 
-        <!-- Suggested Users -->
-        <div class="section suggested-users">
-          <h3 class="section-title">
-            <Icon name="user-plus" />
-            {{ $t('activitypub.suggestedUsers') }}
-          </h3>
-          <div v-if="suggestedUsers.length > 0" class="users-grid">
-            <ProfileCard 
-              v-for="user in suggestedUsers"
-              :key="user.user?.id || user.id"
-              :user="user.user || user"
-              :show-more-actions="true"
-              :is-compact="true"
-              @click="$emit('show-user-profile', user.user || user)"
-            />
-          </div>
-          <div v-else class="empty-state">
-            <Icon name="users" />
-            <p>{{ $t('activitypub.noSuggestedUsers') }}</p>
+          <!-- Suggested Users -->
+          <div class="section trending-section suggested-users">
+            <h3 class="section-title">
+              <Icon name="user-plus" />
+              {{ $t('activitypub.suggestedUsers') }}
+            </h3>
+            <div v-if="suggestedUsers.length > 0" class="users-grid">
+              <ProfileCard 
+                v-for="user in suggestedUsers"
+                :key="user.user?.id || user.id"
+                :user="user.user || user"
+                :show-more-actions="true"
+                :is-compact="true"
+                @click="$emit('show-user-profile', user.user || user)"
+              />
+            </div>
+            <div v-else class="empty-state section-empty-state">
+              <Icon name="users" :size="40" class="empty-icon" />
+              <p class="empty-title">{{ $t('activitypub.noSuggestedUsers') }}</p>
+              <p class="empty-subtitle">{{ $t('activitypub.noSuggestedUsersHint') }}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -339,6 +367,20 @@ const filteredInstances = computed(() => {
 
   return filtered;
 });
+
+const allEmpty = computed(() =>
+  trendingHashtags.value.length === 0 &&
+  trendingPosts.value.length === 0 &&
+  suggestedUsers.value.length === 0
+);
+
+const openComposer = () => {
+  activityPubStore.openComposer();
+};
+
+const navigateToInstances = () => {
+  router.push({ name: 'SocialInstances' });
+};
 
 const currentTabData = computed(() => {
   switch (props.currentView) {
@@ -752,10 +794,80 @@ defineExpose({ refreshContent });
   color: var(--text-primary);
 }
 
+/* Hero when all sections empty */
+.trending-hero {
+  max-width: 560px;
+  margin: 32px auto 48px;
+  padding: 40px 32px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.hero-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+}
+
+.hero-desc {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 24px;
+}
+
+.hero-tips {
+  text-align: left;
+  margin: 0 0 28px;
+  padding: 0 0 0 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.hero-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border: none;
+}
+
+.hero-btn-primary {
+  background: var(--harmony-primary);
+  color: var(--text-primary);
+}
+
+.hero-btn-primary:hover {
+  background: var(--harmony-primary-hover, #4752c4);
+}
+
+.hero-btn-secondary {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.hero-btn-secondary:hover {
+  background: var(--background-hover);
+}
+
 .trending-sections {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
   max-width: 800px;
   margin: 0 auto;
 }
@@ -765,6 +877,11 @@ defineExpose({ refreshContent });
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 20px;
+}
+
+.section-title {
+  border-left: 3px solid var(--harmony-primary);
+  padding-left: 12px;
 }
 
 .trending-posts {

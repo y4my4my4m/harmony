@@ -92,8 +92,8 @@
           :style="rightSidebarStyle"
         >
           <div class="activitypub-right-sidebar">
-          <!-- Trending Section -->
-          <div class="sidebar-section">
+          <!-- Trending Section (hidden on Trending tab - main area shows hashtags) -->
+          <div v-if="currentView !== 'trending'" class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.trending') }}</h3>
             <div v-if="isLoadingTrending" class="trending-loading">
               <span>Loading...</span>
