@@ -1038,7 +1038,9 @@ const loadOriginalPostInteractions = async () => {
   }
 };
 
-const REACTIONS_STALE_MS = 5 * 60 * 1000; // 5 minutes
+// Session-level dedup: track which posts we've already fetched reactions for
+// so virtual scroller remounts don't re-trigger network calls
+const fetchedReactionsThisSession = new Set<string>();
 
 // Load reply context on mount if needed
 onMounted(() => {
@@ -1059,13 +1061,11 @@ onMounted(() => {
     loadOriginalPostInteractions();
   }
 
-  // Auto-fetch reactions for remote posts (skip embedded posts to avoid excess requests)
-  if (isRemotePost.value && !props.embedded) {
-    const lastFetched = props.post.metadata?.remote_reactions_fetched_at;
-    const isStale = !lastFetched || (Date.now() - new Date(lastFetched as string).getTime()) > REACTIONS_STALE_MS;
-    if (isStale) {
-      fetchRemoteReactions();
-    }
+  // Auto-fetch reactions for remote posts once per session.
+  // After this fetch, data is in the DB and Supabase realtime handles updates.
+  if (isRemotePost.value && !fetchedReactionsThisSession.has(props.post.id)) {
+    fetchedReactionsThisSession.add(props.post.id);
+    fetchRemoteReactions();
   }
 });
 
