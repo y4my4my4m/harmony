@@ -123,6 +123,8 @@ export interface InstanceSearchResult {
   admin_contact?: string;
   api_available: boolean;
   federation_enabled: boolean;
+  icon_url?: string;
+  banner_url?: string;
 }
 
 export interface InstanceStats {
@@ -628,6 +630,8 @@ class AdminService {
       let oauthProviders: string[] | Record<string, boolean> = []
       let termsUrl = ''
       let privacyUrl = ''
+      let instanceIconUrl = ''
+      let instanceBannerUrl = ''
 
       let maxServerSize = 1000
       let maxMessageLength = 2000
@@ -644,7 +648,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -721,6 +725,12 @@ class AdminService {
                 case 'allow_custom_emojis_in_display_names':
                   allowCustomEmojisInDisplayNames = value === true || value === 'true'
                   break
+                case 'instance_icon':
+                  instanceIconUrl = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'instance_banner':
+                  instanceBannerUrl = (typeof value === 'string' ? value : String(value)) || ''
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -755,7 +765,9 @@ class AdminService {
           requiresApproval: requiresApproval,
           oauthProviders: oauthProviders,
           termsUrl: termsUrl,
-          privacyUrl: privacyUrl
+          privacyUrl: privacyUrl,
+          iconUrl: instanceIconUrl,
+          bannerUrl: instanceBannerUrl,
         }
       };
     } catch (error) {
@@ -1240,7 +1252,9 @@ class AdminService {
         metadata: {
           added_by: adminId,
           discovery_method: instanceInfo ? 'api' : 'manual',
-          federation_enabled: instanceInfo?.federation_enabled || false
+          federation_enabled: instanceInfo?.federation_enabled || false,
+          ...(instanceInfo?.icon_url && { icon_url: instanceInfo.icon_url }),
+          ...(instanceInfo?.banner_url && { banner_url: instanceInfo.banner_url }),
         }
       };
 
@@ -1370,30 +1384,33 @@ class AdminService {
    */
   async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
     try {
-      // Clean the domain
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
       debug.log(`Probing instance: ${cleanDomain}`);
       
       // Try Nodeinfo first (most universal)
       const nodeinfoResult = await this.probeNodeinfo(cleanDomain);
-      if (nodeinfoResult) {
-        return nodeinfoResult;
-      }
-      
-      // Try Mastodon API as fallback
+
+      // Try Mastodon API (may have icon/banner even if NodeInfo succeeded)
       const mastodonResult = await this.probeMastodonAPI(cleanDomain);
-      if (mastodonResult) {
-        return mastodonResult;
-      }
-      
-      // Try ActivityPub actor endpoint as last resort
+
+      // Try ActivityPub actor endpoint
       const actorResult = await this.probeActivityPubActor(cleanDomain);
-      if (actorResult) {
-        return actorResult;
+
+      // Merge results: prefer NodeInfo for core info, enrich with Mastodon/Actor for icons
+      const base = nodeinfoResult || mastodonResult || actorResult;
+      if (!base) {
+        debug.log(`Could not discover instance: ${cleanDomain}`);
+        return null;
       }
-      
-      debug.log(`Could not discover instance: ${cleanDomain}`);
-      return null;
+
+      if (!base.icon_url) {
+        base.icon_url = mastodonResult?.icon_url || actorResult?.icon_url;
+      }
+      if (!base.banner_url) {
+        base.banner_url = mastodonResult?.banner_url || actorResult?.banner_url;
+      }
+
+      return base;
     } catch (error) {
       debug.warn(`Instance discovery failed for ${domain}:`, error);
       return null;
@@ -1440,7 +1457,9 @@ class AdminService {
         user_count: nodeinfo.usage?.users?.total || 0,
         status_count: nodeinfo.usage?.localPosts || 0,
         api_available: true,
-        federation_enabled: nodeinfo.openRegistrations !== false
+        federation_enabled: nodeinfo.openRegistrations !== false,
+        icon_url: nodeinfo.metadata?.icon || nodeinfo.metadata?.iconUrl || undefined,
+        banner_url: nodeinfo.metadata?.banner || nodeinfo.metadata?.bannerUrl || undefined,
       };
     } catch (error) {
       return null;
@@ -1463,6 +1482,22 @@ class AdminService {
           if (response.ok) {
             const instance = await response.json();
             
+            // Extract icon: v2 has icon array, v1 may have thumbnail
+            let iconUrl: string | undefined;
+            if (instance.icon && Array.isArray(instance.icon) && instance.icon.length > 0) {
+              iconUrl = instance.icon[0]?.src || instance.icon[0]?.url;
+            } else if (instance.contact?.account?.avatar_static || instance.contact?.account?.avatar) {
+              iconUrl = instance.contact.account.avatar_static || instance.contact.account.avatar;
+            }
+
+            // Extract banner/thumbnail
+            let bannerUrl: string | undefined;
+            if (instance.thumbnail?.url) {
+              bannerUrl = instance.thumbnail.url;
+            } else if (typeof instance.thumbnail === 'string') {
+              bannerUrl = instance.thumbnail;
+            }
+
             return {
               domain: instance.domain || domain,
               software: instance.source_url?.includes('mastodon') ? 'mastodon' : 
@@ -1474,7 +1509,9 @@ class AdminService {
               status_count: instance.stats?.status_count || 0,
               admin_contact: instance.contact?.email || instance.email,
               api_available: true,
-              federation_enabled: true
+              federation_enabled: true,
+              icon_url: iconUrl,
+              banner_url: bannerUrl,
             };
           }
         } catch {
@@ -1499,18 +1536,41 @@ class AdminService {
         signal: AbortSignal.timeout(10000)
       });
       
-      if (response.ok) {
-        // Instance is responding to WebFinger, it's likely ActivityPub compatible
-        return {
-          domain: domain,
-          software: 'activitypub-compatible',
-          description: 'ActivityPub-compatible instance',
-          api_available: true,
-          federation_enabled: true
-        };
+      if (!response.ok) return null;
+
+      const result: InstanceSearchResult = {
+        domain: domain,
+        software: 'activitypub-compatible',
+        description: 'ActivityPub-compatible instance',
+        api_available: true,
+        federation_enabled: true
+      };
+
+      // Try to fetch the actual actor to get icon/image
+      try {
+        const webfinger = await response.json();
+        const actorLink = webfinger.links?.find((l: any) =>
+          l.rel === 'self' && l.type === 'application/activity+json'
+        );
+        if (actorLink?.href) {
+          const actorResp = await fetch(actorLink.href, {
+            headers: { 'Accept': 'application/activity+json, application/ld+json' },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (actorResp.ok) {
+            const actor = await actorResp.json();
+            if (actor.icon?.url) result.icon_url = actor.icon.url;
+            else if (typeof actor.icon === 'string') result.icon_url = actor.icon;
+            if (actor.image?.url) result.banner_url = actor.image.url;
+            else if (typeof actor.image === 'string') result.banner_url = actor.image;
+            if (actor.summary) result.description = actor.summary;
+          }
+        }
+      } catch {
+        // Actor fetch is best-effort
       }
-      
-      return null;
+
+      return result;
     } catch (error) {
       return null;
     }

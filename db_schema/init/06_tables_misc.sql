@@ -431,6 +431,25 @@ CREATE INDEX IF NOT EXISTS idx_gif_favorites_user ON public.gif_favorites(user_i
 COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs';
 
 -- ---------------------------------------------------------------------------
+-- EMOJI FAVORITES
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.emoji_favorites (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    emoji_id text NOT NULL,
+    emoji_name text NOT NULL,
+    emoji_url text,
+    emoji_server_id uuid,
+    created_at timestamp with time zone DEFAULT now(),
+
+    UNIQUE(user_id, emoji_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_emoji_favorites_user ON public.emoji_favorites(user_id);
+
+COMMENT ON TABLE public.emoji_favorites IS 'User favorite emojis (unicode and custom)';
+
+-- ---------------------------------------------------------------------------
 -- ADMIN AUDIT LOG
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (

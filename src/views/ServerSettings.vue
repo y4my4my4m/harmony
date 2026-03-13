@@ -101,10 +101,12 @@
             v-if="activeSection === 'overview'"
             v-model:server="server"
             v-model:selectedFile="selectedFile"
+            :selected-banner-file="selectedBannerFile"
             :owner-name="ownerName"
             :loading="loading"
             :permissions="permissions"
             @file-change="handleFileChange"
+            @banner-change="handleBannerChange"
           />
 
           <!-- Roles Section -->
@@ -215,6 +217,7 @@ const { serverSettingsPermissions } = useServerPermissions()
 const loading = ref(false)
 const ownerName = ref('')
 const selectedFile = ref<File | null>(null)
+const selectedBannerFile = ref<File | null>(null)
 const emojis = ref<Emoji[]>([])
 const activeSection = ref('overview')
 const showSidebar = ref(false)
@@ -272,7 +275,9 @@ const generalHasChanges = computed(() => {
     server.value.allow_cross_server_emojis !== originalServer.value.allow_cross_server_emojis ||
     server.value.public !== originalServer.value.public ||
     server.value.federation_enabled !== originalServer.value.federation_enabled ||
-    selectedFile.value !== null
+    selectedFile.value !== null ||
+    selectedBannerFile.value !== null ||
+    server.value.banner !== originalServer.value.banner
   )
 })
 
@@ -350,8 +355,11 @@ const fetchEmojis = async () => {
 const handleFileChange = (file: File | null) => {
   if (!permissions.value.canChangeServerIcon) return
   selectedFile.value = file
-  // Don't modify server.value.icon here - let the component handle the preview
-  // The preview will be handled by ServerBasicInfo component
+}
+
+const handleBannerChange = (file: File | null) => {
+  if (!permissions.value.canChangeServerIcon) return
+  selectedBannerFile.value = file
 }
 
 const handleEmojiUploaded = (newEmoji: Emoji) => {
@@ -378,10 +386,11 @@ const handleSave = async () => {
     loading.value = true
 
     if (generalHasChanges.value) {
-      const success = await serverStore.updateServer(server.value, selectedFile.value || undefined)
+      const success = await serverStore.updateServer(server.value, selectedFile.value || undefined, selectedBannerFile.value || undefined)
       if (success) {
         originalServer.value = { ...server.value }
         selectedFile.value = null
+        selectedBannerFile.value = null
       } else {
         throw new Error('Update failed')
       }

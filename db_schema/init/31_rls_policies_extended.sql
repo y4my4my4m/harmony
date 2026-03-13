@@ -825,6 +825,21 @@ CREATE POLICY "Users can delete own gif favorites" ON public.gif_favorites
     FOR DELETE USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
+-- EMOJI FAVORITES
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users can view own emoji favorites" ON public.emoji_favorites;
+CREATE POLICY "Users can view own emoji favorites" ON public.emoji_favorites
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+
+DROP POLICY IF EXISTS "Users can insert own emoji favorites" ON public.emoji_favorites;
+CREATE POLICY "Users can insert own emoji favorites" ON public.emoji_favorites
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+DROP POLICY IF EXISTS "Users can delete own emoji favorites" ON public.emoji_favorites;
+CREATE POLICY "Users can delete own emoji favorites" ON public.emoji_favorites
+    FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- ---------------------------------------------------------------------------
 -- PERFORMANCE METRICS
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Admins can read metrics" ON public.performance_metrics;

@@ -705,6 +705,14 @@ export class CorePostService {
       is_local: post.is_local,
       is_federated: post.is_federated,
       author: post.author,
+      author_id: post.author_id,
+      ap_id: post.ap_id,
+      ap_type: post.ap_type,
+      url: post.url,
+      in_reply_to: post.in_reply_to,
+      conversation_id: post.conversation_id,
+      is_deleted: post.is_deleted,
+      metadata: post.metadata,
       favorites_count: post.favorites_count || 0,
       reblogs_count: post.reblogs_count || 0,
       replies_count: post.replies_count || 0,
@@ -715,7 +723,6 @@ export class CorePostService {
       is_sensitive: post.is_sensitive,
       language: post.language,
       media_attachments: post.media_attachments || [],
-      // Reblog data (stored as JSONB in database)
       reblog: post.reblog || undefined,
       reblog_author: post.reblog_author || undefined
     }

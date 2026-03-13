@@ -184,11 +184,28 @@
               v-for="instance in filteredInstances"
               :key="instance.domain"
               class="instance-card"
+              :class="{ 'has-banner': getInstanceBanner(instance) }"
               @click="showInstanceDetails(instance)"
             >
+              <!-- Banner background -->
+              <div
+                v-if="getInstanceBanner(instance)"
+                class="instance-card-banner"
+                :style="{ backgroundImage: `url(${getInstanceBanner(instance)})` }"
+              >
+                <div class="instance-card-banner-overlay"></div>
+              </div>
+
               <div class="instance-card-header">
                 <div class="instance-card-icon">
-                  <Icon name="server" :size="24" />
+                  <img
+                    v-if="getInstanceIcon(instance)"
+                    :src="getInstanceIcon(instance)!"
+                    :alt="instance.domain"
+                    class="instance-icon-img"
+                    @error="($event.target as HTMLImageElement).style.display = 'none'"
+                  />
+                  <span v-else class="instance-platform-emoji">{{ getPlatformEmoji(instance.software) }}</span>
                 </div>
                 <div class="instance-card-meta">
                   <h4 class="instance-card-domain">{{ instance.domain }}</h4>
@@ -542,6 +559,38 @@ const getInstanceStatusText = (instance: any) => {
     default:
       return t('activitypub.lastSeenLongAgo', 'Idle');
   }
+};
+
+const PLATFORM_EMOJI: Record<string, string> = {
+  mastodon: '\uD83D\uDC18',
+  misskey: '\u2B50',
+  pleroma: '\uD83D\uDD35',
+  akkoma: '\uD83D\uDD35',
+  gotosocial: '\uD83D\uDC3F\uFE0F',
+  pixelfed: '\uD83D\uDCF7',
+  lemmy: '\uD83D\uDC2D',
+  harmony: '\uD83D\uDC3B\u200D\u2744\uFE0F',
+  peertube: '\uD83C\uDFAC',
+  funkwhale: '\uD83C\uDFB5',
+  writefreely: '\u270D\uFE0F',
+  bookwyrm: '\uD83D\uDCDA',
+};
+
+const getPlatformEmoji = (software?: string): string => {
+  if (!software) return '\uD83C\uDF10';
+  const key = software.toLowerCase().replace(/[^a-z]/g, '');
+  for (const [platform, emoji] of Object.entries(PLATFORM_EMOJI)) {
+    if (key.includes(platform)) return emoji;
+  }
+  return '\uD83C\uDF10';
+};
+
+const getInstanceIcon = (instance: any): string | null => {
+  return instance.metadata?.icon_url || null;
+};
+
+const getInstanceBanner = (instance: any): string | null => {
+  return instance.metadata?.banner_url || null;
 };
 
 const formatNumber = (num: number): string => {
@@ -1045,6 +1094,33 @@ defineExpose({ refreshContent });
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.instance-card.has-banner {
+  padding-top: 80px;
+}
+
+.instance-card-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+.instance-card-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.15) 0%,
+    var(--background-secondary) 100%
+  );
 }
 
 .instance-card:hover {
@@ -1057,6 +1133,8 @@ defineExpose({ refreshContent });
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .instance-card-icon {
@@ -1070,6 +1148,19 @@ defineExpose({ refreshContent });
   border-radius: 10px;
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.instance-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9px;
+}
+
+.instance-platform-emoji {
+  font-size: 22px;
+  line-height: 1;
 }
 
 .instance-card-meta {
@@ -1158,6 +1249,8 @@ defineExpose({ refreshContent });
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .instance-card-stats {
@@ -1166,6 +1259,8 @@ defineExpose({ refreshContent });
   gap: 16px;
   font-size: 0.8125rem;
   color: var(--text-secondary);
+  position: relative;
+  z-index: 1;
 }
 
 .instance-stat {
@@ -1182,6 +1277,8 @@ defineExpose({ refreshContent });
   padding-top: 12px;
   border-top: 1px solid var(--border-color);
   margin-top: 2px;
+  position: relative;
+  z-index: 1;
 }
 
 .instance-last-seen {

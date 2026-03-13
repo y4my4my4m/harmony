@@ -37,9 +37,9 @@ async function getInstanceConfig(supabase: any) {
   const { data } = await supabase
     .from('instance_config')
     .select('config_key, config_value')
-    .in('config_key', ['instance_name', 'instance_description', 'open_registration']);
+    .in('config_key', ['instance_name', 'instance_description', 'open_registration', 'instance_icon', 'instance_banner']);
 
-  const cfg: Record<string, string> = {};
+  const cfg: Record<string, any> = {};
   data?.forEach((row: any) => {
     try {
       cfg[row.config_key] = JSON.parse(row.config_value);
@@ -52,6 +52,8 @@ async function getInstanceConfig(supabase: any) {
     name: cfg.instance_name || config.INSTANCE_NAME,
     description: cfg.instance_description || config.INSTANCE_DESCRIPTION,
     openRegistrations: cfg.open_registration !== 'false' && cfg.open_registration !== false,
+    icon: cfg.instance_icon || undefined,
+    banner: cfg.instance_banner || undefined,
   };
 }
 
@@ -98,6 +100,8 @@ router.get(
       metadata: {
         nodeName: instanceCfg.name,
         nodeDescription: instanceCfg.description,
+        ...(instanceCfg.icon && { icon: instanceCfg.icon }),
+        ...(instanceCfg.banner && { banner: instanceCfg.banner }),
       },
     });
   })
@@ -151,6 +155,8 @@ router.get(
       metadata: {
         nodeName: instanceCfg.name,
         nodeDescription: instanceCfg.description,
+        ...(instanceCfg.icon && { icon: instanceCfg.icon }),
+        ...(instanceCfg.banner && { banner: instanceCfg.banner }),
         features: [
           'discord_like_servers',
           'voice_chat',

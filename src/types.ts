@@ -6,12 +6,12 @@ export interface Server {
   description: string;
   owner: string;
   icon: string;
+  banner?: string;
   allow_cross_server_emojis: boolean;
   public: boolean;
   federation_enabled?: boolean;
   is_local_server?: boolean;
   created_at?: string;
-  // Folder organization (from user_servers join)
   folder_id?: string | null;
   position?: number;
 }

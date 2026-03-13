@@ -316,11 +316,15 @@ export function useContentRenderer(
           
           const sizeClass = isSingleEmoji.value ? 'single' : '';
           
-          // Check if this is a native/unified emoji (has unicode but no server URL)
-          const isServerEmoji = emoji.url && (emoji.url.includes('/storage/v1/') || emoji.url.includes('/object/public/emojis/'));
+          // Check if this is a custom emoji with a URL (server-local or federated remote)
+          const hasCustomUrl = emoji.url && (
+            emoji.url.startsWith('http://') ||
+            emoji.url.startsWith('https://') ||
+            emoji.url.includes('/storage/v1/') ||
+            emoji.url.includes('/object/public/emojis/')
+          );
           
-          if (isServerEmoji) {
-            // Server custom emoji - use URL
+          if (hasCustomUrl) {
             const url = getEmojiUrl(emoji.url, 96);
             return `<img src="${url}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
           }

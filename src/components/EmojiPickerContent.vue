@@ -13,6 +13,48 @@
 
     <!-- Emoji Content Area -->
     <div class="emoji-content">
+      <!-- Favorite Emojis -->
+      <div v-if="showFavorites && !searchQuery" class="emoji-section">
+        <h3 class="section-title">&#11088; Favorites</h3>
+        <div v-if="favoriteEmojis.length" class="emoji-list favorite-list">
+          <div
+            v-for="fav in favoriteEmojis"
+            :key="fav.emoji_id"
+            class="emoji-item emoji-fav-item"
+            :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
+            @click="selectFavoriteEmoji(fav)"
+            @pointerenter="hoveredEmojiName = fav.emoji_name"
+            @pointerleave="hoveredEmojiName = null"
+          >
+            <img
+              v-if="fav.emoji_url"
+              :src="getEmojiUrl(fav.emoji_url, 42)"
+              :alt="fav.emoji_name"
+              class="frequent-emoji-img"
+            />
+            <img
+              v-else-if="!isNativePack && getFavoriteSvgUrl(fav)"
+              :src="getFavoriteSvgUrl(fav)!"
+              :alt="fav.emoji_name"
+              class="frequent-emoji-img"
+            />
+            <span v-else class="native-emoji-char">{{ fav.emoji_id }}</span>
+            <button
+              class="emoji-fav-badge remove"
+              @click.stop="removeFavoriteEmoji(fav.emoji_id)"
+              title="Remove from favorites"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div v-else class="no-favorites-hint">
+          <p>No favorites yet. Right-click an emoji to add it.</p>
+        </div>
+      </div>
+
       <!-- Frequently Used Emojis -->
       <div v-if="!searchQuery && hasFrequentEmojis" class="emoji-section">
         <h3 class="section-title">⏱️ Frequently Used</h3>
@@ -23,6 +65,7 @@
             class="emoji-item"
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
             @click="selectFrequentEmoji(emoji)"
+            @contextmenu.prevent="toggleFavoriteFrequent(emoji)"
             @pointerenter="hoveredEmojiName = emoji.name"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -54,6 +97,7 @@
               :key="emoji.id"
               class="emoji-item"
               @click="selectEmoji(emoji)"
+              @contextmenu.prevent="toggleFavoriteServer(emoji)"
               @pointerenter="hoveredEmojiName = emoji.display_name"
               @pointerleave="hoveredEmojiName = null"
             >
@@ -84,6 +128,7 @@
             class="emoji-item"
             :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
             @click="selectUnifiedEmoji(emoji)"
+            @contextmenu.prevent="toggleFavoriteUnified(emoji)"
             @pointerenter="hoveredEmojiName = emoji.shortcode"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -122,6 +167,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
+import { emojiFavoriteService, type EmojiFavorite } from '@/services/EmojiFavoriteService';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { EMOJI_CATEGORIES } from '@/utils/emojiConstants';
@@ -144,9 +190,15 @@ interface DisplayCategory {
   emojis: EmojiEntry[];
 }
 
+// Props
+const props = defineProps<{
+  showFavorites?: boolean;
+}>();
+
 // Emits
 const emit = defineEmits<{
   (e: 'sendEmoji', emoji: Emoji): void;
+  (e: 'update:showFavorites', value: boolean): void;
 }>();
 
 // State & Composables
@@ -167,6 +219,8 @@ const {
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const hoveredEmojiName = ref<string | null>(null);
+const favoriteEmojis = ref<EmojiFavorite[]>([]);
+const showFavorites = computed(() => props.showFavorites ?? false);
 
 // Computed: Filtered emoji list
 const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
@@ -369,6 +423,54 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
   }
 };
 
+// Favorites
+async function loadFavorites() {
+  favoriteEmojis.value = await emojiFavoriteService.getFavorites();
+}
+
+function getFavoriteSvgUrl(fav: EmojiFavorite): string | null {
+  if (isNativePack.value) return null;
+  if (fav.emoji_url) return null;
+  const resolved = resolveEmoji(fav.emoji_id);
+  return resolved.display.type === 'svg' ? resolved.display.content : null;
+}
+
+function selectFavoriteEmoji(fav: EmojiFavorite) {
+  triggerReaction();
+  recordEmojiUsage({ id: fav.emoji_id, name: fav.emoji_name, url: fav.emoji_url || undefined });
+  emit('sendEmoji', {
+    id: fav.emoji_id,
+    name: fav.emoji_name,
+    url: fav.emoji_url || '',
+    created_at: new Date(),
+    uploader: '',
+    server_id: fav.emoji_server_id || ''
+  } as Emoji);
+}
+
+async function removeFavoriteEmoji(emojiId: string) {
+  await emojiFavoriteService.removeFavorite(emojiId);
+  favoriteEmojis.value = favoriteEmojis.value.filter(f => f.emoji_id !== emojiId);
+}
+
+async function toggleFavoriteUnified(emoji: EmojiEntry) {
+  const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
+  if (result.isFavorite || !result.isFavorite) await loadFavorites();
+}
+
+async function toggleFavoriteServer(emoji: ResolvedEmoji) {
+  const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
+  await emojiFavoriteService.toggleFavorite(emoji.id, emoji.name, url, emoji.server_id || null);
+  await loadFavorites();
+}
+
+async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name: string; url?: string }) {
+  const emojiId = emoji.native || emoji.id;
+  const url = getFrequentEmojiDisplayUrl(emoji);
+  await emojiFavoriteService.toggleFavorite(emojiId, emoji.name, url, null);
+  await loadFavorites();
+}
+
 // Lifecycle
 onMounted(async () => {
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader');
@@ -382,6 +484,9 @@ onMounted(async () => {
     });
   }
   
+  emojiFavoriteService.initializeCache();
+  loadFavorites();
+
   nextTick(() => {
     searchInput.value?.focus();
   });
@@ -570,6 +675,48 @@ onMounted(async () => {
 .no-results small {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* Favorites */
+.favorite-list {
+  grid-template-columns: repeat(auto-fill, 36px);
+}
+
+.emoji-fav-item {
+  position: relative;
+}
+
+.emoji-fav-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-danger, #e74c3c);
+  color: white;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.emoji-fav-item:hover .emoji-fav-badge {
+  display: flex;
+}
+
+.no-favorites-hint {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.no-favorites-hint p {
+  margin: 0;
 }
 
 /* Scrollbar styling */

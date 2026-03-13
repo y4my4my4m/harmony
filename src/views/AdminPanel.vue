@@ -1066,6 +1066,86 @@
                 Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
               </span>
             </div>
+
+            <div class="setting-group">
+              <label>Instance Icon</label>
+              <div class="instance-appearance-row">
+                <div
+                  class="instance-icon-preview"
+                  @click="($refs.instanceIconInput as HTMLInputElement)?.click()"
+                >
+                  <img
+                    v-if="instanceIconPreviewUrl"
+                    :src="instanceIconPreviewUrl"
+                    alt="Instance icon"
+                    class="instance-icon-img"
+                  />
+                  <Icon v-else name="image" :size="24" />
+                </div>
+                <div class="instance-appearance-controls">
+                  <button type="button" class="save-btn" @click="($refs.instanceIconInput as HTMLInputElement)?.click()">
+                    Upload Icon
+                  </button>
+                  <button
+                    v-if="instanceConfig.iconUrl || instanceIconFile"
+                    type="button"
+                    class="save-btn"
+                    style="background: #ed4245;"
+                    @click="instanceIconFile = null; instanceConfig.iconUrl = ''; instanceBrandingChanged = true"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+              <input
+                ref="instanceIconInput"
+                type="file"
+                accept="image/*"
+                style="display: none;"
+                @change="handleInstanceIconChange"
+              />
+              <span class="setting-hint">
+                Your instance's logo. Shown to other federated instances and in the instances directory. Defaults to the Harmony logo.
+              </span>
+            </div>
+
+            <div class="setting-group">
+              <label>Instance Banner</label>
+              <div
+                class="instance-banner-preview"
+                :style="instanceBannerPreviewUrl ? { backgroundImage: `url(${instanceBannerPreviewUrl})` } : {}"
+                @click="($refs.instanceBannerInput as HTMLInputElement)?.click()"
+              >
+                <div v-if="!instanceBannerPreviewUrl" class="instance-banner-placeholder">
+                  <Icon name="image" :size="20" />
+                  <span>Click to upload banner</span>
+                </div>
+                <div v-else class="instance-banner-overlay">
+                  <span>Change banner</span>
+                </div>
+              </div>
+              <div v-if="instanceConfig.bannerUrl || instanceBannerFile" style="margin-top: 8px;">
+                <button
+                  type="button"
+                  class="save-btn"
+                  style="background: #ed4245;"
+                  @click="instanceBannerFile = null; instanceConfig.bannerUrl = ''; instanceBrandingChanged = true"
+                >
+                  Remove Banner
+                </button>
+              </div>
+              <input
+                ref="instanceBannerInput"
+                type="file"
+                accept="image/*"
+                style="display: none;"
+                @change="handleInstanceBannerChange"
+              />
+              <span class="setting-hint">
+                A hero image for your instance. Shown in the instances directory and exposed via NodeInfo.
+              </span>
+            </div>
+
             <button 
               @click="saveInstanceBranding" 
               class="save-btn" 
@@ -1919,8 +1999,12 @@ const instanceConfig = ref({
   termsUrl: '',
   privacyUrl: '',
   openRegistration: true,
-  approvalRequired: false
+  approvalRequired: false,
+  iconUrl: '',
+  bannerUrl: '',
 })
+const instanceIconFile = ref<File | null>(null)
+const instanceBannerFile = ref<File | null>(null)
 
 // OAuth provider configuration
 const oauthProviders = ref({
@@ -2330,7 +2414,9 @@ const loadInstanceConfig = async () => {
         termsUrl: cfg.instance.termsUrl || '',
         privacyUrl: cfg.instance.privacyUrl || '',
         openRegistration: cfg.instance.registrationOpen ?? true,
-        approvalRequired: cfg.instance.requiresApproval ?? false
+        approvalRequired: cfg.instance.requiresApproval ?? false,
+        iconUrl: cfg.instance.iconUrl || '',
+        bannerUrl: cfg.instance.bannerUrl || '',
       }
       
       // Load OAuth providers
@@ -3095,6 +3181,54 @@ const saveConfig = async () => {
   }
 }
 
+const instanceIconPreviewUrl = computed(() => {
+  if (instanceIconFile.value) return URL.createObjectURL(instanceIconFile.value)
+  if (instanceConfig.value.iconUrl) {
+    if (instanceConfig.value.iconUrl.startsWith('http')) return instanceConfig.value.iconUrl
+    const { data } = supabase.storage.from('server_icons').getPublicUrl(instanceConfig.value.iconUrl)
+    return data.publicUrl
+  }
+  return null
+})
+
+const instanceBannerPreviewUrl = computed(() => {
+  if (instanceBannerFile.value) return URL.createObjectURL(instanceBannerFile.value)
+  if (instanceConfig.value.bannerUrl) {
+    if (instanceConfig.value.bannerUrl.startsWith('http')) return instanceConfig.value.bannerUrl
+    const { data } = supabase.storage.from('server_banners').getPublicUrl(instanceConfig.value.bannerUrl)
+    return data.publicUrl
+  }
+  return null
+})
+
+const handleInstanceIconChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file && file.size > 5 * 1024 * 1024) {
+    toast.error('Icon file too large (max 5MB)')
+    return
+  }
+  if (file) {
+    instanceIconFile.value = file
+    instanceBrandingChanged.value = true
+  }
+  if (input) input.value = ''
+}
+
+const handleInstanceBannerChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file && file.size > 10 * 1024 * 1024) {
+    toast.error('Banner file too large (max 10MB)')
+    return
+  }
+  if (file) {
+    instanceBannerFile.value = file
+    instanceBrandingChanged.value = true
+  }
+  if (input) input.value = ''
+}
+
 const saveInstanceBranding = async () => {
   if (!authStore.session?.user?.id) {
     toast.error('You must be logged in to save instance branding')
@@ -3133,6 +3267,46 @@ const saveInstanceBranding = async () => {
       instanceConfig.value.privacyUrl,
       authStore.session.user.id,
       'URL to the Privacy Policy page'
+    )
+
+    // Upload and save instance icon
+    if (instanceIconFile.value) {
+      const ext = instanceIconFile.value.name.split('.').pop()
+      const filePath = `instance/instance_icon.${ext}`
+      const { error: uploadErr } = await supabase.storage
+        .from('server_icons')
+        .upload(filePath, instanceIconFile.value, { upsert: true })
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from('server_icons').getPublicUrl(filePath)
+        instanceConfig.value.iconUrl = urlData.publicUrl
+        instanceIconFile.value = null
+      }
+    }
+    await adminService.setInstanceConfig(
+      'instance_icon',
+      instanceConfig.value.iconUrl,
+      authStore.session.user.id,
+      'Instance icon URL (shown to federated instances)'
+    )
+
+    // Upload and save instance banner
+    if (instanceBannerFile.value) {
+      const ext = instanceBannerFile.value.name.split('.').pop()
+      const filePath = `instance/instance_banner.${ext}`
+      const { error: uploadErr } = await supabase.storage
+        .from('server_banners')
+        .upload(filePath, instanceBannerFile.value, { upsert: true })
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from('server_banners').getPublicUrl(filePath)
+        instanceConfig.value.bannerUrl = urlData.publicUrl
+        instanceBannerFile.value = null
+      }
+    }
+    await adminService.setInstanceConfig(
+      'instance_banner',
+      instanceConfig.value.bannerUrl,
+      authStore.session.user.id,
+      'Instance banner URL (shown to federated instances)'
     )
 
     instanceBrandingChanged.value = false
@@ -4901,6 +5075,91 @@ const handleAddInstance = () => {
   font-weight: 600;
   margin-bottom: 16px;
   color: var(--text-primary);
+}
+
+/* Instance appearance (icon/banner) */
+.instance-appearance-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.instance-icon-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: var(--background-tertiary);
+  border: 2px dashed var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+  color: var(--text-secondary);
+}
+
+.instance-icon-preview:hover {
+  border-color: var(--harmony-primary);
+}
+
+.instance-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.instance-appearance-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.instance-banner-preview {
+  width: 100%;
+  height: 100px;
+  border-radius: 8px;
+  background: var(--background-tertiary);
+  background-size: cover;
+  background-position: center;
+  border: 2px dashed var(--border-color);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.instance-banner-preview:hover {
+  border-color: var(--harmony-primary);
+}
+
+.instance-banner-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.instance-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.instance-banner-preview:hover .instance-banner-overlay {
+  opacity: 1;
 }
 
 .save-btn {

@@ -18,14 +18,14 @@
     <div class="no-messages" v-else-if="!isLoading && messages.length === 0">
       {{ $t('message.noMessagesHere') }}
     </div>
-    <!-- Loading older messages indicator -->
-    <div v-if="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
+    <!-- Sentinel for auto-loading older messages when the top is visible -->
+    <div ref="topSentinelRef" class="top-sentinel"></div>
+
+    <!-- Loading older messages indicator (v-show to avoid layout shifts) -->
+    <div v-show="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
       <div class="loading-spinner"></div>
       <span>{{ $t('message.loadingOlder') }}</span>
     </div>
-
-    <!-- Sentinel for auto-loading older messages when the top is visible -->
-    <div ref="topSentinelRef" class="top-sentinel"></div>
     
     <!-- Virtual scrolled message list -->
     <div v-if="displayItems.length > 0" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
@@ -1862,7 +1862,7 @@ const setupTopSentinelObserver = () => {
         props.loadMoreMessages();
       }
     },
-    { root: messageDisplayContainer.value, threshold: 0, rootMargin: '600px 0px 0px 0px' }
+    { root: messageDisplayContainer.value, threshold: 0, rootMargin: '300px 0px 0px 0px' }
   );
   topSentinelObserver.observe(topSentinelRef.value);
 };
@@ -1975,8 +1975,8 @@ const handleScroll = throttle(() => {
   
   if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
   
-  // Prefetch when near top (within 800px) instead of only at scrollTop === 0
-  if (scrollTop < 800 && hasScrollbar.value) {
+  // Prefetch when near top (within 400px)
+  if (scrollTop < 400 && hasScrollbar.value) {
     if (!isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
       props.loadMoreMessages();
     }
@@ -3495,9 +3495,11 @@ defineExpose({ editLastOwnMessage });
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 20px;
+  padding: 12px;
+  height: 44px;
+  box-sizing: border-box;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .loading-spinner {

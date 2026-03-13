@@ -13,6 +13,30 @@
 
     <!-- Emoji Content Area -->
     <div class="emoji-content">
+      <!-- Favorite Emojis -->
+      <div v-if="!searchQuery && favoriteEmojis.length > 0" class="emoji-section">
+        <h3 class="section-title">&#11088; Favorites</h3>
+        <div class="emoji-list frequent-list">
+          <div
+            v-for="fav in favoriteEmojis"
+            :key="fav.emoji_id"
+            class="emoji-item"
+            :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
+            @click="selectFavoriteEmoji(fav)"
+            @pointerenter="hoveredEmojiName = fav.emoji_name"
+            @pointerleave="hoveredEmojiName = null"
+          >
+            <img
+              v-if="fav.emoji_url"
+              :src="getEmojiUrl(fav.emoji_url, 42)"
+              :alt="fav.emoji_name"
+              class="frequent-emoji-img"
+            />
+            <span v-else class="native-emoji-char">{{ fav.emoji_id }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Frequently Used Emojis -->
       <div v-if="!searchQuery && hasFrequentEmojis" class="emoji-section">
         <h3 class="section-title">⏱️ Frequently Used</h3>
@@ -23,6 +47,7 @@
             class="emoji-item"
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
             @click="selectFrequentEmoji(emoji)"
+            @contextmenu.prevent="toggleFavoriteFrequent(emoji)"
             @pointerenter="hoveredEmojiName = emoji.name"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -54,6 +79,7 @@
               :key="emoji.id"
               class="emoji-item"
               @click="selectEmoji(emoji)"
+              @contextmenu.prevent="toggleFavoriteServer(emoji)"
               @pointerenter="hoveredEmojiName = emoji.display_name"
               @pointerleave="hoveredEmojiName = null"
             >
@@ -84,6 +110,7 @@
             class="emoji-item"
             :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
             @click="selectUnifiedEmoji(emoji)"
+            @contextmenu.prevent="toggleFavoriteUnified(emoji)"
             @pointerenter="hoveredEmojiName = emoji.shortcode"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -123,6 +150,7 @@ import { usePopupPositioning } from '@/composables/usePopupPositioning';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
+import { emojiFavoriteService, type EmojiFavorite } from '@/services/EmojiFavoriteService';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { EMOJI_CATEGORIES, CATEGORY_ORDER } from '@/utils/emojiConstants';
@@ -200,6 +228,7 @@ const emojiPopup = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const hoveredEmojiName = ref<string | null>(null);
+const favoriteEmojis = ref<EmojiFavorite[]>([]);
 
 // --- Composables ---
 
@@ -509,6 +538,43 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 
 // --- Lifecycle Hooks ---
 
+// Favorites
+async function loadFavorites() {
+  favoriteEmojis.value = await emojiFavoriteService.getFavorites();
+}
+
+function selectFavoriteEmoji(fav: EmojiFavorite) {
+  triggerReaction();
+  recordEmojiUsage({ id: fav.emoji_id, name: fav.emoji_name, url: fav.emoji_url || undefined });
+  emit('sendEmoji', {
+    id: fav.emoji_id,
+    name: fav.emoji_name,
+    url: fav.emoji_url || '',
+    created_at: new Date(),
+    uploader: '',
+    server_id: fav.emoji_server_id || ''
+  } as Emoji);
+  props.closeEmojiList?.();
+}
+
+async function toggleFavoriteUnified(emoji: EmojiEntry) {
+  await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
+  await loadFavorites();
+}
+
+async function toggleFavoriteServer(emoji: ResolvedEmoji) {
+  const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
+  await emojiFavoriteService.toggleFavorite(emoji.id, emoji.name, url, emoji.server_id || null);
+  await loadFavorites();
+}
+
+async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name: string; url?: string }) {
+  const emojiId = emoji.native || emoji.id;
+  const url = getFrequentEmojiDisplayUrl(emoji);
+  await emojiFavoriteService.toggleFavorite(emojiId, emoji.name, url, null);
+  await loadFavorites();
+}
+
 // Lazy load emoji data when popup is mounted (user opened emoji picker)
 onMounted(async () => {
   // ✅ Show popup immediately, load emojis in background (non-blocking)
@@ -517,6 +583,9 @@ onMounted(async () => {
   // Trigger emoji data loading in background (non-blocking)
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
   triggerEmojiDataLoad()
+  
+  emojiFavoriteService.initializeCache()
+  loadFavorites()
   
   // Also try to load unified emoji data if not already loaded (for picker display)
   // Load in background, don't await - popup should show immediately
