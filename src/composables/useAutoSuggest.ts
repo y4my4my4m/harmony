@@ -990,7 +990,15 @@ export function useAutoSuggest(
         }
       } else if (state.value.triggerType === 'mention') {
         if (finalConfig.mode === 'activitypub') {
-          insertText = (suggestion.handle || `@${suggestion.username}`) + ' '; // Add space after mention
+          // Use display form that matches what RichTextEditor renders as data-display-text:
+          //   local users  → @username        (no domain)
+          //   remote users → @username@domain
+          // This prevents cursor position mismatch when setCursorPosition walks the DOM.
+          if (suggestion.user?.is_local) {
+            insertText = `@${suggestion.username} `;
+          } else {
+            insertText = (suggestion.handle || `@${suggestion.username}`) + ' ';
+          }
           debug.log('🔧 ActivityPub mention insert:', {
             handle: suggestion.handle,
             username: suggestion.username,
