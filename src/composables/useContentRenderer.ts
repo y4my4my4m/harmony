@@ -284,9 +284,17 @@ export function useContentRenderer(
             .replace(/'/g, '&#039;');
           
           const dataAttrs = renderOptions.enableClickHandlers 
-            ? `data-user-id="${part.userId || ''}" data-handle="${escapedDisplayText}"` 
+            ? `data-user-id="${escapeHtml(String(part.userId || ''))}" data-handle="${escapedDisplayText}"` 
             : '';
-          
+          // Remote mentions: userId is the full profile URL (e.g. https://mastodon.social/users/bob)
+          // Use <a href="..."> so link works and right-click "open in new tab" goes to remote profile
+          const profileHref = part.userId && typeof part.userId === 'string' && /^https?:\/\//i.test(part.userId)
+            ? part.userId
+            : null;
+          const safeHref = profileHref ? escapeHtml(profileHref) : '';
+          if (profileHref && renderOptions.enableClickHandlers) {
+            return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="mention u-url" ${dataAttrs}>${escapedDisplayText}</a>`;
+          }
           return `<span class="mention" ${dataAttrs}>${escapedDisplayText}</span>`;
         }
         
