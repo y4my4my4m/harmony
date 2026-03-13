@@ -606,7 +606,6 @@ export function usePushNotifications() {
     
     // Methods
     initialize,
-    retryInitialize,
     subscribe,
     unsubscribe,
     deleteSubscription,
