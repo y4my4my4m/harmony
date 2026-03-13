@@ -253,9 +253,14 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
     })
 
     if (!response.ok) {
-      const data = await response.json()
-      debug.warn('Server unsubscribe failed:', data.error)
-      // Continue anyway since browser unsubscribe succeeded
+      const data = await response.json().catch(() => ({}))
+      const errMsg = data.message || data.error || `Server error ${response.status}`
+      // Surface 429 and other errors so user knows server still has the subscription
+      if (response.status === 429) {
+        error.value = errMsg
+        return { success: false, error: error.value }
+      }
+      debug.warn('Server unsubscribe failed:', errMsg)
     }
 
     debug.log('✅ Push notification unsubscribed')

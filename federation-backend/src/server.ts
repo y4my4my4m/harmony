@@ -64,34 +64,30 @@ export function createApp(): Application {
 
   app.use('/health', healthRouter);
 
+  // Push, link-preview, livekit, voice: mount BEFORE catch-all '/' routes.
+  // Otherwise these requests hit discoveryLimiter (30/min) and wrongly get "Too many discovery requests".
+  const pushWithLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const p = (req.originalUrl || req.path || '').split('?')[0];
+    if (req.method === 'GET') {
+      if (p.endsWith('/vapid-key') || p.endsWith('/status') || p.endsWith('/subscriptions')) return next();
+    }
+    if (req.method === 'POST' && p.endsWith('/test')) return next();
+    return pushLimiter(req, res, next);
+  };
+  app.use('/push', pushWithLimiter, pushRouter);
+  app.use('/api/federation/push', pushWithLimiter, pushRouter);
+  app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
+  app.use('/api/livekit', livekitRouter);
+  app.use('/voice', voiceRouter);
+  app.use('/api/federation/voice', voiceRouter);
+
   app.use('/', webFingerRouter);
   app.use('/', nodeInfoRouter);
   app.use('/', discoveryLimiter, actorRouter);
   app.use('/', inboxLimiter, inboxRouter);
   app.use('/', outboxRouter);
   app.use('/', inboxLimiter, groupRouter);
-
-  // Push must be before serverDiscoveryRouter — some proxies preserve /api/federation,
-  // so /api/federation/push/test would otherwise hit discoveryLimiter (wrong 429 message)
-  // Skip rate limit for cheap/safe endpoints. Abuse risk is low (test only hits user's own devices).
-  const pushWithLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const p = (req.originalUrl || req.path || '').split('?')[0];
-    // Exempt GETs: vapid-key, status, subscriptions (cheap reads)
-    if (req.method === 'GET') {
-      if (p.endsWith('/vapid-key') || p.endsWith('/status') || p.endsWith('/subscriptions')) {
-        return next();
-      }
-    }
-    // Exempt POST /test — sends only to user's own devices, low abuse risk
-    if (req.method === 'POST' && p.endsWith('/test')) return next();
-    return pushLimiter(req, res, next);
-  };
-  app.use('/push', pushWithLimiter, pushRouter);
-  app.use('/api/federation/push', pushWithLimiter, pushRouter);
   app.use('/', discoveryLimiter, serverDiscoveryRouter);
-  app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
-  app.use('/api/livekit', livekitRouter);
-  app.use('/', voiceRouter);
 
   app.use(notFound);
   app.use(errorHandler);

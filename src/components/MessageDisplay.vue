@@ -588,6 +588,7 @@ import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage a
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
+import { usePostReactionsStore } from '@/stores/postReactions';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 
 // --- PROPS & EMITS ---
@@ -623,6 +624,7 @@ const authStore = useAuthStore();
 const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
+const postReactionsStore = usePostReactionsStore();
 
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
 const revealedBlockedGroups = ref<Set<string>>(new Set());
@@ -1417,6 +1419,21 @@ watch(() => props.messages, (newMessages) => {
       reactionsStore.fetchMultipleMessageReactions(realMessageIds).catch(error => {
         debug.error('Error batch fetching reactions:', error);
       });
+    }
+
+    // Batch pre-fetch post reactions for harmony-post embeds (so MonyPost shows them immediately)
+    const embedPostIds = new Set<string>();
+    newMessages.forEach(msg => {
+      const embeds = msg.metadata?.embeds as Record<string, { provider?: string; harmony?: { postId?: string } }> | undefined;
+      if (!embeds) return;
+      Object.values(embeds).forEach(embed => {
+        if (embed?.provider === 'harmony-post' && embed.harmony?.postId) {
+          embedPostIds.add(embed.harmony.postId);
+        }
+      });
+    });
+    if (embedPostIds.size > 0) {
+      postReactionsStore.fetchMultiplePostReactions(Array.from(embedPostIds)).catch(() => {});
     }
   }
 

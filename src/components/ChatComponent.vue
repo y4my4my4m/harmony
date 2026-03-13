@@ -901,7 +901,7 @@
   }
   .encryption-status-tag {
     position: absolute;
-    bottom: 6px;
+    bottom: -18px;
     right: 16px;
     display: inline-flex;
     align-items: center;
