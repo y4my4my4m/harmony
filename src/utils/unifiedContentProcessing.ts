@@ -643,9 +643,10 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
       case 'mention': {
         // Build proper ActivityPub mention with h-card structure
         const currentDomain = import.meta.env.VITE_DOMAIN as string;
+        const username = (part.username || '').replace(/^@+/, ''); // prevent @@
         const domain = part.domain || currentDomain;
-        const href = `https://${domain}/users/${part.username}`;  // ✅ FIX: Use /users/ format
-        const displayName = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+        const href = `https://${domain}/users/${username}`;
+        const displayName = part.isLocal ? `@${username}` : `@${username}@${part.domain}`;
         return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
       }
       

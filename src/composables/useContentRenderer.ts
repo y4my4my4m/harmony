@@ -157,13 +157,14 @@ export function useContentRenderer(
   const formatMentionDisplay = (mention: MessagePart): string => {
     if (mention.type !== 'mention') return '';
     
-    // Use stored mention format if available (legacy support)
+    // Use stored mention format if available (legacy support) - normalize to avoid @@
     if (mention.mention) {
-      return mention.mention;
+      const m = String(mention.mention).replace(/^@+/, '@');
+      return m.startsWith('@') ? m : `@${m}`;
     }
     
-    // Build mention display from parts
-    const username = mention.username || 'unknown';
+    // Build mention display from parts - strip stray @ from username to prevent @@
+    const username = (mention.username || 'unknown').replace(/^@+/, '');
     const domain = mention.domain;
     const currentDomain = import.meta.env.VITE_DOMAIN as string;
     

@@ -168,14 +168,16 @@ export function noteToContent(note: any): any[] {
       }
       
       const isLocal = !domain || domain === currentDomain;
+      // Ensure username never has leading @ (prevents @@ in display)
+      const cleanUsername = actualUsername.replace(/^@+/, '');
       
       parts.push({
         type: 'mention',
-        username: actualUsername,
+        username: cleanUsername,
         domain: domain || currentDomain,
         isLocal,
-        userId: href || `remote-${actualUsername}`,
-        displayName: actualUsername
+        userId: href || `remote-${cleanUsername}`,
+        displayName: cleanUsername
       });
     }
     else if (tagPos.tag.type === 'Hashtag') {

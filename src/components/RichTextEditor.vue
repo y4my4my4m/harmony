@@ -488,11 +488,18 @@ const processMentionsInText = (text: string): DocumentFragment => {
       }
       fragment.appendChild(span);
     } else if (match[3]) {
-      // User mention
-      const username = match[4];
-      const domain = match[5];
-      const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
-      fragment.appendChild(mentionElement);
+      // User mention - but skip if match is at the end of text (likely in-progress autosuggest query)
+      // e.g. "@username test @use" - don't convert "@use" to a pill yet, let autosuggest trigger
+      if (matchEnd === text.length) {
+        const textNode = document.createTextNode(match[0].replace(/ /g, '\u00A0'));
+        fragment.appendChild(textNode);
+        lastIndex = matchStart; // Don't advance - we're leaving it as text, will be in remaining
+      } else {
+        const username = match[4];
+        const domain = match[5];
+        const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
+        fragment.appendChild(mentionElement);
+      }
     }
     
     lastIndex = matchEnd;
@@ -916,6 +923,24 @@ const handleKeyDown = (event: KeyboardEvent) => {
     return;
   }
   
+  // Fallback: emit cursor-position-changed on keydown for @ or mention/emoji chars.
+  // In some browsers, input doesn't fire when typing after contenteditable=false pills.
+  // nextTick runs after the key is inserted, so autosuggest gets the correct state.
+  const isTriggerChar = !event.isComposing &&
+    (event.key === '@' || event.key === ':' ||
+    (event.key.length === 1 && /[a-zA-Z0-9_+-]/.test(event.key)));
+  if (isTriggerChar && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    nextTick(() => {
+      if (!isRendering.value && editorRef.value) {
+        const sel = window.getSelection();
+        if (sel?.rangeCount && editorRef.value.contains(sel.getRangeAt(0).startContainer)) {
+          const pos = getCursorPosition();
+          emit('cursor-position-changed', pos);
+        }
+      }
+    });
+  }
+  
   emit('keydown', event);
 };
 
@@ -1033,6 +1058,7 @@ defineExpose({
   insertTextAtCursor,
   getCursorPosition,
   setCursorPosition,
+  getPlainText,
   renderContent,
   skipNextWatch // Expose this so MessageInput can set it
 });

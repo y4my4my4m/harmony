@@ -520,7 +520,12 @@ const handleContentUpdate = (newContent: string) => {
 
 const handleCursorPositionChanged = (position: number) => {
   if (richEditorRef.value) {
-    autoSuggest.handleInput(content.value, position);
+    // Use getPlainText from editor when available - ensures we have DOM state including
+    // mention spans (content.value can lag when typing after inserted mentions)
+    const text = typeof richEditorRef.value.getPlainText === 'function'
+      ? richEditorRef.value.getPlainText()
+      : content.value;
+    autoSuggest.handleInput(text ?? '', position);
   }
 };
 
