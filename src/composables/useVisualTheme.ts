@@ -236,6 +236,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary-alpha', '#1a1a1eaa')
     root.style.setProperty('--background-secondary-alpha', '#17181aaa')
     root.style.setProperty('--background-tertiary-alpha', '#121214aa')
+    root.style.setProperty('--background-senary', '#0a0b0d')
+    root.style.setProperty('--harmony-senary-alpha', '#0a0b0dc7')
   } else if (themeName === 'light') {
     root.style.setProperty('--h-chat', '#ffffff')
     root.style.setProperty('--h-chat-light', '#f6f6f7')
@@ -264,6 +266,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary-alpha', 'rgba(255, 255, 255, 0.85)')
     root.style.setProperty('--background-secondary-alpha', 'rgba(246, 246, 247, 0.85)')
     root.style.setProperty('--background-tertiary-alpha', 'rgba(242, 243, 245, 0.85)')
+    root.style.setProperty('--background-senary', '#2b2d31')
+    root.style.setProperty('--harmony-senary-alpha', 'rgba(43, 45, 49, 0.78)')
   } else if (themeName === 'midnight') {
     root.style.setProperty('--h-chat', '#1e2124')
     root.style.setProperty('--h-chat-light', '#25272a')
@@ -292,6 +296,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary-alpha', '#1e2124aa')
     root.style.setProperty('--background-secondary-alpha', '#13151aaa')
     root.style.setProperty('--background-tertiary-alpha', '#0f1012aa')
+    root.style.setProperty('--background-senary', '#0a0b0d')
+    root.style.setProperty('--harmony-senary-alpha', '#0a0b0dc7')
   }
   
   // Text colors
