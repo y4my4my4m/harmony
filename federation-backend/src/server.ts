@@ -73,8 +73,15 @@ export function createApp(): Application {
 
   // Push must be before serverDiscoveryRouter — some proxies preserve /api/federation,
   // so /api/federation/push/test would otherwise hit discoveryLimiter (wrong 429 message)
-  app.use('/push', pushLimiter, pushRouter);
-  app.use('/api/federation/push', pushLimiter, pushRouter);
+  // Skip rate limit for GET vapid-key (public, cheap) so users can always fetch it for subscribe
+  const pushWithLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method === 'GET' && req.path.endsWith('/vapid-key')) {
+      return next();
+    }
+    return pushLimiter(req, res, next);
+  };
+  app.use('/push', pushWithLimiter, pushRouter);
+  app.use('/api/federation/push', pushWithLimiter, pushRouter);
   app.use('/', discoveryLimiter, serverDiscoveryRouter);
   app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
   app.use('/api/livekit', livekitRouter);

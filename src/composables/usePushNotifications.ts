@@ -86,23 +86,39 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray
 }
 
+/** Result of fetchVapidKey - includes rate limit info when 429 */
+interface VapidFetchResult {
+  publicKey: string | null
+  rateLimited?: boolean
+  retryAfter?: number
+}
+
 /**
  * Fetch VAPID public key from server
  */
-async function fetchVapidKey(): Promise<string | null> {
+async function fetchVapidKey(): Promise<VapidFetchResult> {
   try {
     const response = await fetch(`${FEDERATION_BACKEND_URL}/push/vapid-key`)
-    
+
+    if (response.status === 429) {
+      const data = await response.json().catch(() => ({}))
+      return {
+        publicKey: null,
+        rateLimited: true,
+        retryAfter: data.retryAfter || 60
+      }
+    }
+
     if (!response.ok) {
       debug.warn('Push notifications not available on server')
-      return null
+      return { publicKey: null }
     }
-    
+
     const data = await response.json()
-    return data.publicKey || null
+    return { publicKey: data.publicKey || null }
   } catch (err) {
     debug.error('Failed to fetch VAPID key:', JSON.stringify(err))
-    return null
+    return { publicKey: null }
   }
 }
 
@@ -374,6 +390,16 @@ async function checkSubscriptionStatus(): Promise<void> {
 }
 
 /**
+ * Retry initialization (e.g. after 429). Resets init state so initialize() runs again.
+ */
+async function retryInitialize(): Promise<void> {
+  isInitialized = false
+  isInitializing = false
+  error.value = null
+  await initialize()
+}
+
+/**
  * Reset push notification state on logout.
  * Does NOT unsubscribe from the browser so the subscription can be
  * quickly re-associated when the same user logs back in.
@@ -457,7 +483,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
 /**
  * Initialize push notification system
  * Safe to call multiple times - will only initialize once
- * Only fetches VAPID key if running as PWA or user has existing subscription
+ * Always fetches VAPID key so the subscribe button works after removing all subscriptions
  */
 async function initialize(): Promise<void> {
   // Prevent duplicate initialization
@@ -467,6 +493,7 @@ async function initialize(): Promise<void> {
   }
   
   isInitializing = true
+  error.value = null
   
   try {
     // Check browser support
@@ -480,24 +507,14 @@ async function initialize(): Promise<void> {
     // Check permission status
     permission.value = Notification.permission
 
-    // Only fetch VAPID key if:
-    // 1. Running as installed PWA, OR
-    // 2. User already has a subscription (check first without VAPID key)
-    const isPWAInstalled = isPWA()
-    
-    // Check if user already has a subscription (this doesn't require VAPID key)
-    const existingSubscription = await getCurrentSubscription()
-    
-    if (!isPWAInstalled && !existingSubscription) {
-      debug.log('🔔 Push notifications: Not PWA and no existing subscription, skipping VAPID fetch')
-      // Still mark as initialized but don't fetch VAPID key
-      isInitialized = true
-      return
-    }
-
-    // Fetch VAPID key (only if PWA or has existing subscription)
+    // Always fetch VAPID key so subscribe works after user removed all subscriptions
     if (!vapidPublicKey.value) {
-      vapidPublicKey.value = await fetchVapidKey()
+      const result = await fetchVapidKey()
+      if (result.rateLimited) {
+        error.value = `Too many requests. Please wait ${result.retryAfter ?? 60} seconds and try again.`
+        return // Don't set isInitialized so retry will work
+      }
+      vapidPublicKey.value = result.publicKey
     }
     
     if (!vapidPublicKey.value) {
@@ -519,7 +536,7 @@ async function initialize(): Promise<void> {
       permission: permission.value,
       subscribed: isSubscribed.value,
       subscriptionCount: subscriptions.value.length,
-      isPWA: isPWAInstalled
+      isPWA: isPWA()
     })
   } finally {
     isInitializing = false
@@ -584,6 +601,7 @@ export function usePushNotifications() {
     
     // Methods
     initialize,
+    retryInitialize,
     subscribe,
     unsubscribe,
     deleteSubscription,
@@ -591,7 +609,8 @@ export function usePushNotifications() {
     fetchSubscriptions,
     sendTestNotification,
     checkSubscriptionStatus,
-    resetState
+    resetState,
+    retryInitialize
   }
 }
 
