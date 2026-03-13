@@ -10,7 +10,13 @@
       
       <div class="header-info">
         <h1 class="header-title">Post</h1>
-        <p v-if="threadInfo" class="header-meta">
+        <p v-if="isViewingRemotePost && originalInstanceDomain" class="header-meta">
+          From {{ originalInstanceDomain }}
+          <span v-if="threadInfo && threadInfo.totalPosts > 1">
+            · {{ threadInfo.totalPosts }} posts
+          </span>
+        </p>
+        <p v-else-if="threadInfo" class="header-meta">
           {{ threadInfo.totalPosts }} post{{ threadInfo.totalPosts !== 1 ? 's' : '' }}
           <span v-if="threadInfo.participantCount > 1">
             · {{ threadInfo.participantCount }} participant{{ threadInfo.participantCount !== 1 ? 's' : '' }}
@@ -19,6 +25,16 @@
       </div>
       
       <div class="header-actions">
+        <a
+          v-if="isViewingRemotePost && originalInstanceUrl"
+          :href="originalInstanceUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="action-btn view-original-btn"
+          :title="'View on ' + (originalInstanceDomain || 'original instance')"
+        >
+          <Icon name="external-link" />
+        </a>
         <button @click="sharePost" class="action-btn" title="Share">
           <Icon name="share" />
         </button>
@@ -30,6 +46,33 @@
             <button @click="copyPostLink" class="dropdown-item">
               <Icon name="link" :size="16" />
               <span>Copy link</span>
+            </button>
+            <a
+              v-if="isViewingRemotePost && originalInstanceUrl"
+              :href="originalInstanceUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="dropdown-item"
+              @click="showActionsMenu = false"
+            >
+              <Icon name="external-link" :size="16" />
+              <span>View on {{ originalInstanceDomain || 'original instance' }}</span>
+            </a>
+            <button
+              v-if="isViewingRemotePost && !isFetchingReactions"
+              @click="handleFetchReactions"
+              class="dropdown-item"
+            >
+              <Icon name="heart" :size="16" />
+              <span>Fetch reactions</span>
+            </button>
+            <button
+              v-if="isViewingRemotePost && !isFetchingReplies"
+              @click="handleFetchReplies"
+              class="dropdown-item"
+            >
+              <Icon name="message-circle" :size="16" />
+              <span>Fetch replies</span>
             </button>
             <button v-if="isOwnPost" @click="handleDeletePost" class="dropdown-item danger">
               <Icon name="trash" :size="16" />
@@ -156,8 +199,14 @@ const toast = useToast();
 // Resolved post ID (may come from props or remote resolution)
 const resolvedPostId = ref<string | null>(null);
 
-// Reconstruct the likely original URL for remote posts (for "view on original instance" link)
-const remoteOriginalUrl = computed(() => {
+const isViewingRemotePost = computed(() => {
+  if (!mainPost.value) return false;
+  return !mainPost.value.is_local && !!mainPost.value.ap_id;
+});
+
+const originalInstanceUrl = computed(() => {
+  if (mainPost.value?.url && !mainPost.value.is_local) return mainPost.value.url;
+  if (mainPost.value?.ap_id && !mainPost.value.is_local) return mainPost.value.ap_id;
   if (!props.remoteHandle || !props.remoteNoteId) return null;
   const cleaned = props.remoteHandle.replace(/^@/, '');
   const atIdx = cleaned.indexOf('@');
@@ -166,8 +215,19 @@ const remoteOriginalUrl = computed(() => {
   return `https://${domain}/notes/${props.remoteNoteId}`;
 });
 
+const originalInstanceDomain = computed(() => {
+  const url = originalInstanceUrl.value;
+  if (!url) return null;
+  try { return new URL(url).hostname; } catch { return null; }
+});
+
+// Keep old name for error-state template
+const remoteOriginalUrl = originalInstanceUrl;
+
 // Reactive state
 const isLoading = ref(true);
+const isFetchingReactions = ref(false);
+const isFetchingReplies = ref(false);
 const error = ref<string | null>(null);
 const postWithContext = ref<PostWithContext | null>(null);
 const showReplyComposer = ref(false);
@@ -303,6 +363,60 @@ const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
     }
   } catch (err) {
     debug.warn('[PostView] Failed to fetch remote replies:', err);
+  }
+};
+
+const handleFetchReactions = async () => {
+  showActionsMenu.value = false;
+  if (!mainPost.value?.ap_id || isFetchingReactions.value) return;
+  isFetchingReactions.value = true;
+  try {
+    const response = await fetch(`${activityPub.federationApiUrl}/fetch-reactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: mainPost.value.ap_id,
+        post_id: mainPost.value.id,
+      }),
+    });
+    if (response.ok) {
+      const result = await response.json();
+      toast.success(`Fetched ${result.count || 0} reactions`);
+      await loadPostWithContext();
+    } else {
+      toast.error('Failed to fetch reactions');
+    }
+  } catch {
+    toast.error('Failed to fetch reactions');
+  } finally {
+    isFetchingReactions.value = false;
+  }
+};
+
+const handleFetchReplies = async () => {
+  showActionsMenu.value = false;
+  if (!mainPost.value?.ap_id || isFetchingReplies.value) return;
+  isFetchingReplies.value = true;
+  try {
+    const response = await fetch(`${activityPub.federationApiUrl}/fetch-replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: mainPost.value.ap_id,
+        post_id: mainPost.value.id,
+      }),
+    });
+    if (response.ok) {
+      const result = await response.json();
+      toast.success(`Fetched ${result.count || 0} replies`);
+      await loadPostWithContext();
+    } else {
+      toast.error('Failed to fetch replies');
+    }
+  } catch {
+    toast.error('Failed to fetch replies');
+  } finally {
+    isFetchingReplies.value = false;
   }
 };
 
@@ -637,6 +751,15 @@ onMounted(loadPostWithContext);
 .action-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+a.action-btn {
+  text-decoration: none;
+}
+
+a.dropdown-item {
+  text-decoration: none;
+  color: var(--text-primary);
 }
 
 .more-actions-wrapper {

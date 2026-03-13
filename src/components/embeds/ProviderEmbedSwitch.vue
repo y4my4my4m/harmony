@@ -34,7 +34,7 @@
       <template v-else-if="isFediverse">
         <template v-if="payload.fediverse">
           <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
-            <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
+            <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" @refresh="handleEmbedLoad" />
             <div v-if="fediverseSourceUrl" class="fedi-source-link">
               <span class="fedi-source-badge" :title="fediversePlatformLabel">
                 <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
@@ -458,11 +458,8 @@ async function loadFediversePost() {
 }
 
 function handleEmbedLoad() {
-  if (!embedLoaded.value) {
-    embedLoaded.value = true;
-    emit('embed-loaded');
-  }
-  // Re-send listening event now that iframe content is loaded
+  embedLoaded.value = true;
+  emit('embed-loaded');
   if (props.payload.provider === 'youtube') {
     sendListeningEvent();
   }
@@ -477,45 +474,4 @@ function openLink() {
 }
 </script>
 
-<style scoped>
-.fedi-source-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 14px 8px;
-  font-size: 12px;
-  color: var(--text-secondary, #8b949e);
-  text-decoration: none;
-  border-top: 1px solid var(--border-color, rgba(48, 54, 61, 0.5));
-}
-
-.fedi-source-link:hover {
-  color: var(--harmony-primary, #58a6ff);
-}
-
-.fedi-source-badge {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-secondary, #8b949e);
-}
-
-.fedi-badge-icon {
-  font-size: 12px;
-  line-height: 1;
-}
-
-.fedi-badge-label {
-  white-space: nowrap;
-}
-
-.fedi-source-link__right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-</style>
 
