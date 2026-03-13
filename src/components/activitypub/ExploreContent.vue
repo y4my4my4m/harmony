@@ -891,6 +891,10 @@ defineExpose({ refreshContent });
   margin-top: 16px;
 }
 
+.trending-posts .mony-post {
+  background: var(--background-quaternary);
+}
+
 .section-title {
   display: flex;
   align-items: center;
