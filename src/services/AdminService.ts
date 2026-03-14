@@ -1524,244 +1524,31 @@ class AdminService {
   }
 
   /**
-   * Discover an instance by probing it directly
-   * Uses standard ActivityPub/Nodeinfo endpoints
+   * Discover an instance by proxying through the federation backend.
+   * This avoids CORS issues — browsers block direct cross-origin requests
+   * to remote fediverse servers that don't set Access-Control-Allow-Origin.
    */
   async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
     try {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-      debug.log(`Probing instance: ${cleanDomain}`);
-      
-      // Try Nodeinfo first (most universal)
-      const nodeinfoResult = await this.probeNodeinfo(cleanDomain);
+      debug.log(`Probing instance via backend proxy: ${cleanDomain}`);
 
-      // Try Mastodon API (may have icon/banner even if NodeInfo succeeded)
-      const mastodonResult = await this.probeMastodonAPI(cleanDomain);
+      const response = await fetch(`/api/federation/instances/probe?domain=${encodeURIComponent(cleanDomain)}`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(30000),
+      });
 
-      // Try ActivityPub actor endpoint
-      const actorResult = await this.probeActivityPubActor(cleanDomain);
-
-      // For Misskey-family instances, try their native API for icon/banner
-      const isMisskey = nodeinfoResult?.software?.toLowerCase()?.match(/misskey|calckey|firefish|sharkey|foundkey|iceshrimp/);
-      const misskeyResult = isMisskey ? await this.probeMisskeyAPI(cleanDomain) : null;
-
-      // Merge results: prefer NodeInfo for core info, enrich with Mastodon/Actor/Misskey for icons
-      const base = nodeinfoResult || mastodonResult || misskeyResult || actorResult;
-      if (!base) {
-        debug.log(`Could not discover instance: ${cleanDomain}`);
-        return null;
+      if (!response.ok) {
+        if (response.status === 404) {
+          debug.log(`Could not discover instance: ${cleanDomain}`);
+          return null;
+        }
+        throw new Error(`Probe failed: ${response.statusText}`);
       }
 
-      if (!base.icon_url) {
-        base.icon_url = misskeyResult?.icon_url || mastodonResult?.icon_url || actorResult?.icon_url;
-      }
-      if (!base.banner_url) {
-        base.banner_url = misskeyResult?.banner_url || mastodonResult?.banner_url || actorResult?.banner_url;
-      }
-      if (!base.description && misskeyResult?.description) {
-        base.description = misskeyResult.description;
-      }
-
-      return base;
+      return await response.json();
     } catch (error) {
       debug.warn(`Instance discovery failed for ${domain}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Probe instance using Nodeinfo (standard for Fediverse)
-   */
-  private async probeNodeinfo(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // First, get the nodeinfo location
-      const wellKnownResponse = await fetch(`https://${domain}/.well-known/nodeinfo`, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
-      
-      if (!wellKnownResponse.ok) return null;
-      
-      const wellKnown = await wellKnownResponse.json();
-      
-      // Find nodeinfo 2.0 or 2.1 URL
-      const nodeinfoUrl = wellKnown.links?.find((link: any) => 
-        link.rel?.includes('nodeinfo') && (link.rel.includes('2.0') || link.rel.includes('2.1'))
-      )?.href;
-      
-      if (!nodeinfoUrl) return null;
-      
-      // Fetch the actual nodeinfo
-      const nodeinfoResponse = await fetch(nodeinfoUrl, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
-      
-      if (!nodeinfoResponse.ok) return null;
-      
-      const nodeinfo = await nodeinfoResponse.json();
-      
-      return {
-        domain: domain,
-        software: nodeinfo.software?.name || 'unknown',
-        version: nodeinfo.software?.version,
-        description: nodeinfo.metadata?.nodeDescription || nodeinfo.metadata?.nodeName,
-        user_count: nodeinfo.usage?.users?.total || 0,
-        status_count: nodeinfo.usage?.localPosts || 0,
-        api_available: true,
-        federation_enabled: nodeinfo.openRegistrations !== false,
-        icon_url: nodeinfo.metadata?.icon || nodeinfo.metadata?.iconUrl || undefined,
-        banner_url: nodeinfo.metadata?.banner || nodeinfo.metadata?.bannerUrl || undefined,
-      };
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
-   * Probe instance using Mastodon API (works for Mastodon, Pleroma, Akkoma, etc)
-   */
-  private async probeMastodonAPI(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Try v2 first, then v1
-      for (const version of ['v2', 'v1']) {
-        try {
-          const response = await fetch(`https://${domain}/api/${version}/instance`, {
-            headers: { 'Accept': 'application/json' },
-            signal: AbortSignal.timeout(10000)
-          });
-          
-          if (response.ok) {
-            const instance = await response.json();
-            
-            // Extract icon: v2 has icon array, v1 may have thumbnail
-            let iconUrl: string | undefined;
-            if (instance.icon && Array.isArray(instance.icon) && instance.icon.length > 0) {
-              iconUrl = instance.icon[0]?.src || instance.icon[0]?.url;
-            } else if (instance.contact?.account?.avatar_static || instance.contact?.account?.avatar) {
-              iconUrl = instance.contact.account.avatar_static || instance.contact.account.avatar;
-            }
-
-            // Extract banner/thumbnail
-            let bannerUrl: string | undefined;
-            if (instance.thumbnail?.url) {
-              bannerUrl = instance.thumbnail.url;
-            } else if (typeof instance.thumbnail === 'string') {
-              bannerUrl = instance.thumbnail;
-            }
-
-            return {
-              domain: instance.domain || domain,
-              software: instance.source_url?.includes('mastodon') ? 'mastodon' : 
-                        instance.source_url?.includes('pleroma') ? 'pleroma' :
-                        instance.source_url?.includes('akkoma') ? 'akkoma' : 'mastodon-compatible',
-              version: instance.version,
-              description: instance.description || instance.short_description,
-              user_count: instance.stats?.user_count || instance.usage?.users?.active_month || 0,
-              status_count: instance.stats?.status_count || 0,
-              admin_contact: instance.contact?.email || instance.email,
-              api_available: true,
-              federation_enabled: true,
-              icon_url: iconUrl,
-              banner_url: bannerUrl,
-            };
-          }
-        } catch {
-          continue;
-        }
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
-   * Probe instance by checking if it has an ActivityPub actor
-   */
-  private async probeActivityPubActor(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Try WebFinger for the instance actor
-      const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:instance@${domain}`;
-      const response = await fetch(webfingerUrl, {
-        headers: { 'Accept': 'application/jrd+json, application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
-      
-      if (!response.ok) return null;
-
-      const result: InstanceSearchResult = {
-        domain: domain,
-        software: 'activitypub-compatible',
-        description: 'ActivityPub-compatible instance',
-        api_available: true,
-        federation_enabled: true
-      };
-
-      // Try to fetch the actual actor to get icon/image
-      try {
-        const webfinger = await response.json();
-        const actorLink = webfinger.links?.find((l: any) =>
-          l.rel === 'self' && l.type === 'application/activity+json'
-        );
-        if (actorLink?.href) {
-          const actorResp = await fetch(actorLink.href, {
-            headers: { 'Accept': 'application/activity+json, application/ld+json' },
-            signal: AbortSignal.timeout(10000)
-          });
-          if (actorResp.ok) {
-            const actor = await actorResp.json();
-            if (actor.icon?.url) result.icon_url = actor.icon.url;
-            else if (typeof actor.icon === 'string') result.icon_url = actor.icon;
-            if (actor.image?.url) result.banner_url = actor.image.url;
-            else if (typeof actor.image === 'string') result.banner_url = actor.image;
-            if (actor.summary) result.description = actor.summary;
-          }
-        }
-      } catch {
-        // Actor fetch is best-effort
-      }
-
-      return result;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
-   * Probe Misskey-family instances using their native POST /api/meta endpoint
-   */
-  private async probeMisskeyAPI(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      const response = await fetch(`https://${domain}/api/meta`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}',
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok) return null;
-
-      const meta = await response.json();
-
-      const resolveUrl = (url: string | null | undefined): string | undefined => {
-        if (!url) return undefined;
-        if (url.startsWith('http://') || url.startsWith('https://')) return url;
-        return `https://${domain}${url.startsWith('/') ? '' : '/'}${url}`;
-      };
-
-      return {
-        domain,
-        software: 'misskey',
-        version: meta.version,
-        description: meta.description || meta.name,
-        user_count: 0,
-        status_count: 0,
-        api_available: true,
-        federation_enabled: true,
-        icon_url: resolveUrl(meta.iconUrl),
-        banner_url: resolveUrl(meta.bannerUrl),
-      };
-    } catch {
       return null;
     }
   }

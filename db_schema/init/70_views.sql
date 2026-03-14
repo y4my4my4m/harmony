@@ -146,6 +146,9 @@ FROM public.federation_health fh;
 
 COMMENT ON VIEW public.federation_health_metrics IS 'View of federation health transformed to match frontend expectations';
 
+GRANT SELECT ON public.federation_health_metrics TO authenticated;
+GRANT SELECT ON public.federation_health_metrics TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- INSTANCE HEALTH VIEW - Overall instance health summary
 -- ---------------------------------------------------------------------------

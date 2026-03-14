@@ -33,6 +33,7 @@ import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
+import instanceProbeRouter from './routes/instanceProbe.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
 
@@ -89,6 +90,7 @@ export function createApp(): Application {
   app.use('/', outboxRouter);
   app.use('/', inboxLimiter, groupRouter);
   app.use('/', discoveryLimiter, serverDiscoveryRouter);
+  app.use('/', discoveryLimiter, instanceProbeRouter);
 
   app.use(notFound);
   app.use(errorHandler);

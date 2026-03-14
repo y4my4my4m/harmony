@@ -4442,7 +4442,7 @@ const handleAddInstance = () => {
 }
 
 .meta-tag.domain {
-  color: var(--harmony-primary-light, #7c8aff);
+  color: var(--harmony-primary, #7c8aff);
   background: rgba(124, 138, 255, 0.12);
 }
 

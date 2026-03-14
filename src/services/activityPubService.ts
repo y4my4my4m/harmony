@@ -653,32 +653,19 @@ export class ActivityPubService {
   }
 
   /**
-   * Probe instance health via nodeinfo. Used to determine if remote instance is reachable.
+   * Probe instance health via the federation backend proxy.
    * Returns 'online' if nodeinfo fetch succeeds, 'offline' otherwise.
    */
   async probeInstanceHealth(domain: string): Promise<'online' | 'offline'> {
     try {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-      const protocol = cleanDomain.includes('localhost') ? 'http' : 'https';
-      const wellKnownRes = await fetch(`${protocol}://${cleanDomain}/.well-known/nodeinfo`, {
+      const res = await fetch(`/api/federation/instances/health?domain=${encodeURIComponent(cleanDomain)}`, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000)
+        signal: AbortSignal.timeout(15000),
       });
-      if (!wellKnownRes.ok) return 'offline';
-
-      const wk = await wellKnownRes.json();
-      const nodeinfoUrl = wk.links?.find((l: any) =>
-        l.rel?.includes('nodeinfo') && (l.rel.includes('2.0') || l.rel.includes('2.1'))
-      )?.href;
-      if (!nodeinfoUrl) return 'offline';
-
-      const infoUrl = typeof nodeinfoUrl === 'string' ? nodeinfoUrl : '';
-      const url = infoUrl.startsWith('http') ? infoUrl : `${protocol}://${cleanDomain}${infoUrl.startsWith('/') ? '' : '/'}${infoUrl}`;
-      const res = await fetch(url, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000)
-      });
-      return res.ok ? 'online' : 'offline';
+      if (!res.ok) return 'offline';
+      const data = await res.json();
+      return data.status === 'online' ? 'online' : 'offline';
     } catch {
       return 'offline';
     }
