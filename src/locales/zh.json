@@ -591,7 +591,10 @@
       "developerMode": "开发者模式",
       "developerModeDescription": "启用开发人员功能和调试工具。",
       "hardwareAcceleration": "硬件加速",
-      "copyRawData": "复制原始数据"
+      "copyRawData": "复制原始数据",
+      "reportBugSection": "帮助",
+      "reportBug": "报告问题",
+      "reportBugDescription": "在 GitHub 上报告错误或请求新功能。"
     }
   },
   "navigation": {

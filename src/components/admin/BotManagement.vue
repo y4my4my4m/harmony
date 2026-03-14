@@ -1,7 +1,7 @@
 <template>
   <div class="bot-management">
     <div class="header">
-      <h2>🤖 Bot Management</h2>
+      <h2>Bot Management</h2>
       <button @click="showCreateModal = true" class="btn-primary">
         Create New Bot
       </button>
@@ -13,7 +13,6 @@
     </div>
     
     <div v-else-if="bots.length === 0" class="empty-state">
-      <div class="empty-icon">🤖</div>
       <h3>No Bots Yet</h3>
       <p>Create your first bot to automate tasks and integrate services</p>
       <button @click="showCreateModal = true" class="btn-primary">Create Bot</button>

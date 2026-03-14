@@ -1139,11 +1139,18 @@ class AdminService {
    */
   async updateInstanceTrust(instanceId: string, trusted: boolean, adminId: string): Promise<void> {
     try {
+      const { data: instance } = await supabase
+        .from('federated_instances')
+        .select('metadata')
+        .eq('id', instanceId)
+        .single();
+
       const { error } = await supabase
         .from('federated_instances')
-        .update({ 
+        .update({
           is_trusted: trusted,
           metadata: {
+            ...(instance?.metadata || {}),
             trust_updated_by: adminId,
             trust_updated_at: new Date().toISOString()
           }
@@ -1162,7 +1169,13 @@ class AdminService {
    */
   async updateInstanceBlock(instanceId: string, blocked: boolean, reason: string, adminId: string): Promise<void> {
     try {
-      const metadata = blocked ? {
+      const { data: instance } = await supabase
+        .from('federated_instances')
+        .select('metadata')
+        .eq('id', instanceId)
+        .single();
+
+      const blockFields = blocked ? {
         blocked_reason: reason,
         blocked_by: adminId,
         blocked_at: new Date().toISOString()
@@ -1176,7 +1189,10 @@ class AdminService {
         .from('federated_instances')
         .update({ 
           is_blocked: blocked,
-          metadata
+          metadata: {
+            ...(instance?.metadata || {}),
+            ...blockFields
+          }
         })
         .eq('id', instanceId);
 
@@ -1762,7 +1778,12 @@ class AdminService {
       const updatedInfo = await this.discoverInstance(instance.domain);
       
       if (updatedInfo) {
-        // Update the instance
+        // Count known remote actors from this instance's domain
+        const { count: actorCount } = await supabase
+          .from('ap_actor_cache')
+          .select('*', { count: 'exact', head: true })
+          .eq('domain', instance.domain);
+
         const { data, error } = await supabase
           .from('federated_instances')
           .update({
@@ -1772,11 +1793,15 @@ class AdminService {
             admin_contact: updatedInfo.admin_contact || instance.admin_contact,
             user_count: updatedInfo.user_count || instance.user_count,
             status_count: updatedInfo.status_count || instance.status_count,
+            connection_count: actorCount || 0,
             last_seen_at: new Date().toISOString(),
             metadata: {
               ...instance.metadata,
               last_refresh: new Date().toISOString(),
-              api_available: updatedInfo.api_available
+              api_available: updatedInfo.api_available,
+              federation_enabled: updatedInfo.federation_enabled ?? instance.metadata?.federation_enabled,
+              ...(updatedInfo.icon_url && { icon_url: updatedInfo.icon_url }),
+              ...(updatedInfo.banner_url && { banner_url: updatedInfo.banner_url }),
             }
           })
           .eq('id', instanceId)

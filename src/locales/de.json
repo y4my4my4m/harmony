@@ -591,7 +591,10 @@
       "developerMode": "Entwicklermodus",
       "developerModeDescription": "Entwicklerfunktionen und Debugging-Tools aktivieren.",
       "hardwareAcceleration": "Hardwarebeschleunigung",
-      "copyRawData": "Rohe Daten kopieren"
+      "copyRawData": "Rohe Daten kopieren",
+      "reportBugSection": "Hilfe",
+      "reportBug": "Bug melden",
+      "reportBugDescription": "GitHub öffnen, um einen Bug zu melden oder eine Funktion anzufragen."
     }
   },
   "navigation": {

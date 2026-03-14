@@ -1,7 +1,7 @@
 <template>
   <div class="server-bots-settings">
     <div class="settings-section">
-      <h2 class="section-title">🤖 Server Bots</h2>
+      <h2 class="section-title">Server Bots</h2>
       <p class="section-description">
         Add and manage bots in this server. Bots can automate tasks, moderate content, and integrate with external services.
       </p>

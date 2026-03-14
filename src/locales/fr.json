@@ -591,7 +591,10 @@
       "developerMode": "Mode développeur",
       "developerModeDescription": "Activer les fonctionnalités de développement et les outils de débogage.",
       "hardwareAcceleration": "Accélération matérielle",
-      "copyRawData": "Copier les données brutes"
+      "copyRawData": "Copier les données brutes",
+      "reportBugSection": "Aide",
+      "reportBug": "Signaler un bug",
+      "reportBugDescription": "Ouvrir GitHub pour signaler un bug ou demander une fonctionnalité."
     }
   },
   "navigation": {

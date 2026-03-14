@@ -586,7 +586,10 @@
       "developerMode": "Developer Mode",
       "developerModeDescription": "Enable developer features and debugging tools.",
       "hardwareAcceleration": "Hardware Acceleration",
-      "copyRawData": "Copy raw data"
+      "copyRawData": "Copy raw data",
+      "reportBugSection": "Help",
+      "reportBug": "Report a bug",
+      "reportBugDescription": "Open GitHub to report a bug or request a feature."
     }
   },
   "navigation": {
