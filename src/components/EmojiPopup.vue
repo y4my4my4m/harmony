@@ -847,7 +847,7 @@ watch(displayedCategories, (cats) => {
     }
     collapsedSections.value = s;
   }
-});
+}, { immediate: true });
 
 watch(
   () => props.emojiIconClicked,

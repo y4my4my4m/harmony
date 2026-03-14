@@ -307,12 +307,6 @@ class UserDataService extends EventTarget {
     
     debug.log(`😴 Auto-changing status to ${UserStatus[detail.status]} due to ${detail.reason} (${Math.round(detail.inactiveTime / 60000)}min)`)
     
-    // Store current status if it's manual
-    if (!this.wasManuallySet && userData.status !== UserStatus.Online) {
-      this.manualStatus = userData.status
-      this.wasManuallySet = true
-    }
-    
     await this.updateCurrentUserStatus(detail.status, false) // Don't mark as manual
   }
   

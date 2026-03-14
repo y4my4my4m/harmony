@@ -1584,19 +1584,22 @@ watch(() => props.messages, (newMessages) => {
             shouldBeAtBottom.value = false;
             const numPrepended = newMessages.length - prevCount;
             
-            // Find the virtual item that was previously first visible
+            // Find anchor: the item overlapping the viewport top
+            const scrollTopNow = messageDisplayContainer.value.scrollTop;
             const visibleItems = rowVirtualizer.value.getVirtualItems();
-            const firstVisibleItem = visibleItems.find(item => {
-              if (!messageDisplayContainer.value) return false;
-              return item.start >= messageDisplayContainer.value.scrollTop;
-            });
-            const previousVisibleIndex = firstVisibleItem?.index ?? 0;
+            let anchorItem = visibleItems.find(item => item.start + item.size > scrollTopNow);
+            if (!anchorItem && visibleItems.length) anchorItem = visibleItems[visibleItems.length - 1];
+            const previousVisibleIndex = anchorItem?.index ?? 0;
+            const offsetIntoAnchor = anchorItem ? scrollTopNow - anchorItem.start : 0;
             const targetIndex = previousVisibleIndex + numPrepended;
             
-            // Use the virtualizer to scroll to the shifted index
+            // Scroll to the shifted index, then restore sub-item offset
             const adjustScroll = (attempt = 0) => {
               if (!messageDisplayContainer.value) return;
               rowVirtualizer.value.scrollToIndex(targetIndex, { align: 'start' });
+              if (offsetIntoAnchor > 0) {
+                messageDisplayContainer.value.scrollTop += offsetIntoAnchor;
+              }
               if (attempt < 5) {
                 requestAnimationFrame(() => adjustScroll(attempt + 1));
               }
@@ -2465,7 +2468,10 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 };
 
 
-// Correct scroll position when an item above the viewport resizes
+// Correct scroll position when an item above the viewport resizes.
+// Uses an anchor-based approach: track the item at the viewport top before
+// the resize, then after re-measurement adjust scrollTop by only the change
+// in that anchor item's start offset (which reflects above-viewport growth).
 const correctScrollAfterResize = (callback: () => void) => {
   const container = messageDisplayContainer.value;
   if (!container) { callback(); return; }
@@ -2479,19 +2485,40 @@ const correctScrollAfterResize = (callback: () => void) => {
     return;
   }
   
-  // Save state before measurement
   const scrollTopBefore = container.scrollTop;
   const totalSizeBefore = rowVirtualizer.value.getTotalSize();
+
+  // Find anchor: the first item overlapping the viewport top
+  const items = rowVirtualizer.value.getVirtualItems();
+  let anchorItem = items.find(item => item.start + item.size > scrollTopBefore);
+  if (!anchorItem && items.length) anchorItem = items[items.length - 1];
+  const anchorIdx = anchorItem?.index;
+  const anchorStartBefore = anchorItem?.start;
   
   callback();
   
-  // After re-measurement, compensate for any size change above viewport
   nextTick(() => {
     requestAnimationFrame(() => {
-      if (!container) return;
-      const totalSizeAfter = rowVirtualizer.value.getTotalSize();
-      const delta = totalSizeAfter - totalSizeBefore;
-      if (delta !== 0 && !shouldBeAtBottom.value) {
+      if (!container || shouldBeAtBottom.value) return;
+
+      let delta = 0;
+
+      if (anchorIdx != null && anchorStartBefore != null) {
+        // Precise: only count the shift in the anchor's start position,
+        // which reflects size changes of items *above* the viewport.
+        const updatedItems = rowVirtualizer.value.getVirtualItems();
+        const updatedAnchor = updatedItems.find(item => item.index === anchorIdx);
+        if (updatedAnchor) {
+          delta = updatedAnchor.start - anchorStartBefore;
+        } else {
+          // Anchor no longer in virtual items — fall back to total size delta
+          delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
+        }
+      } else {
+        delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
+      }
+
+      if (Math.abs(delta) > 1) {
         container.scrollTop = scrollTopBefore + delta;
       }
     });

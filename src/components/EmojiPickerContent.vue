@@ -672,7 +672,7 @@ watch(displayedCategories, (cats) => {
     }
     collapsedSections.value = s;
   }
-});
+}, { immediate: true });
 
 // Lifecycle
 onMounted(async () => {

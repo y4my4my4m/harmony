@@ -447,6 +447,8 @@ CREATE TABLE IF NOT EXISTS public.emoji_favorites (
 
 CREATE INDEX IF NOT EXISTS idx_emoji_favorites_user ON public.emoji_favorites(user_id);
 
+GRANT SELECT, INSERT, DELETE ON public.emoji_favorites TO authenticated;
+
 COMMENT ON TABLE public.emoji_favorites IS 'User favorite emojis (unicode and custom)';
 
 -- ---------------------------------------------------------------------------

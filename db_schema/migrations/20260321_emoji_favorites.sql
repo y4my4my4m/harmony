@@ -30,6 +30,9 @@ DROP POLICY IF EXISTS "Users can delete own emoji favorites" ON public.emoji_fav
 CREATE POLICY "Users can delete own emoji favorites" ON public.emoji_favorites
     FOR DELETE USING (user_id = public.get_current_profile_id());
 
+-- Table-level privileges for PostgREST access
+GRANT SELECT, INSERT, DELETE ON public.emoji_favorites TO authenticated;
+
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;

@@ -183,7 +183,7 @@ export function useFloatingVideo() {
     message.textContent = '📹 Video is floating'
     placeholder.appendChild(message)
     
-    // Insert placeholder before the element
+    // Insert placeholder where the element currently is
     element.parentNode?.insertBefore(placeholder, element)
 
     currentFloatingVideo.value = {
@@ -205,6 +205,10 @@ export function useFloatingVideo() {
       x: windowWidth - videoWidth - 20,
       y: 80
     }
+
+    // Move element out of the virtual scroller to document.body so it
+    // survives row unmounting by the virtualizer
+    document.body.appendChild(element)
 
     // Add floating class to element
     element.classList.add('floating-video')
@@ -281,8 +285,10 @@ export function useFloatingVideo() {
       }
     }
 
-    // Remove placeholder
+    // Move element back to its original position (before placeholder) since
+    // it was reparented to document.body when floating started
     if (placeholder && placeholder.parentNode) {
+      placeholder.parentNode.insertBefore(element, placeholder)
       placeholder.parentNode.removeChild(placeholder)
     }
 
