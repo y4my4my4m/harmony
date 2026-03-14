@@ -417,6 +417,13 @@ onMounted(() => {
 .instance-detail-modal :deep(.modal-container) {
   max-width: 560px;
   width: 92vw;
+  border: none;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.instance-detail-modal :deep(.modal-container::before) {
+  display: none;
 }
 
 .instance-detail-modal :deep(.modal-content) {
@@ -425,10 +432,6 @@ onMounted(() => {
   max-height: min(85vh, 720px);
   display: flex;
   flex-direction: column;
-}
-
-.instance-detail-modal :deep(.modal-overlay) {
-  padding: 0;
 }
 
 .instance-detail-layout {

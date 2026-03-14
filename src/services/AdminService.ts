@@ -255,6 +255,50 @@ class AdminService {
   }
 
   /**
+   * Permanently delete all dead endpoints and their failed delivery queue entries
+   */
+  async purgeDeadEndpoints(): Promise<{ purgedEndpoints: number; purgedDeliveries: number }> {
+    try {
+      const { data: deadEndpoints, error: fetchError } = await supabase
+        .from('federation_endpoint_health')
+        .select('endpoint_url')
+        .eq('is_dead', true);
+
+      if (fetchError) throw fetchError;
+      if (!deadEndpoints || deadEndpoints.length === 0) {
+        return { purgedEndpoints: 0, purgedDeliveries: 0 };
+      }
+
+      const deadUrls = deadEndpoints.map(e => e.endpoint_url);
+
+      const { count: deliveryCount, error: deliveryError } = await supabase
+        .from('federation_delivery_queue')
+        .delete({ count: 'exact' })
+        .in('inbox_url', deadUrls)
+        .in('status', ['dead', 'failed']);
+
+      if (deliveryError) {
+        debug.error('Failed to purge dead deliveries:', deliveryError);
+      }
+
+      const { count: endpointCount, error: endpointError } = await supabase
+        .from('federation_endpoint_health')
+        .delete({ count: 'exact' })
+        .eq('is_dead', true);
+
+      if (endpointError) throw endpointError;
+
+      return {
+        purgedEndpoints: endpointCount || 0,
+        purgedDeliveries: deliveryCount || 0
+      };
+    } catch (error) {
+      debug.error('Failed to purge dead endpoints:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get system health metrics
    */
   async getSystemHealth(): Promise<SystemHealth> {

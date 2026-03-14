@@ -187,6 +187,15 @@
             <div class="warning-banner">
               <Icon name="alert-triangle" :size="16" />
               <span>{{ federationStats.endpoint_health.dead_endpoints }} endpoint(s) marked as dead and removed from follows</span>
+              <button
+                class="danger-btn purge-btn"
+                :disabled="loadingStates.purgingDead"
+                @click="purgeDeadEndpoints"
+              >
+                <Icon v-if="!loadingStates.purgingDead" name="trash" :size="14" />
+                <span v-if="loadingStates.purgingDead" class="spinner-small"></span>
+                Purge Dead
+              </button>
             </div>
           </div>
         </div>
@@ -1960,6 +1969,7 @@ const loadingStates = ref({
   trendingRefresh: false,
   announcements: false,
   featuredServers: false,
+  purgingDead: false,
 })
 
 // Key consistency state
@@ -3578,6 +3588,20 @@ const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
   return 'healthy'
 }
 
+const purgeDeadEndpoints = async () => {
+  if (!confirm(`Permanently remove ${federationStats.value.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`)) return
+  loadingStates.value.purgingDead = true
+  try {
+    const result = await adminService.purgeDeadEndpoints()
+    debug.log(`Purged ${result.purgedEndpoints} dead endpoints and ${result.purgedDeliveries} failed deliveries`)
+    await loadFederationStats()
+  } catch (error) {
+    debug.error('Failed to purge dead endpoints:', error)
+  } finally {
+    loadingStates.value.purgingDead = false
+  }
+}
+
 // Federation maintenance methods
 const refreshKeyConsistency = async () => {
   loadingStates.value.keyConsistency = true
@@ -4250,6 +4274,43 @@ const handleAddInstance = () => {
   border-radius: 8px;
   color: #ffc107;
   font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.purge-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 69, 58, 0.4);
+  background: rgba(255, 69, 58, 0.15);
+  color: #ff453a;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.purge-btn:hover:not(:disabled) {
+  background: rgba(255, 69, 58, 0.3);
+  border-color: rgba(255, 69, 58, 0.6);
+}
+
+.purge-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 69, 58, 0.3);
+  border-top-color: #ff453a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 /* Federation Maintenance Styles */
