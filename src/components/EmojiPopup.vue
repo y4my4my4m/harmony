@@ -190,6 +190,8 @@
     <Teleport to="body">
       <div
         v-if="emojiCtx.visible"
+        ref="emojiCtxBackdropRef"
+        data-emoji-ctx-backdrop
         class="emoji-ctx-backdrop"
         @click="closeEmojiCtx"
         @contextmenu.prevent="closeEmojiCtx"
@@ -608,9 +610,13 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
 };
 
 const handleClickOutside = (event: MouseEvent): void => {
-  if (emojiPopup.value && !emojiPopup.value.contains(event.target as Node)) {
-    props.closeEmojiList?.();
-  }
+  if (!emojiPopup.value) return;
+  const target = event.target as Node;
+  // Don't close if click was inside the popup
+  if (emojiPopup.value.contains(target)) return;
+  // Don't close if click was on the context menu (teleported to body) - use data attr since ref can be null after menu closes
+  if ((target as Element).closest?.('[data-emoji-ctx-backdrop]')) return;
+  props.closeEmojiList?.();
 };
 
 const handleKeyDown = (event: KeyboardEvent): void => {
@@ -715,10 +721,10 @@ function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   const menuW = 200, menuH = 120;
   let x = event.clientX;
   let y = event.clientY;
-  // On touch: position menu above finger so it's not hidden under the thumb
+  // On touch: position menu well above finger so it's not hidden under the thumb
   const isTouch = !('button' in event);
   if (isTouch) {
-    y = Math.max(8, y - menuH - 24);
+    y = Math.max(8, y - menuH - 120);
   }
   if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
   if (x < 8) x = 8;

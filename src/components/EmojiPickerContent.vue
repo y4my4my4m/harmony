@@ -190,6 +190,8 @@
     <Teleport to="body">
       <div
         v-if="emojiCtx.visible"
+        ref="emojiCtxBackdropRef"
+        data-emoji-ctx-backdrop
         class="emoji-ctx-backdrop"
         @click="closeEmojiCtx"
         @contextmenu.prevent="closeEmojiCtx"
@@ -580,10 +582,10 @@ function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   const menuW = 200, menuH = 120;
   let x = event.clientX;
   let y = event.clientY;
-  // On touch: position menu above finger so it's not hidden under the thumb
+  // On touch: position menu well above finger so it's not hidden under the thumb
   const isTouch = !('button' in event);
   if (isTouch) {
-    y = Math.max(8, y - menuH - 24);
+    y = Math.max(8, y - menuH - 80);
   }
   if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
   if (x < 8) x = 8;

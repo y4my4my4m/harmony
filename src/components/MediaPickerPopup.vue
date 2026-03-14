@@ -113,9 +113,12 @@ const handleSendEmoji = (emoji: Emoji) => {
 };
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (popupRef.value && !popupRef.value.contains(event.target as Node)) {
-    props.closePopup?.();
-  }
+  if (!popupRef.value) return;
+  const target = event.target as Node;
+  if (popupRef.value.contains(target)) return;
+  // Don't close when interacting with emoji context menu (teleported to body)
+  if ((target as Element).closest?.('[data-emoji-ctx-backdrop]')) return;
+  props.closePopup?.();
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
