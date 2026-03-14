@@ -292,7 +292,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 .public-servers-overlay {
   position: fixed;
   inset: 0;
-  background: var(--background-secondary);
+  /* background: color-mix(in srgb, var(--background-primary), transparent 10%); */
   backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
