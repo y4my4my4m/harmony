@@ -332,12 +332,12 @@ const loadMore = () => {
 
 .featured-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
 }
 
 .featured-card {
-  border-color: rgba(255, 215, 0, 0.3) !important;
+  /* featured styling handled by server-card--featured class */
 }
 
 /* Main Server Grid */
@@ -347,8 +347,8 @@ const loadMore = () => {
 
 .server-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
 }
 
 /* Load More */
