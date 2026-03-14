@@ -2349,12 +2349,18 @@ const handleContextMenuReaction = (emoji: { native?: string; name: string; id?: 
 };
 
 // Handle opening emoji picker from context menu
-const handleContextMenuEmojiPicker = () => {
+const handleContextMenuEmojiPicker = (position?: { x: number; y: number }) => {
   if (!contextMenuMessage.value) return;
-  const msgEl = messageDisplayContainer.value?.querySelector(
-    `[data-message-id="${contextMenuMessage.value.id}"]`
-  ) as HTMLElement | undefined;
-  emit('toggleEmojiList', true, contextMenuMessage.value, msgEl);
+
+  let anchor: HTMLElement | undefined;
+  if (position) {
+    anchor = document.createElement('div');
+    anchor.style.cssText = `position:fixed;left:${position.x}px;top:${position.y}px;width:1px;height:1px;pointer-events:none;`;
+    document.body.appendChild(anchor);
+    setTimeout(() => anchor?.remove(), 500);
+  }
+
+  emit('toggleEmojiList', true, contextMenuMessage.value, anchor);
 };
 
 // Handle reporting a message from context menu

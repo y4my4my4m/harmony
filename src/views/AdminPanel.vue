@@ -1146,6 +1146,58 @@
               </span>
             </div>
 
+            <div class="setting-group">
+              <label>Theme Color</label>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <input
+                  v-model="instanceConfig.themeColor"
+                  type="color"
+                  class="cyber-input"
+                  style="width: 48px; height: 36px; padding: 2px; cursor: pointer;"
+                  @input="instanceBrandingChanged = true"
+                />
+                <input
+                  v-model="instanceConfig.themeColor"
+                  type="text"
+                  class="cyber-input"
+                  placeholder="#5865f2"
+                  style="flex: 1;"
+                  @input="instanceBrandingChanged = true"
+                />
+              </div>
+              <span class="setting-hint">
+                Your instance's accent color. Exposed via NodeInfo for other instances to use.
+              </span>
+            </div>
+
+            <div class="setting-group">
+              <label>Maintainer Name</label>
+              <input
+                v-model="instanceConfig.maintainerName"
+                type="text"
+                class="cyber-input"
+                placeholder="Admin"
+                @input="instanceBrandingChanged = true"
+              />
+              <span class="setting-hint">
+                Public contact name for this instance's administrator.
+              </span>
+            </div>
+
+            <div class="setting-group">
+              <label>Maintainer Email</label>
+              <input
+                v-model="instanceConfig.maintainerEmail"
+                type="email"
+                class="cyber-input"
+                placeholder="admin@example.com"
+                @input="instanceBrandingChanged = true"
+              />
+              <span class="setting-hint">
+                Public contact email. Exposed via NodeInfo for federation transparency.
+              </span>
+            </div>
+
             <button 
               @click="saveInstanceBranding" 
               class="save-btn" 
@@ -2002,6 +2054,9 @@ const instanceConfig = ref({
   approvalRequired: false,
   iconUrl: '',
   bannerUrl: '',
+  themeColor: '#5865f2',
+  maintainerName: '',
+  maintainerEmail: '',
 })
 const instanceIconFile = ref<File | null>(null)
 const instanceBannerFile = ref<File | null>(null)
@@ -2417,6 +2472,9 @@ const loadInstanceConfig = async () => {
         approvalRequired: cfg.instance.requiresApproval ?? false,
         iconUrl: cfg.instance.iconUrl || '',
         bannerUrl: cfg.instance.bannerUrl || '',
+        themeColor: cfg.instance.themeColor || '#5865f2',
+        maintainerName: cfg.instance.maintainerName || '',
+        maintainerEmail: cfg.instance.maintainerEmail || '',
       }
       
       // Load OAuth providers
@@ -3307,6 +3365,27 @@ const saveInstanceBranding = async () => {
       instanceConfig.value.bannerUrl,
       authStore.session.user.id,
       'Instance banner URL (shown to federated instances)'
+    )
+
+    await adminService.setInstanceConfig(
+      'theme_color',
+      instanceConfig.value.themeColor,
+      authStore.session.user.id,
+      'Instance theme/accent color (exposed via NodeInfo)'
+    )
+
+    await adminService.setInstanceConfig(
+      'maintainer_name',
+      instanceConfig.value.maintainerName,
+      authStore.session.user.id,
+      'Instance administrator name (exposed via NodeInfo)'
+    )
+
+    await adminService.setInstanceConfig(
+      'maintainer_email',
+      instanceConfig.value.maintainerEmail,
+      authStore.session.user.id,
+      'Instance administrator email (exposed via NodeInfo)'
     )
 
     instanceBrandingChanged.value = false

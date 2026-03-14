@@ -632,6 +632,9 @@ class AdminService {
       let privacyUrl = ''
       let instanceIconUrl = ''
       let instanceBannerUrl = ''
+      let themeColor = ''
+      let maintainerName = ''
+      let maintainerEmail = ''
 
       let maxServerSize = 1000
       let maxMessageLength = 2000
@@ -648,7 +651,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -731,6 +734,15 @@ class AdminService {
                 case 'instance_banner':
                   instanceBannerUrl = (typeof value === 'string' ? value : String(value)) || ''
                   break
+                case 'theme_color':
+                  themeColor = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'maintainer_name':
+                  maintainerName = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'maintainer_email':
+                  maintainerEmail = (typeof value === 'string' ? value : String(value)) || ''
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -768,6 +780,9 @@ class AdminService {
           privacyUrl: privacyUrl,
           iconUrl: instanceIconUrl,
           bannerUrl: instanceBannerUrl,
+          themeColor: themeColor,
+          maintainerName: maintainerName,
+          maintainerEmail: maintainerEmail,
         }
       };
     } catch (error) {

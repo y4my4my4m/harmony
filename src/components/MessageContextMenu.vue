@@ -115,7 +115,7 @@ const adjustedPosition = ref({ x: 0, y: 0 })
 interface Emits {
   (e: 'close'): void;
   (e: 'add-reaction', emoji: { native?: string; name: string; id?: string }): void;
-  (e: 'open-emoji-picker'): void;
+  (e: 'open-emoji-picker', position: { x: number; y: number }): void;
   (e: 'pin-changed'): void;
   (e: 'report', message: Message): void;
 }
@@ -211,7 +211,7 @@ const addQuickReaction = (emoji: any) => {
 };
 
 const openEmojiPicker = () => {
-  emit('open-emoji-picker');
+  emit('open-emoji-picker', { ...adjustedPosition.value });
   emit('close');
 };
 

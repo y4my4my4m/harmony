@@ -37,7 +37,11 @@ async function getInstanceConfig(supabase: any) {
   const { data } = await supabase
     .from('instance_config')
     .select('config_key, config_value')
-    .in('config_key', ['instance_name', 'instance_description', 'open_registration', 'instance_icon', 'instance_banner']);
+    .in('config_key', [
+      'instance_name', 'instance_description', 'open_registration',
+      'instance_icon', 'instance_banner',
+      'theme_color', 'maintainer_name', 'maintainer_email',
+    ]);
 
   const cfg: Record<string, any> = {};
   data?.forEach((row: any) => {
@@ -54,6 +58,9 @@ async function getInstanceConfig(supabase: any) {
     openRegistrations: cfg.open_registration !== 'false' && cfg.open_registration !== false,
     icon: cfg.instance_icon || undefined,
     banner: cfg.instance_banner || undefined,
+    themeColor: cfg.theme_color || undefined,
+    maintainerName: cfg.maintainer_name || undefined,
+    maintainerEmail: cfg.maintainer_email || undefined,
   };
 }
 
@@ -102,6 +109,15 @@ router.get(
         nodeDescription: instanceCfg.description,
         ...(instanceCfg.icon && { icon: instanceCfg.icon }),
         ...(instanceCfg.banner && { banner: instanceCfg.banner }),
+        ...(instanceCfg.themeColor && { themeColor: instanceCfg.themeColor }),
+        ...(instanceCfg.maintainerName || instanceCfg.maintainerEmail
+          ? {
+              maintainer: {
+                ...(instanceCfg.maintainerName && { name: instanceCfg.maintainerName }),
+                ...(instanceCfg.maintainerEmail && { email: instanceCfg.maintainerEmail }),
+              },
+            }
+          : {}),
       },
     });
   })
@@ -157,6 +173,15 @@ router.get(
         nodeDescription: instanceCfg.description,
         ...(instanceCfg.icon && { icon: instanceCfg.icon }),
         ...(instanceCfg.banner && { banner: instanceCfg.banner }),
+        ...(instanceCfg.themeColor && { themeColor: instanceCfg.themeColor }),
+        ...(instanceCfg.maintainerName || instanceCfg.maintainerEmail
+          ? {
+              maintainer: {
+                ...(instanceCfg.maintainerName && { name: instanceCfg.maintainerName }),
+                ...(instanceCfg.maintainerEmail && { email: instanceCfg.maintainerEmail }),
+              },
+            }
+          : {}),
         features: [
           'discord_like_servers',
           'voice_chat',
