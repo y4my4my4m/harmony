@@ -580,8 +580,15 @@ function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   const menuW = 200, menuH = 120;
   let x = event.clientX;
   let y = event.clientY;
+  // On touch: position menu above finger so it's not hidden under the thumb
+  const isTouch = !('button' in event);
+  if (isTouch) {
+    y = Math.max(8, y - menuH - 24);
+  }
   if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+  if (x < 8) x = 8;
   if (y + menuH > window.innerHeight - 8) y = window.innerHeight - menuH - 8;
+  if (y < 8) y = 8;
   return { x, y };
 }
 
@@ -617,6 +624,12 @@ function handleTouchHold(event: TouchEvent, ctxHandler: (e: MouseEvent | Touch) 
     clearHold();
     event.preventDefault();
     ctxHandler(touch);
+    // Prevent the upcoming touchend from firing a synthetic click (which would select the emoji)
+    const preventClick = (e: TouchEvent) => {
+      e.preventDefault();
+      document.removeEventListener('touchend', preventClick, { capture: true });
+    };
+    document.addEventListener('touchend', preventClick, { capture: true, once: true });
   }, 500);
   document.addEventListener('touchend', onHoldTouchEnd);
   document.addEventListener('touchmove', onHoldTouchMove, { passive: true });
@@ -836,6 +849,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-touch-callout: none; /* Prevent iOS image selection/callout on long press */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .emoji-item:hover {
@@ -849,6 +865,11 @@ onMounted(async () => {
   height: 28px;
   border-radius: 2px;
   object-fit: contain;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 .emoji-section {
@@ -864,6 +885,9 @@ onMounted(async () => {
 .native-emoji-char {
   font-size: 24px;
   line-height: 1;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .svg-emoji-item {
