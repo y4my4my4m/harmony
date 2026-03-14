@@ -990,7 +990,7 @@ const loadOriginalPostInteractions = async () => {
       .select('interaction_type')
       .eq('post_id', props.post.reblog.id)
       .eq('user_id', currentUser.id)
-      .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+      .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark']);
 
     if (error) {
       debug.error('Failed to load original post interactions:', error);
@@ -999,7 +999,7 @@ const loadOriginalPostInteractions = async () => {
 
     const interactionTypes = new Set(interactions?.map(i => i.interaction_type) || []);
     originalPostInteractions.value = {
-      is_favorited: interactionTypes.has('favorite'),
+      is_favorited: interactionTypes.has('favorite') || interactionTypes.has('emoji_reaction'),
       is_reblogged: interactionTypes.has('reblog'),
       is_bookmarked: interactionTypes.has('bookmark')
     };
