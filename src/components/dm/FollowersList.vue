@@ -22,22 +22,13 @@
     <!-- Empty State -->
     <div v-else-if="followingUsers.length === 0" class="empty-state">
       <div class="empty-illustration">
-        <svg viewBox="0 0 120 120" class="illustration-svg" fill="none">
-          <circle cx="60" cy="60" r="56" stroke="currentColor" stroke-width="1.5" opacity="0.15" />
-          <circle cx="60" cy="60" r="40" stroke="currentColor" stroke-width="1.5" opacity="0.1" />
-          <circle cx="45" cy="50" r="10" stroke="currentColor" stroke-width="2" opacity="0.5" />
-          <circle cx="75" cy="50" r="10" stroke="currentColor" stroke-width="2" opacity="0.5" />
-          <path d="M35 78 C35 70 42 64 50 64 L50 64" stroke="currentColor" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
-          <path d="M85 78 C85 70 78 64 70 64 L70 64" stroke="currentColor" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
-          <path d="M54 55 L66 55" stroke="currentColor" stroke-width="1.5" opacity="0.2" stroke-linecap="round" stroke-dasharray="2 4"/>
+        <svg viewBox="0 0 24 24" class="illustration-svg">
+          <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
         </svg>
       </div>
       <h4 class="empty-title">{{ $t('activitypub.noFollowingYet') }}</h4>
       <p class="empty-description">{{ $t('activitypub.followUsersToSee') }}</p>
       <router-link to="/social/trending" class="explore-btn">
-        <svg viewBox="0 0 24 24" class="btn-icon">
-          <path d="M15.5,12C18,12 20,14 20,16.5C20,17.38 19.75,18.21 19.31,18.9L22.39,22L21,23.39L17.88,20.32C17.19,20.75 16.37,21 15.5,21C13,21 11,19 11,16.5C11,14 13,12 15.5,12M15.5,14A2.5,2.5 0 0,0 13,16.5A2.5,2.5 0 0,0 15.5,19A2.5,2.5 0 0,0 18,16.5A2.5,2.5 0 0,0 15.5,14M5,3H19C20.11,3 21,3.89 21,5V14.03C20.5,13.22 19.8,12.55 19,12.03V5H5V19H9.5C9.81,19.75 10.26,20.42 10.81,21H5C3.89,21 3,20.11 3,19V5C3,3.89 3.89,3 5,3M7,7H17V9H7V7M7,11H12.03C11.23,11.5 10.55,12.2 10.03,13H7V11M7,15H9.17C9.06,15.5 9,15.97 9,16.5V17H7V15Z" fill="currentColor"/>
-        </svg>
         {{ $t('activitypub.discoverPeople') }}
       </router-link>
     </div>
@@ -55,7 +46,7 @@
             :src="user.avatar_url" 
             :status="getUserOnlineStatus(user.id) ? 'online' : 'offline'"
             :alt="user.display_name || user.username"
-            :size="40"
+            size="sm"
           />
         </div>
 
@@ -295,13 +286,14 @@ onMounted(() => {
 }
 
 .empty-illustration {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   color: var(--text-secondary);
+  opacity: 0.35;
 }
 
 .illustration-svg {
-  width: 100px;
-  height: 100px;
+  width: 64px;
+  height: 64px;
 }
 
 .empty-title {
@@ -336,11 +328,6 @@ onMounted(() => {
 .explore-btn:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
-}
-
-.btn-icon {
-  width: 16px;
-  height: 16px;
 }
 
 /* Users List */
