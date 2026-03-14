@@ -203,7 +203,7 @@
                     :src="getInstanceIcon(instance)!"
                     :alt="instance.domain"
                     class="instance-icon-img"
-                    @error="($event.target as HTMLImageElement).style.display = 'none'"
+                    @error="handleIconError(getInstanceIcon(instance)!)"
                   />
                   <span v-else class="instance-platform-emoji">{{ getPlatformEmoji(instance.software) }}</span>
                 </div>
@@ -478,6 +478,40 @@ const loadInstances = async () => {
   } finally {
     isLoading.value = false;
   }
+
+  enrichMissingInstanceMetadata();
+};
+
+const enrichMissingInstanceMetadata = async () => {
+  const toEnrich = knownInstances.value.filter(
+    inst => !inst.metadata?.icon_url && !inst.metadata?.banner_url
+  );
+  if (!toEnrich.length) return;
+
+  const BATCH = 5;
+  for (let i = 0; i < toEnrich.length; i += BATCH) {
+    const batch = toEnrich.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map(inst => adminService.enrichInstanceMetadata(inst))
+    );
+
+    for (let j = 0; j < batch.length; j++) {
+      const result = results[j];
+      if (result.status === 'fulfilled' && result.value) {
+        const inst = batch[j];
+        const idx = knownInstances.value.findIndex(k => k.id === inst.id);
+        if (idx !== -1) {
+          knownInstances.value[idx] = {
+            ...knownInstances.value[idx],
+            metadata: {
+              ...(knownInstances.value[idx].metadata || {}),
+              ...result.value,
+            },
+          };
+        }
+      }
+    }
+  }
 };
 
 const loadHashtagPosts = (hashtag: string) => {
@@ -585,12 +619,20 @@ const getPlatformEmoji = (software?: string): string => {
   return '\uD83C\uDF10';
 };
 
+const failedIconUrls = ref(new Set<string>());
+
 const getInstanceIcon = (instance: any): string | null => {
-  return instance.metadata?.icon_url || null;
+  const url = instance.metadata?.icon_url || null;
+  if (url && failedIconUrls.value.has(url)) return null;
+  return url;
 };
 
 const getInstanceBanner = (instance: any): string | null => {
   return instance.metadata?.banner_url || null;
+};
+
+const handleIconError = (url: string) => {
+  failedIconUrls.value.add(url);
 };
 
 const formatNumber = (num: number): string => {

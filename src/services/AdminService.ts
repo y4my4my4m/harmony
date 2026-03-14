@@ -1284,6 +1284,37 @@ class AdminService {
   }
 
   /**
+   * Re-probe an existing instance to enrich its metadata with icon/banner URLs.
+   * Returns the updated metadata or null on failure. Updates the DB row in-place.
+   */
+  async enrichInstanceMetadata(instance: { id: string; domain: string; metadata?: any }): Promise<{ icon_url?: string; banner_url?: string } | null> {
+    try {
+      const discovered = await this.discoverInstance(instance.domain);
+      if (!discovered) return null;
+
+      const newIcon = discovered.icon_url;
+      const newBanner = discovered.banner_url;
+
+      if (!newIcon && !newBanner) return null;
+
+      const updatedMetadata = {
+        ...(instance.metadata || {}),
+        ...(newIcon && { icon_url: newIcon }),
+        ...(newBanner && { banner_url: newBanner }),
+      };
+
+      await supabase
+        .from('federated_instances')
+        .update({ metadata: updatedMetadata })
+        .eq('id', instance.id);
+
+      return { icon_url: newIcon, banner_url: newBanner };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Update federated instance settings
    */
   async updateFederatedInstance(

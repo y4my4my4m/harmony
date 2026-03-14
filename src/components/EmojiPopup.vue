@@ -13,34 +13,66 @@
 
     <!-- Emoji Content Area -->
     <div class="emoji-content">
-      <!-- Favorite Emojis -->
-      <div v-if="!searchQuery && favoriteEmojis.length > 0" class="emoji-section">
-        <h3 class="section-title">&#11088; Favorites</h3>
-        <div class="emoji-list frequent-list">
-          <div
-            v-for="fav in favoriteEmojis"
-            :key="fav.emoji_id"
-            class="emoji-item"
-            :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
-            @click="selectFavoriteEmoji(fav)"
-            @pointerenter="hoveredEmojiName = fav.emoji_name"
-            @pointerleave="hoveredEmojiName = null"
-          >
-            <img
-              v-if="fav.emoji_url"
-              :src="getEmojiUrl(fav.emoji_url, 42)"
-              :alt="fav.emoji_name"
-              class="frequent-emoji-img"
-            />
-            <span v-else class="native-emoji-char">{{ fav.emoji_id }}</span>
+      <!-- Favorite Emojis (always visible) -->
+      <div v-if="!searchQuery" class="emoji-section">
+        <h3
+          class="section-title section-title-collapsible"
+          @click="toggleSection('favorites')"
+        >
+          <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('favorites') }">&#9662;</span>
+          &#11088; Favorites
+        </h3>
+        <template v-if="!isSectionCollapsed('favorites')">
+          <div v-if="favoriteEmojis.length" class="emoji-list frequent-list">
+            <div
+              v-for="fav in favoriteEmojis"
+              :key="fav.emoji_id"
+              class="emoji-item emoji-fav-item"
+              :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
+              @click="selectFavoriteEmoji(fav)"
+              @pointerenter="hoveredEmojiName = fav.emoji_name"
+              @pointerleave="hoveredEmojiName = null"
+            >
+              <img
+                v-if="fav.emoji_url"
+                :src="getEmojiUrl(fav.emoji_url, 42)"
+                :alt="fav.emoji_name"
+                class="frequent-emoji-img"
+              />
+              <img
+                v-else-if="!isNativePack && getFavoriteSvgUrl(fav)"
+                :src="getFavoriteSvgUrl(fav)!"
+                :alt="fav.emoji_name"
+                class="frequent-emoji-img"
+              />
+              <span v-else class="native-emoji-char">{{ fav.emoji_id }}</span>
+              <button
+                class="emoji-fav-badge remove"
+                @click.stop="removeFavoriteEmoji(fav.emoji_id)"
+                title="Remove from favorites"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                </svg>
+              </button>
+            </div>
           </div>
-        </div>
+          <div v-else class="no-favorites-hint">
+            <p>Right-click any emoji to add it here.</p>
+          </div>
+        </template>
       </div>
 
       <!-- Frequently Used Emojis -->
       <div v-if="!searchQuery && hasFrequentEmojis" class="emoji-section">
-        <h3 class="section-title">⏱️ Frequently Used</h3>
-        <div class="emoji-list frequent-list">
+        <h3
+          class="section-title section-title-collapsible"
+          @click="toggleSection('frequent')"
+        >
+          <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('frequent') }">&#9662;</span>
+          ⏱️ Frequently Used
+        </h3>
+        <div v-if="!isSectionCollapsed('frequent')" class="emoji-list frequent-list">
           <div
             v-for="emoji in topEmojisForPicker"
             :key="emoji.id"
@@ -71,9 +103,15 @@
 
       <!-- Server Emojis List -->
       <div v-if="filteredEmojiList.length">
-        <div v-for="group in filteredEmojiList" :key="group.serverId">
-          <h3 class="section-title">{{ group.server_name }}</h3>
-          <div class="emoji-list">
+        <div v-for="group in filteredEmojiList" :key="group.serverId" class="emoji-section">
+          <h3
+            class="section-title section-title-collapsible"
+            @click="toggleSection('server-' + group.serverId)"
+          >
+            <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
+            {{ group.server_name }}
+          </h3>
+          <div v-if="!isSectionCollapsed('server-' + group.serverId)" class="emoji-list">
             <div
               v-for="emoji in group.emojis"
               :key="emoji.id"
@@ -98,12 +136,18 @@
       <LazyEmojiSection
         v-for="category in displayedCategories"
         :key="category.id"
-        :emoji-count="category.emojis.length"
+        :emoji-count="isSectionCollapsed('cat-' + category.id) ? 0 : category.emojis.length"
       >
         <template #header>
-          <h3 class="section-title">{{ category.icon }} {{ category.name }}</h3>
+          <h3
+            class="section-title section-title-collapsible"
+            @click="toggleSection('cat-' + category.id)"
+          >
+            <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('cat-' + category.id) }">&#9662;</span>
+            {{ category.icon }} {{ category.name }}
+          </h3>
         </template>
-        <div class="emoji-list unified-list">
+        <div v-if="!isSectionCollapsed('cat-' + category.id)" class="emoji-list unified-list">
           <div
             v-for="emoji in category.emojis"
             :key="emoji.shortcode"
@@ -229,6 +273,16 @@ const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const hoveredEmojiName = ref<string | null>(null);
 const favoriteEmojis = ref<EmojiFavorite[]>([]);
+const collapsedSections = ref(new Set<string>());
+
+const toggleSection = (id: string) => {
+  const s = new Set(collapsedSections.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  collapsedSections.value = s;
+};
+
+const isSectionCollapsed = (id: string) => collapsedSections.value.has(id);
 
 // --- Composables ---
 
@@ -543,6 +597,18 @@ async function loadFavorites() {
   favoriteEmojis.value = await emojiFavoriteService.getFavorites();
 }
 
+function getFavoriteSvgUrl(fav: EmojiFavorite): string | null {
+  if (isNativePack.value) return null;
+  if (fav.emoji_url) return null;
+  const resolved = resolveEmoji(fav.emoji_id);
+  return resolved.display.type === 'svg' ? resolved.display.content : null;
+}
+
+async function removeFavoriteEmoji(emojiId: string) {
+  await emojiFavoriteService.removeFavorite(emojiId);
+  favoriteEmojis.value = favoriteEmojis.value.filter(f => f.emoji_id !== emojiId);
+}
+
 function selectFavoriteEmoji(fav: EmojiFavorite) {
   triggerReaction();
   recordEmojiUsage({ id: fav.emoji_id, name: fav.emoji_name, url: fav.emoji_url || undefined });
@@ -584,7 +650,7 @@ onMounted(async () => {
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
   triggerEmojiDataLoad()
   
-  emojiFavoriteService.initializeCache()
+  await emojiFavoriteService.initializeCache()
   loadFavorites()
   
   // Also try to load unified emoji data if not already loaded (for picker display)
@@ -683,6 +749,69 @@ watch(
 
 .section-title:first-of-type {
   margin-top: 4px;
+}
+
+.section-title-collapsible {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.12s ease;
+}
+
+.section-title-collapsible:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.section-chevron {
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.section-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.emoji-fav-item {
+  position: relative;
+}
+
+.emoji-fav-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-danger, #e74c3c);
+  color: white;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.emoji-fav-item:hover .emoji-fav-badge {
+  display: flex;
+}
+
+.no-favorites-hint {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.no-favorites-hint p {
+  margin: 0;
 }
 
 .emoji-list {
