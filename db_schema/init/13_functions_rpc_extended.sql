@@ -3343,7 +3343,7 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'post_interactions' AND TG_OP = 'INSERT' THEN
-        IF NEW.interaction_type = 'emoji_reaction' THEN
+        IF NEW.interaction_type IN ('emoji_reaction', 'favorite') THEN
             SELECT author_id INTO post_author_id 
             FROM posts 
             WHERE id = NEW.post_id;
@@ -3367,7 +3367,7 @@ BEGIN
                 END IF;
                 
                 notification_data := jsonb_build_object(
-                    'type', 'activitypub_reaction',
+                    'type', CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
                     'post_id', NEW.post_id,
                     'post', jsonb_build_object(
                         'id', post_record.id,
@@ -3392,7 +3392,7 @@ BEGIN
                 );
                 
                 PERFORM send_notification_to_user(
-                    'activitypub_reaction',
+                    CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
                     post_author_id,
                     notification_data,
                     NULL, NULL, NULL,

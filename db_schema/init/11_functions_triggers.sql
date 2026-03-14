@@ -1346,8 +1346,8 @@ BEGIN
         content_preview := 'New message';
     END IF;
 
-    -- Channel mention notifications
-    IF NEW.channel_id IS NOT NULL AND NOT NEW.is_system AND NOT COALESCE((NEW.metadata->>'federated')::boolean, false) THEN
+    -- Channel mention notifications (includes federated messages)
+    IF NEW.channel_id IS NOT NULL AND NOT NEW.is_system THEN
         v_channel_id := NEW.channel_id;
 
         SELECT c.name, c.server_id INTO v_channel_name, v_server_id
@@ -1646,20 +1646,236 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    content_part JSONB;
+    mentioned_username TEXT;
+    mentioned_user_id UUID;
+    author_profile RECORD;
+    post_content_preview TEXT;
 BEGIN
-    -- Placeholder
+    IF TG_OP = 'INSERT' THEN
+        SELECT id, username, display_name, avatar_url, domain, is_local
+        INTO author_profile
+        FROM profiles 
+        WHERE id = NEW.author_id;
+        
+        IF FOUND AND NEW.content IS NOT NULL THEN
+            post_content_preview := extract_message_text(NEW.content);
+            IF LENGTH(post_content_preview) > 100 THEN
+                post_content_preview := LEFT(post_content_preview, 100) || '...';
+            END IF;
+            IF post_content_preview = '' OR post_content_preview IS NULL THEN
+                post_content_preview := 'New post';
+            END IF;
+            
+            IF jsonb_typeof(NEW.content) = 'array' THEN
+                FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+                LOOP
+                    IF content_part->>'type' = 'mention' THEN
+                        mentioned_username := content_part->>'username';
+                        
+                        SELECT id INTO mentioned_user_id
+                        FROM profiles
+                        WHERE username = mentioned_username
+                          AND is_local = true
+                          AND id != NEW.author_id;
+                        
+                        IF mentioned_user_id IS NOT NULL THEN
+                            PERFORM send_notification_to_user(
+                                'activitypub_mention',
+                                mentioned_user_id,
+                                jsonb_build_object(
+                                    'actor', jsonb_build_object(
+                                        'id', author_profile.id,
+                                        'username', author_profile.username,
+                                        'display_name', author_profile.display_name,
+                                        'avatar_url', author_profile.avatar_url,
+                                        'domain', author_profile.domain,
+                                        'is_local', author_profile.is_local
+                                    ),
+                                    'post', jsonb_build_object(
+                                        'id', NEW.id,
+                                        'ap_id', NEW.ap_id,
+                                        'content_preview', post_content_preview,
+                                        'content', NEW.content
+                                    ),
+                                    'post_id', NEW.id,
+                                    'post_content', NEW.content,
+                                    'timestamp', NEW.created_at
+                                ),
+                                NULL, NULL, NULL,
+                                author_profile.id,
+                                'normal'
+                            );
+                        END IF;
+                    END IF;
+                END LOOP;
+            END IF;
+        END IF;
+    END IF;
+    
     RETURN NEW;
 END;
 $$;
 
--- Handle post mention notifications
+-- Handle post mention notifications (all posts including federated)
 CREATE OR REPLACE FUNCTION public.handle_post_mention_notifications()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    content_part JSONB;
+    mentioned_username TEXT;
+    mentioned_user_id UUID;
+    author_profile RECORD;
+    post_content_preview TEXT;
 BEGIN
-    -- Placeholder
+    IF TG_OP = 'INSERT' THEN
+        SELECT id, username, display_name, avatar_url, domain, is_local
+        INTO author_profile
+        FROM profiles 
+        WHERE id = NEW.author_id;
+        
+        IF FOUND AND NEW.content IS NOT NULL THEN
+            post_content_preview := extract_message_text(NEW.content);
+            IF LENGTH(post_content_preview) > 100 THEN
+                post_content_preview := LEFT(post_content_preview, 100) || '...';
+            END IF;
+            IF post_content_preview = '' OR post_content_preview IS NULL THEN
+                post_content_preview := 'New post';
+            END IF;
+            
+            IF jsonb_typeof(NEW.content) = 'array' THEN
+                FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+                LOOP
+                    IF content_part->>'type' = 'mention' THEN
+                        mentioned_username := content_part->>'username';
+                        
+                        IF (content_part->>'isLocal')::boolean = true THEN
+                            SELECT id INTO mentioned_user_id
+                            FROM profiles 
+                            WHERE username = mentioned_username 
+                              AND is_local = true
+                              AND id != NEW.author_id;
+                            
+                            IF mentioned_user_id IS NOT NULL THEN
+                                PERFORM send_notification_to_user(
+                                    'activitypub_mention',
+                                    mentioned_user_id,
+                                    jsonb_build_object(
+                                        'actor', jsonb_build_object(
+                                            'id', author_profile.id,
+                                            'username', author_profile.username,
+                                            'display_name', author_profile.display_name,
+                                            'avatar_url', author_profile.avatar_url,
+                                            'domain', author_profile.domain,
+                                            'is_local', author_profile.is_local
+                                        ),
+                                        'post', jsonb_build_object(
+                                            'id', NEW.id,
+                                            'ap_id', NEW.ap_id,
+                                            'content_preview', post_content_preview,
+                                            'content', NEW.content
+                                        ),
+                                        'post_id', NEW.id,
+                                        'post_content', NEW.content,
+                                        'timestamp', NEW.created_at,
+                                        'federated', NEW.is_federated
+                                    ),
+                                    NULL, NULL, NULL,
+                                    author_profile.id,
+                                    'normal'
+                                );
+                            END IF;
+                        END IF;
+                    END IF;
+                END LOOP;
+            END IF;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+-- Handle post reply notifications
+CREATE OR REPLACE FUNCTION public.handle_post_reply_notifications()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    parent_post RECORD;
+    replier_profile RECORD;
+    reply_preview TEXT;
+BEGIN
+    IF NEW.in_reply_to IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT p.id, p.author_id, p.content, pr.is_local
+    INTO parent_post
+    FROM posts p
+    JOIN profiles pr ON pr.id = p.author_id
+    WHERE p.id = NEW.in_reply_to;
+
+    IF NOT FOUND OR parent_post.is_local != true THEN
+        RETURN NEW;
+    END IF;
+
+    IF parent_post.author_id = NEW.author_id THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT id, username, display_name, avatar_url, domain, is_local
+    INTO replier_profile
+    FROM profiles
+    WHERE id = NEW.author_id;
+
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+
+    reply_preview := extract_message_text(NEW.content);
+    IF LENGTH(reply_preview) > 100 THEN
+        reply_preview := LEFT(reply_preview, 100) || '...';
+    END IF;
+    IF reply_preview = '' OR reply_preview IS NULL THEN
+        reply_preview := 'New reply';
+    END IF;
+
+    PERFORM send_notification_to_user(
+        'activitypub_reply',
+        parent_post.author_id,
+        jsonb_build_object(
+            'actor', jsonb_build_object(
+                'id', replier_profile.id,
+                'username', replier_profile.username,
+                'display_name', replier_profile.display_name,
+                'avatar_url', replier_profile.avatar_url,
+                'domain', replier_profile.domain,
+                'is_local', replier_profile.is_local
+            ),
+            'post', jsonb_build_object(
+                'id', NEW.id,
+                'ap_id', NEW.ap_id,
+                'content_preview', reply_preview,
+                'content', NEW.content
+            ),
+            'parent_post', jsonb_build_object(
+                'id', parent_post.id,
+                'content_preview', extract_message_text(parent_post.content)
+            ),
+            'post_id', NEW.id,
+            'parent_post_id', parent_post.id,
+            'timestamp', NEW.created_at
+        ),
+        NULL, NULL, NULL,
+        NEW.author_id,
+        'normal'
+    );
+
     RETURN NEW;
 END;
 $$;
