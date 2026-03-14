@@ -287,7 +287,7 @@ class AdminService {
       const { count: deliveryCount, error: deliveryError } = await supabase
         .from('federation_delivery_queue')
         .delete({ count: 'exact' })
-        .in('inbox_url', deadUrls)
+        .in('target_inbox_url', deadUrls)
         .in('status', ['dead', 'failed']);
 
       if (deliveryError) {
@@ -338,7 +338,7 @@ class AdminService {
       await supabase
         .from('federation_delivery_queue')
         .delete()
-        .eq('inbox_url', endpointUrl)
+        .eq('target_inbox_url', endpointUrl)
         .in('status', ['dead', 'failed']);
 
       const { error } = await supabase

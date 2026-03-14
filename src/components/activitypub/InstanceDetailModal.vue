@@ -413,9 +413,9 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-/* Target BaseModal's .modal-container and .modal-content when this modal is shown */
-.instance-detail-modal :deep(.modal-container) {
+<!-- Unscoped: overrides BaseModal's Teleported children (scoped+Teleport can't be crossed with :deep) -->
+<style>
+.instance-detail-modal .modal-container {
   max-width: 560px;
   width: 92vw;
   border: none;
@@ -423,14 +423,16 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.instance-detail-modal :deep(.modal-content) {
+.instance-detail-modal .modal-content {
   padding: 0;
   overflow: hidden;
   max-height: min(85vh, 720px);
   display: flex;
   flex-direction: column;
 }
+</style>
 
+<style scoped>
 .instance-detail-layout {
   display: flex;
   flex-direction: column;

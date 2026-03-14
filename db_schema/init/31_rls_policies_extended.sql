@@ -781,6 +781,17 @@ DROP POLICY IF EXISTS "Users can view federation delivery queue" ON public.feder
 CREATE POLICY "Users can view federation delivery queue" ON public.federation_delivery_queue
     FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Admins can delete federation deliveries" ON public.federation_delivery_queue;
+CREATE POLICY "Admins can delete federation deliveries" ON public.federation_delivery_queue
+    FOR DELETE TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = public.get_current_profile_id()
+            AND is_admin = true
+        )
+    );
+
 -- ---------------------------------------------------------------------------
 -- FEDERATED VOICE CALLS (schema varies: init vs production)
 -- ---------------------------------------------------------------------------
