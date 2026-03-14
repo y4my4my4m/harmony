@@ -782,7 +782,9 @@ onMounted(() => {
   color: var(--text-primary);
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  /* gap: 6px; */
+  gap: 1px;
+  flex-direction: column;
   overflow: hidden;
 }
 
