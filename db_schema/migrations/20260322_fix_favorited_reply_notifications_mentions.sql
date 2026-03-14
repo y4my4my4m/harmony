@@ -85,6 +85,7 @@ $$;
 
 -- =============================================================================
 -- 2. Fix get_post_with_context: include 'emoji_reaction' in is_favorited
+--    Uses camelCase keys to match client expectations
 -- =============================================================================
 CREATE OR REPLACE FUNCTION public.get_post_with_context(p_post_id uuid, p_user_id uuid, p_context_type text DEFAULT 'minimal'::text, p_highlight_reply uuid DEFAULT NULL::uuid, p_max_depth integer DEFAULT 10, p_include_interactions boolean DEFAULT true) RETURNS jsonb
     LANGUAGE plpgsql
@@ -379,23 +380,38 @@ BEGIN
       WHERE dc.depth < 50
         AND p.is_deleted = false
     )
-    SELECT MAX(depth) INTO v_max_depth FROM depth_calc;
+    SELECT COALESCE(MAX(depth), 0) INTO v_max_depth FROM depth_calc;
   END IF;
 
   v_thread_info := jsonb_build_object(
-    'thread_id', COALESCE(v_thread_id, v_root_post_id),
-    'root_post_id', v_root_post_id,
-    'total_posts', v_total_posts,
-    'participant_count', v_participant_count,
-    'max_depth', v_max_depth,
-    'last_activity', v_last_activity
+    'totalPosts', COALESCE(v_total_posts, 1),
+    'participantCount', COALESCE(v_participant_count, 1),
+    'depth', COALESCE(v_max_depth, 0),
+    'rootPostId', COALESCE(v_root_post_id, p_post_id),
+    'lastActivity', COALESCE(v_last_activity, (v_main_post->>'created_at')::timestamp with time zone)
   );
 
   RETURN jsonb_build_object(
-    'post', v_main_post,
+    'mainPost', v_main_post,
     'ancestors', COALESCE(v_ancestors, '[]'::jsonb),
     'descendants', COALESCE(v_descendants, '[]'::jsonb),
-    'thread_info', v_thread_info
+    'threadInfo', v_thread_info
+  );
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE LOG 'Error in get_post_with_context: %', SQLERRM;
+  RETURN jsonb_build_object(
+    'error', 'Database error: ' || SQLERRM,
+    'mainPost', null,
+    'ancestors', '[]'::jsonb,
+    'descendants', '[]'::jsonb,
+    'threadInfo', jsonb_build_object(
+      'totalPosts', 0,
+      'participantCount', 0,
+      'depth', 0,
+      'rootPostId', null,
+      'lastActivity', null
+    )
   );
 END;
 $$;
@@ -1239,6 +1255,81 @@ BEGIN
         END IF;
     END IF;
     
+    RETURN NEW;
+END;
+$$;
+
+-- =============================================================================
+-- 9. Fix increment_unread_mentions: was referencing wrong column 'mentions_count'
+--    instead of correct column 'unread_mentions'
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.increment_unread_mentions()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_user_id uuid;
+    v_channel_id uuid;
+    v_server_id uuid;
+    v_conversation_id uuid;
+    existing_count_id uuid;
+BEGIN
+    IF NEW.type != 'mention' AND NEW.type != 'activitypub_mention' THEN
+        RETURN NEW;
+    END IF;
+
+    v_user_id := NEW.user_id;
+
+    v_channel_id := NULLIF((NEW.data->>'channel_id'), '')::uuid;
+    v_server_id := NULLIF((NEW.data->>'server_id'), '')::uuid;
+    v_conversation_id := NULLIF((NEW.data->>'conversation_id'), '')::uuid;
+
+    IF v_channel_id IS NULL THEN
+        v_channel_id := NULLIF((NEW.data->'location'->>'channel_id'), '')::uuid;
+    END IF;
+    IF v_server_id IS NULL THEN
+        v_server_id := NULLIF((NEW.data->'location'->>'server_id'), '')::uuid;
+    END IF;
+
+    IF v_channel_id IS NOT NULL THEN
+        SELECT id INTO existing_count_id
+        FROM unread_counts
+        WHERE user_id = v_user_id
+          AND channel_id = v_channel_id
+          AND (server_id = v_server_id OR (server_id IS NULL AND v_server_id IS NULL))
+          AND conversation_id IS NULL;
+
+        IF existing_count_id IS NOT NULL THEN
+            UPDATE unread_counts
+            SET unread_mentions = unread_mentions + 1,
+                updated_at = NOW()
+            WHERE id = existing_count_id;
+        ELSE
+            INSERT INTO unread_counts (user_id, channel_id, server_id, unread_mentions, updated_at)
+            VALUES (v_user_id, v_channel_id, v_server_id, 1, NOW());
+        END IF;
+    END IF;
+
+    IF v_conversation_id IS NOT NULL THEN
+        SELECT id INTO existing_count_id
+        FROM unread_counts
+        WHERE user_id = v_user_id
+          AND conversation_id = v_conversation_id
+          AND channel_id IS NULL
+          AND server_id IS NULL;
+
+        IF existing_count_id IS NOT NULL THEN
+            UPDATE unread_counts
+            SET unread_mentions = unread_mentions + 1,
+                updated_at = NOW()
+            WHERE id = existing_count_id;
+        ELSE
+            INSERT INTO unread_counts (user_id, conversation_id, unread_mentions, updated_at)
+            VALUES (v_user_id, v_conversation_id, 1, NOW());
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$;

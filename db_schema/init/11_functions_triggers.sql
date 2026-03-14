@@ -1898,11 +1898,68 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_user_id uuid;
+    v_channel_id uuid;
+    v_server_id uuid;
+    v_conversation_id uuid;
+    existing_count_id uuid;
 BEGIN
-    UPDATE unread_counts
-    SET mentions_count = mentions_count + 1, updated_at = NOW()
-    WHERE user_id = NEW.user_id;
-    
+    IF NEW.type != 'mention' AND NEW.type != 'activitypub_mention' THEN
+        RETURN NEW;
+    END IF;
+
+    v_user_id := NEW.user_id;
+
+    v_channel_id := NULLIF((NEW.data->>'channel_id'), '')::uuid;
+    v_server_id := NULLIF((NEW.data->>'server_id'), '')::uuid;
+    v_conversation_id := NULLIF((NEW.data->>'conversation_id'), '')::uuid;
+
+    IF v_channel_id IS NULL THEN
+        v_channel_id := NULLIF((NEW.data->'location'->>'channel_id'), '')::uuid;
+    END IF;
+    IF v_server_id IS NULL THEN
+        v_server_id := NULLIF((NEW.data->'location'->>'server_id'), '')::uuid;
+    END IF;
+
+    IF v_channel_id IS NOT NULL THEN
+        SELECT id INTO existing_count_id
+        FROM unread_counts
+        WHERE user_id = v_user_id
+          AND channel_id = v_channel_id
+          AND (server_id = v_server_id OR (server_id IS NULL AND v_server_id IS NULL))
+          AND conversation_id IS NULL;
+
+        IF existing_count_id IS NOT NULL THEN
+            UPDATE unread_counts
+            SET unread_mentions = unread_mentions + 1,
+                updated_at = NOW()
+            WHERE id = existing_count_id;
+        ELSE
+            INSERT INTO unread_counts (user_id, channel_id, server_id, unread_mentions, updated_at)
+            VALUES (v_user_id, v_channel_id, v_server_id, 1, NOW());
+        END IF;
+    END IF;
+
+    IF v_conversation_id IS NOT NULL THEN
+        SELECT id INTO existing_count_id
+        FROM unread_counts
+        WHERE user_id = v_user_id
+          AND conversation_id = v_conversation_id
+          AND channel_id IS NULL
+          AND server_id IS NULL;
+
+        IF existing_count_id IS NOT NULL THEN
+            UPDATE unread_counts
+            SET unread_mentions = unread_mentions + 1,
+                updated_at = NOW()
+            WHERE id = existing_count_id;
+        ELSE
+            INSERT INTO unread_counts (user_id, conversation_id, unread_mentions, updated_at)
+            VALUES (v_user_id, v_conversation_id, 1, NOW());
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$;
