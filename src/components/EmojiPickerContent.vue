@@ -31,6 +31,7 @@
               :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
               @click="selectFavoriteEmoji(fav)"
               @contextmenu.prevent="openEmojiCtxFavorite(fav, $event)"
+              @touchstart="handleDoubleTap($event, (e) => openEmojiCtxFavorite(fav, e))"
               @pointerenter="hoveredEmojiName = fav.emoji_name"
               @pointerleave="hoveredEmojiName = null"
             >
@@ -50,7 +51,7 @@
             </div>
           </div>
           <div v-else class="no-favorites-hint">
-            <p>Right-click any emoji to add it here.</p>
+            <p>Right-click (or double-tap) any emoji to add it here.</p>
           </div>
         </template>
       </div>
@@ -72,6 +73,7 @@
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
             @click="selectFrequentEmoji(emoji)"
             @contextmenu.prevent="openEmojiCtxFrequent(emoji, $event)"
+            @touchstart="handleDoubleTap($event, (e) => openEmojiCtxFrequent(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.name"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -110,6 +112,7 @@
               class="emoji-item"
               @click="selectEmoji(emoji)"
               @contextmenu.prevent="openEmojiCtxServer(emoji, $event)"
+              @touchstart="handleDoubleTap($event, (e) => openEmojiCtxServer(emoji, e))"
               @pointerenter="hoveredEmojiName = emoji.display_name"
               @pointerleave="hoveredEmojiName = null"
             >
@@ -147,6 +150,7 @@
             :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
             @click="selectUnifiedEmoji(emoji)"
             @contextmenu.prevent="openEmojiCtxUnified(emoji, $event)"
+            @touchstart="handleDoubleTap($event, (e) => openEmojiCtxUnified(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.shortcode"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -572,7 +576,7 @@ const emojiCtx = ref<EmojiCtxState>({
   emojiId: '', emojiName: '', imageUrl: null, serverIdOrNull: null, isFav: false,
 });
 
-function positionCtxMenu(event: MouseEvent): { x: number; y: number } {
+function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   const menuW = 200, menuH = 120;
   let x = event.clientX;
   let y = event.clientY;
@@ -581,7 +585,24 @@ function positionCtxMenu(event: MouseEvent): { x: number; y: number } {
   return { x, y };
 }
 
-function openEmojiCtxUnified(emoji: EmojiEntry, event: MouseEvent) {
+let lastTapTime = 0;
+let lastTapTarget: EventTarget | null = null;
+function handleDoubleTap(event: TouchEvent, ctxHandler: (e: MouseEvent | Touch) => void) {
+  const touch = event.touches[0] || event.changedTouches[0];
+  if (!touch) return;
+  const now = Date.now();
+  if (now - lastTapTime < 300 && lastTapTarget === event.currentTarget) {
+    event.preventDefault();
+    ctxHandler(touch);
+    lastTapTime = 0;
+    lastTapTarget = null;
+  } else {
+    lastTapTime = now;
+    lastTapTarget = event.currentTarget;
+  }
+}
+
+function openEmojiCtxUnified(emoji: EmojiEntry, event: MouseEvent | Touch) {
   const pos = positionCtxMenu(event);
   const imgUrl = isNativePack.value ? null : getEmojiSvgUrl(emoji);
   emojiCtx.value = {
@@ -592,7 +613,7 @@ function openEmojiCtxUnified(emoji: EmojiEntry, event: MouseEvent) {
   };
 }
 
-function openEmojiCtxServer(emoji: ResolvedEmoji, event: MouseEvent) {
+function openEmojiCtxServer(emoji: ResolvedEmoji, event: MouseEvent | Touch) {
   const pos = positionCtxMenu(event);
   const imgUrl = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
   emojiCtx.value = {
@@ -603,7 +624,7 @@ function openEmojiCtxServer(emoji: ResolvedEmoji, event: MouseEvent) {
   };
 }
 
-function openEmojiCtxFrequent(emoji: { id: string; native?: string; name: string; url?: string }, event: MouseEvent) {
+function openEmojiCtxFrequent(emoji: { id: string; native?: string; name: string; url?: string }, event: MouseEvent | Touch) {
   const pos = positionCtxMenu(event);
   const emojiId = emoji.native || emoji.id;
   const imgUrl = getFrequentEmojiDisplayUrl(emoji) || (isNativePack.value ? null : getFrequentEmojiSvgUrl(emoji));
@@ -615,7 +636,7 @@ function openEmojiCtxFrequent(emoji: { id: string; native?: string; name: string
   };
 }
 
-function openEmojiCtxFavorite(fav: EmojiFavorite, event: MouseEvent) {
+function openEmojiCtxFavorite(fav: EmojiFavorite, event: MouseEvent | Touch) {
   const pos = positionCtxMenu(event);
   const imgUrl = fav.emoji_url || (isNativePack.value ? null : getFavoriteSvgUrl(fav));
   emojiCtx.value = {

@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS public.remote_emojis_cache (
 
 CREATE INDEX IF NOT EXISTS idx_remote_emojis_cache_domain ON public.remote_emojis_cache(origin_domain);
 CREATE INDEX IF NOT EXISTS idx_remote_emojis_cache_usage ON public.remote_emojis_cache(usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_remote_emojis_imported ON public.remote_emojis_cache USING btree (imported_as) WHERE (imported_as IS NULL);
 
 COMMENT ON TABLE public.remote_emojis_cache IS 'Cache of custom emojis encountered from remote instances. Used for the emoji importer feature.';
 

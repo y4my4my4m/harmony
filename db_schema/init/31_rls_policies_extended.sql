@@ -439,6 +439,10 @@ CREATE POLICY "remote_emojis_cache_select_all" ON public.remote_emojis_cache
 CREATE POLICY "remote_emojis_cache_admin_modify" ON public.remote_emojis_cache
     FOR ALL USING (public.is_current_user_admin());
 
+-- Service role (federation backend) can manage remote emojis
+CREATE POLICY "Service role can manage remote emojis" ON public.remote_emojis_cache
+    USING (auth.role() = 'service_role');
+
 -- ---------------------------------------------------------------------------
 -- NOTIFICATION RATE LIMITS RLS (Admin Only)
 -- ---------------------------------------------------------------------------
