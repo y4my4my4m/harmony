@@ -174,6 +174,16 @@ CREATE TABLE IF NOT EXISTS public.notification_channels (
 CREATE INDEX IF NOT EXISTS idx_notification_channels_user ON public.notification_channels(user_id);
 CREATE INDEX IF NOT EXISTS idx_notification_channels_server ON public.notification_channels(server_id);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_user_channel
+  ON public.notification_channels (user_id, channel_id)
+  WHERE channel_id IS NOT NULL AND conversation_id IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_user_conversation
+  ON public.notification_channels (user_id, conversation_id)
+  WHERE conversation_id IS NOT NULL AND channel_id IS NULL;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.notification_channels TO authenticated;
+
 COMMENT ON TABLE public.notification_channels IS 'Channel/server/conversation specific notification muting settings';
 
 -- ---------------------------------------------------------------------------

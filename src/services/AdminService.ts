@@ -900,16 +900,33 @@ class AdminService {
     maxStageListeners?: number;
   }): Promise<boolean> {
     try {
-      const { error } = await supabase
+      const payload = {
+        webrtc_mode: settings.mode,
+        livekit_url: settings.livekitUrl,
+        allow_federated_voice: settings.allowFederatedVoice,
+        max_stage_listeners: settings.maxStageListeners,
+        updated_at: new Date().toISOString()
+      };
+
+      // Singleton table — fetch the existing row and update, or insert if empty
+      const { data: existing } = await supabase
         .from('instance_webrtc_settings')
-        .upsert({
-          webrtc_mode: settings.mode,
-          livekit_url: settings.livekitUrl,
-          allow_federated_voice: settings.allowFederatedVoice,
-          max_stage_listeners: settings.maxStageListeners,
-          updated_at: new Date().toISOString()
-        });
-      
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      let error;
+      if (existing?.id) {
+        ({ error } = await supabase
+          .from('instance_webrtc_settings')
+          .update(payload)
+          .eq('id', existing.id));
+      } else {
+        ({ error } = await supabase
+          .from('instance_webrtc_settings')
+          .insert(payload));
+      }
+
       if (error) {
         debug.error('Failed to update WebRTC settings:', error);
         return false;

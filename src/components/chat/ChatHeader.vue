@@ -67,22 +67,67 @@
         <Icon name="users" :size="16" />
       </button>
       
-      <button 
-        class="action-btn more-btn"
-        @click="handleMoreClick"
-        title="More options"
-      >
-        <Icon name="dots-vertical" :size="16" />
-      </button>
+      <div class="more-menu-wrapper" ref="moreMenuRef">
+        <button 
+          class="action-btn more-btn"
+          :class="{ active: showOptionsMenu }"
+          @click="handleMoreClick"
+          title="More options"
+        >
+          <Icon name="dots-vertical" :size="16" />
+        </button>
+
+        <Teleport to="body">
+          <div v-if="showOptionsMenu" class="more-menu-backdrop" @click="showOptionsMenu = false"></div>
+          <div
+            v-if="showOptionsMenu"
+            class="more-menu"
+            :style="menuPosition"
+            @click.stop
+          >
+            <div class="context-menu-item" @click="handleMarkAsRead">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
+              </svg>
+              <span>Mark As Read</span>
+            </div>
+
+            <div class="context-menu-item" @click="handleToggleMute">
+              <svg v-if="isChannelMuted" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"/>
+              </svg>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"/>
+              </svg>
+              <span>{{ isChannelMuted ? 'Unmute Channel' : 'Mute Channel' }}</span>
+            </div>
+
+            <div class="context-menu-divider"></div>
+
+            <div class="context-menu-item disabled">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+              </svg>
+              <span>Edit Channel</span>
+              <span class="coming-soon">Soon</span>
+            </div>
+          </div>
+        </Teleport>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
 import { messageService } from '@/services'
+import { supabase } from '@/supabase'
+import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/useNotification'
+import { authContextService } from '@/services/AuthContextService'
+import { debug } from '@/utils/debug'
 
 // Props
 interface Props {
@@ -107,6 +152,9 @@ const emit = defineEmits<{
 const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
 const pinnedCount = ref(0)
+const isChannelMuted = ref(false)
+const moreMenuRef = ref<HTMLElement | null>(null)
+const menuPosition = ref<Record<string, string>>({})
 
 // Methods
 const loadPinnedCount = async () => {
@@ -115,6 +163,25 @@ const loadPinnedCount = async () => {
     pinnedCount.value = await messageService.getPinnedCount(props.channel.id)
   } catch (error) {
     console.error('Failed to load pinned count:', error)
+  }
+}
+
+const loadMuteState = async () => {
+  if (!props.channel?.id) return
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    const { data } = await supabase
+      .from('notification_channels')
+      .select('muted')
+      .eq('user_id', ctx.profileId)
+      .eq('channel_id', props.channel.id)
+      .maybeSingle()
+
+    isChannelMuted.value = data?.muted ?? false
+  } catch (error) {
+    debug.error('Failed to load mute state:', error)
   }
 }
 
@@ -136,15 +203,136 @@ const handleMembersClick = () => {
 }
 
 const handleMoreClick = () => {
+  if (!showOptionsMenu.value) {
+    const btn = moreMenuRef.value?.querySelector('.more-btn')
+    if (btn) {
+      const rect = btn.getBoundingClientRect()
+      menuPosition.value = {
+        top: `${rect.bottom + 4}px`,
+        right: `${window.innerWidth - rect.right}px`,
+      }
+    }
+  }
   showOptionsMenu.value = !showOptionsMenu.value
+}
+
+const handleMarkAsRead = async () => {
+  showOptionsMenu.value = false
+  if (!props.channel?.id) return
+
+  try {
+    const authStore = useAuthStore()
+    const userId = authStore.session?.user?.id
+    if (!userId) return
+
+    // Clear unread counts for this channel
+    await supabase
+      .from('unread_counts')
+      .update({
+        unread_messages: 0,
+        unread_mentions: 0,
+        last_read_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('channel_id', props.channel.id)
+
+    // Mark all notifications for this channel as read
+    const notificationStore = useNotificationStore()
+    const channelNotifications = notificationStore.notifications.filter(n =>
+      !n.is_read && (
+        n.data?.channel_id === props.channel.id ||
+        n.data?.message?.channel_id === props.channel.id
+      )
+    )
+    if (channelNotifications.length > 0) {
+      await Promise.all(channelNotifications.map(n => notificationStore.markAsRead(n.id)))
+    }
+
+    debug.log('✅ Marked channel as read:', props.channel.name)
+  } catch (error) {
+    debug.error('Failed to mark channel as read:', error)
+  }
+}
+
+const handleToggleMute = async () => {
+  showOptionsMenu.value = false
+  if (!props.channel?.id) return
+
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    const newMuted = !isChannelMuted.value
+    isChannelMuted.value = newMuted
+
+    // Upsert the notification_channels row
+    const { error } = await supabase
+      .from('notification_channels')
+      .upsert({
+        user_id: ctx.profileId,
+        channel_id: props.channel.id,
+        server_id: props.server?.id ?? null,
+        muted: newMuted,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,channel_id' })
+
+    if (error) {
+      // Revert optimistic update
+      isChannelMuted.value = !newMuted
+      debug.error('Failed to toggle mute:', error)
+
+      // Fallback: try select-then-update/insert
+      const { data: existing } = await supabase
+        .from('notification_channels')
+        .select('id')
+        .eq('user_id', ctx.profileId)
+        .eq('channel_id', props.channel.id)
+        .maybeSingle()
+
+      if (existing?.id) {
+        await supabase
+          .from('notification_channels')
+          .update({ muted: newMuted, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+      } else {
+        await supabase
+          .from('notification_channels')
+          .insert({
+            user_id: ctx.profileId,
+            channel_id: props.channel.id,
+            server_id: props.server?.id ?? null,
+            muted: newMuted,
+          })
+      }
+      isChannelMuted.value = newMuted
+    }
+
+    debug.log(`✅ Channel ${newMuted ? 'muted' : 'unmuted'}:`, props.channel.name)
+  } catch (error) {
+    debug.error('Failed to toggle channel mute:', error)
+  }
+}
+
+// Close menu on outside click or Escape
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') showOptionsMenu.value = false
 }
 
 watch(() => props.channel?.id, () => {
   loadPinnedCount()
+  loadMuteState()
+  showOptionsMenu.value = false
 })
 
 onMounted(() => {
   loadPinnedCount()
+  loadMuteState()
+  document.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown)
 })
 </script>
 
@@ -250,7 +438,8 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
-.action-btn:hover {
+.action-btn:hover,
+.action-btn.active {
   color: var(--text-primary);
   background: var(--background-secondary);
 }
@@ -278,6 +467,9 @@ onMounted(() => {
   color: var(--harmony-primary);
 }
 
+.more-menu-wrapper {
+  position: relative;
+}
 
 /* Mobile styles */
 @media (max-width: 768px) {
@@ -301,6 +493,60 @@ onMounted(() => {
     top: 0;
     right: 0px;
   }
+}
+</style>
 
+<style>
+.more-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.more-menu {
+  position: fixed;
+  background: var(--background-primary-alpha, var(--background-primary));
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(8px);
+  border-radius: 6px;
+  padding: 6px 0;
+  min-width: 200px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  z-index: 1000;
+}
+
+.more-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.1s ease;
+  user-select: none;
+}
+
+.more-menu .context-menu-item:hover:not(.disabled) {
+  background-color: var(--harmony-primary);
+  color: var(--text-primary);
+}
+
+.more-menu .context-menu-item.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.more-menu .context-menu-item .coming-soon {
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.more-menu .context-menu-divider {
+  height: 1px;
+  background: var(--border-color, #40444b);
+  margin: 4px 8px;
 }
 </style>

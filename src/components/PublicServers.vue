@@ -312,7 +312,8 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 }
 
 .public-servers-modal {
-  background: rgba(47, 49, 54, 0.98);
+  /* background: rgba(47, 49, 54, 0.98); */
+  background: var(--background-primary);
   backdrop-filter: blur(20px);
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
