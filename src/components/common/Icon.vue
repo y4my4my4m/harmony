@@ -345,6 +345,9 @@
     <!-- Shield -->
     <path v-if="name === 'shield'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
 
+    <!-- Key -->
+    <path v-if="name === 'key'" d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+
     <!-- Shield-off (shield with slash) -->
     <path v-if="name === 'shield-off'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
     <line v-if="name === 'shield-off'" x1="4" y1="4" x2="20" y2="20"></line>

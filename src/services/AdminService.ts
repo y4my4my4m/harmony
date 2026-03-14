@@ -1014,13 +1014,33 @@ class AdminService {
   }
 
   /**
-   * Set multiple instance configuration values
+   * Set multiple instance configuration values in a single RPC call.
+   * Falls back to sequential calls if the batch RPC is not available.
    */
   async setInstanceConfigs(configs: Record<string, any>, adminId: string): Promise<void> {
+    const entries = Object.entries(configs)
+    if (!entries.length) return
+
     try {
-      // Set each config key-value pair
-      for (const [key, value] of Object.entries(configs)) {
-        await this.setInstanceConfig(key, value, adminId);
+      const keys = entries.map(([k]) => k)
+      const values = entries.map(([, v]) => {
+        if (v === null || v === undefined) return null
+        if (typeof v === 'object') return v
+        return v
+      })
+
+      const { error } = await supabase.rpc('batch_set_instance_config', {
+        p_keys: keys,
+        p_values: values,
+      })
+
+      if (error) {
+        if (error.message?.includes('function') || error.code === '42883') {
+          debug.warn('batch_set_instance_config not available, falling back to sequential calls')
+          await Promise.all(entries.map(([key, value]) => this.setInstanceConfig(key, value, adminId)))
+          return
+        }
+        throw error
       }
     } catch (error) {
       debug.error('Failed to set instance configs:', error);

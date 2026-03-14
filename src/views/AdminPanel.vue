@@ -964,13 +964,27 @@
         <div class="module-header">
           <Icon name="settings" :size="20" />
           <h2>Configuration</h2>
-          <button @click="saveConfig" class="save-btn" :disabled="!configChanged">
-            <Icon name="save" :size="16" />
-            Save Changes
+        </div>
+        <div class="config-tabs">
+          <button
+            v-for="tab in [
+              { key: 'general', label: 'General', icon: 'settings' },
+              { key: 'federation', label: 'Federation', icon: 'globe' },
+              { key: 'branding', label: 'Branding', icon: 'image' },
+              { key: 'oauth', label: 'Authentication', icon: 'shield' },
+              { key: 'webrtc', label: 'Voice & Video', icon: 'mic' },
+            ]"
+            :key="tab.key"
+            :class="['config-tab-btn', { active: configTab === tab.key }]"
+            @click="configTab = tab.key as any"
+          >
+            <Icon :name="tab.icon" :size="16" />
+            {{ tab.label }}
           </button>
         </div>
         <div class="config-sections">
-          <div class="config-section">
+          <!-- General / Chat Settings -->
+          <div v-if="configTab === 'general'" class="config-section">
             <h3>Chat Settings</h3>
             <div class="setting-group">
               <label>Max Server Size</label>
@@ -992,9 +1006,24 @@
                 Enable Voice Channels
               </label>
             </div>
+
+            <h3 style="margin-top: 24px;">Trending & Discovery</h3>
+            <div class="setting-group">
+              <label>Trending Posts</label>
+              <button type="button" class="cyber-btn-sm" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
+                {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
+              </button>
+              <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
+            </div>
+
+            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
+              <Icon name="save" :size="16" />
+              Save Changes
+            </button>
           </div>
-          
-          <div class="config-section">
+
+          <!-- Federation Settings -->
+          <div v-if="configTab === 'federation'" class="config-section">
             <h3>Federation Settings</h3>
             <div class="setting-group">
               <label>Max Post Length</label>
@@ -1010,18 +1039,12 @@
               <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
             </div>
             <div class="setting-group">
-              <div class="setting-row">
-                <label class="toggle-label" style="display: flex; align-items: center; gap: 10px; margin-bottom: 0;">
-                  <input 
-                    type="checkbox" 
-                    v-model="config.federation.allowCustomEmojisInDisplayNames"
-                    style="margin-right: 8px;"
-                  />
-                  <span class="toggle-slider" style="margin-right: 8px;"></span>
-                  <span style="white-space: normal;">Allow Custom Emojis in Display Names</span>
-                </label>
-              </div>
-              <span class="setting-hint" style="display: block; margin-left: 2.3em;">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
+                <span class="toggle-slider"></span>
+                Allow Custom Emojis in Display Names
+              </label>
+              <span class="setting-hint">
                 When off, emojis won't display in names and users can't add them.
               </span>
             </div>
@@ -1037,20 +1060,15 @@
                 Enable Inbound Federation
               </label>
             </div>
+
+            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
+              <Icon name="save" :size="16" />
+              Save Changes
+            </button>
           </div>
 
-          <div class="config-section">
-            <h3>Trending & Discovery</h3>
-            <div class="setting-group">
-              <label>Trending Posts</label>
-              <button type="button" class="cyber-btn-sm" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
-                {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
-              </button>
-              <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
-            </div>
-          </div>
-
-          <div class="config-section">
+          <!-- Instance Branding -->
+          <div v-if="configTab === 'branding'" class="config-section">
             <h3>Instance Branding</h3>
             <div class="setting-group">
               <label>Instance Name</label>
@@ -1078,232 +1096,237 @@
                 This description appears as the subtitle on the login/register page.
               </span>
             </div>
-            <div class="setting-group">
-              <label>Terms of Service URL</label>
-              <input
-                v-model="instanceConfig.termsUrl"
-                type="url"
-                class="cyber-input"
-                placeholder="https://example.com/terms"
-                @input="instanceBrandingChanged = true"
-              />
-              <span class="setting-hint">
-                Link to your Terms of Service. Shown on the registration page. Leave empty to hide.
-              </span>
-            </div>
-            <div class="setting-group">
-              <label>Privacy Policy URL</label>
-              <input
-                v-model="instanceConfig.privacyUrl"
-                type="url"
-                class="cyber-input"
-                placeholder="https://example.com/privacy"
-                @input="instanceBrandingChanged = true"
-              />
-              <span class="setting-hint">
-                Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
-              </span>
-            </div>
 
-            <div class="setting-group">
-              <label>Instance Icon</label>
-              <div class="instance-appearance-row">
-                <div
-                  class="instance-icon-preview"
-                  @click="($refs.instanceIconInput as HTMLInputElement)?.click()"
-                >
-                  <img
-                    v-if="instanceIconPreviewUrl"
-                    :src="instanceIconPreviewUrl"
-                    alt="Instance icon"
-                    class="instance-icon-img"
-                  />
-                  <Icon v-else name="image" :size="24" />
+            <div class="config-subsection">
+              <h4>Appearance</h4>
+              <div class="setting-group">
+                <label>Instance Icon</label>
+                <div class="instance-appearance-row">
+                  <div
+                    class="instance-icon-preview"
+                    @click="($refs.instanceIconInput as HTMLInputElement)?.click()"
+                  >
+                    <img
+                      v-if="instanceIconPreviewUrl"
+                      :src="instanceIconPreviewUrl"
+                      alt="Instance icon"
+                      class="instance-icon-img"
+                    />
+                    <Icon v-else name="image" :size="24" />
+                  </div>
+                  <div class="instance-appearance-controls">
+                    <button type="button" class="save-btn" @click="($refs.instanceIconInput as HTMLInputElement)?.click()">
+                      Upload Icon
+                    </button>
+                    <button
+                      v-if="instanceConfig.iconUrl || instanceIconFile"
+                      type="button"
+                      class="save-btn"
+                      style="background: #ed4245;"
+                      @click="instanceIconFile = null; instanceConfig.iconUrl = ''; instanceBrandingChanged = true"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
-                <div class="instance-appearance-controls">
-                  <button type="button" class="save-btn" @click="($refs.instanceIconInput as HTMLInputElement)?.click()">
-                    Upload Icon
-                  </button>
+                <input
+                  ref="instanceIconInput"
+                  type="file"
+                  accept="image/*"
+                  style="display: none;"
+                  @change="handleInstanceIconChange"
+                />
+                <span class="setting-hint">
+                  Your instance's logo. Shown to other federated instances and in the instances directory.
+                </span>
+              </div>
+
+              <div class="setting-group">
+                <label>Instance Banner</label>
+                <div
+                  class="instance-banner-preview"
+                  :style="instanceBannerPreviewUrl ? { backgroundImage: `url(${instanceBannerPreviewUrl})` } : {}"
+                  @click="($refs.instanceBannerInput as HTMLInputElement)?.click()"
+                >
+                  <div v-if="!instanceBannerPreviewUrl" class="instance-banner-placeholder">
+                    <Icon name="image" :size="20" />
+                    <span>Click to upload banner</span>
+                  </div>
+                  <div v-else class="instance-banner-overlay">
+                    <span>Change banner</span>
+                  </div>
+                </div>
+                <div v-if="instanceConfig.bannerUrl || instanceBannerFile" style="margin-top: 8px;">
                   <button
-                    v-if="instanceConfig.iconUrl || instanceIconFile"
                     type="button"
                     class="save-btn"
                     style="background: #ed4245;"
-                    @click="instanceIconFile = null; instanceConfig.iconUrl = ''; instanceBrandingChanged = true"
+                    @click="instanceBannerFile = null; instanceConfig.bannerUrl = ''; instanceBrandingChanged = true"
                   >
-                    Remove
+                    Remove Banner
                   </button>
                 </div>
-              </div>
-              <input
-                ref="instanceIconInput"
-                type="file"
-                accept="image/*"
-                style="display: none;"
-                @change="handleInstanceIconChange"
-              />
-              <span class="setting-hint">
-                Your instance's logo. Shown to other federated instances and in the instances directory. Defaults to the Harmony logo.
-              </span>
-            </div>
-
-            <div class="setting-group">
-              <label>Instance Banner</label>
-              <div
-                class="instance-banner-preview"
-                :style="instanceBannerPreviewUrl ? { backgroundImage: `url(${instanceBannerPreviewUrl})` } : {}"
-                @click="($refs.instanceBannerInput as HTMLInputElement)?.click()"
-              >
-                <div v-if="!instanceBannerPreviewUrl" class="instance-banner-placeholder">
-                  <Icon name="image" :size="20" />
-                  <span>Click to upload banner</span>
-                </div>
-                <div v-else class="instance-banner-overlay">
-                  <span>Change banner</span>
-                </div>
-              </div>
-              <div v-if="instanceConfig.bannerUrl || instanceBannerFile" style="margin-top: 8px;">
-                <button
-                  type="button"
-                  class="save-btn"
-                  style="background: #ed4245;"
-                  @click="instanceBannerFile = null; instanceConfig.bannerUrl = ''; instanceBrandingChanged = true"
-                >
-                  Remove Banner
-                </button>
-              </div>
-              <input
-                ref="instanceBannerInput"
-                type="file"
-                accept="image/*"
-                style="display: none;"
-                @change="handleInstanceBannerChange"
-              />
-              <span class="setting-hint">
-                A hero image for your instance. Shown in the instances directory and exposed via NodeInfo.
-              </span>
-            </div>
-
-            <div class="setting-group">
-              <label>Theme Color</label>
-              <div style="display: flex; align-items: center; gap: 12px;">
                 <input
-                  v-model="instanceConfig.themeColor"
-                  type="color"
+                  ref="instanceBannerInput"
+                  type="file"
+                  accept="image/*"
+                  style="display: none;"
+                  @change="handleInstanceBannerChange"
+                />
+                <span class="setting-hint">
+                  A hero image for your instance. Shown in the instances directory and exposed via NodeInfo.
+                </span>
+              </div>
+
+              <div class="setting-group">
+                <label>Theme Color</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <input
+                    v-model="instanceConfig.themeColor"
+                    type="color"
+                    class="cyber-input"
+                    style="width: 48px; height: 36px; padding: 2px; cursor: pointer;"
+                    @input="instanceBrandingChanged = true"
+                  />
+                  <input
+                    v-model="instanceConfig.themeColor"
+                    type="text"
+                    class="cyber-input"
+                    placeholder="#5865f2"
+                    style="flex: 1;"
+                    @input="instanceBrandingChanged = true"
+                  />
+                </div>
+                <span class="setting-hint">
+                  Your instance's accent color. Exposed via NodeInfo for other instances to use.
+                </span>
+              </div>
+            </div>
+
+            <div class="config-subsection">
+              <h4>Legal & Contact</h4>
+              <div class="setting-group">
+                <label>Terms of Service URL</label>
+                <input
+                  v-model="instanceConfig.termsUrl"
+                  type="url"
                   class="cyber-input"
-                  style="width: 48px; height: 36px; padding: 2px; cursor: pointer;"
+                  placeholder="https://example.com/terms"
                   @input="instanceBrandingChanged = true"
                 />
+                <span class="setting-hint">
+                  Link to your Terms of Service. Shown on the registration page. Leave empty to hide.
+                </span>
+              </div>
+              <div class="setting-group">
+                <label>Privacy Policy URL</label>
                 <input
-                  v-model="instanceConfig.themeColor"
+                  v-model="instanceConfig.privacyUrl"
+                  type="url"
+                  class="cyber-input"
+                  placeholder="https://example.com/privacy"
+                  @input="instanceBrandingChanged = true"
+                />
+                <span class="setting-hint">
+                  Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
+                </span>
+              </div>
+              <div class="setting-group">
+                <label>Maintainer Name</label>
+                <input
+                  v-model="instanceConfig.maintainerName"
                   type="text"
                   class="cyber-input"
-                  placeholder="#5865f2"
-                  style="flex: 1;"
+                  placeholder="Admin"
                   @input="instanceBrandingChanged = true"
                 />
+                <span class="setting-hint">
+                  Public contact name for this instance's administrator.
+                </span>
               </div>
-              <span class="setting-hint">
-                Your instance's accent color. Exposed via NodeInfo for other instances to use.
-              </span>
-            </div>
-
-            <div class="setting-group">
-              <label>Maintainer Name</label>
-              <input
-                v-model="instanceConfig.maintainerName"
-                type="text"
-                class="cyber-input"
-                placeholder="Admin"
-                @input="instanceBrandingChanged = true"
-              />
-              <span class="setting-hint">
-                Public contact name for this instance's administrator.
-              </span>
-            </div>
-
-            <div class="setting-group">
-              <label>Maintainer Email</label>
-              <input
-                v-model="instanceConfig.maintainerEmail"
-                type="email"
-                class="cyber-input"
-                placeholder="admin@example.com"
-                @input="instanceBrandingChanged = true"
-              />
-              <span class="setting-hint">
-                Public contact email. Exposed via NodeInfo for federation transparency.
-              </span>
+              <div class="setting-group">
+                <label>Maintainer Email</label>
+                <input
+                  v-model="instanceConfig.maintainerEmail"
+                  type="email"
+                  class="cyber-input"
+                  placeholder="admin@example.com"
+                  @input="instanceBrandingChanged = true"
+                />
+                <span class="setting-hint">
+                  Public contact email. Exposed via NodeInfo for federation transparency.
+                </span>
+              </div>
             </div>
 
             <button 
               @click="saveInstanceBranding" 
               class="save-btn" 
               :disabled="!instanceBrandingChanged || savingBranding"
-              style="margin-top: 12px;"
+              style="margin-top: 16px;"
             >
               <Icon name="save" :size="16" />
               {{ savingBranding ? 'Saving...' : 'Save Branding' }}
             </button>
           </div>
 
-          <div class="config-section">
+          <!-- OAuth Providers -->
+          <div v-if="configTab === 'oauth'" class="config-section">
             <h3>OAuth Providers</h3>
-            <div class="setting-group">
-              <p class="setting-hint" style="margin-bottom: 16px;">
-                Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
-              </p>
-              <div class="setting-row" style="flex-direction: column; gap: 12px;">
-                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-weight: 500;">Google</span>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Google</span>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    v-model="oauthProviders.google"
-                    @change="oauthProvidersChanged = true"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
-                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-weight: 500;">Twitch</span>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Twitch</span>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    v-model="oauthProviders.twitch"
-                    @change="oauthProvidersChanged = true"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
-                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-weight: 500;">GitHub</span>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with GitHub</span>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    v-model="oauthProviders.github"
-                    @change="oauthProvidersChanged = true"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
+            <p class="setting-hint" style="margin-bottom: 16px;">
+              Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-weight: 500;">Google</span>
+                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Google</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  v-model="oauthProviders.google"
+                  @change="oauthProvidersChanged = true"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-weight: 500;">Twitch</span>
+                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Twitch</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  v-model="oauthProviders.twitch"
+                  @change="oauthProvidersChanged = true"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-weight: 500;">GitHub</span>
+                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with GitHub</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  v-model="oauthProviders.github"
+                  @change="oauthProvidersChanged = true"
+                />
+                <span class="toggle-slider"></span>
+              </label>
             </div>
             <button 
               @click="saveOAuthProviders" 
               class="save-btn" 
               :disabled="!oauthProvidersChanged || savingOAuthProviders"
-              style="margin-top: 12px;"
+              style="margin-top: 16px;"
             >
               <Icon name="save" :size="16" />
               {{ savingOAuthProviders ? 'Saving...' : 'Save OAuth Settings' }}
             </button>
           </div>
 
-          <div class="config-section">
+          <!-- WebRTC / Voice Settings -->
+          <div v-if="configTab === 'webrtc'" class="config-section">
             <h3>WebRTC / Voice Settings</h3>
             <div class="setting-group">
               <label>WebRTC Mode</label>
@@ -1349,6 +1372,11 @@
                 </span>
               </label>
             </div>
+
+            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
+              <Icon name="save" :size="16" />
+              Save Changes
+            </button>
           </div>
         </div>
       </div>
@@ -1885,6 +1913,7 @@ const newBlockReason = ref('')
 const configChanged = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
+const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'>('general')
 
 // Reports & Moderation data
 const reports = ref<ReportWithDetails[]>([])
@@ -3247,19 +3276,17 @@ const saveConfig = async () => {
       return
     }
 
-    // Save chat settings
-    await adminService.setInstanceConfig('max_server_size', config.value.chat.maxServerSize, userId)
-    await adminService.setInstanceConfig('max_message_length', config.value.chat.maxMessageLength, userId)
-    await adminService.setInstanceConfig('allow_file_uploads', config.value.chat.allowFileUploads, userId)
-    await adminService.setInstanceConfig('enable_voice_channels', config.value.chat.enableVoiceChannels, userId)
-    
-    // Save federation-specific settings
-    await adminService.setInstanceConfig('max_post_length', config.value.federation.maxPostLength, userId)
-    await adminService.setInstanceConfig('federation_retry_attempts', config.value.federation.retryAttempts, userId)
-    await adminService.setInstanceConfig('max_custom_emojis_per_server', config.value.federation.maxCustomEmojisPerServer ?? 0, userId)
-    await adminService.setInstanceConfig('allow_custom_emojis_in_display_names', config.value.federation.allowCustomEmojisInDisplayNames, userId)
+    await adminService.setInstanceConfigs({
+      max_server_size: config.value.chat.maxServerSize,
+      max_message_length: config.value.chat.maxMessageLength,
+      allow_file_uploads: config.value.chat.allowFileUploads,
+      enable_voice_channels: config.value.chat.enableVoiceChannels,
+      max_post_length: config.value.federation.maxPostLength,
+      federation_retry_attempts: config.value.federation.retryAttempts,
+      max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
+      allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
+    }, userId)
 
-    // Save WebRTC settings
     await adminService.updateWebRTCSettings({
       mode: config.value.webrtc.mode,
       livekitUrl: config.value.webrtc.livekitUrl,
@@ -3336,98 +3363,52 @@ const saveInstanceBranding = async () => {
 
   savingBranding.value = true
   try {
-    // Save instance name
-    await adminService.setInstanceConfig(
-      'instance_name',
-      instanceConfig.value.name,
-      authStore.session.user.id,
-      'The name of this Harmony instance'
-    )
-
-    // Save instance description
-    await adminService.setInstanceConfig(
-      'instance_description',
-      instanceConfig.value.description,
-      authStore.session.user.id,
-      'Description of this instance'
-    )
-
-    // Save terms URL
-    await adminService.setInstanceConfig(
-      'terms_url',
-      instanceConfig.value.termsUrl,
-      authStore.session.user.id,
-      'URL to the Terms of Service page'
-    )
-
-    // Save privacy URL
-    await adminService.setInstanceConfig(
-      'privacy_url',
-      instanceConfig.value.privacyUrl,
-      authStore.session.user.id,
-      'URL to the Privacy Policy page'
-    )
-
-    // Upload and save instance icon
+    // Upload icon if a new file was selected
     if (instanceIconFile.value) {
       const ext = instanceIconFile.value.name.split('.').pop()
       const filePath = `instance/instance_icon.${ext}`
       const { error: uploadErr } = await supabase.storage
         .from('server_icons')
         .upload(filePath, instanceIconFile.value, { upsert: true })
-      if (!uploadErr) {
-        const { data: urlData } = supabase.storage.from('server_icons').getPublicUrl(filePath)
-        instanceConfig.value.iconUrl = urlData.publicUrl
-        instanceIconFile.value = null
+      if (uploadErr) {
+        toast.error(`Failed to upload icon: ${uploadErr.message}`)
+        savingBranding.value = false
+        return
       }
+      const { data: urlData } = supabase.storage.from('server_icons').getPublicUrl(filePath)
+      instanceConfig.value.iconUrl = urlData.publicUrl
+      instanceIconFile.value = null
     }
-    await adminService.setInstanceConfig(
-      'instance_icon',
-      instanceConfig.value.iconUrl,
-      authStore.session.user.id,
-      'Instance icon URL (shown to federated instances)'
-    )
 
-    // Upload and save instance banner
+    // Upload banner if a new file was selected
     if (instanceBannerFile.value) {
       const ext = instanceBannerFile.value.name.split('.').pop()
       const filePath = `instance/instance_banner.${ext}`
       const { error: uploadErr } = await supabase.storage
         .from('server_banners')
         .upload(filePath, instanceBannerFile.value, { upsert: true })
-      if (!uploadErr) {
-        const { data: urlData } = supabase.storage.from('server_banners').getPublicUrl(filePath)
-        instanceConfig.value.bannerUrl = urlData.publicUrl
-        instanceBannerFile.value = null
+      if (uploadErr) {
+        toast.error(`Failed to upload banner: ${uploadErr.message}`)
+        savingBranding.value = false
+        return
       }
+      const { data: urlData } = supabase.storage.from('server_banners').getPublicUrl(filePath)
+      instanceConfig.value.bannerUrl = urlData.publicUrl
+      instanceBannerFile.value = null
     }
-    await adminService.setInstanceConfig(
-      'instance_banner',
-      instanceConfig.value.bannerUrl,
-      authStore.session.user.id,
-      'Instance banner URL (shown to federated instances)'
-    )
 
-    await adminService.setInstanceConfig(
-      'theme_color',
-      instanceConfig.value.themeColor,
-      authStore.session.user.id,
-      'Instance theme/accent color (exposed via NodeInfo)'
-    )
-
-    await adminService.setInstanceConfig(
-      'maintainer_name',
-      instanceConfig.value.maintainerName,
-      authStore.session.user.id,
-      'Instance administrator name (exposed via NodeInfo)'
-    )
-
-    await adminService.setInstanceConfig(
-      'maintainer_email',
-      instanceConfig.value.maintainerEmail,
-      authStore.session.user.id,
-      'Instance administrator email (exposed via NodeInfo)'
-    )
+    // Batch-save all branding config in a single RPC call
+    await adminService.setInstanceConfigs({
+      instance_name: instanceConfig.value.name,
+      instance_description: instanceConfig.value.description,
+      terms_url: instanceConfig.value.termsUrl,
+      privacy_url: instanceConfig.value.privacyUrl,
+      instance_icon: instanceConfig.value.iconUrl,
+      instance_banner: instanceConfig.value.bannerUrl,
+      theme_color: instanceConfig.value.themeColor,
+      maintainer_name: instanceConfig.value.maintainerName,
+      maintainer_email: instanceConfig.value.maintainerEmail,
+    }, authStore.session.user.id)
 
     instanceBrandingChanged.value = false
     toast.success('Instance branding saved successfully')
@@ -4988,7 +4969,11 @@ const handleAddInstance = () => {
 }
 
 .users-list {
-  space-y: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 600px;
+  overflow-y: auto;
 }
 
 .user-item {
@@ -5376,12 +5361,47 @@ const handleAddInstance = () => {
 }
 
 /* Configuration Module */
+.config-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 24px 0;
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+}
+
+.config-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.config-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--background-tertiary);
+  border-radius: 6px 6px 0 0;
+}
+
+.config-tab-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
 .config-sections {
   padding: 24px;
 }
 
 .config-section {
-  margin-bottom: 32px;
+  margin-bottom: 0;
 }
 
 .config-section h3 {
@@ -5389,6 +5409,21 @@ const handleAddInstance = () => {
   font-weight: 600;
   margin-bottom: 16px;
   color: var(--text-primary);
+}
+
+.config-subsection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.config-subsection h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* Instance appearance (icon/banner) */
