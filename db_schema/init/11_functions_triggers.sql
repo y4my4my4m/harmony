@@ -248,15 +248,24 @@ BEGIN
 END;
 $$;
 
--- Prevent deletion of protected roles
+-- Prevent deletion of protected roles (allows cascade when server is deleted)
 CREATE OR REPLACE FUNCTION public.prevent_protected_role_deletion()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF OLD.is_default = true THEN
-        RAISE EXCEPTION 'Cannot delete the default @everyone role';
+    IF NOT EXISTS (SELECT 1 FROM servers WHERE id = OLD.server_id) THEN
+        RETURN OLD;
     END IF;
+
+    IF OLD.is_admin = true THEN
+        RAISE EXCEPTION 'Cannot delete the Admin role. This role is protected.';
+    END IF;
+
+    IF OLD.is_default = true THEN
+        RAISE EXCEPTION 'Cannot delete the @everyone role. This role is protected.';
+    END IF;
+
     RETURN OLD;
 END;
 $$;
