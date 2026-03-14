@@ -316,12 +316,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.instance-detail-modal :deep(.modal-container) {
+.modal-container.instance-detail-modal {
   max-width: 560px;
   width: 92vw;
 }
 
-.instance-detail-modal :deep(.modal-content) {
+.modal-content.instance-detail-modal {
   padding: 0;
   overflow: hidden;
   max-height: min(85vh, 720px);
@@ -329,7 +329,7 @@ onMounted(() => {
   flex-direction: column;
 }
 
-.instance-detail-modal :deep(.modal-overlay) {
+.modal-overlay.instance-detail-modal {
   padding: 0;
 }
 
