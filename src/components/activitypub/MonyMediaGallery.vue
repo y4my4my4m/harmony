@@ -58,11 +58,15 @@
         </a>
       </div>
 
-      <!-- Sensitive content overlay -->
-      <div v-if="isSensitive && !showSensitive" class="sensitive-overlay">
+      <!-- Sensitive content overlay - tap anywhere to reveal first, then tap again to open lightbox -->
+      <div
+        v-if="isSensitive && !showSensitive"
+        class="sensitive-overlay"
+        @click.stop="showSensitive = true"
+      >
         <Icon name="eye-off" />
         <span>Sensitive content</span>
-        <button @click.stop="showSensitive = true" class="show-btn">
+        <button class="show-btn">
           Show
         </button>
       </div>

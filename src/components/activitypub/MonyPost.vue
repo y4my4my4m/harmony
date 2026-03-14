@@ -93,8 +93,17 @@
       <div 
         v-show="!displayContentWarning || showSensitiveContent"
         class="post-body"
-        :class="{ 'is-sensitive': displayIsSensitive }"
+        :class="{ 
+          'is-sensitive': displayIsSensitive, 
+          'revealed': sensitiveRevealedForTouch 
+        }"
       >
+        <!-- Tap-to-reveal overlay on mobile: first tap reveals, second tap opens lightbox -->
+        <div
+          v-if="displayIsSensitive && isTouchDevice && !sensitiveRevealedForTouch"
+          class="sensitive-tap-overlay"
+          @click.stop="sensitiveRevealedForTouch = true"
+        />
         <!-- Unhydrated Reblog/Quote: Show reference link when content not loaded -->
         <div v-if="isUnhydratedReblog" class="unhydrated-reblog">
           <div class="unhydrated-reblog-notice">
@@ -618,6 +627,8 @@ const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
+const sensitiveRevealedForTouch = ref(false); // On mobile: first tap reveals blur, second tap opens lightbox
+const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
 const showMenu = ref(false);
 const menuButtonRef = ref<HTMLElement | null>(null);
 const dropdownRef = ref<HTMLElement | null>(null);
@@ -2066,6 +2077,7 @@ const closeLightbox = () => {
 
 .post-body {
   margin-bottom: 1rem;
+  position: relative;
 }
 
 .post-body.is-sensitive {
@@ -2073,8 +2085,17 @@ const closeLightbox = () => {
   transition: filter 0.2s;
 }
 
-.post-body.is-sensitive:hover {
+.post-body.is-sensitive:hover,
+.post-body.is-sensitive.revealed {
   filter: blur(0px);
+}
+
+/* Tap-to-reveal overlay on mobile: first tap reveals, second tap opens lightbox */
+.sensitive-tap-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: pointer;
 }
 
 .post-text {
