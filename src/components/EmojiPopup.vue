@@ -31,7 +31,7 @@
               :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
               @click="selectFavoriteEmoji(fav)"
               @contextmenu.prevent="openEmojiCtxFavorite(fav, $event)"
-              @touchstart="handleDoubleTap($event, (e) => openEmojiCtxFavorite(fav, e))"
+              @touchstart="handleTouchHold($event, (e) => openEmojiCtxFavorite(fav, e))"
               @pointerenter="hoveredEmojiName = fav.emoji_name"
               @pointerleave="hoveredEmojiName = null"
             >
@@ -51,7 +51,7 @@
             </div>
           </div>
           <div v-else class="no-favorites-hint">
-            <p>Right-click (or double-tap) any emoji to add it here.</p>
+            <p>Right-click (or touch and hold) any emoji to add it here.</p>
           </div>
         </template>
       </div>
@@ -73,7 +73,7 @@
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
             @click="selectFrequentEmoji(emoji)"
             @contextmenu.prevent="openEmojiCtxFrequent(emoji, $event)"
-            @touchstart="handleDoubleTap($event, (e) => openEmojiCtxFrequent(emoji, e))"
+            @touchstart="handleTouchHold($event, (e) => openEmojiCtxFrequent(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.name"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -112,7 +112,7 @@
               class="emoji-item"
               @click="selectEmoji(emoji)"
               @contextmenu.prevent="openEmojiCtxServer(emoji, $event)"
-              @touchstart="handleDoubleTap($event, (e) => openEmojiCtxServer(emoji, e))"
+              @touchstart="handleTouchHold($event, (e) => openEmojiCtxServer(emoji, e))"
               @pointerenter="hoveredEmojiName = emoji.display_name"
               @pointerleave="hoveredEmojiName = null"
             >
@@ -150,7 +150,7 @@
             :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
             @click="selectUnifiedEmoji(emoji)"
             @contextmenu.prevent="openEmojiCtxUnified(emoji, $event)"
-            @touchstart="handleDoubleTap($event, (e) => openEmojiCtxUnified(emoji, e))"
+            @touchstart="handleTouchHold($event, (e) => openEmojiCtxUnified(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.shortcode"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -720,21 +720,42 @@ function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   return { x, y };
 }
 
-let lastTapTime = 0;
-let lastTapTarget: EventTarget | null = null;
-function handleDoubleTap(event: TouchEvent, ctxHandler: (e: MouseEvent | Touch) => void) {
-  const touch = event.touches[0] || event.changedTouches[0];
+let holdTimeoutId: ReturnType<typeof setTimeout> | null = null;
+let holdListenersAdded = false;
+
+function clearHold() {
+  if (holdTimeoutId) {
+    clearTimeout(holdTimeoutId);
+    holdTimeoutId = null;
+  }
+  if (holdListenersAdded) {
+    document.removeEventListener('touchend', onHoldTouchEnd);
+    document.removeEventListener('touchmove', onHoldTouchMove);
+    holdListenersAdded = false;
+  }
+}
+
+function onHoldTouchEnd() {
+  clearHold();
+}
+
+function onHoldTouchMove() {
+  clearHold();
+}
+
+function handleTouchHold(event: TouchEvent, ctxHandler: (e: MouseEvent | Touch) => void) {
+  const touch = event.touches[0];
   if (!touch) return;
-  const now = Date.now();
-  if (now - lastTapTime < 300 && lastTapTarget === event.currentTarget) {
+  clearHold();
+  holdTimeoutId = setTimeout(() => {
+    holdTimeoutId = null;
+    clearHold();
     event.preventDefault();
     ctxHandler(touch);
-    lastTapTime = 0;
-    lastTapTarget = null;
-  } else {
-    lastTapTime = now;
-    lastTapTarget = event.currentTarget;
-  }
+  }, 500);
+  document.addEventListener('touchend', onHoldTouchEnd);
+  document.addEventListener('touchmove', onHoldTouchMove, { passive: true });
+  holdListenersAdded = true;
 }
 
 function openEmojiCtxUnified(emoji: EmojiEntry, event: MouseEvent | Touch) {
