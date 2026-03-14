@@ -2166,6 +2166,7 @@ const config = ref({
 
 // Users data
 const users = ref<AdminUser[]>([])
+const userCounts = ref({ total: 0, local: 0, federated: 0, suspended: 0 })
 const blockedInstances = ref([
   { domain: 'bad-instance.com', reason: 'Spam and harassment' },
   { domain: 'another-bad.net', reason: 'Policy violations' }
@@ -2213,10 +2214,10 @@ const filteredRecentActivity = computed(() => {
 })
 
 const userFilters = computed(() => [
-  { key: 'all', label: 'All Users', count: users.value.length },
-  { key: 'local', label: 'Local', count: users.value.filter(u => u.is_local).length },
-  { key: 'federated', label: 'Federated', count: users.value.filter(u => !u.is_local).length },
-  { key: 'suspended', label: 'Suspended', count: users.value.filter(u => u.is_suspended).length }
+  { key: 'all', label: 'All Users', count: userCounts.value.total },
+  { key: 'local', label: 'Local', count: userCounts.value.local },
+  { key: 'federated', label: 'Federated', count: userCounts.value.federated },
+  { key: 'suspended', label: 'Suspended', count: userCounts.value.suspended }
 ])
 
 const filteredUsers = computed(() => {
@@ -2274,6 +2275,7 @@ const loadInitialData = async () => {
     await Promise.all([
       loadSystemStats(),
       loadUsers(),
+      loadUserCounts(),
       loadSystemHealth(),
       loadInstanceConfig(),
       loadRecentActivity(),
@@ -2473,6 +2475,15 @@ const loadSystemStats = async () => {
 }
 
 const userPagination = ref({ offset: 0, limit: 25, total: 0 })
+
+const loadUserCounts = async () => {
+  try {
+    userCounts.value = await adminService.getUserCounts()
+  } catch (error) {
+    debug.error('Failed to load user counts:', error)
+    userCounts.value = { total: 0, local: 0, federated: 0, suspended: 0 }
+  }
+}
 
 const loadUsers = async () => {
   try {
