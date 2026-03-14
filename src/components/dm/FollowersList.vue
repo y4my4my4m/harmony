@@ -358,6 +358,20 @@ onMounted(() => {
 
 .user-avatar-container {
   flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+.user-avatar-container :deep(.avatar-container) {
+  width: 40px;
+  height: 40px;
+}
+
+.user-avatar-container :deep(.avatar-image) {
+  width: 100%;
+  height: 100%;
+  max-width: 40px;
+  max-height: 40px;
 }
 
 .user-info {
