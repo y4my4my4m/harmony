@@ -124,7 +124,7 @@ const PRESET_THEMES = {
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#7289da',
+    secondary: '#616ae5',
     accent: '#ff7675',
   },
   light: {
@@ -135,7 +135,7 @@ const PRESET_THEMES = {
     textSecondary: '#4e5058',
     borderPrimary: 'rgba(0, 0, 0, 0.12)',
     isLightTheme: true,
-    secondary: '#7289da',
+    secondary: '#616ae5',
     accent: '#ff7675',
   },
   midnight: {
@@ -146,7 +146,7 @@ const PRESET_THEMES = {
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#7289da',
+    secondary: '#616ae5',
     accent: '#ff7675',
   },
 }

@@ -7,7 +7,7 @@
   --harmony-primary: #5865f2;
   --harmony-primary-hover: #4752c4;
   --harmony-primary-light: rgba(88, 101, 242, 0.1);
-  --harmony-secondary: #7289da;
+  --harmony-secondary: #616ae5;
   --harmony-accent: #ff7675;
   
   /* Status Colors */
@@ -799,7 +799,7 @@ body {
 
 .glyph-char {
   display: inline-block;
-  color: #7289da;
+  color: #616ae5;
   opacity: 0.7;
   animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite;
   text-shadow: 
@@ -875,7 +875,7 @@ body {
     text-shadow: 
       0 0 5px rgba(114, 137, 218, 0.5),
       0 0 10px rgba(114, 137, 218, 0.3);
-    color: #7289da;
+    color: #616ae5;
   }
   50% {
     text-shadow: 

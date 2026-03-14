@@ -282,7 +282,7 @@ const getParticleStyle = (index: number) => {
 .logo-glow {
   position: absolute;
   inset: -12px;
-  background: conic-gradient(from 180deg, #5865f2, #00d4ff, #7289da, #5865f2);
+  background: conic-gradient(from 180deg, #5865f2, #00d4ff, #616ae5, #5865f2);
   border-radius: 50%;
   animation: spin 4s linear infinite;
   opacity: 0.8;
@@ -403,7 +403,7 @@ const getParticleStyle = (index: number) => {
 .card-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   border-radius: 12px;
   display: flex;
   align-items: center;

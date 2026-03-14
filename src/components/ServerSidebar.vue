@@ -1303,7 +1303,7 @@ const removeServerFromFolder = async () => {
   left: 5px;
 }
 
-/* Discord-style white pill indicator */
+/*  white pill indicator */
 .server-pill {
   position: absolute;
   left: -14px;

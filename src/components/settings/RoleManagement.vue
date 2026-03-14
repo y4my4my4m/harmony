@@ -329,7 +329,7 @@ const editorTabs = [
   { id: 'members', label: 'Members' },
 ]
 
-// Color presets (Discord-style)
+// Color presets ()
 const colorPresets = [
   '#1ABC9C', '#2ECC71', '#3498DB', '#9B59B6', '#E91E63',
   '#F1C40F', '#E67E22', '#E74C3C', '#95A5A6', '#607D8B',

@@ -69,9 +69,9 @@ const emit = defineEmits<{
 // State
 const localColor = ref(props.color)
 
-// Preset colors (Discord-like palette)
+// Preset colors (Main palette)
 const presetColors = [
-  '#5865f2', // Discord Blurple
+  '#5865f2', // Main
   '#57f287', // Green
   '#fee75c', // Yellow
   '#eb459e', // Pink

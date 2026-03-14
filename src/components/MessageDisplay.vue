@@ -1105,7 +1105,7 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
   return computed(() => {
     // Check for Discord user metadata first (puppeting)
     if (message.metadata?.discord_user) {
-      return '#7289DA'; // Discord blurple
+      return '#616ae5';
     }
     
     // Regular bot
@@ -2866,7 +2866,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .bot-badge.discord {
-  background: #7289DA;
+  background: #616ae5;
 }
 
 .instance-badge {

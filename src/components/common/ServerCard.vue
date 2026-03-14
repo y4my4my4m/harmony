@@ -209,8 +209,8 @@ const handleOwnerClick = (event: Event) => {
 
 <style scoped>
 .server-card {
-  background: rgba(47, 49, 54, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 16px;
   padding: 20px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -220,26 +220,26 @@ const handleOwnerClick = (event: Event) => {
 
 .server-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(88, 101, 242, 0.5);
+  border-color: var(--harmony-primary);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(88, 101, 242, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 0 0 1px var(--harmony-primary),
+    inset 0 1px 0 var(--border-primary);
 }
 
 .server-card--featured {
-  border-color: rgba(255, 215, 0, 0.4);
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(47, 49, 54, 0.98) 100%);
+  border-color: var(--harmony-primary);
+  background: linear-gradient(135deg, var(--harmony-primary) 0%, var(--background-primary) 100%);
   padding: 12px 16px;
   border-radius: 12px;
 }
 
 .server-card--featured:hover {
-  border-color: rgba(255, 215, 0, 0.6);
+  border-color: var(--harmony-primary);
   box-shadow: 
-    0 8px 32px rgba(255, 215, 0, 0.2),
-    0 0 0 1px rgba(255, 215, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 8px 32px var(--harmony-primary),
+    0 0 0 1px var(--harmony-primary),
+    inset 0 1px 0 var(--border-primary);
 }
 
 .server-card--featured .server-card__header {
@@ -292,13 +292,13 @@ const handleOwnerClick = (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid rgba(47, 49, 54, 1);
+  border: 2px solid var(--background-primary);
 }
 
 .featured-icon {
   width: 12px;
   height: 12px;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .server-card__status {

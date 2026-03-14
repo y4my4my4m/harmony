@@ -1235,7 +1235,7 @@ onMounted(() => {
 .profile-banner {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   overflow: hidden;
 }
 

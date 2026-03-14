@@ -383,7 +383,7 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .category-pill--active {
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   border-color: #5865f2;
   color: var(--text-primary);
   box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);

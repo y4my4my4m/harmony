@@ -589,7 +589,7 @@ watch(() => props.show, async (newValue) => {
 .default-server-icon {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   display: flex;
   align-items: center;
   justify-content: center;

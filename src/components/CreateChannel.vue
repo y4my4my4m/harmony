@@ -209,7 +209,7 @@ const channelNameHint = computed(() => {
 
 const formatChannelName = (name: string): string => {
   if (channelType.value === 0) {
-    // For text channels, convert to Discord-style format
+    // For text channels, convert to  format
     return name
       .toLowerCase()
       .replace(/\s+/g, '-')

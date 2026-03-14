@@ -606,7 +606,7 @@ onMounted(() => {
 
 .emoji-domain {
   font-size: 0.75rem;
-  color: #7289da;
+  color: #616ae5;
   margin-bottom: 0.25rem;
 }
 

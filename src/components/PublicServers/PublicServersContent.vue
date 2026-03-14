@@ -279,7 +279,7 @@ const loadMore = () => {
 }
 
 .refresh-btn {
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   border: none;
   border-radius: 8px;
   padding: 12px 24px;
