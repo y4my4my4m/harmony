@@ -1427,18 +1427,25 @@ class AdminService {
       // Try ActivityPub actor endpoint
       const actorResult = await this.probeActivityPubActor(cleanDomain);
 
-      // Merge results: prefer NodeInfo for core info, enrich with Mastodon/Actor for icons
-      const base = nodeinfoResult || mastodonResult || actorResult;
+      // For Misskey-family instances, try their native API for icon/banner
+      const isMisskey = nodeinfoResult?.software?.toLowerCase()?.match(/misskey|calckey|firefish|sharkey|foundkey|iceshrimp/);
+      const misskeyResult = isMisskey ? await this.probeMisskeyAPI(cleanDomain) : null;
+
+      // Merge results: prefer NodeInfo for core info, enrich with Mastodon/Actor/Misskey for icons
+      const base = nodeinfoResult || mastodonResult || misskeyResult || actorResult;
       if (!base) {
         debug.log(`Could not discover instance: ${cleanDomain}`);
         return null;
       }
 
       if (!base.icon_url) {
-        base.icon_url = mastodonResult?.icon_url || actorResult?.icon_url;
+        base.icon_url = misskeyResult?.icon_url || mastodonResult?.icon_url || actorResult?.icon_url;
       }
       if (!base.banner_url) {
-        base.banner_url = mastodonResult?.banner_url || actorResult?.banner_url;
+        base.banner_url = misskeyResult?.banner_url || mastodonResult?.banner_url || actorResult?.banner_url;
+      }
+      if (!base.description && misskeyResult?.description) {
+        base.description = misskeyResult.description;
       }
 
       return base;
@@ -1603,6 +1610,44 @@ class AdminService {
 
       return result;
     } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Probe Misskey-family instances using their native POST /api/meta endpoint
+   */
+  private async probeMisskeyAPI(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      const response = await fetch(`https://${domain}/api/meta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) return null;
+
+      const meta = await response.json();
+
+      const resolveUrl = (url: string | null | undefined): string | undefined => {
+        if (!url) return undefined;
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        return `https://${domain}${url.startsWith('/') ? '' : '/'}${url}`;
+      };
+
+      return {
+        domain,
+        software: 'misskey',
+        version: meta.version,
+        description: meta.description || meta.name,
+        user_count: 0,
+        status_count: 0,
+        api_available: true,
+        federation_enabled: true,
+        icon_url: resolveUrl(meta.iconUrl),
+        banner_url: resolveUrl(meta.bannerUrl),
+      };
+    } catch {
       return null;
     }
   }

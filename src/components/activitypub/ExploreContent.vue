@@ -218,7 +218,7 @@
               </div>
 
               <p class="instance-card-desc">
-                {{ instance.description || $t('activitypub.noDescriptionAvailable') }}
+                {{ stripHtml(instance.description) || $t('activitypub.noDescriptionAvailable') }}
               </p>
 
               <div class="instance-card-stats">
@@ -633,6 +633,13 @@ const getInstanceBanner = (instance: any): string | null => {
 
 const handleIconError = (url: string) => {
   failedIconUrls.value.add(url);
+};
+
+const stripHtml = (raw: string): string => {
+  if (!raw) return '';
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(raw, 'text/html');
+  return doc.body.textContent || '';
 };
 
 const formatNumber = (num: number): string => {

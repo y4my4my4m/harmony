@@ -2351,8 +2351,10 @@ const handleContextMenuReaction = (emoji: { native?: string; name: string; id?: 
 // Handle opening emoji picker from context menu
 const handleContextMenuEmojiPicker = () => {
   if (!contextMenuMessage.value) return;
-  // Emit with proper parameters for reaction mode
-  emit('toggleEmojiList', true, contextMenuMessage.value, undefined);
+  const msgEl = messageDisplayContainer.value?.querySelector(
+    `[data-message-id="${contextMenuMessage.value.id}"]`
+  ) as HTMLElement | undefined;
+  emit('toggleEmojiList', true, contextMenuMessage.value, msgEl);
 };
 
 // Handle reporting a message from context menu

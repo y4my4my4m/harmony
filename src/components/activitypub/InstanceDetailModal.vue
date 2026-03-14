@@ -86,7 +86,7 @@
           <div class="info-rows">
             <div class="info-row">
               <span class="info-label">Description:</span>
-              <span class="info-value">{{ instance.description || 'No description available' }}</span>
+              <span class="info-value" v-html="sanitizedDescription"></span>
             </div>
             <div v-if="instance.admin_contact" class="info-row">
               <span class="info-label">Admin Contact:</span>
@@ -240,6 +240,62 @@ const PLATFORM_EMOJI: Record<string, string> = {
 
 const instanceIcon = computed(() => props.instance.metadata?.icon_url || null);
 const instanceBanner = computed(() => props.instance.metadata?.banner_url || null);
+
+const ALLOWED_TAGS = new Set(['br', 'b', 'i', 'em', 'strong', 'a', 'p', 'span', 'ul', 'ol', 'li']);
+const ALLOWED_ATTRS: Record<string, Set<string>> = {
+  a: new Set(['href', 'rel', 'target']),
+  span: new Set(['style']),
+};
+const ALLOWED_STYLE_PROPS = new Set(['color', 'font-weight', 'font-style', 'text-decoration']);
+
+function sanitizeHtml(raw: string): string {
+  if (!raw) return 'No description available';
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(raw, 'text/html');
+  function sanitizeNode(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+    if (!ALLOWED_TAGS.has(tag)) {
+      return Array.from(el.childNodes).map(sanitizeNode).join('');
+    }
+    const allowedAttrs = ALLOWED_ATTRS[tag];
+    let attrStr = '';
+    if (allowedAttrs) {
+      for (const attr of Array.from(el.attributes)) {
+        if (!allowedAttrs.has(attr.name)) continue;
+        if (attr.name === 'href') {
+          try {
+            const url = new URL(attr.value, 'https://placeholder.invalid');
+            if (!['http:', 'https:'].includes(url.protocol)) continue;
+          } catch { continue; }
+          attrStr += ` href="${attr.value}" rel="noopener noreferrer" target="_blank"`;
+          continue;
+        }
+        if (attr.name === 'style') {
+          const safeProps = attr.value.split(';')
+            .map(s => s.trim())
+            .filter(s => {
+              const prop = s.split(':')[0]?.trim().toLowerCase();
+              return prop && ALLOWED_STYLE_PROPS.has(prop);
+            });
+          if (safeProps.length) attrStr += ` style="${safeProps.join('; ')}"`;
+          continue;
+        }
+        attrStr += ` ${attr.name}="${attr.value}"`;
+      }
+    }
+    if (tag === 'a' && !attrStr.includes('rel=')) {
+      attrStr += ' rel="noopener noreferrer" target="_blank"';
+    }
+    const children = Array.from(el.childNodes).map(sanitizeNode).join('');
+    return `<${tag}${attrStr}>${children}</${tag}>`;
+  }
+  return Array.from(doc.body.childNodes).map(sanitizeNode).join('');
+}
+
+const sanitizedDescription = computed(() => sanitizeHtml(props.instance.description || ''));
 const platformEmoji = computed(() => {
   const sw = props.instance.software?.toLowerCase()?.replace(/[^a-z]/g, '') || '';
   for (const [platform, emoji] of Object.entries(PLATFORM_EMOJI)) {

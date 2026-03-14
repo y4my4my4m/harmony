@@ -392,7 +392,7 @@ const copyRawData = async () => {
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-color, #40444b);
+  background: var(--border-primary, #40444b);
   margin: 4px 8px;
 }
 
