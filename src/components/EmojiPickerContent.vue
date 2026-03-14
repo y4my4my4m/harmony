@@ -184,11 +184,16 @@
     <div class="emoji-preview-bar">
       <span v-if="hoveredEmojiName" class="emoji-preview-name">:{{ hoveredEmojiName }}:</span>
     </div>
+
+    <!-- Favorite toast -->
+    <Transition name="fav-toast">
+      <div v-if="favToast" class="fav-toast">{{ favToast }}</div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -488,23 +493,60 @@ async function removeFavoriteEmoji(emojiId: string) {
   favoriteEmojis.value = favoriteEmojis.value.filter(f => f.emoji_id !== emojiId);
 }
 
+const favToast = ref<string | null>(null);
+let favToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showFavToast(msg: string) {
+  favToast.value = msg;
+  if (favToastTimer) clearTimeout(favToastTimer);
+  favToastTimer = setTimeout(() => { favToast.value = null; }, 1500);
+}
+
 async function toggleFavoriteUnified(emoji: EmojiEntry) {
-  const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
-  if (result.isFavorite || !result.isFavorite) await loadFavorites();
+  try {
+    const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
+    showFavToast(result.isFavorite ? `⭐ Added :${emoji.shortcode}:` : `Removed :${emoji.shortcode}:`);
+    await loadFavorites();
+  } catch (e) {
+    debug.error('Failed to toggle favorite:', e);
+  }
 }
 
 async function toggleFavoriteServer(emoji: ResolvedEmoji) {
-  const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
-  await emojiFavoriteService.toggleFavorite(emoji.id, emoji.name, url, emoji.server_id || null);
-  await loadFavorites();
+  try {
+    const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
+    const result = await emojiFavoriteService.toggleFavorite(emoji.id, emoji.name, url, emoji.server_id || null);
+    showFavToast(result.isFavorite ? `⭐ Added :${emoji.name}:` : `Removed :${emoji.name}:`);
+    await loadFavorites();
+  } catch (e) {
+    debug.error('Failed to toggle favorite:', e);
+  }
 }
 
 async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name: string; url?: string }) {
-  const emojiId = emoji.native || emoji.id;
-  const url = getFrequentEmojiDisplayUrl(emoji);
-  await emojiFavoriteService.toggleFavorite(emojiId, emoji.name, url, null);
-  await loadFavorites();
+  try {
+    const emojiId = emoji.native || emoji.id;
+    const url = getFrequentEmojiDisplayUrl(emoji);
+    const result = await emojiFavoriteService.toggleFavorite(emojiId, emoji.name, url, null);
+    showFavToast(result.isFavorite ? `⭐ Added :${emoji.name}:` : `Removed :${emoji.name}:`);
+    await loadFavorites();
+  } catch (e) {
+    debug.error('Failed to toggle favorite:', e);
+  }
 }
+
+// Collapse all unified emoji categories by default once loaded
+let categoriesInitialized = false;
+watch(displayedCategories, (cats) => {
+  if (!categoriesInitialized && cats.length > 0) {
+    categoriesInitialized = true;
+    const s = new Set(collapsedSections.value);
+    for (const cat of cats) {
+      s.add('cat-' + cat.id);
+    }
+    collapsedSections.value = s;
+  }
+});
 
 // Lifecycle
 onMounted(async () => {
@@ -534,6 +576,7 @@ onMounted(async () => {
   flex-direction: column;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 .emoji-search {
@@ -814,5 +857,28 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.fav-toast {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.fav-toast-enter-active { transition: all 0.15s ease; }
+.fav-toast-leave-active { transition: all 0.2s ease; }
+.fav-toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+.fav-toast-leave-to { opacity: 0; }
 </style>
 
