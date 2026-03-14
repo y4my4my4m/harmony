@@ -29,23 +29,34 @@ export function useComposerActions(options: ComposerActionsOptions) {
    */
   const insertEmoji = (emoji: any) => {
     const richEditor = options.richEditorRef.value;
+    const emojiText = `:${emoji.name}:`;
+
     if (!richEditor) {
-      // Fallback: append to content
-      const emojiText = `:${emoji.name}:`;
       options.content.value += emojiText;
       options.onContentUpdate?.(options.content.value);
       return;
     }
 
-    const emojiText = `:${emoji.name}:`;
-    const currentContent = options.content.value;
-    
-    // Insert at cursor or append
-    options.content.value = currentContent + emojiText;
-    options.onContentUpdate?.(options.content.value);
-    
+    const newContent = options.content.value + emojiText;
+
+    richEditor.skipNextWatch = true;
+    options.content.value = newContent;
+    options.onContentUpdate?.(newContent);
+
     nextTick(() => {
-      richEditor.focus?.();
+      if (richEditor.renderContent) {
+        richEditor.renderContent(newContent, true);
+      }
+
+      nextTick(() => {
+        richEditor.focus?.();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const plainText = richEditor.getPlainText?.() || '';
+            richEditor.setCursorPosition?.(plainText.length);
+          });
+        });
+      });
     });
   };
 
