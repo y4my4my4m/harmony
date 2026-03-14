@@ -1165,6 +1165,7 @@ defineExpose({ refreshContent });
 .instance-card-banner-overlay {
   position: absolute;
   inset: 0;
+  height: calc(100% + 1px); /* workaround chrome rendering bug */
   background: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0.15) 0%,

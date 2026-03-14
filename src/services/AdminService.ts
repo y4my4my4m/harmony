@@ -33,6 +33,19 @@ export interface FederationStats {
   };
 }
 
+export interface DeadEndpoint {
+  id: string;
+  endpoint_url: string;
+  domain: string;
+  consecutive_failures: number;
+  total_failures: number;
+  last_failure_at: string | null;
+  last_success_at: string | null;
+  last_http_status: number | null;
+  last_error_message: string | null;
+  first_failure_at: string | null;
+}
+
 export interface AdminUser {
   id: string;
   username: string;
@@ -294,6 +307,48 @@ class AdminService {
       };
     } catch (error) {
       debug.error('Failed to purge dead endpoints:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch all dead endpoints with details for the admin UI
+   */
+  async getDeadEndpoints(): Promise<DeadEndpoint[]> {
+    try {
+      const { data, error } = await supabase
+        .from('federation_endpoint_health')
+        .select('id, endpoint_url, domain, consecutive_failures, total_failures, last_failure_at, last_success_at, last_http_status, last_error_message, first_failure_at')
+        .eq('is_dead', true)
+        .order('last_failure_at', { ascending: false });
+
+      if (error) throw error;
+      return (data as DeadEndpoint[]) || [];
+    } catch (error) {
+      debug.error('Failed to get dead endpoints:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Purge a single dead endpoint by ID and its failed deliveries
+   */
+  async purgeSingleEndpoint(endpointId: string, endpointUrl: string): Promise<void> {
+    try {
+      await supabase
+        .from('federation_delivery_queue')
+        .delete()
+        .eq('inbox_url', endpointUrl)
+        .in('status', ['dead', 'failed']);
+
+      const { error } = await supabase
+        .from('federation_endpoint_health')
+        .delete()
+        .eq('id', endpointId);
+
+      if (error) throw error;
+    } catch (error) {
+      debug.error('Failed to purge endpoint:', error);
       throw error;
     }
   }

@@ -1,5 +1,5 @@
 <template>
-  <BaseModal :show="true" :show-header="false" @close="$emit('close')" class="instance-detail-modal">
+  <BaseModal :show="true" :show-header="false" overlay-class="instance-detail-modal" @close="$emit('close')">
     <div class="instance-detail-layout">
       <!-- Banner -->
       <div
@@ -414,16 +414,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Target BaseModal's .modal-container and .modal-content when this modal is shown */
 .instance-detail-modal :deep(.modal-container) {
   max-width: 560px;
   width: 92vw;
   border: none;
   border-radius: 10px;
   overflow: hidden;
-}
-
-.instance-detail-modal :deep(.modal-container::before) {
-  display: none;
 }
 
 .instance-detail-modal :deep(.modal-content) {

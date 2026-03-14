@@ -233,7 +233,8 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 <style scoped>
 .message-reactions {
   display: flex;
-  margin: 2px 0;
+  /* margin: 2px 0; old approach */
+  margin: 6px 4px 0 4px;
 }
 
 .reactions-gutter {

@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="show" class="modal-overlay" @click="handleOverlayClick">
+    <div v-if="show" :class="['modal-overlay', overlayClass]" @click="handleOverlayClick">
       <div 
         class="modal-container" 
         @click.stop
@@ -50,6 +50,8 @@ interface Props {
   showHeader?: boolean
   showCloseButton?: boolean
   closeOnOverlay?: boolean
+  /** Additional class for the overlay (e.g. "instance-detail-modal" for scoped child styles) */
+  overlayClass?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {

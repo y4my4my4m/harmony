@@ -194,8 +194,37 @@
               >
                 <Icon v-if="!loadingStates.purgingDead" name="trash" :size="14" />
                 <span v-if="loadingStates.purgingDead" class="spinner-small"></span>
-                Purge Dead
+                Purge All
               </button>
+            </div>
+            <div class="dead-endpoints-list" v-if="deadEndpointsList.length > 0">
+              <div
+                v-for="ep in deadEndpointsList"
+                :key="ep.id"
+                class="dead-endpoint-row"
+              >
+                <div class="dead-endpoint-info">
+                  <div class="dead-endpoint-url" :title="ep.endpoint_url">{{ ep.endpoint_url }}</div>
+                  <div class="dead-endpoint-meta">
+                    <span class="meta-tag domain">{{ ep.domain }}</span>
+                    <span class="meta-tag" v-if="ep.last_http_status">HTTP {{ ep.last_http_status }}</span>
+                    <span class="meta-tag failures">{{ ep.total_failures }} failures</span>
+                    <span class="meta-tag" v-if="ep.last_failure_at">Last fail: {{ formatTimeAgo(ep.last_failure_at) }}</span>
+                  </div>
+                  <div class="dead-endpoint-error" v-if="ep.last_error_message" :title="ep.last_error_message">
+                    {{ ep.last_error_message }}
+                  </div>
+                </div>
+                <button
+                  class="purge-single-btn"
+                  :disabled="purgingEndpointIds.has(ep.id)"
+                  @click="purgeSingleEndpoint(ep)"
+                  title="Remove this endpoint"
+                >
+                  <span v-if="purgingEndpointIds.has(ep.id)" class="spinner-small"></span>
+                  <Icon v-else name="trash" :size="14" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1810,7 +1839,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { supabase } from '@/supabase'
-import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
+import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { fundingService, type SupporterTier, type Supporter, type DonationRecord } from '@/services/FundingService'
 import { messageService } from '@/services/MessageService'
@@ -1948,6 +1977,8 @@ const instanceStats = ref<InstanceStats>({
 })
 
 const federationStats = ref<FederationStats | null>(null)
+const deadEndpointsList = ref<DeadEndpoint[]>([])
+const purgingEndpointIds = ref<Set<string>>(new Set())
 const federatedInstances = ref<FederatedInstance[]>([])
 const discoveredInstances = ref<{ domain: string; user_count: number; interaction_count: number }[]>([])
 const discoveryResult = ref<InstanceSearchResult | null>(null)
@@ -3575,8 +3606,12 @@ const refreshFederationData = async () => {
 
 const loadFederationStats = async () => {
   try {
-    const stats = await adminService.getFederationStats()
+    const [stats, deadEndpoints] = await Promise.all([
+      adminService.getFederationStats(),
+      adminService.getDeadEndpoints()
+    ])
     federationStats.value = stats
+    deadEndpointsList.value = deadEndpoints
   } catch (error) {
     debug.error('Failed to load federation stats:', error)
   }
@@ -3589,7 +3624,7 @@ const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
 }
 
 const purgeDeadEndpoints = async () => {
-  if (!confirm(`Permanently remove ${federationStats.value.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`)) return
+  if (!confirm(`Permanently remove all ${federationStats.value?.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`)) return
   loadingStates.value.purgingDead = true
   try {
     const result = await adminService.purgeDeadEndpoints()
@@ -3600,6 +3635,37 @@ const purgeDeadEndpoints = async () => {
   } finally {
     loadingStates.value.purgingDead = false
   }
+}
+
+const purgeSingleEndpoint = async (endpoint: DeadEndpoint) => {
+  purgingEndpointIds.value.add(endpoint.id)
+  try {
+    await adminService.purgeSingleEndpoint(endpoint.id, endpoint.endpoint_url)
+    deadEndpointsList.value = deadEndpointsList.value.filter(e => e.id !== endpoint.id)
+    if (federationStats.value) {
+      federationStats.value.endpoint_health.dead_endpoints--
+      federationStats.value.endpoint_health.total_endpoints--
+    }
+  } catch (error) {
+    debug.error('Failed to purge endpoint:', error)
+  } finally {
+    purgingEndpointIds.value.delete(endpoint.id)
+  }
+}
+
+const formatTimeAgo = (dateStr: string | null): string => {
+  if (!dateStr) return 'Never'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'Just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHrs = Math.floor(diffMin / 60)
+  if (diffHrs < 24) return `${diffHrs}h ago`
+  const diffDays = Math.floor(diffHrs / 24)
+  if (diffDays < 30) return `${diffDays}d ago`
+  return date.toLocaleDateString()
 }
 
 // Federation maintenance methods
@@ -4310,7 +4376,115 @@ const handleAddInstance = () => {
   border: 2px solid rgba(255, 69, 58, 0.3);
   border-top-color: #ff453a;
   border-radius: 50%;
+  display: inline-block;
   animation: spin 0.8s linear infinite;
+}
+
+.dead-endpoints-list {
+  margin-top: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.dead-endpoint-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.15s ease;
+}
+
+.dead-endpoint-row:last-child {
+  border-bottom: none;
+}
+
+.dead-endpoint-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.dead-endpoint-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dead-endpoint-url {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dead-endpoint-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.meta-tag {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.meta-tag.domain {
+  color: var(--harmony-primary-light, #7c8aff);
+  background: rgba(124, 138, 255, 0.12);
+}
+
+.meta-tag.failures {
+  color: #ff453a;
+  background: rgba(255, 69, 58, 0.12);
+}
+
+.dead-endpoint-error {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.purge-single-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 2px;
+}
+
+.purge-single-btn:hover:not(:disabled) {
+  background: rgba(255, 69, 58, 0.15);
+  border-color: rgba(255, 69, 58, 0.3);
+  color: #ff453a;
+}
+
+.purge-single-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Federation Maintenance Styles */
