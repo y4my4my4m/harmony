@@ -29,7 +29,14 @@ SET search_path = public
 AS $$
 DECLARE
     v_activity_id uuid;
+    v_caller_profile_id uuid;
 BEGIN
+    -- Verify the caller owns this actor_id (prevent impersonation)
+    v_caller_profile_id := public.get_current_profile_id();
+    IF v_caller_profile_id IS NULL OR v_caller_profile_id != p_actor_id THEN
+        RAISE EXCEPTION 'Unauthorized: p_actor_id does not match the authenticated user';
+    END IF;
+
     INSERT INTO ap_activities (
         ap_id,
         ap_type,

@@ -1340,6 +1340,7 @@ const userWasAtBottom = ref(true);
 // arrays receive the same reference for old/new values (in-place .push() mutations).
 const lastKnownMessageCount = ref(0);
 const lastKnownFirstMessageId = ref<string | null>(null);
+const lastKnownDisplayItemCount = ref(0);
 
 // --- WATCHERS ---
 let hasInitiallyScrolled = false;
@@ -1350,6 +1351,7 @@ watch([() => props.channelId, () => props.conversationId], () => {
   userWasAtBottom.value = true;
   lastKnownMessageCount.value = 0;
   lastKnownFirstMessageId.value = null;
+  lastKnownDisplayItemCount.value = 0;
 });
 
 watch(() => props.messages, (newMessages) => {
@@ -1359,6 +1361,7 @@ watch(() => props.messages, (newMessages) => {
 
   const prevCount = lastKnownMessageCount.value;
   const prevFirstId = lastKnownFirstMessageId.value;
+  const prevDisplayItemCount = lastKnownDisplayItemCount.value;
   lastKnownMessageCount.value = newMessages.length;
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
 
@@ -1582,7 +1585,8 @@ watch(() => props.messages, (newMessages) => {
           // Load older messages (prepend) - maintain scroll position via virtualizer index
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            const numPrepended = newMessages.length - prevCount;
+            const newDisplayItemCount = displayItems.value.length;
+            const numDisplayItemsPrepended = newDisplayItemCount - prevDisplayItemCount;
             
             // Find anchor: the item overlapping the viewport top
             const scrollTopNow = messageDisplayContainer.value.scrollTop;
@@ -1591,7 +1595,7 @@ watch(() => props.messages, (newMessages) => {
             if (!anchorItem && visibleItems.length) anchorItem = visibleItems[visibleItems.length - 1];
             const previousVisibleIndex = anchorItem?.index ?? 0;
             const offsetIntoAnchor = anchorItem ? scrollTopNow - anchorItem.start : 0;
-            const targetIndex = previousVisibleIndex + numPrepended;
+            const targetIndex = previousVisibleIndex + numDisplayItemsPrepended;
             
             // Scroll to the shifted index, then restore sub-item offset
             const adjustScroll = (attempt = 0) => {
@@ -1614,6 +1618,7 @@ watch(() => props.messages, (newMessages) => {
         emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
 
       }
+      lastKnownDisplayItemCount.value = displayItems.value.length;
     });
   }
 }, { immediate: true, deep: true });

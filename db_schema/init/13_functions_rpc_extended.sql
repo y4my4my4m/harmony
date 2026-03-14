@@ -1770,7 +1770,7 @@ CREATE OR REPLACE FUNCTION public.upsert_remote_emoji(
     p_url text,
     p_static_url text DEFAULT NULL,
     p_category text DEFAULT NULL,
-    p_is_animated boolean DEFAULT false
+    p_is_animated boolean DEFAULT NULL
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
@@ -1781,7 +1781,7 @@ BEGIN
   INSERT INTO public.remote_emojis_cache (
     shortcode, origin_domain, full_code, url, static_url, category, is_animated
   ) VALUES (
-    p_shortcode, p_origin_domain, p_full_code, p_url, p_static_url, p_category, p_is_animated
+    p_shortcode, p_origin_domain, p_full_code, p_url, p_static_url, p_category, COALESCE(p_is_animated, false)
   )
   ON CONFLICT (shortcode, origin_domain) DO UPDATE SET
     url = EXCLUDED.url,
