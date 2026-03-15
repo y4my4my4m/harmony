@@ -159,36 +159,11 @@
             </div>
             
             <!-- Media in quoted post -->
-            <div 
+            <MonyMediaGallery
               v-if="displayMediaAttachments?.length > 0"
-              class="quoted-media-gallery"
-              :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
-            >
-              <div 
-                v-for="media in displayMediaAttachments" 
-                :key="media.id"
-                class="media-item"
-              >
-                <img 
-                  v-if="media.type === 'image'" 
-                  :src="media.url" 
-                  :alt="media.description || 'Media attachment'"
-                  class="media-image"
-                  @click="handleImageClick(media.url)"
-                />
-                <video 
-                  v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
-                  :src="media.url" 
-                  controls
-                  :loop="media.type === 'gifv'"
-                  :autoplay="media.type === 'gifv'"
-                  :muted="media.type === 'gifv'"
-                  class="media-video"
-                >
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            </div>
+              :media-attachments="displayMediaAttachments"
+              :is-sensitive="displayIsSensitive"
+            />
           </div>
         </div>
         
@@ -204,43 +179,12 @@
             />
           </div>
 
-          <!-- Media Attachments -->
-          <div 
+          <!-- Media Attachments (grid + lightbox) -->
+          <MonyMediaGallery
             v-if="displayMediaAttachments?.length > 0"
-            class="media-gallery"
-            :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
-          >
-            <div 
-              v-for="media in displayMediaAttachments" 
-              :key="media.id"
-              class="media-item"
-            >
-              <img 
-                v-if="media.type === 'image'" 
-                :src="media.url" 
-                :alt="media.description || 'Media attachment'"
-                class="media-image"
-                @click="handleImageClick(media.url)"
-              />
-              <video 
-                v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
-                :src="media.url" 
-                controls
-                :loop="media.type === 'gifv'"
-                :autoplay="media.type === 'gifv'"
-                :muted="media.type === 'gifv'"
-                class="media-video"
-              >
-                Your browser does not support the video tag.
-              </video>
-              <audio
-                v-else-if="media.type === 'audio'"
-                :src="media.url"
-                controls
-                class="media-audio"
-              ></audio>
-            </div>
-          </div>
+            :media-attachments="displayMediaAttachments"
+            :is-sensitive="displayIsSensitive"
+          />
         </div>
       </div>
 
@@ -581,6 +525,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
+import MonyMediaGallery from './MonyMediaGallery.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';

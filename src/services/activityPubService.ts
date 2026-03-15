@@ -741,21 +741,24 @@ export class ActivityPubService {
    */
   async getUserPosts(userId: string, options: TimelineOptions = {}): Promise<Post[]> {
     const limit = options.limit || 20;
-    
+    const currentUser = await this.getCurrentAuthUser().catch(() => null);
+
+    const selectClause = currentUser
+      ? `*, author:profiles!posts_author_id_fkey (id, username, display_name, domain, avatar_url, is_local), my_interactions:post_interactions!left(interaction_type)`
+      : `*, author:profiles!posts_author_id_fkey (id, username, display_name, domain, avatar_url, is_local)`;
+
     let query = supabase
       .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
+      .select(selectClause)
       .eq('author_id', userId)
       .eq('is_deleted', false)
       .in('visibility', ['public', 'unlisted'])
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    if (currentUser) {
+      query = query.eq('my_interactions.user_id', currentUser.id);
+    }
     if (options.max_id) {
       query = query.lt('created_at', new Date(options.max_id).toISOString());
     }
@@ -763,7 +766,17 @@ export class ActivityPubService {
     const { data, error } = await query;
     if (error) throw error;
 
-    return data as Post[];
+    const posts = (data || []).map((post: any) => {
+      const interactions = post.my_interactions || [];
+      return {
+        ...post,
+        is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+        is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
+        is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
+      };
+    });
+
+    return posts as Post[];
   }
 
   /**

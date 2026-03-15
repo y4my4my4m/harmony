@@ -21,14 +21,17 @@
         @error="handleImageError"
       />
 
-      <!-- Video -->
+      <!-- Video / GIFV -->
       <video
-        v-else-if="media.type === 'video'"
+        v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url))"
         :src="media.url"
         :poster="media.preview_url"
         class="media-video"
-        controls
+        :controls="media.type !== 'gifv'"
         preload="metadata"
+        :loop="media.type === 'gifv'"
+        :autoplay="media.type === 'gifv'"
+        :muted="media.type === 'gifv'"
         @error="handleVideoError"
       >
         <source :src="media.url" :type="media.mime_type || 'video/mp4'">
@@ -146,14 +149,18 @@ const currentMedia = computed(() => {
   return props.mediaAttachments[currentMediaIndex.value];
 });
 
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|ogv|mov|gif)(\?|$)/i.test(url);
+}
+
 // Prepare images for vue-easy-lightbox
 const lightboxImages = computed(() => {
   return props.mediaAttachments
-    .filter(media => media.type === 'image' || media.type === 'video')
+    .filter(media => media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url)))
     .map(media => {
       if (media.type === 'image') {
         return media.url;
-      } else if (media.type === 'video') {
+      } else if (media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url))) {
         // vue-easy-lightbox supports videos
         return {
           src: media.url,
@@ -193,11 +200,13 @@ const handleVideoError = (event: Event) => {
 
 const openMedia = (index: number) => {
   const media = props.mediaAttachments[index];
-  if (media.type === 'image' || media.type === 'video') {
+  const isViewable = media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url));
+  if (isViewable) {
     // Find the corresponding index in the lightbox images array
     let lightboxIndex = 0;
     for (let i = 0; i < index; i++) {
-      if (props.mediaAttachments[i].type === 'image' || props.mediaAttachments[i].type === 'video') {
+      const m = props.mediaAttachments[i];
+      if (m.type === 'image' || m.type === 'video' || m.type === 'gifv' || (m.type === 'unknown' && isVideoUrl(m.url))) {
         lightboxIndex++;
       }
     }
