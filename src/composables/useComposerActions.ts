@@ -113,33 +113,59 @@ export function useComposerActions(options: ComposerActionsOptions) {
   };
 
   /**
-   * Handle paste events to support image pasting
+   * Handle paste events to support image and video pasting
    */
   const handlePaste = (event: ClipboardEvent) => {
     const items = event.clipboardData?.items;
-    if (!items) return;
+    if (!items) {
+      return;
+    }
+
+    const isVideoMime = (t: string) => {
+      return t.startsWith('video/') || /^video\//i.test(t);
+    };
+    const isImageMime = (t: string) => {
+      return t.startsWith('image/') || /^image\//i.test(t);
+    };
+    const isVideoByExt = (name: string) => {
+      return /\.(mp4|webm|ogg|avi|mov|m4v|mkv|ogv)(\?|$)/i.test(name || '');
+    };
+    const isImageByExt = (name: string) => {
+      return /\.(jpe?g|png|gif|webp|avif|bmp|ico)(\?|$)/i.test(name || '');
+    };
 
     for (const item of Array.from(items)) {
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file && options.canAddMedia.value) {
-          const previewUrl = URL.createObjectURL(file);
-          const attachment: MediaAttachment = {
-            id: `temp_${Date.now()}_${Math.random()}`,
-            type: 'image',
-            url: previewUrl,
-            preview_url: previewUrl,
-            filename: file.name,
-            size: file.size,
-            description: undefined,
-            file: file
-          };
+      if (item.kind !== 'file') {
+        continue;
+      }
+      const file = item.getAsFile();
+      if (!file || !options.canAddMedia.value) {
+        continue;
+      }
 
-          options.mediaAttachments.value.push(attachment);
-        }
+      const mime = (item.type || file.type || '').toLowerCase();
+      const name = file.name || '';
+      const asImage = isImageMime(mime) || isImageByExt(name);
+      const asVideo = isVideoMime(mime) || isVideoByExt(name);
+
+      if (asImage || asVideo) {
+        const previewUrl = URL.createObjectURL(file);
+        const attachment: MediaAttachment = {
+          id: `temp_${Date.now()}_${Math.random()}`,
+          type: asVideo ? 'video' : 'image',
+          url: previewUrl,
+          preview_url: previewUrl,
+          filename: file.name,
+          size: file.size,
+          description: undefined,
+          file: file
+        };
+
+        options.mediaAttachments.value.push(attachment);
       }
     }
   };
+
 
   /**
    * Parse content and create post
