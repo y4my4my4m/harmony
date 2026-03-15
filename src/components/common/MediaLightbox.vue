@@ -58,6 +58,7 @@
             :loop="isGifv"
             :muted="videoMuted"
             @volumechange="onVolumeChange"
+            @loadedmetadata="onVideoLoadedMetadata"
           >
             Your browser does not support the video tag.
           </video>
@@ -137,15 +138,43 @@ const isGifv = computed(() =>
   typeof currentItem.value === 'object' && (currentItem.value as { isGifv?: boolean }).isGifv === true
 );
 
+// Playback position per video (src -> seconds) for resuming when switching slides or reopening
+const playbackPositions = ref<Record<string, number>>({});
+
+function savePlaybackPosition() {
+  const vid = videoRef.value;
+  const src = currentSrc.value;
+  if (vid && src && !isGifv.value && vid.currentTime > 0 && !Number.isNaN(vid.currentTime)) {
+    playbackPositions.value = { ...playbackPositions.value, [src]: vid.currentTime };
+  }
+}
+
+function onVideoLoadedMetadata() {
+  const vid = videoRef.value;
+  const src = currentSrc.value;
+  if (!vid || !src) return;
+  // Restore position only for non-GIF videos
+  if (!isGifv.value) {
+    const pos = playbackPositions.value[src];
+    if (pos != null && pos > 0) {
+      vid.currentTime = Math.min(pos, vid.duration > 0 ? vid.duration : pos);
+    }
+  }
+  vid.play().catch(() => {});
+}
+
 function onHide() {
+  savePlaybackPosition();
   emit('hide');
 }
 
 function prev() {
+  savePlaybackPosition();
   if (index.value > 0) index.value--;
 }
 
 function next() {
+  savePlaybackPosition();
   if (index.value < items.value.length - 1) index.value++;
 }
 
