@@ -429,6 +429,7 @@
   </div>
   
   <vue-easy-lightbox
+    teleport="body"
     class="lightbox"
     :visible="isLightboxOpen"
     :imgs="activeLightboxImages"

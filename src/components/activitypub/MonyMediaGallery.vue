@@ -99,21 +99,54 @@
     </div>
   </div>
 
-  <!-- Custom MediaLightbox for images + videos (no node_modules patching) -->
-  <MediaLightbox
-    v-model:index="currentMediaIndex"
+  <!-- vue-easy-lightbox: handles images with zoom/pan/rotate/smooth scroll -->
+  <vue-easy-lightbox
+    teleport="body"
+    class="lightbox"
     :visible="showModal"
     :imgs="lightboxImages"
+    :index="currentMediaIndex"
+    :move-disabled="currentLightboxIsVideo"
+    :zoom-disabled="currentLightboxIsVideo"
+    :rotate-disabled="currentLightboxIsVideo"
+    :dblclick-disabled="currentLightboxIsVideo"
     @hide="closeModal"
+    @on-index-change="onLightboxIndexChange"
   />
+
+  <!-- Video overlay: shown on top of vue-easy-lightbox when current item is a video -->
+  <Teleport to="body">
+    <Transition name="vel-fade">
+      <div
+        v-if="showModal && currentLightboxIsVideo"
+        class="video-lightbox-overlay"
+      >
+        <video
+          ref="lightboxVideoRef"
+          :key="currentVideoSrc"
+          :src="currentVideoSrc"
+          :poster="currentVideoPoster"
+          class="video-lightbox-player"
+          controls
+          autoplay
+          preload="auto"
+          playsinline
+          :muted="videoMuted"
+          @volumechange="onVideoVolumeChange"
+        >
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
-import MediaLightbox from '@/components/common/MediaLightbox.vue';
+import VueEasyLightbox from 'vue-easy-lightbox';
 
 interface Props {
   mediaAttachments: MediaAttachment[];
@@ -124,12 +157,16 @@ const props = withDefaults(defineProps<Props>(), {
   isSensitive: false
 });
 
+const MUTE_KEY = 'harmony-lightbox-video-muted';
+
 // State
 const galleryRef = ref<HTMLElement | null>(null);
+const lightboxVideoRef = ref<HTMLVideoElement | null>(null);
 const showSensitive = ref(!props.isSensitive);
 const showAltText = ref(false);
 const showModal = ref(false);
 const currentMediaIndex = ref(0);
+const videoMuted = ref(localStorage.getItem(MUTE_KEY) === 'true');
 
 // Pause all gallery videos when lightbox opens to avoid double audio
 watch(showModal, (visible) => {
@@ -137,6 +174,17 @@ watch(showModal, (visible) => {
     galleryRef.value.querySelectorAll<HTMLVideoElement>('video').forEach((v) => v.pause());
   }
 });
+
+function onVideoVolumeChange() {
+  if (lightboxVideoRef.value) {
+    videoMuted.value = lightboxVideoRef.value.muted;
+    try { localStorage.setItem(MUTE_KEY, String(videoMuted.value)); } catch { /* ignore */ }
+  }
+}
+
+function onLightboxIndexChange(_old: number, newIdx: number) {
+  currentMediaIndex.value = newIdx;
+}
 
 // Computed
 const galleryClass = computed(() => {
@@ -154,10 +202,6 @@ const hasAltText = computed(() => {
   return props.mediaAttachments.some(media => media.description);
 });
 
-const currentMedia = computed(() => {
-  return props.mediaAttachments[currentMediaIndex.value];
-});
-
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|webm|ogv|mov|gif)(\?|$)/i.test(url);
 }
@@ -173,23 +217,44 @@ const viewableCount = computed(() =>
   ).length
 );
 
-const lightboxImages = computed(() => {
-  return props.mediaAttachments
-    .filter(media => media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url)))
-    .map(media => {
-      if (media.type === 'image') {
-        return media.url;
-      } else if (media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url))) {
-        return {
-          src: media.url,
-          type: 'video',
-          poster: media.preview_url,
-          isGifv: media.type === 'gifv'
-        };
-      }
-      return media.url;
-    });
+// Viewable media items with their original data preserved for video overlay
+const viewableMedia = computed(() =>
+  props.mediaAttachments.filter(
+    (m) => m.type === 'image' || m.type === 'video' || m.type === 'gifv' || (m.type === 'unknown' && isVideoUrl(m.url))
+  )
+);
+
+// For vue-easy-lightbox: pass poster/preview for videos so it shows a thumbnail (no error state)
+const lightboxImages = computed(() =>
+  viewableMedia.value.map((media) => {
+    if (isVideoMedia(media)) {
+      return { src: media.preview_url || media.url, title: media.description };
+    }
+    return { src: media.url, title: media.description };
+  })
+);
+
+// Video overlay state
+const currentLightboxIsVideo = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value];
+  return media ? isVideoMedia(media) : false;
 });
+
+const currentVideoSrc = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value];
+  return media?.url ?? '';
+});
+
+const currentVideoPoster = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value];
+  return media?.preview_url;
+});
+
+// Hide lightbox toolbar when video overlay is active (zoom/rotate don't apply to video)
+watch([showModal, currentLightboxIsVideo], ([visible, isVideo]) => {
+  document.body.classList.toggle('vel-video-active', !!(visible && isVideo));
+});
+onUnmounted(() => document.body.classList.remove('vel-video-active'));
 
 // Methods
 const formatFileSize = (bytes?: number): string => {
@@ -446,107 +511,23 @@ const closeModal = () => {
   color: var(--text-primary);
 }
 
-/* Modal Styles */
-.media-modal-overlay {
+/* Video overlay on top of vue-easy-lightbox (covers the poster image, lets chrome show through) */
+.video-lightbox-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
+  inset: 0;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
-  padding: 2rem;
+  pointer-events: none;
 }
 
-.media-modal {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.modal-close-btn {
-  position: absolute;
-  top: -3rem;
-  right: 0;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 50%;
-  color: var(--text-primary);
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  z-index: 10;
-}
-
-.modal-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 50%;
-  color: var(--text-primary);
-  width: 48px;
-  height: 48px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  z-index: 10;
-}
-
-.nav-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.prev-btn {
-  left: -4rem;
-}
-
-.next-btn {
-  right: -4rem;
-}
-
-.modal-media {
-  max-width: 100%;
+.video-lightbox-player {
+  max-width: 80vw;
   max-height: 80vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-image,
-.modal-video {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.media-info {
-  margin-top: 1rem;
-  text-align: center;
-  color: var(--text-primary);
-}
-
-.media-meta {
-  margin-top: 0.5rem;
-  color: #80848e;
-  font-size: 0.875rem;
+  background: #000;
+  box-shadow: 0 5px 20px 2px rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
 }
 
 /* Mobile responsiveness */
@@ -560,26 +541,17 @@ const closeModal = () => {
   .media-gallery.triple .media-item:first-child {
     grid-row: auto;
   }
-  
-  .media-modal-overlay {
-    padding: 1rem;
+
+  .video-lightbox-player {
+    max-width: 95vw;
+    max-height: 85vh;
   }
-  
-  .nav-btn {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .prev-btn {
-    left: -2.5rem;
-  }
-  
-  .next-btn {
-    right: -2.5rem;
-  }
-  
-  .modal-close-btn {
-    top: -2.5rem;
-  }
+}
+</style>
+
+<style>
+/* Global (unscoped): hide lightbox toolbar when video overlay is active */
+body.vel-video-active .vel-toolbar {
+  display: none !important;
 }
 </style>

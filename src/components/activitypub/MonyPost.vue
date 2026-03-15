@@ -489,6 +489,7 @@
     <!-- Lightbox for images (only when not embedded in chat context) -->
     <vue-easy-lightbox
       v-if="!embedded"
+      teleport="body"
       :visible="showLightbox"
       :imgs="[currentLightboxImage]"
       :index="0"
