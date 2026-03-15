@@ -109,12 +109,25 @@
     @hide="closeModal"
     @on-index-change="onLightboxIndexChange"
   >
-    <!-- Custom toolbar for video: our own zoom/rotate that directly transform the video -->
+    <!-- Custom toolbar for video: use same structure/icons as vue-easy-lightbox default toolbar -->
     <template v-if="currentLightboxIsVideo" #toolbar>
-      <button class="toolbar-btn" @click="videoZoomIn"><Icon name="zoom-in" :size="18" /></button>
-      <button class="toolbar-btn" @click="videoZoomOut"><Icon name="zoom-out" :size="18" /></button>
-      <button class="toolbar-btn" @click="videoRotateLeft"><Icon name="rotate-ccw" :size="18" /></button>
-      <button class="toolbar-btn" @click="videoRotateRight"><Icon name="rotate-cw" :size="18" /></button>
+      <div class="vel-toolbar">
+        <div role="button" aria-label="zoom in button" class="toolbar-btn toolbar-btn__zoomin" @click="videoZoomIn">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomin" /></svg>
+        </div>
+        <div role="button" aria-label="zoom out button" class="toolbar-btn toolbar-btn__zoomout" @click="videoZoomOut">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomout" /></svg>
+        </div>
+        <div role="button" aria-label="resize image button" class="toolbar-btn toolbar-btn__resize" @click="resetVideoTransforms">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-resize" /></svg>
+        </div>
+        <div role="button" aria-label="image rotate left button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateLeft">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-left" /></svg>
+        </div>
+        <div role="button" aria-label="image rotate right button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateRight">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-right" /></svg>
+        </div>
+      </div>
     </template>
   </vue-easy-lightbox>
 
