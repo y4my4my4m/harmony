@@ -662,8 +662,30 @@ export class CorePostService {
         throw this.createError('LOAD_POST_FAILED', error.message, error)
       }
 
+      const formatted = this.formatTimelinePost(post)
+
+      // Fetch current user's interactions for timeline/embed (favorite + emoji_reaction light up heart)
+      try {
+        const profileId = await authContextService.getCurrentProfileId()
+        if (profileId) {
+          const { data: interactions } = await supabase
+            .from('post_interactions')
+            .select('interaction_type')
+            .eq('post_id', postId)
+            .eq('user_id', profileId)
+            .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark'])
+
+          const types = new Set(interactions?.map((i) => i.interaction_type) || [])
+          formatted.is_favorited = types.has('favorite') || types.has('emoji_reaction')
+          formatted.is_reblogged = types.has('reblog')
+          formatted.is_bookmarked = types.has('bookmark')
+        }
+      } catch {
+        // User not logged in or profile not found – keep defaults
+      }
+
       debug.log(`✅ Core: Loaded post: ${postId}`)
-      return this.formatTimelinePost(post)
+      return formatted
     } catch (error) {
       debug.error('❌ Core: Failed to load post:', error)
       throw error

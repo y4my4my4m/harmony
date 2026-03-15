@@ -866,7 +866,21 @@ const displayContent = computed(() => {
 const displayMediaAttachments = computed(() => {
   const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
   const media = source?.media_attachments ?? source?.mediaAttachments;
-  return Array.isArray(media) ? media : [];
+  const raw = Array.isArray(media) ? media : [];
+  // Normalize federated media (ActivityPub uses type 'Document', mediaType 'image/*') so they render in grid
+  return raw.map((m: any, idx: number) => {
+    const url = m.url || m.remote_url || m.href;
+    if (!url) return null;
+    let type = m.type?.toLowerCase?.() || m.type || 'unknown';
+    if (type === 'document' || type === 'unknown') {
+      const mt = (m.mediaType || m.media_type || m.mime_type || '').toLowerCase();
+      if (mt.startsWith('image/')) type = 'image';
+      else if (mt.startsWith('video/') || mt.includes('gif')) type = 'video';
+      else if (/\.(jpe?g|png|gif|webp|avif)/i.test(url)) type = 'image';
+      else if (/\.(mp4|webm|ogv|mov)/i.test(url)) type = 'video';
+    }
+    return { ...m, id: m.id || `m-${idx}`, url, type };
+  }).filter(Boolean);
 });
 
 const displayContentWarning = computed(() => {

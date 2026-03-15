@@ -62,7 +62,29 @@ async function loadPostFromDb(postId: string): Promise<TimelinePost | null> {
     .single()
 
   if (error || !data) return null
-  return formatPost(data)
+  const post = formatPost(data)
+
+  // Fetch current user's interactions for favorite icon in embeds
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    if (profileId) {
+      const { data: interactions } = await supabase
+        .from('post_interactions')
+        .select('interaction_type')
+        .eq('post_id', postId)
+        .eq('user_id', profileId)
+        .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark'])
+      const types = new Set(interactions?.map((i) => i.interaction_type) || [])
+      post.is_favorited = types.has('favorite') || types.has('emoji_reaction')
+      post.is_reblogged = types.has('reblog')
+      post.is_bookmarked = types.has('bookmark')
+    }
+  } catch {
+    // User not logged in – keep defaults
+  }
+
+  return post
 }
 
 async function importRemotePost(url: string): Promise<string | null> {
