@@ -399,30 +399,6 @@ class AdminService {
   }
 
   /**
-   * Get total user counts by category (for admin filter stats)
-   */
-  async getUserCounts(): Promise<{ total: number; local: number; federated: number; suspended: number }> {
-    try {
-      const [totalRes, localRes, federatedRes, suspendedRes] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', false),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_suspended', true)
-      ])
-
-      return {
-        total: totalRes.count ?? 0,
-        local: localRes.count ?? 0,
-        federated: federatedRes.count ?? 0,
-        suspended: suspendedRes.count ?? 0
-      }
-    } catch (error) {
-      debug.error('Failed to get user counts:', error)
-      return { total: 0, local: 0, federated: 0, suspended: 0 }
-    }
-  }
-
-  /**
    * Get users with admin-relevant information (paginated)
    */
   async getUsers(limit: number = 25, offset: number = 0): Promise<{ users: AdminUser[]; total: number }> {

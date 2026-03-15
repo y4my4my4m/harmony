@@ -97,12 +97,11 @@
     </div>
   </div>
 
-  <!-- vue-easy-lightbox for Media Modal -->
-  <vue-easy-lightbox
-    class="lightbox"
+  <!-- Custom MediaLightbox for images + videos (no node_modules patching) -->
+  <MediaLightbox
+    v-model:index="currentMediaIndex"
     :visible="showModal"
     :imgs="lightboxImages"
-    :index="currentMediaIndex"
     @hide="closeModal"
   />
 </template>
@@ -112,7 +111,7 @@ import { computed, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
-import VueEasyLightbox from 'vue-easy-lightbox';
+import MediaLightbox from '@/components/common/MediaLightbox.vue';
 
 interface Props {
   mediaAttachments: MediaAttachment[];
@@ -153,7 +152,7 @@ function isVideoUrl(url: string): boolean {
   return /\.(mp4|webm|ogv|mov|gif)(\?|$)/i.test(url);
 }
 
-// Prepare images for vue-easy-lightbox
+// Prepare items for MediaLightbox (images + videos)
 const lightboxImages = computed(() => {
   return props.mediaAttachments
     .filter(media => media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url)))
@@ -161,10 +160,10 @@ const lightboxImages = computed(() => {
       if (media.type === 'image') {
         return media.url;
       } else if (media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url))) {
-        // vue-easy-lightbox supports videos
         return {
           src: media.url,
-          type: 'video'
+          type: 'video',
+          poster: media.preview_url
         };
       }
       return media.url;
